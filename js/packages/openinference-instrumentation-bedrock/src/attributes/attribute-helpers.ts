@@ -1,5 +1,8 @@
 import { Span, AttributeValue, Attributes } from "@opentelemetry/api";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  SemanticConventions,
+  LLMSystem,
+} from "@arizeai/openinference-semantic-conventions";
 import {
   Message,
   SystemContentBlock,
@@ -181,4 +184,43 @@ export function processMessages({
       setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
     }
   }
+}
+
+/**
+ * Extracts vendor-specific system name from Bedrock model ID
+ * Maps model IDs to their corresponding AI system providers
+ *
+ * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
+ */
+export function getSystemFromModelId(modelId: string): string {
+  if (modelId.includes("anthropic")) return LLMSystem.ANTHROPIC;
+  if (modelId.includes("ai21")) return LLMSystem.AI21;
+  if (modelId.includes("amazon")) return LLMSystem.AMAZON;
+  if (modelId.includes("cohere")) return LLMSystem.COHERE;
+  if (modelId.includes("meta")) return LLMSystem.META;
+  if (modelId.includes("mistral")) return LLMSystem.MISTRALAI;
+  return "bedrock";
+}
+
+/**
+ * Extracts clean model name from full Bedrock model ID
+ * Removes vendor prefix and version suffixes to get the base model name
+ *
+ * @param modelId The full Bedrock model identifier
+ * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
+ */
+export function extractModelName(modelId: string): string {
+  const parts = modelId.split(".");
+  if (parts.length > 1) {
+    const modelPart = parts[1];
+    if (modelId.includes("anthropic")) {
+      const versionIndex = modelPart.indexOf("-v");
+      if (versionIndex > 0) {
+        return modelPart.substring(0, versionIndex);
+      }
+    }
+    return modelPart;
+  }
+  return modelId;
 }

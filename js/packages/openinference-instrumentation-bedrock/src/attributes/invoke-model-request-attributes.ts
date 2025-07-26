@@ -32,7 +32,11 @@ import {
   extractToolResultBlocks,
   formatImageUrl,
 } from "../utils/content-processing";
-import { setSpanAttribute } from "./attribute-helpers";
+import { 
+  setSpanAttribute,
+  getSystemFromModelId,
+  extractModelName,
+} from "./attribute-helpers";
 
 /**
  * Safely parses the InvokeModel request body with comprehensive error handling
@@ -72,6 +76,53 @@ const parseRequestBody = withSafety({
     } as InvokeModelRequestBody;
   },
 });
+
+
+/**
+ * Interface for invocation parameters combining AWS SDK standard interface with vendor-specific parameters
+ * Uses AWS SDK's InferenceConfiguration for standard parameters across all model vendors
+ */
+interface ExtractedInvocationParameters
+  extends Partial<InferenceConfiguration> {
+  top_k?: number;
+  anthropic_version?: string;
+}
+
+/**
+ * Extracts invocation parameters from request body using AWS SDK standards
+ * Maps snake_case parameter names to camelCase AWS SDK convention where applicable
+ * Combines standard AWS SDK InferenceConfiguration with vendor-specific parameters
+ *
+ * @param requestBody The parsed request body containing model parameters
+ * @returns {ExtractedInvocationParameters} Object containing extracted parameters
+ */
+function extractInvocationParameters(
+  requestBody: InvokeModelRequestBody,
+): ExtractedInvocationParameters {
+  const invocationParams: ExtractedInvocationParameters = {};
+
+  if (requestBody.max_tokens) {
+    invocationParams.maxTokens = requestBody.max_tokens;
+  }
+  if (requestBody.temperature != null) {
+    invocationParams.temperature = requestBody.temperature;
+  }
+  if (requestBody.top_p != null) {
+    invocationParams.topP = requestBody.top_p;
+  }
+  if (requestBody.stop_sequences) {
+    invocationParams.stopSequences = requestBody.stop_sequences;
+  }
+
+  if (requestBody.top_k != null) {
+    invocationParams.top_k = requestBody.top_k;
+  }
+  if (requestBody.anthropic_version) {
+    invocationParams.anthropic_version = requestBody.anthropic_version;
+  }
+
+  return invocationParams;
+}
 
 /**
  * Extracts base request attributes for OpenInference semantic conventions
@@ -209,92 +260,6 @@ export const extractInvokeModelRequestAttributes = withSafety({
 });
 
 // Helper functions
-
-/**
- * Extracts vendor-specific system name from Bedrock model ID
- * Maps model IDs to their corresponding AI system providers
- *
- * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
- * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
- */
-function getSystemFromModelId(modelId: string): string {
-  if (modelId.includes("anthropic")) return "anthropic";
-  if (modelId.includes("ai21")) return "ai21";
-  if (modelId.includes("amazon")) return "amazon";
-  if (modelId.includes("cohere")) return "cohere";
-  if (modelId.includes("meta")) return "meta";
-  if (modelId.includes("mistral")) return "mistral";
-  return "bedrock";
-}
-
-/**
- * Extracts clean model name from full Bedrock model ID
- * Removes vendor prefix and version suffixes to get the base model name
- *
- * @param modelId The full Bedrock model identifier
- * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
- */
-function extractModelName(modelId: string): string {
-  const parts = modelId.split(".");
-  if (parts.length > 1) {
-    const modelPart = parts[1];
-    if (modelId.includes("anthropic")) {
-      const versionIndex = modelPart.indexOf("-v");
-      if (versionIndex > 0) {
-        return modelPart.substring(0, versionIndex);
-      }
-    }
-    return modelPart;
-  }
-  return modelId;
-}
-
-/**
- * Interface for invocation parameters combining AWS SDK standard interface with vendor-specific parameters
- * Uses AWS SDK's InferenceConfiguration for standard parameters across all model vendors
- */
-interface ExtractedInvocationParameters
-  extends Partial<InferenceConfiguration> {
-  top_k?: number;
-  anthropic_version?: string;
-}
-
-/**
- * Extracts invocation parameters from request body using AWS SDK standards
- * Maps snake_case parameter names to camelCase AWS SDK convention where applicable
- * Combines standard AWS SDK InferenceConfiguration with vendor-specific parameters
- *
- * @param requestBody The parsed request body containing model parameters
- * @returns {ExtractedInvocationParameters} Object containing extracted parameters
- */
-function extractInvocationParameters(
-  requestBody: InvokeModelRequestBody,
-): ExtractedInvocationParameters {
-  const invocationParams: ExtractedInvocationParameters = {};
-
-  if (requestBody.max_tokens) {
-    invocationParams.maxTokens = requestBody.max_tokens;
-  }
-  if (requestBody.temperature != null) {
-    invocationParams.temperature = requestBody.temperature;
-  }
-  if (requestBody.top_p != null) {
-    invocationParams.topP = requestBody.top_p;
-  }
-  if (requestBody.stop_sequences) {
-    invocationParams.stopSequences = requestBody.stop_sequences;
-  }
-
-  if (requestBody.top_k != null) {
-    invocationParams.top_k = requestBody.top_k;
-  }
-  if (requestBody.anthropic_version) {
-    invocationParams.anthropic_version = requestBody.anthropic_version;
-  }
-
-  return invocationParams;
-}
-
 /**
  * Adds message attributes to the span following OpenInference conventions
  * Processes role, content, tool calls, and tool results with proper indexing

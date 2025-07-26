@@ -187,7 +187,7 @@ export const extractConverseResponseAttributes = withSafety({
     span: Span;
     response: ConverseResponse;
   }): void => {
-    if (!response || !isConverseResponse(response)) {
+    if (!isConverseResponse(response)) {
       return;
     }
 
