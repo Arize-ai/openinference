@@ -51,11 +51,13 @@ export {
   ContentBlockStopEvent,
 };
 
+
+
 // Custom types that extend or aren't available in the SDK
 
 // Legacy InvokeModel API types (not fully exposed in new SDK versions)
 export interface InvokeModelRequestBody {
-  anthropic_version: string;
+  anthropic_version?: string;
   max_tokens: number;
   messages: BedrockMessage[];
   tools?: ToolDefinition[];
@@ -178,7 +180,6 @@ export function isTextContent(content: unknown): content is TextContent {
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "type" in content &&
     content.type === "text" &&
     "text" in content &&

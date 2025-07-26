@@ -17,12 +17,42 @@ import { withSafety } from "@arizeai/openinference-core";
 import {
   InvokeModelResponseBody,
   TextContent,
-  ToolUseContent,
-  UsageInfo,
   isTextContent,
   isToolUseContent,
 } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
+
+
+/**
+ * Safely parses the InvokeModel response body with comprehensive error handling
+ * Handles multiple response body formats and provides null fallback on error
+ *
+ * @param response The InvokeModelResponse containing the response body to parse
+ * @returns {InvokeModelResponseBody | null} Parsed response body or null on error
+ */
+const parseResponseBody = withSafety({
+  fn: (response: InvokeModelResponse): InvokeModelResponseBody => {
+    if (!response.body) {
+      throw new Error("Response body is missing");
+    }
+
+    let responseText: string;
+    if (typeof response.body === "string") {
+      responseText = response.body;
+    } else if (response.body instanceof Uint8Array) {
+      responseText = new TextDecoder().decode(response.body);
+    } else {
+      // Handle other potential types
+      responseText = new TextDecoder().decode(response.body as Uint8Array);
+    }
+
+    return JSON.parse(responseText) as InvokeModelResponseBody;
+  },
+  onError: (error) => {
+    diag.warn("Error parsing response body:", error);
+    return null;
+  },
+});
 
 /**
  * Type guard to check if response body contains a simple single text content
@@ -94,7 +124,7 @@ function extractOutputMessagesAttributes({
  * @param params.responseBody The parsed response body containing tool calls
  * @param params.span The OpenTelemetry span to set attributes on
  */
-function extractToolCallAttributes({
+function extractToolCallsAttributes({
   responseBody,
   span,
 }: {
@@ -105,9 +135,7 @@ function extractToolCallAttributes({
     return;
   }
 
-  const toolUseBlocks = responseBody.content.filter(
-    isToolUseContent,
-  ) as ToolUseContent[];
+  const toolUseBlocks = responseBody.content.filter(isToolUseContent);
 
   toolUseBlocks.forEach((content, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
@@ -149,7 +177,7 @@ function extractUsageAttributes({
     return;
   }
 
-  const usage = responseBody.usage as UsageInfo;
+  const usage = responseBody.usage;
 
   // Standard token counts
   setSpanAttribute(
@@ -200,7 +228,6 @@ function addOutputMessageContentAttributes({
     const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
 
     if (isTextContent(content)) {
-      const textContent = content as TextContent;
       setSpanAttribute(
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
@@ -209,42 +236,12 @@ function addOutputMessageContentAttributes({
       setSpanAttribute(
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-        textContent.text,
+        content.text,
       );
     }
   });
 }
 
-/**
- * Safely parses the InvokeModel response body with comprehensive error handling
- * Handles multiple response body formats and provides null fallback on error
- *
- * @param response The InvokeModelResponse containing the response body to parse
- * @returns {InvokeModelResponseBody | null} Parsed response body or null on error
- */
-const parseResponseBody = withSafety({
-  fn: (response: InvokeModelResponse): InvokeModelResponseBody => {
-    if (!response.body) {
-      throw new Error("Response body is missing");
-    }
-
-    let responseText: string;
-    if (typeof response.body === "string") {
-      responseText = response.body;
-    } else if (response.body instanceof Uint8Array) {
-      responseText = new TextDecoder().decode(response.body);
-    } else {
-      // Handle other potential types
-      responseText = new TextDecoder().decode(response.body as Uint8Array);
-    }
-
-    return JSON.parse(responseText) as InvokeModelResponseBody;
-  },
-  onError: (error) => {
-    diag.warn("Error parsing response body:", error);
-    return null;
-  },
-});
 
 /**
  * Extracts semantic convention attributes from InvokeModel response and sets them on the span
@@ -279,7 +276,7 @@ export const extractInvokeModelResponseAttributes = withSafety({
 
     // Extract all response attributes using named parameters
     extractOutputMessagesAttributes({ responseBody, span });
-    extractToolCallAttributes({ responseBody, span });
+    extractToolCallsAttributes({ responseBody, span });
     extractUsageAttributes({ responseBody, span });
   },
   onError: (error) => {
