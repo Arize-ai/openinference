@@ -15,7 +15,7 @@ import {
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
 import { ContentBlockDelta } from "@aws-sdk/client-bedrock-runtime";
-import { withSafety } from "@arizeai/openinference-core";
+import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
 import { ReadableStream } from "node:stream/web";
 import { isToolUseContent } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
@@ -62,11 +62,9 @@ interface StreamEventData {
  */
 function isValidStreamChunk(chunk: unknown): chunk is StreamChunk {
   return (
-    chunk !== null &&
-    typeof chunk === "object" &&
+    isObjectWithStringKeys(chunk) &&
     "chunk" in chunk &&
-    chunk.chunk !== null &&
-    typeof chunk.chunk === "object" &&
+    isObjectWithStringKeys(chunk.chunk) &&
     "bytes" in chunk.chunk &&
     chunk.chunk.bytes instanceof Uint8Array
   );
@@ -81,8 +79,7 @@ function isValidStreamChunk(chunk: unknown): chunk is StreamChunk {
  */
 function isValidStreamEventData(data: unknown): data is StreamEventData {
   return (
-    data !== null &&
-    typeof data === "object" &&
+    isObjectWithStringKeys(data) &&
     "type" in data &&
     typeof data.type === "string" &&
     [

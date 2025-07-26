@@ -1,4 +1,4 @@
-import { Span, AttributeValue } from "@opentelemetry/api";
+import { Span, AttributeValue, Attributes } from "@opentelemetry/api";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import {
   Message,
@@ -72,6 +72,39 @@ export function aggregateMessages(
 }
 
 /**
+ * Extracts OpenInference semantic convention attributes from message content blocks
+ * Handles text, image, and tool content types with appropriate attribute mapping
+ *
+ * Note: Uses custom content type guards since AWS SDK ContentBlock union types
+ * require additional processing for reliable type detection
+ *
+ * @param content The content block to extract attributes from
+ * @returns {Record<string, AttributeValue>} Object containing content-specific attributes
+ */
+export function getAttributesFromMessageContent(
+  content: ContentBlock,
+): Attributes {
+  const attributes: Attributes = {};
+
+  if (isConverseTextContent(content)) {
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "text";
+    attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
+  } else if (isConverseImageContent(content)) {
+    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
+    if (content.image.source.bytes) {
+      // Convert bytes to base64 data URL for consistent representation
+      const base64 = Buffer.from(content.image.source.bytes).toString("base64");
+      const mimeType = `image/${content.image.format}`;
+      attributes[
+        `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
+      ] = `data:${mimeType};base64,${base64}`;
+    }
+  }
+
+  return attributes;
+}
+
+/**
  * Extracts OpenInference semantic convention attributes from a single Bedrock message
  * Handles role, content, tool calls, and tool results following the OpenInference specification
  *
@@ -80,8 +113,8 @@ export function aggregateMessages(
  */
 export function getAttributesFromMessage(
   message: Message,
-): Record<string, AttributeValue> {
-  const attributes: Record<string, AttributeValue> = {};
+): Attributes {
+  const attributes: Attributes = {};
 
   if (message.role) {
     attributes[SemanticConventions.MESSAGE_ROLE] = message.role;
@@ -95,7 +128,7 @@ export function getAttributesFromMessage(
       const contentAttributes = getAttributesFromMessageContent(content);
       for (const [key, value] of Object.entries(contentAttributes)) {
         attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
-          value;
+          value as AttributeValue;
       }
 
       // Handle tool calls at the message level using proper semantic conventions
@@ -116,39 +149,6 @@ export function getAttributesFromMessage(
         attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
           content.toolResult.toolUseId;
       }
-    }
-  }
-
-  return attributes;
-}
-
-/**
- * Extracts OpenInference semantic convention attributes from message content blocks
- * Handles text, image, and tool content types with appropriate attribute mapping
- *
- * Note: Uses custom content type guards since AWS SDK ContentBlock union types
- * require additional processing for reliable type detection
- *
- * @param content The content block to extract attributes from
- * @returns {Record<string, AttributeValue>} Object containing content-specific attributes
- */
-export function getAttributesFromMessageContent(
-  content: ContentBlock,
-): Record<string, AttributeValue> {
-  const attributes: Record<string, AttributeValue> = {};
-
-  if (isConverseTextContent(content)) {
-    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "text";
-    attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
-  } else if (isConverseImageContent(content)) {
-    attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
-    if (content.image.source.bytes) {
-      // Convert bytes to base64 data URL for consistent representation
-      const base64 = Buffer.from(content.image.source.bytes).toString("base64");
-      const mimeType = `image/${content.image.format}`;
-      attributes[
-        `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-      ] = `data:${mimeType};base64,${base64}`;
     }
   }
 
