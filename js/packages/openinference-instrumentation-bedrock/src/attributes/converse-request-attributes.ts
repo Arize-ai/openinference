@@ -17,6 +17,8 @@ import {
   setSpanAttribute,
   aggregateMessages,
   processMessages,
+  getSystemFromModelId,
+  extractModelName,
 } from "./attribute-helpers";
 
 /**
@@ -37,45 +39,6 @@ function isConverseRequest(input: unknown): input is ConverseRequest {
     "messages" in input &&
     Array.isArray(input.messages)
   );
-}
-
-/**
- * Extracts vendor-specific system name from Bedrock model ID
- * Maps model IDs to their corresponding AI system providers
- *
- * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
- * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
- */
-function getSystemFromModelId(modelId: string): string {
-  if (modelId.includes("anthropic")) return "anthropic";
-  if (modelId.includes("ai21")) return "ai21";
-  if (modelId.includes("amazon")) return "amazon";
-  if (modelId.includes("cohere")) return "cohere";
-  if (modelId.includes("meta")) return "meta";
-  if (modelId.includes("mistral")) return "mistral";
-  return "bedrock";
-}
-
-/**
- * Extracts clean model name from full Bedrock model ID
- * Removes vendor prefix and version suffixes to get the base model name
- *
- * @param modelId The full Bedrock model identifier
- * @returns {string} The cleaned model name (e.g., "claude-3-sonnet" from "anthropic.claude-3-sonnet-20240229-v1:0")
- */
-function extractModelName(modelId: string): string {
-  const parts = modelId.split(".");
-  if (parts.length > 1) {
-    const modelPart = parts[1];
-    if (modelId.includes("anthropic")) {
-      const versionIndex = modelPart.indexOf("-v");
-      if (versionIndex > 0) {
-        return modelPart.substring(0, versionIndex);
-      }
-    }
-    return modelPart;
-  }
-  return modelId;
 }
 
 /**
@@ -112,7 +75,6 @@ function extractBaseRequestAttributes({
     extractModelName(modelId),
   );
 
-  // Use AWS SDK InferenceConfiguration directly - no conversion needed!
   if (input.inferenceConfig && Object.keys(input.inferenceConfig).length > 0) {
     setSpanAttribute(
       span,
@@ -175,8 +137,6 @@ function extractInputToolAttributes({
   if (!toolConfig?.tools) return;
 
   toolConfig.tools.forEach((tool, index: number) => {
-    // Store the tool data as-is without normalization
-    // This avoids the complexity of tool format standardization across providers
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
