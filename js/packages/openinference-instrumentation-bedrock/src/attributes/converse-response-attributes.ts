@@ -3,7 +3,7 @@ import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import { withSafety } from "@arizeai/openinference-core";
+import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
 import {
   ConverseResponse,
   ConverseOutput,
@@ -21,13 +21,12 @@ import { isConverseToolUseContent } from "../types/bedrock-types";
  * @returns {boolean} True if response is a valid ConverseResponse, false otherwise
  */
 function isConverseResponse(response: unknown): response is ConverseResponse {
-  if (!response || typeof response !== "object" || response === null) {
+  if (!isObjectWithStringKeys(response)) {
     return false;
   }
 
-  const obj = response as Record<string, unknown>;
   return (
-    "output" in obj && typeof obj.output === "object" && obj.output !== null
+    "output" in response && typeof response.output === "object" && response.output !== null
   );
 }
 

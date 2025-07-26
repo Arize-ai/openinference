@@ -12,7 +12,7 @@ import {
   MimeType,
   LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
-import { withSafety } from "@arizeai/openinference-core";
+import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
 import {
   setSpanAttribute,
   aggregateMessages,
@@ -27,16 +27,15 @@ import {
  * @returns {boolean} True if input is a valid ConverseRequest, false otherwise
  */
 function isConverseRequest(input: unknown): input is ConverseRequest {
-  if (!input || typeof input !== "object" || input === null) {
+  if (!isObjectWithStringKeys(input)) {
     return false;
   }
 
-  const obj = input as Record<string, unknown>;
   return (
-    "modelId" in obj &&
-    typeof obj.modelId === "string" &&
-    "messages" in obj &&
-    Array.isArray(obj.messages)
+    "modelId" in input &&
+    typeof input.modelId === "string" &&
+    "messages" in input &&
+    Array.isArray(input.messages)
   );
 }
 

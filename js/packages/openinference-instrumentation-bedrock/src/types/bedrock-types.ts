@@ -30,6 +30,7 @@ import {
   ContentBlockStartEvent,
   ContentBlockStopEvent,
 } from "@aws-sdk/client-bedrock-runtime";
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
 // Re-export AWS SDK types for convenience
 export {
@@ -279,14 +280,10 @@ export function isConverseToolResultContent(
   content: unknown,
 ): content is ConverseToolResultContent {
   return (
-    content !== null &&
-    typeof content === "object" &&
-    content !== null &&
+    isObjectWithStringKeys(content) &&
     "toolResult" in content &&
-    content.toolResult !== null &&
-    typeof content.toolResult === "object" &&
+    isObjectWithStringKeys(content.toolResult) &&
     "toolUseId" in content.toolResult &&
-    typeof (content.toolResult as Record<string, unknown>).toolUseId ===
-      "string"
+    typeof content.toolResult.toolUseId === "string"
   );
 }
