@@ -142,11 +142,9 @@ export function getAttributesFromMessage(
         attributes[
           `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
         ] = content.toolUse.name;
-        if (content.toolUse.input) {
-          attributes[
-            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-          ] = JSON.stringify(content.toolUse.input);
-        }
+        attributes[
+          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+        ] = JSON.stringify(content.toolUse.input);
         toolCallIndex++;
       } else if (isConverseToolResultContent(content)) {
         attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =

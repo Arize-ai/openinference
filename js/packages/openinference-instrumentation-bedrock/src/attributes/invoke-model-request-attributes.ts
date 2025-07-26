@@ -294,13 +294,11 @@ function addMessageAttributes({
 
   if (isSimpleTextMessage) {
     const messageContent = extractTextFromContent(message.content);
-    if (messageContent) {
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`,
-        messageContent,
-      );
-    }
+    setSpanAttribute(
+      span,
+      `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`,
+      messageContent,
+    );
   } else {
     addMessageContentAttributes({ span, message, messageIndex: index });
   }
@@ -346,13 +344,11 @@ function handleToolCallsInMessage({
         `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
         content.name,
       );
-      if (content.input) {
-        setSpanAttribute(
-          span,
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-          JSON.stringify(content.input),
-        );
-      }
+      setSpanAttribute(
+        span,
+        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+        JSON.stringify(content.input),
+      );
       toolCallIndex++;
     }
   });
@@ -408,20 +404,6 @@ function addMessageContentAttributes({
 }): void {
   if (!message.content) return;
 
-  if (typeof message.content === "string") {
-    setSpanAttribute(
-      span,
-      `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-      "text",
-    );
-    setSpanAttribute(
-      span,
-      `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-      message.content,
-    );
-    return;
-  }
-
   if (Array.isArray(message.content)) {
     message.content.forEach((content, contentIndex) => {
       const contentPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${messageIndex}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
@@ -443,14 +425,12 @@ function addMessageContentAttributes({
           `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
           "image",
         );
-        if (content.source) {
-          const imageUrl = formatImageUrl(content.source);
-          setSpanAttribute(
-            span,
-            `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`,
-            imageUrl,
-          );
-        }
+        const imageUrl = formatImageUrl(content.source);
+        setSpanAttribute(
+          span,
+          `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`,
+          imageUrl,
+        );
       }
     });
   }

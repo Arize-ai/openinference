@@ -25,6 +25,26 @@ import {
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
+ * Type guard to check if response body contains a simple single text content
+ * Combines all checks needed to safely access the text content without casting
+ * 
+ * @param responseBody The response body to check
+ * @returns {boolean} True if response contains a single text content block
+ */
+function isSimpleTextResponse(
+  responseBody: InvokeModelResponseBody,
+): responseBody is InvokeModelResponseBody & {
+  content: [TextContent];
+} {
+  return (
+    responseBody.content &&
+    Array.isArray(responseBody.content) &&
+    responseBody.content.length === 1 &&
+    isTextContent(responseBody.content[0])
+  );
+}
+
+/**
  * Extracts output messages attributes from InvokeModel response body
  * Processes response content and sets OpenInference output message attributes
  * Handles both simple text responses and complex multi-modal responses
@@ -46,15 +66,10 @@ function extractOutputMessagesAttributes({
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   // Determine if this is a simple text response or complex multimodal response
-  const isSimpleTextResponse =
-    responseBody.content &&
-    Array.isArray(responseBody.content) &&
-    responseBody.content.length === 1 &&
-    isTextContent(responseBody.content[0]);
-
-  if (isSimpleTextResponse) {
+  if (isSimpleTextResponse(responseBody)) {
     // For simple text responses, use the message content
-    const textBlock = responseBody.content[0] as TextContent;
+    // No cast needed - type guard ensures content[0] is TextContent
+    const textBlock = responseBody.content[0];
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
@@ -107,14 +122,11 @@ function extractToolCallAttributes({
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
       content.name,
     );
-
-    if (content.input) {
-      setSpanAttribute(
-        span,
-        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        JSON.stringify(content.input),
-      );
-    }
+    setSpanAttribute(
+      span,
+      `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
+      JSON.stringify(content.input),
+    );
   });
 }
 
@@ -140,38 +152,28 @@ function extractUsageAttributes({
   const usage = responseBody.usage as UsageInfo;
 
   // Standard token counts
-  if (usage.input_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-      usage.input_tokens,
-    );
-  }
-
-  if (usage.output_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-      usage.output_tokens,
-    );
-  }
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+    usage.input_tokens,
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+    usage.output_tokens,
+  );
 
   // Cache-related token attributes (if present)
-  if (usage.cache_read_input_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-      usage.cache_read_input_tokens,
-    );
-  }
-
-  if (usage.cache_creation_input_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-      usage.cache_creation_input_tokens,
-    );
-  }
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+    usage.cache_read_input_tokens,
+  );
+  setSpanAttribute(
+    span,
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+    usage.cache_creation_input_tokens,
+  );
 }
 
 /**

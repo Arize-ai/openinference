@@ -52,9 +52,7 @@ function extractBaseResponseAttributes({
   );
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
-  if (response.stopReason) {
-    setSpanAttribute(span, "llm.stop_reason", response.stopReason);
-  }
+  setSpanAttribute(span, "llm.stop_reason", response.stopReason);
 }
 
 /**
@@ -119,7 +117,7 @@ function extractToolCallAttributes({
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-        toolUse.input ? JSON.stringify(toolUse.input) : undefined,
+        JSON.stringify(toolUse.input),
       );
       setSpanAttribute(
         span,
