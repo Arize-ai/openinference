@@ -1,46 +1,33 @@
+import { Attributes } from "@opentelemetry/api";
 import {
   LLMProvider,
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import {
-  InvokeAgentCommand,
-  InvokeAgentRequest,
-} from "@aws-sdk/client-bedrock-agent-runtime";
-
-function extractInvocationParameters(
-  requestBody: InvokeAgentRequest,
-): Record<string, string> {
-  const invocationParams: Record<string, string> = {};
-
-  if (requestBody.agentId) {
-    invocationParams.agentId = requestBody.agentId;
-  }
-  if (requestBody.agentAliasId) {
-    invocationParams.agentAliasId = requestBody.agentAliasId;
-  }
-  if (requestBody.sessionId) {
-    invocationParams.sessionId = requestBody.sessionId;
-  }
-  return invocationParams;
-}
+import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export function extractBaseRequestAttributes(
   command: InvokeAgentCommand,
-): Record<string, string> {
-  const attributes: Record<string, string> = {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+): Attributes {
+  const attributes: Attributes = {
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
     [SemanticConventions.LLM_SYSTEM]: "bedrock",
-    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.TEXT,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
   };
 
   // Add invocation parameters for model configuration
-  const invocationParams = extractInvocationParameters(command.input);
-  if (Object.keys(invocationParams).length > 0) {
+  const { inputText: _inputText, ...invocationParams } = command.input;
+  const jsonParams = Object.fromEntries(
+    Object.entries(invocationParams).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : JSON.stringify(value),
+    ]),
+  );
+  if (Object.keys(jsonParams).length > 0) {
     attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
-      JSON.stringify(invocationParams);
+      JSON.stringify(jsonParams);
   }
   attributes[SemanticConventions.INPUT_VALUE] = command.input?.inputText || "";
   return attributes;

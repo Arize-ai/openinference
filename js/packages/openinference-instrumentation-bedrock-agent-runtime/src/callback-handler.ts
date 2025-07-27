@@ -18,7 +18,7 @@ export class CallbackHandler {
     this.outputChunks.push(text);
   }
   consumeTrace(trace: object) {
-    diag.info(JSON.stringify(trace));
+    diag.debug(JSON.stringify(trace));
   }
   onComplete(): void {
     const finalOutput = this.outputChunks.join("");
@@ -35,7 +35,9 @@ export class CallbackHandler {
   }
 
   onError(error: unknown): void {
-    this.span.recordException(error as Error);
+    if (error instanceof Error) {
+      this.span.recordException(error);
+    }
     const message =
       error &&
       typeof error === "object" &&

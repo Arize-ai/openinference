@@ -18,6 +18,7 @@ import { extractBaseRequestAttributes } from "./attributes/request-attributes";
 import { interceptAgentResponse } from "./stream-utils";
 import { CallbackHandler } from "./callback-handler";
 import { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
+import * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
 
@@ -72,13 +73,12 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     });
   }
 
-  protected init(): InstrumentationModuleDefinition<unknown>[] {
-    const module = new InstrumentationNodeModuleDefinition<unknown>(
-      MODULE_NAME,
-      ["^3.0.0"],
-      this.patch.bind(this),
-      this.unpatch.bind(this),
-    );
+  protected init(): InstrumentationModuleDefinition<
+    typeof bedrockAgentRunTime
+  >[] {
+    const module = new InstrumentationNodeModuleDefinition<
+      typeof bedrockAgentRunTime
+    >(MODULE_NAME, ["^3.0.0"], this.patch.bind(this), this.unpatch.bind(this));
     return [module];
   }
 
@@ -98,42 +98,15 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     });
   }
 
-  private getBedrockAgentModule(moduleExports: unknown):
-    | {
-        BedrockAgentRuntimeClient: {
-          prototype: {
-            send: (
-              command: InvokeAgentCommand,
-            ) => Promise<InvokeAgentCommandOutput>;
-          };
-        };
-      }
-    | undefined {
-    if (
-      typeof moduleExports === "object" &&
-      moduleExports !== null &&
-      "BedrockAgentRuntimeClient" in moduleExports
-    ) {
-      return moduleExports as {
-        BedrockAgentRuntimeClient: {
-          prototype: {
-            send: (
-              command: InvokeAgentCommand,
-            ) => Promise<InvokeAgentCommandOutput>;
-          };
-        };
-      };
-    }
-    return undefined;
-  }
-
-  private patch(moduleExports: unknown, moduleVersion?: string) {
+  private patch(
+    moduleExports: typeof bedrockAgentRunTime,
+    moduleVersion?: string,
+  ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isBedrockAgentPatched) return moduleExports;
-    const bedrockModule = this.getBedrockAgentModule(moduleExports);
-    if (!bedrockModule) return moduleExports;
+    if (!moduleExports) return moduleExports;
     this._wrap(
-      bedrockModule.BedrockAgentRuntimeClient.prototype,
+      moduleExports.BedrockAgentRuntimeClient.prototype,
       "send",
       (
         original: (
@@ -143,7 +116,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
         /* eslint-disable @typescript-eslint/no-this-alias */
         const instrumentationInstance = this;
         return function patchedSend(
-          this: typeof bedrockModule.BedrockAgentRuntimeClient.prototype,
+          this: typeof moduleExports.BedrockAgentRuntimeClient.prototype,
           command: InvokeAgentCommand,
         ) {
           if (command?.constructor?.name === "InvokeAgentCommand") {
@@ -155,7 +128,6 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           }
           return original.apply(this, [command]);
         };
-        /* eslint-disable @typescript-eslint/no-this-alias */
       },
     );
     _isBedrockAgentPatched = true;
@@ -200,11 +172,13 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
       });
   }
 
-  private unpatch(moduleExports: unknown, moduleVersion?: string) {
+  private unpatch(
+    moduleExports: typeof bedrockAgentRunTime,
+    moduleVersion?: string,
+  ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    const bedrockModule = this.getBedrockAgentModule(moduleExports);
-    if (!bedrockModule) return moduleExports;
-    this._unwrap(bedrockModule.BedrockAgentRuntimeClient.prototype, "send");
+    if (!moduleExports) return moduleExports;
+    this._unwrap(moduleExports.BedrockAgentRuntimeClient.prototype, "send");
     _isBedrockAgentPatched = false;
   }
 }

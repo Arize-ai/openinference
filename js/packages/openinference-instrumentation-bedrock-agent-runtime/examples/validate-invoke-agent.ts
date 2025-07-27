@@ -7,8 +7,8 @@ import {
 import { diag } from "@opentelemetry/api";
 
 async function run() {
-  const agentId = "<AgentId>"; // Replace with your actual agent ID
-  const agentAliasId = "<AgentAliasId>"; // Replace with your actual agent alias ID
+  const agentId = process.env.BEDROCK_AGENT_ID;
+  const agentAliasId = process.env.BEDROCK_AGENT_ALIAS_ID;
   const sessionId = `default-session1_${Math.floor(Date.now() / 1000)}`;
   const region = "ap-south-1";
 

@@ -56,7 +56,6 @@ describe("BedrockAgentInstrumentation Integration - agent attributes and API rec
   });
 
   it("should record agent attributes and API response in span", async () => {
-    // instrumentation = create_instrumentation(memoryExporter);
     const client = new BedrockAgentRuntimeClient({
       region,
       credentials: {
