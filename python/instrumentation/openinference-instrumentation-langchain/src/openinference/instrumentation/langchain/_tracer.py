@@ -643,6 +643,14 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     message_tool_calls.append(message_tool_call)
             if message_tool_calls:
                 yield MESSAGE_TOOL_CALLS, message_tool_calls
+    if tool_calls := message_data.get("tool_calls"):
+        assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
+        message_tool_calls = []
+        for tool_call in tool_calls:
+            if message_tool_call := dict(_get_tool_call(tool_call)):
+                message_tool_calls.append(message_tool_call)
+        if message_tool_calls:
+            yield MESSAGE_TOOL_CALLS, message_tool_calls
 
 
 @stop_on_exception
