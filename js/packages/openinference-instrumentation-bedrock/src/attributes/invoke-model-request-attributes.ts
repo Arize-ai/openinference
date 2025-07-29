@@ -17,7 +17,7 @@ import {
 import {
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
-import { withSafety } from "@arizeai/openinference-core";
+import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
 import {
   InvokeModelRequestBody,
   BedrockMessage,
@@ -25,13 +25,14 @@ import {
   isImageContent,
   isToolUseContent,
 } from "../types/bedrock-types";
-import {
-  extractTextFromContent,
-  extractToolResultBlocks,
-  formatImageUrl,
-} from "../utils/content-processing";
 import { setSpanAttribute, extractModelName } from "./attribute-helpers";
-import { extractInvocationParameters, parseRequestBody } from "./invoke-model-helpers";
+import { 
+  extractInvocationParameters, 
+  parseRequestBody,
+  extractToolResultBlocks, 
+  formatImageUrl, 
+  normalizeRequestContentBlocks
+} from "./invoke-model-helpers";
 
 // Helper functions
 /**
@@ -60,18 +61,11 @@ function addMessageAttributes({
     message.role,
   );
 
-  const isSimpleTextMessage =
-    typeof message.content === "string" ||
-    (Array.isArray(message.content) &&
-      message.content.length === 1 &&
-      isTextContent(message.content[0]));
-
-  if (isSimpleTextMessage) {
-    const messageContent = extractTextFromContent(message.content);
+  if (typeof message.content === "string") {
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_CONTENT}`,
-      messageContent,
+      message.content,
     );
   } else {
     addMessageContentAttributes({ span, message, messageIndex: index });
@@ -237,6 +231,9 @@ function extractBaseRequestAttributes({
     SemanticConventions.LLM_MODEL_NAME,
     extractModelName(modelId),
   );
+
+  const inputValue = JSON.stringify(requestBody);
+  setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
 
   const invocationParams = extractInvocationParameters(requestBody, system);
@@ -266,11 +263,11 @@ function extractInputMessagesAttributes({
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
-  const inputValue = JSON.stringify(requestBody);
-  setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
 
-  if (requestBody.messages && Array.isArray(requestBody.messages)) {
-    requestBody.messages.forEach((message, index) => {
+  const messages = normalizeRequestContentBlocks(requestBody, system);
+  
+  if (messages && Array.isArray(messages)) {
+    messages.forEach((message, index) => {
       addMessageAttributes({ span, message, index });
     });
   }
@@ -295,24 +292,24 @@ function extractInputToolAttributes({
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
-  if (requestBody.tools && Array.isArray(requestBody.tools)) {
-    requestBody.tools.forEach((tool, index) => {
-      // Amazon Nova has one extra nest for it's tool declarations
-      if (system === LLMSystem.AMAZON && tool.toolSpec) {
+  if (system === LLMSystem.AMAZON && requestBody.toolConfig && isObjectWithStringKeys(requestBody.toolConfig) && requestBody.toolConfig.tools && Array.isArray(requestBody.toolConfig.tools)) {
+    requestBody.toolConfig.tools.forEach((tool, index) => {
+      if (tool.toolSpec && isObjectWithStringKeys(tool.toolSpec)) {
         setSpanAttribute(
           span,
           `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
           JSON.stringify(tool.toolSpec),
-        );
+        ); 
       }
+    });
+  } else if (requestBody.tools && Array.isArray(requestBody.tools)) {
+    requestBody.tools.forEach((tool, index) => {
       // Both Anthropic and Mistral Chat Completion have the tool definitions in the same place
-      else {
-        setSpanAttribute(
-          span,
-          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-          JSON.stringify(tool),
-        );
-      } 
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
+        JSON.stringify(tool),
+      ); 
     });
   }
 }

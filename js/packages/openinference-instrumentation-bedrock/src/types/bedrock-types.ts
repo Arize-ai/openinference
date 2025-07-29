@@ -58,9 +58,12 @@ export type InvokeModelRequestBody = Record<string, unknown>;
 export type InvokeModelResponseBody = Record<string, unknown>;
 export type InvocationParameters = Record<string, unknown>;
 
+// Extended conversation role type to support additional roles like "tool" and "system" for Mistral
+export type ExtendedConversationRole = ConversationRole | "tool" | "system";
+
 // Legacy message format for InvokeModel (different from Converse Message)
 export interface BedrockMessage {
-  role: ConversationRole;
+  role: ExtendedConversationRole;
   content: MessageContent;
 }
 
