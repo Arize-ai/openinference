@@ -53,32 +53,14 @@ export {
 
 // Custom types that extend or aren't available in the SDK
 
-// Legacy InvokeModel API types (not fully exposed in new SDK versions)
-export interface InvokeModelRequestBody {
-  anthropic_version?: string;
-  max_tokens: number;
-  messages: BedrockMessage[];
-  tools?: ToolDefinition[];
-  system?: string;
-  temperature?: number;
-  top_p?: number;
-  top_k?: number;
-  stop_sequences?: string[];
-}
-
 // Flexible type for multi-provider support with runtime validation
+export type InvokeModelRequestBody = Record<string, unknown>;
 export type InvokeModelResponseBody = Record<string, unknown>;
-
-export interface NormalizedInvokeModelResponseBody {
-  content: string | (TextContent | ToolUseContent)[];
-  usage: UsageInfo;
-  role: ConversationRole;
-  id: string;
-}
+export type InvocationParameters = Record<string, unknown>;
 
 // Legacy message format for InvokeModel (different from Converse Message)
 export interface BedrockMessage {
-  role: "user" | "assistant";
+  role: ConversationRole;
   content: MessageContent;
 }
 

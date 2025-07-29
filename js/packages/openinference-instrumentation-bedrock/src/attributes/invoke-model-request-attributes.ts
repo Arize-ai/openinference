@@ -12,6 +12,7 @@ import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
+  LLMSystem,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   InvokeModelCommand,
@@ -58,28 +59,13 @@ const parseRequestBody = withSafety({
       // For other types, convert to string safely
       bodyString = String(command.input.body);
     }
-
     return JSON.parse(bodyString) as InvokeModelRequestBody;
   },
   onError: (error) => {
     diag.warn("Error parsing InvokeModel request body:", error);
-    return {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 0,
-      messages: [],
-    } as InvokeModelRequestBody;
+    return null;
   },
 });
-
-/**
- * Interface for invocation parameters combining AWS SDK standard interface with vendor-specific parameters
- * Uses AWS SDK's InferenceConfiguration for standard parameters across all model vendors
- */
-interface ExtractedInvocationParameters
-  extends Partial<InferenceConfiguration> {
-  top_k?: number;
-  anthropic_version?: string;
-}
 
 /**
  * Extracts invocation parameters from request body using AWS SDK standards
@@ -91,30 +77,19 @@ interface ExtractedInvocationParameters
  */
 function extractInvocationParameters(
   requestBody: InvokeModelRequestBody,
-): ExtractedInvocationParameters {
-  const invocationParams: ExtractedInvocationParameters = {};
-
-  if (requestBody.max_tokens) {
-    invocationParams.maxTokens = requestBody.max_tokens;
+  system: LLMSystem,
+): Record<string, unknown> {
+  if (system === LLMSystem.AMAZON && requestBody.inferenceConfig && 
+      typeof requestBody.inferenceConfig === 'object' && requestBody.inferenceConfig !== null) {
+    return requestBody.inferenceConfig as Record<string, unknown>;
+  } else if (system === LLMSystem.AMAZON && requestBody.textGenerationConfig && 
+             typeof requestBody.textGenerationConfig === 'object' && requestBody.textGenerationConfig !== null) {
+    return requestBody.textGenerationConfig as Record<string, unknown>;
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const {system, messages, tools, prompt, ...invocationParams} = requestBody;
+    return invocationParams;
   }
-  if (requestBody.temperature != null) {
-    invocationParams.temperature = requestBody.temperature;
-  }
-  if (requestBody.top_p != null) {
-    invocationParams.topP = requestBody.top_p;
-  }
-  if (requestBody.stop_sequences) {
-    invocationParams.stopSequences = requestBody.stop_sequences;
-  }
-
-  if (requestBody.top_k != null) {
-    invocationParams.top_k = requestBody.top_k;
-  }
-  if (requestBody.anthropic_version) {
-    invocationParams.anthropic_version = requestBody.anthropic_version;
-  }
-
-  return invocationParams;
 }
 
 /**
@@ -130,10 +105,12 @@ function extractBaseRequestAttributes({
   span,
   command,
   requestBody,
+  system,
 }: {
   span: Span;
   command: InvokeModelCommand;
   requestBody: InvokeModelRequestBody;
+  system: LLMSystem;
 }): void {
   const modelId = command.input?.modelId || "unknown";
   setSpanAttribute(
@@ -143,7 +120,7 @@ function extractBaseRequestAttributes({
   );
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
 
-  const invocationParams = extractInvocationParameters(requestBody);
+  const invocationParams = extractInvocationParameters(requestBody, system);
   if (Object.keys(invocationParams).length > 0) {
     setSpanAttribute(
       span,
@@ -164,9 +141,11 @@ function extractBaseRequestAttributes({
 function extractInputMessagesAttributes({
   span,
   requestBody,
+  system,
 }: {
   span: Span;
   requestBody: InvokeModelRequestBody;
+  system: LLMSystem;
 }): void {
   const inputValue = JSON.stringify(requestBody);
   setSpanAttribute(span, SemanticConventions.INPUT_VALUE, inputValue);
@@ -181,6 +160,8 @@ function extractInputMessagesAttributes({
 /**
  * Extracts input tool attributes from InvokeModel request body
  * Processes tool definitions array and sets them as JSON schema attributes
+ * Out of supported models, Anthropic, Amazon Nova, and Mistral Chat Completion
+ * support tool calls. 
  *
  * @param params Object containing extraction parameters
  * @param params.span The OpenTelemetry span to set attributes on
@@ -189,17 +170,30 @@ function extractInputMessagesAttributes({
 function extractInputToolAttributes({
   span,
   requestBody,
+  system,
 }: {
   span: Span;
   requestBody: InvokeModelRequestBody;
+  system: LLMSystem;
 }): void {
   if (requestBody.tools && Array.isArray(requestBody.tools)) {
     requestBody.tools.forEach((tool, index) => {
-      setSpanAttribute(
-        span,
-        `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
-        JSON.stringify(tool),
-      );
+      // Amazon Nova has one extra nest for it's tool declarations
+      if (system === LLMSystem.AMAZON && tool.toolSpec) {
+        setSpanAttribute(
+          span,
+          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
+          JSON.stringify(tool.toolSpec),
+        );
+      }
+      // Both Anthropic and Mistral Chat Completion have the tool definitions in the same place
+      else {
+        setSpanAttribute(
+          span,
+          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
+          JSON.stringify(tool),
+        );
+      } 
     });
   }
 }
@@ -222,18 +216,20 @@ export const extractInvokeModelRequestAttributes = withSafety({
   fn: ({
     span,
     command,
+    system,
   }: {
     span: Span;
     command: InvokeModelCommand;
+    system: LLMSystem;
   }): void => {
     const requestBody = parseRequestBody(command);
     if (!requestBody) {
       return;
     }
 
-    extractBaseRequestAttributes({ span, command, requestBody });
-    extractInputMessagesAttributes({ span, requestBody });
-    extractInputToolAttributes({ span, requestBody });
+    extractBaseRequestAttributes({ span, command, requestBody, system });
+    extractInputMessagesAttributes({ span, requestBody, system });
+    extractInputToolAttributes({ span, requestBody, system });
   },
   onError: (error) => {
     diag.warn("Error extracting InvokeModel request attributes:", error);

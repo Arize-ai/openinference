@@ -10,69 +10,13 @@
 import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
-  MimeType,
   LLMSystem,
 } from "@arizeai/openinference-semantic-conventions";
 import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
-import {
-  InvokeModelResponseBody,
-  TextContent,
-  isTextContent,
-  isToolUseContent,
-} from "../types/bedrock-types";
+import { normalizeResponseContentBlocks, isSimpleTextResponse, parseResponseBody } from './invoke-model-helpers';
+import { BedrockMessage, isTextContent, isToolUseContent } from '../types/bedrock-types';
 import { setSpanAttribute } from "./attribute-helpers";
-
-/**
- * Safely parses the InvokeModel response body with comprehensive error handling
- * Handles multiple response body formats and provides null fallback on error
- *
- * @param response The InvokeModelResponse containing the response body to parse
- * @returns {InvokeModelResponseBody | null} Parsed response body or null on error
- */
-const parseResponseBody = withSafety({
-  fn: (response: InvokeModelResponse): Record<string, unknown> => {
-    if (!response.body) {
-      throw new Error("Response body is missing");
-    }
-
-    let responseText: string;
-    if (typeof response.body === "string") {
-      responseText = response.body;
-    } else if (response.body instanceof Uint8Array) {
-      responseText = new TextDecoder().decode(response.body);
-    } else {
-      // Handle other potential types
-      responseText = new TextDecoder().decode(response.body as Uint8Array);
-    }
-
-    return JSON.parse(responseText) as Record<string, unknown>;
-  },
-  onError: (error) => {
-    diag.warn("Error parsing response body:", error);
-    return null;
-  },
-});
-
-/**
- * Type guard to check if response body contains a simple single text content
- * Combines all checks needed to safely access the text content without casting
- *
- * @param responseBody The response body to check
- * @returns {boolean} True if response contains a single text content block
- */
-function isSimpleTextResponse(
-  responseBody: Record<string, unknown>,
-): responseBody is Record<string, unknown> & {
-  content: [TextContent];
-} {
-  return Boolean(
-    responseBody?.content &&
-      Array.isArray(responseBody.content) &&
-      responseBody.content.length === 1 &&
-      isTextContent(responseBody.content[0]),
-  );
-}
 
 /**
  * Extracts output messages attributes from InvokeModel response body
@@ -83,38 +27,43 @@ function isSimpleTextResponse(
  * @param params.responseBody The parsed response body containing content and metadata
  * @param params.span The OpenTelemetry span to set attributes on
  */
-function extractOutputMessagesAttributes({
-  responseBody,
-  span,
-}: {
-  responseBody: Record<string, unknown>;
-  span: Span;
-}): void {
-  // Extract full response body as primary output value
-  const outputValue = JSON.stringify(responseBody);
-  setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
-  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
-
-  // Determine if this is a simple text response or complex multimodal response
-  if (isSimpleTextResponse(responseBody)) {
-    // For simple text responses, use the message content
-    // No cast needed - type guard ensures content[0] is TextContent
-    const textBlock = responseBody.content[0];
+const extractOutputMessagesAttributes = withSafety({
+  fn: ({ modelType, responseBody, span }: { 
+    modelType: LLMSystem; 
+    responseBody: Record<string, unknown>; 
+    span: Span 
+  }) => {
+    // Normalize the response body to a standard BedrockMessage format
+    const normalizedMessage = normalizeResponseContentBlocks(responseBody, modelType);
+    if (!normalizedMessage) {
+      return;
+    }
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
-      "assistant",
+      normalizedMessage.role,
     );
-    setSpanAttribute(
-      span,
-      `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
-      textBlock.text,
-    );
-  } else {
-    // For complex multimodal responses, use the detailed message structure
-    addOutputMessageContentAttributes({ responseBody, span });
+    
+    // Determine if this is a simple text response or complex multimodal response
+    if (isSimpleTextResponse(normalizedMessage)) {
+      // For simple text responses, use the message content
+      // No cast needed - type guard ensures content[0] is TextContent
+      const textBlock = normalizedMessage.content[0];
+      
+      setSpanAttribute(
+        span,
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
+        textBlock.text,
+      );
+    } else {
+      // For complex multimodal responses, use the detailed message structure
+      addOutputMessageContentAttributes({ message: normalizedMessage, span });
+    }
+  },
+  onError: (error) => {
+    diag.warn("Error extracting output messages attributes:", error);
   }
-}
+});
 
 /**
  * Extracts tool call attributes from InvokeModel response body
@@ -209,22 +158,29 @@ function extractUsageAttributes({
  * Processes individual content blocks and sets structured message attributes
  *
  * @param params Object containing extraction parameters
- * @param params.responseBody The parsed response body containing structured content
+ * @param params.message The normalized BedrockMessage containing structured content
  * @param params.span The OpenTelemetry span to set attributes on
  */
 function addOutputMessageContentAttributes({
-  responseBody,
+  message,
   span,
 }: {
-  responseBody: Record<string, unknown>;
+  message: BedrockMessage;
   span: Span;
 }): void {
-  if (!responseBody?.content || !Array.isArray(responseBody.content)) {
+  if (!Array.isArray(message.content)) {
     return;
   }
 
-  // Process each content block in the response
-  responseBody.content.forEach((content, contentIndex) => {
+  // Set the message role
+  setSpanAttribute(
+    span,
+    `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
+    message.role,
+  );
+
+  // Process each content block in the message
+  message.content.forEach((content, contentIndex) => {
     const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
 
     if (isTextContent(content)) {
@@ -264,7 +220,7 @@ export const extractInvokeModelResponseAttributes = withSafety({
   }: {
     span: Span;
     response: InvokeModelResponse;
-    modelType?: LLMSystem;
+    modelType: LLMSystem;
   }): void => {
     if (!response.body) {
       return;
@@ -274,9 +230,14 @@ export const extractInvokeModelResponseAttributes = withSafety({
     if (!responseBody) {
       return;
     }
+    //extract full response body as primary output
+    const outputValue = JSON.stringify(responseBody);
+    setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
+    setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+
 
     // Extract all response attributes using named parameters
-    extractOutputMessagesAttributes({ responseBody, span });
+    extractOutputMessagesAttributes({ responseBody, span, modelType });
     extractToolCallsAttributes({ responseBody, span });
     extractUsageAttributes({ responseBody, span });
   },

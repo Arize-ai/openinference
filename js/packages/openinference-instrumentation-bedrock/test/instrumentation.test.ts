@@ -224,7 +224,7 @@ describe("BedrockInstrumentation", () => {
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Hello, how are you?"}]}",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
   "llm.output_messages.0.message.role": "assistant",
@@ -286,10 +286,11 @@ describe("BedrockInstrumentation", () => {
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather like in San Francisco?"}]}",
   "llm.input_messages.0.message.content": "What's the weather like in San Francisco?",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.contents.0.message_content.text": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you.",
   "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp",
@@ -347,7 +348,7 @@ describe("BedrockInstrumentation", () => {
   "llm.input_messages.2.message.contents.1.message_content.type": "text",
   "llm.input_messages.2.message.role": "user",
   "llm.input_messages.2.message.tool_call_id": "toolu_123",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.content": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:
 
@@ -401,10 +402,11 @@ The key things are to dress for the warm temperatures and have layers you can",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}},{"name":"calculate","description":"Perform mathematical calculations","input_schema":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}},{"name":"web_search","description":"Search the web for information","input_schema":{"type":"object","properties":{"query":{"type":"string","description":"Search query"},"num_results":{"type":"integer","description":"Number of results to return","minimum":1,"maximum":10}},"required":["query"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco and what's 15 * 23?"}]}",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco and what's 15 * 23?",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.contents.0.message_content.text": "Okay, let's get the weather and do that calculation.",
   "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.role": "assistant",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
   "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
   "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_bdrk_01FqpV1qX3bJ4bczkdtMhdGz",
@@ -523,7 +525,7 @@ The key things are to dress for the warm temperatures and have layers you can",
   "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
   "llm.input_messages.0.message.contents.1.message_content.type": "image",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
   "llm.output_messages.0.message.role": "assistant",
@@ -623,7 +625,7 @@ The key things are to dress for the warm temperatures and have layers you can",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short fact."}]}",
   "llm.input_messages.0.message.content": "Tell me a short fact.",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Here's a short fact for you:
 
@@ -675,7 +677,7 @@ Honeybees can recognize human faces.",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This should fail"}]}",
   "llm.input_messages.0.message.content": "This should fail",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "invalid-model-id",
   "llm.provider": "aws",
   "llm.system": "amazon",
@@ -717,7 +719,7 @@ Honeybees can recognize human faces.",
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"Tell me a short story"}]}",
   "llm.input_messages.0.message.content": "Tell me a short story",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Here's a short story for you:
 
@@ -768,7 +770,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"tools":[{"name":"get_weather","description":"Get current weather for a location","input_schema":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}],"messages":[{"role":"user","content":"What's the weather in San Francisco?"}]}",
   "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "claude-3-sonnet-20240229",
   "llm.output_messages.0.message.content": "Okay, let's get the current weather for San Francisco:",
   "llm.output_messages.0.message.role": "assistant",
@@ -826,7 +828,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "input.value": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100,"messages":[{"role":"user","content":"This streaming request should fail"}]}",
   "llm.input_messages.0.message.content": "This streaming request should fail",
   "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
+  "llm.invocation_parameters": "{"anthropic_version":"bedrock-2023-05-31","max_tokens":100}",
   "llm.model_name": "invalid-streaming-model-id",
   "llm.provider": "aws",
   "llm.system": "amazon",
@@ -886,37 +888,22 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
           span.attributes["llm.input_messages.9.message.content"],
         ).toBeDefined();
 
-        // Verify response processing (may be empty if model refused large payload)
-        // In this case, the response has empty content array, so no output messages
+        // Verify response processing - model returned empty content array
         expect(
           span.attributes["llm.output_messages.0.message.role"],
-        ).toBeUndefined();
+        ).toBe("assistant");
 
-        // Verify token counting for large payloads
-        expect(span.attributes["llm.token_count.prompt"]).toBeDefined();
-        expect(span.attributes["llm.token_count.completion"]).toBeDefined();
-        // Note: Don't expect calculated total, only what's in response
+        // Verify token counting for large payloads matches recording
+        expect(span.attributes["llm.token_count.prompt"]).toBe(35131);
+        expect(span.attributes["llm.token_count.completion"]).toBe(3);
 
-        // Verify cache-related token attributes
-        // Note: Current recordings don't have cache data, so these should be undefined
+        // Verify cache-related token attributes are undefined (not in response)
         expect(
           span.attributes["llm.token_count.prompt.cache_read"],
         ).toBeUndefined();
         expect(
           span.attributes["llm.token_count.prompt.cache_write"],
         ).toBeUndefined();
-
-        // Performance validation - large payloads should not cause memory issues
-        // The instrumentation should handle large responses efficiently
-        const inputTokens = span.attributes["llm.token_count.prompt"] as number;
-        const outputTokens = span.attributes[
-          "llm.token_count.completion"
-        ] as number;
-
-        // Verify reasonable token counts for large payload
-        expect(inputTokens).toBeGreaterThan(100); // Should be substantial (large input)
-        expect(outputTokens).toBeGreaterThanOrEqual(1); // May be minimal if model refused
-        // Note: No longer calculating total tokens automatically
       });
     });
     describe("Edge Cases", () => {
@@ -1088,8 +1075,8 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
     });
 
-    xdescribe("Multi-Provider Support", () => {
-      it("should handle AI21 Jurassic models", async () => {
+    describe("Multi-Provider Support", () => {
+      xit("should handle AI21 Jurassic models", async () => {
         setupTestRecording("should-handle-ai21-jurassic-models");
         const client = createTestClient(isRecordingMode);
 
@@ -1115,10 +1102,48 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         const command = new InvokeModelCommand({
           modelId: "amazon.nova-lite-v1:0",
           body: JSON.stringify({
-            inputText: "Hello, how are you?",
-            textGenerationConfig: {
-              maxTokenCount: 100,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What's the weather like in San Francisco today? Please use the weather tool to check.",
+                  },
+                ],
+              },
+            ],
+            inferenceConfig: {
+              maxTokens: 100,
               temperature: 0.7,
+            },
+            toolConfig: {
+              tools: [
+                {
+                  toolSpec: {
+                    name: "get_weather",
+                    description:
+                      "Get current weather information for a location",
+                    inputSchema: {
+                      json: {
+                        type: "object",
+                        properties: {
+                          location: {
+                            type: "string",
+                            description:
+                              "The city and state/country for weather lookup",
+                          },
+                          unit: {
+                            type: "string",
+                            enum: ["celsius", "fahrenheit"],
+                            description: "Temperature unit preference",
+                          },
+                        },
+                        required: ["location"],
+                      },
+                    },
+                  },
+                },
+              ],
             },
           }),
           contentType: "application/json",
@@ -1126,7 +1151,32 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":[{"text":"What's the weather like in San Francisco today? Please use the weather tool to check."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.7},"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather information for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state/country for weather lookup"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit preference"}},"required":["location"]}}}}]}}",
+  "llm.input_messages.0.message.content": "What's the weather like in San Francisco today? Please use the weather tool to check.",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.7}",
+  "llm.model_name": "nova-lite-v1:0",
+  "llm.output_messages.0.message.contents.0.message_content.text": "<thinking> The User has asked for the weather in San Francisco today. I will use the 'get_weather' tool to get this information. I will ask for the weather in Celsius as it is the most commonly used unit of temperature. </thinking>\\n",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"unit":"celsius","location":"San Francisco"}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "9fd2280f-9131-45d9-860f-843c2e3d01fa",
+  "llm.provider": "aws",
+  "llm.system": "amazon",
+  "llm.token_count.completion": 75,
+  "llm.token_count.prompt": 454,
+  "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"get_weather","description":"Get current weather information for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state/country for weather lookup"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit preference"}},"required":["location"]}}}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"output":{"message":{"content":[{"text":"<thinking> The User has asked for the weather in San Francisco today. I will use the 'get_weather' tool to get this information. I will ask for the weather in Celsius as it is the most commonly used unit of temperature. </thinking>\\n"},{"toolUse":{"name":"get_weather","toolUseId":"9fd2280f-9131-45d9-860f-843c2e3d01fa","input":{"unit":"celsius","location":"San Francisco"}}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":454,"outputTokens":75,"totalTokens":529,"cacheReadInputTokenCount":0,"cacheWriteInputTokenCount":0}}",
+}
+`);
       });
 
       it("should handle Amazon Titan models", async () => {
@@ -1147,7 +1197,28 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json", 
+  "input.value": "{"inputText":"Hello, how are you?","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
+  "llm.model_name": "titan-text-express-v1",
+  "llm.output_messages.0.message.content": "\\nHey there, buddy! I hope you're doing well. Just wanted to say hello and wish you a great day!",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "amazon", 
+  "llm.token_count.completion": 26,
+  "llm.token_count.prompt": 6,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"inputTextTokenCount":6,"results":[{"tokenCount":26,"outputText":"\\nHey there, buddy! I hope you're doing well. Just wanted to say hello and wish you a great day!","completionReason":"FINISH"}]}",
+}
+`);
       });
 
       it("should handle Cohere Command models", async () => {
@@ -1172,7 +1243,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         // Test structure ready for nock recording - HAND BACK HERE
       });
 
-      it("should handle Meta Llama models", async () => {
+      xit("should handle Meta Llama models", async () => {
         setupTestRecording("should-handle-meta-llama-models");
         const client = createTestClient(isRecordingMode);
 
@@ -1192,7 +1263,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         // Test structure ready for nock recording - HAND BACK HERE
       });
 
-      it("should handle Mistral models", async () => {
+      xit("should handle Mistral models", async () => {
         setupTestRecording("should-handle-mistral-models");
         const client = createTestClient(isRecordingMode);
 
