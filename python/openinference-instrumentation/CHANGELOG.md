@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.35...python-openinference-instrumentation-v0.1.36) (2025-07-29)
+
+
+### Features
+
+* **python:** get_first_span_id via a context manager ([#2013](https://github.com/Arize-ai/openinference/issues/2013)) ([b0b080c](https://github.com/Arize-ai/openinference/commit/b0b080c564a2fb72b8f6796cad603f0166bcc767))
+
 ## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.34...python-openinference-instrumentation-v0.1.35) (2025-07-16)
 
 

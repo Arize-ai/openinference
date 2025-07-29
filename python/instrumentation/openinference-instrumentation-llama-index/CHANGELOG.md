@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.2...python-openinference-instrumentation-llama-index-v4.3.3) (2025-07-29)
+
+
+### Bug Fixes
+
+* llama-index support vertex-ai token counts ([#1986](https://github.com/Arize-ai/openinference/issues/1986)) ([f75b573](https://github.com/Arize-ai/openinference/commit/f75b573fe09851a2708de8aa26fef388138256c3))
+
 ## [4.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.1...python-openinference-instrumentation-llama-index-v4.3.2) (2025-07-23)
 
 
