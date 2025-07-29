@@ -1076,15 +1076,20 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     });
 
     describe("Multi-Provider Support", () => {
-      xit("should handle AI21 Jurassic models", async () => {
-        setupTestRecording("should-handle-ai21-jurassic-models");
+      it("should handle AI21 Jamba models", async () => {
+        setupTestRecording("should-handle-ai21-jamba-models");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
-          modelId: "ai21.j2-ultra-v1",
+          modelId: "ai21.jamba-1-5-mini-v1:0",
           body: JSON.stringify({
-            prompt: "Hello, how are you?",
-            maxTokens: 100,
+            messages: [
+              {
+                role: "user",
+                content: "Hello, how are you?"
+              }
+            ],
+            max_tokens: 100,
             temperature: 0.7,
           }),
           contentType: "application/json",
@@ -1092,7 +1097,29 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":"Hello, how are you?"}],"max_tokens":100,"temperature":0.7}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"max_tokens":100,"temperature":0.7}",
+  "llm.model_name": "ai21.jamba-1-5-mini-v1:0",
+  "llm.output_messages.0.message.content": " Hello! I'm doing great, thank you. How can I assist you today?",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "ai21",
+  "llm.token_count.completion": 19,
+  "llm.token_count.prompt": 16,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"chatcmpl-5a5e214e-2d38-4152-8496-b2eb301d7008","choices":[{"index":0,"message":{"role":"assistant","content":" Hello! I'm doing great, thank you. How can I assist you today?","tool_calls":null},"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":19,"total_tokens":35},"meta":{"requestDurationMillis":307},"model":"jamba-1.5-mini"}",
+}
+`);
       });
 
       it("should handle Amazon Nova models", async () => {
@@ -1158,7 +1185,8 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 {
   "input.mime_type": "application/json",
   "input.value": "{"messages":[{"role":"user","content":[{"text":"What's the weather like in San Francisco today? Please use the weather tool to check."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.7},"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather information for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state/country for weather lookup"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit preference"}},"required":["location"]}}}}]}}",
-  "llm.input_messages.0.message.content": "What's the weather like in San Francisco today? Please use the weather tool to check.",
+  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather like in San Francisco today? Please use the weather tool to check.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.7}",
   "llm.model_name": "nova-lite-v1:0",
@@ -1202,7 +1230,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         const span = verifySpanBasics(spanExporter);
         expect(span.attributes).toMatchInlineSnapshot(`
 {
-  "input.mime_type": "application/json", 
+  "input.mime_type": "application/json",
   "input.value": "{"inputText":"Hello, how are you?","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
   "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
@@ -1221,7 +1249,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 `);
       });
 
-      xit("should handle Cohere Command models", async () => {
+      it("should handle Cohere Command models", async () => {
         setupTestRecording("should-handle-cohere-command-models");
         const client = createTestClient(isRecordingMode);
 
@@ -1240,15 +1268,36 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"prompt":"Hello, how are you?","max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"max_tokens":100,"temperature":0.7,"p":0.9,"k":0,"stop_sequences":[]}",
+  "llm.model_name": "cohere.command-text-v14",
+  "llm.output_messages.0.message.content": " Hi! I am an AI language model and I don't have feelings, so I can't say how I am, but I'm here to help. How about you? How are you feeling today? ",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "cohere",
+  "llm.token_count.completion": 43,
+  "llm.token_count.prompt": 6,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"id":"bde031d0-0895-4cc8-baa6-c4d51c739cc2","generations":[{"id":"6043bc09-510a-4589-88bb-cc11783218c1","text":" Hi! I am an AI language model and I don't have feelings, so I can't say how I am, but I'm here to help. How about you? How are you feeling today? ","finish_reason":"COMPLETE"}],"prompt":"Hello, how are you?"}",
+}
+`);
       });
 
-      xit("should handle Meta Llama models", async () => {
-        setupTestRecording("should-handle-meta-llama-models");
+      it("should handle Meta Llama models invoke", async () => {
+        setupTestRecording("should-handle-meta-llama-models-invoke");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
-          modelId: "meta.llama2-13b-chat-v1",
+          modelId: "meta.llama3-8b-instruct-v1:0",
           body: JSON.stringify({
             prompt: "Hello, how are you?",
             max_gen_len: 100,
@@ -1260,27 +1309,97 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+
+        const span = verifySpanBasics(spanExporter);
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"prompt":"Hello, how are you?","max_gen_len":100,"temperature":0.7,"top_p":0.9}",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"max_gen_len":100,"temperature":0.7,"top_p":0.9}",
+  "llm.model_name": "meta.llama3-8b-instruct-v1:0",
+  "llm.output_messages.0.message.content": "Hello! I'm doing well, thank you for asking. How can I help you today?",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "meta",
+  "llm.token_count.completion": 18,
+  "llm.token_count.prompt": 6,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"generation":"Hello! I'm doing well, thank you for asking. How can I help you today?","prompt_token_count":6,"generation_token_count":18,"stop_reason":"length"}",
+}
+`);
       });
 
-      xit("should handle Mistral models", async () => {
-        setupTestRecording("should-handle-mistral-models");
+      xit("should handle Mistral Pixtral Large models with multimodal and tools", async () => {
+        setupTestRecording("should-handle-mistral-pixtral-models");
         const client = createTestClient(isRecordingMode);
 
+        // Sample base64 image data (small test image - 1x1 transparent PNG)
+        const sampleImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
         const command = new InvokeModelCommand({
-          modelId: "mistral.mistral-7b-instruct-v0:2",
+          modelId: "us.mistral.pixtral-large-2502-v1:0",
           body: JSON.stringify({
-            prompt: "Hello, how are you?",
-            max_tokens: 100,
-            temperature: 0.7,
-            top_p: 0.9,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Please analyze this image and tell me what you see. If you need to get weather information for any location you see, use the weather tool."
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: "data:image/png;base64," + sampleImageBase64
+                    }
+                  }
+                ]
+              }
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "get_weather",
+                  description: "Get current weather information for a specific location",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      location: {
+                        type: "string",
+                        description: "The city and country/state for weather lookup"
+                      },
+                      unit: {
+                        type: "string",
+                        enum: ["celsius", "fahrenheit"],
+                        description: "Temperature unit preference"
+                      }
+                    },
+                    required: ["location"]
+                  }
+                }
+              }
+            ],
+            tool_choice: "auto",
+            max_tokens: 200,
+            temperature: 0.7
           }),
           contentType: "application/json",
           accept: "application/json",
         });
 
         const result = await client.send(command);
-        // Test structure ready for nock recording - HAND BACK HERE
+        verifyResponseStructure(result);
+        
+        const span = verifySpanBasics(spanExporter);
+        // Basic verification that multimodal and tool attributes are present
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(span.attributes["llm.model_name"]).toContain("pixtral");
+        expect(span.attributes["llm.system"]).toBe("mistralai");
       });
     });
   });
