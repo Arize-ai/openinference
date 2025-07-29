@@ -1,8 +1,9 @@
 import { withSafety } from "@arizeai/openinference-core";
-import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import { InvokeModelCommand, InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { diag } from "@opentelemetry/api";
 import {
   BedrockMessage,
+  InvokeModelRequestBody,
   isTextContent,
   MessageContent,
   TextContent,
@@ -40,6 +41,65 @@ export const parseResponseBody = withSafety({
     return null;
   },
 });
+
+/**
+ * Safely parses the InvokeModel request body with comprehensive error handling
+ * Handles multiple body formats (string, Buffer, Uint8Array, ArrayBuffer) and provides fallback
+ *
+ * @param command The InvokeModelCommand containing the request body to parse
+ * @returns {InvokeModelRequestBody} Parsed request body or fallback structure on error
+ */
+export const parseRequestBody = withSafety({
+    fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
+      if (!command.input?.body) {
+        throw new Error("Request body is missing");
+      }
+  
+      let bodyString: string;
+      if (typeof command.input.body === "string") {
+        bodyString = command.input.body;
+      } else if (Buffer.isBuffer(command.input.body)) {
+        bodyString = command.input.body.toString("utf8");
+      } else if (command.input.body instanceof Uint8Array) {
+        bodyString = new TextDecoder().decode(command.input.body);
+      } else if (command.input.body instanceof ArrayBuffer) {
+        bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
+      } else {
+        // For other types, convert to string safely
+        bodyString = String(command.input.body);
+      }
+      return JSON.parse(bodyString) as InvokeModelRequestBody;
+    },
+    onError: (error) => {
+      diag.warn("Error parsing InvokeModel request body:", error);
+      return null;
+    },
+  });
+
+/**
+ * Extracts invocation parameters from request body using AWS SDK standards
+ * Maps snake_case parameter names to camelCase AWS SDK convention where applicable
+ * Combines standard AWS SDK InferenceConfiguration with vendor-specific parameters
+ *
+ * @param requestBody The parsed request body containing model parameters
+ * @returns {ExtractedInvocationParameters} Object containing extracted parameters
+ */
+export function extractInvocationParameters(
+    requestBody: InvokeModelRequestBody,
+    system: LLMSystem,
+  ): Record<string, unknown> {
+    if (system === LLMSystem.AMAZON && requestBody.inferenceConfig && 
+        typeof requestBody.inferenceConfig === 'object' && requestBody.inferenceConfig !== null) {
+      return requestBody.inferenceConfig as Record<string, unknown>;
+    } else if (system === LLMSystem.AMAZON && requestBody.textGenerationConfig && 
+               typeof requestBody.textGenerationConfig === 'object' && requestBody.textGenerationConfig !== null) {
+      return requestBody.textGenerationConfig as Record<string, unknown>;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const {system, messages, tools, prompt, ...invocationParams} = requestBody;
+      return invocationParams;
+    }
+  }
 
 /**
  * Type guard to check if message contains a simple single text content
