@@ -1,3 +1,4 @@
+import os
 from typing import Any, Mapping, cast
 
 import pytest
@@ -15,7 +16,11 @@ from openinference.semconv.trace import SpanAttributes
 
 @pytest.fixture
 def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
+    # Only set fake API key if no real one is available
+    real_api_key = os.environ.get("OPENAI_API_KEY")
+    if not real_api_key or real_api_key == "sk-0123456789":
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
+    # If real API key exists, don't override it
 
 @pytest.fixture
 def openai_global_llm_service(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,14 +78,11 @@ class TestOpenLitInstrumentor:
         before_record_request=remove_all_vcr_request_headers,
         before_record_response=remove_all_vcr_response_headers,
         decode_compressed_response=True,
+        filter_headers=['authorization'],
     )
     @pytest.mark.asyncio
     async def test_openlit_instrumentor(
         self,
-        openai_api_key: str,
-        openai_global_llm_service: str,
-        openai_chat_model_id: str,
-        openai_text_model_id: str,
     ) -> None:
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
@@ -108,8 +110,7 @@ class TestOpenLitInstrumentor:
         kernel.add_service(
             OpenAIChatCompletion(
                 service_id=service_id,
-                api_key=openai_api_key,
-                ai_model_id=openai_chat_model_id,
+                ai_model_id="gpt-4o-mini",
             ),
         )
 
