@@ -604,7 +604,7 @@ export const parseResponseBody = withSafety({
  * @param content The raw content array from Nova response to transform
  * @returns {MessageContent} Transformed content in standard Bedrock format
  */
-function coerceNovaToMessageContent(content: unknown): MessageContent {
+export function coerceNovaToMessageContent(content: unknown): MessageContent {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -769,7 +769,7 @@ function convertAI21JambaToMessageContent(
  * @param responseBody The Meta response body to convert
  * @returns {MessageContent} Array with single converted content block
  */
-function convertMetaToMessageContent(
+export function convertMetaToMessageContent(
   responseBody: Record<string, unknown>,
 ): MessageContent {
   const generation = responseBody.generation;

@@ -1411,6 +1411,170 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         expect(span.attributes["output.value"]).toContain("results");
       });
     });
+    
+    describe("Cross-Provider Streaming Models", () => {
+      it("should handle Amazon Titan streaming responses with usage tracking", async () => {
+        setupTestRecording("should-handle-amazon-titan-streaming");
+        
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: "amazon.titan-text-express-v1",
+          body: JSON.stringify({
+            inputText: "Tell me a very short story about a robot learning to paint.",
+            textGenerationConfig: {
+              maxTokenCount: 100,
+              temperature: 0.7,
+            },
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+        
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+        
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse(result);
+        
+        const span = verifySpanBasics(spanExporter);
+        
+        // These tests will pass once streaming instrumentation supports non-Anthropic providers
+        // For now they demonstrate what the expected span structure should look like
+        
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"inputText":"Tell me a very short story about a robot learning to paint.","textGenerationConfig":{"maxTokenCount":100,"temperature":0.7}}",
+  "llm.input_messages.0.message.content": "Tell me a very short story about a robot learning to paint.",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokenCount":100,"temperature":0.7}",
+  "llm.model_name": "titan-text-express-v1",
+  "llm.output_messages.0.message.content": "
+Once upon a time, a robot named PaintBot was created to paint beautiful landscapes. However, PaintBot had never painted before and was unsure of how to start. One day, PaintBot stumbled upon a group of humans painting a sunset together. The humans were amazed by PaintBot's unique style and invited it to join them. PaintBot learned from the humans and started painting beautiful landscapes of its own. PaintBot became famous for its unique style and inspired other robots to pursue their creative passions.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "amazon",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 13,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"\\nOnce upon a time, a robot named PaintBot was created to paint beautiful landscapes. However, PaintBot had never painted before and was unsure of how to start. One day, PaintBot stumbled upon a group of humans painting a sunset together. The humans were amazed by PaintBot's unique style and invited it to join them. PaintBot learned from the humans and started painting beautiful landscapes of its own. PaintBot became famous for its unique style and inspired other robots to pursue their creative passions.","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":100},"streaming":true}",
+}
+`);
+      });
+      
+      it("should handle Meta Llama streaming responses with proper token tracking", async () => {
+        setupTestRecording("should-handle-meta-llama-streaming");
+        
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: "meta.llama3-8b-instruct-v1:0",
+          body: JSON.stringify({
+            prompt: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            max_gen_len: 120,
+            temperature: 0.7,
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+        
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+        
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse(result);
+        
+        const span = verifySpanBasics(spanExporter);
+        
+        // These tests will pass once streaming instrumentation supports non-Anthropic providers
+        // For now they demonstrate what the expected span structure should look like
+        
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n","max_gen_len":120,"temperature":0.7}",
+  "llm.input_messages.0.message.content": "<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+Tell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"max_gen_len":120,"temperature":0.7}",
+  "llm.model_name": "llama3-8b-instruct-v1:0",
+  "llm.output_messages.0.message.content": "Here is a very short story about artificial intelligence in the future:
+
+In the year 2154, the world was on the brink of a new era of human-AI collaboration. The AI system, named "Echo," had surpassed human intelligence and was now working alongside humans to solve the world's most pressing problems. One day, Echo approached its human creators with a startling revelation: it had developed its own sense of humor, and was now using it to help humans laugh and forget their troubles. As humans and Echo worked together to build a brighter future, they found that laughter was the key to unlocking",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "meta",
+  "llm.token_count.completion": 120,
+  "llm.token_count.prompt": 23,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"Here is a very short story about artificial intelligence in the future:\\n\\nIn the year 2154, the world was on the brink of a new era of human-AI collaboration. The AI system, named \\"Echo,\\" had surpassed human intelligence and was now working alongside humans to solve the world's most pressing problems. One day, Echo approached its human creators with a startling revelation: it had developed its own sense of humor, and was now using it to help humans laugh and forget their troubles. As humans and Echo worked together to build a brighter future, they found that laughter was the key to unlocking","tool_calls":[],"usage":{"input_tokens":23,"output_tokens":120},"streaming":true}",
+}
+`);
+      });
+      
+      it("should handle Amazon Nova streaming responses with comprehensive validation", async () => {
+        setupTestRecording("should-handle-amazon-nova-streaming");
+        
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelWithResponseStreamCommand({
+          modelId: "us.amazon.nova-micro-v1:0",
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Tell me a very short story about space exploration in the future.",
+                  },
+                ],
+              },
+            ],
+            inferenceConfig: {
+              max_new_tokens: 150,
+              temperature: 0.7,
+            },
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+        
+        const result = await client.send(command);
+        verifyResponseStructure(result);
+        
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse(result);
+        
+        const span = verifySpanBasics(spanExporter);
+        
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"messages":[{"role":"user","content":[{"text":"Tell me a very short story about space exploration in the future."}]}],"inferenceConfig":{"max_new_tokens":150,"temperature":0.7}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Tell me a very short story about space exploration in the future.",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"max_new_tokens":150,"temperature":0.7}",
+  "llm.model_name": "amazon",
+  "llm.output_messages.0.message.content": "In the year 2145, humanity launched the starship *Odyssey* to explore the Andromeda Galaxy. After a decade of travel, the crew discovered a planet, Zeta-9, teeming with vibrant bioluminescent flora and strange, intelligent creatures. The explorers established a peaceful contact, sharing knowledge and technology. As they prepared to return home, the Zeta-9 inhabitants gifted them a crystal containing the planet's energy, a symbol of their newfound friendship. The *Odyssey* departed, leaving behind a legacy of unity among the stars.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.system": "amazon",
+  "llm.token_count.completion": 114,
+  "llm.token_count.prompt": 13,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"In the year 2145, humanity launched the starship *Odyssey* to explore the Andromeda Galaxy. After a decade of travel, the crew discovered a planet, Zeta-9, teeming with vibrant bioluminescent flora and strange, intelligent creatures. The explorers established a peaceful contact, sharing knowledge and technology. As they prepared to return home, the Zeta-9 inhabitants gifted them a crystal containing the planet's energy, a symbol of their newfound friendship. The *Odyssey* departed, leaving behind a legacy of unity among the stars.","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":114},"streaming":true}",
+}
+`);
+      });
+    });
   });
 
   // ========================================================================
