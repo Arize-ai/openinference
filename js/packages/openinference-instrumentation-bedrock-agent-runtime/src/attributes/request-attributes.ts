@@ -6,6 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
+import { isAttributeValue } from "@opentelemetry/core";
 
 export function extractBaseRequestAttributes(
   command: InvokeAgentCommand,
@@ -20,10 +21,9 @@ export function extractBaseRequestAttributes(
   // Add invocation parameters for model configuration
   const { inputText: _inputText, ...invocationParams } = command.input;
   const jsonParams = Object.fromEntries(
-    Object.entries(invocationParams).map(([key, value]) => [
-      key,
-      typeof value === "string" ? value : JSON.stringify(value),
-    ]),
+    Object.entries(invocationParams).filter(([, value]) =>
+      isAttributeValue(value),
+    ),
   );
   if (Object.keys(jsonParams).length > 0) {
     attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] =

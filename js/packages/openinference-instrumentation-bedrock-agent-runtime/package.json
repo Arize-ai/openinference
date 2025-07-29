@@ -18,7 +18,7 @@
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
     "test": "jest .",
-    "validate:invoke-agent": "tsx examples/validate-invoke-agent.ts"
+    "validate:invoke-agent": "tsx examples/run-invoke-agent.ts"
   },
   "exports": {
     ".": {

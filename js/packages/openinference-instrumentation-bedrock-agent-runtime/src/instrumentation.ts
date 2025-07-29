@@ -119,7 +119,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           this: typeof moduleExports.BedrockAgentRuntimeClient.prototype,
           command: InvokeAgentCommand,
         ) {
-          if (command?.constructor?.name === "InvokeAgentCommand") {
+          if (command instanceof InvokeAgentCommand) {
             return instrumentationInstance._handleInvokeAgentCommand(
               command,
               original,
