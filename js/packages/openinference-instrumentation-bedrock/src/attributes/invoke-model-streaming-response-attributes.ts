@@ -367,9 +367,15 @@ export const consumeBedrockStreamChunks = withSafety({
     // Normalize the accumulated usage data using the same helper as non-streaming responses
     // For streaming, wrap the usage data in the format expected by normalizeUsageAttributes
     const wrappedUsageData = { usage: rawUsageData };
-    const normalizedUsage = normalizeUsageAttributes(wrappedUsageData, modelType) || {};
-    
-    setStreamingOutputAttributes({ span, outputText, contentBlocks, usage: normalizedUsage });
+    const normalizedUsage =
+      normalizeUsageAttributes(wrappedUsageData, modelType) || {};
+
+    setStreamingOutputAttributes({
+      span,
+      outputText,
+      contentBlocks,
+      usage: normalizedUsage,
+    });
   },
   onError: (error) => {
     diag.warn("Error consuming Bedrock stream chunks:", error);

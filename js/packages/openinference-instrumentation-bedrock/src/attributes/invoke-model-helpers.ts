@@ -932,13 +932,28 @@ export const normalizeUsageAttributes = withSafety({
       // Anthropic format: { usage: { input_tokens: N, output_tokens: N, cache_read_input_tokens?: N, cache_creation_input_tokens?: N } }
       const usage = responseBody.usage as Record<string, unknown> | undefined;
       if (!usage) return {};
-      
+
       return {
-        input_tokens: typeof usage.input_tokens === 'number' ? usage.input_tokens : undefined,
-        output_tokens: typeof usage.output_tokens === 'number' ? usage.output_tokens : undefined,
-        total_tokens: typeof usage.total_tokens === 'number' ? usage.total_tokens : undefined,
-        cache_read_input_tokens: typeof usage.cache_read_input_tokens === 'number' ? usage.cache_read_input_tokens : undefined,
-        cache_creation_input_tokens: typeof usage.cache_creation_input_tokens === 'number' ? usage.cache_creation_input_tokens : undefined,
+        input_tokens:
+          typeof usage.input_tokens === "number"
+            ? usage.input_tokens
+            : undefined,
+        output_tokens:
+          typeof usage.output_tokens === "number"
+            ? usage.output_tokens
+            : undefined,
+        total_tokens:
+          typeof usage.total_tokens === "number"
+            ? usage.total_tokens
+            : undefined,
+        cache_read_input_tokens:
+          typeof usage.cache_read_input_tokens === "number"
+            ? usage.cache_read_input_tokens
+            : undefined,
+        cache_creation_input_tokens:
+          typeof usage.cache_creation_input_tokens === "number"
+            ? usage.cache_creation_input_tokens
+            : undefined,
       };
     } else if (llm_system === LLMSystem.AMAZON) {
       // Amazon has different formats for Nova vs Titan
@@ -946,20 +961,41 @@ export const normalizeUsageAttributes = withSafety({
         // Nova format: { usage: { inputTokens: N, outputTokens: N, totalTokens?: N, cacheReadInputTokenCount?: N, cacheWriteInputTokenCount?: N } }
         const usage = responseBody.usage as Record<string, unknown> | undefined;
         if (!usage) return {};
-        
+
         return {
-          input_tokens: typeof usage.inputTokens === 'number' ? usage.inputTokens : undefined,
-          output_tokens: typeof usage.outputTokens === 'number' ? usage.outputTokens : undefined,
-          total_tokens: typeof usage.totalTokens === 'number' ? usage.totalTokens : undefined,
-          cache_read_input_tokens: typeof usage.cacheReadInputTokenCount === 'number' ? usage.cacheReadInputTokenCount : undefined,
-          cache_creation_input_tokens: typeof usage.cacheWriteInputTokenCount === 'number' ? usage.cacheWriteInputTokenCount : undefined,
+          input_tokens:
+            typeof usage.inputTokens === "number"
+              ? usage.inputTokens
+              : undefined,
+          output_tokens:
+            typeof usage.outputTokens === "number"
+              ? usage.outputTokens
+              : undefined,
+          total_tokens:
+            typeof usage.totalTokens === "number"
+              ? usage.totalTokens
+              : undefined,
+          cache_read_input_tokens:
+            typeof usage.cacheReadInputTokenCount === "number"
+              ? usage.cacheReadInputTokenCount
+              : undefined,
+          cache_creation_input_tokens:
+            typeof usage.cacheWriteInputTokenCount === "number"
+              ? usage.cacheWriteInputTokenCount
+              : undefined,
         };
       } else if (isTitanResponse(responseBody)) {
         // Titan format: { inputTextTokenCount: N, results: [{ tokenCount: N }] }
-        const inputTokens = typeof responseBody.inputTextTokenCount === 'number' ? responseBody.inputTextTokenCount : undefined;
+        const inputTokens =
+          typeof responseBody.inputTextTokenCount === "number"
+            ? responseBody.inputTextTokenCount
+            : undefined;
         const results = responseBody.results as Array<Record<string, unknown>>;
-        const outputTokens = typeof results?.[0]?.tokenCount === 'number' ? results[0].tokenCount : undefined;
-        
+        const outputTokens =
+          typeof results?.[0]?.tokenCount === "number"
+            ? results[0].tokenCount
+            : undefined;
+
         const result: UsageAttributes = {};
         if (inputTokens !== undefined) result.input_tokens = inputTokens;
         if (outputTokens !== undefined) result.output_tokens = outputTokens;
@@ -970,18 +1006,33 @@ export const normalizeUsageAttributes = withSafety({
       // AI21 Jamba format: { usage: { prompt_tokens: N, completion_tokens: N, total_tokens: N } }
       const usage = responseBody.usage as Record<string, unknown> | undefined;
       if (!usage) return {};
-      
+
       return {
-        input_tokens: typeof usage.prompt_tokens === 'number' ? usage.prompt_tokens : undefined,
-        output_tokens: typeof usage.completion_tokens === 'number' ? usage.completion_tokens : undefined,
-        total_tokens: typeof usage.total_tokens === 'number' ? usage.total_tokens : undefined,
+        input_tokens:
+          typeof usage.prompt_tokens === "number"
+            ? usage.prompt_tokens
+            : undefined,
+        output_tokens:
+          typeof usage.completion_tokens === "number"
+            ? usage.completion_tokens
+            : undefined,
+        total_tokens:
+          typeof usage.total_tokens === "number"
+            ? usage.total_tokens
+            : undefined,
       };
     } else if (llm_system === LLMSystem.META) {
       // Meta format: { prompt_token_count: N, generation_token_count: N }
       return {
-        input_tokens: typeof responseBody.prompt_token_count === 'number' ? responseBody.prompt_token_count : undefined,
-        output_tokens: typeof responseBody.generation_token_count === 'number' ? responseBody.generation_token_count : undefined,
-      }
+        input_tokens:
+          typeof responseBody.prompt_token_count === "number"
+            ? responseBody.prompt_token_count
+            : undefined,
+        output_tokens:
+          typeof responseBody.generation_token_count === "number"
+            ? responseBody.generation_token_count
+            : undefined,
+      };
     } else if (llm_system === LLMSystem.COHERE) {
       // Cohere: Token counts are in HTTP headers, not response body
       // Return empty object as tokens should be extracted from headers separately

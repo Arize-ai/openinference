@@ -130,7 +130,7 @@ export function getAttributesFromMessageContent(
       // Convert bytes to base64 data URL using the helper function
       const base64 = Buffer.from(content.image.source.bytes).toString("base64");
       const mimeType = `image/${content.image.format}`;
-      
+
       attributes[
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
       ] = formatImageUrl({

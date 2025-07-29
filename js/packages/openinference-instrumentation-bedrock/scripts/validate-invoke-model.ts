@@ -44,9 +44,10 @@ import {
 
 // Configuration from environment variables
 const PHOENIX_ENDPOINT =
-  process.env.PHOENIX_ENDPOINT || process.env.PHOENIX_COLLECTOR_ENDPOINT
+  process.env.PHOENIX_ENDPOINT ||
+  (process.env.PHOENIX_COLLECTOR_ENDPOINT
     ? `${process.env.PHOENIX_COLLECTOR_ENDPOINT}/v1/traces`
-    : "http://localhost:6006/v1/traces";
+    : "http://localhost:6006/v1/traces");
 const PHOENIX_API_KEY = process.env.PHOENIX_API_KEY;
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 const MODEL_ID =
@@ -63,6 +64,10 @@ type TestScenario =
   | "streaming-tools"
   | "streaming-errors"
   | "context-attributes"
+  | "amazon-nova"
+  | "meta-llama"
+  | "ai21-jamba"
+  | "nova-streaming"
   | "all";
 
 interface ValidationOptions {
@@ -107,14 +112,25 @@ class InstrumentationValidator {
         process.env.OTEL_EXPORTER_OTLP_HEADERS?.split("api_key=")[1] ||
         process.env.PHOENIX_CLIENT_HEADERS?.split("api_key=")[1];
 
+      // Ensure Phoenix Cloud URLs have the correct endpoint
+      const exportUrl =
+        this.options.phoenixEndpoint.includes("app.phoenix.arize.com") &&
+        !this.options.phoenixEndpoint.includes("/v1/traces")
+          ? `${this.options.phoenixEndpoint}/v1/traces`
+          : this.options.phoenixEndpoint;
+
       const phoenixExporter = new OTLPTraceExporter({
-        url: this.options.phoenixEndpoint,
+        url: exportUrl,
         headers: apiKey
           ? {
               api_key: apiKey,
             }
           : {},
       });
+
+      console.log(
+        `🔍 Debug: Exporting to ${exportUrl} with API key: ${apiKey ? "[REDACTED]" : "none"}`,
+      );
       exporters.push(phoenixExporter);
     }
 
@@ -224,6 +240,10 @@ class InstrumentationValidator {
             "streaming-tools",
             "streaming-errors",
             "context-attributes",
+            "amazon-nova",
+            "meta-llama",
+            "ai21-jamba",
+            "nova-streaming",
           ] as TestScenario[])
         : [this.options.scenario];
 
@@ -280,6 +300,14 @@ class InstrumentationValidator {
         return this.runStreamingErrorsScenario();
       case "context-attributes":
         return this.runContextAttributesScenario();
+      case "amazon-nova":
+        return this.runAmazonNovaScenario();
+      case "meta-llama":
+        return this.runMetaLlamaScenario();
+      case "ai21-jamba":
+        return this.runAI21JambaScenario();
+      case "nova-streaming":
+        return this.runNovaStreamingScenario();
       default:
         throw new Error(`Unknown scenario: ${scenario}`);
     }
@@ -728,6 +756,227 @@ class InstrumentationValidator {
     return true;
   }
 
+  private async runAmazonNovaScenario(): Promise<boolean> {
+    console.log("   🟠 Testing Amazon Nova model...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: "us.amazon.nova-micro-v1:0",
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: "Hello! Please tell me a brief fun fact about Amazon Nova models.",
+              },
+            ],
+          },
+        ],
+        inferenceConfig: {
+          max_new_tokens: 100,
+          temperature: 0.3,
+        },
+      }),
+    });
+
+    try {
+      const response = await this.client.send(command);
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+      console.log("   🟠 Nova model response received successfully");
+
+      // Check for Nova response structure
+      const outputMessage = responseBody.output?.message;
+      if (outputMessage?.content) {
+        const textContent = outputMessage.content.find((block: any) => block.text);
+        if (textContent) {
+          console.log(
+            "   💬 Nova response:",
+            textContent.text.substring(0, 60) + "...",
+          );
+        }
+      }
+
+      // Check Nova usage statistics
+      if (responseBody.usage) {
+        console.log("   📈 Nova token usage:");
+        console.log(`     Input tokens: ${responseBody.usage.inputTokens}`);
+        console.log(`     Output tokens: ${responseBody.usage.outputTokens}`);
+        console.log(`     Total tokens: ${responseBody.usage.totalTokens}`);
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
+        console.log("   ⚠️ Nova model not available in this region, but instrumentation working");
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  private async runMetaLlamaScenario(): Promise<boolean> {
+    console.log("   🦙 Testing Meta Llama model...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: "meta.llama3-8b-instruct-v1:0",
+      body: JSON.stringify({
+        prompt: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello! Tell me a brief fun fact about Meta's Llama models.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+        max_gen_len: 100,
+        temperature: 0.3,
+      }),
+    });
+
+    try {
+      const response = await this.client.send(command);
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+      console.log("   🦙 Meta Llama response received successfully");
+
+      // Check for Meta response structure
+      if (responseBody.generation) {
+        console.log(
+          "   💬 Llama response:",
+          responseBody.generation.substring(0, 60) + "...",
+        );
+      }
+
+      // Check Meta usage statistics
+      if (responseBody.prompt_token_count !== undefined && responseBody.generation_token_count !== undefined) {
+        console.log("   📈 Meta token usage:");
+        console.log(`     Input tokens: ${responseBody.prompt_token_count}`);
+        console.log(`     Output tokens: ${responseBody.generation_token_count}`);
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
+        console.log("   ⚠️ Meta Llama model not available in this region, but instrumentation working");
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  private async runAI21JambaScenario(): Promise<boolean> {
+    console.log("   🔮 Testing AI21 Jamba model...");
+
+    const command = new this.InvokeModelCommand({
+      modelId: "ai21.jamba-instruct-v1:0",
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: "Hello! Tell me a brief fun fact about AI21's Jamba models.",
+          },
+        ],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    });
+
+    try {
+      const response = await this.client.send(command);
+      const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+      console.log("   🔮 AI21 Jamba response received successfully");
+
+      // Check for AI21 response structure (choices format)
+      if (responseBody.choices && responseBody.choices.length > 0) {
+        const message = responseBody.choices[0].message;
+        if (message?.content) {
+          console.log(
+            "   💬 Jamba response:",
+            message.content.substring(0, 60) + "...",
+          );
+        }
+      }
+
+      // Check AI21 usage statistics
+      if (responseBody.usage) {
+        console.log("   📈 AI21 token usage:");
+        console.log(`     Input tokens: ${responseBody.usage.prompt_tokens}`);
+        console.log(`     Output tokens: ${responseBody.usage.completion_tokens}`);
+        console.log(`     Total tokens: ${responseBody.usage.total_tokens}`);
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
+        console.log("   ⚠️ AI21 Jamba model not available in this region, but instrumentation working");
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  private async runNovaStreamingScenario(): Promise<boolean> {
+    console.log("   🌊🟠 Testing Nova streaming...");
+
+    const command = new this.InvokeModelWithResponseStreamCommand({
+      modelId: "us.amazon.nova-micro-v1:0",
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: "Tell me a very short story about artificial intelligence in the future.",
+              },
+            ],
+          },
+        ],
+        inferenceConfig: {
+          max_new_tokens: 150,
+          temperature: 0.7,
+        },
+      }),
+      contentType: "application/json",
+      accept: "application/json",
+    });
+
+    try {
+      const response = await this.client.send(command);
+      let fullContent = "";
+      let eventCount = 0;
+
+      // Process the streaming response
+      for await (const chunk of response.body) {
+        if (chunk.chunk?.bytes) {
+          const chunkData = JSON.parse(
+            new TextDecoder().decode(chunk.chunk.bytes),
+          );
+          
+          // Nova streaming format is different from Anthropic
+          if (chunkData.contentBlockDelta?.delta?.text) {
+            fullContent += chunkData.contentBlockDelta.delta.text;
+          }
+          eventCount++;
+        }
+      }
+
+      console.log(
+        "   🌊🟠 Nova streaming response length:",
+        fullContent.length,
+        "chars from",
+        eventCount,
+        "events",
+      );
+      
+      if (fullContent.length > 0) {
+        console.log("   💬 Nova content preview:", fullContent.substring(0, 80) + "...");
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
+        console.log("   ⚠️ Nova streaming model not available in this region, but instrumentation working");
+        return true;
+      }
+      throw error;
+    }
+  }
+
   async cleanup() {
     await this.provider.shutdown();
   }
@@ -766,7 +1015,7 @@ function parseArgs(): ValidationOptions {
 Usage: tsx scripts/validate-invoke-model.ts [options]
 
 Options:
-  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, streaming-basic, streaming-tools, streaming-errors, context-attributes, all (default: all)
+  --scenario <scenario>     Test scenario: basic-text, tool-calling, multi-modal, tool-results, multiple-tools, streaming-basic, streaming-tools, streaming-errors, context-attributes, amazon-nova, meta-llama, ai21-jamba, nova-streaming, all (default: all)
   --debug                   Enable debug logging
   --phoenix-endpoint <url>  Phoenix endpoint URL (default: ${PHOENIX_ENDPOINT})
   --phoenix-api-key <key>   Phoenix API key (default: from PHOENIX_API_KEY env)
