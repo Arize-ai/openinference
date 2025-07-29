@@ -33,6 +33,8 @@ import {
 } from "./attributes/attribute-helpers";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
+const COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
+const INSTRUMENTATION_VERSION = VERSION;
 
 /**
  * AWS SDK module interface for proper typing
@@ -67,8 +69,6 @@ export function isPatched(): boolean {
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
  */
 export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExports> {
-  static readonly COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
-  static readonly VERSION = VERSION;
   private oiTracer: OITracer;
 
   constructor({
@@ -87,8 +87,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     traceConfig?: TraceConfigOptions;
   } = {}) {
     super(
-      BedrockInstrumentation.COMPONENT,
-      BedrockInstrumentation.VERSION,
+      COMPONENT,
+      INSTRUMENTATION_VERSION,
       Object.assign({}, instrumentationConfig),
     );
     this.oiTracer = new OITracer({
@@ -178,6 +178,25 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
   }
 
   /**
+   * Removes the instrumentation patch from the BedrockRuntimeClient
+   * Unwraps the send method and resets the patched state
+   *
+   * @param moduleExports The module exports from @aws-sdk/client-bedrock-runtime
+   * @param moduleVersion The version of the module being unpatched
+   */
+  private unpatch(
+    moduleExports: BedrockModuleExports,
+    moduleVersion?: string,
+  ): void {
+    diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+
+    if (moduleExports?.BedrockRuntimeClient) {
+      this._unwrap(moduleExports.BedrockRuntimeClient.prototype, "send");
+      _isBedrockPatched = false;
+    }
+  }
+
+  /**
    * Handles instrumentation for synchronous InvokeModel commands
    * Creates a span, extracts request attributes, executes the command, and processes the response
    *
@@ -242,25 +261,6 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       }
       span.end();
       throw error;
-    }
-  }
-
-  /**
-   * Removes the instrumentation patch from the BedrockRuntimeClient
-   * Unwraps the send method and resets the patched state
-   *
-   * @param moduleExports The module exports from @aws-sdk/client-bedrock-runtime
-   * @param moduleVersion The version of the module being unpatched
-   */
-  private unpatch(
-    moduleExports: BedrockModuleExports,
-    moduleVersion?: string,
-  ): void {
-    diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-
-    if (moduleExports?.BedrockRuntimeClient) {
-      this._unwrap(moduleExports.BedrockRuntimeClient.prototype, "send");
-      _isBedrockPatched = false;
     }
   }
 
@@ -330,7 +330,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
           consumeBedrockStreamChunks({
             stream: instrumentationStream,
             span,
-            modelId: command.input.modelId,
+            modelType: system,
           })
             .then(() => {
               span.setStatus({ code: SpanStatusCode.OK });

@@ -13,6 +13,7 @@ import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
+  LLMSystem,
 } from "@arizeai/openinference-semantic-conventions";
 import { ContentBlockDelta } from "@aws-sdk/client-bedrock-runtime";
 import {
@@ -20,8 +21,9 @@ import {
   isObjectWithStringKeys,
 } from "@arizeai/openinference-core";
 import { ReadableStream } from "node:stream/web";
-import { isToolUseContent } from "../types/bedrock-types";
+import { isToolUseContent, UsageAttributes } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
+import { normalizeUsageAttributes } from "./invoke-model-helpers";
 
 /**
  * Interface for raw stream chunks from AWS SDK (network level)
@@ -116,7 +118,7 @@ function isValidStreamEventData(data: unknown): data is StreamEventData {
  * @param params.span The OpenTelemetry span to set attributes on
  * @param params.outputText Accumulated text content from streaming response
  * @param params.contentBlocks Array of content blocks including tool calls
- * @param params.usage Token usage statistics from the streaming response
+ * @param params.usage Normalized token usage statistics from the streaming response
  */
 function setStreamingOutputAttributes({
   span,
@@ -133,7 +135,7 @@ function setStreamingOutputAttributes({
     name?: string;
     input?: Record<string, unknown>;
   }>;
-  usage: Record<string, number>;
+  usage: UsageAttributes;
 }): void {
   // Create simple output representation with only actual data we have
   const outputValue = {
@@ -189,17 +191,40 @@ function setStreamingOutputAttributes({
     );
   });
 
-  // Set usage attributes directly
-  if (usage) {
+  // Set usage attributes using normalized format - only set if defined
+  if (usage.input_tokens !== undefined) {
     setSpanAttribute(
       span,
       SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
       usage.input_tokens,
     );
+  }
+  if (usage.output_tokens !== undefined) {
     setSpanAttribute(
       span,
       SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
       usage.output_tokens,
+    );
+  }
+  if (usage.total_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
+      usage.total_tokens,
+    );
+  }
+  if (usage.cache_read_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+      usage.cache_read_input_tokens,
+    );
+  }
+  if (usage.cache_creation_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+      usage.cache_creation_input_tokens,
     );
   }
 }
@@ -263,11 +288,11 @@ export const consumeBedrockStreamChunks = withSafety({
   fn: async ({
     stream,
     span,
-    modelId,
+    modelType,
   }: {
     stream: AsyncIterable<unknown>;
     span: Span;
-    modelId?: string;
+    modelType: LLMSystem;
   }): Promise<void> => {
     let outputText = "";
     const contentBlocks: Array<{
@@ -277,7 +302,8 @@ export const consumeBedrockStreamChunks = withSafety({
       name?: string;
       input?: Record<string, unknown>;
     }> = [];
-    let usage: Record<string, number> = {};
+    // Accumulate raw usage data for later normalization
+    let rawUsageData: Record<string, unknown> = {};
 
     for await (const chunk of stream) {
       // Type guard for chunk structure
@@ -296,7 +322,10 @@ export const consumeBedrockStreamChunks = withSafety({
 
               // Handle different event types
               if (data.type === "message_start" && data.message) {
-                usage = data.message.usage || {};
+                // Accumulate usage data from message_start event
+                if (data.message.usage) {
+                  rawUsageData = { ...rawUsageData, ...data.message.usage };
+                }
               }
 
               if (data.type === "content_block_start" && data.content_block) {
@@ -323,7 +352,8 @@ export const consumeBedrockStreamChunks = withSafety({
               }
 
               if (data.type === "message_delta" && data.usage) {
-                usage = { ...usage, ...data.usage };
+                // Accumulate usage data from message_delta event
+                rawUsageData = { ...rawUsageData, ...data.usage };
               }
             } catch (parseError) {
               // Skip malformed JSON lines silently
@@ -334,7 +364,12 @@ export const consumeBedrockStreamChunks = withSafety({
       }
     }
 
-    setStreamingOutputAttributes({ span, outputText, contentBlocks, usage });
+    // Normalize the accumulated usage data using the same helper as non-streaming responses
+    // For streaming, wrap the usage data in the format expected by normalizeUsageAttributes
+    const wrappedUsageData = { usage: rawUsageData };
+    const normalizedUsage = normalizeUsageAttributes(wrappedUsageData, modelType) || {};
+    
+    setStreamingOutputAttributes({ span, outputText, contentBlocks, usage: normalizedUsage });
   },
   onError: (error) => {
     diag.warn("Error consuming Bedrock stream chunks:", error);

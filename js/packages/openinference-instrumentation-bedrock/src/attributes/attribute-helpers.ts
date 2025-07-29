@@ -17,6 +17,7 @@ import {
   isConverseToolUseContent,
   isConverseToolResultContent,
 } from "../types/bedrock-types";
+import { formatImageUrl } from "./invoke-model-helpers";
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
@@ -126,12 +127,17 @@ export function getAttributesFromMessageContent(
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
     if (content.image.source.bytes) {
-      // Convert bytes to base64 data URL for consistent representation
+      // Convert bytes to base64 data URL using the helper function
       const base64 = Buffer.from(content.image.source.bytes).toString("base64");
       const mimeType = `image/${content.image.format}`;
+      
       attributes[
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-      ] = `data:${mimeType};base64,${base64}`;
+      ] = formatImageUrl({
+        type: "base64",
+        data: base64,
+        media_type: mimeType,
+      });
     }
   }
 
