@@ -51,8 +51,6 @@ export {
   ContentBlockStopEvent,
 };
 
-
-
 // Custom types that extend or aren't available in the SDK
 
 // Legacy InvokeModel API types (not fully exposed in new SDK versions)
@@ -74,8 +72,8 @@ export type InvokeModelResponseBody = Record<string, unknown>;
 export interface NormalizedInvokeModelResponseBody {
   content: string | (TextContent | ToolUseContent)[];
   usage: UsageInfo;
-  role: ConversationRole,
-  id: string,
+  role: ConversationRole;
+  id: string;
 }
 
 // Legacy message format for InvokeModel (different from Converse Message)

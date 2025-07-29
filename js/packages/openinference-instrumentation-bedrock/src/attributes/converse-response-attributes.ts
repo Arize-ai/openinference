@@ -3,7 +3,10 @@ import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
+import {
+  withSafety,
+  isObjectWithStringKeys,
+} from "@arizeai/openinference-core";
 import {
   ConverseResponse,
   ConverseOutput,
@@ -26,7 +29,9 @@ function isConverseResponse(response: unknown): response is ConverseResponse {
   }
 
   return (
-    "output" in response && typeof response.output === "object" && response.output !== null
+    "output" in response &&
+    typeof response.output === "object" &&
+    response.output !== null
   );
 }
 

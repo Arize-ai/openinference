@@ -1092,13 +1092,13 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle AI21 Jurassic models", async () => {
         setupTestRecording("should-handle-ai21-jurassic-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "ai21.j2-ultra-v1",
           body: JSON.stringify({
             prompt: "Hello, how are you?",
             maxTokens: 100,
-            temperature: 0.7
+            temperature: 0.7,
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1111,15 +1111,15 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle Amazon Nova models", async () => {
         setupTestRecording("should-handle-amazon-nova-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "amazon.nova-lite-v1:0",
           body: JSON.stringify({
             inputText: "Hello, how are you?",
             textGenerationConfig: {
               maxTokenCount: 100,
-              temperature: 0.7
-            }
+              temperature: 0.7,
+            },
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1132,15 +1132,15 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle Amazon Titan models", async () => {
         setupTestRecording("should-handle-amazon-titan-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "amazon.titan-text-express-v1",
           body: JSON.stringify({
             inputText: "Hello, how are you?",
             textGenerationConfig: {
               maxTokenCount: 100,
-              temperature: 0.7
-            }
+              temperature: 0.7,
+            },
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1153,7 +1153,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle Cohere Command models", async () => {
         setupTestRecording("should-handle-cohere-command-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "cohere.command-text-v14",
           body: JSON.stringify({
@@ -1162,7 +1162,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
             temperature: 0.7,
             p: 0.9,
             k: 0,
-            stop_sequences: []
+            stop_sequences: [],
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1175,14 +1175,14 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle Meta Llama models", async () => {
         setupTestRecording("should-handle-meta-llama-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "meta.llama2-13b-chat-v1",
           body: JSON.stringify({
             prompt: "Hello, how are you?",
             max_gen_len: 100,
             temperature: 0.7,
-            top_p: 0.9
+            top_p: 0.9,
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1195,14 +1195,14 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       it("should handle Mistral models", async () => {
         setupTestRecording("should-handle-mistral-models");
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelCommand({
           modelId: "mistral.mistral-7b-instruct-v0:2",
           body: JSON.stringify({
             prompt: "Hello, how are you?",
             max_tokens: 100,
             temperature: 0.7,
-            top_p: 0.9
+            top_p: 0.9,
           }),
           contentType: "application/json",
           accept: "application/json",
