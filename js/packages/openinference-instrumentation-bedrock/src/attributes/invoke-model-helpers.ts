@@ -1,13 +1,11 @@
-import { withSafety } from "@arizeai/openinference-core";
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
 import { InvokeModelCommand, InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { diag } from "@opentelemetry/api";
 import {
   BedrockMessage,
   InvokeModelRequestBody,
-  isImageContent,
   isTextContent,
   isToolResultContent,
-  isToolUseContent,
   MessageContent,
   TextContent,
   ToolUseContent,
@@ -20,38 +18,41 @@ import {
 import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
 
 /**
- * Safely parses the InvokeModel response body with comprehensive error handling
- * Handles multiple response body formats and provides null fallback on error
+ * Type guard to check if message contains a simple single text content
+ * Combines all checks needed to safely access the text content without casting
  *
- * @param response The raw InvokeModel command response from AWS SDK
- * @returns {Record<string, unknown> | null} Parsed response body or null if parsing fails
- * @internal Used by response attribute extraction functions
+ * @param message The bedrock message to check
+ * @returns {boolean} True if message contains a single text content block
  */
-export const parseResponseBody = withSafety({
-  fn: (response: InvokeModelResponse): Record<string, unknown> => {
-    if (!response.body) {
-      throw new Error("Response body is missing");
+export function isSimpleTextResponse(
+    message: BedrockMessage,
+  ): message is BedrockMessage & {
+    content: [TextContent];
+  } {
+    return Boolean(
+      Array.isArray(message.content) &&
+      message.content.length === 1 &&
+      isTextContent(message.content[0])
+    );
+  }
+  
+  /**
+   * Formats Bedrock image source data into OpenInference data URL format
+   * Converts Bedrock image source to standard data URL: data:{media_type};base64,{data}
+   *
+   * @param source The Bedrock image source containing type, data, and media type
+   * @returns {string} Formatted data URL or empty string if source is invalid
+   */
+  export function formatImageUrl(source: ImageSource): string {
+    if (source.type === "base64" && source.data && source.media_type) {
+      return `data:${source.media_type};base64,${source.data}`;
     }
+    return "";
+  }
 
-    let responseText: string;
-    if (typeof response.body === "string") {
-      responseText = response.body;
-    } else if (response.body instanceof Uint8Array) {
-      responseText = new TextDecoder().decode(response.body);
-    } else {
-      // Handle other potential types
-      responseText = new TextDecoder().decode(response.body as Uint8Array);
-    }
+  // Request Processing Helpers
 
-    return JSON.parse(responseText) as Record<string, unknown>;
-  },
-  onError: (error) => {
-    diag.warn("Error parsing response body:", error);
-    return null;
-  },
-});
-
-/**
+  /**
  * Safely parses the InvokeModel request body with comprehensive error handling
  * Handles multiple body formats (string, Buffer, Uint8Array, ArrayBuffer) and provides fallback
  *
@@ -111,103 +112,7 @@ export function extractInvocationParameters(
     }
   }
 
-/**
- * Type guard to check if message contains a simple single text content
- * Combines all checks needed to safely access the text content without casting
- *
- * @param message The bedrock message to check
- * @returns {boolean} True if message contains a single text content block
- */
-export function isSimpleTextResponse(
-  message: BedrockMessage,
-): message is BedrockMessage & {
-  content: [TextContent];
-} {
-  return Boolean(
-    Array.isArray(message.content) &&
-    message.content.length === 1 &&
-    isTextContent(message.content[0])
-  );
-}
 
-
-// Content formatting constants
-const TOOL_RESULT_PREFIX = "[Tool Result: ";
-const TOOL_CALL_PREFIX = "[Tool Call: ";
-const CONTENT_SUFFIX = "]";
-
-/**
- * Extracts text content from various Bedrock message content formats
- * Supports both string content and complex content arrays with multi-modal data
- * Formats tool calls and results with descriptive prefixes for readability
- *
- * @param content The message content to extract text from (string or content block array)
- * @returns {string} Extracted and formatted text content with tool information
- * @deprecated This function is currently unused but preserved for potential future use
- */ 
-export function extractTextFromContent(content: MessageContent): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    const textParts: string[] = [];
-
-    content.forEach((block) => {
-      if (isTextContent(block)) {
-        textParts.push(block.text);
-      } else if (isToolResultContent(block)) {
-        textParts.push(
-          `${TOOL_RESULT_PREFIX}${block.content}${CONTENT_SUFFIX}`,
-        );
-      } else if (isToolUseContent(block)) {
-        textParts.push(`${TOOL_CALL_PREFIX}${block.name}${CONTENT_SUFFIX}`);
-      } else if (isImageContent(block)) {
-        // Handle image content in OpenInference format: data:{media_type};base64,{data}
-        const imageUrl = formatImageUrl(block.source);
-        if (imageUrl) {
-          textParts.push(imageUrl);
-        }
-      }
-    });
-
-    return textParts.join(" ");
-  }
-
-  return "";
-}
-
-/**
- * Formats Bedrock image source data into OpenInference data URL format
- * Converts Bedrock image source to standard data URL: data:{media_type};base64,{data}
- *
- * @param source The Bedrock image source containing type, data, and media type
- * @returns {string} Formatted data URL or empty string if source is invalid
- */
-export function formatImageUrl(source: ImageSource): string {
-  if (source.type === "base64" && source.data && source.media_type) {
-    return `data:${source.media_type};base64,${source.data}`;
-  }
-  return "";
-}
-
-/**
- * Extracts tool use content blocks from Bedrock message content
- * Filters content array to return only tool use blocks for processing tool calls
- *
- * @param content The message content to extract tool use blocks from
- * @returns {ToolUseContent[]} Array of tool use blocks, empty if none found
- * @deprecated This function is currently unused but preserved for potential future use
- */
-export function extractToolUseBlocks(
-  content: MessageContent,
-): ToolUseContent[] {
-  if (typeof content === "string" || !Array.isArray(content)) {
-    return [];
-  }
-
-  return content.filter(isToolUseContent);
-}
 
 /**
  * Extracts tool result content blocks from Bedrock message content
@@ -224,26 +129,6 @@ export function extractToolResultBlocks(
   }
 
   return content.filter(isToolResultContent);
-}
-
-/**
- * Extracts text content blocks from Bedrock message content
- * Converts string content to text block format and filters array content for text blocks
- *
- * @param content The message content to extract text blocks from
- * @returns {TextContent[]} Array of text blocks with type and text properties
- * @deprecated This function is currently unused but preserved for potential future use
- */
-export function extractTextBlocks(content: MessageContent): TextContent[] {
-  if (typeof content === "string") {
-    return [{ type: "text", text: content }];
-  }
-
-  if (!Array.isArray(content)) {
-    return [];
-  }
-
-  return content.filter(isTextContent);
 }
 
 
@@ -621,6 +506,40 @@ export const normalizeRequestContentBlocks = withSafety({
     },
   });
 
+// Response Processing Helpers
+
+/**
+ * Safely parses the InvokeModel response body with comprehensive error handling
+ * Handles multiple response body formats and provides null fallback on error
+ *
+ * @param response The raw InvokeModel command response from AWS SDK
+ * @returns {Record<string, unknown> | null} Parsed response body or null if parsing fails
+ * @internal Used by response attribute extraction functions
+ */
+export const parseResponseBody = withSafety({
+    fn: (response: InvokeModelResponse): Record<string, unknown> => {
+      if (!response.body) {
+        throw new Error("Response body is missing");
+      }
+  
+      let responseText: string;
+      if (typeof response.body === "string") {
+        responseText = response.body;
+      } else if (response.body instanceof Uint8Array) {
+        responseText = new TextDecoder().decode(response.body);
+      } else {
+        // Handle other potential types
+        responseText = new TextDecoder().decode(response.body as Uint8Array);
+      }
+  
+      return JSON.parse(responseText) as Record<string, unknown>;
+    },
+    onError: (error) => {
+      diag.warn("Error parsing response body:", error);
+      return null;
+    },
+  });
+
 
 /**
  * Coerces Nova-style content blocks to standard MessageContent format
@@ -719,8 +638,130 @@ function isTitanResponse(responseBody: Record<string, unknown>): boolean {
   return !!(
     responseBody.results &&
     Array.isArray(responseBody.results) &&
+    responseBody.results.length > 0 &&
     typeof responseBody.inputTextTokenCount === "number"
   );
+}
+
+/**
+ * Converts AI21 Jamba response to standardized MessageContent format
+ * Handles the choices array structure: { choices: [{ message: { content, tool_calls } }] }
+ * Supports both plain text responses and tool call responses
+ *
+ * @param responseBody The AI21 Jamba response body to convert
+ * @returns {MessageContent} Array of converted content blocks including tool calls
+ */
+function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
+  if (!Array.isArray(responseBody.choices)) {
+    return [];
+  }
+
+  const content: MessageContent = [];
+  const choices = responseBody.choices as unknown[];
+  
+  for (const choice of choices) {
+    if (choice && typeof choice === 'object') {
+      const choiceObj = choice as Record<string, unknown>;
+      const message = choiceObj.message as Record<string, unknown>;
+      
+      if (message) {
+        if (typeof message.content === 'string') {
+          content.push({
+            type: "text",
+            text: message.content as string,
+          });
+        }
+        
+        // Handle tool calls - AI21 format: { tool_calls: [{ id, function: { name, arguments } }] }
+        if (Array.isArray(message.tool_calls)) {
+          const toolCalls = message.tool_calls as Array<{
+            id?: string;
+            function?: {
+              name?: string;
+              arguments?: string;
+            };
+          }>;
+          
+          for (const toolCall of toolCalls) {
+            if (toolCall?.function?.name && toolCall?.function?.arguments) {
+              try {
+                content.push({
+                  type: "tool_use",
+                  id: toolCall.id || "unknown",
+                  name: toolCall.function.name,
+                  input: JSON.parse(toolCall.function.arguments),
+                });
+              } catch (error) {
+                // If arguments parsing fails, skip this tool call
+                diag.warn("Failed to parse AI21 tool call arguments:", error);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return content;
+}
+
+/**
+ * Converts Meta response to standardized MessageContent format
+ * Handles the single generation field: { generation: "text" }
+ *
+ * @param responseBody The Meta response body to convert
+ * @returns {MessageContent} Array with single converted content block
+ */
+function convertMetaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
+  const generation = responseBody.generation;
+  if (typeof generation === 'string') {
+    return [
+      {
+        type: "text",
+        text: generation,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * Converts an array field in response body to MessageContent array
+ * Handles multiple generations/results by converting each element to a TextContent block
+ * Provides validation to ensure the field exists and is an array
+ *
+ * @param responseBody The parsed response body containing the array field
+ * @param arrayFieldName The name of the array field in the response body (e.g., "generations", "results")
+ * @param textFieldName The name of the text field within each array element (e.g., "text", "outputText")
+ * @returns {MessageContent} Array of TextContent blocks, one for each element in the source array
+ */
+function convertArrayFieldToMessageContent(
+  responseBody: Record<string, unknown>,
+  arrayFieldName: string,
+  textFieldName: string,
+): MessageContent {
+  // Validate that the array field exists and is actually an array
+  const arrayField = responseBody[arrayFieldName];
+  if (!Array.isArray(arrayField) || arrayField.length === 0) {
+    return [];
+  }
+
+  // Convert each element in the array to a TextContent block
+  const content: TextContent[] = [];
+  for (const element of arrayField) {
+    if (element && typeof element === 'object') {
+      const elementObj = element as Record<string, unknown>;
+      const text = elementObj[textFieldName];
+      if (typeof text === 'string') {
+        content.push({
+          type: "text",
+          text: text,
+        });
+      }
+    }
+  }
+
+  return content;
 }
 
 /**
@@ -740,64 +781,43 @@ export const normalizeResponseContentBlocks = withSafety({
     const role = "assistant";
     let content: MessageContent = [];
 
-    if (llm_system === LLMSystem.ANTHROPIC) {
-      // Anthropic already in correct format: { content: [{ type: "text", text: "..." }] }
+    if (llm_system === LLMSystem.ANTHROPIC && 
+        'content' in responseBody && 
+        Array.isArray(responseBody.content) && 
+        responseBody.content.length > 0) {
+      // Anthropic format: { content: [{ type: "text", text: "..." }] }
       content = responseBody.content as MessageContent;
     } else if (llm_system === LLMSystem.AMAZON) {
       // Distinguish between Nova and Titan by response structure
       if (isNovaResponse(responseBody)) {
-        // Nova format: extract and coerce
         const novaContent = extractNovaContent(responseBody);
         content = coerceNovaToMessageContent(novaContent);
       } else if (isTitanResponse(responseBody)) {
-        // Titan format: { results: [{ outputText }] }
-        const results = responseBody.results as unknown[];
-        if (results?.[0]) {
-          const result = results[0] as Record<string, unknown>;
-          content = [
-            {
-              type: "text",
-              text: (result.outputText as string) || "",
-            },
-          ];
-        }
+        // Titan format: { results: [{ outputText }] } - handle all results, not just first
+        content = convertArrayFieldToMessageContent(responseBody, "results", "outputText");
       }
-    } else if (llm_system === LLMSystem.COHERE) {
-      // Cohere: { generations: [{ text }] }
-      const generations = responseBody.generations as unknown[];
-      if (generations?.[0]) {
-        const gen = generations[0] as Record<string, unknown>;
-        content = [
-          {
-            type: "text",
-            text: (gen.text as string) || "",
-          },
-        ];
-      }
-    } else if (llm_system === LLMSystem.META) {
-      // Meta: { generations: [{ text }] }
-      const generations = responseBody.generations as unknown[];
-      if (generations?.[0]) {
-        const gen = generations[0] as Record<string, unknown>;
-        content = [
-          {
-            type: "text",
-            text: (gen.text as string) || "",
-          },
-        ];
-      }
-    } else if (llm_system === LLMSystem.MISTRALAI) {
-      // Mistral: { generations: [{ text }] }
-      const generations = responseBody.generations as unknown[];
-      if (generations?.[0]) {
-        const gen = generations[0] as Record<string, unknown>;
-        content = [
-          {
-            type: "text",
-            text: (gen.text as string) || "",
-          },
-        ];
-      }
+    } else if (llm_system === LLMSystem.COHERE && 
+               'generations' in responseBody && 
+               Array.isArray(responseBody.generations) && 
+               responseBody.generations.length > 0) {
+      // Cohere: { generations: [{ text }] } - handle all generations, not just first
+      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
+    } else if (llm_system === LLMSystem.META && 
+               'generation' in responseBody && 
+               typeof responseBody.generation === 'string') {
+      content = convertMetaToMessageContent(responseBody);
+    } else if (llm_system === LLMSystem.MISTRALAI && 
+               'generations' in responseBody && 
+               Array.isArray(responseBody.generations) && 
+               responseBody.generations.length > 0) {
+      // Mistral: { generations: [{ text }] } - handle all generations, not just first
+      // NOTE: Tool calls are not currently supported for Mistral models
+      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
+    } else if (llm_system === LLMSystem.AI21 && 
+               'choices' in responseBody && 
+               Array.isArray(responseBody.choices) && 
+               responseBody.choices.length > 0) {
+      content = convertAI21JambaToMessageContent(responseBody);
     }
     return {
       role: role,
