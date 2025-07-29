@@ -14,17 +14,18 @@ import {
   SemanticConventions,
   MimeType,
 } from "@arizeai/openinference-semantic-conventions";
-import { 
-  ContentBlockDelta,
-} from "@aws-sdk/client-bedrock-runtime";
-import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
+import { ContentBlockDelta } from "@aws-sdk/client-bedrock-runtime";
+import {
+  withSafety,
+  isObjectWithStringKeys,
+} from "@arizeai/openinference-core";
 import { ReadableStream } from "node:stream/web";
 import { isToolUseContent } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
  * Interface for raw stream chunks from AWS SDK (network level)
- * 
+ *
  * Note: This represents the low-level network transport format that the AWS SDK
  * uses internally. The SDK doesn't expose a specific type for this raw chunk format,
  * which is why we define it here. The actual streaming event types come after
@@ -38,13 +39,13 @@ interface StreamChunk {
 
 /**
  * Streaming event data that matches Bedrock's raw JSON event format
- * 
+ *
  * Note: We define this custom interface because we're parsing the raw JSON lines
  * from the stream bytes directly, before the AWS SDK processes them into its
  * own event types (like ContentBlockDeltaEvent). The SDK types represent the
  * final processed events, but we need to work with the intermediate JSON structure
  * to avoid interfering with the user's stream consumption.
- * 
+ *
  * The AWS SDK types are designed for post-processed events that go through the
  * SDK's event stream parser, but we're instrumenting at the raw byte level
  * to preserve the original user stream.

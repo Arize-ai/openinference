@@ -11,9 +11,7 @@
 import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
-  OpenInferenceSpanKind,
   MimeType,
-  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   InvokeModelCommand,
@@ -32,10 +30,7 @@ import {
   extractToolResultBlocks,
   formatImageUrl,
 } from "../utils/content-processing";
-import { 
-  setSpanAttribute,
-  extractModelName,
-} from "./attribute-helpers";
+import { setSpanAttribute, extractModelName } from "./attribute-helpers";
 
 /**
  * Safely parses the InvokeModel request body with comprehensive error handling
@@ -75,7 +70,6 @@ const parseRequestBody = withSafety({
     } as InvokeModelRequestBody;
   },
 });
-
 
 /**
  * Interface for invocation parameters combining AWS SDK standard interface with vendor-specific parameters
@@ -142,19 +136,12 @@ function extractBaseRequestAttributes({
   requestBody: InvokeModelRequestBody;
 }): void {
   const modelId = command.input?.modelId || "unknown";
-
-  setSpanAttribute(
-    span,
-    SemanticConventions.OPENINFERENCE_SPAN_KIND,
-    OpenInferenceSpanKind.LLM,
-  );
   setSpanAttribute(
     span,
     SemanticConventions.LLM_MODEL_NAME,
     extractModelName(modelId),
   );
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
-  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
 
   const invocationParams = extractInvocationParameters(requestBody);
   if (Object.keys(invocationParams).length > 0) {

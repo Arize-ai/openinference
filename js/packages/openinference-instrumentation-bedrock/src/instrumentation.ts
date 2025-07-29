@@ -6,10 +6,6 @@ import {
 } from "@opentelemetry/instrumentation";
 import { diag, SpanKind, SpanStatusCode, context } from "@opentelemetry/api";
 import {
-  SemanticConventions,
-  OpenInferenceSpanKind,
-} from "@arizeai/openinference-semantic-conventions";
-import {
   getAttributesFromContext,
   OITracer,
   TraceConfigOptions,
@@ -31,7 +27,10 @@ import {
   consumeBedrockStreamChunks,
   safelySplitStream,
 } from "./attributes/invoke-model-streaming-response-attributes";
-import { getSystemFromModelId, setSpanAttribute } from "./attributes/attribute-helpers";
+import {
+  getSystemFromModelId,
+  setBasicSpanAttributes,
+} from "./attributes/attribute-helpers";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
@@ -198,20 +197,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    setSpanAttribute(
-      span,
-      SemanticConventions.OPENINFERENCE_SPAN_KIND,
-      OpenInferenceSpanKind.LLM,
-    )
-
-    // extract model id early so it can be used to parse the weakly typed response
     const modelId = command.input.modelId;
-    const system = getSystemFromModelId(modelId ?? '');
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_SYSTEM,
-      system,
-    );
+    const system = getSystemFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
@@ -226,7 +214,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       // AWS SDK v3 send() method always returns a Promise
       return result
         .then((response: InvokeModelResponse) => {
-          extractInvokeModelResponseAttributes({ span, response, modelType: system });
+          extractInvokeModelResponseAttributes({
+            span,
+            response,
+            modelType: system,
+          });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;
@@ -295,20 +287,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    setSpanAttribute(
-      span,
-      SemanticConventions.OPENINFERENCE_SPAN_KIND,
-      OpenInferenceSpanKind.LLM,
-    )
-
-    // extract model id early so it can be used to parse the weakly typed response
     const modelId = command.input.modelId;
-    const system = getSystemFromModelId(modelId ?? '');
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_SYSTEM,
-      system,
-    );
+    const system = getSystemFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
@@ -403,11 +384,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    setSpanAttribute(
-      span,
-      SemanticConventions.OPENINFERENCE_SPAN_KIND,
-      OpenInferenceSpanKind.LLM,
-    )
+    const modelId = command.input.modelId;
+    const system = getSystemFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);

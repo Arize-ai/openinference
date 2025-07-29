@@ -2,6 +2,8 @@ import { Span, AttributeValue, Attributes } from "@opentelemetry/api";
 import {
   SemanticConventions,
   LLMSystem,
+  OpenInferenceSpanKind,
+  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
 import {
   Message,
@@ -32,6 +34,35 @@ export function setSpanAttribute(
   if (value != null && value !== "") {
     span.setAttribute(key, value);
   }
+}
+
+/**
+ * Extracts vendor-specific system name from Bedrock model ID
+ * Maps model IDs to their corresponding AI system providers
+ *
+ * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
+ */
+export function getSystemFromModelId(modelId: string): LLMSystem {
+  if (modelId.includes("anthropic")) return LLMSystem.ANTHROPIC;
+  if (modelId.includes("ai21")) return LLMSystem.AI21;
+  if (modelId.includes("amazon")) return LLMSystem.AMAZON;
+  if (modelId.includes("cohere")) return LLMSystem.COHERE;
+  if (modelId.includes("meta")) return LLMSystem.META;
+  if (modelId.includes("mistral")) return LLMSystem.MISTRALAI;
+  return LLMSystem.AMAZON;
+}
+
+export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem) {
+  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
+
+  setSpanAttribute(
+    span,
+    SemanticConventions.OPENINFERENCE_SPAN_KIND,
+    OpenInferenceSpanKind.LLM,
+  );
+
+  setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, llm_system);
 }
 
 /**
@@ -114,9 +145,7 @@ export function getAttributesFromMessageContent(
  * @param message The Bedrock message to extract attributes from
  * @returns {Record<string, AttributeValue>} Object containing semantic convention attributes
  */
-export function getAttributesFromMessage(
-  message: Message,
-): Attributes {
+export function getAttributesFromMessage(message: Message): Attributes {
   const attributes: Attributes = {};
 
   if (message.role) {
@@ -182,23 +211,6 @@ export function processMessages({
       setSpanAttribute(span, `${baseKey}.${index}.${key}`, value);
     }
   }
-}
-
-/**
- * Extracts vendor-specific system name from Bedrock model ID
- * Maps model IDs to their corresponding AI system providers
- *
- * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
- * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
- */
-export function getSystemFromModelId(modelId: string): LLMSystem {
-  if (modelId.includes("anthropic")) return LLMSystem.ANTHROPIC;
-  if (modelId.includes("ai21")) return LLMSystem.AI21;
-  if (modelId.includes("amazon")) return LLMSystem.AMAZON;
-  if (modelId.includes("cohere")) return LLMSystem.COHERE;
-  if (modelId.includes("meta")) return LLMSystem.META;
-  if (modelId.includes("mistral")) return LLMSystem.MISTRALAI;
-  return LLMSystem.AMAZON;
 }
 
 /**

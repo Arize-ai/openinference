@@ -23,7 +23,6 @@ import {
 } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 
-
 /**
  * Safely parses the InvokeModel response body with comprehensive error handling
  * Handles multiple response body formats and provides null fallback on error
@@ -58,7 +57,7 @@ const parseResponseBody = withSafety({
 /**
  * Type guard to check if response body contains a simple single text content
  * Combines all checks needed to safely access the text content without casting
- * 
+ *
  * @param responseBody The response body to check
  * @returns {boolean} True if response contains a single text content block
  */
@@ -69,9 +68,9 @@ function isSimpleTextResponse(
 } {
   return Boolean(
     responseBody?.content &&
-    Array.isArray(responseBody.content) &&
-    responseBody.content.length === 1 &&
-    isTextContent(responseBody.content[0])
+      Array.isArray(responseBody.content) &&
+      responseBody.content.length === 1 &&
+      isTextContent(responseBody.content[0]),
   );
 }
 
@@ -184,12 +183,12 @@ function extractUsageAttributes({
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    usage?.input_tokens as number ?? 0,
+    (usage?.input_tokens as number) ?? 0,
   );
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    usage?.output_tokens as number ?? 0,
+    (usage?.output_tokens as number) ?? 0,
   );
 
   // Cache-related token attributes (if present)
@@ -242,7 +241,6 @@ function addOutputMessageContentAttributes({
     }
   });
 }
-
 
 /**
  * Extracts semantic convention attributes from InvokeModel response and sets them on the span

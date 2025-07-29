@@ -8,16 +8,16 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import {
   SemanticConventions,
-  OpenInferenceSpanKind,
   MimeType,
-  LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
-import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
+import {
+  withSafety,
+  isObjectWithStringKeys,
+} from "@arizeai/openinference-core";
 import {
   setSpanAttribute,
   aggregateMessages,
   processMessages,
-  getSystemFromModelId,
   extractModelName,
 } from "./attribute-helpers";
 
@@ -58,17 +58,6 @@ function extractBaseRequestAttributes({
 }): void {
   const modelId = input.modelId || "unknown";
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.OPENINFERENCE_SPAN_KIND,
-    OpenInferenceSpanKind.LLM,
-  );
-  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_SYSTEM,
-    getSystemFromModelId(modelId),
-  );
   setSpanAttribute(
     span,
     SemanticConventions.LLM_MODEL_NAME,
