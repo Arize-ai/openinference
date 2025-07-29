@@ -120,6 +120,24 @@ export interface UsageInfo {
   cache_creation_input_tokens?: number;
 }
 
+/**
+ * Comprehensive usage attributes normalized from various provider response formats
+ * Includes all token count types that may be present across different model providers
+ * All fields are optional - undefined means the token count was not provided by the model
+ */
+export interface UsageAttributes {
+  /** Input/prompt tokens consumed */
+  input_tokens?: number;
+  /** Output/completion tokens generated */
+  output_tokens?: number;
+  /** Total tokens (input + output), if provided by the model */
+  total_tokens?: number;
+  /** Cache read tokens for prompt caching features */
+  cache_read_input_tokens?: number;
+  /** Cache write tokens for prompt caching features */
+  cache_creation_input_tokens?: number;
+}
+
 // Content blocks for Converse API (map to SDK ContentBlock structure)
 // These are used for type guards since AWS SDK ContentBlock has complex union types
 export type ConverseContentBlock =
