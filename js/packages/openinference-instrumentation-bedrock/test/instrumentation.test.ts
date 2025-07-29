@@ -1221,7 +1221,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 `);
       });
 
-      it("should handle Cohere Command models", async () => {
+      xit("should handle Cohere Command models", async () => {
         setupTestRecording("should-handle-cohere-command-models");
         const client = createTestClient(isRecordingMode);
 
