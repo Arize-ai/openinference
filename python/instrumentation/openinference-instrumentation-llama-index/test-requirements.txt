@@ -2,6 +2,7 @@ anthropic<0.41
 llama-index-core==0.12.51
 llama-index-llms-groq
 llama-index-llms-openai
+llama-index-llms-vertex
 llama-index-multi-modal-llms-openai>=0.1.7
 llama-index==0.12.51
 llama_index-llms-anthropic

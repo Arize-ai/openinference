@@ -682,6 +682,20 @@ class _Span(BaseSpan):
             ):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
+
+            # Check for VertexAI usage_metadata
+            # VertexAI stores usage_metadata inside _raw_response
+            if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
+                usage_metadata = (
+                    raw_response.get("usage_metadata")
+                    if isinstance(raw_response, Mapping)
+                    else getattr(raw_response, "usage_metadata", None)
+                )
+            else:
+                usage_metadata = getattr(raw, "usage_metadata", None)
+            if usage_metadata:
+                for k, v in _get_token_counts(usage_metadata):
+                    self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
@@ -1133,6 +1147,23 @@ def _get_token_counts_impl(
             if cache_read_input_tokens is not None:
                 input_tokens += int(cache_read_input_tokens)
             yield LLM_TOKEN_COUNT_PROMPT, input_tokens
+        except BaseException:
+            pass
+
+    # VertexAI
+    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
+        except BaseException:
+            pass
+    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
+        except BaseException:
+            pass
+    if (total_token_count := get_value(usage, "total_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
         except BaseException:
             pass
 
