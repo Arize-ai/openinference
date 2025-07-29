@@ -1,0 +1,242 @@
+interactions:
+- request:
+    body: null
+    headers: {}
+    method: GET
+    uri: https://raw.githubusercontent.com/openlit/openlit/main/assets/pricing.json
+  response:
+    body:
+      string: "{\n    \"embeddings\": {\n        \"text-embedding-ada-002\": 0.0001,\n
+        \       \"text-embedding-3-small\": 0.00002,\n        \"text-embedding-3-large\":
+        0.00013,\n        \"ada\": 0.0001,\n        \"ada-v2\": 0.00010,\n        \"text-ada-001\":
+        0.0001,\n        \"azure_text-embedding-ada-002\": 0.0001,\n        \"azure_text-embedding-3-small\":
+        0.00002,\n        \"azure_text-embedding-3-large\": 0.00013,\n        \"azure_ada\":
+        0.0001,\n        \"azure_ada-v2\": 0.00010,\n        \"azure_text-ada-001\":
+        0.0001,\n        \"embed-english-v3.0\": 0.0001,\n        \"embed-multilingual-v3.0\":
+        0.0001,\n        \"embed-english-light-v3.0\": 0.0001,\n        \"embed-multilingual-light-v3.0\":
+        0.0001,\n        \"embed-english-v2.0\": 0.0001,\n        \"embed-english-light-v2.0\":
+        0.0001,\n        \"embed-multilingual-v2.0\": 0.0001,\n        \"mistral-embed\":
+        0.0001,\n        \"amazon.titan-embed-text-v1\": 0.0001,\n        \"amazon.titan-embed-text-v2\":
+        0.00002,\n        \"textembedding-gecko\": 0.0001,\n        \"textembedding-gecko@001\":
+        0.0001,\n        \"textembedding-gecko@002\": 0.0001,\n        \"textembedding-gecko@003\":
+        0.0001\n    },\n    \"images\": {\n        \"dall-e-3\": {\n            \"standard\":
+        {\n                \"1024x1024\": 0.040,\n                \"1024x1792\": 0.020,\n
+        \               \"1792x1024\": 0.080\n            },\n            \"hd\":
+        {\n                \"1024x1024\": 0.080,\n                \"1024x1792\": 0.120,\n
+        \               \"1792x1024\": 0.120\n            }\n        },\n        \"azure_dall-e-3\":
+        {\n            \"standard\": {\n                \"1024x1024\": 0.040,\n                \"1024x1792\":
+        0.020,\n                \"1792x1024\": 0.080\n            },\n            \"hd\":
+        {\n                \"1024x1024\": 0.080,\n                \"1024x1792\": 0.120,\n
+        \               \"1792x1024\": 0.120\n            }\n        },\n        \"dall-e-2\":
+        {\n            \"standard\": {\n                \"1024x1024\": 0.020,\n                \"512x512\":
+        0.018,\n                \"256x256\": 0.016\n            }\n        },\n        \"black-forest-labs/FLUX.1-dev\":
+        {\n            \"standard\": {\n                \"1000000\": 0.025\n            }\n
+        \       },\n        \"black-forest-labs/FLUX.1-canny\": {\n            \"standard\":
+        {\n                \"1000000\": 0.025\n            }\n        },\n        \"black-forest-labs/FLUX.1-depth\":
+        {\n            \"standard\": {\n                \"1000000\": 0.025\n            }\n
+        \       },\n        \"black-forest-labs/FLUX.1-redux\": {\n            \"standard\":
+        {\n                \"1000000\": 0.025\n            }\n        },\n        \"black-forest-labs/FLUX.1-schnell\":
+        {\n            \"standard\": {\n                \"1000000\": 0.0027\n            }\n
+        \       },\n        \"black-forest-labs/FLUX.1-pro\": {\n            \"standard\":
+        {\n                \"1000000\": 0.04\n            }\n        },\n        \"black-forest-labs/FLUX.1.1-pro\":
+        {\n            \"standard\": {\n                \"1000000\": 0.05\n            }\n
+        \       },\n        \"stabilityai/stable-diffusion-xl-base-1.0\": {\n            \"standard\":
+        {\n                \"512X512\": 0.001,\n                \"1024x1024\": 0.01\n
+        \           }\n        },\n        \"amazon.titan-image-generator-v1\": {\n
+        \           \"standard\": {\n                \"512x512\": 0.008,\n                \"1024x1024\":
+        0.01\n            },\n            \"premium\": {\n                \"512x512\":
+        0.01,\n                \"1024x1024\": 0.012\n            }\n        }\n    },\n
+        \   \"audio\": {\n        \"tts-1\" : 0.015,\n        \"tts-1-hd\": 0.030,\n
+        \       \"eleven_multilingual_v2\": 0.24,\n        \"eleven_multilingual_v1\":
+        0.24,\n        \"eleven_monolingual_v1\": 0.24,\n        \"eleven_english_v1\":
+        0.24,\n        \"eleven_turbo_v2\": 0.24,\n        \"eleven_english_sts_v2\":
+        0.24,\n        \"eleven_multilingual_sts_v2\": 0.24,\n        \"best\": 0.00010277777,\n
+        \       \"nano\": 0.00003333333\n    },\n    \"chat\": {\n        \"gpt-4.1-nano-2025-04-14\":
+        {\n            \"promptPrice\": 0.0001,\n            \"completionPrice\":
+        0.0004\n        },\n        \"gpt-4.1-nano\": {\n            \"promptPrice\":
+        0.0001,\n            \"completionPrice\": 0.0004\n        },\n        \"gpt-4.1-mini-2025-04-14\":
+        {\n            \"promptPrice\": 0.0004,\n            \"completionPrice\":
+        0.0016\n        },\n        \"gpt-4.1-mini\": {\n            \"promptPrice\":
+        0.0004,\n            \"completionPrice\": 0.0016\n        },\n        \"gpt-4.1-2025-04-14\":
+        {\n            \"promptPrice\": 0.002,\n            \"completionPrice\": 0.008\n
+        \       },\n        \"gpt-4.1\": {\n            \"promptPrice\": 0.002,\n
+        \           \"completionPrice\": 0.008\n        },\n        \"gpt-4o\": {\n
+        \           \"promptPrice\": 0.0005,\n            \"completionPrice\": 0.0015\n
+        \       },\n        \"gpt-4o-2024-08-06\": {\n            \"promptPrice\":
+        0.0025,\n            \"completionPrice\": 0.010\n        },\n        \"gpt-4o-2024-05-13\":
+        {\n            \"promptPrice\": 0.005,\n            \"completionPrice\": 0.015\n
+        \       },\n        \"gpt-4o-mini\": {\n            \"promptPrice\": 0.00015,\n
+        \           \"completionPrice\": 0.0006\n        },\n        \"gpt-4o-mini-2024-07-18\":
+        {\n            \"promptPrice\": 0.00015,\n            \"completionPrice\":
+        0.0006\n        },\n        \"o1-mini\": {\n            \"promptPrice\": 0.003,\n
+        \           \"completionPrice\": 0.012\n        },\n        \"o1-mini-2024-09-12\":
+        {\n            \"promptPrice\": 0.003,\n            \"completionPrice\": 0.012\n
+        \       },\n        \"o1-preview\": {\n            \"promptPrice\": 0.015,\n
+        \           \"completionPrice\": 0.06\n        },\n        \"o1-preview-2024-09-12\":
+        {\n            \"promptPrice\": 0.015,\n            \"completionPrice\": 0.06\n
+        \       },\n        \"gpt-3.5-turbo\": {\n            \"promptPrice\": 0.0005,\n
+        \           \"completionPrice\": 0.0015\n        },\n        \"gpt-3.5-turbo-0125\":
+        {\n            \"promptPrice\": 0.0005,\n            \"completionPrice\":
+        0.0015\n        },\n        \"azure_gpt-35-turbo\": {\n            \"promptPrice\":
+        0.0005,\n            \"completionPrice\": 0.0015\n        },\n        \"azure_gpt-35-turbo-16k\":
+        {\n            \"promptPrice\": 0.0005,\n            \"completionPrice\":
+        0.0015\n        },\n        \"azure_gpt-35-turbo-instruct\": {\n            \"promptPrice\":
+        0.0015,\n            \"completionPrice\": 0.0020\n        },\n        \"gpt-4\":
+        {\n            \"promptPrice\": 0.03,\n            \"completionPrice\": 0.06\n
+        \       },\n        \"gpt-4-turbo\": {\n            \"promptPrice\": 0.01,\n
+        \           \"completionPrice\": 0.03\n        },\n        \"gpt-4-32k\":
+        {\n            \"promptPrice\": 0.06,\n            \"completionPrice\": 0.12\n
+        \       },\n        \"gpt-4-1106-preview\": {\n            \"promptPrice\":
+        0.01,\n            \"completionPrice\": 0.03\n        },\n        \"gpt-4-0125-preview\":
+        {\n            \"promptPrice\": 0.01,\n            \"completionPrice\": 0.03\n
+        \       },\n        \"gpt-4-preview\": {\n            \"promptPrice\": 0.01,\n
+        \           \"completionPrice\": 0.03\n        },\n        \"gpt-4-1106-vision-preview\":
+        {\n            \"promptPrice\": 0.01,\n            \"completionPrice\": 0.03\n
+        \       },\n        \"gpt-4-vision-preview\": {\n            \"promptPrice\":
+        0.01,\n            \"completionPrice\": 0.03\n        },\n        \"azure_gpt-4\":
+        {\n            \"promptPrice\": 0.03,\n            \"completionPrice\": 0.06\n
+        \       },\n        \"azure_gpt-4-32k\": {\n            \"promptPrice\": 0.06,\n
+        \           \"completionPrice\": 0.12\n        },\n        \"claude-3-opus-20240229\":
+        {\n            \"promptPrice\": 0.015,\n            \"completionPrice\": 0.075\n
+        \       },\n        \"claude-3-sonnet-20240229\": {\n            \"promptPrice\":
+        0.003,\n            \"completionPrice\": 0.015\n        },\n        \"claude-3-haiku-20240307\":
+        {\n            \"promptPrice\": 0.00025,\n            \"completionPrice\":
+        0.00125\n        },\n        \"command\": {\n            \"promptPrice\":
+        0.001,\n            \"completionPrice\": 0.002\n        },\n        \"command-nightly\":
+        {\n            \"promptPrice\": 0.001,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"command-light\": {\n            \"promptPrice\": 0.0003,\n
+        \           \"completionPrice\": 0.0006\n        },\n        \"command-light-nightly\":
+        {\n            \"promptPrice\": 0.0003,\n            \"completionPrice\":
+        0.0006\n        },\n        \"open-mistral-7b\": {\n            \"promptPrice\":
+        0.00025,\n            \"completionPrice\": 0.00025\n        },\n        \"open-mixtral-8x7b\":
+        {\n            \"promptPrice\": 0.0007,\n            \"completionPrice\":
+        0.0007\n        },\n        \"mistral-small-latest\": {\n            \"promptPrice\":
+        0.002,\n            \"completionPrice\": 0.006\n        },\n        \"mistral-medium-latest\":
+        {\n            \"promptPrice\": 0.0027,\n            \"completionPrice\":
+        0.0081\n        },\n        \"mistral-large-latest\": {\n            \"promptPrice\":
+        0.008,\n            \"completionPrice\": 0.024\n        },\n        \"amazon.titan-text-express-v1\":
+        {\n            \"promptPrice\": 0.0008,\n            \"completionPrice\":
+        0.0016\n        },\n        \"amazon.titan-text-lite-v1\": {\n            \"promptPrice\":
+        0.0003,\n            \"completionPrice\": 0.0004\n        },\n        \"mistral.mistral-7b-instruct-v0:2\":
+        {\n            \"promptPrice\": 0.00015,\n            \"completionPrice\":
+        0.0002\n        },\n        \"mistral.mixtral-8x7b-instruct-v0:1\": {\n            \"promptPrice\":
+        0.00045,\n            \"completionPrice\": 0.0007\n        },\n        \"mistral.mistral-large-2402-v1:0\":
+        {\n            \"promptPrice\": 0.008,\n            \"completionPrice\": 0.024\n
+        \       },\n        \"anthropic.claude-3-haiku-20240307-v1:0\": {\n            \"promptPrice\":
+        0.00025,\n            \"completionPrice\": 0.00125\n        },\n        \"anthropic.claude-v2\":
+        {\n            \"promptPrice\": 0.008,\n            \"completionPrice\": 0.024\n
+        \       },\n        \"anthropic.claude-3-sonnet-20240229-v1:0\": {\n            \"promptPrice\":
+        0.003,\n            \"completionPrice\": 0.015\n        },\n        \"anthropic.claude-3-opus-20240229-v1:0\":
+        {\n            \"promptPrice\": 0.015,\n            \"completionPrice\": 0.075\n
+        \       },\n        \"meta.llama3-8b-instruct-v1:0\": {\n            \"promptPrice\":
+        0.0004,\n            \"completionPrice\": 0.0006\n        },\n        \"meta.llama3-70b-instruct-v1:0\":
+        {\n            \"promptPrice\": 0.00265,\n            \"completionPrice\":
+        0.0035\n        },\n        \"meta.llama2-13b-chat-v1\": {\n            \"promptPrice\":
+        0.00075,\n            \"completionPrice\": 0.001\n        },\n        \"meta.llama2-70b-chat-v1\":
+        {\n            \"promptPrice\": 0.00195,\n            \"completionPrice\":
+        0.00256\n        },\n        \"cohere.command-text-v14\": {\n            \"promptPrice\":
+        0.0015,\n            \"completionPrice\": 0.0020\n        },\n        \"cohere.command-light-text-v14\":
+        {\n            \"promptPrice\": 0.0003,\n            \"completionPrice\":
+        0.0006\n        },\n        \"ai21.j2-mid-v1\": {\n            \"promptPrice\":
+        0.0125,\n            \"completionPrice\": 0.0125\n        },\n        \"ai21.j2-ultra-v1\":
+        {\n            \"promptPrice\": 0.0188,\n            \"completionPrice\":
+        0.0188\n        },\n        \"gemini-1.0-pro\": {\n            \"promptPrice\":
+        0.0005,\n            \"completionPrice\": 0.0015\n        },\n        \"gemini-1.5-flash\":
+        {\n            \"promptPrice\": 0.000075,\n            \"completionPrice\":
+        0.0003\n        },\n        \"gemini-1.5-pro\": {\n            \"promptPrice\":
+        0.0035,\n            \"completionPrice\": 0.0105\n        },\n        \"gemini-1.0-pro-002\":
+        {\n            \"promptPrice\": 0.0005,\n            \"completionPrice\":
+        0.0015\n        },\n        \"gemini-1.0-pro-001\": {\n            \"promptPrice\":
+        0.0005,\n            \"completionPrice\": 0.0015\n        },\n        \"gemini-1.5-pro-preview-0409\":
+        {\n            \"promptPrice\": 0.005,\n            \"completionPrice\": 0.015\n
+        \       },\n        \"gemini-1.5-pro-preview-0514\": {\n            \"promptPrice\":
+        0.005,\n            \"completionPrice\": 0.015\n        },\n        \"gemini-1.5-flash-preview-0514\":
+        {\n            \"promptPrice\": 0.0005,\n            \"completionPrice\":
+        0.0015\n        },\n        \"text-bison\": {\n            \"promptPrice\":
+        0.001,\n            \"completionPrice\": 0.002\n        },\n        \"text-bison@002\":
+        {\n            \"promptPrice\": 0.001,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"text-bison-32k\": {\n            \"promptPrice\": 0.001,\n
+        \           \"completionPrice\": 0.002\n        },\n        \"text-bison-32k@002\":
+        {\n            \"promptPrice\": 0.001,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"text-unicorn\": {\n            \"promptPrice\": 0.01,\n
+        \           \"completionPrice\": 0.03\n        },\n        \"text-unicorn@001\":
+        {\n            \"promptPrice\": 0.01,\n            \"completionPrice\": 0.03\n
+        \       },\n        \"chat-bison\": {\n            \"promptPrice\": 0.001,\n
+        \           \"completionPrice\": 0.002\n        },\n        \"chat-bison@002\":
+        {\n            \"promptPrice\": 0.001,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"chat-bison-32k\": {\n            \"promptPrice\": 0.001,\n
+        \           \"completionPrice\": 0.002\n        },\n        \"chat-bison-32k@002\":
+        {\n            \"promptPrice\": 0.001,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"llama3-8b-8192\": {\n            \"promptPrice\": 0.00005,\n
+        \           \"completionPrice\": 0.0001\n        },\n        \"llama3-70b-8192\":
+        {\n            \"promptPrice\": 0.00059,\n            \"completionPrice\":
+        0.00079\n        },\n        \"mixtral-8x7b-32768\": {\n            \"promptPrice\":
+        0.00024,\n            \"completionPrice\": 0.00024\n        },\n        \"gemma-7b-it\":
+        {\n            \"promptPrice\": 0.0001,\n            \"completionPrice\":
+        0.0001\n        },\n        \"reka-core\": {\n            \"promptPrice\":
+        0.002,\n            \"completionPrice\": 0.002\n        },\n        \"reka-core-20240415\":
+        {\n            \"promptPrice\": 0.002,\n            \"completionPrice\": 0.002\n
+        \       },\n        \"reka-core-20240501\": {\n            \"promptPrice\":
+        0.002,\n            \"completionPrice\": 0.002\n        },\n        \"reka-flash\":
+        {\n            \"promptPrice\": 0.0002,\n            \"completionPrice\":
+        0.0008\n        },\n        \"reka-flash-20240226\": {\n            \"promptPrice\":
+        0.0002,\n            \"completionPrice\": 0.0008\n        },\n        \"reka-edge\":
+        {\n            \"promptPrice\": 0.0001,\n            \"completionPrice\":
+        0.0001\n        },\n        \"reka-edge-20240208\": {\n            \"promptPrice\":
+        0.0001,\n            \"completionPrice\": 0.0001\n        },\n        \"reka-spark\":
+        {\n            \"promptPrice\": 0.00005,\n            \"completionPrice\":
+        0.00005\n        },\n        \"grok-beta\": {\n            \"promptPrice\":
+        0.0005,\n            \"completionPrice\": 0.0015\n        },\n        \"grok-vision-beta\":
+        {\n            \"promptPrice\": 0.0005,\n            \"completionPrice\":
+        0.0015\n        },\n        \"jamba-1.5-mini\": {\n            \"promptPrice\":
+        0.0002,\n            \"completionPrice\": 0.0004\n        },\n        \"jamba-1.5-large\":
+        {\n            \"promptPrice\": 0.002,\n            \"completionPrice\": 0.008\n
+        \       },\n        \"meta-llama/Llama-3.3-70B-Instruct-Turbo\": {\n            \"promptPrice\":
+        0.00088,\n            \"completionPrice\": 0.00088\n        },\n        \"meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo-vLLM-json\":{\n
+        \           \"promptPrice\": 0.00088,\n            \"completionPrice\": 0.00088\n
+        \       },\n        \"meta-llama/Meta-Llama-3.1-405B-Instruct-Lite-Pro-lora\":{\n
+        \           \"promptPrice\": 0.00088,\n            \"completionPrice\": 0.00088\n
+        \       },\n        \"meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo\":{\n
+        \           \"promptPrice\": 0.00088,\n            \"completionPrice\": 0.00088\n
+        \       },\n        \"Qwen/QwQ-32B-Preview\":{\n            \"promptPrice\":
+        0.0012,\n            \"completionPrice\": 0.0012\n        },\n        \"codellama/CodeLlama-34b-Instruct-hf\":{\n
+        \           \"promptPrice\": 0.0008,\n            \"completionPrice\":0.0008\n
+        \       },\n        \"databricks/dbrx-instruct\":{\n            \"promptPrice\":
+        0.0012,\n            \"completionPrice\": 0.0012\n        },\n        \"deepseek-ai/deepseek-llm-67b-chat\":{\n
+        \           \"promptPrice\": 0.0009,\n            \"completionPrice\": 0.0009\n
+        \       },\n        \"google/gemma-2b-it\":{\n            \"promptPrice\":
+        0.0001,\n            \"completionPrice\": 0.0001\n        },\n        \"google/gemma-2-27b-it\":{\n
+        \           \"promptPrice\": 0.0008,\n            \"completionPrice\": 0.0008\n
+        \       },\n        \"google/gemma-2-9b-it\":{\n            \"promptPrice\":
+        0.0003,\n            \"completionPrice\": 0.0003\n        },\n        \"Gryphe/MythoMax-L2-13b-Lite\":{\n
+        \           \"promptPrice\": 0.0003,\n            \"completionPrice\": 0.0003\n
+        \       },\n        \"nvidia/Llama-3.1-Nemotron-70B-Instruct-HF\":{\n            \"promptPrice\":
+        0.0088,\n            \"completionPrice\": 0.0088\n        },\n        \"deepseek-chat\":{\n
+        \           \"promptPrice\": 0.00014,\n            \"completionPrice\": 0.00028\n
+        \       },\n        \"deepseek-reasoner\":{\n            \"promptPrice\":
+        0.00055,\n            \"completionPrice\": 0.00219\n        }\n    }\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Tell me a short joke about programming"}],"model":"gpt-4o-mini","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        YwBQGwBAruXsz+e1t+/mKs6J/1wYCtuEGIykdSNOPc8FyCI2aS6wBTI/Y4GlLS8M9qpjgxa0wsVW
+        p+44TYwtbAXjN9j87JYBoNHIAVUmo6pcmVyu664rn8LrsrlYLsPtR2kfFpefz+b65nmALQaAdpaT
+        ipbi4RID39iawlUuf0YaOXTHw/6kN54MhuC7ldVUIgdMXUwGNqlMbZJepzdIOuOkO/HwNLNGUUAO
+        PwwAYHs3AcAz8MfIodN6yq3IsJATfwSA3paEHFCGYEKUdcQWAVrYXeCAH9katIW66XOyqsgH2Hrp
+        t6ClL6Cyms5+69+60P5fSpNmEWSMXqoYYNak4cA9nGx/vyyRQ92UJQh5pYUJf2bSXspBpU2dt7Ng
+        LmKruIHYlmsSOWCI1uGowZ4B/IVs3EThKDpvKxdFtAUNqXcH0xxgopBA9uC/CgC2qjdqeRRFV7th
+        CPkcKqky0taQn13ZaGPBIdNdM6Fa/4z2dU2digvAglLkImnRF7EsGqjUPOWkRBZnYs8388uLaMgj
+        B/z8MIRX6xCpEnNTp+SdN2/Y47kT/YEcDiRN+wrZnhkD
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
