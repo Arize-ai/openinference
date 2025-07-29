@@ -18,6 +18,7 @@ import {
   normalizeResponseContentBlocks,
   isSimpleTextResponse,
   parseResponseBody,
+  normalizeUsageAttributes,
 } from "./invoke-model-helpers";
 import {
   BedrockMessage,
@@ -146,48 +147,66 @@ const extractOutputMessagesAttributes = withSafety({
 
 /**
  * Extracts token usage attributes from InvokeModel response body
+ * Uses normalized usage attributes to handle different provider formats
  * Processes standard and cache-related token counts following OpenInference conventions
  *
  * @param params Object containing extraction parameters
  * @param params.responseBody The parsed response body containing usage statistics
+ * @param params.modelType The LLM system type to determine extraction strategy
  * @param params.span The OpenTelemetry span to set attributes on
  */
 function extractUsageAttributes({
   responseBody,
+  modelType,
   span,
 }: {
   responseBody: Record<string, unknown>;
+  modelType: LLMSystem;
   span: Span;
 }): void {
-  if (!responseBody?.usage) {
+  const usage = normalizeUsageAttributes(responseBody, modelType);
+  if (!usage) {
     return;
   }
 
-  const usage = responseBody.usage as Record<string, unknown>;
+  // Token counts - only set if defined
+  if (usage.input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+      usage.input_tokens,
+    );
+  }
+  if (usage.output_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+      usage.output_tokens,
+    );
+  }
 
-  // Standard token counts with safe access
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    (usage?.input_tokens as number) ?? 0,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    (usage?.output_tokens as number) ?? 0,
-  );
+  if (usage.total_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
+      usage.total_tokens,
+    );
+  }
 
-  // Cache-related token attributes (if present)
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-    usage?.cache_read_input_tokens as number,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-    usage?.cache_creation_input_tokens as number,
-  );
+  if (usage.cache_read_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+      usage.cache_read_input_tokens,
+    );
+  }
+  if (usage.cache_creation_input_tokens !== undefined) {
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+      usage.cache_creation_input_tokens,
+    );
+  }
 }
 
 /**
@@ -241,7 +260,7 @@ export const extractInvokeModelResponseAttributes = withSafety({
       extractOutputMessagesAttributes({ normalizedMessage, span });
     }
 
-    extractUsageAttributes({ responseBody, span });
+    extractUsageAttributes({ responseBody, modelType, span });
   },
   onError: (error) => {
     diag.warn("Error extracting InvokeModel response attributes:", error);
