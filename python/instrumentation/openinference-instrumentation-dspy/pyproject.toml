@@ -43,6 +43,7 @@ test = [
   "opentelemetry-sdk",
   "pytest-recording",
   "litellm",
+  "urllib3<2.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
