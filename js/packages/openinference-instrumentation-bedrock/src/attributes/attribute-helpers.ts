@@ -191,14 +191,14 @@ export function processMessages({
  * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
  * @returns {string} The system provider name (e.g., "anthropic", "meta", "mistral") or "bedrock" as fallback
  */
-export function getSystemFromModelId(modelId: string): string {
+export function getSystemFromModelId(modelId: string): LLMSystem {
   if (modelId.includes("anthropic")) return LLMSystem.ANTHROPIC;
   if (modelId.includes("ai21")) return LLMSystem.AI21;
   if (modelId.includes("amazon")) return LLMSystem.AMAZON;
   if (modelId.includes("cohere")) return LLMSystem.COHERE;
   if (modelId.includes("meta")) return LLMSystem.META;
   if (modelId.includes("mistral")) return LLMSystem.MISTRALAI;
-  return "bedrock";
+  return LLMSystem.AMAZON;
 }
 
 /**

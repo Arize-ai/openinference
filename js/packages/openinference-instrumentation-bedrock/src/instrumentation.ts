@@ -31,6 +31,7 @@ import {
   consumeBedrockStreamChunks,
   safelySplitStream,
 } from "./attributes/invoke-model-streaming-response-attributes";
+import { getSystemFromModelId, setSpanAttribute } from "./attributes/attribute-helpers";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 
@@ -197,17 +198,24 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    // Add OpenInference span kind attribute
-    span.setAttribute(
+    setSpanAttribute(
+      span,
       SemanticConventions.OPENINFERENCE_SPAN_KIND,
       OpenInferenceSpanKind.LLM,
+    )
+
+    // extract model id early so it can be used to parse the weakly typed response
+    const modelId = command.input.modelId;
+    const system = getSystemFromModelId(modelId ?? '');
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_SYSTEM,
+      system,
     );
 
-    // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
 
-    // Extract request attributes directly onto the span
     extractInvokeModelRequestAttributes({ span, command });
 
     try {
@@ -218,7 +226,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       // AWS SDK v3 send() method always returns a Promise
       return result
         .then((response: InvokeModelResponse) => {
-          extractInvokeModelResponseAttributes({ span, response });
+          extractInvokeModelResponseAttributes({ span, response, modelType: system });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
           return response;
@@ -287,17 +295,24 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    // Add OpenInference span kind attribute
-    span.setAttribute(
+    setSpanAttribute(
+      span,
       SemanticConventions.OPENINFERENCE_SPAN_KIND,
       OpenInferenceSpanKind.LLM,
+    )
+
+    // extract model id early so it can be used to parse the weakly typed response
+    const modelId = command.input.modelId;
+    const system = getSystemFromModelId(modelId ?? '');
+    setSpanAttribute(
+      span,
+      SemanticConventions.LLM_SYSTEM,
+      system,
     );
 
-    // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
 
-    // Extract request attributes directly onto the span
     extractInvokeModelRequestAttributes({
       span,
       command: command as unknown as InvokeModelCommand,
@@ -322,7 +337,6 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
           return response;
         }
 
-        // Split the stream safely - this preserves the original stream if splitting fails
         const { instrumentationStream, userStream } = safelySplitStream({
           originalStream: response.body,
         });
@@ -334,6 +348,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
           consumeBedrockStreamChunks({
             stream: instrumentationStream,
             span,
+            modelId: command.input.modelId,
           })
             .then(() => {
               span.setStatus({ code: SpanStatusCode.OK });
@@ -388,17 +403,15 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       kind: SpanKind.INTERNAL,
     });
 
-    // Add OpenInference span kind attribute
-    span.setAttribute(
+    setSpanAttribute(
+      span,
       SemanticConventions.OPENINFERENCE_SPAN_KIND,
       OpenInferenceSpanKind.LLM,
-    );
+    )
 
-    // Add OpenInference context attributes
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
 
-    // Extract request attributes directly onto the span
     extractConverseRequestAttributes({ span, command });
 
     try {
@@ -409,7 +422,6 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       // AWS SDK v3 send() method always returns a Promise
       return result
         .then((response: ConverseResponse) => {
-          // Extract response attributes
           extractConverseResponseAttributes({ span, response });
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();

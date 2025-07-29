@@ -668,21 +668,6 @@ Honeybees can recognize human faces.",
         // Verify span status is set to ERROR
         expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
         expect(span.status.message).toBeDefined();
-
-        // Verify basic attributes are still captured
-        expect(span.attributes["llm.model_name"]).toBe("invalid-model-id");
-        expect(span.attributes["llm.provider"]).toBe("aws");
-        expect(span.attributes["llm.system"]).toBe("bedrock");
-        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-        // Verify input message attributes are captured
-        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-          "This should fail",
-        );
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
-
         // Verify error details are recorded
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -693,7 +678,7 @@ Honeybees can recognize human faces.",
   "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
   "llm.model_name": "invalid-model-id",
   "llm.provider": "aws",
-  "llm.system": "bedrock",
+  "llm.system": "amazon",
   "openinference.span.kind": "LLM",
 }
 `);
@@ -834,23 +819,6 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         // Verify span status is set to ERROR
         expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
         expect(span.status.message).toBeDefined();
-
-        // Verify basic attributes are still captured
-        expect(span.attributes["llm.model_name"]).toBe(
-          "invalid-streaming-model-id",
-        );
-        expect(span.attributes["llm.provider"]).toBe("aws");
-        expect(span.attributes["llm.system"]).toBe("bedrock");
-        expect(span.attributes["openinference.span.kind"]).toBe("LLM");
-
-        // Verify input message attributes are captured
-        expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
-          "This streaming request should fail",
-        );
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
-
         // Verify error details are recorded
         expect(span.attributes).toMatchInlineSnapshot(`
 {
@@ -861,7 +829,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
   "llm.invocation_parameters": "{"maxTokens":100,"anthropic_version":"bedrock-2023-05-31"}",
   "llm.model_name": "invalid-streaming-model-id",
   "llm.provider": "aws",
-  "llm.system": "bedrock",
+  "llm.system": "amazon",
   "openinference.span.kind": "LLM",
 }
 `);
@@ -1117,6 +1085,131 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
         // Now using full JSON body approach, so output.value contains the complete response
         expect(span.attributes["output.value"]).toContain("results");
+      });
+    });
+
+    xdescribe("Multi-Provider Support", () => {
+      it("should handle AI21 Jurassic models", async () => {
+        setupTestRecording("should-handle-ai21-jurassic-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "ai21.j2-ultra-v1",
+          body: JSON.stringify({
+            prompt: "Hello, how are you?",
+            maxTokens: 100,
+            temperature: 0.7
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
+      });
+
+      it("should handle Amazon Nova models", async () => {
+        setupTestRecording("should-handle-amazon-nova-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "amazon.nova-lite-v1:0",
+          body: JSON.stringify({
+            inputText: "Hello, how are you?",
+            textGenerationConfig: {
+              maxTokenCount: 100,
+              temperature: 0.7
+            }
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
+      });
+
+      it("should handle Amazon Titan models", async () => {
+        setupTestRecording("should-handle-amazon-titan-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "amazon.titan-text-express-v1",
+          body: JSON.stringify({
+            inputText: "Hello, how are you?",
+            textGenerationConfig: {
+              maxTokenCount: 100,
+              temperature: 0.7
+            }
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
+      });
+
+      it("should handle Cohere Command models", async () => {
+        setupTestRecording("should-handle-cohere-command-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "cohere.command-text-v14",
+          body: JSON.stringify({
+            prompt: "Hello, how are you?",
+            max_tokens: 100,
+            temperature: 0.7,
+            p: 0.9,
+            k: 0,
+            stop_sequences: []
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
+      });
+
+      it("should handle Meta Llama models", async () => {
+        setupTestRecording("should-handle-meta-llama-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "meta.llama2-13b-chat-v1",
+          body: JSON.stringify({
+            prompt: "Hello, how are you?",
+            max_gen_len: 100,
+            temperature: 0.7,
+            top_p: 0.9
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
+      });
+
+      it("should handle Mistral models", async () => {
+        setupTestRecording("should-handle-mistral-models");
+        const client = createTestClient(isRecordingMode);
+        
+        const command = new InvokeModelCommand({
+          modelId: "mistral.mistral-7b-instruct-v0:2",
+          body: JSON.stringify({
+            prompt: "Hello, how are you?",
+            max_tokens: 100,
+            temperature: 0.7,
+            top_p: 0.9
+          }),
+          contentType: "application/json",
+          accept: "application/json",
+        });
+
+        const result = await client.send(command);
+        // Test structure ready for nock recording - HAND BACK HERE
       });
     });
   });
@@ -1999,7 +2092,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
   "llm.invocation_parameters": "{"maxTokens":50}",
   "llm.model_name": "invalid-model-id",
   "llm.provider": "aws",
-  "llm.system": "bedrock",
+  "llm.system": "amazon",
   "openinference.span.kind": "LLM",
 }
 `);

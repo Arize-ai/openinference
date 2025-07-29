@@ -68,15 +68,14 @@ export interface InvokeModelRequestBody {
   stop_sequences?: string[];
 }
 
-export interface InvokeModelResponseBody {
-  id: string;
-  type: "message";
-  role: "assistant";
-  content: (TextContent | ToolUseContent)[];
-  model: string;
-  stop_reason: string;
-  stop_sequence?: string;
+// Flexible type for multi-provider support with runtime validation
+export type InvokeModelResponseBody = Record<string, unknown>;
+
+export interface NormalizedInvokeModelResponseBody {
+  content: string | (TextContent | ToolUseContent)[];
   usage: UsageInfo;
+  role: ConversationRole,
+  id: string,
 }
 
 // Legacy message format for InvokeModel (different from Converse Message)
@@ -191,7 +190,6 @@ export function isImageContent(content: unknown): content is ImageContent {
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "type" in content &&
     content.type === "image" &&
     "source" in content &&
@@ -206,7 +204,6 @@ export function isToolUseContent(content: unknown): content is ToolUseContent {
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "type" in content &&
     content.type === "tool_use" &&
     "name" in content &&
@@ -220,7 +217,6 @@ export function isToolResultContent(
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "type" in content &&
     content.type === "tool_result" &&
     "tool_use_id" in content &&
@@ -236,7 +232,6 @@ export function isConverseTextContent(
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "text" in content &&
     typeof content.text === "string"
   );
@@ -248,7 +243,6 @@ export function isConverseImageContent(
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "image" in content &&
     content.image !== null &&
     typeof content.image === "object" &&
@@ -266,7 +260,6 @@ export function isConverseToolUseContent(
   return (
     content !== null &&
     typeof content === "object" &&
-    content !== null &&
     "toolUse" in content &&
     content.toolUse !== null &&
     typeof content.toolUse === "object" &&
