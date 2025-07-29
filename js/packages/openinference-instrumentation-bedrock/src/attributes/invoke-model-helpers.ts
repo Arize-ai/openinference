@@ -1,5 +1,8 @@
-import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
-import { InvokeModelCommand, InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import { withSafety } from "@arizeai/openinference-core";
+import {
+  InvokeModelCommand,
+  InvokeModelResponse,
+} from "@aws-sdk/client-bedrock-runtime";
 import { diag } from "@opentelemetry/api";
 import {
   BedrockMessage,
@@ -25,34 +28,34 @@ import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
  * @returns {boolean} True if message contains a single text content block
  */
 export function isSimpleTextResponse(
-    message: BedrockMessage,
-  ): message is BedrockMessage & {
-    content: [TextContent];
-  } {
-    return Boolean(
-      Array.isArray(message.content) &&
+  message: BedrockMessage,
+): message is BedrockMessage & {
+  content: [TextContent];
+} {
+  return Boolean(
+    Array.isArray(message.content) &&
       message.content.length === 1 &&
-      isTextContent(message.content[0])
-    );
-  }
-  
-  /**
-   * Formats Bedrock image source data into OpenInference data URL format
-   * Converts Bedrock image source to standard data URL: data:{media_type};base64,{data}
-   *
-   * @param source The Bedrock image source containing type, data, and media type
-   * @returns {string} Formatted data URL or empty string if source is invalid
-   */
-  export function formatImageUrl(source: ImageSource): string {
-    if (source.type === "base64" && source.data && source.media_type) {
-      return `data:${source.media_type};base64,${source.data}`;
-    }
-    return "";
-  }
+      isTextContent(message.content[0]),
+  );
+}
 
-  // Request Processing Helpers
+/**
+ * Formats Bedrock image source data into OpenInference data URL format
+ * Converts Bedrock image source to standard data URL: data:{media_type};base64,{data}
+ *
+ * @param source The Bedrock image source containing type, data, and media type
+ * @returns {string} Formatted data URL or empty string if source is invalid
+ */
+export function formatImageUrl(source: ImageSource): string {
+  if (source.type === "base64" && source.data && source.media_type) {
+    return `data:${source.media_type};base64,${source.data}`;
+  }
+  return "";
+}
 
-  /**
+// Request Processing Helpers
+
+/**
  * Safely parses the InvokeModel request body with comprehensive error handling
  * Handles multiple body formats (string, Buffer, Uint8Array, ArrayBuffer) and provides fallback
  *
@@ -60,31 +63,31 @@ export function isSimpleTextResponse(
  * @returns {InvokeModelRequestBody | null} Parsed request body or null on error
  */
 export const parseRequestBody = withSafety({
-    fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
-      if (!command.input?.body) {
-        throw new Error("Request body is missing");
-      }
-  
-      let bodyString: string;
-      if (typeof command.input.body === "string") {
-        bodyString = command.input.body;
-      } else if (Buffer.isBuffer(command.input.body)) {
-        bodyString = command.input.body.toString("utf8");
-      } else if (command.input.body instanceof Uint8Array) {
-        bodyString = new TextDecoder().decode(command.input.body);
-      } else if (command.input.body instanceof ArrayBuffer) {
-        bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
-      } else {
-        // For other types, convert to string safely
-        bodyString = String(command.input.body);
-      }
-      return JSON.parse(bodyString) as InvokeModelRequestBody;
-    },
-    onError: (error) => {
-      diag.warn("Error parsing InvokeModel request body:", error);
-      return null;
-    },
-  });
+  fn: (command: InvokeModelCommand): InvokeModelRequestBody => {
+    if (!command.input?.body) {
+      throw new Error("Request body is missing");
+    }
+
+    let bodyString: string;
+    if (typeof command.input.body === "string") {
+      bodyString = command.input.body;
+    } else if (Buffer.isBuffer(command.input.body)) {
+      bodyString = command.input.body.toString("utf8");
+    } else if (command.input.body instanceof Uint8Array) {
+      bodyString = new TextDecoder().decode(command.input.body);
+    } else if (command.input.body instanceof ArrayBuffer) {
+      bodyString = new TextDecoder().decode(new Uint8Array(command.input.body));
+    } else {
+      // For other types, convert to string safely
+      bodyString = String(command.input.body);
+    }
+    return JSON.parse(bodyString) as InvokeModelRequestBody;
+  },
+  onError: (error) => {
+    diag.warn("Error parsing InvokeModel request body:", error);
+    return null;
+  },
+});
 
 /**
  * Extracts invocation parameters from request body using AWS SDK standards
@@ -96,23 +99,30 @@ export const parseRequestBody = withSafety({
  * @returns {Record<string, unknown>} Object containing extracted invocation parameters
  */
 export function extractInvocationParameters(
-    requestBody: InvokeModelRequestBody,
-    system: LLMSystem,
-  ): Record<string, unknown> {
-    if (system === LLMSystem.AMAZON && requestBody.inferenceConfig && 
-        typeof requestBody.inferenceConfig === 'object' && requestBody.inferenceConfig !== null) {
-      return requestBody.inferenceConfig as Record<string, unknown>;
-    } else if (system === LLMSystem.AMAZON && requestBody.textGenerationConfig && 
-               typeof requestBody.textGenerationConfig === 'object' && requestBody.textGenerationConfig !== null) {
-      return requestBody.textGenerationConfig as Record<string, unknown>;
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const {system, messages, tools, prompt, ...invocationParams} = requestBody;
-      return invocationParams;
-    }
+  requestBody: InvokeModelRequestBody,
+  system: LLMSystem,
+): Record<string, unknown> {
+  if (
+    system === LLMSystem.AMAZON &&
+    requestBody.inferenceConfig &&
+    typeof requestBody.inferenceConfig === "object" &&
+    requestBody.inferenceConfig !== null
+  ) {
+    return requestBody.inferenceConfig as Record<string, unknown>;
+  } else if (
+    system === LLMSystem.AMAZON &&
+    requestBody.textGenerationConfig &&
+    typeof requestBody.textGenerationConfig === "object" &&
+    requestBody.textGenerationConfig !== null
+  ) {
+    return requestBody.textGenerationConfig as Record<string, unknown>;
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { system, messages, tools, prompt, ...invocationParams } =
+      requestBody;
+    return invocationParams;
   }
-
-
+}
 
 /**
  * Extracts tool result content blocks from Bedrock message content
@@ -131,7 +141,6 @@ export function extractToolResultBlocks(
   return content.filter(isToolResultContent);
 }
 
-
 /**
  * Type guard to detect Amazon Nova request format
  * Checks for the characteristic structure: { messages: [{ role, content: [...] }] }
@@ -140,28 +149,30 @@ export function extractToolResultBlocks(
  * @returns {boolean} True if request matches Nova format structure
  */
 function isNovaRequest(requestBody: Record<string, unknown>): boolean {
-    return (
-      'messages' in requestBody &&
-      Array.isArray(requestBody.messages) &&
-      requestBody.messages.length > 0 &&
-      typeof requestBody.messages[0] === 'object' &&
-      requestBody.messages[0] !== null &&
-      'role' in requestBody.messages[0] &&
-      'content' in requestBody.messages[0] &&
-      Array.isArray(requestBody.messages[0].content)
-    );
-  }
-  
-  /**
-   * Type guard to detect Amazon Titan request format
-   * Checks for the characteristic structure: { inputText: string }
-   *
-   * @param requestBody The request body to check
-   * @returns {boolean} True if request matches Titan format structure
-   */
-  function isTitanRequest(requestBody: Record<string, unknown>): boolean {
-    return 'inputText' in requestBody && typeof requestBody.inputText === 'string';
-  }
+  return (
+    "messages" in requestBody &&
+    Array.isArray(requestBody.messages) &&
+    requestBody.messages.length > 0 &&
+    typeof requestBody.messages[0] === "object" &&
+    requestBody.messages[0] !== null &&
+    "role" in requestBody.messages[0] &&
+    "content" in requestBody.messages[0] &&
+    Array.isArray(requestBody.messages[0].content)
+  );
+}
+
+/**
+ * Type guard to detect Amazon Titan request format
+ * Checks for the characteristic structure: { inputText: string }
+ *
+ * @param requestBody The request body to check
+ * @returns {boolean} True if request matches Titan format structure
+ */
+function isTitanRequest(requestBody: Record<string, unknown>): boolean {
+  return (
+    "inputText" in requestBody && typeof requestBody.inputText === "string"
+  );
+}
 
 /**
  * Converts simple text-based request formats to standardized BedrockMessage array
@@ -173,11 +184,11 @@ function isNovaRequest(requestBody: Record<string, unknown>): boolean {
  * @returns {BedrockMessage[]} Single-element array containing the user message
  */
 function convertSimpleTextToBedrockMessages(
-  requestBody: Record<string, unknown>, 
-  textFieldName: string
+  requestBody: Record<string, unknown>,
+  textFieldName: string,
 ): BedrockMessage[] {
   const text = requestBody[textFieldName] as string;
-  
+
   return [
     {
       role: "user" as ConversationRole,
@@ -194,7 +205,9 @@ function convertSimpleTextToBedrockMessages(
  * @param requestBody The Nova-formatted request body containing messages
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages with converted content
  */
-function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
+function convertNovaToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
   const messages = requestBody.messages as Array<{
     role: string;
     content: Array<{
@@ -211,8 +224,6 @@ function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): Bed
 
   return messages.map((message) => {
     const content: (TextContent | ImageContent)[] = [];
-
-    
 
     message.content.forEach((contentItem) => {
       if (contentItem.text) {
@@ -252,8 +263,10 @@ function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): Bed
  * @param requestBody The request body to check
  * @returns {boolean} True if request matches Mistral Text Completion format structure
  */
-function isMistralTextCompletionRequest(requestBody: Record<string, unknown>): boolean {
-  return 'prompt' in requestBody && typeof requestBody.prompt === 'string';
+function isMistralTextCompletionRequest(
+  requestBody: Record<string, unknown>,
+): boolean {
+  return "prompt" in requestBody && typeof requestBody.prompt === "string";
 }
 
 /**
@@ -265,7 +278,7 @@ function isMistralTextCompletionRequest(requestBody: Record<string, unknown>): b
  */
 function isMistralChatRequest(requestBody: Record<string, unknown>): boolean {
   return (
-    'messages' in requestBody &&
+    "messages" in requestBody &&
     Array.isArray(requestBody.messages) &&
     requestBody.messages.length > 0
   );
@@ -279,16 +292,20 @@ function isMistralChatRequest(requestBody: Record<string, unknown>): boolean {
  * @param requestBody The Mistral-formatted request body containing messages array
  * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
  */
-function convertMistralChatToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
+function convertMistralChatToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
   const messages = requestBody.messages as Array<{
     role: string;
-    content?: string | Array<{
-      type?: string;
-      text?: string;
-      image_url?: {
-        url: string;
-      };
-    }>;
+    content?:
+      | string
+      | Array<{
+          type?: string;
+          text?: string;
+          image_url?: {
+            url: string;
+          };
+        }>;
     tool_calls?: Array<{
       id: string;
       function: {
@@ -315,12 +332,14 @@ function convertMistralChatToBedrockMessages(requestBody: Record<string, unknown
 
     // Handle assistant messages with tool calls
     if (message.role === "assistant" && message.tool_calls) {
-      const content: (TextContent | ToolUseContent)[] = message.tool_calls.map((toolCall) => ({
-        type: "tool_use",
-        id: toolCall.id,
-        name: toolCall.function.name,
-        input: JSON.parse(toolCall.function.arguments),
-      }));
+      const content: (TextContent | ToolUseContent)[] = message.tool_calls.map(
+        (toolCall) => ({
+          type: "tool_use",
+          id: toolCall.id,
+          name: toolCall.function.name,
+          input: JSON.parse(toolCall.function.arguments),
+        }),
+      );
 
       // Add text content if present
       if (message.content && typeof message.content === "string") {
@@ -329,7 +348,7 @@ function convertMistralChatToBedrockMessages(requestBody: Record<string, unknown
           text: message.content,
         });
       }
-      
+
       // Edge case: Simple text messages mixed in with complex chat completion requests
       return {
         role: message.role as ExtendedConversationRole,
@@ -347,11 +366,16 @@ function convertMistralChatToBedrockMessages(requestBody: Record<string, unknown
             type: "text",
             text: contentBlock.text,
           });
-        } else if (contentBlock.type === "image_url" && contentBlock.image_url?.url) {
+        } else if (
+          contentBlock.type === "image_url" &&
+          contentBlock.image_url?.url
+        ) {
           // Extract base64 data from data URL
           const dataUrl = contentBlock.image_url.url;
-          const base64Match = dataUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
-          
+          const base64Match = dataUrl.match(
+            /^data:image\/([^;]+);base64,(.+)$/,
+          );
+
           if (base64Match) {
             const [, format, base64Data] = base64Match;
             content.push({
@@ -394,53 +418,67 @@ function convertMistralChatToBedrockMessages(requestBody: Record<string, unknown
  * @param requestBody The AI21 Jamba-formatted request body containing messages array
  * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
  */
-function convertAI21JambaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
-    const messages = requestBody.messages as Array<{
-      role: string;
-      content: string;
-    }>;
-  
-    return messages.map((message) => ({
-      role: message.role as ExtendedConversationRole,
-      content: [
-        {
-          type: "text",
-          text: message.content,
-        },
-      ],
-    }));
-  }
+function convertAI21JambaToBedrockMessages(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
+  const messages = requestBody.messages as Array<{
+    role: string;
+    content: string;
+  }>;
+
+  return messages.map((message) => ({
+    role: message.role as ExtendedConversationRole,
+    content: [
+      {
+        type: "text",
+        text: message.content,
+      },
+    ],
+  }));
+}
 
 /**
  * Fallback normalization for unknown model request formats
  * Attempts pattern-based detection when LLM system identification fails
- * 
+ *
  * This function provides graceful degradation for cases where the model ID
  * doesn't map to a known LLM system, using common request structure patterns
  * to make a best-effort conversion to BedrockMessage format.
  *
  * @param requestBody The raw request body from an unknown model format
  * @returns {BedrockMessage[]} Array of normalized messages, or empty array if no patterns match
- * 
+ *
  * @internal Used as last resort when LLM system detection fails
- * 
+ *
  * @example
  * // Handles messages-based format (Anthropic-like)
  * fallbackNormalizeRequestContentBlocks({ messages: [{ role: "user", content: "hi" }] })
- * 
- * @example  
+ *
+ * @example
  * // Handles prompt-based format (completion models)
  * fallbackNormalizeRequestContentBlocks({ prompt: "Hello world" })
  */
-function fallbackNormalizeRequestContentBlocks(requestBody:  Record<string, unknown>): BedrockMessage[] {
-    if ('messages' in requestBody && Array.isArray(requestBody.messages) && requestBody.messages.length > 0) {
-        return requestBody.messages as BedrockMessage[];
-    } else if ('prompt' in requestBody && typeof requestBody.prompt === 'string') {
-        return  convertSimpleTextToBedrockMessages(requestBody, 'prompt');
-    } else if ('inputText' in requestBody && typeof requestBody.inputText === 'string') {
-        return convertSimpleTextToBedrockMessages(requestBody, 'inputText');
-    }
-    return [];
+function fallbackNormalizeRequestContentBlocks(
+  requestBody: Record<string, unknown>,
+): BedrockMessage[] {
+  if (
+    "messages" in requestBody &&
+    Array.isArray(requestBody.messages) &&
+    requestBody.messages.length > 0
+  ) {
+    return requestBody.messages as BedrockMessage[];
+  } else if (
+    "prompt" in requestBody &&
+    typeof requestBody.prompt === "string"
+  ) {
+    return convertSimpleTextToBedrockMessages(requestBody, "prompt");
+  } else if (
+    "inputText" in requestBody &&
+    typeof requestBody.inputText === "string"
+  ) {
+    return convertSimpleTextToBedrockMessages(requestBody, "inputText");
+  }
+  return [];
 }
 
 /**
@@ -453,58 +491,75 @@ function fallbackNormalizeRequestContentBlocks(requestBody:  Record<string, unkn
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages or empty array on error
  */
 export const normalizeRequestContentBlocks = withSafety({
-    fn: (
-      requestBody: InvokeModelRequestBody,
-      llm_system: LLMSystem,
-    ): BedrockMessage[] => {
-      let messages: BedrockMessage[] = [];
+  fn: (
+    requestBody: InvokeModelRequestBody,
+    llm_system: LLMSystem,
+  ): BedrockMessage[] => {
+    let messages: BedrockMessage[] = [];
 
-      if (llm_system === LLMSystem.ANTHROPIC) {
-        messages = requestBody.messages as BedrockMessage[];
-      } else if (llm_system === LLMSystem.AMAZON) {
-        if (isNovaRequest(requestBody)) {
-            // Handle Amazon Nova format: { messages: [{ role, content: [{ text }] }] }
-            messages = convertNovaToBedrockMessages(requestBody);
-        } else if (isTitanRequest(requestBody)) {
-             // vs Titan format: { inputText: string }
-            messages = convertSimpleTextToBedrockMessages(requestBody, 'inputText');
-        } else {
-            // LLM system defaults to Amazon when no correct format is given
-            // In this case we should gracefully degrade and extract as much info as possible
-            messages = fallbackNormalizeRequestContentBlocks(requestBody);
-        }
-      } else if (llm_system === LLMSystem.COHERE && 'prompt' in requestBody && typeof requestBody.prompt === 'string') {
-        // Handle Cohere format: { prompt: string }
-        messages = convertSimpleTextToBedrockMessages(requestBody, 'prompt');
-      } else if (llm_system === LLMSystem.META && 'prompt' in requestBody && typeof requestBody.prompt === 'string') {
-        // Handle Meta format: { prompt: string }
-        messages = convertSimpleTextToBedrockMessages(requestBody, 'prompt');
-      } else if (llm_system === LLMSystem.MISTRALAI) {
-        // Handle Mistral formats
-        if (isMistralChatRequest(requestBody)) {
-          // Handle Mistral Chat/Pixtral format: { messages: [{ role, content }] }
-          messages = convertMistralChatToBedrockMessages(requestBody);
-        } else if (isMistralTextCompletionRequest(requestBody)) {
-          // Handle Mistral Text Completion format: { prompt: string }
-          messages = convertSimpleTextToBedrockMessages(requestBody, 'prompt');
-        }
-      } else if (llm_system === LLMSystem.AI21 && 'prompt' in requestBody && typeof requestBody.prompt === 'string') {
-        // Handle AI21 format: { prompt: string }
-        messages = convertSimpleTextToBedrockMessages(requestBody, 'prompt');
-      } else if (llm_system === LLMSystem.AI21 && 'messages' in requestBody && Array.isArray(requestBody.messages) && requestBody.messages.length > 0) {
-        // Handle AI21 Jamba format: { messages: Array }
-        messages = convertAI21JambaToBedrockMessages(requestBody);
+    if (llm_system === LLMSystem.ANTHROPIC) {
+      messages = requestBody.messages as BedrockMessage[];
+    } else if (llm_system === LLMSystem.AMAZON) {
+      if (isNovaRequest(requestBody)) {
+        // Handle Amazon Nova format: { messages: [{ role, content: [{ text }] }] }
+        messages = convertNovaToBedrockMessages(requestBody);
+      } else if (isTitanRequest(requestBody)) {
+        // vs Titan format: { inputText: string }
+        messages = convertSimpleTextToBedrockMessages(requestBody, "inputText");
       } else {
+        // LLM system defaults to Amazon when no correct format is given
+        // In this case we should gracefully degrade and extract as much info as possible
         messages = fallbackNormalizeRequestContentBlocks(requestBody);
       }
+    } else if (
+      llm_system === LLMSystem.COHERE &&
+      "prompt" in requestBody &&
+      typeof requestBody.prompt === "string"
+    ) {
+      // Handle Cohere format: { prompt: string }
+      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
+    } else if (
+      llm_system === LLMSystem.META &&
+      "prompt" in requestBody &&
+      typeof requestBody.prompt === "string"
+    ) {
+      // Handle Meta format: { prompt: string }
+      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
+    } else if (llm_system === LLMSystem.MISTRALAI) {
+      // Handle Mistral formats
+      if (isMistralChatRequest(requestBody)) {
+        // Handle Mistral Chat/Pixtral format: { messages: [{ role, content }] }
+        messages = convertMistralChatToBedrockMessages(requestBody);
+      } else if (isMistralTextCompletionRequest(requestBody)) {
+        // Handle Mistral Text Completion format: { prompt: string }
+        messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
+      }
+    } else if (
+      llm_system === LLMSystem.AI21 &&
+      "prompt" in requestBody &&
+      typeof requestBody.prompt === "string"
+    ) {
+      // Handle AI21 format: { prompt: string }
+      messages = convertSimpleTextToBedrockMessages(requestBody, "prompt");
+    } else if (
+      llm_system === LLMSystem.AI21 &&
+      "messages" in requestBody &&
+      Array.isArray(requestBody.messages) &&
+      requestBody.messages.length > 0
+    ) {
+      // Handle AI21 Jamba format: { messages: Array }
+      messages = convertAI21JambaToBedrockMessages(requestBody);
+    } else {
+      messages = fallbackNormalizeRequestContentBlocks(requestBody);
+    }
 
-      return messages;
-    },
-    onError: (error) => {
-      diag.warn("Error normalizing request content blocks:", error);
-      return [];
-    },
-  });
+    return messages;
+  },
+  onError: (error) => {
+    diag.warn("Error normalizing request content blocks:", error);
+    return [];
+  },
+});
 
 // Response Processing Helpers
 
@@ -517,29 +572,28 @@ export const normalizeRequestContentBlocks = withSafety({
  * @internal Used by response attribute extraction functions
  */
 export const parseResponseBody = withSafety({
-    fn: (response: InvokeModelResponse): Record<string, unknown> => {
-      if (!response.body) {
-        throw new Error("Response body is missing");
-      }
-  
-      let responseText: string;
-      if (typeof response.body === "string") {
-        responseText = response.body;
-      } else if (response.body instanceof Uint8Array) {
-        responseText = new TextDecoder().decode(response.body);
-      } else {
-        // Handle other potential types
-        responseText = new TextDecoder().decode(response.body as Uint8Array);
-      }
-  
-      return JSON.parse(responseText) as Record<string, unknown>;
-    },
-    onError: (error) => {
-      diag.warn("Error parsing response body:", error);
-      return null;
-    },
-  });
+  fn: (response: InvokeModelResponse): Record<string, unknown> => {
+    if (!response.body) {
+      throw new Error("Response body is missing");
+    }
 
+    let responseText: string;
+    if (typeof response.body === "string") {
+      responseText = response.body;
+    } else if (response.body instanceof Uint8Array) {
+      responseText = new TextDecoder().decode(response.body);
+    } else {
+      // Handle other potential types
+      responseText = new TextDecoder().decode(response.body as Uint8Array);
+    }
+
+    return JSON.parse(responseText) as Record<string, unknown>;
+  },
+  onError: (error) => {
+    diag.warn("Error parsing response body:", error);
+    return null;
+  },
+});
 
 /**
  * Coerces Nova-style content blocks to standard MessageContent format
@@ -651,27 +705,29 @@ function isTitanResponse(responseBody: Record<string, unknown>): boolean {
  * @param responseBody The AI21 Jamba response body to convert
  * @returns {MessageContent} Array of converted content blocks including tool calls
  */
-function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
+function convertAI21JambaToMessageContent(
+  responseBody: Record<string, unknown>,
+): MessageContent {
   if (!Array.isArray(responseBody.choices)) {
     return [];
   }
 
   const content: MessageContent = [];
   const choices = responseBody.choices as unknown[];
-  
+
   for (const choice of choices) {
-    if (choice && typeof choice === 'object') {
+    if (choice && typeof choice === "object") {
       const choiceObj = choice as Record<string, unknown>;
       const message = choiceObj.message as Record<string, unknown>;
-      
+
       if (message) {
-        if (typeof message.content === 'string') {
+        if (typeof message.content === "string") {
           content.push({
             type: "text",
             text: message.content as string,
           });
         }
-        
+
         // Handle tool calls - AI21 format: { tool_calls: [{ id, function: { name, arguments } }] }
         if (Array.isArray(message.tool_calls)) {
           const toolCalls = message.tool_calls as Array<{
@@ -681,7 +737,7 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
               arguments?: string;
             };
           }>;
-          
+
           for (const toolCall of toolCalls) {
             if (toolCall?.function?.name && toolCall?.function?.arguments) {
               try {
@@ -712,9 +768,11 @@ function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>)
  * @param responseBody The Meta response body to convert
  * @returns {MessageContent} Array with single converted content block
  */
-function convertMetaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
+function convertMetaToMessageContent(
+  responseBody: Record<string, unknown>,
+): MessageContent {
   const generation = responseBody.generation;
-  if (typeof generation === 'string') {
+  if (typeof generation === "string") {
     return [
       {
         type: "text",
@@ -749,10 +807,10 @@ function convertArrayFieldToMessageContent(
   // Convert each element in the array to a TextContent block
   const content: TextContent[] = [];
   for (const element of arrayField) {
-    if (element && typeof element === 'object') {
+    if (element && typeof element === "object") {
       const elementObj = element as Record<string, unknown>;
       const text = elementObj[textFieldName];
-      if (typeof text === 'string') {
+      if (typeof text === "string") {
         content.push({
           type: "text",
           text: text,
@@ -781,10 +839,12 @@ export const normalizeResponseContentBlocks = withSafety({
     const role = "assistant";
     let content: MessageContent = [];
 
-    if (llm_system === LLMSystem.ANTHROPIC && 
-        'content' in responseBody && 
-        Array.isArray(responseBody.content) && 
-        responseBody.content.length > 0) {
+    if (
+      llm_system === LLMSystem.ANTHROPIC &&
+      "content" in responseBody &&
+      Array.isArray(responseBody.content) &&
+      responseBody.content.length > 0
+    ) {
       // Anthropic format: { content: [{ type: "text", text: "..." }] }
       content = responseBody.content as MessageContent;
     } else if (llm_system === LLMSystem.AMAZON) {
@@ -794,29 +854,49 @@ export const normalizeResponseContentBlocks = withSafety({
         content = coerceNovaToMessageContent(novaContent);
       } else if (isTitanResponse(responseBody)) {
         // Titan format: { results: [{ outputText }] } - handle all results, not just first
-        content = convertArrayFieldToMessageContent(responseBody, "results", "outputText");
+        content = convertArrayFieldToMessageContent(
+          responseBody,
+          "results",
+          "outputText",
+        );
       }
-    } else if (llm_system === LLMSystem.COHERE && 
-               'generations' in responseBody && 
-               Array.isArray(responseBody.generations) && 
-               responseBody.generations.length > 0) {
+    } else if (
+      llm_system === LLMSystem.COHERE &&
+      "generations" in responseBody &&
+      Array.isArray(responseBody.generations) &&
+      responseBody.generations.length > 0
+    ) {
       // Cohere: { generations: [{ text }] } - handle all generations, not just first
-      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
-    } else if (llm_system === LLMSystem.META && 
-               'generation' in responseBody && 
-               typeof responseBody.generation === 'string') {
+      content = convertArrayFieldToMessageContent(
+        responseBody,
+        "generations",
+        "text",
+      );
+    } else if (
+      llm_system === LLMSystem.META &&
+      "generation" in responseBody &&
+      typeof responseBody.generation === "string"
+    ) {
       content = convertMetaToMessageContent(responseBody);
-    } else if (llm_system === LLMSystem.MISTRALAI && 
-               'generations' in responseBody && 
-               Array.isArray(responseBody.generations) && 
-               responseBody.generations.length > 0) {
+    } else if (
+      llm_system === LLMSystem.MISTRALAI &&
+      "generations" in responseBody &&
+      Array.isArray(responseBody.generations) &&
+      responseBody.generations.length > 0
+    ) {
       // Mistral: { generations: [{ text }] } - handle all generations, not just first
       // NOTE: Tool calls are not currently supported for Mistral models
-      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
-    } else if (llm_system === LLMSystem.AI21 && 
-               'choices' in responseBody && 
-               Array.isArray(responseBody.choices) && 
-               responseBody.choices.length > 0) {
+      content = convertArrayFieldToMessageContent(
+        responseBody,
+        "generations",
+        "text",
+      );
+    } else if (
+      llm_system === LLMSystem.AI21 &&
+      "choices" in responseBody &&
+      Array.isArray(responseBody.choices) &&
+      responseBody.choices.length > 0
+    ) {
       content = convertAI21JambaToMessageContent(responseBody);
     }
     return {

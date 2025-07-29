@@ -14,8 +14,16 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
-import { normalizeResponseContentBlocks, isSimpleTextResponse, parseResponseBody } from './invoke-model-helpers';
-import { BedrockMessage, isTextContent, isToolUseContent } from '../types/bedrock-types';
+import {
+  normalizeResponseContentBlocks,
+  isSimpleTextResponse,
+  parseResponseBody,
+} from "./invoke-model-helpers";
+import {
+  BedrockMessage,
+  isTextContent,
+  isToolUseContent,
+} from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
@@ -54,7 +62,7 @@ function addOutputMessageContentAttributes({
     if (isTextContent(content)) {
       // Handle text content with sequential content indexing
       const contentPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.${contentBlockIndex}`;
-      
+
       setSpanAttribute(
         span,
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
@@ -65,7 +73,7 @@ function addOutputMessageContentAttributes({
         `${contentPrefix}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
         content.text,
       );
-      
+
       contentBlockIndex++;
     } else if (isToolUseContent(content)) {
       // Handle tool use content with sequential tool call indexing
@@ -86,7 +94,7 @@ function addOutputMessageContentAttributes({
         `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
         JSON.stringify(content.input),
       );
-      
+
       toolCallIndex++;
     }
   });
@@ -102,22 +110,25 @@ function addOutputMessageContentAttributes({
  * @param params.span The OpenTelemetry span to set attributes on
  */
 const extractOutputMessagesAttributes = withSafety({
-  fn: ({ normalizedMessage, span }: { 
+  fn: ({
+    normalizedMessage,
+    span,
+  }: {
     normalizedMessage: BedrockMessage;
-    span: Span 
+    span: Span;
   }) => {
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
       normalizedMessage.role,
     );
-    
+
     // Determine if this is a simple text response or complex multimodal response
     if (isSimpleTextResponse(normalizedMessage)) {
       // For simple text responses, use the message content
       // No cast needed - type guard ensures content[0] is TextContent
       const textBlock = normalizedMessage.content[0];
-      
+
       setSpanAttribute(
         span,
         `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`,
@@ -130,7 +141,7 @@ const extractOutputMessagesAttributes = withSafety({
   },
   onError: (error) => {
     diag.warn("Error extracting output messages attributes:", error);
-  }
+  },
 });
 
 /**
@@ -214,10 +225,17 @@ export const extractInvokeModelResponseAttributes = withSafety({
     //extract full response body as primary output
     const outputValue = JSON.stringify(responseBody);
     setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
-    setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
+    setSpanAttribute(
+      span,
+      SemanticConventions.OUTPUT_MIME_TYPE,
+      "application/json",
+    );
 
     // Normalize the response body to a standard BedrockMessage format
-    const normalizedMessage = normalizeResponseContentBlocks(responseBody, modelType);
+    const normalizedMessage = normalizeResponseContentBlocks(
+      responseBody,
+      modelType,
+    );
     if (normalizedMessage) {
       // Extract all response attributes using named parameters
       extractOutputMessagesAttributes({ normalizedMessage, span });
