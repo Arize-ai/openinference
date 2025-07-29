@@ -262,9 +262,11 @@ export const consumeBedrockStreamChunks = withSafety({
   fn: async ({
     stream,
     span,
+    modelId,
   }: {
     stream: AsyncIterable<unknown>;
     span: Span;
+    modelId?: string;
   }): Promise<void> => {
     let outputText = "";
     const contentBlocks: Array<{

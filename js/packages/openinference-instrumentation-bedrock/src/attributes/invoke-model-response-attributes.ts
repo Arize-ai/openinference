@@ -11,6 +11,7 @@ import { Span, diag } from "@opentelemetry/api";
 import {
   SemanticConventions,
   MimeType,
+  LLMSystem,
 } from "@arizeai/openinference-semantic-conventions";
 import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
@@ -31,7 +32,7 @@ import { setSpanAttribute } from "./attribute-helpers";
  * @returns {InvokeModelResponseBody | null} Parsed response body or null on error
  */
 const parseResponseBody = withSafety({
-  fn: (response: InvokeModelResponse): InvokeModelResponseBody => {
+  fn: (response: InvokeModelResponse): Record<string, unknown> => {
     if (!response.body) {
       throw new Error("Response body is missing");
     }
@@ -46,7 +47,7 @@ const parseResponseBody = withSafety({
       responseText = new TextDecoder().decode(response.body as Uint8Array);
     }
 
-    return JSON.parse(responseText) as InvokeModelResponseBody;
+    return JSON.parse(responseText) as Record<string, unknown>;
   },
   onError: (error) => {
     diag.warn("Error parsing response body:", error);
@@ -62,12 +63,12 @@ const parseResponseBody = withSafety({
  * @returns {boolean} True if response contains a single text content block
  */
 function isSimpleTextResponse(
-  responseBody: InvokeModelResponseBody,
-): responseBody is InvokeModelResponseBody & {
+  responseBody: Record<string, unknown>,
+): responseBody is Record<string, unknown> & {
   content: [TextContent];
 } {
-  return (
-    responseBody.content &&
+  return Boolean(
+    responseBody?.content &&
     Array.isArray(responseBody.content) &&
     responseBody.content.length === 1 &&
     isTextContent(responseBody.content[0])
@@ -87,7 +88,7 @@ function extractOutputMessagesAttributes({
   responseBody,
   span,
 }: {
-  responseBody: InvokeModelResponseBody;
+  responseBody: Record<string, unknown>;
   span: Span;
 }): void {
   // Extract full response body as primary output value
@@ -128,10 +129,10 @@ function extractToolCallsAttributes({
   responseBody,
   span,
 }: {
-  responseBody: InvokeModelResponseBody;
+  responseBody: Record<string, unknown>;
   span: Span;
 }): void {
-  if (!responseBody.content || !Array.isArray(responseBody.content)) {
+  if (!responseBody?.content || !Array.isArray(responseBody.content)) {
     return;
   }
 
@@ -170,37 +171,37 @@ function extractUsageAttributes({
   responseBody,
   span,
 }: {
-  responseBody: InvokeModelResponseBody;
+  responseBody: Record<string, unknown>;
   span: Span;
 }): void {
-  if (!responseBody.usage) {
+  if (!responseBody?.usage) {
     return;
   }
 
-  const usage = responseBody.usage;
+  const usage = responseBody.usage as Record<string, unknown>;
 
-  // Standard token counts
+  // Standard token counts with safe access
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    usage.input_tokens,
+    usage?.input_tokens as number ?? 0,
   );
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    usage.output_tokens,
+    usage?.output_tokens as number ?? 0,
   );
 
   // Cache-related token attributes (if present)
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-    usage.cache_read_input_tokens,
+    usage?.cache_read_input_tokens as number,
   );
   setSpanAttribute(
     span,
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-    usage.cache_creation_input_tokens,
+    usage?.cache_creation_input_tokens as number,
   );
 }
 
@@ -216,10 +217,10 @@ function addOutputMessageContentAttributes({
   responseBody,
   span,
 }: {
-  responseBody: InvokeModelResponseBody;
+  responseBody: Record<string, unknown>;
   span: Span;
 }): void {
-  if (!responseBody.content || !Array.isArray(responseBody.content)) {
+  if (!responseBody?.content || !Array.isArray(responseBody.content)) {
     return;
   }
 
@@ -261,9 +262,11 @@ export const extractInvokeModelResponseAttributes = withSafety({
   fn: ({
     span,
     response,
+    modelType,
   }: {
     span: Span;
     response: InvokeModelResponse;
+    modelType?: LLMSystem;
   }): void => {
     if (!response.body) {
       return;

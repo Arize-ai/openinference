@@ -34,7 +34,6 @@ import {
 } from "../utils/content-processing";
 import { 
   setSpanAttribute,
-  getSystemFromModelId,
   extractModelName,
 } from "./attribute-helpers";
 
@@ -148,11 +147,6 @@ function extractBaseRequestAttributes({
     span,
     SemanticConventions.OPENINFERENCE_SPAN_KIND,
     OpenInferenceSpanKind.LLM,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_SYSTEM,
-    getSystemFromModelId(modelId),
   );
   setSpanAttribute(
     span,
