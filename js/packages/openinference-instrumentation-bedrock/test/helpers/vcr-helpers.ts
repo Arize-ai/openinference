@@ -128,8 +128,8 @@ export const createTestClient = (isRecordingMode: boolean) => {
         },
     // Disable connection reuse to ensure nock can intercept properly
     requestHandler: {
-      connectionTimeout: 1000,
-      requestTimeout: 5000,
+      connectionTimeout: 5000,
+      requestTimeout: 10000,
     },
   });
 };

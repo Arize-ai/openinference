@@ -204,7 +204,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
 
-    extractInvokeModelRequestAttributes({ span, command });
+    extractInvokeModelRequestAttributes({ span, command, system });
 
     try {
       const result = original.apply(client, [
@@ -297,6 +297,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractInvokeModelRequestAttributes({
       span,
       command: command as unknown as InvokeModelCommand,
+      system
     });
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries
