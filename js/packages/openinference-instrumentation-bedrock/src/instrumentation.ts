@@ -297,7 +297,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractInvokeModelRequestAttributes({
       span,
       command: command as unknown as InvokeModelCommand,
-      system
+      system,
     });
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries

@@ -14,10 +14,11 @@ import {
   MimeType,
   LLMSystem,
 } from "@arizeai/openinference-semantic-conventions";
+import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
-  InvokeModelCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
+  withSafety,
+  isObjectWithStringKeys,
+} from "@arizeai/openinference-core";
 import {
   InvokeModelRequestBody,
   BedrockMessage,
@@ -26,12 +27,12 @@ import {
   isToolUseContent,
 } from "../types/bedrock-types";
 import { setSpanAttribute, extractModelName } from "./attribute-helpers";
-import { 
-  extractInvocationParameters, 
+import {
+  extractInvocationParameters,
   parseRequestBody,
-  extractToolResultBlocks, 
-  formatImageUrl, 
-  normalizeRequestContentBlocks
+  extractToolResultBlocks,
+  formatImageUrl,
+  normalizeRequestContentBlocks,
 } from "./invoke-model-helpers";
 
 // Helper functions
@@ -204,7 +205,6 @@ function addMessageContentAttributes({
   }
 }
 
-
 /**
  * Extracts base request attributes for OpenInference semantic conventions
  * Sets fundamental LLM attributes including model, system, provider, and invocation parameters
@@ -263,9 +263,8 @@ function extractInputMessagesAttributes({
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
-
   const messages = normalizeRequestContentBlocks(requestBody, system);
-  
+
   if (messages && Array.isArray(messages)) {
     messages.forEach((message, index) => {
       addMessageAttributes({ span, message, index });
@@ -277,7 +276,7 @@ function extractInputMessagesAttributes({
  * Extracts input tool attributes from InvokeModel request body
  * Processes tool definitions array and sets them as JSON schema attributes
  * Out of supported models, Anthropic, Amazon Nova, and Mistral Chat Completion
- * support tool calls. 
+ * support tool calls.
  *
  * @param params Object containing extraction parameters
  * @param params.span The OpenTelemetry span to set attributes on
@@ -292,14 +291,20 @@ function extractInputToolAttributes({
   requestBody: InvokeModelRequestBody;
   system: LLMSystem;
 }): void {
-  if (system === LLMSystem.AMAZON && requestBody.toolConfig && isObjectWithStringKeys(requestBody.toolConfig) && requestBody.toolConfig.tools && Array.isArray(requestBody.toolConfig.tools)) {
+  if (
+    system === LLMSystem.AMAZON &&
+    requestBody.toolConfig &&
+    isObjectWithStringKeys(requestBody.toolConfig) &&
+    requestBody.toolConfig.tools &&
+    Array.isArray(requestBody.toolConfig.tools)
+  ) {
     requestBody.toolConfig.tools.forEach((tool, index) => {
       if (tool.toolSpec && isObjectWithStringKeys(tool.toolSpec)) {
         setSpanAttribute(
           span,
           `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
           JSON.stringify(tool.toolSpec),
-        ); 
+        );
       }
     });
   } else if (requestBody.tools && Array.isArray(requestBody.tools)) {
@@ -309,7 +314,7 @@ function extractInputToolAttributes({
         span,
         `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`,
         JSON.stringify(tool),
-      ); 
+      );
     });
   }
 }

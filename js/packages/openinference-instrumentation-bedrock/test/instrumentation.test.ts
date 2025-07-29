@@ -889,9 +889,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         ).toBeDefined();
 
         // Verify response processing - model returned empty content array
-        expect(
-          span.attributes["llm.output_messages.0.message.role"],
-        ).toBe("assistant");
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+          "assistant",
+        );
 
         // Verify token counting for large payloads matches recording
         expect(span.attributes["llm.token_count.prompt"]).toBe(35131);
@@ -1086,8 +1086,8 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
             messages: [
               {
                 role: "user",
-                content: "Hello, how are you?"
-              }
+                content: "Hello, how are you?",
+              },
             ],
             max_tokens: 100,
             temperature: 0.7,
@@ -1341,7 +1341,8 @@ This model is designed to avoid generating sensitive content. It is important to
         const client = createTestClient(isRecordingMode);
 
         // Sample base64 image data (small test image - 1x1 transparent PNG)
-        const sampleImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+        const sampleImageBase64 =
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
         const command = new InvokeModelCommand({
           modelId: "us.mistral.pixtral-large-2502-v1:0",
@@ -1352,44 +1353,46 @@ This model is designed to avoid generating sensitive content. It is important to
                 content: [
                   {
                     type: "text",
-                    text: "Please analyze this image and tell me what you see. If you need to get weather information for any location you see, use the weather tool."
+                    text: "Please analyze this image and tell me what you see. If you need to get weather information for any location you see, use the weather tool.",
                   },
                   {
                     type: "image_url",
                     image_url: {
-                      url: "data:image/png;base64," + sampleImageBase64
-                    }
-                  }
-                ]
-              }
+                      url: "data:image/png;base64," + sampleImageBase64,
+                    },
+                  },
+                ],
+              },
             ],
             tools: [
               {
                 type: "function",
                 function: {
                   name: "get_weather",
-                  description: "Get current weather information for a specific location",
+                  description:
+                    "Get current weather information for a specific location",
                   parameters: {
                     type: "object",
                     properties: {
                       location: {
                         type: "string",
-                        description: "The city and country/state for weather lookup"
+                        description:
+                          "The city and country/state for weather lookup",
                       },
                       unit: {
                         type: "string",
                         enum: ["celsius", "fahrenheit"],
-                        description: "Temperature unit preference"
-                      }
+                        description: "Temperature unit preference",
+                      },
                     },
-                    required: ["location"]
-                  }
-                }
-              }
+                    required: ["location"],
+                  },
+                },
+              },
             ],
             tool_choice: "auto",
             max_tokens: 200,
-            temperature: 0.7
+            temperature: 0.7,
           }),
           contentType: "application/json",
           accept: "application/json",
@@ -1397,10 +1400,12 @@ This model is designed to avoid generating sensitive content. It is important to
 
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         const span = verifySpanBasics(spanExporter);
         // Basic verification that multimodal and tool attributes are present
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+          "user",
+        );
         expect(span.attributes["llm.model_name"]).toContain("pixtral");
         expect(span.attributes["llm.system"]).toBe("mistralai");
       });
