@@ -1,10 +1,13 @@
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar
 
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
-from beeai_framework.tools import Tool, ToolErrorEvent, ToolRetryEvent, ToolSuccessEvent
-from beeai_framework.utils.strings import to_json
+from beeai_framework.tools import ToolErrorEvent, ToolRetryEvent, ToolSuccessEvent
+from beeai_framework.tools.tool import Tool
+from typing_extensions import override
 
+from openinference.instrumentation.beeai._utils import safe_dump_model_schema, stringify
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -12,14 +15,11 @@ from openinference.semconv.trace import (
     ToolAttributes,
 )
 
-from .._utils import safe_dump_model_schema
-from .base import Processor
-
 
 class ToolProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.TOOL
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta) -> None:
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta") -> None:
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
@@ -32,8 +32,12 @@ class ToolProcessor(Processor):
                 SpanAttributes.TOOL_NAME: tool.name,
                 SpanAttributes.TOOL_DESCRIPTION: tool.description,
                 # TODO: what's the difference?
-                SpanAttributes.TOOL_PARAMETERS: to_json(safe_dump_model_schema(tool.input_schema)),
-                ToolAttributes.TOOL_JSON_SCHEMA: to_json(safe_dump_model_schema(tool.input_schema)),
+                SpanAttributes.TOOL_PARAMETERS: stringify(
+                    safe_dump_model_schema(tool.input_schema)
+                ),
+                ToolAttributes.TOOL_JSON_SCHEMA: stringify(
+                    safe_dump_model_schema(tool.input_schema)
+                ),
             }
         )
 
@@ -41,7 +45,7 @@ class ToolProcessor(Processor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
         await super().update(event, meta)
 
@@ -60,9 +64,9 @@ class ToolProcessor(Processor):
                     }
                 )
             case ToolErrorEvent():
-                span = self.span.child(meta.name, event=[event, meta])
+                span = self.span.child(meta.name, event=(event, meta))
                 span.record_exception(event.error)
             case ToolRetryEvent():
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))

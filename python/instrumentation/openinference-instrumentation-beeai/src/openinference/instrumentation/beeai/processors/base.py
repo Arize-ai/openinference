@@ -1,24 +1,26 @@
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from beeai_framework.context import RunContext, RunContextFinishEvent, RunContextStartEvent
-from beeai_framework.emitter import EventMeta
-from beeai_framework.utils.strings import to_json
+if TYPE_CHECKING:
+    from beeai_framework.context import RunContextFinishEvent, RunContextStartEvent
+    from beeai_framework.emitter import EventMeta
+
 from opentelemetry.trace import StatusCode
 
-from instrumentation.beeai._span import SpanWrapper
+from openinference.instrumentation.beeai._span import SpanWrapper
+from openinference.instrumentation.beeai._utils import stringify
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
-StartEventPair = [RunContextStartEvent, EventMeta]
-
 
 class Processor:
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.UNKNOWN
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
+        from beeai_framework.context import RunContext
+
         assert isinstance(meta.creator, RunContext)
         target_cls = type(meta.creator.instance)
 
@@ -27,9 +29,7 @@ class Processor:
         self.span.attributes.update(
             {
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: type(self).kind,
-                SpanAttributes.INPUT_VALUE: to_json(
-                    event.input, exclude_none=True, sort_keys=False
-                ),
+                SpanAttributes.INPUT_VALUE: stringify(event.input),
                 SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                 f"{SpanAttributes.METADATA}.class_name": target_cls.__name__,
             }
@@ -38,18 +38,16 @@ class Processor:
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
         pass
 
-    async def end(self, event: RunContextFinishEvent, meta: EventMeta) -> None:
+    async def end(self, event: "RunContextFinishEvent", meta: "EventMeta") -> None:
         if event.output is not None:
             if SpanAttributes.OUTPUT_VALUE not in self.span.attributes:
                 self.span.attributes.update(
                     {
-                        SpanAttributes.OUTPUT_VALUE: to_json(
-                            event.output, exclude_none=True, sort_keys=False
-                        ),
+                        SpanAttributes.OUTPUT_VALUE: stringify(event.output),
                         SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.JSON.value,
                     }
                 )

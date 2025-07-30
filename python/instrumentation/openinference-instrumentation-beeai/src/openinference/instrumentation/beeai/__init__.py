@@ -1,20 +1,9 @@
-# Copyright 2025 IBM Corp.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import logging
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, Callable, Collection
+
+if TYPE_CHECKING:
+    from beeai_framework.emitter import EventMeta
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -23,14 +12,10 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
-
-if TYPE_CHECKING:
-    from beeai_framework.emitter import EventMeta
-
-from ._span import SpanWrapper
-from ._utils import _datetime_to_span_time, exception_handler
-from .processors.base import Processor
-from .processors.locator import init_processor
+from openinference.instrumentation.beeai._span import SpanWrapper
+from openinference.instrumentation.beeai._utils import _datetime_to_span_time, exception_handler
+from openinference.instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai.processors.locator import ProcessorLocator
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +100,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             if event.trace.parent_run_id and not parent:
                 raise ValueError(f"Parent run with ID {event.trace.parent_run_id} was not found!")
 
-            node = self._processes[event.trace.run_id] = init_processor(data, event)
+            node = self._processes[event.trace.run_id] = ProcessorLocator.locate(data, event)
             if parent is not None:
                 parent.span.children.append(node.span)
         else:

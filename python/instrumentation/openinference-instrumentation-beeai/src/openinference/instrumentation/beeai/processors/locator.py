@@ -1,53 +1,94 @@
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
 
-from beeai_framework.agents import BaseAgent
-from beeai_framework.agents.experimental import RequirementAgent
-from beeai_framework.agents.experimental.requirements import Requirement
-from beeai_framework.agents.react import ReActAgent
-from beeai_framework.agents.tool_calling import ToolCallingAgent
-from beeai_framework.backend import ChatModel, EmbeddingModel
-from beeai_framework.context import RunContext, RunContextStartEvent
-from beeai_framework.emitter import EventMeta
-from beeai_framework.tools import Tool
-from beeai_framework.workflows import Workflow
+if TYPE_CHECKING:
+    from beeai_framework.emitter import EventMeta
 
-from instrumentation.beeai.processors.agents.base import AgentProcessor
-from instrumentation.beeai.processors.agents.react import ReActAgentProcessor
-from instrumentation.beeai.processors.agents.requirement_agent import RequirementAgentProcessor
-from instrumentation.beeai.processors.agents.tool_calling import ToolCallingAgentProcessor
-from instrumentation.beeai.processors.base import Processor
-from instrumentation.beeai.processors.chat import ChatModelProcessor
-from instrumentation.beeai.processors.embedding import EmbeddingModelProcessor
-from instrumentation.beeai.processors.others.requirement import RequirementProcessor
-from instrumentation.beeai.processors.tool import ToolProcessor
-from instrumentation.beeai.processors.workflow import WorkflowProcessor
-
-processor_registry: dict[type, type[Processor]] = {
-    ReActAgent: ReActAgentProcessor,
-    ToolCallingAgent: ToolCallingAgentProcessor,
-    RequirementAgent: RequirementAgentProcessor,
-    Requirement: RequirementProcessor,
-    BaseAgent: AgentProcessor,
-    Tool: ToolProcessor,
-    ChatModel: ChatModelProcessor,
-    EmbeddingModel: EmbeddingModelProcessor,
-    Workflow: WorkflowProcessor,
-}
+from openinference.instrumentation.beeai.processors.base import Processor
 
 
-def init_processor(data: Any, event: EventMeta) -> Processor:
-    assert isinstance(data, RunContextStartEvent)
-    assert isinstance(event.creator, RunContext)
+class ProcessorLocator:
+    entries: dict[type, type] = {}
 
-    instance_cls = type(event.creator.instance)
+    @staticmethod
+    def _init() -> None:
+        if not ProcessorLocator.entries:
+            pass
 
-    if instance_cls in processor_registry:
-        cls_processor = processor_registry[instance_cls]
-    else:
-        for cls, cls_processor in processor_registry.items():
-            if isinstance(event.creator.instance, cls):
-                break
+        with contextlib.suppress(ImportError):
+            from beeai_framework.agents.react.agent import ReActAgent
+
+            from .agents.react import ReActAgentProcessor
+
+            ProcessorLocator.entries[ReActAgent] = ReActAgentProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.agents.tool_calling.agent import ToolCallingAgent
+
+            from .agents.tool_calling import ToolCallingAgentProcessor
+
+            ProcessorLocator.entries[ToolCallingAgent] = ToolCallingAgentProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.agents.experimental.agent import RequirementAgent
+
+            from .agents.requirement_agent import RequirementAgentProcessor
+
+            ProcessorLocator.entries[RequirementAgent] = RequirementAgentProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.agents.experimental.requirements.requirement import Requirement
+
+            from openinference.instrumentation.beeai.processors.requirement import (
+                RequirementProcessor,
+            )
+
+            ProcessorLocator.entries[Requirement] = RequirementProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.agents.base import BaseAgent
+
+            from openinference.instrumentation.beeai.processors.agents.base import AgentProcessor
+
+            ProcessorLocator.entries[BaseAgent] = AgentProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.tools.tool import Tool
+
+            from openinference.instrumentation.beeai.processors.tool import ToolProcessor
+
+            ProcessorLocator.entries[Tool] = ToolProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.backend.embedding import EmbeddingModel
+
+            from .embedding import EmbeddingModelProcessor
+
+            ProcessorLocator.entries[EmbeddingModel] = EmbeddingModelProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.workflows.workflow import Workflow
+
+            from .workflow import WorkflowProcessor
+
+            ProcessorLocator.entries[Workflow] = WorkflowProcessor
+
+    @staticmethod
+    def locate(data: Any, event: "EventMeta") -> Processor:
+        from beeai_framework.context import RunContext, RunContextStartEvent
+
+        assert isinstance(data, RunContextStartEvent)
+        assert isinstance(event.creator, RunContext)
+
+        instance_cls = type(event.creator.instance)
+
+        if instance_cls in ProcessorLocator.entries:
+            cls_processor = ProcessorLocator.entries[instance_cls]
         else:
-            cls_processor = Processor
+            for cls, cls_processor in ProcessorLocator.entries.items():
+                if isinstance(event.creator.instance, cls):
+                    break
+            else:
+                cls_processor = Processor
 
-    return cls_processor(data, event)
+        return cls_processor(data, event)  # type: ignore

@@ -1,22 +1,22 @@
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar
 
-from beeai_framework.agents.experimental.requirements import Requirement
 from beeai_framework.agents.experimental.requirements.ask_permission import AskPermissionRequirement
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.experimental.requirements.events import RequirementInitEvent
+from beeai_framework.agents.experimental.requirements.requirement import Requirement
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
-from instrumentation.beeai import Processor
-from instrumentation.beeai._utils import _unpack_object
+from typing_extensions import override
 
+from openinference.instrumentation.beeai._utils import _unpack_object
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class RequirementProcessor(Processor):
-    # TODO: is a better kind available?
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.UNKNOWN
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta) -> None:
+    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta") -> None:
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
@@ -26,7 +26,7 @@ class RequirementProcessor(Processor):
         self.span.name = requirement.name or self.span.name
         self._sync_state(meta.creator.instance)
 
-    def _sync_state(self, instance: Requirement[Any]) -> None:
+    def _sync_state(self, instance: "Requirement[Any]") -> None:
         attributes = {
             "name": instance.name,
             "enabled": instance.enabled,
@@ -54,7 +54,7 @@ class RequirementProcessor(Processor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
         await super().update(event, meta)
 
@@ -64,4 +64,4 @@ class RequirementProcessor(Processor):
             case RequirementInitEvent():
                 pass
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))

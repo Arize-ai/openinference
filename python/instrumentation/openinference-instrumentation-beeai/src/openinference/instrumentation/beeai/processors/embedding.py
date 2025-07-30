@@ -1,14 +1,18 @@
-from typing import Any, ClassVar, override
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from beeai_framework.backend import (
-    EmbeddingModel,
+if TYPE_CHECKING:
+    from beeai_framework.context import RunContextStartEvent
+    from beeai_framework.emitter import EventMeta
+
+from beeai_framework.backend import EmbeddingModel
+from beeai_framework.backend.events import (
     EmbeddingModelStartEvent,
     EmbeddingModelSuccessEvent,
 )
-from beeai_framework.context import RunContext, RunContextStartEvent
-from beeai_framework.emitter import EventMeta
+from beeai_framework.context import RunContext
+from typing_extensions import override
 
-from instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     OpenInferenceSpanKindValues,
@@ -20,7 +24,6 @@ class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
 
     def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
-
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)
@@ -40,11 +43,10 @@ class EmbeddingModelProcessor(Processor):
         event: Any,
         meta: "EventMeta",
     ) -> None:
-
         await super().update(event, meta)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
-        self.span.child(meta.name, event=[event, meta])
+        self.span.child(meta.name, event=(event, meta))
 
         if isinstance(event, EmbeddingModelStartEvent):
             for idx, txt in enumerate(event.input.values):

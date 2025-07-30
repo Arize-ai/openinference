@@ -4,7 +4,8 @@ import traceback
 
 from beeai_framework.adapters.ollama import OllamaEmbeddingModel
 from beeai_framework.errors import FrameworkError
-from setup import setup_observability
+
+from examples.setup import setup_observability
 
 setup_observability()
 

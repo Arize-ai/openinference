@@ -11,7 +11,8 @@ from beeai_framework.memory import TokenMemory
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.tool import AnyTool
 from beeai_framework.tools.weather.openmeteo import OpenMeteoTool
-from setup import setup_observability
+
+from examples.setup import setup_observability
 
 setup_observability()
 

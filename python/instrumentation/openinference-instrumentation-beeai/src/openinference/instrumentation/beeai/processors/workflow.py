@@ -1,23 +1,28 @@
-from typing import TYPE_CHECKING, Any, ClassVar, override
+from typing import Any, ClassVar
 
+from beeai_framework.context import RunContext, RunContextStartEvent
+from beeai_framework.emitter import EventMeta
+from beeai_framework.workflows import (
+    Workflow,
+    WorkflowErrorEvent,
+    WorkflowStartEvent,
+    WorkflowSuccessEvent,
+)
+from beeai_framework.workflows.agent.agent import Schema as AgentWorkflowSchema
 from pydantic import BaseModel
+from typing_extensions import override
 
-from instrumentation.beeai._utils import _unpack_object, safe_dump_model_schema, stringify
-from instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai._utils import (
+    _unpack_object,
+    safe_dump_model_schema,
+    stringify,
+)
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-
-if TYPE_CHECKING:
-    from beeai_framework.context import RunContextStartEvent
-    from beeai_framework.emitter import EventMeta
-    from beeai_framework.workflows import (
-        WorkflowErrorEvent,
-        WorkflowStartEvent,
-        WorkflowSuccessEvent,
-    )
 
 
 class WorkflowProcessor(Processor):
@@ -25,9 +30,6 @@ class WorkflowProcessor(Processor):
 
     def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
         super().__init__(event, meta)
-
-        from beeai_framework.context import RunContext
-        from beeai_framework.workflows import Workflow
 
         assert isinstance(meta.creator, RunContext)
         assert isinstance(meta.creator.instance, Workflow)
@@ -54,12 +56,6 @@ class WorkflowProcessor(Processor):
         event: Any,
         meta: "EventMeta",
     ) -> None:
-        from beeai_framework.workflows import (
-            WorkflowErrorEvent,
-            WorkflowStartEvent,
-            WorkflowSuccessEvent,
-        )
-
         await super().update(event, meta)
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
@@ -68,16 +64,11 @@ class WorkflowProcessor(Processor):
             case WorkflowStartEvent() | WorkflowSuccessEvent() | WorkflowErrorEvent():
                 self._update_state(event)
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))
 
     def _update_state(
-        self, event: "WorkflowStartEvent | WorkflowSuccessEvent | WorkflowErrorEvent"
-    ):
-        from beeai_framework.workflows import (
-            Workflow,
-            WorkflowSuccessEvent,
-        )
-
+        self, event: "WorkflowStartEvent[Any] | WorkflowSuccessEvent[Any] | WorkflowErrorEvent[Any]"
+    ) -> None:
         self.span.set_attribute(f"{SpanAttributes.METADATA}.current_step", event.step)
         self.span.set_attributes(
             _unpack_object(
@@ -113,7 +104,5 @@ class WorkflowProcessor(Processor):
 
 
 def _serialize_state(result: BaseModel) -> dict[str, Any]:
-    from beeai_framework.workflows.agent.agent import Schema as AgentWorkflowSchema
-
-    exclude = {"new_messages", "inputs"} if isinstance(result, AgentWorkflowSchema) else {}
+    exclude = {"new_messages", "inputs"} if isinstance(result, AgentWorkflowSchema) else set()
     return result.model_dump(exclude=exclude, exclude_none=True)

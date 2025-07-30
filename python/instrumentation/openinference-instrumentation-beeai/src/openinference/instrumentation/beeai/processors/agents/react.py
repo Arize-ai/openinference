@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING, Any, override
+from typing import Any
 
-from instrumentation.beeai._utils import _unpack_object, stringify
-from instrumentation.beeai.processors.agents.base import AgentProcessor
+from beeai_framework.context import RunContextStartEvent
+from beeai_framework.emitter import EventMeta
+from typing_extensions import override
+
+from openinference.instrumentation.beeai._utils import _unpack_object, stringify
+from openinference.instrumentation.beeai.processors.agents.base import AgentProcessor
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
-
-if TYPE_CHECKING:
-    from beeai_framework.context import RunContextStartEvent
-    from beeai_framework.emitter import EventMeta
 
 
 class ReActAgentProcessor(AgentProcessor):
@@ -45,7 +45,9 @@ class ReActAgentProcessor(AgentProcessor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.INPUT_VALUE: last_user_message.text or "",
+                        SpanAttributes.INPUT_VALUE: last_user_message.text
+                        if last_user_message
+                        else "",
                         SpanAttributes.INPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
                     }
                 )
@@ -62,14 +64,14 @@ class ReActAgentProcessor(AgentProcessor):
                 )
 
             case ReActAgentErrorEvent():
-                span = self.span.child(meta.name, event=[event, meta])
+                span = self.span.child(meta.name, event=(event, meta))
                 span.record_exception(event.error)
             case ReActAgentRetryEvent():
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))
             case ReActAgentSuccessEvent():
                 self.span.set_attribute(SpanAttributes.OUTPUT_VALUE, event.data.text)
                 self.span.set_attribute(
                     SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
                 )
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))

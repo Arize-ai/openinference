@@ -1,10 +1,3 @@
-import os
-
-from beeai_framework.backend import UserMessage
-from beeai_framework.memory import UnconstrainedMemory
-
-os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
-
 import asyncio
 import sys
 import traceback
@@ -12,13 +5,16 @@ import traceback
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
 from beeai_framework.agents.types import AgentExecutionConfig
+from beeai_framework.backend import UserMessage
 from beeai_framework.backend.chat import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from beeai_framework.errors import FrameworkError
+from beeai_framework.memory import UnconstrainedMemory
 from beeai_framework.tools.think import ThinkTool
 from beeai_framework.tools.tool import AnyTool
 from beeai_framework.tools.weather.openmeteo import OpenMeteoTool
-from setup import setup_observability
+
+from examples.setup import setup_observability
 
 setup_observability()
 

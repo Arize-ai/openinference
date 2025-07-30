@@ -4,8 +4,8 @@ from beeai_framework.agents import BaseAgent
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 
-from instrumentation.beeai._utils import _unpack_object
-from instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai._utils import _unpack_object
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -15,7 +15,7 @@ from openinference.semconv.trace import (
 class AgentProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.AGENT
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta) -> None:
+    def __init__(self, event: RunContextStartEvent, meta: "EventMeta") -> None:
         super().__init__(event, meta)
 
         assert isinstance(meta.creator, RunContext)

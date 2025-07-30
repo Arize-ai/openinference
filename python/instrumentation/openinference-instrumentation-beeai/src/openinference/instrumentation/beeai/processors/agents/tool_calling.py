@@ -1,12 +1,13 @@
-from typing import Any, override
+from typing import Any
 
 from beeai_framework.agents.tool_calling import (
     ToolCallingAgentStartEvent,
     ToolCallingAgentSuccessEvent,
 )
 from beeai_framework.emitter import EventMeta
+from typing_extensions import override
 
-from instrumentation.beeai.processors.agents.base import AgentProcessor
+from openinference.instrumentation.beeai.processors.agents.base import AgentProcessor
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
 
 
@@ -15,7 +16,7 @@ class ToolCallingAgentProcessor(AgentProcessor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
         await super().update(event, meta)
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
@@ -30,4 +31,4 @@ class ToolCallingAgentProcessor(AgentProcessor):
                         SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
                     )
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))

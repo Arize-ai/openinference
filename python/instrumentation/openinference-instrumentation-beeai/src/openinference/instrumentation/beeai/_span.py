@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry.sdk.trace import Event
 from opentelemetry.trace import StatusCode
 
-from instrumentation.beeai._utils import _datetime_to_span_time, _unpack_object
+from openinference.instrumentation.beeai._utils import _datetime_to_span_time, _unpack_object
 
 if TYPE_CHECKING:
     from beeai_framework.emitter import EventMeta
@@ -57,13 +57,13 @@ class SpanWrapper:
     def add_event(
         self,
         name: str,
-        attributes: dict[str, Any] = None,
+        attributes: dict[str, Any] | None = None,
         timestamp: datetime | None = None,
     ) -> None:
         self.events.append(
             Event(
                 name=name,
-                attributes=attributes,
+                attributes=attributes or {},
                 timestamp=_datetime_to_span_time(timestamp) if timestamp else None,
             )
         )
@@ -77,5 +77,5 @@ class SpanWrapper:
     def set_status(self, status: StatusCode) -> None:
         self.status = status
 
-    def record_exception(self, error: Exception):
+    def record_exception(self, error: Exception) -> None:
         self.error = error

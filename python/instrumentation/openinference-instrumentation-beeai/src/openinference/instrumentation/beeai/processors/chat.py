@@ -1,26 +1,32 @@
 import json
 from datetime import datetime
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar
 
 from beeai_framework.backend import (
     AnyMessage,
     ChatModel,
-    ChatModelNewTokenEvent,
-    ChatModelStartEvent,
-    ChatModelSuccessEvent,
     MessageImageContent,
     MessageTextContent,
     MessageToolCallContent,
     MessageToolResultContent,
 )
+from beeai_framework.backend.events import (
+    ChatModelNewTokenEvent,
+    ChatModelStartEvent,
+    ChatModelSuccessEvent,
+)
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from beeai_framework.tools import AnyTool
 from beeai_framework.utils.lists import remove_falsy
-from beeai_framework.utils.strings import to_json
+from typing_extensions import override
 
-from instrumentation.beeai._utils import _unpack_object, safe_dump_model_schema, stringify
-from instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai._utils import (
+    _unpack_object,
+    safe_dump_model_schema,
+    stringify,
+)
+from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -35,11 +41,11 @@ from openinference.semconv.trace import (
 class ChatModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.LLM
 
-    def __init__(self, event: RunContextStartEvent, meta: EventMeta):
+    def __init__(self, event: RunContextStartEvent, meta: "EventMeta"):
         super().__init__(event, meta)
 
         self._last_updated_at = datetime.now()
-        self._messages: dict[str, AnyMessage] = {}
+        self._messages: dict[str, "AnyMessage"] = {}
 
         assert isinstance(meta.creator, RunContext)
         assert isinstance(meta.creator.instance, ChatModel)
@@ -55,7 +61,7 @@ class ChatModelProcessor(Processor):
     async def update(
         self,
         event: Any,
-        meta: EventMeta,
+        meta: "EventMeta",
     ) -> None:
         await super().update(event, meta)
 
@@ -73,10 +79,8 @@ class ChatModelProcessor(Processor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOOLS: json.loads(
-                            to_json(event.input.tools, exclude_none=True)
-                        ),
-                        SpanAttributes.LLM_INVOCATION_PARAMETERS: to_json(
+                        SpanAttributes.LLM_TOOLS: json.loads(stringify(event.input.tools)),
+                        SpanAttributes.LLM_INVOCATION_PARAMETERS: stringify(
                             meta.creator.parameters.model_dump(
                                 exclude_none=True, exclude_unset=True
                             )
@@ -88,7 +92,6 @@ class ChatModelProcessor(Processor):
                                     "messages",
                                 },
                             ),
-                            exclude_none=True,
                         ),
                     }
                 )
@@ -100,28 +103,34 @@ class ChatModelProcessor(Processor):
                 if not self._messages:  # only when no streaming
                     self._add_new_messages(event.value.messages)
 
+                usage = event.value.usage
+
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: event.value.usage.total_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: event.value.usage.prompt_tokens,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: event.value.usage.completion_tokens,  # noqa: E501
+                        **(
+                            {
+                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage.total_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage.prompt_tokens,
+                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage.completion_tokens,
+                            }
+                            if usage
+                            else {}
+                        ),
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: type(self).kind,
                         SpanAttributes.OUTPUT_VALUE: event.value.get_text_content(),
                         SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
                         f"{SpanAttributes.METADATA}.chunks_count": len(event.value.messages),
                         **_unpack_object(
-                            event.value.usage.model_dump(exclude_none=True)
-                            if event.value.usage
-                            else {},
+                            usage.model_dump(exclude_none=True) if usage else {},
                             prefix=f"{SpanAttributes.METADATA}.usage",
                         ),
                     }
                 )
 
             case _:
-                self.span.child(meta.name, event=[event, meta])
+                self.span.child(meta.name, event=(event, meta))
 
-    def _add_new_messages(self, messages: list[AnyMessage]) -> None:
+    def _add_new_messages(self, messages: list["AnyMessage"]) -> None:
         for new_msg in messages:
             msg_id = new_msg.meta.get("id") or f"latest_{new_msg.role}"
             if msg_id in self._messages:
@@ -150,14 +159,16 @@ def _process_tools(tools: list[AnyTool]) -> list[dict[str, str | Any]]:
     ]
 
 
-def _process_messages(messages: list[AnyMessage], prefix="", offset: int = 0) -> dict[str, Any]:
+def _process_messages(
+    messages: list["AnyMessage"], prefix: str = "", offset: int = 0
+) -> dict[str, Any]:
     if prefix and not prefix.endswith("."):
         prefix += "."
 
     output = {}
     for _i, msg in enumerate(messages):
         i = _i + offset
-        output[f"{prefix}{i}.{MessageAttributes.MESSAGE_ROLE}"] = msg.role.value
+        output[f"{prefix}{i}.{MessageAttributes.MESSAGE_ROLE}"] = str(msg.role)
 
         output.update(
             _unpack_object(
@@ -209,7 +220,9 @@ def _process_messages(messages: list[AnyMessage], prefix="", offset: int = 0) ->
     return output
 
 
-def _aggregate_msg_content(message: AnyMessage):
+def _aggregate_msg_content(message: "AnyMessage") -> None:
+    from beeai_framework.backend import MessageTextContent, MessageToolCallContent
+
     contents: list[Any] = message.content.copy()
     message.content.clear()
 

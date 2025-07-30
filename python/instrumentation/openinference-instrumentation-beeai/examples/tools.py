@@ -4,7 +4,8 @@ import traceback
 
 from beeai_framework.errors import FrameworkError
 from beeai_framework.tools.search.wikipedia import WikipediaTool, WikipediaToolInput
-from setup import setup_observability
+
+from examples.setup import setup_observability
 
 setup_observability()
 
