@@ -566,8 +566,7 @@ def _output_messages(
 
 
 @stop_on_exception
-def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
-    """Parses message data to grab message role, content, etc."""
+def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if not message_data:
         return
     assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
@@ -589,6 +588,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
     yield MESSAGE_ROLE, role
+
+
+@stop_on_exception
+def _extract_message_kwargs(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
     if kwargs := message_data.get("kwargs"):
         assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if content := kwargs.get("content"):
@@ -608,6 +614,17 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
         if name := kwargs.get("name"):
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield MESSAGE_NAME, name
+
+
+@stop_on_exception
+def _extract_message_additional_kwargs(
+    message_data: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
+    if kwargs := message_data.get("kwargs"):
+        assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(additional_kwargs, "get"), (
                 f"expected Mapping, found {type(additional_kwargs)}"
@@ -624,25 +641,56 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                         yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
                     else:
                         yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(arguments)
-            if tool_calls := additional_kwargs.get("tool_calls"):
-                assert isinstance(tool_calls, Iterable), (
-                    f"expected Iterable, found {type(tool_calls)}"
-                )
-                message_tool_calls = []
-                for tool_call in tool_calls:
-                    if message_tool_call := dict(_get_tool_call(tool_call)):
-                        message_tool_calls.append(message_tool_call)
-                if message_tool_calls:
-                    yield MESSAGE_TOOL_CALLS, message_tool_calls
+
+
+def _process_tool_calls(tool_calls: Any) -> List[Dict[str, Any]]:
+    """Helper function to process tool calls from any source."""
+    if not tool_calls:
+        return []
+    assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
+    message_tool_calls = []
+    for tool_call in tool_calls:
+        if message_tool_call := dict(_get_tool_call(tool_call)):
+            message_tool_calls.append(message_tool_call)
+    return message_tool_calls
+
+
+@stop_on_exception
+def _extract_message_tool_calls(
+    message_data: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
+    if tool_calls := message_data.get("tool_calls"):
+        # https://github.com/langchain-ai/langgraph/blob/86017c010c7901f7971d1ac499c392a0652f63cc/libs/langgraph/langgraph/graph/message.py#L266# noqa: E501
+        message_tool_calls = _process_tool_calls(tool_calls)
+        if message_tool_calls:
+            yield MESSAGE_TOOL_CALLS, message_tool_calls
+    if kwargs := message_data.get("kwargs"):
+        assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if tool_calls := kwargs.get("tool_calls"):
             # https://github.com/langchain-ai/langchain/blob/a7d0e42f3fa5b147fea9109f60e799229f30a68b/libs/core/langchain_core/messages/ai.py#L167  # noqa: E501
-            assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
-            message_tool_calls = []
-            for tool_call in tool_calls:
-                if message_tool_call := dict(_get_tool_call(tool_call)):
-                    message_tool_calls.append(message_tool_call)
+            message_tool_calls = _process_tool_calls(tool_calls)
             if message_tool_calls:
                 yield MESSAGE_TOOL_CALLS, message_tool_calls
+        if additional_kwargs := kwargs.get("additional_kwargs"):
+            assert hasattr(additional_kwargs, "get"), (
+                f"expected Mapping, found {type(additional_kwargs)}"
+            )
+            if tool_calls := additional_kwargs.get("tool_calls"):
+                message_tool_calls = _process_tool_calls(tool_calls)
+                if message_tool_calls:
+                    yield MESSAGE_TOOL_CALLS, message_tool_calls
+
+
+@stop_on_exception
+def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    """Parses message data to grab message role, content, etc."""
+    yield from _extract_message_role(message_data)
+    yield from _extract_message_kwargs(message_data)
+    yield from _extract_message_additional_kwargs(message_data)
+    yield from _extract_message_tool_calls(message_data)
 
 
 @stop_on_exception
