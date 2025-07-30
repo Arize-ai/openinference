@@ -32,6 +32,7 @@ dependencies = [
   "openinference-semantic-conventions>=0.1.21",
   "typing-extensions",
   "wrapt",
+  "eval_type_backport ; python_version < '3.10'",
 ]
 
 [project.optional-dependencies]
