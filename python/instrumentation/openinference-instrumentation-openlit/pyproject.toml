@@ -36,7 +36,6 @@ test = [
   "semantic-kernel>=1.0.0",
   "openlit>=1.0.0",
   "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-util",
   "opentelemetry-exporter-otlp-proto-http",
   "pytest-recording",
 ]
