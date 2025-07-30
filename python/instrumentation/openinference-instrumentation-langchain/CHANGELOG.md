@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.49...python-openinference-instrumentation-langchain-v0.1.50) (2025-07-30)
+
+
+### Features
+
+* Instrument sssistant tool calls made by LangGraph  ([#2012](https://github.com/Arize-ai/openinference/issues/2012)) ([f0e5852](https://github.com/Arize-ai/openinference/commit/f0e585258aca591dbb4e97cc1a7503b56971cebc))
+
 ## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.48...python-openinference-instrumentation-langchain-v0.1.49) (2025-07-24)
 
 
