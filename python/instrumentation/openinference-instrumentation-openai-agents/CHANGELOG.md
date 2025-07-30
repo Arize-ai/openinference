@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.0...python-openinference-instrumentation-openai-agents-v1.1.1) (2025-07-30)
+
+
+### Bug Fixes
+
+* openai-agents CI add eval_type_backport dependency for Python &lt;3.10 compatibility ([#2004](https://github.com/Arize-ai/openinference/issues/2004)) ([f38ed8e](https://github.com/Arize-ai/openinference/commit/f38ed8efe6734297a3e77c0b4d4ddde32bc8ba11))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.0.0...python-openinference-instrumentation-openai-agents-v1.1.0) (2025-07-18)
 
 

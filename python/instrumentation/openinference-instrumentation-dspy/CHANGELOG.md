@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.26...python-openinference-instrumentation-dspy-v0.1.27) (2025-07-30)
+
+
+### Bug Fixes
+
+* **instrumentation-dspy:** pin urllib3&lt;2.0 for pytest-recording compatibility ([#2007](https://github.com/Arize-ai/openinference/issues/2007)) ([51f5040](https://github.com/Arize-ai/openinference/commit/51f5040af8bef8f7407dde7451ea1f2fb6ca7950))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.25...python-openinference-instrumentation-dspy-v0.1.26) (2025-07-23)
 
 
