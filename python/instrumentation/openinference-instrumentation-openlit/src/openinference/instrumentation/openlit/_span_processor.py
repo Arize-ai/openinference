@@ -21,26 +21,31 @@ __all__ = ["OpenInferenceSpanProcessor"]
 # 1.  CONSTANTS / "DICTIONARY" MAPPINGS
 # ────────────────────────────────────────────────────────────────────────────────
 _DIRECT_MAPPING = {
-    "gen_ai.system": sc.SpanAttributes.LLM_SYSTEM,          # openai, anthropic, …
+    "gen_ai.system": sc.SpanAttributes.LLM_SYSTEM,  # openai, anthropic, …
     "gen_ai.request.model": sc.SpanAttributes.LLM_MODEL_NAME,
-    "gen_ai.response.model": sc.SpanAttributes.LLM_MODEL_NAME,          # collapse to one key
-    "gen_ai.operation.name": "llm.request.type",        # chat / embeddings / …
+    "gen_ai.response.model": sc.SpanAttributes.LLM_MODEL_NAME,  # collapse to one key
+    "gen_ai.operation.name": "llm.request.type",  # chat / embeddings / …
     # token counts
-    "gen_ai.usage.input_tokens":  sc.SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
+    "gen_ai.usage.input_tokens": sc.SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
     "gen_ai.usage.output_tokens": sc.SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-    "gen_ai.usage.total_tokens":  sc.SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
+    "gen_ai.usage.total_tokens": sc.SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
 }
 
 _INVOC_PARAM_PREFIX = "gen_ai.request."
-_EXCLUDE_INVOC_KEYS  = {
-    "model", "max_tokens", "temperature", "top_p", "top_k",
-    "frequency_penalty", "presence_penalty", "stop_sequences",
+_EXCLUDE_INVOC_KEYS = {
+    "model",
+    "max_tokens",
+    "temperature",
+    "top_p",
+    "top_k",
+    "frequency_penalty",
+    "presence_penalty",
+    "stop_sequences",
 }
 
 _PROVIDERS = {
-    "openai", 
-    "ollama"
-    "anthropic",
+    "openai",
+    "ollama" "anthropic",
     "deepseek",
     "gpt4all",
     "cohere",
@@ -58,7 +63,7 @@ _PROVIDERS = {
     "xai",
     "elevenlabs",
     "ai21",
-    "together",        
+    "together",
     "assembly_ai",
     "featherless",
     "reka_ai",
@@ -68,13 +73,14 @@ _PROVIDERS = {
     "vector_dbs",
 }
 
+
 def _is_wrapper_span(attrs: dict) -> bool:
     """
     Heuristic: True = a framework / chain / tool span (not the real LLM HTTP call).
     """
     sys_name = str(attrs.get("gen_ai.system", "")).lower()
-    addr     = attrs.get("server.address")
-    port     = attrs.get("server.port")
+    addr = attrs.get("server.address")
+    port = attrs.get("server.port")
 
     # If we know the provider → it's an LLM span
     if sys_name in _PROVIDERS:
@@ -96,7 +102,7 @@ def _safe_int(v: Any) -> int | None:
         return int(v)
     except Exception:
         return None
-    
+
 
 # ── ADD just above the span-processor class ──────────────────────────────────
 def _tool_call_to_dict(tc: Any) -> dict:
@@ -109,9 +115,9 @@ def _tool_call_to_dict(tc: Any) -> dict:
 
     # oi.ToolCall  ->  dict
     try:
-        fn   = tc["function"]
+        fn = tc["function"]
         args = fn["arguments"] if isinstance(fn, dict) else ""
-        name = fn["name"]       if isinstance(fn, dict) else ""
+        name = fn["name"] if isinstance(fn, dict) else ""
         return {
             "id": tc.get("id", ""),
             "type": "function",
@@ -136,8 +142,8 @@ def _parse_completion_from_events(events) -> str | None:
     return None
 
 
-_ROLE_LINE_RE = re.compile(r"^(user|assistant|system|tool):\s*(.*)$",
-                           re.IGNORECASE)
+_ROLE_LINE_RE = re.compile(r"^(user|assistant|system|tool):\s*(.*)$", re.IGNORECASE)
+
 
 def _unflatten_prompt(flat: str) -> list[dict]:
     """
@@ -154,7 +160,6 @@ def _unflatten_prompt(flat: str) -> list[dict]:
         role, content = m.groups()
         msgs.append({"role": role.lower(), "content": content})
     return msgs
-
 
 
 def _load_tool_calls(raw: Any) -> list[dict]:
@@ -256,23 +261,25 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         return True
 
     # ---- main work -----------------------------------------------------------
-    def on_end(self, span: ReadableSpan) -> None:            # noqa: C901
+    def on_end(self, span: ReadableSpan) -> None:  # noqa: C901
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
 
         # Set default span kind as backup - will be overridden by specific logic below
-        default_oi_attrs = {sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value}
+        default_oi_attrs = {
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value
+        }
 
         # ── Handle tool spans first ──────────────────────────────────
         operation_name = attrs.get("gen_ai.operation.name")
         tool_name = attrs.get("gen_ai.tool.name")
         tool_description = attrs.get("gen_ai.tool.description")
-        
+
         if operation_name == "execute_tool" or (tool_name and tool_description):
             oi_attrs = {
                 sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.TOOL.value,
                 "span.name": tool_name or operation_name or "tool_execution",
             }
-            
+
             # Set tool attributes in OpenInference format
             if tool_name:
                 # oi_attrs["llm.tools.0.name"] = tool_name
@@ -280,24 +287,28 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             if tool_description:
                 # oi_attrs["llm.tools.0.description"] = tool_description
                 oi_attrs[sc.SpanAttributes.TOOL_DESCRIPTION] = tool_description
-                
+
             # Add input/output from events if available
             prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
-                oi_attrs.update({
-                    sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
-                    sc.SpanAttributes.INPUT_VALUE: prompt_txt,
-                })
+                oi_attrs.update(
+                    {
+                        sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.INPUT_VALUE: prompt_txt,
+                    }
+                )
             if completion_txt:
-                oi_attrs.update({
-                    sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
-                    sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
-                })
+                oi_attrs.update(
+                    {
+                        sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
+                    }
+                )
 
-            span._attributes.clear()                 # type: ignore[attr-defined]
-            span._attributes.update(oi_attrs)        # type: ignore[attr-defined]
-            return                                    # ✅ done – tool span processed
+            span._attributes.clear()  # type: ignore[attr-defined]
+            span._attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            return  # ✅ done – tool span processed
 
         # ── Handle wrapper / chain spans quickly ───────────────
         if _is_wrapper_span(attrs):
@@ -306,34 +317,38 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 "openinference.span.name": attrs.get("gen_ai.system"),
             }
 
-            prompt_txt     = _parse_prompt_from_events(span.events)
+            prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
-                oi_attrs.update({
-                    sc.SpanAttributes.INPUT_MIME_TYPE:  sc.OpenInferenceMimeTypeValues.TEXT.value,
-                    sc.SpanAttributes.INPUT_VALUE:      prompt_txt,
-                })
+                oi_attrs.update(
+                    {
+                        sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.INPUT_VALUE: prompt_txt,
+                    }
+                )
             if completion_txt:
-                oi_attrs.update({
-                    sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
-                    sc.SpanAttributes.OUTPUT_VALUE:     completion_txt,
-                })
+                oi_attrs.update(
+                    {
+                        sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
+                    }
+                )
 
-            span._attributes.clear()                 # type: ignore[attr-defined]
-            span._attributes.update(oi_attrs)        # type: ignore[attr-defined]
-            return                                    # ✅ done – don't run the LLM logic
+            span._attributes.clear()  # type: ignore[attr-defined]
+            span._attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            return  # ✅ done – don't run the LLM logic
 
         # ── Otherwise: this is a provider call → run LLM conversion
         if "gen_ai.system" not in attrs:
             # Set backup attributes for spans without gen_ai.system
-            span._attributes.clear()                 # type: ignore[attr-defined]
-            span._attributes.update(default_oi_attrs)        # type: ignore[attr-defined]
+            span._attributes.clear()  # type: ignore[attr-defined]
+            span._attributes.update(default_oi_attrs)  # type: ignore[attr-defined]
             return
 
         # ── 3.1  PROMPT / COMPLETION  ────────────────────────────────────────
-        prompt_text      = _parse_prompt_from_events(span.events)
-        completion_text  = _parse_completion_from_events(span.events)
-        tool_calls_json  = attrs.get("gen_ai.response.tool_calls")
+        prompt_text = _parse_prompt_from_events(span.events)
+        completion_text = _parse_completion_from_events(span.events)
+        tool_calls_json = attrs.get("gen_ai.response.tool_calls")
 
         input_msgs, output_msgs = _build_messages(
             prompt_text,
@@ -343,9 +358,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         # ── 3.2  TOKEN-COUNTS  ───────────────────────────────────────────────
         token_count = oi.TokenCount(
-            prompt     = _safe_int(attrs.get("gen_ai.usage.input_tokens")),
-            completion = _safe_int(attrs.get("gen_ai.usage.output_tokens")),
-            total      = _safe_int(attrs.get("gen_ai.usage.total_tokens")),
+            prompt=_safe_int(attrs.get("gen_ai.usage.input_tokens")),
+            completion=_safe_int(attrs.get("gen_ai.usage.output_tokens")),
+            total=_safe_int(attrs.get("gen_ai.usage.total_tokens")),
         )
 
         # ── 3.3  INVOCATION PARAMETERS (everything under gen_ai.request.*) ───
@@ -376,50 +391,38 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
             out_msgs_json.append(mdict)
 
-        
-
         # ── 3.4  OPENINFERENCE ATTRIBUTE PACKS  ──────────────────────────────
         oi_attrs = {
             # Start with default attributes as backup
             **default_oi_attrs,
-            
             # 3.4-1 direct key moves (model, system, token counts …)
-            **{
-                _DIRECT_MAPPING[k]: v
-                for k, v in attrs.items()
-                if k in _DIRECT_MAPPING
-            },
-
+            **{_DIRECT_MAPPING[k]: v for k, v in attrs.items() if k in _DIRECT_MAPPING},
             # 3.4-2 llm.*
             **get_llm_attributes(
-                provider      = attrs.get("gen_ai.system", "").lower(),
-                system        = attrs.get("gen_ai.system", "").lower(),
-                model_name    = attrs.get("gen_ai.request.model")
-                                or attrs.get("gen_ai.response.model"),
-                input_messages  = input_msgs,
-                output_messages = output_msgs,
-                token_count     = token_count,
-                invocation_parameters = invocation or None,
+                provider=attrs.get("gen_ai.system", "").lower(),
+                system=attrs.get("gen_ai.system", "").lower(),
+                model_name=attrs.get("gen_ai.request.model") or attrs.get("gen_ai.response.model"),
+                input_messages=input_msgs,
+                output_messages=output_msgs,
+                token_count=token_count,
+                invocation_parameters=invocation or None,
             ),
-
             # 3.4-3 input.* / output.*
             **get_input_attributes(
                 {
                     "messages": [
-                        {"role": m.get("role"), "content": m.get("content", "")}
-                        for m in input_msgs
+                        {"role": m.get("role"), "content": m.get("content", "")} for m in input_msgs
                     ],
                     "model": attrs.get("gen_ai.request.model"),
-                    **invocation,                      # include the knobs
+                    **invocation,  # include the knobs
                 }
             ),
             **get_output_attributes(
-                {              
+                {
                     "id": attrs.get("gen_ai.response.id"),
                     "messages": out_msgs_json,
                 }
             ),
-
             # 3.4-4 span kind for Phoenix navigation panel
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
         }
@@ -431,5 +434,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             )
 
         # ── 3.5  REPLACE ORIGINAL ATTRIBUTES  ────────────────────────────────
-        span._attributes.clear()                        # type: ignore[attr-defined]
-        span._attributes.update(oi_attrs)               # type: ignore[attr-defined]
+        span._attributes.clear()  # type: ignore[attr-defined]
+        span._attributes.update(oi_attrs)  # type: ignore[attr-defined]

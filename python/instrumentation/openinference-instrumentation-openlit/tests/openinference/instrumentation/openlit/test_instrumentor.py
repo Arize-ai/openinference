@@ -15,6 +15,7 @@ import openlit
 from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
 from openinference.semconv.trace import SpanAttributes
 
+
 @pytest.fixture
 def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     # Only set fake API key if no real one is available
@@ -23,17 +24,21 @@ def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
     # If real API key exists, don't override it
 
+
 @pytest.fixture
 def openai_global_llm_service(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GLOBAL_LLM_SERVICE", "OpenAI")
+
 
 @pytest.fixture
 def openai_chat_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_CHAT_MODEL_ID", "gpt-4o-mini")
 
+
 @pytest.fixture
 def openai_text_model_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_TEXT_MODEL_ID", "gpt-4o-mini")
+
 
 def is_openinference_span(span: ReadableSpan) -> bool:
     """Check if a span is an OpenInference span."""
@@ -79,12 +84,11 @@ class TestOpenLitInstrumentor:
         before_record_request=remove_all_vcr_request_headers,
         before_record_response=remove_all_vcr_response_headers,
         decode_compressed_response=True,
-        filter_headers=['authorization'],
+        filter_headers=["authorization"],
     )
     @pytest.mark.asyncio
     @pytest.mark.skipif(
-        sys.version_info < (3, 10),
-        reason="semantic-kernel>=1.0.0 requires Python>=3.10"
+        sys.version_info < (3, 10), reason="semantic-kernel>=1.0.0 requires Python>=3.10"
     )
     async def test_openlit_instrumentor(
         self,
@@ -94,7 +98,7 @@ class TestOpenLitInstrumentor:
             import semantic_kernel
         except ImportError:
             pytest.skip("semantic-kernel not available")
-            
+
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
 
@@ -138,17 +142,17 @@ class TestOpenLitInstrumentor:
 
         # Basic assertion on the result
         assert result is not None
-        assert hasattr(result, 'value')
+        assert hasattr(result, "value")
         assert result.value is not None
 
         # Get spans
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) > 0
-        
+
         # Check that we have OpenInference spans
         openinference_spans = [span for span in spans if is_openinference_span(span)]
         assert len(openinference_spans) > 0, "No OpenInference spans found"
-        
+
         for span in openinference_spans:
             # Check span attributes
             attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -168,14 +172,14 @@ class TestOpenLitInstrumentor:
         """Test that the OpenInference span processor can be created and used."""
         # Create the span processor
         span_processor = OpenInferenceSpanProcessor()
-        
+
         # Verify it's created successfully
         assert span_processor is not None
-        assert hasattr(span_processor, 'on_start')
-        assert hasattr(span_processor, 'on_end')
-        
+        assert hasattr(span_processor, "on_start")
+        assert hasattr(span_processor, "on_end")
+
         # Test that it can be added to a tracer provider
         tracer_provider = TracerProvider()
         tracer_provider.add_span_processor(span_processor)
 
-        assert True 
+        assert True

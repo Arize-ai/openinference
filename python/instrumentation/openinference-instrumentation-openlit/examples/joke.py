@@ -46,7 +46,7 @@ if __name__ == "__main__":
             )
         )
     )
-    
+
     tracer = provider.get_tracer(__name__)
 
     openlit.init(
@@ -72,12 +72,14 @@ plugin = kernel.add_plugin(parent_directory=plugin_dir, plugin_name="FunPlugin")
 
 joke_function = plugin["Joke"]
 
+
 async def run_joke():
     joke = await kernel.invoke(
         joke_function,
         KernelArguments(input="time travel to dinosaur age", style="super silly"),
     )
     print(joke)
+
 
 if __name__ == "__main__":
     asyncio.run(run_joke())
