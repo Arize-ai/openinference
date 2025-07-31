@@ -1,0 +1,78 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What's in this image?"
+            },
+            {
+              "image": {
+                "format": "png",
+                "source": {
+                  "bytes": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+                }
+              }
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 3802
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.\n\nWhile I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 17,
+        "outputTokens": 100,
+        "totalTokens": 117
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 15:37:53 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "653",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "ba0bf584-a4bc-4f06-a5d9-a7c0db17553a"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "274",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "c4c1fea7-56b8-4e05-8c9f-11630e85d374",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "7ea2eea04103b8b7c7136aa8df7d86cdd35e4fbe2bfe889cda14dccf5fbe4630",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

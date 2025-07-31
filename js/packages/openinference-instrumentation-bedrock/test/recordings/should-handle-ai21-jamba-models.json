@@ -1,0 +1,73 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/ai21.jamba-1-5-mini-v1%3A0/invoke",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello, how are you?"
+        }
+      ],
+      "max_tokens": 100,
+      "temperature": 0.7
+    },
+    "status": 200,
+    "response": {
+      "id": "chatcmpl-5a5e214e-2d38-4152-8496-b2eb301d7008",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": " Hello! I'm doing great, thank you. How can I assist you today?",
+            "tool_calls": null
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 16,
+        "completion_tokens": 19,
+        "total_tokens": 35
+      },
+      "meta": {
+        "requestDurationMillis": 307
+      },
+      "model": "jamba-1.5-mini"
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 29 Jul 2025 17:03:29 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "358",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "783333b7-672e-47f2-8394-46cd6ff4b004",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "411",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "19",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "16"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "97",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "c43af6ba-9108-47b9-bd1b-3f2aabea5276",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "2677ffb6c1beab1744f5455d05037300eaffed19b00712f1ee31a7e088eba51b",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]
