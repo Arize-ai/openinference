@@ -56,10 +56,6 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             if not span.attributes:
                 return
 
-            # Check if span should be processed
-            if not should_export_span(span, self._span_filter):
-                return
-
             # Get the openinference attributes from the span
             openinference_attributes_iter = get_attributes(span.attributes)
             openinference_attributes = dict(openinference_attributes_iter)
