@@ -1,4 +1,4 @@
-from openinference.instrumentation.openlit._span_processor import (  # type: ignore[import-untyped]
+from openinference.instrumentation.openlit._span_processor import (
     OpenInferenceSpanProcessor,
 )
 
