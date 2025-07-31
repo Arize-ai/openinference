@@ -2,7 +2,7 @@ import asyncio
 import sys
 import traceback
 
-from beeai_framework.agents.tool_calling import ToolCallingAgent
+from beeai_framework.agents.react import ReActAgent
 from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend.chat import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
@@ -11,12 +11,13 @@ from beeai_framework.memory import TokenMemory
 from beeai_framework.tools.search.duckduckgo import DuckDuckGoSearchTool
 from beeai_framework.tools.tool import AnyTool
 from beeai_framework.tools.weather.openmeteo import OpenMeteoTool
-from openinference_setup import setup_observability
+
+from examples.setup import setup_observability
 
 setup_observability()
 
 llm = ChatModel.from_name(
-    "ollama:granite3.1-dense:8b",
+    "ollama:granite3.3",
     ChatModelParameters(temperature=0),
 )
 
@@ -25,7 +26,7 @@ tools: list[AnyTool] = [
     DuckDuckGoSearchTool(),
 ]
 
-agent = ToolCallingAgent(llm=llm, tools=tools, memory=TokenMemory(llm))
+agent = ReActAgent(llm=llm, tools=tools, memory=TokenMemory(llm))
 
 prompt = "What's the current weather in Las Vegas?"
 
