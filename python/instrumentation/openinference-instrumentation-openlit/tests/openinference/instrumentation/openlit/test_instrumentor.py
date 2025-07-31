@@ -2,6 +2,7 @@ import os
 import sys
 from typing import Any, Mapping, cast
 
+import openlit
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -11,7 +12,6 @@ from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
 
-import openlit
 from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
 from openinference.semconv.trace import SpanAttributes
 
@@ -93,11 +93,7 @@ class TestOpenLitInstrumentor:
     async def test_openlit_instrumentor(
         self,
     ) -> None:
-        # Skip if semantic-kernel is not available
-        try:
-            import semantic_kernel
-        except ImportError:
-            pytest.skip("semantic-kernel not available")
+
 
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()

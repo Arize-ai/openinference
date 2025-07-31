@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-import json, ast, re
+import ast
+import json
+import re
 from typing import Any, Dict, Tuple
 
-from opentelemetry.sdk.trace import SpanProcessor, ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+
 import openinference.instrumentation as oi
+import openinference.semconv.trace as sc
 from openinference.instrumentation import (
-    get_llm_attributes,
     get_input_attributes,
+    get_llm_attributes,
     get_output_attributes,
 )
-
-import openinference.semconv.trace as sc
 
 __all__ = ["OpenInferenceSpanProcessor"]
 
@@ -277,7 +279,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         if operation_name == "execute_tool" or (tool_name and tool_description):
             oi_attrs = {
-                sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.TOOL.value,
+                sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (
+                    sc.OpenInferenceSpanKindValues.TOOL.value
+                ),
                 "span.name": tool_name or operation_name or "tool_execution",
             }
 
@@ -295,14 +299,18 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             if prompt_txt:
                 oi_attrs.update(
                     {
-                        sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.INPUT_MIME_TYPE: (
+                            sc.OpenInferenceMimeTypeValues.TEXT.value
+                        ),
                         sc.SpanAttributes.INPUT_VALUE: prompt_txt,
                     }
                 )
             if completion_txt:
                 oi_attrs.update(
                     {
-                        sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.OUTPUT_MIME_TYPE: (
+                            sc.OpenInferenceMimeTypeValues.TEXT.value
+                        ),
                         sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
                     }
                 )
@@ -323,14 +331,18 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             if prompt_txt:
                 oi_attrs.update(
                     {
-                        sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.INPUT_MIME_TYPE: (
+                            sc.OpenInferenceMimeTypeValues.TEXT.value
+                        ),
                         sc.SpanAttributes.INPUT_VALUE: prompt_txt,
                     }
                 )
             if completion_txt:
                 oi_attrs.update(
                     {
-                        sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                        sc.SpanAttributes.OUTPUT_MIME_TYPE: (
+                            sc.OpenInferenceMimeTypeValues.TEXT.value
+                        ),
                         sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
                     }
                 )
@@ -425,7 +437,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 }
             ),
             # 3.4-4 span kind for Phoenix navigation panel
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (
+                sc.OpenInferenceSpanKindValues.LLM.value
+            ),
         }
 
         # explicit JSON dump for invocation_parameters (UI convenience)

@@ -1,15 +1,15 @@
+import asyncio
 import os
 
-import asyncio
 import grpc
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+import openlit
+from _span_processor import OpenInferenceSpanProcessor
+from arize.otel import register
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from semantic_kernel import Kernel, __version__
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
-from arize.otel import register
-import openlit
-from _span_processor import OpenInferenceSpanProcessor
 
 os.environ["GLOBAL_LLM_SERVICE"] = "OpenAI"
 os.environ["OPENAI_API_KEY"] = "INSERT OPENAI API KEY HERE"
