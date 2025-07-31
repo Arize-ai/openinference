@@ -12,7 +12,9 @@ from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
 
-from openinference.instrumentation.openlit import OpenInferenceSpanProcessor  # type: ignore[import-untyped]
+from openinference.instrumentation.openlit import (  # type: ignore[import-untyped]
+    OpenInferenceSpanProcessor,
+)
 from openinference.semconv.trace import SpanAttributes
 
 

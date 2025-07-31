@@ -377,7 +377,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens")) or 0
         completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens")) or 0
         total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens")) or 0
-        
+
         token_count = oi.TokenCount(
             prompt=prompt_tokens,
             completion=completion_tokens,
