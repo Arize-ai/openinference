@@ -266,7 +266,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     """
 
     def on_end(self, span: ReadableSpan) -> None:  # noqa: C901
-        attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
+        attrs: Dict[str, Any] = getattr(span, "_attributes", {})
 
         # Set default span kind as backup - will be overridden by specific logic below
         default_oi_attrs = {
@@ -316,9 +316,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     }
                 )
 
-            if span.attributes is not None:
-                span.attributes.clear()  # type: ignore[attr-defined]
-                span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            # Update attributes directly
+            attrs.clear()
+            attrs.update(oi_attrs)
             return  # ✅ done – tool span processed
 
         # ── Handle wrapper / chain spans quickly ───────────────
@@ -349,17 +349,16 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     }
                 )
 
-            if span.attributes is not None:
-                span.attributes.clear()  # type: ignore[attr-defined]
-                span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            # Update attributes directly
+            attrs.clear()
+            attrs.update(oi_attrs)
             return  # ✅ done – don't run the LLM logic
 
         # ── Otherwise: this is a provider call → run LLM conversion
         if "gen_ai.system" not in attrs:
             # Set backup attributes for spans without gen_ai.system
-            if span.attributes is not None:
-                span.attributes.clear()  # type: ignore[attr-defined]
-                span.attributes.update(default_oi_attrs)  # type: ignore[attr-defined]
+            attrs.clear()
+            attrs.update(default_oi_attrs)
             return
 
         # ── 3.1  PROMPT / COMPLETION  ────────────────────────────────────────
@@ -463,6 +462,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             )
 
         # ── 3.5  REPLACE ORIGINAL ATTRIBUTES  ────────────────────────────────
-        if span.attributes is not None:
-            span.attributes.clear()  # type: ignore[attr-defined]
-            span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
+        attrs.clear()
+        attrs.update(oi_attrs)
