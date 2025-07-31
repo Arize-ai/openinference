@@ -1,10 +1,14 @@
 import json
 from typing import Any, Dict, Generator, List, Mapping, cast
+from unittest.mock import patch
 
 import pytest
 import vcr  # type: ignore
 from crewai import Agent, Crew, Process, Task
-from crewai_tools import SerperDevTool  # type: ignore
+
+# Mock embedchain setup to prevent JSON configuration issues in CI
+with patch("embedchain.client.Client.setup"):
+    from crewai_tools import SerperDevTool  # type: ignore
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
