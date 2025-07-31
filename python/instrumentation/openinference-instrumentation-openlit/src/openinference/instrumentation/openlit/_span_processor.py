@@ -45,7 +45,8 @@ _EXCLUDE_INVOC_KEYS = {
 
 _PROVIDERS = {
     "openai",
-    "ollama" "anthropic",
+    "ollama",
+    "anthropic",
     "deepseek",
     "gpt4all",
     "cohere",
