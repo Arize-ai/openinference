@@ -89,6 +89,12 @@ class TestOpenLitInstrumentor:
     async def test_openlit_instrumentor(
         self,
     ) -> None:
+        # Skip if semantic-kernel is not available
+        try:
+            import semantic_kernel
+        except ImportError:
+            pytest.skip("semantic-kernel not available")
+            
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
 
