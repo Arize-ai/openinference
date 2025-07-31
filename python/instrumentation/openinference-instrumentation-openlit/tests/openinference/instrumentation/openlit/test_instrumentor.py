@@ -2,7 +2,7 @@ import os
 import sys
 from typing import Any, Mapping, cast
 
-import openlit
+import openlit  # type: ignore[import-untyped]
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -12,7 +12,7 @@ from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.functions import KernelArguments
 
-from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
+from openinference.instrumentation.openlit import OpenInferenceSpanProcessor  # type: ignore[import-untyped]
 from openinference.semconv.trace import SpanAttributes
 
 
@@ -124,7 +124,7 @@ class TestOpenLitInstrumentor:
         )
 
         # Create a simple function that makes a joke request
-        async def run_joke():
+        async def run_joke() -> Any:
             joke = await kernel.invoke_prompt(
                 prompt="Tell me a short joke about programming",
                 arguments=KernelArguments(),
@@ -162,7 +162,7 @@ class TestOpenLitInstrumentor:
             assert model_name_attr is not None, "Model name attribute not found"
             assert "gpt-4" in str(attributes[model_name_attr])
 
-    def test_openinference_span_processor_creation(self):
+    def test_openinference_span_processor_creation(self) -> None:
         """Test that the OpenInference span processor can be created and used."""
         # Create the span processor
         span_processor = OpenInferenceSpanProcessor()

@@ -77,7 +77,7 @@ _PROVIDERS = {
 }
 
 
-def _is_wrapper_span(attrs: dict) -> bool:
+def _is_wrapper_span(attrs: Dict[str, Any]) -> bool:
     """
     Heuristic: True = a framework / chain / tool span (not the real LLM HTTP call).
     """
@@ -108,7 +108,7 @@ def _safe_int(v: Any) -> int | None:
 
 
 # ── ADD just above the span-processor class ──────────────────────────────────
-def _tool_call_to_dict(tc: Any) -> dict:
+def _tool_call_to_dict(tc: Any) -> Dict[str, Any]:
     """
     Convert an oi.ToolCall OR a raw dict into the JSON shape Phoenix expects.
     """
@@ -131,29 +131,31 @@ def _tool_call_to_dict(tc: Any) -> dict:
         return {}
 
 
-def _parse_prompt_from_events(events) -> str | None:
+def _parse_prompt_from_events(events: Any) -> str | None:
     for ev in events or []:
         if ev.name == "gen_ai.content.prompt":
-            return ev.attributes.get("gen_ai.prompt")
+            result = ev.attributes.get("gen_ai.prompt")
+            return str(result) if result is not None else None
     return None
 
 
-def _parse_completion_from_events(events) -> str | None:
+def _parse_completion_from_events(events: Any) -> str | None:
     for ev in events or []:
         if ev.name == "gen_ai.content.completion":
-            return ev.attributes.get("gen_ai.completion")
+            result = ev.attributes.get("gen_ai.completion")
+            return str(result) if result is not None else None
     return None
 
 
 _ROLE_LINE_RE = re.compile(r"^(user|assistant|system|tool):\s*(.*)$", re.IGNORECASE)
 
 
-def _unflatten_prompt(flat: str) -> list[dict]:
+def _unflatten_prompt(flat: str) -> list[Dict[str, str]]:
     """
     Turn the newline-joined OpenLIT prompt back into a list of
     {'role': str, 'content': str} dictionaries.
     """
-    msgs: list[dict] = []
+    msgs: list[Dict[str, str]] = []
     for line in flat.splitlines():
         m = _ROLE_LINE_RE.match(line.strip())
         if not m:
@@ -165,7 +167,7 @@ def _unflatten_prompt(flat: str) -> list[dict]:
     return msgs
 
 
-def _load_tool_calls(raw: Any) -> list[dict]:
+def _load_tool_calls(raw: Any) -> list[Dict[str, Any]]:
     """
     Parse the value that OpenLIT stores in
     `gen_ai.response.tool_calls`.
@@ -180,22 +182,31 @@ def _load_tool_calls(raw: Any) -> list[dict]:
 
     # 1) direct list
     if isinstance(raw, list):
-        return raw
+        return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in raw]
 
     # 2) JSON string
     if isinstance(raw, str):
         try:
-            return json.loads(raw)
+            result = json.loads(raw)
+            if isinstance(result, list):
+                return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
+            return []
         except Exception:
             # 3) python literal – OpenLIT sometimes dumps repr(list)
             try:
-                return ast.literal_eval(raw)
+                result = ast.literal_eval(raw)
+                if isinstance(result, list):
+                    return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
+                return []
             except Exception:
                 return []
 
     # 4) fallback
     try:
-        return json.loads(raw)
+        result = json.loads(raw)
+        if isinstance(result, list):
+            return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
+        return []
     except Exception:
         return []
 
@@ -214,15 +225,16 @@ def _build_messages(
     input_msgs: list[oi.Message] = []
     if prompt:
         for m in _unflatten_prompt(prompt):
-            if m.get("content") != "None":
-                input_msgs.append(oi.Message(role=m["role"], content=m.get("content", "")))
+            content = m.get("content", "")
+            if content != "None" and content is not None:
+                input_msgs.append(oi.Message(role=m["role"], content=str(content)))
 
     # ── 2.  OUTPUT (assistant  +  optional tool_calls) ──────────────────────
     assistant = oi.Message(role="assistant")
     if completion == "None":
         assistant["content"] = ""
     else:
-        assistant["content"] = completion
+        assistant["content"] = str(completion) if completion is not None else ""
     tc_list = _load_tool_calls(tool_calls_json)
     if tc_list:
         assistant["tool_calls"] = [
@@ -253,17 +265,6 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         provider.add_span_processor(OpenInferenceSpanProcessor())
     """
 
-    # ---- lifecycle -----------------------------------------------------------
-    def on_start(self, span: ReadableSpan, parent_context=None):
-        pass
-
-    def shutdown(self):
-        return True
-
-    def force_flush(self, timeout_millis: int | None = None):
-        return True
-
-    # ---- main work -----------------------------------------------------------
     def on_end(self, span: ReadableSpan) -> None:  # noqa: C901
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
 
@@ -315,8 +316,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     }
                 )
 
-            span._attributes.clear()  # type: ignore[attr-defined]
-            span._attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            if span.attributes is not None:
+                span.attributes.clear()  # type: ignore[attr-defined]
+                span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
             return  # ✅ done – tool span processed
 
         # ── Handle wrapper / chain spans quickly ───────────────
@@ -347,15 +349,17 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     }
                 )
 
-            span._attributes.clear()  # type: ignore[attr-defined]
-            span._attributes.update(oi_attrs)  # type: ignore[attr-defined]
+            if span.attributes is not None:
+                span.attributes.clear()  # type: ignore[attr-defined]
+                span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
             return  # ✅ done – don't run the LLM logic
 
         # ── Otherwise: this is a provider call → run LLM conversion
         if "gen_ai.system" not in attrs:
             # Set backup attributes for spans without gen_ai.system
-            span._attributes.clear()  # type: ignore[attr-defined]
-            span._attributes.update(default_oi_attrs)  # type: ignore[attr-defined]
+            if span.attributes is not None:
+                span.attributes.clear()  # type: ignore[attr-defined]
+                span.attributes.update(default_oi_attrs)  # type: ignore[attr-defined]
             return
 
         # ── 3.1  PROMPT / COMPLETION  ────────────────────────────────────────
@@ -370,10 +374,14 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         )
 
         # ── 3.2  TOKEN-COUNTS  ───────────────────────────────────────────────
+        prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens")) or 0
+        completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens")) or 0
+        total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens")) or 0
+        
         token_count = oi.TokenCount(
-            prompt=_safe_int(attrs.get("gen_ai.usage.input_tokens")),
-            completion=_safe_int(attrs.get("gen_ai.usage.output_tokens")),
-            total=_safe_int(attrs.get("gen_ai.usage.total_tokens")),
+            prompt=prompt_tokens,
+            completion=completion_tokens,
+            total=total_tokens,
         )
 
         # ── 3.3  INVOCATION PARAMETERS (everything under gen_ai.request.*) ───
@@ -390,9 +398,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             if val not in (None, "", -1):
                 invocation[knob] = val
 
-        out_msgs_json: list[dict] = []
+        out_msgs_json: list[Dict[str, Any]] = []
         for m in output_msgs:
-            mdict = dict(m)
+            try:
+                mdict = dict(m)
+            except (TypeError, ValueError):
+                mdict = {}
 
             # drop falsy content keys
             if not mdict.get("content"):
@@ -400,7 +411,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
             # normalise tool-calls …
             if "tool_calls" in mdict:
-                mdict["tool_calls"] = [_tool_call_to_dict(tc) for tc in mdict["tool_calls"]]
+                tool_calls = mdict["tool_calls"]
+                if hasattr(tool_calls, "__iter__") and not isinstance(tool_calls, (str, bytes)):
+                    mdict["tool_calls"] = [_tool_call_to_dict(tc) for tc in tool_calls]
+                else:
+                    # If tool_calls is not iterable, remove it
+                    mdict.pop("tool_calls", None)
 
             out_msgs_json.append(mdict)
 
@@ -447,5 +463,6 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             )
 
         # ── 3.5  REPLACE ORIGINAL ATTRIBUTES  ────────────────────────────────
-        span._attributes.clear()  # type: ignore[attr-defined]
-        span._attributes.update(oi_attrs)  # type: ignore[attr-defined]
+        if span.attributes is not None:
+            span.attributes.clear()  # type: ignore[attr-defined]
+            span.attributes.update(oi_attrs)  # type: ignore[attr-defined]
