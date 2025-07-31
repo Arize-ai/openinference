@@ -94,6 +94,10 @@ class TestOpenLitInstrumentor:
     )
     async def test_openlit_instrumentor(
         self,
+        openai_api_key: None,
+        openai_global_llm_service: None,
+        openai_chat_model_id: None,
+        openai_text_model_id: None,
     ) -> None:
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
