@@ -437,9 +437,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 }
             ),
             # 3.4-4 span kind for Phoenix navigation panel
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (
-                sc.OpenInferenceSpanKindValues.LLM.value
-            ),
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (sc.OpenInferenceSpanKindValues.LLM.value),
         }
 
         # explicit JSON dump for invocation_parameters (UI convenience)

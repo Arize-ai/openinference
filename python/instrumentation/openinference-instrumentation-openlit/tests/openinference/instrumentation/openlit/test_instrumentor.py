@@ -93,8 +93,6 @@ class TestOpenLitInstrumentor:
     async def test_openlit_instrumentor(
         self,
     ) -> None:
-
-
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
 
