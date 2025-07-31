@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Any, Mapping, cast
 
 import pytest
@@ -81,6 +82,10 @@ class TestOpenLitInstrumentor:
         filter_headers=['authorization'],
     )
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        sys.version_info < (3, 10),
+        reason="semantic-kernel>=1.0.0 requires Python>=3.10"
+    )
     async def test_openlit_instrumentor(
         self,
     ) -> None:
