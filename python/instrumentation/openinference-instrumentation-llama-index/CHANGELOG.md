@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.3...python-openinference-instrumentation-llama-index-v4.3.4) (2025-08-01)
+
+
+### Bug Fixes
+
+* **llama-index:** handle BaseAgent import changes in v0.13.0+ ([#2023](https://github.com/Arize-ai/openinference/issues/2023)) ([62ce073](https://github.com/Arize-ai/openinference/commit/62ce073c98887851dd02dfd785b791e7e7ca9cb5))
+
 ## [4.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.2...python-openinference-instrumentation-llama-index-v4.3.3) (2025-07-29)
 
 
