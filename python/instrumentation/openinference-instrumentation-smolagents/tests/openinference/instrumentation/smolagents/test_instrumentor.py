@@ -465,6 +465,7 @@ final_answer("Final report.")
             ),
         )
 
+        # Handle non-streaming (normal) run
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
@@ -475,6 +476,7 @@ final_answer("Final report.")
         report = manager_code_agent.run("Fake question.")
         assert report == "Final report."
 
+        # Handle non-streaming (normal) run
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
@@ -483,6 +485,16 @@ final_answer("Final report.")
 
         report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
+
+        # Handle streaming (generator) run
+        report_chunks = manager_code_agent.run("Fake question.", stream=True)
+        final_result = "".join([chunk for chunk in report_chunks])
+        assert final_result == "Final report."
+
+        # Handle streaming (generator) run
+        report_chunks = manager_toolcalling_agent.run("Fake question.", stream=True)
+        final_result = "".join([chunk for chunk in report_chunks])
+        assert final_result == "Final report."
 
 
 class TestTools:
