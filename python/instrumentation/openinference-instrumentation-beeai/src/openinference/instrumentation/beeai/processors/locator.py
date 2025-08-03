@@ -12,8 +12,22 @@ class ProcessorLocator:
 
     @staticmethod
     def _init() -> None:
-        if not ProcessorLocator.entries:
+        if ProcessorLocator.entries:
             pass
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.backend.chat import ChatModel
+
+            from .chat import ChatModelProcessor
+
+            ProcessorLocator.entries[ChatModel] = ChatModelProcessor
+
+        with contextlib.suppress(ImportError):
+            from beeai_framework.backend.embedding import EmbeddingModel
+
+            from .embedding import EmbeddingModelProcessor
+
+            ProcessorLocator.entries[EmbeddingModel] = EmbeddingModelProcessor
 
         with contextlib.suppress(ImportError):
             from beeai_framework.agents.react.agent import ReActAgent
@@ -58,13 +72,6 @@ class ProcessorLocator:
             from openinference.instrumentation.beeai.processors.tool import ToolProcessor
 
             ProcessorLocator.entries[Tool] = ToolProcessor
-
-        with contextlib.suppress(ImportError):
-            from beeai_framework.backend.embedding import EmbeddingModel
-
-            from .embedding import EmbeddingModelProcessor
-
-            ProcessorLocator.entries[EmbeddingModel] = EmbeddingModelProcessor
 
         with contextlib.suppress(ImportError):
             from beeai_framework.workflows.workflow import Workflow

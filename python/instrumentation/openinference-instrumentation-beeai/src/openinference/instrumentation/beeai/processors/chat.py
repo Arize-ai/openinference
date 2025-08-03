@@ -223,11 +223,11 @@ def _process_messages(
 def _aggregate_msg_content(message: "AnyMessage") -> None:
     from beeai_framework.backend import MessageTextContent, MessageToolCallContent
 
-    contents: list[Any] = message.content.copy()
-    message.content.clear()
+    contents = message.content.copy()
+    aggregated_content: list[Any] = []
 
     for content in contents:
-        last_content = message.content[-1] if message.content else None
+        last_content = aggregated_content[-1] if aggregated_content else None
         if isinstance(last_content, MessageTextContent) and isinstance(content, MessageTextContent):
             last_content.text += content.text
         elif isinstance(last_content, MessageToolCallContent) and isinstance(
@@ -235,4 +235,7 @@ def _aggregate_msg_content(message: "AnyMessage") -> None:
         ):
             last_content.args += content.args
         else:
-            message.content.append(content)
+            aggregated_content.append(content)
+
+    message.content.clear()
+    message.content.extend(aggregated_content)
