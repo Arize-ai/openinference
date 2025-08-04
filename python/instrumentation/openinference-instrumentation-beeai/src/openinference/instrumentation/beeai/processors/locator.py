@@ -14,7 +14,9 @@ class ProcessorLocator:
     @staticmethod
     def _load() -> None:
         if ProcessorLocator._loaded:
-            pass
+            return
+
+        ProcessorLocator._loaded = True
 
         with contextlib.suppress(ImportError):
             from beeai_framework.backend.chat import ChatModel
@@ -80,8 +82,6 @@ class ProcessorLocator:
             from .workflow import WorkflowProcessor
 
             ProcessorLocator.entries[Workflow] = WorkflowProcessor
-
-        ProcessorLocator._loaded = True
 
     @staticmethod
     def locate(data: Any, event: "EventMeta") -> Processor:
