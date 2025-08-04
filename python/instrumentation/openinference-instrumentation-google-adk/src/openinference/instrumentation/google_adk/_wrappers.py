@@ -357,7 +357,10 @@ def stop_on_exception(
 def _get_attributes_from_generate_content_config(
     obj: types.GenerateContentConfig,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, obj.model_dump_json(exclude_none=True, fallback=_default)
+    yield (
+        SpanAttributes.LLM_INVOCATION_PARAMETERS,
+        obj.model_dump_json(exclude_none=True, fallback=_default),
+    )
 
 
 @stop_on_exception
