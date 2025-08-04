@@ -9,10 +9,11 @@ from openinference.instrumentation.beeai.processors.base import Processor
 
 class ProcessorLocator:
     entries: dict[type, type] = {}
+    _loaded: bool = False
 
     @staticmethod
-    def _init() -> None:
-        if ProcessorLocator.entries:
+    def _load() -> None:
+        if ProcessorLocator._loaded:
             pass
 
         with contextlib.suppress(ImportError):
@@ -80,8 +81,12 @@ class ProcessorLocator:
 
             ProcessorLocator.entries[Workflow] = WorkflowProcessor
 
+        ProcessorLocator._loaded = True
+
     @staticmethod
     def locate(data: Any, event: "EventMeta") -> Processor:
+        ProcessorLocator._load()
+
         from beeai_framework.context import RunContext, RunContextStartEvent
 
         assert isinstance(data, RunContextStartEvent)
