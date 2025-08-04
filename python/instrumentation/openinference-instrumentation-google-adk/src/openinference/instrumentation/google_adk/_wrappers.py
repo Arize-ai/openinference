@@ -536,7 +536,7 @@ def _default(obj: Any) -> Any:
 
     if isinstance(obj, BaseModel):
         return obj.model_dump(exclude_none=True)
-    if issubclass(obj, BaseModel):
+    if inspect.isclass(obj) and issubclass(obj, BaseModel):
         return obj.model_json_schema()
     if isinstance(obj, bytes):
         return base64.b64encode(obj).decode()
