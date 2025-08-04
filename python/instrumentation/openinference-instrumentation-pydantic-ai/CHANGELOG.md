@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.3...python-openinference-instrumentation-pydantic-ai-v0.1.4) (2025-08-04)
+
+
+### Bug Fixes
+
+* pydantic-ai fix span filtering ([#2016](https://github.com/Arize-ai/openinference/issues/2016)) ([c139f36](https://github.com/Arize-ai/openinference/commit/c139f3677233fb7c76b0b2bff5b4a2dafe1921dc))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.2...python-openinference-instrumentation-pydantic-ai-v0.1.3) (2025-05-30)
 
 

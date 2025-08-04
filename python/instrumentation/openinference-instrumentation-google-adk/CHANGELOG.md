@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.1...python-openinference-instrumentation-google-adk-v0.1.2) (2025-08-04)
+
+
+### Bug Fixes
+
+* pydantic model serialization for input value and image bytes for google-adk ([#2031](https://github.com/Arize-ai/openinference/issues/2031)) ([46ef152](https://github.com/Arize-ai/openinference/commit/46ef1522f73cf98f8c2b318b7afc7444160033b3))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.0...python-openinference-instrumentation-google-adk-v0.1.1) (2025-06-27)
 
 
