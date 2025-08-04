@@ -79,7 +79,7 @@ class ChatModelProcessor(Processor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOOLS: json.loads(stringify(event.input.tools)),
+                        SpanAttributes.LLM_TOOLS: json.loads(stringify(event.input.tools or [])),
                         SpanAttributes.LLM_INVOCATION_PARAMETERS: stringify(
                             meta.creator.parameters.model_dump(
                                 exclude_none=True, exclude_unset=True
