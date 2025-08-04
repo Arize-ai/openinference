@@ -1,3 +1,4 @@
+import base64
 import inspect
 import json
 import logging
@@ -530,14 +531,11 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     return bound.arguments
 
 
-def _default(obj: Any) -> str:
+def _default(obj: Any) -> Any:
     from pydantic import BaseModel
 
     if isinstance(obj, BaseModel):
-        return json.dumps(
-            obj.model_dump(exclude=None),
-            ensure_ascii=False,
-            default=str,
-        )
-    else:
-        return str(obj)
+        return obj.model_dump(exclude_none=True)
+    if isinstance(obj, bytes):
+        return base64.b64encode(obj).decode()
+    return str(obj)
