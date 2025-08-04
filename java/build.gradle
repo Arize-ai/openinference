@@ -20,15 +20,24 @@ allprojects {
 
 subprojects {
     apply plugin: 'java-library'
-    apply plugin: 'maven-publish'
-    apply plugin: 'signing'
     apply plugin: 'com.diffplug.spotless'
 
+    // Only apply publishing to non-examples
+    if (!project.path.startsWith(':examples')) {
+        apply plugin: 'maven-publish'
+        apply plugin: 'signing'
+    }
+
     java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-        withJavadocJar()
-        withSourcesJar()
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+
+        // Only add these for published libraries
+        if (!project.path.startsWith(':examples')) {
+            withJavadocJar()
+            withSourcesJar()
+        }
     }
 
     ext {
@@ -38,7 +47,7 @@ subprojects {
         openTelemetryInstrumentationAlphaVersion = '2.14.0-alpha'
         
         // LangChain4j version
-        langchain4jVersion = '0.35.0'
+        langchain4jVersion = '1.0.0'
         
         // Testing dependencies
         junitVersion = '5.10.2'
@@ -98,6 +107,7 @@ subprojects {
 
 
     // Publishing configuration
+    if (!project.path.startsWith(':examples')) {
     publishing {
         publications {
             maven(MavenPublication) {
@@ -150,12 +160,14 @@ subprojects {
             }
         }
     }
-    
-    // Signing configuration
-    signing {
-        required { !version.endsWith('SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
-        sign publishing.publications.maven
+        // Signing configuration
+        signing {
+            required { !version.endsWith('SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+            sign publishing.publications.maven
+        }
     }
+    
+
 }
 
 // JReleaser configuration for Maven Central
