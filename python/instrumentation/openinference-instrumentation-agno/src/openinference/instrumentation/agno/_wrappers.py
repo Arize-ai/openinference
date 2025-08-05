@@ -33,6 +33,9 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+import hashlib
+
+_AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -74,17 +77,63 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
+def _generate_node_id(path: str) -> str:
+    """Generate a deterministic node ID based on the agent/team path."""
+    node_id = hashlib.sha256(path.encode()).hexdigest()[:16]
+    return node_id
+
+def _get_parent_from_context() -> Optional[str]:
+    return context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+def _set_parent_in_context(parent_node_id: str) -> context_api.Context:
+     return context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, parent_node_id)
+
 def _agent_run_attributes(
-    agent: Union[Agent, Team], key_suffix: str = ""
+    agent: Union[Agent, Team], key_suffix: str = "", parent_path: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    if isinstance(agent, Team):
+
+      # Get parent from execution context instead of structural parent
+      context_parent_id = _get_parent_from_context() 
+
+      if isinstance(agent, Team):
+        # Build current path for this team
+        current_path = f"{parent_path}.{agent.name}" if parent_path else (agent.name or "team")
+        node_id = _generate_node_id(current_path)
+
+        # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
-        for member in agent.members:
-            yield from _agent_run_attributes(member, f".{member.name}")
-    elif isinstance(agent, Agent):
+
+        # Set graph attributes for team
+        yield GRAPH_NODE_ID, node_id
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, context_parent_id
+
+        # Process team members with parent context
+    #   for member in agent.members:
+    #       member_suffix = f".{member.name}" if member.name else ""
+    #       yield from _agent_run_attributes(member, member_suffix, current_path)
+
+      elif isinstance(agent, Agent):
+        # Build current path for this agent
+        current_path = f"{parent_path}.{agent.name}" if parent_path else (agent.name or "agent")
+        node_id = _generate_node_id(current_path)
+
+        # Set legacy agent attributes
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
 
+        # Set graph attributes for agent
+        yield GRAPH_NODE_ID, node_id
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, context_parent_id
+
+        # Existing agent-specific attributes
         if agent.session_id:
             yield SESSION_ID, agent.session_id
 
@@ -105,8 +154,7 @@ def _agent_run_attributes(
                     tool_names.append(tool.__name__)
                 else:
                     tool_names.append(str(tool))
-            yield "agno{key_suffix}.tools", tool_names
-
+            yield f"agno{key_suffix}.tools", tool_names
 
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -128,6 +176,10 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate node_id for this execution
+        current_path = agent_name
+        node_id = _generate_node_id(current_path)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -145,6 +197,13 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            # Set up context for team executions
+            if isinstance(agent, Team):
+                context_with_parent = _set_parent_in_context(node_id)
+                token = context_api.attach(context_with_parent)
+            else:
+                # context_with_parent = context_api.get_current()
+                token = None
             try:
                 run_response = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
@@ -155,6 +214,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if token:
+                    context_api.detach(token)
 
     def run_stream(
         self,
@@ -678,6 +741,9 @@ TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 USER_ID = SpanAttributes.USER_ID
+GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
+GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
+GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
