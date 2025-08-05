@@ -1,7 +1,7 @@
 import json
 import os
 from types import GeneratorType
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,15 +12,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import LiteLLMModel, OpenAIServerModel, Tool
-from smolagents.agents import (  # type: ignore[import-untyped]
-    CodeAgent,
-    ToolCallingAgent,
-)
-from smolagents.models import (  # type: ignore[import-untyped]
-    ChatMessage,
-    ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
-)
+from smolagents.models import ChatMessageToolCall  # type: ignore[import-untyped]
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
