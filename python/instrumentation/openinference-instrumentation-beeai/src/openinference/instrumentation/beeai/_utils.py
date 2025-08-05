@@ -19,9 +19,9 @@ def _datetime_to_span_time(dt: datetime.datetime) -> int:
 
 def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = "") -> dict[str, Any]:
     if not isinstance(obj, dict) and not isinstance(obj, list):
-        from beeai_framework.utils.strings import to_json
-
-        obj = json.loads(to_json(obj, exclude_none=True, sort_keys=False))
+        obj = json.loads(stringify(obj))
+        if not isinstance(obj, dict) and not isinstance(obj, list):
+            raise ValueError(f"Cannot unpack object of type {type(obj)}")
 
     if prefix and prefix.startswith("."):
         prefix = prefix[1:]
@@ -38,7 +38,7 @@ def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = ""
 
 
 def is_primitive(value: Any) -> bool:
-    return isinstance(value, str | bool | int | float | None)
+    return isinstance(value, str | bool | int | float | type(None))
 
 
 def stringify(value: Any, pretty: bool = False) -> str:
