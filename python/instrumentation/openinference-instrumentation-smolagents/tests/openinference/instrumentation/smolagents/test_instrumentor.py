@@ -529,13 +529,13 @@ class TestRunWrapper:
 
         assert isinstance(result, GeneratorType), "Expected result to be a generator"
         output = "".join(chunk for chunk in result)
-        assert output == "First Generator Response.Second Generator Response.Third Generator Response."
+        assert (
+            output == "First Generator Response.Second Generator Response.Third Generator Response."
+        )
         assert agent.monitor.total_input_token_count == 10
         assert agent.monitor.total_output_token_count == 20
 
-    def test_run_wrapper_simple_agent(
-        self, in_memory_span_exporter: InMemorySpanExporter
-    ) -> None:
+    def test_run_wrapper_simple_agent(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
         tracer = trace_api.get_tracer(__name__)
         run_wrapper = _RunWrapper(tracer)
         agent = DummySimpleAgent()
@@ -544,7 +544,9 @@ class TestRunWrapper:
         result = run_wrapper(wrapped_method, agent, ("Hi",), {})
 
         assert isinstance(result, str)
-        assert not isinstance(result, GeneratorType), "Expected result to be a string, not generator"
+        assert not isinstance(result, GeneratorType), (
+            "Expected result to be a string, not generator"
+        )
         assert result == "Final Simple Response."
         assert agent.monitor.total_input_token_count == 10
         assert agent.monitor.total_output_token_count == 20
