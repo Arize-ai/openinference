@@ -1,0 +1,117 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/amazon.nova-lite-v1%3A0/invoke",
+    "body": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "text": "What's the weather like in San Francisco today? Please use the weather tool to check."
+            }
+          ]
+        }
+      ],
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.7
+      },
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "name": "get_weather",
+              "description": "Get current weather information for a location",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "location": {
+                      "type": "string",
+                      "description": "The city and state/country for weather lookup"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": ["celsius", "fahrenheit"],
+                      "description": "Temperature unit preference"
+                    }
+                  },
+                  "required": ["location"]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "<thinking> The User has asked for the weather in San Francisco today. I will use the 'get_weather' tool to get this information. I will ask for the weather in Celsius as it is the most commonly used unit of temperature. </thinking>\n"
+            },
+            {
+              "toolUse": {
+                "name": "get_weather",
+                "toolUseId": "9fd2280f-9131-45d9-860f-843c2e3d01fa",
+                "input": {
+                  "unit": "celsius",
+                  "location": "San Francisco"
+                }
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 454,
+        "outputTokens": 75,
+        "totalTokens": 529,
+        "cacheReadInputTokenCount": 0,
+        "cacheWriteInputTokenCount": 0
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 29 Jul 2025 02:59:01 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "587",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "80aa90ab-fa8c-4940-bbaf-d2458e7ee6a2",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "828",
+      "X-Amzn-Bedrock-Cache-Write-Input-Token-Count",
+      "0",
+      "X-Amzn-Bedrock-Cache-Read-Input-Token-Count",
+      "0",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "75",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "454"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "589",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "59cc0b2f-2c7b-4050-9aa7-b81766613b5e",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "e2f119566548c68db3668400dd831c1eabe0717b069613c13c2dbeead88b8c29",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

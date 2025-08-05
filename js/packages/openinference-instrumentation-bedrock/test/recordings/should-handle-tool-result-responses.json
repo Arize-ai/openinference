@@ -1,0 +1,116 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-sonnet-20240229-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get current weather for a location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["celsius", "fahrenheit"],
+                "description": "Temperature unit"
+              }
+            },
+            "required": ["location"]
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the weather in Paris?"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_123",
+              "name": "get_weather",
+              "input": {
+                "location": "Paris, France"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_123",
+              "content": "The weather in Paris is currently 22°C and sunny."
+            },
+            {
+              "type": "text",
+              "text": "Great! What should I wear?"
+            }
+          ]
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_0192ZiMpnkcdHwvzYyWpps77",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-sonnet-20240229",
+      "content": [
+        {
+          "type": "text",
+          "text": "Since it's warm and sunny in Paris right now, you'll want to wear lightweight, breathable clothing. Some recommendations:\n\n- A light shirt or tank top\n- Shorts or a light skirt/dress\n- Sandals or other open-toed shoes\n- A hat or sunglasses for sun protection\n- A light jacket or sweater in case it cools off in the evening\n\nThe key things are to dress for the warm temperatures and have layers you can"
+        }
+      ],
+      "stop_reason": "max_tokens",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 364,
+        "output_tokens": 100
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Wed, 09 Jul 2025 23:47:37 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "657",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "8914e16e-bc40-465f-a778-3e96f05e946d",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "2852",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "100",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "364"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "783",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "83aace82-363d-4414-a09b-3e099f667da8",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "2b452549d22ee3fec20e72a85696393483ff8e565b4f6ba4e3c1f70dfc4146b3",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]
