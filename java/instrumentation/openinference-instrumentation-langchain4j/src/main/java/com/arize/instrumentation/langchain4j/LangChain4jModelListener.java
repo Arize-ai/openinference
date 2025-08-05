@@ -4,11 +4,10 @@ import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ChatMessageType;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.chat.listener.*;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
@@ -22,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Listener for LangChain4j chat models that creates OpenInference spans.
@@ -32,7 +32,7 @@ public class LangChain4jModelListener implements ChatModelListener {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final OITracer tracer;
-    private final Map<ChatModelRequest, SpanContext> activeSpans = new ConcurrentHashMap<>();
+    private final Map<ChatRequest, SpanContext> activeSpans = new ConcurrentHashMap<>();
 
     public LangChain4jModelListener(OITracer tracer) {
         this.tracer = tracer;
@@ -40,10 +40,10 @@ public class LangChain4jModelListener implements ChatModelListener {
 
     @Override
     public void onRequest(ChatModelRequestContext requestContext) {
-        ChatModelRequest request = requestContext.request();
+        ChatRequest request = requestContext.chatRequest();
 
         // Create span for the LLM call
-        String modelName = request.model() != null ? request.model() : "unknown";
+        String modelName = request.modelName() != null ? request.modelName() : "unknown";
         Span span = tracer.spanBuilder("generate")
                 .setParent(Context.current())
                 .setSpanKind(SpanKind.CLIENT)
@@ -63,8 +63,8 @@ public class LangChain4jModelListener implements ChatModelListener {
         if (request.temperature() != null) {
             invocationParams.put("temperature", request.temperature());
         }
-        if (request.maxTokens() != null) {
-            invocationParams.put("max_tokens", request.maxTokens());
+        if (request.maxOutputTokens() != null) {
+            invocationParams.put("max_tokens", request.maxOutputTokens());
         }
         if (request.topP() != null) {
             invocationParams.put("top_p", request.topP());
@@ -99,14 +99,14 @@ public class LangChain4jModelListener implements ChatModelListener {
 
     @Override
     public void onResponse(ChatModelResponseContext responseContext) {
-        SpanContext spanContext = activeSpans.remove(responseContext.request());
+        SpanContext spanContext = activeSpans.remove(responseContext.chatRequest());
         if (spanContext == null) {
             logger.warning("No active span found for response");
             return;
         }
 
         Span span = spanContext.span;
-        ChatModelResponse response = responseContext.response();
+        ChatResponse response = responseContext.chatResponse();
 
         try (Scope scope = spanContext.context.makeCurrent()) {
             // Set response attributes
@@ -146,7 +146,7 @@ public class LangChain4jModelListener implements ChatModelListener {
 
     @Override
     public void onError(ChatModelErrorContext errorContext) {
-        SpanContext spanContext = activeSpans.remove(errorContext.request());
+        SpanContext spanContext = activeSpans.remove(errorContext.chatRequest());
         if (spanContext == null) {
             logger.warning("No active span found for error");
             return;
@@ -173,7 +173,7 @@ public class LangChain4jModelListener implements ChatModelListener {
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
             // Set content
-            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.text());
+            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.toString());
 
             // Set ToolCall
             if (message.type().equals(ChatMessageType.AI)) {
@@ -250,19 +250,25 @@ public class LangChain4jModelListener implements ChatModelListener {
             Map<String, Object> messageMap = new HashMap<>();
 
             switch (message.type()) {
-                case SYSTEM:
+                case SYSTEM -> {
                     messageMap.put("role", "system");
-                    messageMap.put("content", message.text());
-                    break;
-                case USER:
+                    if (message instanceof SystemMessage) {
+                        SystemMessage systemMessage = (SystemMessage) message;
+                        messageMap.put("content", systemMessage.text());
+                    }
+                }
+                case USER -> {
                     messageMap.put("role", "user");
-                    messageMap.put("content", message.text());
-                    break;
-                case AI:
+                    if (message instanceof UserMessage) {
+                        UserMessage userMessage = (UserMessage) message;
+                        messageMap.put("content", userMessage.singleText());
+                    }
+                }
+                case AI -> {
                     messageMap.put("role", "assistant");
-                    messageMap.put("content", message.text());
                     if (message instanceof AiMessage) {
                         AiMessage aiMessage = (AiMessage) message;
+                        messageMap.put("content", aiMessage.text());
                         if (aiMessage.toolExecutionRequests() != null
                                 && !aiMessage.toolExecutionRequests().isEmpty()) {
                             messageMap.put(
@@ -274,18 +280,19 @@ public class LangChain4jModelListener implements ChatModelListener {
                                                             "id",
                                                             t.id(),
                                                             "function",
-                                                            Map.of("arguments", t.arguments(), "name", t.name())))));
+                                                            Map.of("arguments", t.arguments(), "name", t.name())))
+                                                    .collect(Collectors.toList())));
                         }
                     }
-                    break;
-                case TOOL_EXECUTION_RESULT:
+                }
+                case TOOL_EXECUTION_RESULT -> {
                     messageMap.put("role", "tool");
-                    messageMap.put("content", message.text());
                     if (message.type().equals(ChatMessageType.TOOL_EXECUTION_RESULT)) {
                         ToolExecutionResultMessage toolExecutionResultMessage = (ToolExecutionResultMessage) message;
+                        messageMap.put("content", toolExecutionResultMessage.text());
                         messageMap.put(SemanticConventions.MESSAGE_TOOL_CALL_ID, toolExecutionResultMessage.id());
                     }
-                    break;
+                }
             }
 
             result.add(messageMap);

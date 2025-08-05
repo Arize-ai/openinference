@@ -1,20 +1,11 @@
-package io.openinference.examples;
+package com.arize.openinference.examples;
 
 import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PROJECT_NAME;
 
-import com.arize.instrumentation.langchain4j.LangChain4jInstrumentor;
-import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agent.tool.ToolSpecifications;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.openai.OpenAiChatModel;
-import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
+import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.TraceConfig;
+import com.arize.instrumentation.springAI.SpringAIInstrumentor;
+import io.micrometer.observation.ObservationRegistry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -29,41 +20,60 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.function.FunctionToolCallback;
 
 /**
- * Example demonstrating OpenInference instrumentation with LangChain4j.
+ * Example demonstrating OpenInference instrumentation with Spring AI.
  *
  * To run this example with Phoenix:
  * 1. Start Phoenix: `docker run -p 6006:6006 -p 4317:4317 arizephoenix/phoenix:latest`
  * 2. Set your OpenAI API key: `export OPENAI_API_KEY=your-key-here`
  * 3. (Optional) if you have auth enabled on Phoenix, `export PHOENIX_API_KEY=your-key-here`
- * 4. Run the example: `./gradlew :examples:langchain4j-example:run`
+ * 4. Run the example: `./gradlew :examples:spring-ai-example:run`
  * 5. View traces in Phoenix: http://localhost:6006
  */
-public class LangChain4jExample {
+public class SpringAI {
+    public enum Unit {
+        C,
+        F
+    }
 
-    private static SdkTracerProvider tracerProvider;
-    private static final Logger logger = Logger.getLogger(LangChain4jExample.class.getName());
+    public record WeatherRequest(String location, Unit unit) {}
 
-    static class WeatherTools {
+    public record WeatherResponse(double temp, Unit unit) {}
 
-        @Tool("Returns the weather forecast for a given city")
-        String getWeather(@P("The city for which the weather forecast should be returned") String city) {
-            return "85 degrees";
+    public record MusicRequest(String location) {}
+
+    public record MusicResponse(String song, String description) {}
+
+    static class WeatherService implements Function<WeatherRequest, WeatherResponse> {
+        public WeatherResponse apply(WeatherRequest request) {
+            return new WeatherResponse(30.0, Unit.C);
         }
     }
 
+    static class MusicService implements Function<MusicRequest, MusicResponse> {
+        public MusicResponse apply(MusicRequest request) {
+            return new MusicResponse("hips dont lie.", "I dont deny.");
+        }
+    }
+
+    private static SdkTracerProvider tracerProvider;
+    private static final Logger logger = Logger.getLogger(SpringAI.class.getName());
+
     public static void main(String[] args) {
         initializeOpenTelemetry();
-
-        LangChain4jInstrumentor instrumentor = LangChain4jInstrumentor.instrument();
-        LangChain4jModelListener listener = instrumentor.createModelListener();
 
         String apiKey = System.getenv("OPENAI_API_KEY");
         if (apiKey == null) {
@@ -71,49 +81,52 @@ public class LangChain4jExample {
             System.exit(1);
         }
 
-        List<ToolSpecification> toolSpecifications = ToolSpecifications.toolSpecificationsFrom(WeatherTools.class);
-
-        OpenAiChatRequestParameters openAiChatRequestParameters = OpenAiChatRequestParameters.builder()
-                .modelName("gpt-4.1")
-                .temperature(0.7)
-                .maxOutputTokens(100)
-                .toolSpecifications(toolSpecifications)
+        ToolCallback weatherToolCallBack = FunctionToolCallback.builder("currentWeather", new WeatherService())
+                .description("Get the weather in location")
+                .inputType(WeatherRequest.class)
                 .build();
 
-        ChatModel model = OpenAiChatModel.builder()
-                .apiKey(apiKey)
-                .defaultRequestParameters(openAiChatRequestParameters)
-                .modelName("gpt-4.1")
-                .temperature(0.7)
-                .maxTokens(100)
-                .listeners(List.of(listener))
-                .timeout(Duration.ofSeconds(30))
+        ToolCallback musicToolCallBack = FunctionToolCallback.builder("topSong", new MusicService())
+                .description("Gets the stop song in a location")
+                .inputType(MusicRequest.class)
                 .build();
+
+        OpenAiApi openAiApi = OpenAiApi.builder().apiKey(apiKey).build();
+        OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+                .model("gpt-4")
+                .temperature(0.4)
+                .maxTokens(200)
+                .toolCallbacks(weatherToolCallBack, musicToolCallBack)
+                .build();
+
+        // Create OITracer using the initialized tracer provider
+        OITracer tracer = new OITracer(tracerProvider.get("com.arize.spring-ai"), TraceConfig.getDefault());
+
+        ObservationRegistry registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new SpringAIInstrumentor(tracer));
+        //        registry.observationConfig().observationHandler()
+
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(openAiChatOptions)
+                .observationRegistry(registry)
+                .build();
+
         // Use the model - traces will be automatically created
         logger.info("Sending request to OpenAI...");
-        ChatResponse response = model.chat(UserMessage.from("What is the capital of France? Answer in one sentence."));
-        logger.info("Response: " + response.aiMessage().text());
+        ChatResponse response = chatModel.call(new Prompt("Generate the names of 5 famous pirates."));
+        logger.info("Response: " + response.getResult().getOutput().toString());
+        // Send another request to show multiple spans
+        logger.info("\\nSending another request...");
 
-        // Example with multiple messages to show conversation tracing
-        logger.info("\nSending another request...");
-        ChatResponse response2 = model.chat(
-                UserMessage.from("What is the capital of France? Answer in one sentence."),
-                response.aiMessage(),
-                UserMessage.from("What about Germany? also whats the weather like in germany"));
-        logger.info("Response: " + response2);
-
-        List<ToolExecutionResultMessage> toolExecutionResultMessages =
-                response2.aiMessage().toolExecutionRequests().stream()
-                        .map(t -> ToolExecutionResultMessage.from(t, "The weather will be 80 degrees."))
-                        .collect(Collectors.toList());
-        ArrayList<ChatMessage> messages = new ArrayList<>(List.of(
-                UserMessage.from("What is the capital of France? Answer in one sentence."),
-                response.aiMessage(),
-                UserMessage.from("What about Germany? also whats the weather like in germany"),
-                response2.aiMessage()));
-        messages.addAll(toolExecutionResultMessages);
-
-        model.chat(messages);
+        ChatResponse response2 = chatModel.call(Prompt.builder()
+                .messages(
+                        new UserMessage("Generate the names of 5 famous pirates."),
+                        response.getResult().getOutput(),
+                        new UserMessage(
+                                "What is the current weather in miami in Fahrenheit? Whats the current trending song there"))
+                .build());
+        logger.info("Response: " + response2.getResult().getOutput().toString());
 
         if (tracerProvider != null) {
             logger.info("Flushing and shutting down trace provider...");
@@ -137,15 +150,15 @@ public class LangChain4jExample {
             }
         }
 
-        System.out.println("\nTraces have been sent to Phoenix at http://localhost:6006");
+        System.out.println("\\nTraces have been sent to Phoenix at http://localhost:6006");
     }
 
     private static void initializeOpenTelemetry() {
         // Create resource with service name
         Resource resource = Resource.getDefault()
                 .merge(Resource.create(Attributes.of(
-                        AttributeKey.stringKey("service.name"), "langchain4j",
-                        AttributeKey.stringKey(SEMRESATTRS_PROJECT_NAME), "langchain4j-project",
+                        AttributeKey.stringKey("service.name"), "spring-ai",
+                        AttributeKey.stringKey(SEMRESATTRS_PROJECT_NAME), "spring-ai-project",
                         AttributeKey.stringKey("service.version"), "0.1.0")));
 
         String apiKey = System.getenv("PHOENIX_API_KEY");
