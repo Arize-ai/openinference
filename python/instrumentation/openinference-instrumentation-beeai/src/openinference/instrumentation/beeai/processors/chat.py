@@ -125,8 +125,6 @@ class ChatModelProcessor(Processor):
                         ),
                     }
                 )
-            case ChatModelFinishEvent():
-                pass
             case _:
                 self.span.child(meta.name, event=(event, meta))
 
