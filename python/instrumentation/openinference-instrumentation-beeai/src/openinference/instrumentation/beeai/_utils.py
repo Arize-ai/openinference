@@ -30,6 +30,8 @@ def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = ""
 
     output = {}
     for key, value in obj.items() if isinstance(obj, dict) else enumerate(obj):
+        if value is None:
+            continue
         if is_primitive(value):
             output[f"{prefix}{key}"] = str(value)
         else:
