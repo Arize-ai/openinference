@@ -781,7 +781,9 @@ class ConverseComprehensiveValidator {
       console.log("✅ Amazon Nova Converse response received successfully");
 
       // Check for text content in the response
-      const textContent = outputMessage.content?.find((block: any) => block.text);
+      const textContent = outputMessage.content?.find(
+        (block: any) => block.text,
+      );
       if (textContent) {
         console.log(
           "   💬 Nova response preview:",
@@ -799,8 +801,13 @@ class ConverseComprehensiveValidator {
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ Amazon Nova model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ Amazon Nova model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;
@@ -845,7 +852,9 @@ class ConverseComprehensiveValidator {
       console.log("✅ Meta Llama Converse response received successfully");
 
       // Check for text content in the response
-      const textContent = outputMessage.content?.find((block: any) => block.text);
+      const textContent = outputMessage.content?.find(
+        (block: any) => block.text,
+      );
       if (textContent) {
         console.log(
           "   💬 Llama response preview:",
@@ -863,8 +872,13 @@ class ConverseComprehensiveValidator {
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ Meta Llama model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ Meta Llama model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;

@@ -1411,17 +1411,18 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         expect(span.attributes["output.value"]).toContain("results");
       });
     });
-    
+
     describe("Cross-Provider Streaming Models", () => {
       it("should handle Amazon Titan streaming responses with usage tracking", async () => {
         setupTestRecording("should-handle-amazon-titan-streaming");
-        
+
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelWithResponseStreamCommand({
           modelId: "amazon.titan-text-express-v1",
           body: JSON.stringify({
-            inputText: "Tell me a very short story about a robot learning to paint.",
+            inputText:
+              "Tell me a very short story about a robot learning to paint.",
             textGenerationConfig: {
               maxTokenCount: 100,
               temperature: 0.7,
@@ -1430,18 +1431,18 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
           contentType: "application/json",
           accept: "application/json",
         });
-        
+
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         // Consume the stream to trigger instrumentation
         await consumeStreamResponse(result);
-        
+
         const span = verifySpanBasics(spanExporter);
-        
+
         // These tests will pass once streaming instrumentation supports non-Anthropic providers
         // For now they demonstrate what the expected span structure should look like
-        
+
         expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
@@ -1463,34 +1464,35 @@ Once upon a time, a robot named PaintBot was created to paint beautiful landscap
 }
 `);
       });
-      
+
       it("should handle Meta Llama streaming responses with proper token tracking", async () => {
         setupTestRecording("should-handle-meta-llama-streaming");
-        
+
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelWithResponseStreamCommand({
           modelId: "meta.llama3-8b-instruct-v1:0",
           body: JSON.stringify({
-            prompt: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            prompt:
+              "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nTell me a very short story about artificial intelligence in the future.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
             max_gen_len: 120,
             temperature: 0.7,
           }),
           contentType: "application/json",
           accept: "application/json",
         });
-        
+
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         // Consume the stream to trigger instrumentation
         await consumeStreamResponse(result);
-        
+
         const span = verifySpanBasics(spanExporter);
-        
+
         // These tests will pass once streaming instrumentation supports non-Anthropic providers
         // For now they demonstrate what the expected span structure should look like
-        
+
         expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",
@@ -1517,12 +1519,12 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 }
 `);
       });
-      
+
       it("should handle Amazon Nova streaming responses with comprehensive validation", async () => {
         setupTestRecording("should-handle-amazon-nova-streaming");
-        
+
         const client = createTestClient(isRecordingMode);
-        
+
         const command = new InvokeModelWithResponseStreamCommand({
           modelId: "us.amazon.nova-micro-v1:0",
           body: JSON.stringify({
@@ -1544,15 +1546,15 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           contentType: "application/json",
           accept: "application/json",
         });
-        
+
         const result = await client.send(command);
         verifyResponseStructure(result);
-        
+
         // Consume the stream to trigger instrumentation
         await consumeStreamResponse(result);
-        
+
         const span = verifySpanBasics(spanExporter);
-        
+
         expect(span.attributes).toMatchInlineSnapshot(`
 {
   "input.mime_type": "application/json",

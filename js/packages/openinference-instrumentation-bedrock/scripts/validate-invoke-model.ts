@@ -788,7 +788,9 @@ class InstrumentationValidator {
       // Check for Nova response structure
       const outputMessage = responseBody.output?.message;
       if (outputMessage?.content) {
-        const textContent = outputMessage.content.find((block: any) => block.text);
+        const textContent = outputMessage.content.find(
+          (block: any) => block.text,
+        );
         if (textContent) {
           console.log(
             "   💬 Nova response:",
@@ -807,8 +809,13 @@ class InstrumentationValidator {
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ Nova model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ Nova model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;
@@ -821,7 +828,8 @@ class InstrumentationValidator {
     const command = new this.InvokeModelCommand({
       modelId: "meta.llama3-8b-instruct-v1:0",
       body: JSON.stringify({
-        prompt: "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello! Tell me a brief fun fact about Meta's Llama models.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+        prompt:
+          "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello! Tell me a brief fun fact about Meta's Llama models.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
         max_gen_len: 100,
         temperature: 0.3,
       }),
@@ -842,16 +850,26 @@ class InstrumentationValidator {
       }
 
       // Check Meta usage statistics
-      if (responseBody.prompt_token_count !== undefined && responseBody.generation_token_count !== undefined) {
+      if (
+        responseBody.prompt_token_count !== undefined &&
+        responseBody.generation_token_count !== undefined
+      ) {
         console.log("   📈 Meta token usage:");
         console.log(`     Input tokens: ${responseBody.prompt_token_count}`);
-        console.log(`     Output tokens: ${responseBody.generation_token_count}`);
+        console.log(
+          `     Output tokens: ${responseBody.generation_token_count}`,
+        );
       }
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ Meta Llama model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ Meta Llama model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;
@@ -867,7 +885,8 @@ class InstrumentationValidator {
         messages: [
           {
             role: "user",
-            content: "Hello! Tell me a brief fun fact about AI21's Jamba models.",
+            content:
+              "Hello! Tell me a brief fun fact about AI21's Jamba models.",
           },
         ],
         max_tokens: 100,
@@ -896,14 +915,21 @@ class InstrumentationValidator {
       if (responseBody.usage) {
         console.log("   📈 AI21 token usage:");
         console.log(`     Input tokens: ${responseBody.usage.prompt_tokens}`);
-        console.log(`     Output tokens: ${responseBody.usage.completion_tokens}`);
+        console.log(
+          `     Output tokens: ${responseBody.usage.completion_tokens}`,
+        );
         console.log(`     Total tokens: ${responseBody.usage.total_tokens}`);
       }
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ AI21 Jamba model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ AI21 Jamba model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;
@@ -946,7 +972,7 @@ class InstrumentationValidator {
           const chunkData = JSON.parse(
             new TextDecoder().decode(chunk.chunk.bytes),
           );
-          
+
           // Nova streaming format is different from Anthropic
           if (chunkData.contentBlockDelta?.delta?.text) {
             fullContent += chunkData.contentBlockDelta.delta.text;
@@ -962,15 +988,23 @@ class InstrumentationValidator {
         eventCount,
         "events",
       );
-      
+
       if (fullContent.length > 0) {
-        console.log("   💬 Nova content preview:", fullContent.substring(0, 80) + "...");
+        console.log(
+          "   💬 Nova content preview:",
+          fullContent.substring(0, 80) + "...",
+        );
       }
 
       return true;
     } catch (error: any) {
-      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
-        console.log("   ⚠️ Nova streaming model not available in this region, but instrumentation working");
+      if (
+        error.name === "ValidationException" &&
+        error.message.includes("model identifier")
+      ) {
+        console.log(
+          "   ⚠️ Nova streaming model not available in this region, but instrumentation working",
+        );
         return true;
       }
       throw error;

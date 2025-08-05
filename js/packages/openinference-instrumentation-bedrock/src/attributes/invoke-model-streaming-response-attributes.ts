@@ -10,7 +10,10 @@
  */
 
 import { Span, diag } from "@opentelemetry/api";
-import { withSafety, isObjectWithStringKeys } from "@arizeai/openinference-core";
+import {
+  withSafety,
+  isObjectWithStringKeys,
+} from "@arizeai/openinference-core";
 import {
   SemanticConventions,
   LLMSystem,
@@ -49,7 +52,7 @@ interface StreamEventData {
     text?: string;
   };
   usage?: Record<string, unknown>;
-  
+
   // Amazon-specific fields
   outputText?: string;
   tokenCount?: number;
@@ -65,7 +68,7 @@ interface StreamEventData {
   metadata?: {
     usage?: Record<string, unknown>;
   };
-  
+
   // Meta-specific fields
   generation?: string;
   generation_token_count?: number;
@@ -109,7 +112,7 @@ interface StreamProcessingState {
 /**
  * Processes Anthropic stream chunks and updates processing state
  * Handles message events, content blocks, and token usage with proper delta accumulation
- * 
+ *
  * @param data The parsed stream event data
  * @param state Current processing state to update
  * @returns Updated processing state
@@ -119,7 +122,7 @@ function processAnthropicStreamChunk(
   state: StreamProcessingState,
 ): StreamProcessingState {
   // Type guard for Anthropic-specific events
-  if (!data.type || typeof data.type !== 'string') {
+  if (!data.type || typeof data.type !== "string") {
     return state;
   }
 
@@ -149,7 +152,7 @@ function processAnthropicStreamChunk(
 /**
  * Processes Meta stream chunks and updates processing state
  * Handles generation text and token counting with proper accumulation logic
- * 
+ *
  * @param data The parsed stream event data
  * @param state Current processing state to update
  * @returns Updated processing state
@@ -159,16 +162,16 @@ function processMetaStreamChunk(
   state: StreamProcessingState,
 ): StreamProcessingState {
   // Meta text generation - accumulate all text
-  if (typeof data.generation === 'string') {
+  if (typeof data.generation === "string") {
     state.outputText += data.generation;
   }
 
   // Meta token counting - generation_token_count is total, not incremental
-  if (typeof data.generation_token_count === 'number') {
+  if (typeof data.generation_token_count === "number") {
     state.rawUsageData.generation_token_count = data.generation_token_count;
   }
 
-  if (typeof data.prompt_token_count === 'number') {
+  if (typeof data.prompt_token_count === "number") {
     state.rawUsageData.prompt_token_count = data.prompt_token_count;
   }
 
@@ -181,8 +184,8 @@ function processMetaStreamChunk(
  */
 function isTitanStreamChunk(data: StreamEventData): boolean {
   return !!(
-    typeof data.outputText === 'string' ||
-    typeof data.tokenCount === 'number' ||
+    typeof data.outputText === "string" ||
+    typeof data.tokenCount === "number" ||
     data["amazon-bedrock-invocationMetrics"]
   );
 }
@@ -196,19 +199,20 @@ function isNovaStreamChunk(data: StreamEventData): boolean {
     data.contentBlockDelta?.delta?.text ||
     data.metadata?.usage ||
     // Nova usage without type field - check for camelCase token names
-    (data.usage && typeof data.usage === 'object' && !data.type && (
-      'inputTokens' in data.usage ||
-      'outputTokens' in data.usage ||
-      'cacheReadInputTokenCount' in data.usage ||
-      'cacheWriteInputTokenCount' in data.usage
-    ))
+    (data.usage &&
+      typeof data.usage === "object" &&
+      !data.type &&
+      ("inputTokens" in data.usage ||
+        "outputTokens" in data.usage ||
+        "cacheReadInputTokenCount" in data.usage ||
+        "cacheWriteInputTokenCount" in data.usage))
   );
 }
 
 /**
  * Processes Amazon Titan stream chunks and updates processing state
  * Handles Titan-specific fields: outputText, tokenCount, and invocationMetrics
- * 
+ *
  * @param data The parsed stream event data
  * @param state Current processing state to update
  * @returns Updated processing state
@@ -218,23 +222,23 @@ function processTitanStreamChunk(
   state: StreamProcessingState,
 ): StreamProcessingState {
   // Titan text output
-  if (typeof data.outputText === 'string') {
+  if (typeof data.outputText === "string") {
     state.outputText += data.outputText;
   }
 
   // Titan incremental token counting
-  if (typeof data.tokenCount === 'number') {
-    state.rawUsageData.outputTokenCount = 
+  if (typeof data.tokenCount === "number") {
+    state.rawUsageData.outputTokenCount =
       ((state.rawUsageData.outputTokenCount as number) || 0) + data.tokenCount;
   }
 
   // Titan final metrics (appears at end of stream)
   if (data["amazon-bedrock-invocationMetrics"]) {
     const metrics = data["amazon-bedrock-invocationMetrics"];
-    if (typeof metrics.inputTokenCount === 'number') {
+    if (typeof metrics.inputTokenCount === "number") {
       state.rawUsageData.inputTextTokenCount = metrics.inputTokenCount;
     }
-    if (typeof metrics.outputTokenCount === 'number') {
+    if (typeof metrics.outputTokenCount === "number") {
       state.rawUsageData.outputTokenCount = metrics.outputTokenCount;
     }
   }
@@ -245,7 +249,7 @@ function processTitanStreamChunk(
 /**
  * Processes Amazon Nova stream chunks and updates processing state
  * Handles Nova-specific fields: contentBlockDelta and metadata.usage
- * 
+ *
  * @param data The parsed stream event data
  * @param state Current processing state to update
  * @returns Updated processing state
@@ -255,7 +259,10 @@ function processNovaStreamChunk(
   state: StreamProcessingState,
 ): StreamProcessingState {
   // Nova text output
-  if (data.contentBlockDelta?.delta?.text && typeof data.contentBlockDelta.delta.text === 'string') {
+  if (
+    data.contentBlockDelta?.delta?.text &&
+    typeof data.contentBlockDelta.delta.text === "string"
+  ) {
     state.outputText += data.contentBlockDelta.delta.text;
   }
 
@@ -265,17 +272,19 @@ function processNovaStreamChunk(
   }
 
   // Nova usage at top level (alternative format) - ensure it's not Anthropic
-  if (data.usage && typeof data.usage === 'object' && !data.type) {
+  if (data.usage && typeof data.usage === "object" && !data.type) {
     // Nova provides cache tokens in camelCase format
     const usage = data.usage as Record<string, unknown>;
     state.rawUsageData = { ...state.rawUsageData, ...usage };
-    
+
     // Specifically capture cache tokens if present
-    if (typeof usage.cacheReadInputTokenCount === 'number') {
-      state.rawUsageData.cacheReadInputTokenCount = usage.cacheReadInputTokenCount;
+    if (typeof usage.cacheReadInputTokenCount === "number") {
+      state.rawUsageData.cacheReadInputTokenCount =
+        usage.cacheReadInputTokenCount;
     }
-    if (typeof usage.cacheWriteInputTokenCount === 'number') {
-      state.rawUsageData.cacheWriteInputTokenCount = usage.cacheWriteInputTokenCount;
+    if (typeof usage.cacheWriteInputTokenCount === "number") {
+      state.rawUsageData.cacheWriteInputTokenCount =
+        usage.cacheWriteInputTokenCount;
     }
   }
 
@@ -286,7 +295,7 @@ function processNovaStreamChunk(
  * Normalizes accumulated raw usage data into standardized UsageAttributes format
  * Uses the normalizeUsageAttributes helper with appropriate response structure for each provider
  * This is the single source of truth for token normalization - streaming processors only accumulate raw data
- * 
+ *
  * @param rawUsageData The accumulated raw usage data from stream processing
  * @param modelType The LLM system type to determine normalization strategy
  * @returns Normalized UsageAttributes object
@@ -299,35 +308,36 @@ function normalizeStreamUsageData(
     // Wrap usage data in expected Anthropic format
     const wrappedUsageData = { usage: rawUsageData };
     return normalizeUsageAttributes(wrappedUsageData, modelType) || {};
-  } 
-  
+  }
+
   if (modelType === LLMSystem.AMAZON) {
     // Auto-detect Nova vs Titan based on accumulated token field names
-    const isNovaFormat = (
-      rawUsageData.inputTokens !== undefined || 
+    const isNovaFormat =
+      rawUsageData.inputTokens !== undefined ||
       rawUsageData.outputTokens !== undefined ||
       rawUsageData.cacheReadInputTokenCount !== undefined ||
-      rawUsageData.cacheWriteInputTokenCount !== undefined
-    );
-    
+      rawUsageData.cacheWriteInputTokenCount !== undefined;
+
     if (isNovaFormat) {
       // Nova format - create structure that passes isNovaResponse check
       // Nova uses camelCase field names (inputTokens, outputTokens, cacheReadInputTokenCount, etc.)
-      const responseStructure = { 
+      const responseStructure = {
         output: { message: {} }, // Required for isNovaResponse type guard
-        usage: rawUsageData 
+        usage: rawUsageData,
       };
       return normalizeUsageAttributes(responseStructure, modelType) || {};
     } else {
       // Titan format - create structure that passes isTitanResponse check
       const responseStructure = {
         inputTextTokenCount: rawUsageData.inputTextTokenCount,
-        results: rawUsageData.outputTokenCount ? [{ tokenCount: rawUsageData.outputTokenCount }] : []
+        results: rawUsageData.outputTokenCount
+          ? [{ tokenCount: rawUsageData.outputTokenCount }]
+          : [],
       };
       return normalizeUsageAttributes(responseStructure, modelType) || {};
     }
   }
-  
+
   if (modelType === LLMSystem.META) {
     // Meta uses raw usage data directly
     return normalizeUsageAttributes(rawUsageData, modelType) || {};
@@ -351,15 +361,15 @@ function setStreamingOutputAttributes({
 }: {
   span: Span;
   outputText: string;
-  contentBlocks: StreamProcessingState['contentBlocks'];
+  contentBlocks: StreamProcessingState["contentBlocks"];
   usage: UsageAttributes;
 }): void {
   // Create the output value structure like the original streaming code
   const toolCalls = contentBlocks
-    .filter(block => block.type === "tool_use")
-    .map(block => ({
+    .filter((block) => block.type === "tool_use")
+    .map((block) => ({
       id: block.id || "unknown",
-      name: block.name || "unknown", 
+      name: block.name || "unknown",
       input: block.input || {},
     }));
 
@@ -377,9 +387,9 @@ function setStreamingOutputAttributes({
     JSON.stringify(outputValue),
   );
   setSpanAttribute(
-    span, 
-    SemanticConventions.OUTPUT_MIME_TYPE, 
-    "application/json"
+    span,
+    SemanticConventions.OUTPUT_MIME_TYPE,
+    "application/json",
   );
 
   // Set the message role
@@ -399,10 +409,12 @@ function setStreamingOutputAttributes({
   }
 
   // Set tool call attributes with sequential indexing
-  const toolUseBlocks = contentBlocks.filter(block => block.type === "tool_use");
+  const toolUseBlocks = contentBlocks.filter(
+    (block) => block.type === "tool_use",
+  );
   toolUseBlocks.forEach((block, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-    
+
     setSpanAttribute(
       span,
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
@@ -506,7 +518,10 @@ export function safelySplitStream({
     };
   } catch (error) {
     // Fallback: preserve original stream for user, skip instrumentation
-    diag.warn("Failed to split stream using PassThrough, falling back to user-only stream:", error);
+    diag.warn(
+      "Failed to split stream using PassThrough, falling back to user-only stream:",
+      error,
+    );
     return {
       userStream: originalStream,
     };
@@ -518,7 +533,7 @@ export function safelySplitStream({
  * Supports multiple providers: Anthropic, Amazon Titan, Meta Llama, and Amazon Nova.
  *
  * This function processes different Bedrock streaming formats and accumulates response content,
- * setting appropriate semantic convention attributes on the provided span. It runs in the 
+ * setting appropriate semantic convention attributes on the provided span. It runs in the
  * background without blocking the user's stream consumption.
  *
  * @param stream - The Bedrock response stream (AsyncIterable), typically from splitStream()
@@ -557,7 +572,7 @@ export const consumeBedrockStreamChunks = withSafety({
       if (isValidStreamChunk(chunk)) {
         const text = new TextDecoder().decode(chunk.chunk.bytes);
         const lines = text.split("\n").filter((line) => line.trim());
-        
+
         for (const line of lines) {
           if (line.trim()) {
             try {
@@ -589,7 +604,10 @@ export const consumeBedrockStreamChunks = withSafety({
     }
 
     // Normalize usage data once at the end
-    const normalizedUsage = normalizeStreamUsageData(state.rawUsageData, modelType);
+    const normalizedUsage = normalizeStreamUsageData(
+      state.rawUsageData,
+      modelType,
+    );
 
     setStreamingOutputAttributes({
       span,
