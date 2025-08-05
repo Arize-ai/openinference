@@ -11,7 +11,6 @@ from beeai_framework.backend import (
     MessageToolResultContent,
 )
 from beeai_framework.backend.events import (
-    ChatModelNewTokenEvent,
     ChatModelStartEvent,
     ChatModelSuccessEvent,
 )
@@ -67,6 +66,9 @@ class ChatModelProcessor(Processor):
 
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
 
+        if meta.name == "finish":
+            return
+
         match event:
             case ChatModelStartEvent():
                 assert isinstance(meta.creator, ChatModel)
@@ -96,9 +98,6 @@ class ChatModelProcessor(Processor):
                     }
                 )
 
-            case ChatModelNewTokenEvent():
-                self._add_new_messages(event.value.messages)
-
             case ChatModelSuccessEvent():
                 if not self._messages:  # only when no streaming
                     self._add_new_messages(event.value.messages)
@@ -126,7 +125,8 @@ class ChatModelProcessor(Processor):
                         ),
                     }
                 )
-
+            case ChatModelFinishEvent():
+                pass
             case _:
                 self.span.child(meta.name, event=(event, meta))
 
