@@ -1,6 +1,8 @@
 import json
 import os
+from types import GeneratorType
 from typing import Any, Generator, Optional
+from unittest.mock import MagicMock
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -22,6 +24,7 @@ from smolagents.models import (  # type: ignore[import-untyped]
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+from openinference.instrumentation.smolagents._wrappers import _RunWrapper
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -465,7 +468,6 @@ final_answer("Final report.")
             ),
         )
 
-        # Handle non-streaming (normal) run
         manager_code_agent = CodeAgent(
             tools=[],
             model=manager_model,
@@ -476,7 +478,6 @@ final_answer("Final report.")
         report = manager_code_agent.run("Fake question.")
         assert report == "Final report."
 
-        # Handle non-streaming (normal) run
         manager_toolcalling_agent = ToolCallingAgent(
             tools=[],
             model=manager_model,
@@ -486,15 +487,67 @@ final_answer("Final report.")
         report = manager_toolcalling_agent.run("Fake question.")
         assert report == "Final report."
 
-        # Handle streaming (generator) run
-        report_chunks = manager_code_agent.run("Fake question.", stream=True)
-        final_result = "".join([chunk for chunk in report_chunks])
-        assert final_result == "Final report."
 
-        # Handle streaming (generator) run
-        report_chunks = manager_toolcalling_agent.run("Fake question.", stream=True)
-        final_result = "".join([chunk for chunk in report_chunks])
-        assert final_result == "Final report."
+class BaseDummyAgent:
+    def __init__(self) -> None:
+        self.monitor = MagicMock()
+        self.monitor.steps = []
+        self.monitor.history = []
+        self.monitor.total_input_token_count = 10
+        self.monitor.total_output_token_count = 20
+        self.task: str = "Dummy Task"
+        self.max_steps: int = 30
+        self.tools: dict[str, Any] = {}
+        self.managed_agents: dict[str, Any] = {}
+
+    def run(self, prompt: str = "Base Prompt") -> Any:
+        raise NotImplementedError
+
+
+class DummyGeneratorAgent(BaseDummyAgent):
+    def run(self, prompt: str = "Generator Prompt") -> Generator[str, None, None]:
+        yield "First Generator Response."
+        yield "Second Generator Response."
+        yield "Third Generator Response."
+
+
+class DummySimpleAgent(BaseDummyAgent):
+    def run(self, prompt: str = "Simple Prompt") -> str:
+        return "Final Simple Response."
+
+
+class TestRunWrapper:
+    def test_run_wrapper_generator_agent(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        tracer = trace_api.get_tracer(__name__)
+        run_wrapper = _RunWrapper(tracer)
+        agent = DummyGeneratorAgent()
+
+        wrapped_method = DummyGeneratorAgent.run
+        result = run_wrapper(wrapped_method, agent, ("Hi",), {})
+
+        assert isinstance(result, GeneratorType), "Expected result to be a generator"
+        output = "".join(chunk for chunk in result)
+        assert output == "First Generator Response.Second Generator Response.Third Generator Response."
+        assert agent.monitor.total_input_token_count == 10
+        assert agent.monitor.total_output_token_count == 20
+
+    def test_run_wrapper_simple_agent(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        tracer = trace_api.get_tracer(__name__)
+        run_wrapper = _RunWrapper(tracer)
+        agent = DummySimpleAgent()
+
+        wrapped_method = DummySimpleAgent.run
+        result = run_wrapper(wrapped_method, agent, ("Hi",), {})
+
+        assert isinstance(result, str)
+        assert not isinstance(result, GeneratorType), "Expected result to be a string, not generator"
+        assert result == "Final Simple Response."
+        assert agent.monitor.total_input_token_count == 10
+        assert agent.monitor.total_output_token_count == 20
 
 
 class TestTools:
