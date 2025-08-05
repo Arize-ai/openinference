@@ -121,12 +121,14 @@ languages.
 | [`openinference-semantic-conventions`](./java/openinference-semantic-conventions)                               | Semantic conventions for tracing of LLM Apps.  | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-semantic-conventions)](https://central.sonatype.com/artifact/com.arize/openinference-semantic-conventions)               |
 | [`openinference-instrumentation`](./java/openinference-instrumentation)                                         | Base instrumentation utilities.                | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation)                         |
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
+| [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
 
 ### Examples
 
-| Name                                                     | Description                                  | Complexity Level |
-| -------------------------------------------------------- | -------------------------------------------- | ---------------- |
-| [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI | Beginner         |
+| Name                                                     | Description                                    | Complexity Level |
+| -------------------------------------------------------- | ---------------------------------------------- | ---------------- |
+| [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI   | Beginner         |
+| [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
 
 ## Supported Destinations
 
