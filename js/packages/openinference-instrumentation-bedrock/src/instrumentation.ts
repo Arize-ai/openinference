@@ -4,7 +4,14 @@ import {
   InstrumentationModuleDefinition,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { diag, SpanKind, SpanStatusCode, context } from "@opentelemetry/api";
+import {
+  context,
+  diag,
+  SpanKind,
+  SpanStatusCode,
+  Tracer,
+  TracerProvider,
+} from "@opentelemetry/api";
 import {
   getAttributesFromContext,
   OITracer,
@@ -33,7 +40,7 @@ import {
 } from "./attributes/attribute-helpers";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
-const COMPONENT = "@arizeai/openinference-instrumentation-bedrock";
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-bedrock";
 const INSTRUMENTATION_VERSION = VERSION;
 
 /**
@@ -70,10 +77,13 @@ export function isPatched(): boolean {
  */
 export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExports> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -85,14 +95,24 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
     super(
-      COMPONENT,
+      INSTRUMENTATION_NAME,
       INSTRUMENTATION_VERSION,
       Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig,
     });
   }
@@ -110,6 +130,22 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
         this.unpatch.bind(this),
       );
     return [module];
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(this.instrumentationName);
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   /**
