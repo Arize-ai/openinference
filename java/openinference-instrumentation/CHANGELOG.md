@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.4...java-openinference-instrumentation-v0.1.5) (2025-08-06)
+
+
+### Features
+
+* Upgrade workflow java 17 ([#2044](https://github.com/Arize-ai/openinference/issues/2044)) ([2084e8e](https://github.com/Arize-ai/openinference/commit/2084e8e48761fbb9e575bf4fbfc0f75ba3998d2e))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-v0.1.3...java-openinference-instrumentation-v0.1.4) (2025-08-05)
 
 

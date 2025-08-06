@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.6...java-openinference-semantic-conventions-v0.1.7) (2025-08-06)
+
+
+### Features
+
+* Upgrade workflow java 17 ([#2044](https://github.com/Arize-ai/openinference/issues/2044)) ([2084e8e](https://github.com/Arize-ai/openinference/commit/2084e8e48761fbb9e575bf4fbfc0f75ba3998d2e))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.5...java-openinference-semantic-conventions-v0.1.6) (2025-08-05)
 
 
