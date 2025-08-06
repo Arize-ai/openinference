@@ -100,7 +100,7 @@ jobs:
         path: ${{ fromJSON(needs.separate-release-please.outputs.java_paths_released) }}
     steps:
       - uses: actions/checkout@v4
-        
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -109,6 +109,26 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
+
+      - name: Set version from release-please output
+        working-directory: ./java
+        run: |
+          echo "Setting version for ${{ matrix.path }}..."
+
+          # Get the version from release-please outputs for this specific package
+          PACKAGE_VERSION="${{ needs.release.outputs[format('{0}--version', matrix.path)] }}"
+
+          # Determine the relative path from java/ directory
+          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="${RELATIVE_PATH#java/}"
+
+          # Update the specific gradle.properties file
+          GRADLE_PROPS_FILE="${RELATIVE_PATH}/gradle.properties"
+          echo "Updating ${GRADLE_PROPS_FILE} with version: $PACKAGE_VERSION"
+          sed -i "s/version=\$VERSION/version=$PACKAGE_VERSION/" "$GRADLE_PROPS_FILE"
+
+          # Verify the update
+          echo "Updated version: $(grep version= "$GRADLE_PROPS_FILE")"
 
       - name: Remove SNAPSHOT from versions
         working-directory: ./java
