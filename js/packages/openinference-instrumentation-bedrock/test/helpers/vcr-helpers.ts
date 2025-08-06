@@ -8,45 +8,6 @@ import {
   MOCK_AUTH_HEADERS,
 } from "../config/constants";
 
-// Helper function to load mock response from recording file
-export const loadRecordingData = (recordingPath: string) => {
-  if (!fs.existsSync(recordingPath)) {
-    return null;
-  }
-
-  try {
-    const recordingData = JSON.parse(fs.readFileSync(recordingPath, "utf8"));
-    const recording = recordingData[0];
-    if (!recording) return null;
-
-    // Extract model ID from the path (handle invoke, invoke-with-response-stream, and converse)
-    const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
-    const converseMatch = recording.path?.match(/\/model\/([^/]+)\/converse/);
-    const modelId = invokeMatch
-      ? decodeURIComponent(invokeMatch[1])
-      : converseMatch
-        ? decodeURIComponent(converseMatch[1])
-        : null;
-
-    // Determine endpoint type
-    const isStreaming = recording.path?.includes("invoke-with-response-stream");
-    const isConverse = recording.path?.includes("/converse");
-
-    return {
-      response: recording.response,
-      modelId,
-      recording,
-      status: recording.status || 200,
-      isStreaming,
-      isConverse,
-    };
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn(`Failed to load recording from ${recordingPath}:`, error);
-    return null;
-  }
-};
-
 // Helper function to create nock mock for Bedrock API
 export const createNockMock = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -99,18 +60,13 @@ export const sanitizeAuthHeaders = (recordings: unknown[]) => {
   });
 };
 
-// Helper function to create sanitized recording path
-export const createRecordingPath = (testName: string, testDir: string) => {
+// Generate recording file path based on test name
+export const getRecordingPath = (testName: string, testDir: string) => {
   const sanitizedName = testName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return path.join(testDir, "recordings", `${sanitizedName}.json`);
-};
-
-// Generate recording file path based on test name
-export const getRecordingPath = (testName: string, testDir: string) => {
-  return createRecordingPath(testName, testDir);
 };
 
 // Helper function to create test client with consistent configuration
@@ -132,4 +88,91 @@ export const createTestClient = (isRecordingMode: boolean) => {
       requestTimeout: 10000,
     },
   });
+};
+
+// Helper function to setup test recording for VCR-style testing
+// This function handles both recording and replay modes
+export const setupTestRecording = (
+  testName: string,
+  testDir: string,
+  isRecordingMode: boolean,
+  defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0",
+) => {
+  const recordingsPath = getRecordingPath(testName, testDir);
+
+  if (!isRecordingMode) {
+    // Replay mode: create mock from test-specific recording
+    if (fs.existsSync(recordingsPath)) {
+      const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
+
+      // Create mocks for all recorded requests
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recordingData.forEach((recording: any) => {
+        // Extract model ID from the path
+        const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
+        const converseMatch = recording.path?.match(
+          /\/model\/([^/]+)\/converse/,
+        );
+        const modelId = invokeMatch
+          ? decodeURIComponent(invokeMatch[1])
+          : converseMatch
+            ? decodeURIComponent(converseMatch[1])
+            : null;
+
+        // Determine endpoint type
+        const isStreaming = recording.path?.includes(
+          "invoke-with-response-stream",
+        );
+        const isConverse = recording.path?.includes("/converse");
+
+        createNockMock(
+          recording.response,
+          modelId || undefined,
+          recording.status || 200,
+          defaultModelId,
+          isStreaming,
+          isConverse,
+        );
+      });
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(`No recordings found at ${recordingsPath}`);
+    }
+  }
+
+  return recordingsPath;
+};
+
+// Helper function to initialize nock recording mode in beforeEach hooks
+export const initializeRecordingMode = () => {
+  nock.recorder.rec({
+    output_objects: true,
+    enable_reqheaders_recording: true,
+  });
+};
+
+// Helper function to save recording mode data in afterEach hooks
+export const saveRecordingModeData = (
+  currentTestName: string,
+  recordingsPath: string,
+) => {
+  const recordings = nock.recorder.play();
+  // eslint-disable-next-line no-console
+  console.log(
+    `Captured ${recordings.length} recordings for test: ${currentTestName}`,
+  );
+  if (recordings.length > 0) {
+    // Sanitize auth headers - replace with mock credentials for replay compatibility
+    sanitizeAuthHeaders(recordings);
+
+    const recordingsDir = path.dirname(recordingsPath);
+    if (!fs.existsSync(recordingsDir)) {
+      fs.mkdirSync(recordingsDir, { recursive: true });
+    }
+    fs.writeFileSync(recordingsPath, JSON.stringify(recordings, null, 2));
+    // eslint-disable-next-line no-console
+    console.log(
+      `Saved sanitized recordings to ${path.basename(recordingsPath)}`,
+    );
+  }
 };

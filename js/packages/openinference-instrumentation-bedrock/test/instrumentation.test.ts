@@ -27,18 +27,18 @@ import {
   PROMPT_TEMPLATE_VARIABLES,
 } from "@arizeai/openinference-semantic-conventions";
 import nock from "nock";
-import * as fs from "fs";
-import * as path from "path";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   generateToolResultMessage,
   generateToolCallMessage,
   commonTools,
 } from "./helpers/test-data-generators";
 import {
-  createNockMock,
-  sanitizeAuthHeaders,
   createTestClient,
   getRecordingPath,
+  setupTestRecording,
+  initializeRecordingMode,
+  saveRecordingModeData,
 } from "./helpers/vcr-helpers";
 import {
   verifyResponseStructure,
@@ -88,52 +88,15 @@ describe("BedrockInstrumentation", () => {
     await provider.shutdown();
   });
 
-  // Helper function for tests to set up their specific recording
-  const setupTestRecording = (testName: string) => {
+  // Helper wrapper for tests to set up their specific recording
+  const setupTestRecordingWrapper = (testName: string) => {
     currentTestName = testName;
-    recordingsPath = getRecordingPath(testName, __dirname);
-
-    if (!isRecordingMode) {
-      // Replay mode: create mock from test-specific recording
-      if (fs.existsSync(recordingsPath)) {
-        const recordingData = JSON.parse(
-          fs.readFileSync(recordingsPath, "utf8"),
-        );
-
-        // Create mocks for all recorded requests
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        recordingData.forEach((recording: any) => {
-          // Extract model ID from the path
-          const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
-          const converseMatch = recording.path?.match(
-            /\/model\/([^/]+)\/converse/,
-          );
-          const modelId = invokeMatch
-            ? decodeURIComponent(invokeMatch[1])
-            : converseMatch
-              ? decodeURIComponent(converseMatch[1])
-              : null;
-
-          // Determine endpoint type
-          const isStreaming = recording.path?.includes(
-            "invoke-with-response-stream",
-          );
-          const isConverse = recording.path?.includes("/converse");
-
-          createNockMock(
-            recording.response,
-            modelId || undefined,
-            recording.status || 200,
-            TEST_MODEL_ID,
-            isStreaming,
-            isConverse,
-          );
-        });
-      } else {
-        // eslint-disable-next-line no-console
-        console.log(`No recordings found at ${recordingsPath}`);
-      }
-    }
+    recordingsPath = setupTestRecording(
+      testName,
+      __dirname,
+      isRecordingMode,
+      TEST_MODEL_ID,
+    );
   };
 
   beforeEach(() => {
@@ -151,11 +114,7 @@ describe("BedrockInstrumentation", () => {
 
     // Setup nock for VCR-style testing (recording mode only)
     if (isRecordingMode) {
-      // Recording mode: capture real requests
-      nock.recorder.rec({
-        output_objects: true,
-        enable_reqheaders_recording: true,
-      });
+      initializeRecordingMode();
     }
 
     // Reset span exporter for clean test state
@@ -164,26 +123,7 @@ describe("BedrockInstrumentation", () => {
 
   afterEach(() => {
     if (isRecordingMode) {
-      // Save recordings before cleaning up
-      const recordings = nock.recorder.play();
-      // eslint-disable-next-line no-console
-      console.log(
-        `Captured ${recordings.length} recordings for test: ${currentTestName}`,
-      );
-      if (recordings.length > 0) {
-        // Sanitize auth headers - replace with mock credentials for replay compatibility
-        sanitizeAuthHeaders(recordings);
-
-        const recordingsDir = path.dirname(recordingsPath);
-        if (!fs.existsSync(recordingsDir)) {
-          fs.mkdirSync(recordingsDir, { recursive: true });
-        }
-        fs.writeFileSync(recordingsPath, JSON.stringify(recordings, null, 2));
-        // eslint-disable-next-line no-console
-        console.log(
-          `Saved sanitized recordings to ${path.basename(recordingsPath)}`,
-        );
-      }
+      saveRecordingModeData(currentTestName, recordingsPath);
     }
 
     // Clean up nock only
@@ -194,7 +134,7 @@ describe("BedrockInstrumentation", () => {
   describe("InvokeModel API", () => {
     describe("Basic Instrumentation", () => {
       it("should create spans for InvokeModel calls", async () => {
-        setupTestRecording("should create spans for InvokeModel calls");
+        setupTestRecordingWrapper("should create spans for InvokeModel calls");
 
         const client = createTestClient(isRecordingMode);
 
@@ -241,7 +181,7 @@ describe("BedrockInstrumentation", () => {
     });
     describe("Tool Calling", () => {
       it("should handle tool calling with function definitions", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should handle tool calling with function definitions",
         );
 
@@ -307,7 +247,7 @@ describe("BedrockInstrumentation", () => {
       });
 
       it("should handle tool result responses", async () => {
-        setupTestRecording("should handle tool result responses");
+        setupTestRecordingWrapper("should handle tool result responses");
 
         const client = createTestClient(isRecordingMode);
 
@@ -372,7 +312,9 @@ The key things are to dress for the warm temperatures and have layers you can",
 `);
       });
       it("should handle multiple tools in single request", async () => {
-        setupTestRecording("should handle multiple tools in single request");
+        setupTestRecordingWrapper(
+          "should handle multiple tools in single request",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -429,7 +371,9 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Multi-Modal", () => {
       it("should handle multi-modal messages with images", async () => {
-        setupTestRecording("should handle multi-modal messages with images");
+        setupTestRecordingWrapper(
+          "should handle multi-modal messages with images",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -542,7 +486,9 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Error Handling", () => {
       it("should handle missing token counts gracefully", async () => {
-        setupTestRecording("should handle missing token counts gracefully");
+        setupTestRecordingWrapper(
+          "should handle missing token counts gracefully",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -640,7 +586,7 @@ Honeybees can recognize human faces.",
 `);
       });
       it("should handle API errors gracefully", async () => {
-        setupTestRecording("should handle api errors gracefully");
+        setupTestRecordingWrapper("should handle api errors gracefully");
 
         const client = createTestClient(isRecordingMode);
 
@@ -688,7 +634,7 @@ Honeybees can recognize human faces.",
     });
     describe("Multi-Provider Support", () => {
       it("should handle AI21 Jamba models", async () => {
-        setupTestRecording("should-handle-ai21-jamba-models");
+        setupTestRecordingWrapper("should-handle-ai21-jamba-models");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
@@ -735,7 +681,7 @@ Honeybees can recognize human faces.",
       });
 
       it("should handle Amazon Nova models", async () => {
-        setupTestRecording("should-handle-amazon-nova-models");
+        setupTestRecordingWrapper("should-handle-amazon-nova-models");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
@@ -825,7 +771,7 @@ Honeybees can recognize human faces.",
       });
 
       it("should handle Amazon Titan models", async () => {
-        setupTestRecording("should-handle-amazon-titan-models");
+        setupTestRecordingWrapper("should-handle-amazon-titan-models");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
@@ -868,7 +814,7 @@ This model is designed to avoid generating sensitive content. It is important to
       });
 
       it("should handle Cohere Command models", async () => {
-        setupTestRecording("should-handle-cohere-command-models");
+        setupTestRecordingWrapper("should-handle-cohere-command-models");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
@@ -909,7 +855,7 @@ This model is designed to avoid generating sensitive content. It is important to
       });
 
       it("should handle Meta Llama models invoke", async () => {
-        setupTestRecording("should-handle-meta-llama-models-invoke");
+        setupTestRecordingWrapper("should-handle-meta-llama-models-invoke");
         const client = createTestClient(isRecordingMode);
 
         const command = new InvokeModelCommand({
@@ -950,7 +896,7 @@ This model is designed to avoid generating sensitive content. It is important to
       });
 
       xit("should handle Mistral Pixtral Large models with multimodal and tools", async () => {
-        setupTestRecording("should-handle-mistral-pixtral-models");
+        setupTestRecordingWrapper("should-handle-mistral-pixtral-models");
         const client = createTestClient(isRecordingMode);
 
         // Sample base64 image data (small test image - 1x1 transparent PNG)
@@ -1028,7 +974,9 @@ This model is designed to avoid generating sensitive content. It is important to
   describe("InvokeModelWithResponseStream", () => {
     describe("Basic Function and Tool Calling", () => {
       it("should handle InvokeModelWithResponseStream", async () => {
-        setupTestRecording("should handle invoke model with response stream");
+        setupTestRecordingWrapper(
+          "should handle invoke model with response stream",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1078,7 +1026,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
 
       it("should handle streaming responses with tool calls", async () => {
-        setupTestRecording("should handle streaming responses with tool calls");
+        setupTestRecordingWrapper(
+          "should handle streaming responses with tool calls",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1128,7 +1078,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     });
     describe("Error Handling", () => {
       it("should handle streaming errors gracefully", async () => {
-        setupTestRecording("should handle streaming errors");
+        setupTestRecordingWrapper("should handle streaming errors");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1175,7 +1125,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
       it("should handle large payloads and timeouts", async () => {
         const testName = "should-handle-large-payloads";
-        setupTestRecording(testName);
+        setupTestRecordingWrapper(testName);
 
         const client = createTestClient(isRecordingMode);
 
@@ -1246,7 +1196,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
     describe("Edge Cases", () => {
       it("should propagate OpenInference context attributes", async () => {
         const testName = "should-handle-context-attributes";
-        setupTestRecording(testName);
+        setupTestRecordingWrapper(testName);
 
         const client = createTestClient(isRecordingMode);
 
@@ -1352,7 +1302,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
       it("should handle non-Anthropic models via Bedrock", async () => {
         const testName = "should-handle-non-anthropic-models";
-        setupTestRecording(testName);
+        setupTestRecordingWrapper(testName);
 
         const client = createTestClient(isRecordingMode);
 
@@ -1414,7 +1364,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
 
     describe("Cross-Provider Streaming Models", () => {
       it("should handle Amazon Titan streaming responses with usage tracking", async () => {
-        setupTestRecording("should-handle-amazon-titan-streaming");
+        setupTestRecordingWrapper("should-handle-amazon-titan-streaming");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1466,7 +1416,7 @@ Once upon a time, a robot named PaintBot was created to paint beautiful landscap
       });
 
       it("should handle Meta Llama streaming responses with proper token tracking", async () => {
-        setupTestRecording("should-handle-meta-llama-streaming");
+        setupTestRecordingWrapper("should-handle-meta-llama-streaming");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1521,7 +1471,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
       });
 
       it("should handle Amazon Nova streaming responses with comprehensive validation", async () => {
-        setupTestRecording("should-handle-amazon-nova-streaming");
+        setupTestRecordingWrapper("should-handle-amazon-nova-streaming");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1589,7 +1539,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
     describe("Basic Functionality", () => {
       it("should handle basic Converse API calls", async () => {
-        setupTestRecording("should-handle-basic-converse-api-calls");
+        setupTestRecordingWrapper("should-handle-basic-converse-api-calls");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1651,7 +1601,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 
     describe("System Prompts", () => {
       it("should handle single system prompt in Converse API", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-single-system-prompt-in-converse-api",
         );
 
@@ -1713,7 +1663,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
       });
 
       it("should handle multiple system prompts concatenation in Converse API", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-multiple-system-prompts-concatenation-in-converse-api",
         );
 
@@ -1782,7 +1732,9 @@ Respond briefly.",
 
     describe("Configuration", () => {
       it("should handle inference config in Converse API", async () => {
-        setupTestRecording("should-handle-inference-config-in-converse-api");
+        setupTestRecordingWrapper(
+          "should-handle-inference-config-in-converse-api",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1856,7 +1808,7 @@ In essence, machine learning allows computers to learn from data and make predic
       // Multi-Turn Conversation Tests (Tests 5-6)
 
       it("should handle two-turn conversation with proper message indexing", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-two-turn-conversation-with-proper-message-indexing",
         );
 
@@ -1947,7 +1899,7 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
       });
 
       it("should handle system prompt with multi-turn conversation", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-system-prompt-with-multi-turn-conversation",
         );
 
@@ -2049,7 +2001,7 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
       // Multi-Modal Content Tests (Tests 7-8)
 
       it("should handle text plus image content with detailed structure", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-text-plus-image-content-with-detailed-structure",
         );
 
@@ -2129,7 +2081,7 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
       });
 
       it("should handle different image formats with correct MIME types", async () => {
-        setupTestRecording(
+        setupTestRecordingWrapper(
           "should-handle-different-image-formats-with-correct-mime-types",
         );
 
@@ -2215,7 +2167,7 @@ At the top of the",
       // Cross-Vendor Model Tests (Tests 9-10)
 
       it("should handle Mistral models", async () => {
-        setupTestRecording("should-handle-mistral-models");
+        setupTestRecordingWrapper("should-handle-mistral-models");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2279,7 +2231,7 @@ At the top of the",
       });
 
       it("should handle Meta LLaMA models", async () => {
-        setupTestRecording("should-handle-meta-llama-models");
+        setupTestRecordingWrapper("should-handle-meta-llama-models");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2353,7 +2305,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       // Edge Cases and Error Handling (Tests 11-13)
 
       it("should handle missing token counts via converse", async () => {
-        setupTestRecording("should-handle-missing-token-counts");
+        setupTestRecordingWrapper("should-handle-missing-token-counts");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2415,7 +2367,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should handle API error scenarios", async () => {
-        setupTestRecording("should-handle-api-error-scenarios");
+        setupTestRecordingWrapper("should-handle-api-error-scenarios");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2464,7 +2416,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should handle empty/minimal response", async () => {
-        setupTestRecording("should-handle-empty-minimal-response");
+        setupTestRecordingWrapper("should-handle-empty-minimal-response");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2522,7 +2474,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       // Tool Configuration Tests
 
       it("should handle tool configuration", async () => {
-        setupTestRecording("should-handle-tool-configuration");
+        setupTestRecordingWrapper("should-handle-tool-configuration");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2619,7 +2571,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should handle tool response processing", async () => {
-        setupTestRecording("should-handle-tool-response-processing");
+        setupTestRecordingWrapper("should-handle-tool-response-processing");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2714,7 +2666,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       // Context and VCR Infrastructure
 
       it("should handle context attributes with Converse", async () => {
-        setupTestRecording("should-handle-context-attributes-with-converse");
+        setupTestRecordingWrapper(
+          "should-handle-context-attributes-with-converse",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -2813,7 +2767,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should comprehensively test all token count types", async () => {
-        setupTestRecording("should-comprehensively-test-all-token-count-types");
+        setupTestRecordingWrapper(
+          "should-comprehensively-test-all-token-count-types",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -2931,5 +2887,281 @@ Berlin has a rich and complex history as the capital city:
 
     //
     // Use pattern: BEDROCK_RECORD_MODE=record npm test -- --testNamePattern="test name"
+  });
+});
+
+describe("BedrockInstrumentation - custom tracing", () => {
+  // Global spanExporter for this test suite to compare against custom exporters
+  let spanExporter: InMemorySpanExporter;
+  let provider: NodeTracerProvider;
+  let currentTestName: string;
+  let recordingsPath: string;
+
+  const isRecordingMode = process.env.BEDROCK_RECORD_MODE === "record";
+
+  beforeAll(() => {
+    // Setup global tracer provider and span exporter for comparison
+    spanExporter = new InMemorySpanExporter();
+    provider = new NodeTracerProvider();
+    provider.addSpanProcessor(new SimpleSpanProcessor(spanExporter));
+    provider.register();
+  });
+
+  afterAll(async () => {
+    await provider.shutdown();
+  });
+
+  // Helper wrapper for custom tracing tests to set up their specific recording
+  const setupTestRecordingCustom = (testName: string) => {
+    currentTestName = testName;
+    recordingsPath = setupTestRecording(
+      testName,
+      __dirname,
+      isRecordingMode,
+      "anthropic.claude-3-sonnet-20240229-v1:0",
+    );
+  };
+
+  beforeEach(() => {
+    // Clear any existing nock mocks first
+    nock.cleanAll();
+
+    // Ensure nock is active (important for test isolation)
+    if (!nock.isActive()) {
+      nock.activate();
+    }
+
+    // Set default test name (will be overridden by setupTestRecording)
+    currentTestName = "default-test";
+    recordingsPath = getRecordingPath(currentTestName, __dirname);
+
+    // Setup nock for VCR-style testing (recording mode only)
+    if (isRecordingMode) {
+      initializeRecordingMode();
+    }
+
+    // Reset span exporter for clean test state
+    spanExporter.reset();
+  });
+
+  afterEach(() => {
+    if (isRecordingMode) {
+      saveRecordingModeData(currentTestName, recordingsPath);
+    }
+
+    // Clean up nock only
+    nock.cleanAll();
+    nock.restore();
+  });
+
+  describe("BedrockInstrumentation with custom TracerProvider passed in", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let instrumentation: BedrockInstrumentation;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    beforeAll(() => {
+      // Instantiate instrumentation with the custom provider
+      instrumentation = new BedrockInstrumentation({
+        tracerProvider: customTracerProvider,
+      });
+      instrumentation.disable();
+
+      // Mock the module exports like in other tests
+      // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+      customTracerProvider.shutdown();
+    });
+
+    beforeEach(() => {
+      customMemoryExporter.reset();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - constructor",
+      );
+
+      const client = createTestClient(isRecordingMode);
+
+      const command = new InvokeModelCommand({
+        modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 100,
+          messages: [
+            {
+              role: "user",
+              content: "Say this is a test",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      // Verify custom exporter has the span and global exporter does not
+      const span = verifySpanBasics(customMemoryExporter);
+      const globalSpans = spanExporter.getFinishedSpans();
+      expect(globalSpans.length).toBe(0);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
+    });
+  });
+
+  describe("BedrockInstrumentation with custom TracerProvider set", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let instrumentation: BedrockInstrumentation;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    beforeAll(() => {
+      // Instantiate instrumentation and set the custom provider
+      instrumentation = new BedrockInstrumentation();
+      instrumentation.setTracerProvider(customTracerProvider);
+      instrumentation.disable();
+
+      // Mock the module exports like in other tests
+      // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+      customTracerProvider.shutdown();
+    });
+
+    beforeEach(() => {
+      customMemoryExporter.reset();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - setTracerProvider",
+      );
+
+      const client = createTestClient(isRecordingMode);
+
+      const command = new InvokeModelCommand({
+        modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 100,
+          messages: [
+            {
+              role: "user",
+              content: "Say this is a test",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      // Verify custom exporter has the span and global exporter does not
+      const span = verifySpanBasics(customMemoryExporter);
+      const globalSpans = spanExporter.getFinishedSpans();
+      expect(globalSpans.length).toBe(0);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
+    });
+  });
+
+  describe("BedrockInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+    let instrumentation: BedrockInstrumentation;
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    beforeAll(() => {
+      // Instantiate instrumentation and register with the custom provider
+      instrumentation = new BedrockInstrumentation();
+      registerInstrumentations({
+        instrumentations: [instrumentation],
+        tracerProvider: customTracerProvider,
+      });
+      instrumentation.disable();
+
+      // Mock the module exports like in other tests
+      // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+      customTracerProvider.shutdown();
+    });
+
+    beforeEach(() => {
+      customMemoryExporter.reset();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - registerInstrumentations",
+      );
+
+      const client = createTestClient(isRecordingMode);
+
+      const command = new InvokeModelCommand({
+        modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 100,
+          messages: [
+            {
+              role: "user",
+              content: "Say this is a test",
+            },
+          ],
+        }),
+        contentType: "application/json",
+        accept: "application/json",
+      });
+
+      const result = await client.send(command);
+      verifyResponseStructure(result);
+
+      // Verify custom exporter has the span and global exporter does not
+      const span = verifySpanBasics(customMemoryExporter);
+      const globalSpans = spanExporter.getFinishedSpans();
+      expect(globalSpans.length).toBe(0);
+      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
+    });
   });
 });
