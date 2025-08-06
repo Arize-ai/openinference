@@ -8,7 +8,6 @@ import {
   MOCK_AUTH_HEADERS,
 } from "../config/constants";
 
-
 // Helper function to create nock mock for Bedrock API
 export const createNockMock = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,16 +96,14 @@ export const setupTestRecording = (
   testName: string,
   testDir: string,
   isRecordingMode: boolean,
-  defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+  defaultModelId: string = "anthropic.claude-3-5-sonnet-20240620-v1:0",
 ) => {
   const recordingsPath = getRecordingPath(testName, testDir);
 
   if (!isRecordingMode) {
     // Replay mode: create mock from test-specific recording
     if (fs.existsSync(recordingsPath)) {
-      const recordingData = JSON.parse(
-        fs.readFileSync(recordingsPath, "utf8"),
-      );
+      const recordingData = JSON.parse(fs.readFileSync(recordingsPath, "utf8"));
 
       // Create mocks for all recorded requests
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,7 +152,10 @@ export const initializeRecordingMode = () => {
 };
 
 // Helper function to save recording mode data in afterEach hooks
-export const saveRecordingModeData = (currentTestName: string, recordingsPath: string) => {
+export const saveRecordingModeData = (
+  currentTestName: string,
+  recordingsPath: string,
+) => {
   const recordings = nock.recorder.play();
   // eslint-disable-next-line no-console
   console.log(

@@ -27,8 +27,6 @@ import {
   PROMPT_TEMPLATE_VARIABLES,
 } from "@arizeai/openinference-semantic-conventions";
 import nock from "nock";
-import * as fs from "fs";
-import * as path from "path";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   generateToolResultMessage,
@@ -36,7 +34,6 @@ import {
   commonTools,
 } from "./helpers/test-data-generators";
 import {
-  sanitizeAuthHeaders,
   createTestClient,
   getRecordingPath,
   setupTestRecording,
@@ -94,7 +91,12 @@ describe("BedrockInstrumentation", () => {
   // Helper wrapper for tests to set up their specific recording
   const setupTestRecordingWrapper = (testName: string) => {
     currentTestName = testName;
-    recordingsPath = setupTestRecording(testName, __dirname, isRecordingMode, TEST_MODEL_ID);
+    recordingsPath = setupTestRecording(
+      testName,
+      __dirname,
+      isRecordingMode,
+      TEST_MODEL_ID,
+    );
   };
 
   beforeEach(() => {
@@ -310,7 +312,9 @@ The key things are to dress for the warm temperatures and have layers you can",
 `);
       });
       it("should handle multiple tools in single request", async () => {
-        setupTestRecordingWrapper("should handle multiple tools in single request");
+        setupTestRecordingWrapper(
+          "should handle multiple tools in single request",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -367,7 +371,9 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Multi-Modal", () => {
       it("should handle multi-modal messages with images", async () => {
-        setupTestRecordingWrapper("should handle multi-modal messages with images");
+        setupTestRecordingWrapper(
+          "should handle multi-modal messages with images",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -480,7 +486,9 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Error Handling", () => {
       it("should handle missing token counts gracefully", async () => {
-        setupTestRecordingWrapper("should handle missing token counts gracefully");
+        setupTestRecordingWrapper(
+          "should handle missing token counts gracefully",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -966,7 +974,9 @@ This model is designed to avoid generating sensitive content. It is important to
   describe("InvokeModelWithResponseStream", () => {
     describe("Basic Function and Tool Calling", () => {
       it("should handle InvokeModelWithResponseStream", async () => {
-        setupTestRecordingWrapper("should handle invoke model with response stream");
+        setupTestRecordingWrapper(
+          "should handle invoke model with response stream",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1016,7 +1026,9 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
 
       it("should handle streaming responses with tool calls", async () => {
-        setupTestRecordingWrapper("should handle streaming responses with tool calls");
+        setupTestRecordingWrapper(
+          "should handle streaming responses with tool calls",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -1720,7 +1732,9 @@ Respond briefly.",
 
     describe("Configuration", () => {
       it("should handle inference config in Converse API", async () => {
-        setupTestRecordingWrapper("should-handle-inference-config-in-converse-api");
+        setupTestRecordingWrapper(
+          "should-handle-inference-config-in-converse-api",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -2652,7 +2666,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       // Context and VCR Infrastructure
 
       it("should handle context attributes with Converse", async () => {
-        setupTestRecordingWrapper("should-handle-context-attributes-with-converse");
+        setupTestRecordingWrapper(
+          "should-handle-context-attributes-with-converse",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -2751,7 +2767,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should comprehensively test all token count types", async () => {
-        setupTestRecordingWrapper("should-comprehensively-test-all-token-count-types");
+        setupTestRecordingWrapper(
+          "should-comprehensively-test-all-token-count-types",
+        );
 
         const client = createTestClient(isRecordingMode);
 
@@ -2896,7 +2914,12 @@ describe("BedrockInstrumentation - custom tracing", () => {
   // Helper wrapper for custom tracing tests to set up their specific recording
   const setupTestRecordingCustom = (testName: string) => {
     currentTestName = testName;
-    recordingsPath = setupTestRecording(testName, __dirname, isRecordingMode, "anthropic.claude-3-sonnet-20240229-v1:0");
+    recordingsPath = setupTestRecording(
+      testName,
+      __dirname,
+      isRecordingMode,
+      "anthropic.claude-3-sonnet-20240229-v1:0",
+    );
   };
 
   beforeEach(() => {
@@ -2951,7 +2974,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
-      
+
       instrumentation.enable();
     });
 
@@ -2965,7 +2988,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
-      setupTestRecordingCustom("should use the provided tracer provider instead of the global one - constructor");
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - constructor",
+      );
 
       const client = createTestClient(isRecordingMode);
 
@@ -2993,7 +3018,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
     });
   });
 
@@ -3016,7 +3043,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
-      
+
       instrumentation.enable();
     });
 
@@ -3030,7 +3057,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
-      setupTestRecordingCustom("should use the provided tracer provider instead of the global one - setTracerProvider");
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - setTracerProvider",
+      );
 
       const client = createTestClient(isRecordingMode);
 
@@ -3058,7 +3087,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
     });
   });
 
@@ -3084,7 +3115,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
-      
+
       instrumentation.enable();
     });
 
@@ -3098,7 +3129,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
-      setupTestRecordingCustom("should use the provided tracer provider instead of the global one - registerInstrumentations");
+      setupTestRecordingCustom(
+        "should use the provided tracer provider instead of the global one - registerInstrumentations",
+      );
 
       const client = createTestClient(isRecordingMode);
 
@@ -3126,7 +3159,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
+      expect(span.attributes["llm.model_name"]).toBe(
+        "claude-3-sonnet-20240229",
+      );
     });
   });
 });
