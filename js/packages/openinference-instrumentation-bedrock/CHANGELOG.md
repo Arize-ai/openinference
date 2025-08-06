@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.3.0
+
+### Minor Changes
+
+- a4426be: Add a readme and ability to add a custom tracing provider to the instrumentation
+
 ## 0.2.0
 
 ### Minor Changes
