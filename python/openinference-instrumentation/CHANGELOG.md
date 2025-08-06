@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.36...python-openinference-instrumentation-v0.1.37) (2025-08-06)
+
+
+### Features
+
+* increase default span attribute count limit to 10,000 ([#2042](https://github.com/Arize-ai/openinference/issues/2042)) ([0e90576](https://github.com/Arize-ai/openinference/commit/0e90576cd841c73f561ffbb98d9a39cfe035509d))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.35...python-openinference-instrumentation-v0.1.36) (2025-07-29)
 
 
