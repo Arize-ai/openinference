@@ -193,7 +193,8 @@ jreleaser {
                     stagingRepositories = [
                         'openinference-semantic-conventions/build/staging-deploy',
                         'openinference-instrumentation/build/staging-deploy', 
-                        'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy'
+                        'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy',
+                        'instrumentation/openinference-instrumentation-springAI/build/staging-deploy'
                     ]
                 }
             }
