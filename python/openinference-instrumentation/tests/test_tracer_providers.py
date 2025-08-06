@@ -17,23 +17,23 @@ from openinference.instrumentation._tracer_providers import (
 
 
 class TestSpanLimits:
-    """Test span limits behavior and user configuration precedence in Phoenix.
+    """Test span limits behavior and user configuration precedence.
 
-    This test class verifies that Phoenix correctly handles span attribute limits
+    This test class verifies that span attribute limits are correctly handled
     with the following precedence order:
     1. Explicit span_limits parameter (highest precedence)
     2. OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT environment variable
     3. OTEL_ATTRIBUTE_COUNT_LIMIT environment variable
-    4. Phoenix default (10,000) (lowest precedence)
+    4. Default limit (10,000) (lowest precedence)
 
     Each test creates actual spans and verifies that the correct limit is enforced
     by checking how many attributes are retained vs dropped.
     """
 
-    def test_phoenix_default_span_attribute_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that Phoenix's default span attribute limit (10,000) is enforced.
+    def test_default_span_attribute_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the default span attribute limit (10,000) is enforced.
 
-        When no environment variables or explicit span_limits are set, Phoenix should
+        When no environment variables or explicit span_limits are set, the system should
         automatically apply its default span attribute limit of 10,000. Excess attributes
         beyond this limit should be dropped.
 
@@ -48,23 +48,23 @@ class TestSpanLimits:
         in_memory_span_exporter = InMemorySpanExporter()
         tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
 
-        # Create more attributes than Phoenix's default limit
-        phoenix_limit = _DEFAULT_OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT
-        attributes = {str(i): i for i in range(phoenix_limit + 1)}
-        assert len(attributes) > phoenix_limit
+        # Create more attributes than the default limit
+        default_limit = _DEFAULT_OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT
+        attributes = {str(i): i for i in range(default_limit + 1)}
+        assert len(attributes) > default_limit
         name = token_hex(8)
         with tracer_provider.get_tracer(__name__).start_span(name) as span:
             span.set_attributes(attributes)
 
         spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
-        assert len(spans[name].attributes or {}) == phoenix_limit
+        assert len(spans[name].attributes or {}) == default_limit
 
     def test_respects_user_env_var_span_attribute_limit(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test that user-configured OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT is respected.
 
-        When a user sets OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT, Phoenix should use that value
+        When a user sets OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT, the system should use that value
         instead of its default, demonstrating that user configuration takes precedence.
 
         Args:
@@ -93,7 +93,7 @@ class TestSpanLimits:
     ) -> None:
         """Test that user-configured OTEL_ATTRIBUTE_COUNT_LIMIT is respected.
 
-        When a user sets OTEL_ATTRIBUTE_COUNT_LIMIT (general limit), Phoenix should use
+        When a user sets OTEL_ATTRIBUTE_COUNT_LIMIT (general limit), the system should use
         that value for span attributes when no span-specific limit is set.
 
         Args:
@@ -121,7 +121,7 @@ class TestSpanLimits:
         """Test that explicitly passed span_limits parameter is respected.
 
         When a user passes an explicit span_limits parameter to register(),
-        Phoenix should use that instead of its default or environment variables.
+        the system should use that instead of its default or environment variables.
 
         Args:
             monkeypatch: Pytest fixture for modifying environment variables.
@@ -147,24 +147,24 @@ class TestSpanLimits:
             span.set_attributes(attributes)
 
         spans = {span.name: span for span in in_memory_span_exporter.get_finished_spans()}
-        # Should use the explicit limit, not env vars or Phoenix default
+        # Should use the explicit limit, not env vars or default
         assert len(spans[name].attributes or {}) == user_limit
 
 
 class TestCreateSpanLimitsWithLargeDefaults:
     """Test the _create_span_limits_with_large_defaults factory function.
 
-    This test class verifies that Phoenix correctly creates SpanLimits objects with
+    This test class verifies that SpanLimits objects are correctly created with
     appropriate attribute count limits based on environment variable configuration
-    and Phoenix's default preferences.
+    and default preferences.
     """
 
-    def test_phoenix_default_without_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that Phoenix's default limit (10,000) is used when no env vars are set.
+    def test_default_without_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the default limit (10,000) is used when no env vars are set.
 
         When neither OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT nor OTEL_ATTRIBUTE_COUNT_LIMIT
         environment variables are set, the function should return a SpanLimits object
-        configured with Phoenix's preferred default of 10,000 span attributes.
+        configured with the preferred default of 10,000 span attributes.
 
         Args:
             monkeypatch: Pytest fixture for modifying environment variables.
@@ -181,10 +181,10 @@ class TestCreateSpanLimitsWithLargeDefaults:
         This test verifies the correct precedence order for attribute count limits:
         1. OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT (span-specific, highest precedence)
         2. OTEL_ATTRIBUTE_COUNT_LIMIT (general, lower precedence)
-        3. Phoenix default (10,000, lowest precedence)
+        3. Default limit (10,000, lowest precedence)
 
         The function should defer to OpenTelemetry's built-in precedence handling
-        when any environment variables are set, and only use Phoenix's default
+        when any environment variables are set, and only use the default
         when no environment configuration is present.
 
         Args:

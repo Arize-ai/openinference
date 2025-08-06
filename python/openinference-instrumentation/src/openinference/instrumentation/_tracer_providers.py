@@ -66,5 +66,5 @@ def _create_span_limits_with_large_defaults() -> SpanLimits:
         # User has set some limit via environment variables
         # Let SpanLimits() handle the precedence and parsing
         return SpanLimits()
-    # No user configuration, use Phoenix's default for span attributes specifically
+    # No user configuration, use default for span attributes specifically
     return SpanLimits(max_span_attributes=_DEFAULT_OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT)
