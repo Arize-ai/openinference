@@ -82,20 +82,17 @@ def _generate_node_id(path: str) -> str:
     node_id = hashlib.sha256(path.encode()).hexdigest()[:16]
     return node_id
 
-def _get_parent_from_context() -> Optional[str]:
-    return context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
-
-def _set_parent_in_context(parent_node_id: str) -> context_api.Context:
-     return context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, parent_node_id)
 
 def _agent_run_attributes(
-    agent: Union[Agent, Team], key_suffix: str = "", parent_path: str = ""
+    agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
 
-      # Get parent from execution context instead of structural parent
-      context_parent_id = _get_parent_from_context() 
+    parent_path: str = ""
 
-      if isinstance(agent, Team):
+    # Get parent from execution context instead of structural parent
+    context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    if isinstance(agent, Team):
         # Build current path for this team
         current_path = f"{parent_path}.{agent.name}" if parent_path else (agent.name or "team")
         node_id = _generate_node_id(current_path)
@@ -107,15 +104,12 @@ def _agent_run_attributes(
         yield GRAPH_NODE_ID, node_id
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
         if context_parent_id:
             yield GRAPH_NODE_PARENT_ID, context_parent_id
 
-        # Process team members with parent context
-    #   for member in agent.members:
-    #       member_suffix = f".{member.name}" if member.name else ""
-    #       yield from _agent_run_attributes(member, member_suffix, current_path)
-
-      elif isinstance(agent, Agent):
+    elif isinstance(agent, Agent):
         # Build current path for this agent
         current_path = f"{parent_path}.{agent.name}" if parent_path else (agent.name or "agent")
         node_id = _generate_node_id(current_path)
@@ -176,9 +170,7 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Generate node_id for this execution
-        current_path = agent_name
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id(agent_name)
 
         with self._tracer.start_as_current_span(
             span_name,
@@ -199,11 +191,11 @@ class _RunWrapper:
         ) as span:
             # Set up context for team executions
             if isinstance(agent, Team):
-                context_with_parent = _set_parent_in_context(node_id)
-                token = context_api.attach(context_with_parent)
+                token = context_api.attach(context_api.set_value(
+                    _AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
             else:
-                # context_with_parent = context_api.get_current()
                 token = None
+
             try:
                 run_response = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
@@ -236,6 +228,8 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        node_id = _generate_node_id(agent_name)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -253,6 +247,12 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            if isinstance(agent, Team):
+                token = context_api.attach(context_api.set_value(
+                    _AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
+            else:
+                token = None
+
             try:
                 yield from wrapped(*args, **kwargs)
                 run_response = agent.run_response
@@ -263,6 +263,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if token:
+                    context_api.detach(token)
 
     async def arun(
         self,
@@ -282,6 +286,8 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        node_id = _generate_node_id(agent_name)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -299,6 +305,12 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            if isinstance(agent, Team):
+                token = context_api.attach(context_api.set_value(
+                    _AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
+            else:
+                token = None
+
             try:
                 run_response = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
@@ -308,6 +320,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if token:
+                    context_api.detach(token)
 
     async def arun_stream(
         self,
@@ -327,6 +343,8 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        node_id = _generate_node_id(agent_name)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -344,6 +362,12 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            if isinstance(agent, Team):
+                token = context_api.attach(context_api.set_value(
+                    _AGNO_PARENT_NODE_CONTEXT_KEY, node_id))
+            else:
+                token = None
+
             try:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
@@ -354,6 +378,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if token:
+                    context_api.detach(token)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
