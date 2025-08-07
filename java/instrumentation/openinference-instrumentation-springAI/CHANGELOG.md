@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.2...java-openinference-instrumentation-springAI-v0.1.3) (2025-08-07)
+
+
+### Features
+
+* new experimental release ([#2050](https://github.com/Arize-ai/openinference/issues/2050)) ([3afeed2](https://github.com/Arize-ai/openinference/commit/3afeed2d72d52a0d96217c9c1c6e1f7d3e983c73))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.1...java-openinference-instrumentation-springAI-v0.1.2) (2025-08-06)
 
 
