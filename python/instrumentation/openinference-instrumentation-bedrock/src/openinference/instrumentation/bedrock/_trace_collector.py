@@ -198,6 +198,18 @@ class TraceCollector:
         self.trace_nodes: dict[str, TraceNode] = {default_trace_id: self.initial_node}
         self.trace_ids: List[str] = [self.initial_node.node_trace_id]
 
+    def find_node_by_trace_id(self, trace_id: str) -> Optional[TraceNode]:
+        """
+        Find a trace node by its trace ID using the trace_nodes dictionary.
+        
+        Args:
+            trace_id: The trace ID to search for
+            
+        Returns:
+            The matching TraceNode or None if not found
+        """
+        return self.trace_nodes.get(trace_id)
+
     def _handle_chunk_for_current_node(
         self, node: TraceNode, chunk_type: str, trace_data: Dict[str, Any]
     ) -> None:
@@ -245,6 +257,11 @@ class TraceCollector:
         elif event_type == "failureTrace":
             trace_node = TraceNode(node_trace_id, event_type)
             trace_node.chunks.append(trace_data)
+        elif event_type == "guardrailTrace":
+            trace_node = TraceNode(node_trace_id, event_type)
+            trace_span = TraceSpan(chunk_type)
+            trace_span.add_chunk(trace_data)
+            trace_node.add_span(trace_span)
         else:
             trace_node = TraceNode(node_trace_id, event_type)
             trace_span = TraceSpan(chunk_type)
@@ -335,6 +352,7 @@ class TraceCollector:
         Returns:
             The current TraceNode after processing
         """
+
         # Extract trace data from the input object
         trace_data: Dict[str, Any] = self._extract_trace_data(obj)
 
@@ -350,6 +368,8 @@ class TraceCollector:
             event_type, AttributeExtractor.extract_trace_id(trace_data)
         )
         chunk_type = AttributeExtractor.get_chunk_type(trace_data.get(event_type, {}))
+        if event_type == "guardrailTrace":
+            chunk_type = "guardrail"
 
         # Initialize variables
         agent_node_trace_id = ""
@@ -437,6 +457,10 @@ class TraceCollector:
                 self._handle_chunk_for_current_node(parent_trace_node, chunk_type, trace_data)
         elif node_trace_id in self.trace_ids:
             # Handle case where trace ID exists but parent node doesn't match
+
+            # Use the trace_nodes dictionary to find the node
+            # Important for guardrail traces because the first guardrail trace is created at the very beginning and remaining are created after the output.
+            parent_trace_node = self.find_node_by_trace_id(node_trace_id)
             self._handle_existing_trace_id_scenario(
                 parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
             )
