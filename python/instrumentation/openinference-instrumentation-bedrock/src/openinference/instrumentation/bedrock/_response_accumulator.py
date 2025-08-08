@@ -83,6 +83,7 @@ class _ResponseAccumulator:
             idx: Index for the accumulator, useful when handling multiple responses
         """
         self._span = span
+        self._final_response: str = ""
         self._request_parameters = request
         self.tracer = tracer
         self._is_finished: bool = False
@@ -116,7 +117,8 @@ class _ResponseAccumulator:
                 if "chunk" in obj:
                     if "bytes" in obj["chunk"]:
                         output_text = obj["chunk"]["bytes"].decode("utf-8")
-                        self._span.set_attributes(get_output_attributes(output_text))
+                        self._final_response += output_text
+                        self._span.set_attributes(get_output_attributes(self._final_response))
                 elif "trace" in obj:
                     self.trace_collector.collect(obj)
             elif isinstance(obj, (StopIteration, StopAsyncIteration)):
@@ -253,6 +255,14 @@ class _ResponseAccumulator:
                 if "observation" in event_data:
                     observation = event_data.get("observation", {})
                     metadata = AttributeExtractor.get_observation_metadata_attributes(observation)
+                    if time_value := metadata.get(time_key):
+                        return int(time_value)
+
+                # Check guardrail trace
+                if "metadata" in event_data:
+                    metadata = AttributeExtractor.get_metadata_attributes(
+                        event_data.get("metadata")
+                    )
                     if time_value := metadata.get(time_key):
                         return int(time_value)
 
@@ -411,8 +421,22 @@ class _ResponseAccumulator:
 
             # Create span with appropriate timing
             start_time = self._fetch_span_start_time(attributes, trace_span)
+
             span = self._create_chain_span(parent_span, attributes, start_time)
-            span.set_status(Status(StatusCode.OK))
+            status_code = StatusCode.OK
+            if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
+                guardrail_actions = attributes.metadata.get("guardrails", [])
+                try:
+                    if any(
+                        (action.get("action") == "INTERVENED")
+                        for action in guardrail_actions
+                        if isinstance(action, dict)
+                    ):
+                        status_code = StatusCode.ERROR
+                except Exception:
+                    # Fallback for any unexpected structure
+                    status_code = StatusCode.OK
+            span.set_status(Status(status_code))
 
             # Process child spans recursively
             if isinstance(trace_span, TraceNode):
@@ -479,6 +503,10 @@ class _ResponseAccumulator:
             # Process rationale
             if "rationale" in event_data:
                 cls._process_rationale(event_data, _attributes)
+
+            if trace_event == "guardrailTrace":
+                cls._process_guardrail_trace(event_data, _attributes)
+
             if trace_event == "failureTrace":
                 cls._process_failure_trace(event_data, _attributes)
         return _attributes
@@ -575,6 +603,24 @@ class _ResponseAccumulator:
             AttributeExtractor.get_attributes_from_observation(observation)
         )
         attributes.metadata.update(AttributeExtractor.get_metadata_from_observation(observation))
+
+    @classmethod
+    def _process_guardrail_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:
+        """
+        Process guardrail trace data.
+        """
+        attributes.span_kind = OpenInferenceSpanKindValues.GUARDRAIL
+        attributes.name = "Guardrails"
+
+        guardrail_attributes = AttributeExtractor.get_attributes_from_guardrail_trace(event_data)
+        attributes.metadata.update(
+            AttributeExtractor.get_metadata_attributes(event_data.get("metadata", {}))
+        )
+
+        if "guardrails" not in attributes.metadata:
+            attributes.metadata["guardrails"] = []
+
+        attributes.metadata["guardrails"].append(guardrail_attributes)
 
     @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:

@@ -324,7 +324,7 @@ class AttributeExtractor:
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
             metadata["operation_total_time_ms"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms :="] = total_time_ms
+            metadata["total_time_ms"] = total_time_ms
         return metadata
 
     @classmethod
@@ -339,7 +339,7 @@ class AttributeExtractor:
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
             metadata["operation_total_time_ms"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms :="] = total_time_ms
+            metadata["total_time_ms"] = total_time_ms
         return metadata
 
     @classmethod
@@ -539,6 +539,7 @@ class AttributeExtractor:
         trace_events = [
             "preProcessingTrace",
             "orchestrationTrace",
+            "guardrailTrace",
             "postProcessingTrace",
             "failureTrace",
         ]
@@ -861,8 +862,34 @@ class AttributeExtractor:
             if "traceId" in rationale:
                 return rationale["traceId"]
 
+        # For guardrail traces
+        if "traceId" in event_data:
+            return event_data["traceId"]
+
         # Generate a unique ID if none found
         return str(uuid.uuid4())
+
+    @classmethod
+    def get_attributes_from_guardrail_trace(cls, guardrail_trace: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract attributes from guardrail trace data.
+        """
+        guardrail_trace_data = {}
+
+        # Extract client_request_id from the guardrail metadata if present
+        metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
+        if client_request_id := metadata_attributes.get("client_request_id"):
+            guardrail_trace_data["client_request_id"] = client_request_id
+
+        # Normalize keys to snake_case for consistency in metadata
+        if "action" in guardrail_trace:
+            guardrail_trace_data["action"] = guardrail_trace["action"]
+        if "inputAssessments" in guardrail_trace:
+            guardrail_trace_data["input_assessments"] = guardrail_trace["inputAssessments"]
+        if "outputAssessments" in guardrail_trace:
+            guardrail_trace_data["output_assessments"] = guardrail_trace["outputAssessments"]
+
+        return guardrail_trace_data
 
     @classmethod
     def get_failure_trace_attributes(cls, trace_data: dict[str, Any]) -> dict[str, Any]:
