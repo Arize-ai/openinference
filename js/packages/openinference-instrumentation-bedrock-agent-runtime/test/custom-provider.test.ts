@@ -92,7 +92,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
     });
   });
 
-  describe("BedrockkAgentInstrumentation with custom TracerProvider set", () => {
+  describe("BedrockAgentInstrumentation with custom TracerProvider set", () => {
     const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
 
