@@ -1,4 +1,4 @@
-import { diag, SpanStatusCode, Span } from "@opentelemetry/api";
+import { SpanStatusCode, Span } from "@opentelemetry/api";
 
 import {
   MimeType,
