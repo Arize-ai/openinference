@@ -1,11 +1,17 @@
-from typing import Any, Generator
 import json
+from typing import (
+    Any,
+    Generator,
+    cast
+)
 
 import pytest
 import vcr  # type: ignore
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
+from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -14,6 +20,7 @@ from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
+from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
@@ -82,7 +89,7 @@ def test_agno_instrumentation(
             assert attributes.get("output.value")
             output_value = attributes.get("output.value")
             if output_value:
-                output_data = json.loads(output_value)
+                output_data = json.loads(cast(str, output_value))
                 session_id = output_data.get("session_id")
                 assert session_id is not None, "session_id should be present in output.value"
                 assert isinstance(session_id, str), "session_id should be a string"
@@ -116,3 +123,97 @@ def test_agno_instrumentation(
             assert attributes.get("llm.provider") == "OpenAI"
             assert span.status.is_ok
     assert checked_spans == 2
+
+
+def test_agno_team_coordinate_instrumentation(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    with test_vcr.use_cassette(
+        "team_coordinate_run.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import hashlib
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+
+        web_agent = Agent(
+            name="Web Agent",
+            role="Search the web for information",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            instructions="Always include sources",
+        )
+
+        finance_agent = Agent(
+            name="Finance Agent",
+            role="Get financial data",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[
+                YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)
+            ],
+            instructions="Use tables to display data",
+        )
+
+        agent_team = Team(
+            name="Team",
+            mode="coordinate",
+            members=[web_agent, finance_agent],
+            model=OpenAIChat(id="gpt-4o-mini"),
+            success_criteria=(
+                "A comprehensive financial news report with clear sections "
+                "and data-driven insights."
+            ),
+            instructions=["Always include sources", "Use tables to display data"],
+        )
+
+        agent_team.run("What's the market outlook and financial performance of NVIDIA?")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) >= 2
+
+    # Collect spans by name for graph relationship validation
+    team_span = None
+    web_agent_span = None
+    finance_agent_span = None
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        if span.name == "Team.run":
+            team_span = attributes
+        elif span.name == "Web_Agent.run":
+            web_agent_span = attributes
+        elif span.name == "Finance_Agent.run":
+            finance_agent_span = attributes
+
+    # Calculate expected node IDs based on the hash generation logic
+    team_node_id = hashlib.sha256("Team".encode()).hexdigest()[:16]
+    web_agent_node_id = hashlib.sha256("Web Agent".encode()).hexdigest()[:16]
+    finance_agent_node_id = hashlib.sha256("Finance Agent".encode()).hexdigest()[:16]
+
+    # Validate graph attributes for team span
+    assert team_span is not None, "Team span should be found"
+    assert team_span.get(SpanAttributes.GRAPH_NODE_ID) == team_node_id
+    assert team_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Team"
+    # Team should have no parent (root node)
+    # assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
+
+    # Validate graph attributes for web agent span
+    if web_agent_span is not None:
+        assert web_agent_span.get(SpanAttributes.GRAPH_NODE_ID) == web_agent_node_id
+        assert web_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Web Agent"
+        # Web agent should have team as parent
+        assert web_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
+
+    # Validate graph attributes for finance agent span
+    if finance_agent_span is not None:
+        assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_ID) == finance_agent_node_id
+        assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Finance Agent"
+        # Finance agent should have team as parent
+        assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
+
+    # At least one agent span should be present to validate parent-child relationship
+    assert web_agent_span is not None or finance_agent_span is not None, (
+        "At least one agent span should be found"
+    )

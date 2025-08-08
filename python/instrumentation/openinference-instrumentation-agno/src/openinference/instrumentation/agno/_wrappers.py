@@ -12,6 +12,7 @@ from typing import (
     OrderedDict,
     Tuple,
     Union,
+    cast
 )
 
 from opentelemetry import context as context_api
@@ -107,7 +108,7 @@ def _agent_run_attributes(
 
         # Use context parent instead of structural parent
         if context_parent_id:
-            yield GRAPH_NODE_PARENT_ID, context_parent_id
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
 
     elif isinstance(agent, Agent):
         # Build current path for this agent
@@ -125,7 +126,7 @@ def _agent_run_attributes(
 
         # Use context parent instead of structural parent
         if context_parent_id:
-            yield GRAPH_NODE_PARENT_ID, context_parent_id
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
 
         # Existing agent-specific attributes
         if agent.session_id:
