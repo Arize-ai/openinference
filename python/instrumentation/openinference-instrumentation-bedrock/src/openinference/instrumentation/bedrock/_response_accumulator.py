@@ -425,9 +425,17 @@ class _ResponseAccumulator:
             span = self._create_chain_span(parent_span, attributes, start_time)
             status_code = StatusCode.OK
             if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
-                if actions := attributes.metadata.get("action", []):
-                    if "INTERVENED" in actions:
+                guardrail_actions = attributes.metadata.get("guardrails", [])
+                try:
+                    if any(
+                        (action.get("action") == "INTERVENED")
+                        for action in guardrail_actions
+                        if isinstance(action, dict)
+                    ):
                         status_code = StatusCode.ERROR
+                except Exception:
+                    # Fallback for any unexpected structure
+                    status_code = StatusCode.OK
             span.set_status(Status(status_code))
 
             # Process child spans recursively
@@ -609,16 +617,10 @@ class _ResponseAccumulator:
             AttributeExtractor.get_metadata_attributes(event_data.get("metadata", {}))
         )
 
-        if action := guardrail_attributes.get("action"):
-            attributes.metadata["action"] = attributes.metadata.get("action", []) + [action]
-        if input_assessments := guardrail_attributes.get("inputAssessments"):
-            attributes.metadata["inputAssessments"] = (
-                attributes.metadata.get("inputAssessments", []) + input_assessments
-            )
-        if output_assessments := guardrail_attributes.get("outputAssessments"):
-            attributes.metadata["outputAssessments"] = (
-                attributes.metadata.get("outputAssessments", []) + output_assessments
-            )
+        if "guardrails" not in attributes.metadata:
+            attributes.metadata["guardrails"] = []
+
+        attributes.metadata["guardrails"].append(guardrail_attributes)
 
     @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:

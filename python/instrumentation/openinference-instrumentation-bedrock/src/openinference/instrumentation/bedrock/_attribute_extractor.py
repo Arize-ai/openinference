@@ -875,12 +875,20 @@ class AttributeExtractor:
         Extract attributes from guardrail trace data.
         """
         guardrail_trace_data = {}
-        if "inputAssessments" in guardrail_trace:
-            guardrail_trace_data["inputAssessments"] = guardrail_trace["inputAssessments"]
-        if "outputAssessments" in guardrail_trace:
-            guardrail_trace_data["outputAssessments"] = guardrail_trace["outputAssessments"]
+
+        # Extract client_request_id from the guardrail metadata if present
+        metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
+        if client_request_id := metadata_attributes.get("client_request_id"):
+            guardrail_trace_data["client_request_id"] = client_request_id
+
+        # Normalize keys to snake_case for consistency in metadata
         if "action" in guardrail_trace:
             guardrail_trace_data["action"] = guardrail_trace["action"]
+        if "inputAssessments" in guardrail_trace:
+            guardrail_trace_data["input_assessments"] = guardrail_trace["inputAssessments"]
+        if "outputAssessments" in guardrail_trace:
+            guardrail_trace_data["output_assessments"] = guardrail_trace["outputAssessments"]
+
         return guardrail_trace_data
 
     @classmethod
