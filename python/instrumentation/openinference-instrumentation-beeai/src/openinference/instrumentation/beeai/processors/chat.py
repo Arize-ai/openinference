@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -81,7 +80,7 @@ class ChatModelProcessor(Processor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOOLS: json.loads(stringify(event.input.tools or [])),
+                        SpanAttributes.LLM_TOOLS: [t.name for t in (event.input.tools or [])],
                         SpanAttributes.LLM_INVOCATION_PARAMETERS: stringify(
                             meta.creator.parameters.model_dump(
                                 exclude_none=True, exclude_unset=True
@@ -103,18 +102,27 @@ class ChatModelProcessor(Processor):
                     self._add_new_messages(event.value.messages)
 
                 usage = event.value.usage
+                if usage:
+                    self.span.set_attributes(
+                        {
+                            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage.total_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage.prompt_tokens,
+                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage.completion_tokens,
+                        }
+                    )
+
+                cost = event.value.cost
+                if cost:
+                    self.span.set_attributes(
+                        {
+                            SpanAttributes.LLM_COST_COMPLETION: cost.completion_tokens_cost_usd,
+                            SpanAttributes.LLM_COST_PROMPT: cost.prompt_tokens_usd,
+                            SpanAttributes.LLM_COST_TOTAL: cost.total_cost_usd,
+                        }
+                    )
 
                 self.span.set_attributes(
                     {
-                        **(
-                            {
-                                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: usage.total_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: usage.prompt_tokens,
-                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: usage.completion_tokens,
-                            }
-                            if usage
-                            else {}
-                        ),
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: type(self).kind,
                         SpanAttributes.OUTPUT_VALUE: event.value.get_text_content(),
                         SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
@@ -149,8 +157,6 @@ def _process_tools(tools: list[AnyTool]) -> list[dict[str, str | Any]]:
         {
             SpanAttributes.TOOL_NAME: t.name,
             SpanAttributes.TOOL_DESCRIPTION: t.description,
-            # TODO: difference between TOOL_PARAMETERS and TOOL_JSON_SCHEMA is not obvious
-            SpanAttributes.TOOL_PARAMETERS: safe_dump_model_schema(t.input_schema),
             ToolAttributes.TOOL_JSON_SCHEMA: safe_dump_model_schema(t.input_schema),
         }
         for t in tools
