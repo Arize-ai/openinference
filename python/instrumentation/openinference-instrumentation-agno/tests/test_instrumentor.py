@@ -1,4 +1,5 @@
 from typing import Any, Generator
+import json
 
 import pytest
 import vcr  # type: ignore
@@ -79,7 +80,12 @@ def test_agno_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "AGENT"
             assert attributes.get("output.value")
-            assert attributes.get("session.id")
+            output_value = attributes.get("output.value")
+            if output_value:
+                output_data = json.loads(output_value)
+                session_id = output_data.get("session_id")
+                assert session_id is not None, "session_id should be present in output.value"
+                assert isinstance(session_id, str), "session_id should be a string"
             # assert that there are no tokens on the kickoff chain so that we do not
             # double count token when a user is also instrumenting with another instrumentor
             # that provides token counts via the spans.
