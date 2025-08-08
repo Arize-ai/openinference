@@ -736,6 +736,9 @@ export enum LLMSystem {
   MISTRALAI = "mistralai",
   COHERE = "cohere",
   VERTEXAI = "vertexai",
+  AI21 = "ai21",
+  META = "meta",
+  AMAZON = "amazon",
 }
 
 export enum LLMProvider {

@@ -1,0 +1,134 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-sonnet-20240229-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say this is a test"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_01PDWhznp9a1VV1VGDD9jTqK",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-sonnet-20240229",
+      "content": [
+        {
+          "type": "text",
+          "text": "This is a test"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 12,
+        "output_tokens": 7
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Wed, 06 Aug 2025 15:15:57 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "257",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "24d55861-5947-45e3-ab82-609a8c816c28",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "647",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "7",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "12"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "119",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "95f84afa-691c-4eac-bdab-011924b2dfbd",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "462886b29937f0c1bcff551641447f3382b827d040237b8938b034b330fea5ef",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  },
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-sonnet-20240229-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say this is a test"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_017Xi1NXGiBdy9AM7QbT5ZCP",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-sonnet-20240229",
+      "content": [
+        {
+          "type": "text",
+          "text": "This is a test"
+        }
+      ],
+      "stop_reason": "end_turn",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 12,
+        "output_tokens": 7
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Wed, 06 Aug 2025 15:15:57 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "257",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "a4ab1266-ee0f-4c54-86f0-dc9e5b3302f9",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "267",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "7",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "12"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "119",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "677e37f0-0a26-471b-9c1d-c06b5fab4f1f",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "462886b29937f0c1bcff551641447f3382b827d040237b8938b034b330fea5ef",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

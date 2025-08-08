@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",

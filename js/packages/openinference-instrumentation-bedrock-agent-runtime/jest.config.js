@@ -6,5 +6,5 @@ module.exports = {
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
   // Configure prettier to avoid Prettier 3.0+ inline snapshot issues
   prettierPath: null,
-  testTimeout: 30000, // sets timeout to 20 seconds
+  testTimeout: 30000, // sets timeout to 30 seconds
 };

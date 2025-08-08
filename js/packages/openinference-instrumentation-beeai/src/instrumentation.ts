@@ -3,7 +3,7 @@ import {
   InstrumentationNodeModuleDefinition,
   InstrumentationConfig,
 } from "@opentelemetry/instrumentation";
-import { diag } from "@opentelemetry/api";
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import { Version } from "beeai-framework";
 import * as bee from "beeai-framework";
 
@@ -13,6 +13,8 @@ import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventio
 import { satisfies } from "semver";
 
 const MODULE_NAME = "beeai-framework";
+
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-beeai";
 
 const INSTRUMENTS = [">=0.1.9 <0.1.14"];
 
@@ -31,10 +33,13 @@ export function isPatched() {
 
 export class BeeAIInstrumentation extends InstrumentationBase {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -46,13 +51,26 @@ export class BeeAIInstrumentation extends InstrumentationBase {
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
     super(
-      "@arizeai/openinference-instrumentation-beeai",
+      INSTRUMENTATION_NAME,
       Version,
       Object.assign({}, instrumentationConfig),
     );
-    this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig });
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
+    this.oiTracer = new OITracer({
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      traceConfig,
+    });
   }
 
   protected init() {
@@ -83,6 +101,22 @@ export class BeeAIInstrumentation extends InstrumentationBase {
 
     diag.debug(`[BeeaiInstrumentation] Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
+  }
+
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(this.instrumentationName);
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
   }
 
   private patch(module: typeof bee & { openInferencePatched?: boolean }) {

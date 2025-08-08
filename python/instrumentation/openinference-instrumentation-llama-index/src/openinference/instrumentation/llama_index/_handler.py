@@ -41,7 +41,20 @@ from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
 from llama_index.core import QueryBundle
-from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
+
+# Conditionally import agent base classes (they may not exist in all versions)
+try:
+    from llama_index.core.agent import BaseAgent, BaseAgentWorker  # type: ignore[attr-defined]
+except ImportError:
+    # Fallback for older versions
+    try:
+        from llama_index.core.base.agent.types import (  # type: ignore[import-not-found]
+            BaseAgent,
+            BaseAgentWorker,
+        )
+    except ImportError:
+        BaseAgent = None  # type: ignore[misc,assignment]
+        BaseAgentWorker = None  # type: ignore[misc,assignment]
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -682,6 +695,20 @@ class _Span(BaseSpan):
             ):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
+
+            # Check for VertexAI usage_metadata
+            # VertexAI stores usage_metadata inside _raw_response
+            if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
+                usage_metadata = (
+                    raw_response.get("usage_metadata")
+                    if isinstance(raw_response, Mapping)
+                    else getattr(raw_response, "usage_metadata", None)
+                )
+            else:
+                usage_metadata = getattr(raw, "usage_metadata", None)
+            if usage_metadata:
+                for k, v in _get_token_counts(usage_metadata):
+                    self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
@@ -1136,20 +1163,42 @@ def _get_token_counts_impl(
         except BaseException:
             pass
 
+    # VertexAI
+    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
+        except BaseException:
+            pass
+    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
+        except BaseException:
+            pass
+    if (total_token_count := get_value(usage, "total_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
+        except BaseException:
+            pass
+
 
 @singledispatch
 def _init_span_kind(_: Any) -> Optional[str]:
     return None
 
 
-@_init_span_kind.register
-def _(_: BaseAgent) -> str:
-    return AGENT
+# Only register agent handlers if the classes exist
+if BaseAgent is not None:
+
+    @_init_span_kind.register
+    def _agent_span_kind(_: BaseAgent) -> str:  # type: ignore[misc]
+        return AGENT
 
 
-@_init_span_kind.register
-def _(_: BaseAgentWorker) -> str:
-    return AGENT
+if BaseAgentWorker is not None:
+
+    @_init_span_kind.register
+    def _agent_worker_span_kind(_: BaseAgentWorker) -> str:  # type: ignore[misc]
+        return AGENT
 
 
 @_init_span_kind.register

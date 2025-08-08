@@ -1,0 +1,57 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/amazon.titan-text-express-v1/invoke",
+    "body": {
+      "inputText": "Write a short greeting message.",
+      "textGenerationConfig": {
+        "maxTokenCount": 100,
+        "temperature": 0.7
+      }
+    },
+    "status": 200,
+    "response": {
+      "inputTextTokenCount": 6,
+      "results": [
+        {
+          "tokenCount": 26,
+          "outputText": "\nHey there, buddy! I hope you're doing well. Just wanted to say hello and wish you a great day!",
+          "completionReason": "FINISH"
+        }
+      ]
+    },
+    "rawHeaders": [
+      "Date",
+      "Thu, 10 Jul 2025 20:47:50 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "195",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "c3d3e98a-d317-4bf2-a16e-481e56e7f112",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "1429",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "26",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "6"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "110",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "f57e9ae1-0a3d-4af5-b58d-7b3c64a35081",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "a6b22825a445313e07291ab65872b06f65b581418e3ccbe3f7fe30a3e6550735",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

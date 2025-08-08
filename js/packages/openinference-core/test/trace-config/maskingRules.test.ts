@@ -112,6 +112,15 @@ const generateMaskTestCases = (): MaskTestCases[] => {
           "data:image/base64,verylongbase64string",
         ]);
         break;
+      case "hidePrompts":
+        testCases.push([
+          `should return ${REDACTED_VALUE} for "llm.prompts" when hidePrompts is set to true`,
+          { ...DefaultTraceConfig, hidePrompts: true },
+          REDACTED_VALUE,
+          "llm.prompts",
+          "some prompt",
+        ]);
+        break;
       default:
         assertUnreachable(configKey);
     }

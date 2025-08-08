@@ -88,6 +88,9 @@ def _agent_run_attributes(
         if agent.session_id:
             yield SESSION_ID, agent.session_id
 
+        if agent.user_id:
+            yield USER_ID, agent.user_id
+
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
 
@@ -540,6 +543,13 @@ def _function_call_attributes(function_call: FunctionCall) -> Iterator[Tuple[str
     yield TOOL_PARAMETERS, safe_json_dumps(function_arguments)
 
 
+def _input_value_and_mime_type_for_tool_span(
+    arguments: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
+    yield INPUT_MIME_TYPE, JSON
+    yield INPUT_VALUE, safe_json_dumps(arguments)
+
+
 def _output_value_and_mime_type_for_tool_span(result: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_VALUE, str(result)
     yield OUTPUT_MIME_TYPE, TEXT
@@ -570,22 +580,31 @@ class _FunctionCallWrapper:
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
-                INPUT_VALUE: safe_json_dumps(function_arguments),
+                **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
             response = wrapped(*args, **kwargs)
-            function_result = function_call.result
 
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                dict(
-                    _output_value_and_mime_type_for_tool_span(
-                        result=function_result,
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
+                        )
                     )
                 )
-            )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attribute(OUTPUT_VALUE, function_error_message)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
     async def arun(
@@ -601,6 +620,7 @@ class _FunctionCallWrapper:
         function_call = instance
         function = function_call.function
         function_name = function.name
+        function_arguments = function_call.arguments
 
         span_name = f"{function_name}"
 
@@ -608,26 +628,31 @@ class _FunctionCallWrapper:
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
-                INPUT_VALUE: _get_input_value(
-                    wrapped,
-                    *args,
-                    **kwargs,
-                ),
+                **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
             response = await wrapped(*args, **kwargs)
-            function_result = function_call.result
 
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                dict(
-                    _output_value_and_mime_type_for_tool_span(
-                        result=function_result,
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
+                        )
                     )
                 )
-            )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attribute(OUTPUT_VALUE, function_error_message)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
 
@@ -652,6 +677,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+USER_ID = SpanAttributes.USER_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

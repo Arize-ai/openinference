@@ -1,5 +1,19 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.4.1
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 3.4.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
 ## 3.3.2
 
 ### Patch Changes
