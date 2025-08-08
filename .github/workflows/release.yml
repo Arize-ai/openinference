@@ -110,13 +110,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 
-      - name: Set version from release-please output
+      - name: Set version from release-please manifest
         working-directory: ./java
         run: |
           echo "Setting version for ${{ matrix.path }}..."
 
-          # Get the version from release-please outputs for this specific package
-          PACKAGE_VERSION="${{ needs.release.outputs[format('{0}--version', matrix.path)] }}"
+          # Get the version from the release-please manifest file
+          PACKAGE_VERSION=$(jq -r '."${{ matrix.path }}"' ../.release-please-manifest.json)
+
+          if [ "$PACKAGE_VERSION" = "null" ] || [ -z "$PACKAGE_VERSION" ]; then
+            echo "Error: Could not find version for ${{ matrix.path }} in manifest"
+            exit 1
+          fi
 
           # Determine the relative path from java/ directory
           RELATIVE_PATH="${{ matrix.path }}"
@@ -129,18 +134,6 @@ jobs:
 
           # Verify the update
           echo "Updated version: $(grep version= "$GRADLE_PROPS_FILE")"
-
-      - name: Remove SNAPSHOT from versions
-        working-directory: ./java
-        run: |
-          echo "Removing -SNAPSHOT from gradle.properties files..."
-          find . -name "gradle.properties" -type f | while read file; do
-            if grep -q "version=.*-SNAPSHOT" "$file"; then
-              echo "Updating $file"
-              sed -i 's/\(version=.*\)-SNAPSHOT/\1/' "$file"
-              echo "New version: $(grep version= "$file")"
-            fi
-          done
 
       - name: Stage artifacts locally
         working-directory: ./java

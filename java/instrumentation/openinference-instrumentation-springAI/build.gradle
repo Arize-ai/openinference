@@ -3,7 +3,6 @@ plugins {
 }
 
 group = 'com.arize'
-version = '0.1.1'
 
 repositories {
     mavenCentral()
@@ -12,6 +11,7 @@ repositories {
 dependencies {
     api project(':openinference-instrumentation')
 
+    // Test Change
     implementation 'io.micrometer:micrometer-observation:1.15.1'
     implementation 'io.micrometer:micrometer-tracing-bridge-brave:1.5.1'
     implementation 'org.springframework.ai:spring-ai-model:1.0.0'
