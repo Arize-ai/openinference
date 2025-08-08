@@ -17,9 +17,7 @@ export class CallbackHandler {
     const text = Buffer.from(chunk).toString("utf8");
     this.outputChunks.push(text);
   }
-  consumeTrace(trace: object) {
-    diag.debug(JSON.stringify(trace));
-  }
+
   onComplete(): void {
     const finalOutput = this.outputChunks.join("");
     this.span.setAttributes({
