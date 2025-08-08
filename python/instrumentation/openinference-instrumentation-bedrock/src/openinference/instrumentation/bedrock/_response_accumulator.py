@@ -257,8 +257,8 @@ class _ResponseAccumulator:
                     metadata = AttributeExtractor.get_metadata_from_observation(observation)
                     if time_value := metadata.get(time_key):
                         return int(time_value)
-                
-                # guardrail traces don't have any nested keys like modelInvocationOutput or observation
+
+                # Check guardrail trace
                 if "metadata" in event_data:
                     metadata = AttributeExtractor.get_metadata_attributes(
                         event_data.get("metadata")
@@ -612,9 +612,13 @@ class _ResponseAccumulator:
         if action := guardrail_attributes.get("action"):
             attributes.metadata["action"] = attributes.metadata.get("action", []) + [action]
         if input_assessments := guardrail_attributes.get("inputAssessments"):
-            attributes.metadata["inputAssessments"] = attributes.metadata.get("inputAssessments", []) + input_assessments
+            attributes.metadata["inputAssessments"] = (
+                attributes.metadata.get("inputAssessments", []) + input_assessments
+            )
         if output_assessments := guardrail_attributes.get("outputAssessments"):
-            attributes.metadata["outputAssessments"] = attributes.metadata.get("outputAssessments", []) + output_assessments
+            attributes.metadata["outputAssessments"] = (
+                attributes.metadata.get("outputAssessments", []) + output_assessments
+            )
 
     @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:

@@ -861,14 +861,14 @@ class AttributeExtractor:
             rationale = event_data["rationale"]
             if "traceId" in rationale:
                 return rationale["traceId"]
-            
+
         # For guardrail traces
         if "traceId" in event_data:
             return event_data["traceId"]
 
         # Generate a unique ID if none found
         return str(uuid.uuid4())
-    
+
     @classmethod
     def get_attributes_from_guardrail_trace(cls, guardrail_trace: dict[str, Any]) -> dict[str, Any]:
         """

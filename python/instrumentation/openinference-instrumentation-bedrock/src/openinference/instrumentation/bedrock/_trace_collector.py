@@ -201,10 +201,10 @@ class TraceCollector:
     def find_node_by_trace_id(self, trace_id: str) -> Optional[TraceNode]:
         """
         Find a trace node by its trace ID using the trace_nodes dictionary.
-        
+
         Args:
             trace_id: The trace ID to search for
-            
+
         Returns:
             The matching TraceNode or None if not found
         """
@@ -458,8 +458,6 @@ class TraceCollector:
         elif node_trace_id in self.trace_ids:
             # Handle case where trace ID exists but parent node doesn't match
 
-            # Use the trace_nodes dictionary to find the node
-            # Important for guardrail traces because the first guardrail trace is created at the very beginning and remaining are created after the output.
             parent_trace_node = self.find_node_by_trace_id(node_trace_id)
             self._handle_existing_trace_id_scenario(
                 parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
