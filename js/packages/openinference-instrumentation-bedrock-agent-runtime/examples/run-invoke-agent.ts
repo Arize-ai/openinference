@@ -10,12 +10,12 @@ async function run() {
   const agentId = process.env.BEDROCK_AGENT_ID;
   const agentAliasId = process.env.BEDROCK_AGENT_ALIAS_ID;
   const sessionId = `default-session1_${Math.floor(Date.now() / 1000)}`;
-  const region = "ap-south-1";
+  const region = process.env.AWS_REGION;
 
   const client = new BedrockAgentRuntimeClient({ region });
 
   const params = {
-    inputText: "What is the current price of Microsoft?",
+    inputText: "How do i set up an ec2 instance?",
     agentId,
     agentAliasId,
     sessionId,
