@@ -254,7 +254,7 @@ class _ResponseAccumulator:
                 # Check observation
                 if "observation" in event_data:
                     observation = event_data.get("observation", {})
-                    metadata = AttributeExtractor.get_metadata_from_observation(observation)
+                    metadata = AttributeExtractor.get_observation_metadata_attributes(observation)
                     if time_value := metadata.get(time_key):
                         return int(time_value)
 

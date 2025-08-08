@@ -458,7 +458,8 @@ class TraceCollector:
         elif node_trace_id in self.trace_ids:
             # Handle case where trace ID exists but parent node doesn't match
 
-            parent_trace_node = self.find_node_by_trace_id(node_trace_id)
+            if trace_node := self.find_node_by_trace_id(node_trace_id):
+                parent_trace_node = trace_node
             self._handle_existing_trace_id_scenario(
                 parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
             )
