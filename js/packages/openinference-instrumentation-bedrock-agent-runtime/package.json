@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock-agent-runtime",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenInference instrumentation for AWS Bedrock Agent Runtime",
   "private": false,
   "main": "dist/src/index.js",
