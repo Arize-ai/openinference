@@ -102,10 +102,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         run_wrapper = _RunWrapper(tracer=self._tracer)
-        self._original_run_method = getattr(Agent, "_run", None)
+        self._original_run_method = getattr(Agent, "run", None)
         wrap_function_wrapper(
             module=Agent,
-            name="_run",
+            name="run",
             wrapper=run_wrapper.run,
         )
         self._original_run_stream_method = getattr(Agent, "_run_stream", None)
@@ -114,10 +114,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             name="_run_stream",
             wrapper=run_wrapper.run_stream,
         )
-        self._original_arun_method = getattr(Agent, "_arun", None)
+        self._original_arun_method = getattr(Agent, "arun", None)
         wrap_function_wrapper(
             module=Agent,
-            name="_arun",
+            name="arun",
             wrapper=run_wrapper.arun,
         )
         self._original_arun_stream_method = getattr(Agent, "_arun_stream", None)
@@ -128,10 +128,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         # Register wrapper for team
-        self._original_team_run_method = getattr(Team, "_run", None)
+        self._original_team_run_method = getattr(Team, "run", None)
         wrap_function_wrapper(
             module=Team,
-            name="_run",
+            name="run",
             wrapper=run_wrapper.run,
         )
         self._original_team_run_stream_method = getattr(Team, "_run_stream", None)
@@ -140,10 +140,10 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             name="_run_stream",
             wrapper=run_wrapper.run_stream,
         )
-        self._original_team_arun_method = getattr(Team, "_arun", None)
+        self._original_team_arun_method = getattr(Team, "arun", None)
         wrap_function_wrapper(
             module=Team,
-            name="_arun",
+            name="arun",
             wrapper=run_wrapper.arun,
         )
         self._original_team_arun_stream_method = getattr(Team, "_arun_stream", None)
