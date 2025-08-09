@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.7...python-openinference-instrumentation-beeai-v0.1.8) (2025-08-09)
+
+
+### Features
+
+* BeeAI Framework Updates ([#2060](https://github.com/Arize-ai/openinference/issues/2060)) ([720d1fe](https://github.com/Arize-ai/openinference/commit/720d1fe2db55fa95fa9721438b441c4f7924c726))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.6...python-openinference-instrumentation-beeai-v0.1.7) (2025-08-05)
 
 
