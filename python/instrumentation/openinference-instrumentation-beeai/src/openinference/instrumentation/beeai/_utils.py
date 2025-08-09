@@ -19,9 +19,11 @@ def _datetime_to_span_time(dt: datetime.datetime) -> int:
 
 def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = "") -> dict[str, Any]:
     if not isinstance(obj, dict) and not isinstance(obj, list):
+        obj_ref = obj
         obj = json.loads(stringify(obj))
         if not isinstance(obj, dict) and not isinstance(obj, list):
-            raise ValueError(f"Cannot unpack object of type {type(obj)}")
+            logger.warning(f"Cannot unpack object of type {type(obj_ref)} (prefix={prefix})")
+            return {"value": str(obj)}
 
     if prefix and prefix.startswith("."):
         prefix = prefix[1:]
