@@ -1229,78 +1229,72 @@ def test_dummy_lm_instrumentation(
 
     span = next(it)
     assert span.name == "DummyLM.__call__"
-    input_value = span.attributes.get(SpanAttributes.INPUT_VALUE)
+    attributes = dict(span.attributes or {})
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert question in input_value
-    output_value = span.attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
     assert "dummy answer" in output_value
     assert (
-        span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.LLM.value
     )
 
     span = next(it)
 
     assert span.name == "ChatAdapter.__call__"
-    assert (
-        span.attributes.get(SpanAttributes.INPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert (
-        span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE))["inputs"] == {
-        "question": question
-    }
-    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == [
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value)["inputs"] == {"question": question}
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == [
         {
             "answer": "dummy answer",
         }
     ]
     assert (
-        span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.CHAIN.value
     )
 
     span = next(it)
     assert span.name == "Predict(StringSignature).forward"
-    assert (
-        span.attributes.get(SpanAttributes.INPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert (
-        span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE)) == {
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value) == {
         "question": question,
     }
-    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == {
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == {
         "answer": "dummy answer",
     }
     assert (
-        span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.CHAIN.value
     )
 
     span = next(it)
     assert span.name == "Predict.forward"
-    assert (
-        span.attributes.get(SpanAttributes.INPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert (
-        span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE)
-        == OpenInferenceMimeTypeValues.JSON.value
-    )
-    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE)) == {
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value) == {
         "question": question,
     }
-    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == {
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == {
         "answer": "dummy answer",
     }
+
     assert (
-        span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.CHAIN.value
     )
 
