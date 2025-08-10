@@ -1208,6 +1208,72 @@ def test_context_attributes_are_instrumented(
             prompt_template_variables
         )
 
+def test_dummy_lm_instrumentation(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
+    dspy.settings.configure(lm=lm)
+    
+    predict = dspy.Predict("question -> answer")
+
+    question = "What is the capital of France?"
+    prediction = predict(question=question)
+
+    assert prediction.answer == "dummy answer"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 4
+    
+    it = iter(spans)
+    
+    span = next(it)
+    assert span.name == "DummyLM.__call__"
+    input_value = span.attributes.get(SpanAttributes.INPUT_VALUE)
+    assert question in input_value
+    output_value = span.attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert "dummy answer" in output_value
+    assert span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    
+    span = next(it)
+    
+    assert span.name == "ChatAdapter.__call__"
+    assert span.attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE))["inputs"] == {
+        "question": question
+    }
+    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == [
+        {
+            "answer": "dummy answer",
+        }
+    ]
+    assert span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    
+    span_names = ["Preduct(StringSignature).forward", "Predict.forward"]
+    
+    span = next(it)
+    assert span.name == "Predict(StringSignature).forward"
+    assert span.attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE)) == {
+        "question": question,
+    }
+    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == {
+        "answer": "dummy answer",
+    }
+    assert span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+
+    span = next(it)
+    assert span.name == "Predict.forward"
+    assert span.attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert span.attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert json.loads(span.attributes.get(SpanAttributes.INPUT_VALUE)) == {
+        "question": question,
+    }
+    assert json.loads(span.attributes.get(SpanAttributes.OUTPUT_VALUE)) == {
+        "answer": "dummy answer",
+    }
+    assert span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
