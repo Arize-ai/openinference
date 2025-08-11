@@ -18,7 +18,7 @@ import { extractBaseRequestAttributes } from "./attributes/request-attributes";
 import { interceptAgentResponse } from "./stream-utils";
 import { CallbackHandler } from "./callback-handler";
 import { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
-import * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
 
