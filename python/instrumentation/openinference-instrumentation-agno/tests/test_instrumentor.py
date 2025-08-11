@@ -193,7 +193,7 @@ def test_agno_team_coordinate_instrumentation(
     assert team_span.get(SpanAttributes.GRAPH_NODE_ID) == team_node_id
     assert team_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Team"
     # Team should have no parent (root node)
-    # assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
+    assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
