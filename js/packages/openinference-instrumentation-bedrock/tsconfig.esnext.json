@@ -5,5 +5,5 @@
     "outDir": "./dist/esnext",
     "tsBuildInfoFile": "dist/esnext/tsconfig.esnext.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*"]
 }
