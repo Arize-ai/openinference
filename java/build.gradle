@@ -175,27 +175,24 @@ jreleaser {
     signing {
         active = 'ALWAYS'
         armored = true
-        
+
         // Always use MEMORY mode for GitHub Actions
         mode = 'MEMORY'
-        
+
         // JReleaser will automatically read GPG keys from environment variables:
         // JRELEASER_GPG_PUBLICKEY, JRELEASER_GPG_SECRETKEY, and JRELEASER_GPG_PASSPHRASE
     }
-    
+
     deploy {
         maven {
             mavenCentral {
                 sonatype {
                     active = 'ALWAYS'
                     url = 'https://central.sonatype.com/api/v1/publisher'
-                    // Include all subproject staging directories
-                    stagingRepositories = [
-                        'openinference-semantic-conventions/build/staging-deploy',
-                        'openinference-instrumentation/build/staging-deploy', 
-                        'instrumentation/openinference-instrumentation-langchain4j/build/staging-deploy',
-                        'instrumentation/openinference-instrumentation-springAI/build/staging-deploy'
-                    ]
+                    // Configure staging repositories dynamically
+                    stagingRepositories = providers.gradleProperty('jreleaserStagingRepository').orNull
+                        ? [providers.gradleProperty('jreleaserStagingRepository').get()]
+                        : []
                 }
             }
         }
