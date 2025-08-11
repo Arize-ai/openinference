@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.esm.json",
   "compilerOptions": {
     "rootDir": ".",
-    "outDir": "./dist/esm"
+    "outDir": "./dist/esm",
+    "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo"
   },
-  "include": ["src/**/*", "scripts/**/*"]
+  "include": ["src/**/*.ts"]
 }
