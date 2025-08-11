@@ -17,6 +17,7 @@ import { extractBaseRequestAttributes } from "./attributes/request-attributes";
 import { interceptAgentResponse } from "./stream-utils";
 import { CallbackHandler } from "./callback-handler";
 import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
+import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
@@ -28,32 +29,6 @@ let _isBedrockAgentPatched = false;
 
 export function isPatched() {
   return _isBedrockAgentPatched;
-}
-
-// Lazy-loaded reference to InvokeAgentCommand class
-let _InvokeAgentCommandClass:
-  | typeof bedrockAgentRunTime.InvokeAgentCommand
-  | null = null;
-
-/**
- * Lazily loads the InvokeAgentCommand class from the module exports
- * This avoids early module loading while still allowing proper instanceof checks
- *
- * @param moduleExports The module exports containing the InvokeAgentCommand class
- * @returns The InvokeAgentCommand class or null if not found
- */
-function getInvokeAgentCommandClass(
-  moduleExports: typeof bedrockAgentRunTime,
-): typeof bedrockAgentRunTime.InvokeAgentCommand | null {
-  if (_InvokeAgentCommandClass === null) {
-    try {
-      _InvokeAgentCommandClass = moduleExports.InvokeAgentCommand;
-    } catch (error) {
-      // Fallback if the class is not available
-      return null;
-    }
-  }
-  return _InvokeAgentCommandClass;
 }
 
 export class BedrockAgentInstrumentation extends InstrumentationBase<InstrumentationConfig> {
@@ -96,6 +71,13 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
         this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig: traceConfig,
     });
+  }
+
+  /**
+   * Manually patches the BedrockAgentRuntimeClient, this allows for guaranteed patching of the module when import order is hard to control.
+   */
+  public manuallyInstrument(module: typeof bedrockAgentRunTime) {
+    this.patch(module);
   }
 
   protected init(): InstrumentationModuleDefinition<
@@ -145,12 +127,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           ...args: Parameters<SendMethod>
         ) {
           const command = args[0];
-          const InvokeAgentCommandClass =
-            getInvokeAgentCommandClass(moduleExports);
-          if (
-            InvokeAgentCommandClass &&
-            command instanceof InvokeAgentCommandClass
-          ) {
+          if (command instanceof InvokeAgentCommand) {
             return instrumentationInstance._handleInvokeAgentCommand(
               command,
               original,
