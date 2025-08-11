@@ -4,22 +4,41 @@ import {
   MimeType,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { AgentTraceAggregator } from "./collector/agent-trace-aggregator";
+import { OITracer } from "@arizeai/openinference-core";
+import { SpanCreator } from "./span-creator";
 
 export class CallbackHandler {
   private outputChunks: string[] = [];
-  private span: Span;
+  private readonly span: Span;
+  private readonly traceAggregator: AgentTraceAggregator;
+  private oiTracer: OITracer;
 
-  constructor(span: Span) {
+  /**
+   * Callback handler for processing agent responses and traces.
+   * @param oiTracer The OpenTelemetry span to associate with the response.
+   * @param span
+   */
+
+  constructor(oiTracer: OITracer, span: Span) {
+    this.oiTracer = oiTracer;
     this.span = span;
+    this.traceAggregator = new AgentTraceAggregator();
   }
 
   consumeResponse(chunk: Uint8Array) {
     const text = Buffer.from(chunk).toString("utf8");
     this.outputChunks.push(text);
   }
-
+  consumeTrace(trace: any) {
+    this.traceAggregator.collect(trace);
+  }
   onComplete(): void {
     const finalOutput = this.outputChunks.join("");
+    new SpanCreator(this.oiTracer).createSpans(
+      this.span,
+      this.traceAggregator.rootNode,
+    );
     this.span.setAttributes({
       [SemanticConventions.OUTPUT_VALUE]: finalOutput,
       [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,

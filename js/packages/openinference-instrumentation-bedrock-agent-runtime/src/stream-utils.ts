@@ -12,6 +12,8 @@ export function interceptAgentResponse<
         for await (const item of originalStream) {
           if (item.chunk?.bytes) {
             callback.consumeResponse(item.chunk.bytes);
+          } else if (item.trace) {
+            callback.consumeTrace(item.trace);
           }
           yield item;
         }

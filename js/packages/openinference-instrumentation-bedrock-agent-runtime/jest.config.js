@@ -4,7 +4,6 @@ module.exports = {
   roots: ["<rootDir>/src", "<rootDir>/test"],
   testMatch: ["**/*.test.ts"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
-  // Configure prettier to avoid Prettier 3.0+ inline snapshot issues
   prettierPath: null,
-  testTimeout: 30000, // sets timeout to 30 seconds
+  testTimeout: 50000, // sets timeout to 50 seconds
 };

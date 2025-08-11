@@ -148,7 +148,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     const result = original.apply(client, [command]);
     return result
       .then((response: InvokeAgentCommandOutput) => {
-        const callback = new CallbackHandler(span);
+        const callback = new CallbackHandler(this.oiTracer, span);
         if (
           response.completion &&
           Symbol.asyncIterator in response.completion
