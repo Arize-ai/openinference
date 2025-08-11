@@ -12,13 +12,13 @@ export class Attributes {
   public spanType: string = "";
 
   /** Request attributes for the span */
-  public requestAttributes: Record<string, any> = {};
+  public requestAttributes: Record<string, unknown> = {};
 
   /** Output attributes for the span */
-  public outputAttributes: Record<string, any> = {};
+  public outputAttributes: Record<string, unknown> = {};
 
   /** Metadata for the span */
-  public metadata: Record<string, any> = {};
+  public metadata: Record<string, unknown> = {};
 
   /** Kind of span (LLM, CHAIN, AGENT, etc.) */
   public spanKind: OpenInferenceSpanKind;

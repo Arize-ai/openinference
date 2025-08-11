@@ -10,26 +10,6 @@ import {
   getSpanKindAttributes,
 } from "./attributes/attribute-utils";
 import { OITracer } from "@arizeai/openinference-core";
-import { isTracingSuppressed } from "@opentelemetry/core";
-
-/**
- * Resolves the execution context for the current span.
- * If tracing is suppressed, the span is dropped, and the current context is returned.
- * @param span The span to resolve context for.
- * @returns The execution context for the span.
- */
-function getExecContext(span: Span) {
-  const activeContext = context.active();
-  const suppressTracing = isTracingSuppressed(activeContext);
-  const execContext = suppressTracing
-    ? trace.setSpan(context.active(), span)
-    : activeContext;
-  // Drop the span from the context
-  if (suppressTracing) {
-    trace.deleteSpan(activeContext);
-  }
-  return execContext;
-}
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -86,7 +66,9 @@ export class SpanCreator {
    * @param traceSpan The trace span to process.
    * @returns The prepared attributes object.
    */
-  private prepareSpanAttributes(traceSpan: any): Attributes {
+  private prepareSpanAttributes(
+    traceSpan: AgentChunkSpan | AgentTraceNode,
+  ): Attributes {
     const attributes = new Attributes();
 
     // Set name from a node type if it's an AgentTraceNode
@@ -98,7 +80,9 @@ export class SpanCreator {
     if (Array.isArray(traceSpan.chunks)) {
       for (const traceData of traceSpan.chunks) {
         const traceEvent = AttributeExtractor.getEventType(traceData);
-        const eventData = traceData[traceEvent] ?? {};
+        const eventData =
+          (traceData[traceEvent] as Record<string, Record<string, unknown>>) ??
+          {};
 
         // Process model invocation input
         if ("modelInvocationInput" in eventData) {
@@ -135,7 +119,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationInput(
-    eventData: any,
+    eventData: Record<string, Record<string, unknown>>,
     attributes: Attributes,
   ): void {
     const modelInvocationInput = eventData["modelInvocationInput"] ?? {};
@@ -155,7 +139,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationOutput(
-    eventData: any,
+    eventData: Record<string, Record<string, unknown>>,
     attributes: Attributes,
   ): void {
     const modelInvocationOutput = eventData["modelInvocationOutput"] ?? {};
@@ -168,7 +152,7 @@ export class SpanCreator {
     Object.assign(
       attributes.metadata,
       AttributeExtractor.getMetadataAttributes(
-        modelInvocationOutput["metadata"],
+        modelInvocationOutput["metadata"] as Record<string, unknown>,
       ),
     );
   }
@@ -178,15 +162,31 @@ export class SpanCreator {
    * @param eventData The event data containing invocation input.
    * @param attributes The attributes object to update.
    */
-  private processInvocationInput(eventData: any, attributes: Attributes): void {
-    const invocationInput = eventData["invocationInput"] || {};
-    const invocationType = invocationInput["invocationType"] || "";
+  private processInvocationInput(
+    eventData: Record<string, Record<string, unknown>>,
+    attributes: Attributes,
+  ): void {
+    const invocationInput = eventData["invocationInput"] ?? {};
 
-    if ("agentCollaboratorInvocationInput" in invocationInput) {
+    const invocationType =
+      typeof invocationInput["invocationType"] === "string"
+        ? invocationInput["invocationType"]
+        : "";
+
+    if (
+      "agentCollaboratorInvocationInput" in invocationInput &&
+      typeof invocationInput["agentCollaboratorInvocationInput"] === "object" &&
+      invocationInput["agentCollaboratorInvocationInput"] !== null
+    ) {
+      const agentCollaboratorInput = invocationInput[
+        "agentCollaboratorInvocationInput"
+      ] as Record<string, unknown>;
+
       const agentCollaboratorName =
-        invocationInput["agentCollaboratorInvocationInput"]?.[
-          "agentCollaboratorName"
-        ] || "";
+        typeof agentCollaboratorInput["agentCollaboratorName"] === "string"
+          ? agentCollaboratorInput["agentCollaboratorName"]
+          : "";
+
       attributes.name = `${invocationType.toLowerCase()}[${agentCollaboratorName}]`;
       attributes.spanKind = OpenInferenceSpanKind.AGENT;
       attributes.spanType = "agent_collaborator";
@@ -206,7 +206,10 @@ export class SpanCreator {
    * @param eventData The event data containing observation.
    * @param attributes The attributes object to update.
    */
-  private processObservation(eventData: any, attributes: Attributes): void {
+  private processObservation(
+    eventData: Record<string, Record<string, unknown>>,
+    attributes: Attributes,
+  ): void {
     const observation = eventData["observation"] ?? {};
     Object.assign(
       attributes.outputAttributes,
@@ -223,7 +226,10 @@ export class SpanCreator {
    * @param eventData The event data containing rationale.
    * @param attributes The attributes object to update.
    */
-  private processRationale(eventData: any, attributes: Attributes): void {
+  private processRationale(
+    eventData: Record<string, Record<string, unknown>>,
+    attributes: Attributes,
+  ): void {
     const rationaleText = eventData["rationale"]?.["text"] ?? "";
     if (rationaleText) {
       Object.assign(
@@ -238,7 +244,10 @@ export class SpanCreator {
    * @param eventData The event data containing failure trace.
    * @param attributes The attributes object to update.
    */
-  private processFailureTrace(eventData: any, attributes: Attributes): void {
+  private processFailureTrace(
+    eventData: Record<string, Record<string, unknown>>,
+    attributes: Attributes,
+  ): void {
     Object.assign(
       attributes.outputAttributes,
       AttributeExtractor.getFailureTraceAttributes(eventData),
@@ -263,7 +272,7 @@ export class SpanCreator {
       return;
     }
 
-    const inputAttributes: Record<string, any> = {};
+    const inputAttributes: Record<string, unknown> = {};
 
     for (const span of traceNode.spans) {
       if (!span.chunks) continue;
@@ -273,8 +282,8 @@ export class SpanCreator {
 
         // Extract from model invocation input
         if ("modelInvocationInput" in eventData) {
-          const modelInvocationInput: Record<string, any> =
-            eventData["modelInvocationInput"] ?? {};
+          const modelInvocationInput: Record<string, string> =
+            (eventData["modelInvocationInput"] as Record<string, string>) ?? {};
           const text = modelInvocationInput["text"] ?? "";
           const messages = AttributeExtractor.getMessagesObject(text);
           for (const message of messages) {
@@ -292,8 +301,8 @@ export class SpanCreator {
 
         // Extract from invocation input
         if ("invocationInput" in eventData) {
-          const invocationInput: Record<string, any> =
-            eventData["invocationInput"] ?? {};
+          const invocationInput: Record<string, unknown> =
+            (eventData["invocationInput"] as Record<string, unknown>) ?? {};
           const attrs =
             AttributeExtractor.getParentInputAttributesFromInvocationInput(
               invocationInput,
@@ -338,9 +347,14 @@ export class SpanCreator {
 
         // Extract from model invocation output
         if ("modelInvocationOutput" in eventData) {
-          const modelInvocationOutput: Record<string, any> =
-            eventData["modelInvocationOutput"] ?? {};
-          const parsedResponse = modelInvocationOutput["parsedResponse"] ?? {};
+          const modelInvocationOutput: Record<string, unknown> =
+            (eventData["modelInvocationOutput"] as Record<string, unknown>) ??
+            {};
+          const parsedResponse =
+            (modelInvocationOutput["parsedResponse"] as Record<
+              string,
+              unknown
+            >) ?? {};
           const outputText = parsedResponse["text"] ?? "";
           if (outputText) {
             Object.assign(
@@ -361,10 +375,10 @@ export class SpanCreator {
 
         // Extract from observation
         if ("observation" in eventData) {
-          const observation: Record<string, any> =
-            eventData["observation"] ?? {};
-          const finalResponse: Record<string, any> =
-            observation["finalResponse"];
+          const observation: Record<string, unknown> =
+            (eventData["observation"] as Record<string, unknown>) ?? {};
+          const finalResponse: Record<string, unknown> =
+            (observation["finalResponse"] as Record<string, unknown>) ?? {};
           if (finalResponse && finalResponse["text"]) {
             Object.assign(
               attributes.requestAttributes,
@@ -438,10 +452,12 @@ export class SpanCreator {
         const eventData = traceData[traceEvent] ?? {};
         // Check model invocation output
         if ("modelInvocationOutput" in eventData) {
-          const modelInvocationOutput: Record<string, any> =
-            eventData["modelInvocationOutput"] ?? {};
+          const modelInvocationOutput: Record<string, unknown> =
+            (eventData["modelInvocationOutput"] as Record<string, unknown>) ??
+            {};
           const metadata = AttributeExtractor.getMetadataAttributes(
-            modelInvocationOutput["metadata"],
+            (modelInvocationOutput["metadata"] as Record<string, unknown>) ??
+              {},
           );
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
@@ -450,8 +466,9 @@ export class SpanCreator {
         // Check observation
         if ("observation" in eventData) {
           const observation = eventData["observation"] ?? {};
-          const metadata =
-            AttributeExtractor.getObservationMetadataAttributes(observation);
+          const metadata = AttributeExtractor.getObservationMetadataAttributes(
+            observation as Record<string, unknown>,
+          );
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
           }
@@ -500,15 +517,17 @@ export class SpanCreator {
     );
 
     // Collect and merge metadata from various sources
-    let metadata = { ...(attributes.metadata || {}) };
+    const metadata = { ...(attributes.metadata || {}) };
 
     // Set request attributes and extract any metadata
-    if (attributes.requestAttributes) {
+    if (attributes?.requestAttributes) {
       if ("metadata" in attributes.requestAttributes) {
         Object.assign(metadata, attributes.requestAttributes["metadata"]);
         delete attributes.requestAttributes["metadata"];
       }
-      span.setAttributes(attributes.requestAttributes);
+      span.setAttributes(
+        attributes.requestAttributes as Record<string, string>,
+      );
     }
 
     // Set output attributes and extract any metadata
@@ -517,7 +536,7 @@ export class SpanCreator {
         Object.assign(metadata, attributes.outputAttributes["metadata"]);
         delete attributes.outputAttributes["metadata"];
       }
-      span.setAttributes(attributes.outputAttributes);
+      span.setAttributes(attributes.outputAttributes as Record<string, string>);
     }
 
     // Add collected metadata as a JSON string

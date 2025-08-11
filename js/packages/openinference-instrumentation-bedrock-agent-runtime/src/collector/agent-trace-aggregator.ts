@@ -41,7 +41,7 @@ export class AgentTraceAggregator {
       AttributeExtractor.extractTraceId(traceData),
     );
     const chunkType = AttributeExtractor.getChunkType(
-      traceData[eventType] ?? {},
+      (traceData[eventType] as Record<string, unknown>) ?? {},
     );
     const agentChildId =
       this.detectAgentCollaboration(traceData, eventType, chunkType) &&
@@ -62,8 +62,10 @@ export class AgentTraceAggregator {
    * @param obj - The object potentially containing wrapped trace data
    * @returns The unwrapped trace data
    */
-  private unwrapTrace(obj: Record<string, object>): Record<string, object> {
-    return (obj["trace"] as Record<string, object>) ?? obj;
+  private unwrapTrace(
+    obj: Record<string, object>,
+  ): Record<string, Record<string, unknown>> {
+    return (obj["trace"] as Record<string, Record<string, unknown>>) ?? obj;
   }
 
   /**
@@ -100,7 +102,7 @@ export class AgentTraceAggregator {
    * @returns The current trace node after processing
    */
   private routeTraceData(
-    traceData: Record<string, object>,
+    traceData: Record<string, Record<string, unknown>>,
     parent: AgentTraceNode,
     nodeTraceId: string,
     agentChildId: string | false,
@@ -152,8 +154,6 @@ export class AgentTraceAggregator {
         traceData,
       );
       return this.traceStack.head!;
-    } else {
-      console.warn(`Unhandled trace scenario for ID: ${nodeTraceId}`);
     }
     return parent;
   }
@@ -171,7 +171,7 @@ export class AgentTraceAggregator {
     nodeTraceId: string,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, object>,
+    traceData: Record<string, Record<string, unknown>>,
   ): void {
     const excluded = ["bedrock.invoke_agent", "agent-collaborator"];
     let anchor = parent;
@@ -204,10 +204,11 @@ export class AgentTraceAggregator {
     nodeTraceId: string,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, any>,
+    traceData: Record<string, Record<string, unknown>>,
   ): void {
     const eventObj = traceData[eventType] ?? {};
-    const chunkObj = eventObj[chunkType] ?? {};
+    const chunkObj =
+      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
 
     let newNode: AgentTraceNode;
 
@@ -246,12 +247,12 @@ export class AgentTraceAggregator {
     agentChildId: string | false,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, any>,
+    traceData: Record<string, Record<string, unknown>>,
   ): void {
-    if (
-      agentChildId &&
-      traceData[eventType]?.[chunkType]?.agentCollaboratorInvocationInput
-    ) {
+    const eventObj = traceData[eventType] ?? {};
+    const chunkObj =
+      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
+    if (agentChildId && chunkObj.agentCollaboratorInvocationInput) {
       this.createAndAttachChildNode(
         parent,
         agentChildId,
@@ -277,12 +278,12 @@ export class AgentTraceAggregator {
     agentChildId: string | false,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, any>,
+    traceData: Record<string, Record<string, unknown>>,
   ): void {
-    if (
-      agentChildId &&
-      traceData?.[eventType]?.[chunkType]?.agentCollaboratorInvocationOutput
-    ) {
+    const eventObj = traceData[eventType] ?? {};
+    const chunkObj =
+      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
+    if (agentChildId && chunkObj.agentCollaboratorInvocationOutput) {
       while (
         this.traceStack.head &&
         this.traceStack.head.nodeTraceId !== agentChildId

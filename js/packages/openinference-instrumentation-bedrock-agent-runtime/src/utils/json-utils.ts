@@ -2,17 +2,19 @@
  * Utility functions for safe and loose JSON parsing.
  */
 
+import { ParsedInput } from "../attributes/types";
+
 /**
  * Safely parse JSON string, returns an object or undefined on error.
  */
-export function safeJsonParse(text: string): any {
+export function safeJsonParse(text: string): ParsedInput {
   try {
     return JSON.parse(text);
   } catch {
     try {
       return JSON.parse(sanitizeJsonInput(text));
     } catch {
-      return undefined;
+      return {};
     }
   }
 }
@@ -29,20 +31,20 @@ function sanitizeJsonInput(badJsonStr: string): string {
  * Attempts to fix and parse loose JSON strings. Returns array of parsed objects or original string.
  * Tries to extract objects from loose JSON, similar to Python's fix_loose_json_string.
  */
-export function fixLooseJsonString(content: string): any[] {
+export function fixLooseJsonString(content: string): ParsedInput[] | [string] {
   if (!content) return [];
   const trimmed = content.trim();
   // If it's a valid JSON array or object, parse directly
   const parsed = safeJsonParse(trimmed);
-  if (parsed && Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === "object") return [parsed];
+  if (parsed && Array.isArray(parsed)) return parsed as ParsedInput[];
+  if (parsed && typeof parsed === "object") return [parsed as ParsedInput];
 
   // Try to extract object-like substrings using regex
-  const objStrings = trimmed.match(/\{[\s\S]*?\}/g) || [];
-  const fixedObjects: any[] = [];
+  const objStrings = trimmed.match(/\{[\s\S]*?}/g) || [];
+  const fixedObjects: ParsedInput[] = [];
   for (const objStr of objStrings) {
     let objFixed = objStr.replace(/(\w+)=/g, '"$1":');
-    objFixed = objFixed.replace(/:\s*([^"{},\[\]]+)/g, ': "$1"');
+    objFixed = objFixed.replace(/:\s*([^"{},[]]+)/g, ': "$1"');
     objFixed = objFixed.replace(/'/g, '"');
     const parsedObj = safeJsonParse(objFixed);
     if (parsedObj && typeof parsedObj === "object") {

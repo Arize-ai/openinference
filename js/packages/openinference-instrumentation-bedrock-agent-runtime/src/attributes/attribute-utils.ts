@@ -4,7 +4,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { Attributes } from "@opentelemetry/api";
-import { TokenCount } from "./types";
+import { Message, TokenCount, DocumentReference } from "./types";
 
 /**
  * Utility functions for extracting input and output attributes from a text.
@@ -16,7 +16,7 @@ import { TokenCount } from "./types";
  * @param input Input string or object to check.
  * @returns MimeType for the input.
  */
-function normalizeMimeType(input: any): MimeType {
+function normalizeMimeType(input: unknown): MimeType {
   if (typeof input === "string") {
     const trimmed = input.trim();
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
@@ -36,7 +36,7 @@ function normalizeMimeType(input: any): MimeType {
  * @param input Text or object to extract attributes from.
  * @returns Attributes an object with input value and MIME type.
  */
-export function getInputAttributes(input: any): Attributes {
+export function getInputAttributes(input: unknown): Attributes {
   const attributes: Attributes = {};
   if (input === undefined || input === null) return attributes;
   if (typeof input === "string") {
@@ -57,7 +57,7 @@ export function getInputAttributes(input: any): Attributes {
  * @returns Attributes an object with output value and MIME type.
  */
 export function getOutputAttributes(
-  value: any,
+  value: unknown,
   options: { mimeType?: MimeType } = {},
 ): Attributes {
   const attributes: Attributes = {};
@@ -81,9 +81,9 @@ export function getOutputAttributes(
  * @param system - System object or string.
  * @returns Attributes an object for system attributes.
  */
-export function getLLMSystemAttributes(system: any): Attributes {
+export function getLLMSystemAttributes(system: unknown): Attributes {
   if (system && typeof system === "object" && "value" in system) {
-    return { [SemanticConventions.LLM_SYSTEM]: system.value };
+    return { [SemanticConventions.LLM_SYSTEM]: String(system.value) };
   }
   if (typeof system === "string") {
     return { [SemanticConventions.LLM_SYSTEM]: system.toLowerCase() };
@@ -99,7 +99,7 @@ export function getLLMSystemAttributes(system: any): Attributes {
  * @returns Attributes object for invocation parameters.
  */
 export function getLLMInvocationParameterAttributes(
-  invocationParameters: any,
+  invocationParameters: unknown,
 ): Attributes {
   if (typeof invocationParameters === "string") {
     return {
@@ -124,7 +124,7 @@ export function getLLMInvocationParameterAttributes(
  * @returns Attributes an object for input messages.
  */
 export function getLLMInputMessageAttributes(
-  messages: any[] | undefined,
+  messages: Message[] | undefined,
 ): Attributes {
   return {
     ...llmMessagesAttributes(messages, "input"),
@@ -137,7 +137,7 @@ export function getLLMInputMessageAttributes(
  * @param modelName - Model name as string.
  * @returns Attributes an object for model name.
  */
-export function getLLMModelNameAttributes(modelName: any): Attributes {
+export function getLLMModelNameAttributes(modelName: unknown): Attributes {
   if (typeof modelName === "string") {
     return { [SemanticConventions.LLM_MODEL_NAME]: modelName };
   }
@@ -151,14 +151,16 @@ export function getLLMModelNameAttributes(modelName: any): Attributes {
  * @returns Attributes an object for output messages.
  */
 export function getLLMOutputMessageAttributes(
-  messages: any[] | undefined,
+  messages: Message[] | undefined,
 ): Attributes {
   return {
     ...llmMessagesAttributes(messages, "output"),
   };
 }
 
-export function getLLMTokenCountAttributes(tokenCount: TokenCount): Attributes {
+export function getLLMTokenCountAttributes(
+  tokenCount: TokenCount | undefined,
+): Attributes {
   const attributes: Attributes = {};
   if (tokenCount && typeof tokenCount === "object") {
     if (tokenCount.prompt !== undefined) {
@@ -177,7 +179,9 @@ export function getLLMTokenCountAttributes(tokenCount: TokenCount): Attributes {
 }
 
 // get_llm_tool_attributes
-export function getLLMToolAttributes(tools: any[] | undefined): Attributes {
+export function getLLMToolAttributes(
+  tools: Record<string, unknown>[] | undefined,
+): Attributes {
   const attributes: Attributes = {};
   if (!Array.isArray(tools)) {
     return attributes;
@@ -209,14 +213,14 @@ export function getLLMAttributes({
   tokenCount,
   tools,
 }: {
-  provider?: any;
-  system?: any;
+  provider?: string;
+  system?: string;
   modelName?: string;
-  invocationParameters?: string | Record<string, any>;
-  inputMessages?: any[];
-  outputMessages?: any[];
-  tokenCount?: any;
-  tools?: any[];
+  invocationParameters?: string | Record<string, unknown>;
+  inputMessages?: Message[];
+  outputMessages?: Message[];
+  tokenCount?: TokenCount;
+  tools?: Record<string, unknown>[];
 } = {}): Attributes {
   const providerAttributes = getLLMProviderAttributes(provider);
   const modelNameAttributes = getLLMModelNameAttributes(modelName);
@@ -270,7 +274,7 @@ export function getToolAttributes({
 }: {
   name: string;
   description?: string;
-  parameters: string | Record<string, any>;
+  parameters: string | Record<string, unknown>;
 }): Attributes {
   let parametersJson: string;
   if (typeof parameters === "string") {
@@ -304,9 +308,9 @@ export function generateUniqueTraceId(
  * @param provider - Provider object or string.
  * @returns Record of provider attributes.
  */
-export function getLLMProviderAttributes(provider: any): Attributes {
+export function getLLMProviderAttributes(provider: unknown): Attributes {
   if (provider && typeof provider === "object" && "value" in provider) {
-    return { [SemanticConventions.LLM_PROVIDER]: provider.value };
+    return { [SemanticConventions.LLM_PROVIDER]: String(provider.value) };
   }
   if (typeof provider === "string") {
     return { [SemanticConventions.LLM_PROVIDER]: provider.toLowerCase() };
@@ -322,7 +326,7 @@ export function getLLMProviderAttributes(provider: any): Attributes {
  * @returns Record of attribute keys and values.
  */
 export function llmMessagesAttributes(
-  messages: any[] | undefined,
+  messages: Message[] | undefined,
   messageType: "input" | "output",
 ): Attributes {
   const attributes: Attributes = {};
@@ -431,7 +435,7 @@ export function llmMessagesAttributes(
  */
 export function getDocumentAttributes(
   index: number,
-  ref: Record<string, any>,
+  ref: DocumentReference,
 ): Attributes {
   const attributes: Attributes = {};
   const baseKey = `${SemanticConventions.RETRIEVAL_DOCUMENTS}.${index}`;

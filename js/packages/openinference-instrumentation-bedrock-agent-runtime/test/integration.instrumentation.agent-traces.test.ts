@@ -76,6 +76,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     }>) {
       if (event.chunk?.bytes) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
       }
     }
     expect(response).toBeDefined();
@@ -107,6 +108,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     }>) {
       if (event.chunk?.bytes) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
       }
     }
     expect(response).toBeDefined();
@@ -137,6 +139,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     }>) {
       if (event.chunk?.bytes) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
       }
     }
     expect(response).toBeDefined();
@@ -168,6 +171,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     }>) {
       if (event.chunk?.bytes) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
       }
     }
     expect(response).toBeDefined();
@@ -199,6 +203,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     }>) {
       if (event.chunk?.bytes) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
       }
     }
     expect(response).toBeDefined();

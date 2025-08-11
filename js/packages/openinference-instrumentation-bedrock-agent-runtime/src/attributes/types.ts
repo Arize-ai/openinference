@@ -7,7 +7,7 @@ export interface Message {
   contents?: MessageContent[];
   tool_call_id?: string;
   tool_calls?: ToolCall[];
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface TokenCount {
   prompt?: number;
   completion?: number;
   total?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -25,8 +25,8 @@ export interface TokenCount {
  */
 export interface ToolCallFunction {
   name?: string;
-  arguments?: string | Record<string, any>;
-  [key: string]: any;
+  arguments?: string | Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 /**
@@ -35,7 +35,7 @@ export interface ToolCallFunction {
 export interface ToolCall {
   id?: string;
   function?: ToolCallFunction;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -48,7 +48,7 @@ export type MessageContent = TextMessageContent | ImageMessageContent;
  */
 export interface Image {
   url: string;
-  [key: string]: any;
+  [key: string]: string;
 }
 
 /**
@@ -57,7 +57,7 @@ export interface Image {
 export interface TextMessageContent {
   type: "text";
   text: string;
-  [key: string]: any;
+  [key: string]: string;
 }
 
 /**
@@ -66,13 +66,31 @@ export interface TextMessageContent {
 export interface ImageMessageContent {
   type: "image";
   image: Image;
-  [key: string]: any;
+  [key: string]: Image | string;
 }
 
-/**
- * Represents a tool with a JSON schema definition.
- */
-export interface Tool {
-  json_schema: string | Record<string, any>;
-  [key: string]: any;
+export interface ParsedMessage {
+  role?: string;
+  content?: string;
+  [key: string]: unknown;
+}
+
+export interface ParsedInput {
+  system?: string;
+  type?: string;
+  messages?: ParsedMessage[];
+  [key: string]: unknown;
+}
+
+export interface DocumentReference {
+  metadata?: Record<string, unknown> & {
+    ["x-amz-bedrock-kb-chunk-id"]?: string;
+  };
+  content?: {
+    text?: string;
+    type?: string;
+  };
+  score?: number;
+  location?: Record<string, unknown>;
+  [key: string]: unknown;
 }
