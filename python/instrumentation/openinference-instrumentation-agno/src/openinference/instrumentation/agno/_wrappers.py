@@ -1,3 +1,4 @@
+import hashlib
 import json
 from enum import Enum
 from inspect import signature
@@ -12,7 +13,7 @@ from typing import (
     OrderedDict,
     Tuple,
     Union,
-    cast
+    cast,
 )
 
 from opentelemetry import context as context_api
@@ -34,11 +35,10 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-import hashlib
-
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 _AGNO_PARENT_PATH_CONTEXT_KEY = context_api.create_key("agno_parent_path")
 _AGNO_CURRENT_PATH_CONTEXT_KEY = context_api.create_key("agno_current_path")
+
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -89,7 +89,6 @@ def _generate_node_id(path: str) -> str:
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
-
     # Get current path from execution context
     current_path = context_api.get_value(_AGNO_CURRENT_PATH_CONTEXT_KEY)
 
@@ -99,7 +98,7 @@ def _agent_run_attributes(
     if isinstance(agent, Team):
         if current_path is None:
             current_path = agent.name or "team"
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id(cast(str, current_path))
 
         # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
@@ -116,7 +115,7 @@ def _agent_run_attributes(
     elif isinstance(agent, Agent):
         if current_path is None:
             current_path = agent.name or "agent"
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id(cast(str, current_path))
 
         # Set legacy agent attributes
         if agent.name:
@@ -154,6 +153,7 @@ def _agent_run_attributes(
                     tool_names.append(str(tool))
             yield f"agno{key_suffix}.tools", tool_names
 
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -182,27 +182,27 @@ class _RunWrapper:
         # Set current path in context before span creation so _agent_run_attributes can use it
         current_path_ctx = context_api.set_value(
             _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-            )
+        )
         current_path_token = context_api.attach(current_path_ctx)
 
         try:
             with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: AGENT,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                        **dict(_agent_run_attributes(agent)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
-        ) as span:
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: AGENT,
+                            INPUT_VALUE: _get_input_value(
+                                wrapped,
+                                *args,
+                                **kwargs,
+                            ),
+                            **dict(_agent_run_attributes(agent)),
+                            **dict(get_attributes_from_context()),
+                        }
+                    )
+                ),
+            ) as span:
                 # Set up context for team executions
                 if isinstance(agent, Team):
                     # Set both node ID and path for children to use
@@ -255,11 +255,10 @@ class _RunWrapper:
         # Set current path in context before span creation so _agent_run_attributes can use it
         current_path_ctx = context_api.set_value(
             _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-            )
+        )
         current_path_token = context_api.attach(current_path_ctx)
 
         try:
-
             with self._tracer.start_as_current_span(
                 span_name,
                 attributes=dict(
@@ -330,7 +329,7 @@ class _RunWrapper:
         # Set current path in context before span creation so _agent_run_attributes can use it
         current_path_ctx = context_api.set_value(
             _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-            )
+        )
         current_path_token = context_api.attach(current_path_ctx)
 
         try:
@@ -377,7 +376,6 @@ class _RunWrapper:
         finally:
             context_api.detach(current_path_token)
 
-
     async def arun_stream(
         self,
         wrapped: Callable[..., Awaitable[Any]],
@@ -404,7 +402,7 @@ class _RunWrapper:
         # Set current path in context before span creation so _agent_run_attributes can use it
         current_path_ctx = context_api.set_value(
             _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-            )
+        )
         current_path_token = context_api.attach(current_path_ctx)
 
         try:

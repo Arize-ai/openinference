@@ -1,9 +1,5 @@
 import json
-from typing import (
-    Any,
-    Generator,
-    cast
-)
+from typing import Any, Generator, cast
 
 import pytest
 import vcr  # type: ignore
@@ -189,8 +185,8 @@ def test_agno_team_coordinate_instrumentation(
 
     # Calculate expected node IDs based on the hash generation logic
     team_node_id = hashlib.sha256("Team".encode()).hexdigest()[:16]
-    web_agent_node_id = hashlib.sha256("Web Agent".encode()).hexdigest()[:16]
-    finance_agent_node_id = hashlib.sha256("Finance Agent".encode()).hexdigest()[:16]
+    web_agent_node_id = hashlib.sha256("Team.Web_Agent".encode()).hexdigest()[:16]
+    finance_agent_node_id = hashlib.sha256("Team.Finance_Agent".encode()).hexdigest()[:16]
 
     # Validate graph attributes for team span
     assert team_span is not None, "Team span should be found"
