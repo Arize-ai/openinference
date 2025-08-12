@@ -10,6 +10,8 @@ import {
   getSpanKindAttributes,
 } from "./attributes/attribute-utils";
 import { OITracer } from "@arizeai/openinference-core";
+import { getObjectDataFromUnknown } from "./utils/json-utils";
+import { UnknownRecord } from "./index";
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -81,8 +83,7 @@ export class SpanCreator {
       for (const traceData of traceSpan.chunks) {
         const traceEvent = AttributeExtractor.getEventType(traceData);
         const eventData =
-          (traceData[traceEvent] as Record<string, Record<string, unknown>>) ??
-          {};
+          getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
         // Process model invocation input
         if ("modelInvocationInput" in eventData) {
@@ -119,10 +120,14 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationInput(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
-    const modelInvocationInput = eventData["modelInvocationInput"] ?? {};
+    const modelInvocationInput =
+      getObjectDataFromUnknown({
+        data: eventData,
+        key: "modelInvocationInput",
+      }) ?? {};
     Object.assign(
       attributes.requestAttributes,
       AttributeExtractor.getAttributesFromModelInvocationInput(
@@ -139,10 +144,14 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationOutput(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
-    const modelInvocationOutput = eventData["modelInvocationOutput"] ?? {};
+    const modelInvocationOutput =
+      getObjectDataFromUnknown({
+        data: eventData,
+        key: "modelInvocationOutput",
+      }) ?? {};
     Object.assign(
       attributes.outputAttributes,
       AttributeExtractor.getAttributesFromModelInvocationOutput(
@@ -152,7 +161,10 @@ export class SpanCreator {
     Object.assign(
       attributes.metadata,
       AttributeExtractor.getMetadataAttributes(
-        modelInvocationOutput["metadata"] as Record<string, unknown>,
+        getObjectDataFromUnknown({
+          data: modelInvocationOutput,
+          key: "metadata",
+        }) ?? {},
       ),
     );
   }
@@ -163,10 +175,12 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processInvocationInput(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
-    const invocationInput = eventData["invocationInput"] ?? {};
+    const invocationInput =
+      getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ??
+      {};
 
     const invocationType =
       typeof invocationInput["invocationType"] === "string"
@@ -178,9 +192,11 @@ export class SpanCreator {
       typeof invocationInput["agentCollaboratorInvocationInput"] === "object" &&
       invocationInput["agentCollaboratorInvocationInput"] !== null
     ) {
-      const agentCollaboratorInput = invocationInput[
-        "agentCollaboratorInvocationInput"
-      ] as Record<string, unknown>;
+      const agentCollaboratorInput =
+        getObjectDataFromUnknown({
+          data: invocationInput,
+          key: "agentCollaboratorInvocationInput",
+        }) ?? {};
 
       const agentCollaboratorName =
         typeof agentCollaboratorInput["agentCollaboratorName"] === "string"
@@ -207,10 +223,11 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processObservation(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
-    const observation = eventData["observation"] ?? {};
+    const observation =
+      getObjectDataFromUnknown({ data: eventData, key: "observation" }) ?? {};
     Object.assign(
       attributes.outputAttributes,
       AttributeExtractor.getAttributesFromObservation(observation),
@@ -227,10 +244,12 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processRationale(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
-    const rationaleText = eventData["rationale"]?.["text"] ?? "";
+    const rationaleText =
+      getObjectDataFromUnknown({ data: eventData, key: "rationale" })?.text ??
+      "";
     if (rationaleText) {
       Object.assign(
         attributes.outputAttributes,
@@ -245,7 +264,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processFailureTrace(
-    eventData: Record<string, Record<string, unknown>>,
+    eventData: UnknownRecord,
     attributes: Attributes,
   ): void {
     Object.assign(
@@ -254,7 +273,9 @@ export class SpanCreator {
     );
     Object.assign(
       attributes.metadata,
-      AttributeExtractor.getMetadataAttributes(eventData["metadata"] ?? {}),
+      AttributeExtractor.getMetadataAttributes(
+        getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {},
+      ),
     );
   }
 
@@ -278,13 +299,17 @@ export class SpanCreator {
       if (!span.chunks) continue;
       for (const traceData of span.chunks) {
         const traceEvent = AttributeExtractor.getEventType(traceData);
-        const eventData = traceData[traceEvent] ?? {};
+        const eventData =
+          getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
         // Extract from model invocation input
         if ("modelInvocationInput" in eventData) {
-          const modelInvocationInput: Record<string, string> =
-            (eventData["modelInvocationInput"] as Record<string, string>) ?? {};
-          const text = modelInvocationInput["text"] ?? "";
+          const modelInvocationInput: UnknownRecord =
+            getObjectDataFromUnknown({
+              data: eventData,
+              key: "modelInvocationInput",
+            }) ?? {};
+          const text = String(modelInvocationInput?.text ?? "");
           const messages = AttributeExtractor.getMessagesObject(text);
           for (const message of messages) {
             if (message.role === "user" && message.content) {
@@ -301,8 +326,11 @@ export class SpanCreator {
 
         // Extract from invocation input
         if ("invocationInput" in eventData) {
-          const invocationInput: Record<string, unknown> =
-            (eventData["invocationInput"] as Record<string, unknown>) ?? {};
+          const invocationInput =
+            getObjectDataFromUnknown({
+              data: eventData,
+              key: "invocationInput",
+            }) ?? {};
           const attrs =
             AttributeExtractor.getParentInputAttributesFromInvocationInput(
               invocationInput,
@@ -343,18 +371,21 @@ export class SpanCreator {
       for (let j = span.chunks.length - 1; j >= 0; j--) {
         const traceData = span.chunks[j];
         const traceEvent = AttributeExtractor.getEventType(traceData);
-        const eventData = traceData[traceEvent] ?? {};
+        const eventData =
+          getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
         // Extract from model invocation output
         if ("modelInvocationOutput" in eventData) {
-          const modelInvocationOutput: Record<string, unknown> =
-            (eventData["modelInvocationOutput"] as Record<string, unknown>) ??
-            {};
+          const modelInvocationOutput =
+            getObjectDataFromUnknown({
+              data: eventData,
+              key: "modelInvocationOutput",
+            }) ?? {};
           const parsedResponse =
-            (modelInvocationOutput["parsedResponse"] as Record<
-              string,
-              unknown
-            >) ?? {};
+            getObjectDataFromUnknown({
+              data: modelInvocationOutput,
+              key: "parsedResponse",
+            }) ?? {};
           const outputText = parsedResponse["text"] ?? "";
           if (outputText) {
             Object.assign(
@@ -375,14 +406,18 @@ export class SpanCreator {
 
         // Extract from observation
         if ("observation" in eventData) {
-          const observation: Record<string, unknown> =
-            (eventData["observation"] as Record<string, unknown>) ?? {};
-          const finalResponse: Record<string, unknown> =
-            (observation["finalResponse"] as Record<string, unknown>) ?? {};
-          if (finalResponse && finalResponse["text"]) {
+          const observation =
+            getObjectDataFromUnknown({ data: eventData, key: "observation" }) ??
+            {};
+          const finalResponse =
+            getObjectDataFromUnknown({
+              data: observation,
+              key: "finalResponse",
+            }) ?? {};
+          if (finalResponse?.text) {
             Object.assign(
               attributes.requestAttributes,
-              getOutputAttributes(finalResponse["text"]),
+              getOutputAttributes(finalResponse.text),
             );
             return;
           }
@@ -449,26 +484,33 @@ export class SpanCreator {
       const chunks = reverse ? [...span.chunks].reverse() : span.chunks;
       for (const traceData of chunks) {
         const traceEvent = AttributeExtractor.getEventType(traceData);
-        const eventData = traceData[traceEvent] ?? {};
+        const eventData =
+          getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
         // Check model invocation output
         if ("modelInvocationOutput" in eventData) {
           const modelInvocationOutput: Record<string, unknown> =
-            (eventData["modelInvocationOutput"] as Record<string, unknown>) ??
-            {};
-          const metadata = AttributeExtractor.getMetadataAttributes(
-            (modelInvocationOutput["metadata"] as Record<string, unknown>) ??
-              {},
-          );
+            getObjectDataFromUnknown({
+              data: eventData,
+              key: "modelInvocationOutput",
+            }) ?? {};
+          const metadataObject =
+            getObjectDataFromUnknown({
+              data: modelInvocationOutput,
+              key: "metadata",
+            }) ?? {};
+          const metadata =
+            AttributeExtractor.getMetadataAttributes(metadataObject);
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
           }
         }
         // Check observation
         if ("observation" in eventData) {
-          const observation = eventData["observation"] ?? {};
-          const metadata = AttributeExtractor.getObservationMetadataAttributes(
-            observation as Record<string, unknown>,
-          );
+          const observation =
+            getObjectDataFromUnknown({ data: eventData, key: "observation" }) ??
+            {};
+          const metadata =
+            AttributeExtractor.getMetadataAttributes(observation);
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
           }

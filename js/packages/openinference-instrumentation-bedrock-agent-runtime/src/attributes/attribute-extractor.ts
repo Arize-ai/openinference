@@ -12,8 +12,14 @@ import {
   OpenInferenceSpanKind,
   LLMProvider,
 } from "@arizeai/openinference-semantic-conventions";
-import { TokenCount, Message, ParsedInput } from "./types";
-import { safeJsonParse, fixLooseJsonString } from "../utils/json-utils";
+import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
+import {
+  safeJsonParse,
+  fixLooseJsonString,
+  getObjectDataFromUnknown,
+} from "../utils/json-utils";
+import { UnknownRecord } from "../index";
+import { isObjectWithStringKeys } from "../../../openinference-core";
 
 /**
  * @module AttributeExtractor
@@ -57,39 +63,36 @@ export class AttributeExtractor {
    * Extract the trace ID from a trace object. Falls back to
    * `'unknown-trace-id'` when missing.
    */
-  static extractTraceId(traceData: Record<string, unknown>): string {
+  static extractTraceId(
+    traceData: Record<string, unknown>,
+  ): string | undefined {
     const eventType = this.getEventType(traceData);
-
+    const eventData = getObjectDataFromUnknown({
+      data: traceData,
+      key: eventType,
+    });
+    if (eventData === undefined || eventData === null) {
+      return;
+    }
     for (const chunkType of this.CHUNK_TYPES) {
-      if (
-        eventType in traceData &&
-        typeof traceData[eventType] === "object" &&
-        traceData[eventType] !== null &&
-        chunkType in (traceData[eventType] as Record<string, unknown>)
-      ) {
-        const chunkObj = (traceData[eventType] as Record<string, unknown>)[
-          chunkType
-        ];
-        if (chunkObj && typeof chunkObj === "object" && "traceId" in chunkObj) {
-          return (
-            ((chunkObj as Record<string, unknown>)["traceId"] as string) ??
-            "unknown-trace-id"
-          );
-        }
+      const chunkData = getObjectDataFromUnknown({
+        data: eventData,
+        key: chunkType,
+      });
+      if (chunkData !== null && typeof chunkData["traceId"] === "string") {
+        return chunkData["traceId"];
       }
     }
-    return "unknown-trace-id";
   }
 
   /**
    * Return the first matching chunk type discovered in {@link eventData}.
    * Defaults to `'unknownChunk'` when not found.
    */
-  static getChunkType(eventData: Record<string, unknown>): string {
+  static getChunkType(eventData: UnknownRecord): string | undefined {
     for (const chunkType of this.CHUNK_TYPES) {
       if (chunkType in eventData) return chunkType;
     }
-    return "unknownChunk";
   }
 
   /**
@@ -99,40 +102,57 @@ export class AttributeExtractor {
   public static getMessagesObject(text: string): Message[] {
     const messages: Message[] = [];
     try {
-      const inputMessages: ParsedInput = safeJsonParse(text);
-      if (inputMessages) {
-        if (inputMessages?.system) {
-          messages.push({ content: inputMessages.system, role: "system" });
-        }
-        const msgArr = Array.isArray(inputMessages.messages)
-          ? inputMessages.messages
-          : [];
-        for (const message of msgArr) {
-          const role = message.role || "";
-          if (message.content) {
-            const parsedContents = fixLooseJsonString(message.content) || [
-              message.content,
-            ];
-            for (const parsedContent of parsedContents) {
-              let messageContent: string = message.content;
-              if (typeof parsedContent === "object" && parsedContent !== null) {
-                if (parsedContent.type && parsedContent[parsedContent.type]) {
-                  messageContent = parsedContent[parsedContent.type] as string;
-                }
-              } else {
-                messageContent = parsedContent;
-              }
-              messages.push({ content: messageContent, role });
-            }
-          }
-        }
-      } else {
-        messages.push({ content: text, role: "assistant" });
+      const inputMessages = safeJsonParse(text);
+      if (!inputMessages) {
+        // Fallback when JSON parsing fails or is null
+        return [{ content: text, role: "assistant" }];
       }
+      const systemMsg = getObjectDataFromUnknown({
+        data: inputMessages,
+        key: "system",
+      });
+      if (systemMsg) {
+        messages.push({
+          content: String(inputMessages["system"]),
+          role: "system",
+        });
+      }
+      const msgArray = Array.isArray(
+        getObjectDataFromUnknown({ data: inputMessages, key: "messages" }),
+      )
+        ? (inputMessages["messages"] as unknown[])
+        : [];
+
+      for (const rawMsg of msgArray) {
+        if (!isObjectWithStringKeys(rawMsg)) continue;
+
+        const role = String(rawMsg["role"] ?? "");
+        const contentVal = rawMsg["content"];
+        if (typeof contentVal !== "string" && !Array.isArray(contentVal)) {
+          continue;
+        }
+        const parsedContents =
+          typeof contentVal === "string"
+            ? fixLooseJsonString(contentVal) || [contentVal]
+            : contentVal;
+        for (const parsed of parsedContents) {
+          let messageContent: string;
+          if (isObjectWithStringKeys(parsed)) {
+            const typeKey = parsed["type"];
+            messageContent =
+              typeof typeKey === "string" && parsed[typeKey]
+                ? String(parsed[typeKey])
+                : JSON.stringify(parsed);
+          } else {
+            messageContent = String(parsed);
+          }
+          messages.push({ content: messageContent, role });
+        }
+      }
+      return messages;
     } catch {
       return [{ content: text, role: "assistant" }];
     }
-    return messages;
   }
 
   /**
@@ -142,64 +162,64 @@ export class AttributeExtractor {
    * to be set on the parent span.
    */
   public static getParentInputAttributesFromInvocationInput(
-    invocationInput: Record<string, unknown>,
-  ): Record<string, unknown> | undefined {
-    if (!invocationInput || typeof invocationInput !== "object") return {};
+    invocationInput: UnknownRecord,
+  ): UnknownRecord | undefined {
+    if (!isObjectWithStringKeys(invocationInput)) return {};
 
-    const actionGroup =
-      (invocationInput as Record<string, unknown>)[
-        "actionGroupInvocationInput"
-      ] || {};
-    if (actionGroup && typeof actionGroup === "object") {
-      const inputValue = (actionGroup as Record<string, unknown>)["text"] || "";
-      if (inputValue) {
-        return getInputAttributes(inputValue as string);
-      }
-    }
-
-    const codeInterpreter =
-      (invocationInput as Record<string, unknown>)[
-        "codeInterpreterInvocationInput"
-      ] || {};
-    if (codeInterpreter && typeof codeInterpreter === "object") {
+    const actionGroup = getObjectDataFromUnknown({
+      data: invocationInput,
+      key: "actionGroupInvocationInput",
+    });
+    if (actionGroup) {
       const inputValue =
-        (codeInterpreter as Record<string, unknown>)["code"] || "";
+        getObjectDataFromUnknown({ data: actionGroup, key: "text" }) || "";
       if (inputValue) {
-        return getInputAttributes(inputValue as string);
+        return getInputAttributes(String(inputValue));
       }
     }
 
-    const kbLookup =
-      (invocationInput as Record<string, unknown>)[
-        "knowledgeBaseLookupInput"
-      ] || {};
-    if (kbLookup && typeof kbLookup === "object") {
-      const inputValue = (kbLookup as Record<string, unknown>)["text"] || "";
+    const codeInterpreter = getObjectDataFromUnknown({
+      data: invocationInput,
+      key: "codeInterpreterInvocationInput",
+    });
+    if (codeInterpreter) {
+      const inputValue =
+        getObjectDataFromUnknown({ data: codeInterpreter, key: "code" }) || "";
       if (inputValue) {
-        return getInputAttributes(inputValue as string);
+        return getInputAttributes(String(inputValue));
       }
     }
 
-    const agentCollaborator =
-      (invocationInput as Record<string, unknown>)[
-        "agentCollaboratorInvocationInput"
-      ] || {};
-    if (agentCollaborator && typeof agentCollaborator === "object") {
+    const kbLookup = getObjectDataFromUnknown({
+      data: invocationInput,
+      key: "knowledgeBaseLookupInput",
+    });
+    if (kbLookup) {
+      const inputValue =
+        getObjectDataFromUnknown({ data: kbLookup, key: "text" }) || "";
+      if (inputValue) {
+        return getInputAttributes(String(inputValue));
+      }
+    }
+
+    const agentCollaborator = getObjectDataFromUnknown({
+      data: invocationInput,
+      key: "agentCollaboratorInvocationInput",
+    });
+    if (agentCollaborator) {
       const inputData =
-        (agentCollaborator as Record<string, unknown>)["input"] || {};
-      if (inputData && typeof inputData === "object") {
-        const inputType = (inputData as Record<string, unknown>)["type"];
-        if (inputType === "TEXT") {
-          const inputValue =
-            (inputData as Record<string, unknown>)["text"] || "";
+        getObjectDataFromUnknown({ data: agentCollaborator, key: "input" }) ||
+        "";
+      if (inputData) {
+        const inputType = inputData["type"];
+        if (String(inputType) === "TEXT") {
+          const inputValue = inputData["text"];
           if (inputValue) {
-            return getInputAttributes(inputValue as string);
+            return getInputAttributes(String(inputValue));
           }
         } else if (inputType === "RETURN_CONTROL") {
-          const returnControlResults = (inputData as Record<string, unknown>)[
-            "returnControlResults"
-          ];
-          if (returnControlResults !== undefined) {
+          const returnControlResults = inputData["returnControlResults"];
+          if (returnControlResults) {
             const inputValue = JSON.stringify(returnControlResults);
             return getInputAttributes(inputValue);
           }
@@ -210,81 +230,21 @@ export class AttributeExtractor {
   }
 
   /**
-   * Extracts metadata attributes from observation metadata.
-   * Converts timestamps to nanoseconds and normalizes keys.
-   * @param traceMetadata The observation metadata object.
-   * @returns A record of extracted metadata attributes.
-   */
-  public static getObservationMetadataAttributes(
-    traceMetadata: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const metadata: Record<string, unknown> = {};
-    if (!traceMetadata || typeof traceMetadata !== "object") return metadata;
-    if ((traceMetadata as Record<string, unknown>).clientRequestId) {
-      metadata["client_request_id"] = (
-        traceMetadata as Record<string, unknown>
-      ).clientRequestId;
-    }
-    if ((traceMetadata as Record<string, unknown>).endTime) {
-      const endTime = (traceMetadata as Record<string, unknown>).endTime;
-      if (endTime instanceof Date) {
-        metadata["end_time"] = endTime.getTime();
-      } else if (typeof endTime === "number") {
-        metadata["end_time"] = endTime;
-      } else if (typeof endTime === "string") {
-        const date = new Date(endTime);
-        if (!isNaN(date.getTime())) {
-          metadata["end_time"] = date.getTime();
-        }
-      }
-    }
-    if ((traceMetadata as Record<string, unknown>).startTime) {
-      const startTime = (traceMetadata as Record<string, unknown>).startTime;
-      if (startTime instanceof Date) {
-        metadata["start_time"] = startTime.getTime();
-      } else if (typeof startTime === "number") {
-        metadata["start_time"] = startTime;
-      } else if (typeof startTime === "string") {
-        const date = new Date(startTime);
-        if (!isNaN(date.getTime())) {
-          metadata["start_time"] = date.getTime();
-        }
-      }
-    }
-    if (
-      (traceMetadata as Record<string, unknown>).operationTotalTimeMs !==
-      undefined
-    ) {
-      metadata["operation_total_time_ms"] = (
-        traceMetadata as Record<string, unknown>
-      ).operationTotalTimeMs;
-    }
-    if ((traceMetadata as Record<string, unknown>).totalTimeMs !== undefined) {
-      metadata["total_time_ms"] = (
-        traceMetadata as Record<string, unknown>
-      ).totalTimeMs;
-    }
-    return metadata;
-  }
-
-  /**
    * Extracts metadata attributes from trace metadata.
    * Converts timestamps to nanoseconds and normalizes keys.
    * @param traceMetadata The trace metadata object.
    * @returns A record of extracted metadata attributes.
    */
   public static getMetadataAttributes(
-    traceMetadata: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const metadata: Record<string, unknown> = {};
+    traceMetadata: UnknownRecord,
+  ): UnknownRecord {
+    const metadata: UnknownRecord = {};
     if (!traceMetadata || typeof traceMetadata !== "object") return metadata;
-    if ((traceMetadata as Record<string, unknown>).clientRequestId) {
-      metadata["client_request_id"] = (
-        traceMetadata as Record<string, unknown>
-      ).clientRequestId;
+    if (traceMetadata?.clientRequestId) {
+      metadata["client_request_id"] = traceMetadata.clientRequestId;
     }
-    if ((traceMetadata as Record<string, unknown>).endTime) {
-      const endTime = (traceMetadata as Record<string, unknown>).endTime;
+    if (traceMetadata?.endTime) {
+      const endTime = traceMetadata.endTime;
       if (endTime instanceof Date) {
         metadata["end_time"] = endTime.getTime();
       } else if (typeof endTime === "number") {
@@ -296,8 +256,8 @@ export class AttributeExtractor {
         }
       }
     }
-    if ((traceMetadata as Record<string, unknown>).startTime) {
-      const startTime = (traceMetadata as Record<string, unknown>).startTime;
+    if (traceMetadata?.startTime) {
+      const startTime = traceMetadata?.startTime;
       if (startTime instanceof Date) {
         metadata["start_time"] = startTime.getTime();
       } else if (typeof startTime === "number") {
@@ -309,18 +269,11 @@ export class AttributeExtractor {
         }
       }
     }
-    if (
-      (traceMetadata as Record<string, unknown>).operationTotalTimeMs !==
-      undefined
-    ) {
-      metadata["operation_total_time_ms"] = (
-        traceMetadata as Record<string, unknown>
-      ).operationTotalTimeMs;
+    if (traceMetadata?.operationTotalTimeMs) {
+      metadata["operation_total_time_ms"] = traceMetadata.operationTotalTimeMs;
     }
-    if ((traceMetadata as Record<string, unknown>).totalTimeMs !== undefined) {
-      metadata["total_time_ms"] = (
-        traceMetadata as Record<string, unknown>
-      ).totalTimeMs;
+    if (traceMetadata?.totalTimeMs) {
+      metadata["total_time_ms"] = traceMetadata.totalTimeMs;
     }
     return metadata;
   }
@@ -333,12 +286,12 @@ export class AttributeExtractor {
    * @returns A dictionary of extracted attributes.
    */
   public static getAttributesFromModelInvocationInput(
-    modelInvocationInput: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const llmAttributes: Record<string, unknown> = {};
+    modelInvocationInput: UnknownRecord,
+  ): UnknownRecord {
+    const llmAttributes: UnknownRecord = {};
     let inputText = "";
     if (modelInvocationInput && "text" in modelInvocationInput) {
-      inputText = modelInvocationInput["text"] as string;
+      inputText = String(modelInvocationInput["text"]);
     }
     const modelName = AttributeExtractor.getModelName(
       modelInvocationInput || {},
@@ -420,41 +373,40 @@ export class AttributeExtractor {
    * @returns Model name if found, otherwise undefined.
    */
   public static getModelName(
-    inputParams: Record<string, unknown>,
-    outputParams: Record<string, unknown>,
+    inputParams: UnknownRecord,
+    outputParams: UnknownRecord,
   ): string | undefined {
     // Try to get model name from inputParams["foundationModel"]
-    if (
-      inputParams &&
-      typeof inputParams === "object" &&
-      "foundationModel" in inputParams
-    ) {
-      return String(inputParams["foundationModel"]);
+    const foundationModel = getObjectDataFromUnknown({
+      data: inputParams,
+      key: "foundationModel",
+    });
+    if (foundationModel) {
+      return String(foundationModel);
     }
+
     // Try to get model name from outputParams["rawResponse"]["content"]
-    if (
-      outputParams &&
-      typeof outputParams === "object" &&
-      "rawResponse" in outputParams
-    ) {
-      const rawResponse = outputParams["rawResponse"];
-      if (
-        rawResponse &&
-        typeof rawResponse === "object" &&
-        "content" in rawResponse
-      ) {
-        const outputText = rawResponse["content"];
+    const rawResponse = getObjectDataFromUnknown({
+      data: outputParams,
+      key: "rawResponse",
+    });
+    if (rawResponse) {
+      const outputText = getObjectDataFromUnknown({
+        data: rawResponse,
+        key: "content",
+      });
+      if (outputText) {
         try {
           const data = JSON.parse(String(outputText));
           if (data && typeof data === "object" && "model" in data) {
             return String(data["model"]);
           }
         } catch (e) {
-          // Optionally log error if logger is available
+          // If JSON parsing fails, we ignore the error and return undefined
+          // as we cannot extract the model name from the output.
         }
       }
     }
-    return undefined;
   }
 
   /**
@@ -463,7 +415,7 @@ export class AttributeExtractor {
    * @returns Output value as a string, or undefined if not found.
    */
   public static getOutputValue(
-    outputParams: Record<string, unknown>,
+    outputParams: UnknownRecord,
   ): string | undefined {
     const rawResponse = outputParams?.rawResponse || {};
     if (typeof rawResponse === "object" && rawResponse !== null) {
@@ -471,6 +423,7 @@ export class AttributeExtractor {
         return String(rawResponse.content);
       }
     }
+
     const parsedResponse = outputParams?.parsedResponse || {};
     if (typeof parsedResponse === "object" && parsedResponse !== null) {
       if ("text" in parsedResponse && parsedResponse.text !== undefined) {
@@ -492,26 +445,29 @@ export class AttributeExtractor {
    * @returns Array of output messages.
    */
   public static getOutputMessages(
-    modelInvocationOutput: Record<string, unknown>,
-  ): Record<string, unknown>[] {
-    const messages: Record<string, unknown>[] = [];
+    modelInvocationOutput: UnknownRecord,
+  ): UnknownRecord[] {
+    const messages: Message[] = [];
     const rawResponse = modelInvocationOutput?.rawResponse;
-    if (rawResponse && typeof rawResponse === "object") {
-      const rawObj = rawResponse as Record<string, unknown>;
-      if ("content" in rawObj && rawObj.content !== undefined) {
+    const rawObj = getObjectDataFromUnknown({
+      data: rawResponse,
+      key: "content",
+    });
+    if (rawObj) {
+      if (rawObj?.content) {
         const outputText = rawObj.content;
         try {
           const data = JSON.parse(String(outputText));
           const contents = data?.content || [];
           for (const content of contents) {
             if (typeof content === "object" && content !== null) {
-              messages.push(
-                AttributeExtractor.getAttributesFromMessage(
-                  content,
-                  ((content as Record<string, unknown>).role as string) ||
-                    "assistant",
-                ) as Record<string, unknown>,
+              const message = AttributeExtractor.getAttributesFromMessage(
+                content,
+                String(content?.role || "assistant"),
               );
+              if (message) {
+                messages.push(message);
+              }
             }
           }
         } catch (e) {
@@ -527,50 +483,39 @@ export class AttributeExtractor {
    * @param outputParams Model invocation output parameters.
    * @returns TokenCount object with prompt, completion, and total tokens.
    */
-  public static getTokenCounts(
-    outputParams: Record<string, unknown>,
-  ): TokenCount {
-    const metadata = outputParams?.metadata;
-    if (!metadata || typeof metadata !== "object" || !("usage" in metadata))
-      return {};
-    const usage = (metadata as Record<string, unknown>).usage as Record<
-      string,
-      unknown
-    >;
+  public static getTokenCounts(outputParams: UnknownRecord): TokenCount {
+    const metadata = getObjectDataFromUnknown({
+      data: outputParams,
+      key: "metadata",
+    });
+    if (!metadata || !("usage" in metadata)) return {};
+    const usage = getObjectDataFromUnknown({ data: metadata, key: "usage" });
     let input = 0,
       output = 0,
       total = 0;
-    if (typeof usage.inputTokens === "number") {
+    if (typeof usage?.inputTokens === "number") {
       input = usage.inputTokens;
     }
-    if (typeof usage.outputTokens === "number") {
+    if (typeof usage?.outputTokens === "number") {
       output = usage.outputTokens;
     }
-    if (
-      typeof usage.inputTokens === "number" &&
-      typeof usage.outputTokens === "number"
-    ) {
-      total = usage.inputTokens + usage.outputTokens;
-    }
+    total = input + output;
     return { prompt: input, completion: output, total: total };
   }
 
   public static getAttributesFromAgentCollaboratorInvocationOutput(
-    collaboratorOutput: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const outputData = collaboratorOutput?.output || {};
-    const outputType = (outputData as Record<string, unknown>)?.type || "TEXT";
+    collaboratorOutput: UnknownRecord,
+  ): UnknownRecord {
+    const outputData =
+      getObjectDataFromUnknown({ data: collaboratorOutput, key: "output" }) ||
+      {};
+    const outputType = outputData?.type || "TEXT";
     let outputValue: unknown = "";
     if (outputType === "TEXT") {
-      outputValue = (outputData as Record<string, unknown>).text || "";
+      outputValue = outputData?.text || "";
     } else if (outputType === "RETURN_CONTROL") {
-      if (
-        (outputData as Record<string, unknown>).returnControlPayload !==
-        undefined
-      ) {
-        outputValue = JSON.stringify(
-          (outputData as Record<string, unknown>).returnControlPayload,
-        );
+      if (outputData?.returnControlPayload !== undefined) {
+        outputValue = JSON.stringify(outputData?.returnControlPayload);
       }
     }
     const messages: Message[] = [
@@ -594,19 +539,21 @@ export class AttributeExtractor {
    * Checks for specific invocation input types and delegates to their respective extractors.
    */
   public static getAttributesFromInvocationInput(
-    invocationInput: Record<string, unknown>,
-  ): Record<string, unknown> {
+    invocationInput: UnknownRecord,
+  ): UnknownRecord {
     if (!invocationInput || typeof invocationInput !== "object") return {};
+
     if ("actionGroupInvocationInput" in invocationInput) {
-      return (
-        AttributeExtractor.getAttributesFromActionGroupInvocationInput(
-          invocationInput["actionGroupInvocationInput"] as Record<
-            string,
-            string
-          >,
-        ) || {}
+      const actionGroupInvocationInput =
+        getObjectDataFromUnknown({
+          data: invocationInput,
+          key: "actionGroupInvocationInput",
+        }) || {};
+      return AttributeExtractor.getAttributesFromActionGroupInvocationInput(
+        actionGroupInvocationInput,
       );
     }
+
     if ("codeInterpreterInvocationInput" in invocationInput) {
       return (
         AttributeExtractor.getAttributesFromCodeInterpreterInput(
@@ -645,18 +592,21 @@ export class AttributeExtractor {
    * Extracts tool call, messages, tool attributes, and metadata for action group invocation.
    */
   public static getAttributesFromActionGroupInvocationInput(
-    actionInput: Record<string, string>,
+    actionInput: UnknownRecord,
   ): Record<string, unknown> {
-    const name: string = actionInput?.function;
-    const parameters = actionInput?.parameters ?? {};
-    const description: string = actionInput?.description;
+    const name: string = String(actionInput?.function);
+    const parameters: string = String(actionInput?.parameters) ?? "{}";
+    const description: string = String(actionInput?.description);
+
     // Build tool call function and tool call
-    const toolCallFunction = {
+    const toolCallFunction: ToolCallFunction = {
       name,
       arguments: parameters,
     };
-    const toolCalls = [{ id: "default", function: toolCallFunction }];
-    const messages = [
+    const toolCalls: ToolCall[] = [
+      { id: "default", function: toolCallFunction },
+    ];
+    const messages: Message[] = [
       { tool_call_id: "default", role: "tool", tool_calls: toolCalls },
     ];
     // Prepare tool attributes
@@ -693,8 +643,8 @@ export class AttributeExtractor {
    * Extracts tool call, messages, tool attributes, and metadata for code interpreter invocation.
    */
   public static getAttributesFromCodeInterpreterInput(
-    codeInput: Record<string, unknown>,
-  ): Record<string, unknown> {
+    codeInput: UnknownRecord,
+  ): UnknownRecord {
     const toolCallFunction = {
       name: "code_interpreter",
       arguments: {
@@ -729,8 +679,8 @@ export class AttributeExtractor {
    * Extracts input attributes and metadata for knowledge base lookup invocation.
    */
   public static getAttributesFromKnowledgeBaseLookupInput(
-    kbData: Record<string, unknown>,
-  ): Record<string, unknown> {
+    kbData: UnknownRecord,
+  ): UnknownRecord {
     const metadata = {
       invocation_type: "knowledge_base_lookup",
       knowledge_base_id: kbData?.knowledgeBaseId,
@@ -747,21 +697,16 @@ export class AttributeExtractor {
    * Extracts content, builds messages, and adds metadata for agent collaborator invocation.
    */
   public static getAttributesFromAgentCollaboratorInvocationInput(
-    input: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const inputData = input?.input || {};
-    const inputType = (inputData as Record<string, unknown>)?.type || "TEXT";
+    input: UnknownRecord,
+  ): UnknownRecord {
+    const inputData = getObjectDataFromUnknown({ data: input, key: "input" });
+    const inputType = inputData?.type || "TEXT";
     let content = "";
     if (inputType === "TEXT") {
-      content = (inputData as Record<string, string>).text || "";
+      content = String(inputData?.text || "");
     } else if (inputType === "RETURN_CONTROL") {
-      if (
-        (inputData as Record<string, unknown>).returnControlResults !==
-        undefined
-      ) {
-        content = JSON.stringify(
-          (inputData as Record<string, unknown>).returnControlResults,
-        );
+      if (inputData?.returnControlResults !== undefined) {
+        content = JSON.stringify(inputData.returnControlResults);
       }
     }
     const messages = [{ content, role: "assistant" }];
@@ -786,31 +731,41 @@ export class AttributeExtractor {
    * @returns A dictionary of extracted output attributes.
    */
   public static getAttributesFromObservation(
-    observation: Record<string, unknown>,
-  ): Record<string, unknown> {
+    observation: UnknownRecord,
+  ): UnknownRecord {
     if (!observation || typeof observation !== "object") return {};
     if ("actionGroupInvocationOutput" in observation) {
-      const toolOutput = observation["actionGroupInvocationOutput"] as Record<
-        string,
-        unknown
-      >;
+      const toolOutput =
+        getObjectDataFromUnknown({
+          data: observation,
+          key: "actionGroupInvocationOutput",
+        }) || {};
       return getOutputAttributes(toolOutput?.text ?? "");
     }
     if ("codeInterpreterInvocationOutput" in observation) {
+      const codeInterpreterInvocationOutput =
+        getObjectDataFromUnknown({
+          data: observation,
+          key: "codeInterpreterInvocationOutput",
+        }) || {};
       return AttributeExtractor.getAttributesFromCodeInterpreterOutput(
-        observation["codeInterpreterInvocationOutput"] as Record<
-          string,
-          unknown
-        >,
+        codeInterpreterInvocationOutput,
       );
     }
+
     if ("knowledgeBaseLookupOutput" in observation) {
+      const knowledgeBaseLookupOutput =
+        getObjectDataFromUnknown({
+          data: observation,
+          key: "knowledgeBaseLookupOutput",
+        }) || {};
+      const retrievedReferences: Array<UnknownRecord> = Array.isArray(
+        knowledgeBaseLookupOutput?.retrievedReferences,
+      )
+        ? knowledgeBaseLookupOutput?.retrievedReferences
+        : [];
       return AttributeExtractor.getAttributesFromKnowledgeBaseLookupOutput(
-        (
-          observation["knowledgeBaseLookupOutput"] as
-            | { retrievedReferences: Record<string, unknown>[] }
-            | undefined
-        )?.retrievedReferences ?? [],
+        retrievedReferences,
       );
     }
     if ("agentCollaboratorInvocationOutput" in observation) {
@@ -831,24 +786,18 @@ export class AttributeExtractor {
    * @returns Output attributes and tool messages for code execution.
    */
   public static getAttributesFromCodeInterpreterOutput(
-    codeInvocationOutput: Record<string, unknown>,
-  ): Record<string, unknown> {
+    codeInvocationOutput: UnknownRecord,
+  ): UnknownRecord {
     let outputValue: unknown = null;
     let files: unknown = null;
-    if ((codeInvocationOutput as Record<string, unknown>)?.executionOutput) {
-      outputValue = (codeInvocationOutput as Record<string, unknown>)
-        .executionOutput;
-    } else if (
-      (codeInvocationOutput as Record<string, unknown>)?.executionError
-    ) {
-      outputValue = (codeInvocationOutput as Record<string, unknown>)
-        .executionError;
-    } else if (
-      (codeInvocationOutput as Record<string, unknown>)?.executionTimeout
-    ) {
+    if (codeInvocationOutput?.executionOutput) {
+      outputValue = String(codeInvocationOutput?.executionOutput || "");
+    } else if (codeInvocationOutput?.executionError) {
+      outputValue = codeInvocationOutput.executionError;
+    } else if (codeInvocationOutput?.executionTimeout) {
       outputValue = "Execution Timeout Error";
-    } else if ((codeInvocationOutput as Record<string, unknown>)?.files) {
-      files = (codeInvocationOutput as Record<string, unknown>).files;
+    } else if (codeInvocationOutput?.files) {
+      files = codeInvocationOutput.files;
       outputValue = JSON.stringify(files);
     }
     const content = files
@@ -870,12 +819,12 @@ export class AttributeExtractor {
    * @returns Combined document attributes for all references.
    */
   public static getAttributesFromKnowledgeBaseLookupOutput(
-    retrievedReferences: Array<Record<string, unknown>>,
-  ): Record<string, unknown> {
-    const attributes: Record<string, unknown> = {};
+    retrievedReferences: Array<UnknownRecord>,
+  ): UnknownRecord {
+    const attributes: UnknownRecord = {};
     if (!Array.isArray(retrievedReferences)) return attributes;
     for (let i = 0; i < retrievedReferences.length; i++) {
-      const ref: Record<string, unknown> = retrievedReferences[i];
+      const ref: UnknownRecord = retrievedReferences[i];
       Object.assign(attributes, getDocumentAttributes(i, ref));
     }
     return attributes;
@@ -888,14 +837,14 @@ export class AttributeExtractor {
    * @returns Output attributes for the failure message.
    */
   public static getFailureTraceAttributes(
-    traceData: Record<string, unknown>,
-  ): Record<string, unknown> {
+    traceData: UnknownRecord,
+  ): UnknownRecord {
     let failureMessage = "";
-    if ((traceData as Record<string, unknown>)?.failureCode) {
-      failureMessage += `Failure Code: ${(traceData as Record<string, unknown>).failureCode}\n`;
+    if (traceData?.failureCode) {
+      failureMessage += `Failure Code: ${traceData.failureCode}\n`;
     }
-    if ((traceData as Record<string, unknown>)?.failureReason) {
-      failureMessage += `Failure Reason: ${(traceData as Record<string, unknown>).failureReason}`;
+    if (traceData?.failureReason) {
+      failureMessage += `Failure Reason: ${traceData.failureReason}`;
     }
     if (failureMessage) {
       return getOutputAttributes(failureMessage);
@@ -909,7 +858,7 @@ export class AttributeExtractor {
    * @returns Extracted metadata attributes or an empty object.
    */
   static extractMetadataAttributesFromObservation(
-    observation: Record<string, unknown>,
+    observation: UnknownRecord,
   ): object {
     const events = [
       "actionGroupInvocationOutput",
@@ -918,18 +867,15 @@ export class AttributeExtractor {
       "agentCollaboratorInvocationOutput",
     ];
     for (const event of events) {
-      if (
-        event in observation &&
-        (observation as Record<string, unknown>)[event]
-      ) {
-        return AttributeExtractor.getMetadataAttributes(
-          ((
-            (observation as Record<string, unknown>)[event] as Record<
-              string,
-              unknown
-            >
-          ).metadata as Record<string, unknown>) ?? {},
-        );
+      if (event in observation && observation[event]) {
+        const observationConst =
+          getObjectDataFromUnknown({ data: observation, key: event }) || {};
+        const metadata =
+          getObjectDataFromUnknown({
+            data: observationConst,
+            key: "metadata",
+          }) || {};
+        return AttributeExtractor.getMetadataAttributes(metadata);
       }
     }
     return {};
@@ -942,24 +888,24 @@ export class AttributeExtractor {
    * @returns Message object if attributes can be extracted, otherwise null.
    */
   public static getAttributesFromMessage(
-    message: Record<string, unknown>,
+    message: UnknownRecord,
     role: string,
-  ): import("./types").Message | null {
+  ): Message | null {
     if (!message || typeof message !== "object") return null;
-    if ((message as Record<string, unknown>).type === "text") {
+    if (message?.type === "text") {
       return {
-        content: ((message as Record<string, unknown>).text as string) || "",
+        content: String(message?.text || ""),
         role,
       };
     }
-    if ((message as Record<string, unknown>).type === "tool_use") {
-      const toolCallFunction = {
-        name: (message as Record<string, string>).name || "",
-        arguments: (message as Record<string, string>).input || {},
+    if (message?.type === "tool_use") {
+      const toolCallFunction: ToolCallFunction = {
+        name: String(message?.name || ""),
+        arguments: String(message?.input || "{}"),
       };
-      const toolCalls = [
+      const toolCalls: ToolCall[] = [
         {
-          id: (message as Record<string, string>).id || "",
+          id: String(message?.id || ""),
           function: toolCallFunction,
         },
       ];

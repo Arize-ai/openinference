@@ -1,4 +1,5 @@
 import { AgentChunkSpan } from "./agent-chunk-span";
+import { UnknownRecord } from "../index";
 
 /**
  * Tree node representing an agent or model invocation. Each node can own:
@@ -23,7 +24,7 @@ export class AgentTraceNode {
   public currentSpan: AgentChunkSpan | null = null;
 
   /** Chunks attached directly to the node (outside any span). */
-  public readonly chunks: Record<string, object>[] = [];
+  public readonly chunks: UnknownRecord[] = [];
 
   /**
    * Creates a new AgentTraceNode instance.
@@ -49,7 +50,7 @@ export class AgentTraceNode {
    * Adds a chunk directly to this node (not part of any span).
    * @param chunk - The chunk object to add
    */
-  addChunk(chunk: Record<string, object>): void {
+  addChunk(chunk: UnknownRecord): void {
     this.chunks.push(chunk);
   }
 

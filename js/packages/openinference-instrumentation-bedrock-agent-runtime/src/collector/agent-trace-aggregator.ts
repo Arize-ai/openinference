@@ -3,6 +3,8 @@ import { TraceNodeStack } from "./trace-node-stack";
 import { AgentChunkSpan } from "./agent-chunk-span";
 import { AttributeExtractor } from "../attributes/attribute-extractor";
 import { generateUniqueTraceId } from "../attributes/attribute-utils";
+import { getObjectDataFromUnknown } from "../utils/json-utils";
+import { UnknownRecord } from "../index";
 
 /**
  * Aggregates agent trace data into a hierarchical structure of nodes and spans.
@@ -33,21 +35,27 @@ export class AgentTraceAggregator {
    * @param raw - The raw trace data to be processed
    * @returns The current active trace node after processing
    */
-  collect(raw: Record<string, object>): AgentTraceNode {
+  collect(raw: UnknownRecord) {
     const traceData = this.unwrapTrace(raw);
+    if (!traceData) {
+      return;
+    }
     const eventType = AttributeExtractor.getEventType(traceData);
-    const nodeTraceId = generateUniqueTraceId(
-      eventType,
-      AttributeExtractor.extractTraceId(traceData),
-    );
+    const traceId = AttributeExtractor.extractTraceId(traceData);
+    if (!traceId) {
+      return;
+    }
+    const nodeTraceId = generateUniqueTraceId(eventType, traceId);
     const chunkType = AttributeExtractor.getChunkType(
-      (traceData[eventType] as Record<string, unknown>) ?? {},
+      getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {},
     );
+    if (!chunkType) {
+      return;
+    }
     const agentChildId =
       this.detectAgentCollaboration(traceData, eventType, chunkType) &&
       `${nodeTraceId}-agent`;
-
-    return this.routeTraceData(
+    this.routeTraceData(
       traceData,
       this.traceStack.head!,
       nodeTraceId,
@@ -63,9 +71,9 @@ export class AgentTraceAggregator {
    * @returns The unwrapped trace data
    */
   private unwrapTrace(
-    obj: Record<string, object>,
-  ): Record<string, Record<string, unknown>> {
-    return (obj["trace"] as Record<string, Record<string, unknown>>) ?? obj;
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> | null {
+    return getObjectDataFromUnknown({ data: obj, key: "trace" });
   }
 
   /**
@@ -76,14 +84,24 @@ export class AgentTraceAggregator {
    * @returns True if agent collaboration is detected, false otherwise
    */
   private detectAgentCollaboration(
-    traceData: Record<string, object>,
+    traceData: UnknownRecord,
     eventType: string,
     chunkType: string,
   ): boolean {
-    const eventObj = traceData[eventType] as Record<string, object> | undefined;
-    const chunkObj = eventObj
-      ? (eventObj[chunkType] as Record<string, object> | undefined)
-      : undefined;
+    const eventObj = getObjectDataFromUnknown({
+      data: traceData,
+      key: eventType,
+    });
+    if (!eventObj) {
+      return false;
+    }
+    const chunkObj = getObjectDataFromUnknown({
+      data: eventObj,
+      key: chunkType,
+    });
+    if (!chunkObj) {
+      return false;
+    }
     return !!(
       chunkObj &&
       (chunkObj["agentCollaboratorInvocationInput"] ||
@@ -102,7 +120,7 @@ export class AgentTraceAggregator {
    * @returns The current trace node after processing
    */
   private routeTraceData(
-    traceData: Record<string, Record<string, unknown>>,
+    traceData: UnknownRecord,
     parent: AgentTraceNode,
     nodeTraceId: string,
     agentChildId: string | false,
@@ -171,7 +189,7 @@ export class AgentTraceAggregator {
     nodeTraceId: string,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, Record<string, unknown>>,
+    traceData: UnknownRecord,
   ): void {
     const excluded = ["bedrock.invoke_agent", "agent-collaborator"];
     let anchor = parent;
@@ -204,14 +222,13 @@ export class AgentTraceAggregator {
     nodeTraceId: string,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, Record<string, unknown>>,
+    traceData: UnknownRecord,
   ): void {
-    const eventObj = traceData[eventType] ?? {};
+    const eventObj =
+      getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
     const chunkObj =
-      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
-
+      getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {};
     let newNode: AgentTraceNode;
-
     if (chunkObj.agentCollaboratorInvocationInput) {
       newNode = new AgentTraceNode(nodeTraceId, "agent-collaborator");
       newNode.addChunk(traceData);
@@ -247,11 +264,11 @@ export class AgentTraceAggregator {
     agentChildId: string | false,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, Record<string, unknown>>,
+    traceData: UnknownRecord,
   ): void {
     const eventObj = traceData[eventType] ?? {};
     const chunkObj =
-      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
+      getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {};
     if (agentChildId && chunkObj.agentCollaboratorInvocationInput) {
       this.createAndAttachChildNode(
         parent,
@@ -278,11 +295,12 @@ export class AgentTraceAggregator {
     agentChildId: string | false,
     eventType: string,
     chunkType: string,
-    traceData: Record<string, Record<string, unknown>>,
+    traceData: UnknownRecord,
   ): void {
-    const eventObj = traceData[eventType] ?? {};
+    const eventObj =
+      getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
     const chunkObj =
-      (eventObj[chunkType] as Record<string, unknown> | undefined) ?? {};
+      getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {};
     if (agentChildId && chunkObj.agentCollaboratorInvocationOutput) {
       while (
         this.traceStack.head &&
@@ -317,7 +335,7 @@ export class AgentTraceAggregator {
   private appendChunkToCurrentNodeOrStartNewSpan(
     node: AgentTraceNode,
     chunkType: string,
-    traceData: Record<string, object>,
+    traceData: UnknownRecord,
   ): void {
     const mustStartNew =
       ["invocationInput", "modelInvocationInput"].includes(chunkType) ||
@@ -339,7 +357,7 @@ export class AgentTraceAggregator {
   private startNewSpanWithChunk(
     node: AgentTraceNode,
     chunkType: string,
-    traceData: Record<string, object>,
+    traceData: UnknownRecord,
   ): void {
     const span = new AgentChunkSpan(chunkType);
     span.addChunk(traceData);

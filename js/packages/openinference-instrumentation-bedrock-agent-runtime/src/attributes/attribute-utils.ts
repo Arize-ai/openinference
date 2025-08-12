@@ -94,7 +94,7 @@ export function getLLMSystemAttributes(system: unknown): Attributes {
 /**
  * Extracts invocation parameter attributes for LLM tracing.
  * Accepts either a string or an object for invocation parameters.
- * Returns an Attributes object with invocation parameters as a string.
+ * Returns an Attributes object with invocation parameterss a string.
  * @param invocationParameters - Invocation parameters as string or object.
  * @returns Attributes object for invocation parameters.
  */
@@ -265,7 +265,7 @@ export function getSpanKindAttributes(spanKind: string): Attributes {
  * @param name - The name of the tool.
  * @param description - Optional description of the tool.
  * @param parameters - Tool parameters as string or object.
- * @returns Attributes object for tool attributes.
+ * @returns Attributes an object for tool attributes.
  */
 export function getToolAttributes({
   name,

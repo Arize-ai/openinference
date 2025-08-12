@@ -1,4 +1,5 @@
 import { AgentTraceNode } from "./agent-trace-node";
+import { UnknownRecord } from "../index";
 
 /**
  * Logical work-unit inside a node. A span groups sequential chunks that share
@@ -6,7 +7,7 @@ import { AgentTraceNode } from "./agent-trace-node";
  */
 export class AgentChunkSpan {
   /** Raw payloads belonging to this span in order of arrival. */
-  public readonly chunks: Record<string, object>[] = [];
+  public readonly chunks: UnknownRecord[] = [];
 
   /** Machine-friendly label such as `invocationInput`. */
   public readonly spanType: string;
@@ -29,16 +30,8 @@ export class AgentChunkSpan {
    * Add a chunk to this span.
    * @param chunk Chunk object to add.
    */
-  addChunk(chunk: Record<string, object>): void {
+  addChunk(chunk: UnknownRecord): void {
     this.chunks.push(chunk);
-  }
-
-  /**
-   * Add a child node to this span.
-   * @param child AgentTraceNode to add as a child.
-   */
-  addChildNode(child: AgentTraceNode): void {
-    this.childrenNodes.push(child);
   }
 
   /**

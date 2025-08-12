@@ -30,7 +30,7 @@ export class CallbackHandler {
     const text = Buffer.from(chunk).toString("utf8");
     this.outputChunks.push(text);
   }
-  consumeTrace(trace: Record<string, object>) {
+  consumeTrace(trace: Record<string, unknown>) {
     this.traceAggregator.collect(trace);
   }
   onComplete(): void {
