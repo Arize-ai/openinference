@@ -154,11 +154,9 @@ function getUrlAttributes(
  * @param requestBody The request body used as a unique key for this request
  * @returns URL attributes object
  */
-function getStoredUrlAttributes(
-  requestBody: unknown,
-): Record<string, string> {
+function getStoredUrlAttributes(requestBody: unknown): Record<string, string> {
   try {
-    if (requestBody && typeof requestBody === 'object') {
+    if (requestBody && typeof requestBody === "object") {
       const urlInfo = requestUrlMap.get(requestBody as object);
       if (urlInfo) {
         return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
@@ -369,7 +367,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               const fullUrl = new URL(path, baseUrl).toString();
               // Use the request body as a unique key for this specific request
               // This avoids concurrent requests overwriting each other
-              if (body && typeof body === 'object') {
+              if (body && typeof body === "object") {
                 requestUrlMap.set(body, { url: fullUrl, baseUrl });
               }
             }
