@@ -20,6 +20,9 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from smolagents.tools import Tool  # type: ignore[import-untyped]
 
+# Context key to prevent nested LLM spans
+_OI_SMOLAGENTS_LLM_ACTIVE = object()
+
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
@@ -64,13 +67,14 @@ def _smolagent_run_attributes(
         yield "smolagents.task", task
     if additional_args := arguments.get("additional_args"):
         yield "smolagents.additional_args", safe_json_dumps(additional_args)
-    yield "smolagents.max_steps", agent.max_steps
-    yield "smolagents.tools_names", list(agent.tools.keys())
-    for managed_agent_index, managed_agent in enumerate(agent.managed_agents.values()):
-        yield f"smolagents.managed_agents.{managed_agent_index}.name", managed_agent.name
+    yield "smolagents.max_steps", getattr(agent, "max_steps", None)
+    if isinstance(getattr(agent, "tools", None), dict):
+        yield "smolagents.tools_names", list(agent.tools.keys())
+    for managed_agent_index, managed_agent in enumerate(getattr(agent, "managed_agents", {}).values()):
+        yield f"smolagents.managed_agents.{managed_agent_index}.name", getattr(managed_agent, "name", None)
         yield (
             f"smolagents.managed_agents.{managed_agent_index}.description",
-            managed_agent.description,
+            getattr(managed_agent, "description", None),
         )
         if getattr(managed_agent, "additional_prompting", None):
             yield (
@@ -85,12 +89,13 @@ def _smolagent_run_attributes(
         if getattr(managed_agent, "agent", None):
             yield (
                 f"smolagents.managed_agents.{managed_agent_index}.max_steps",
-                managed_agent.agent.max_steps,
+                getattr(managed_agent.agent, "max_steps", None),
             )
-            yield (
-                f"smolagents.managed_agents.{managed_agent_index}.tools_names",
-                list(managed_agent.agent.tools.keys()),
-            )
+            if isinstance(getattr(managed_agent.agent, "tools", None), dict):
+                yield (
+                    f"smolagents.managed_agents.{managed_agent_index}.tools_names",
+                    list(managed_agent.agent.tools.keys()),
+                )
 
 
 class _RunWrapper:
@@ -127,12 +132,15 @@ class _RunWrapper:
             ),
         ) as span:
             agent_output = wrapped(*args, **kwargs)
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, agent.monitor.total_input_token_count)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, agent.monitor.total_output_token_count)
-            span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL,
-                agent.monitor.total_input_token_count + agent.monitor.total_output_token_count,
-            )
+            monitor = getattr(agent, "monitor", None)
+            prompt_tokens = getattr(monitor, "total_input_token_count", None)
+            completion_tokens = getattr(monitor, "total_output_token_count", None)
+            if prompt_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
+            if completion_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, completion_tokens)
+            if prompt_tokens is not None and completion_tokens is not None:
+                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, prompt_tokens + completion_tokens)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, str(agent_output))
         return agent_output
@@ -152,7 +160,7 @@ class _StepWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         agent = instance
-        span_name = f"Step {agent.step_number}"
+        span_name = f"Step {getattr(agent, 'step_number', None)}"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -163,8 +171,8 @@ class _StepWrapper:
         ) as span:
             result = wrapped(*args, **kwargs)
             step_log = args[0]  # ActionStep
-            span.set_attribute(OUTPUT_VALUE, step_log.observations)
-            if step_log.error is not None:
+            span.set_attribute(OUTPUT_VALUE, getattr(step_log, "observations", None))
+            if getattr(step_log, "error", None) is not None:
                 # Check expected errors
                 error_type = step_log.error.__class__.__name__
                 is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
@@ -251,6 +259,9 @@ def _llm_invocation_parameters(
     model: Any, arguments: Mapping[str, Any]
 ) -> Iterator[Tuple[str, Any]]:
     model_kwargs = _ if isinstance(_ := getattr(model, "kwargs", {}), dict) else {}
+    if not model_kwargs:
+        # Some versions may keep parameters under client_params or params
+        model_kwargs = _ if isinstance(_ := getattr(model, "client_params", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
     yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(model_kwargs | kwargs)
 
@@ -274,7 +285,7 @@ def _tools(tool: "Tool") -> Iterator[Tuple[str, Any]]:
         yield TOOL_NAME, tool_name
     if tool_description := getattr(tool, "description", None):
         yield TOOL_DESCRIPTION, tool_description
-    yield TOOL_PARAMETERS, safe_json_dumps(tool.inputs)
+    yield TOOL_PARAMETERS, safe_json_dumps(getattr(tool, "inputs", {}))
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -295,31 +306,59 @@ class _ModelWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
-        span_name = f"{instance.__class__.__name__}.generate"
-        model = instance
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes={
-                OPENINFERENCE_SPAN_KIND: LLM,
-                **dict(_input_value_and_mime_type(arguments)),
-                **dict(_llm_invocation_parameters(instance, arguments)),
-                **dict(_llm_input_messages(arguments)),
-                **dict(get_attributes_from_context()),
-            },
-        ) as span:
-            output_message = wrapped(*args, **kwargs)
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
-            span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
-            )
-            span.set_attributes(_llm_output_messages(output_message))
-            span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
-            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
-        return output_message
+        # Prevent nested LLM spans from our own wrapper
+        if context_api.get_value(_OI_SMOLAGENTS_LLM_ACTIVE):
+            return wrapped(*args, **kwargs)
+        token_active = context_api.attach(context_api.set_value(_OI_SMOLAGENTS_LLM_ACTIVE, True))
+        token_suppress = context_api.attach(
+            context_api.set_value(context_api._SUPPRESS_INSTRUMENTATION_KEY, True)
+        )
+        try:
+            arguments = _bind_arguments(wrapped, *args, **kwargs)
+            span_name = f"{instance.__class__.__name__}.generate"
+            model = instance
+            with self._tracer.start_as_current_span(
+                span_name,
+                attributes={
+                    OPENINFERENCE_SPAN_KIND: LLM,
+                    **dict(_input_value_and_mime_type(arguments)),
+                    **dict(_llm_invocation_parameters(instance, arguments)),
+                    **dict(_llm_input_messages(arguments)),
+                    **dict(get_attributes_from_context()),
+                },
+            ) as span:
+                output_message = wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                # Token counts: support multiple versions
+                prompt_tokens = getattr(model, "last_input_token_count", None)
+                completion_tokens = getattr(model, "last_output_token_count", None)
+                if prompt_tokens is None or completion_tokens is None:
+                    monitor = getattr(model, "monitor", None)
+                    prompt_tokens = prompt_tokens or getattr(monitor, "last_input_token_count", None)
+                    completion_tokens = completion_tokens or getattr(
+                        monitor, "last_output_token_count", None
+                    )
+                # Default to 0 if missing to keep attribute types stable
+                prompt_tokens = 0 if prompt_tokens is None else prompt_tokens
+                completion_tokens = 0 if completion_tokens is None else completion_tokens
+                span.set_attribute(LLM_TOKEN_COUNT_PROMPT, prompt_tokens)
+                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, completion_tokens)
+                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, prompt_tokens + completion_tokens)
+                # Model name across versions
+                model_name = (
+                    getattr(model, "model_id", None)
+                    or getattr(model, "model_name", None)
+                    or getattr(getattr(model, "config", None), "model_id", None)
+                )
+                if model_name is not None:
+                    span.set_attribute(LLM_MODEL_NAME, model_name)
+                span.set_attributes(_llm_output_messages(output_message))
+                span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
+                span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+            return output_message
+        finally:
+            context_api.detach(token_suppress)
+            context_api.detach(token_active)
 
 
 class _ToolCallWrapper:
@@ -355,7 +394,7 @@ class _ToolCallWrapper:
                 dict(
                     _output_value_and_mime_type_for_tool_span(
                         response=response,
-                        output_type=instance.output_type,
+                        output_type=getattr(instance, "output_type", "string"),
                     )
                 )
             )

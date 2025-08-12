@@ -16,7 +16,7 @@ from openinference.instrumentation.smolagents._wrappers import (
 )
 from openinference.instrumentation.smolagents.version import __version__
 
-_instruments = ("smolagents >= 1.2.2.dev0",)
+_instruments = ("smolagents >= 1.19.0",)
 
 
 class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
@@ -24,7 +24,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_run_method",
         "_original_step_methods",
         "_original_tool_call_method",
-        "_original_model_generate_methods",
+        "_original_model_generate_method",
         "_tracer",
     )
 
@@ -32,8 +32,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        import smolagents
-        from smolagents import CodeAgent, MultiStepAgent, Tool, ToolCallingAgent, models
+        from smolagents import models
+        from smolagents.agents import CodeAgent, MultiStepAgent, ToolCallingAgent
+        from smolagents.tools import Tool
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -49,7 +50,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         run_wrapper = _RunWrapper(tracer=self._tracer)
         self._original_run_method = getattr(MultiStepAgent, "run", None)
         wrap_function_wrapper(
-            module="smolagents",
+            module="smolagents.agents",
             name="MultiStepAgent.run",
             wrapper=run_wrapper,
         )
@@ -59,41 +60,32 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         for step_cls in [CodeAgent, ToolCallingAgent]:
             self._original_step_methods[step_cls] = getattr(step_cls, "step", None)
             wrap_function_wrapper(
-                module="smolagents",
+                module="smolagents.agents",
                 name=f"{step_cls.__name__}.step",
                 wrapper=step_wrapper,
             )
 
-        self._original_model_generate_methods: Optional[dict[type, Callable[..., Any]]] = {}
-
-        exported_model_subclasses = [
-            attr
-            for _, attr in vars(smolagents).items()
-            if isinstance(attr, type) and issubclass(attr, models.Model)
-        ]
-
-        for model_subclass in exported_model_subclasses:
-            model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
-
-            self._original_model_generate_methods[model_subclass] = getattr(
-                model_subclass, "generate"
-            )
-            wrap_function_wrapper(
-                module="smolagents",
-                name=model_subclass.__name__ + ".generate",
-                wrapper=model_subclass_wrapper,
-            )
+        # Wrap only the base Model.generate so all subclasses are covered once
+        model_subclass_wrapper = _ModelWrapper(tracer=self._tracer)
+        self._original_model_generate_method = getattr(models.Model, "generate", None)
+        wrap_function_wrapper(
+            module="smolagents.models",
+            name="Model.generate",
+            wrapper=model_subclass_wrapper,
+        )
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
         wrap_function_wrapper(
-            module="smolagents",
+            module="smolagents.tools",
             name="Tool.__call__",
             wrapper=tool_call_wrapper,
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from smolagents import MultiStepAgent, Tool
+        from smolagents import models
+        from smolagents.agents import MultiStepAgent
+        from smolagents.tools import Tool
 
         if self._original_run_method is not None:
             MultiStepAgent.run = self._original_run_method
@@ -104,13 +96,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(step_cls, "step", original_step_method)
             self._original_step_methods = None
 
-        if self._original_model_generate_methods is not None:
-            for (
-                model_subclass,
-                original_model_generate_method,
-            ) in self._original_model_generate_methods.items():
-                setattr(model_subclass, "generate", original_model_generate_method)
-            self._original_model_generate_methods = None
+        if self._original_model_generate_method is not None:
+            setattr(models.Model, "generate", self._original_model_generate_method)
+            self._original_model_generate_method = None
 
         if self._original_tool_call_method is not None:
             Tool.__call__ = self._original_tool_call_method

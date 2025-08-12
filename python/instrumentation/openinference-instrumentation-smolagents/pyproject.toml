@@ -35,10 +35,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "smolagents>=1.15.0",
+  "smolagents>=1.19.0",
 ]
 test = [
-  "smolagents[litellm]==1.15.0",
+  "smolagents[litellm]>=1.19.0",
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",
