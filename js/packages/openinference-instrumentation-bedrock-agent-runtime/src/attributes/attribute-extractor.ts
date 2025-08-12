@@ -100,54 +100,45 @@ export class AttributeExtractor {
    * Parses input text into a list of Message objects.
    */
   public static getMessagesObject(text: string): Message[] {
-    const messages: Message[] = [];
     try {
-      const inputMessages = safeJsonParse(text);
-      if (!inputMessages) {
-        // Fallback when JSON parsing fails or is null
-        return [{ content: text, role: "assistant" }];
-      }
-      const systemMsg = getObjectDataFromUnknown({
-        data: inputMessages,
-        key: "system",
-      });
-      if (systemMsg) {
-        messages.push({
-          content: String(inputMessages["system"]),
-          role: "system",
-        });
-      }
-      const msgArray = Array.isArray(
-        getObjectDataFromUnknown({ data: inputMessages, key: "messages" }),
-      )
-        ? (inputMessages["messages"] as unknown[])
-        : [];
-
-      for (const rawMsg of msgArray) {
-        if (!isObjectWithStringKeys(rawMsg)) continue;
-
-        const role = String(rawMsg["role"] ?? "");
-        const contentVal = rawMsg["content"];
-        if (typeof contentVal !== "string" && !Array.isArray(contentVal)) {
-          continue;
+      const messages: Message[] = [];
+      const inputMessages: UnknownRecord = safeJsonParse(text);
+      if (inputMessages) {
+        if (inputMessages?.system) {
+          messages.push({
+            content: String(inputMessages.system),
+            role: "system",
+          });
         }
-        const parsedContents =
-          typeof contentVal === "string"
-            ? fixLooseJsonString(contentVal) || [contentVal]
-            : contentVal;
-        for (const parsed of parsedContents) {
-          let messageContent: string;
-          if (isObjectWithStringKeys(parsed)) {
-            const typeKey = parsed["type"];
-            messageContent =
-              typeof typeKey === "string" && parsed[typeKey]
-                ? String(parsed[typeKey])
-                : JSON.stringify(parsed);
-          } else {
-            messageContent = String(parsed);
+        const msgArr = Array.isArray(inputMessages.messages)
+          ? inputMessages.messages
+          : [];
+        for (const message of msgArr) {
+          const role = message.role || "";
+          if (message.content) {
+            const parsedContents = fixLooseJsonString(message.content) || [
+              message.content,
+            ];
+            for (const parsedContent of parsedContents) {
+              let messageContent: string = message.content;
+              if (typeof parsedContent === "object" && parsedContent !== null) {
+                if (
+                  parsedContent.type &&
+                  parsedContent[String(parsedContent.type)]
+                ) {
+                  messageContent = String(
+                    parsedContent[String(parsedContent.type)],
+                  );
+                }
+              } else {
+                messageContent = parsedContent;
+              }
+              messages.push({ content: messageContent, role });
+            }
           }
-          messages.push({ content: messageContent, role });
         }
+      } else {
+        messages.push({ content: text, role: "assistant" });
       }
       return messages;
     } catch {
@@ -337,12 +328,10 @@ export class AttributeExtractor {
     if (modelName) {
       llmAttributes["modelName"] = modelName;
     }
-    if (
-      (modelInvocationOutput as Record<string, unknown>)?.inferenceConfiguration
-    ) {
+
+    if (modelInvocationOutput?.inferenceConfiguration) {
       llmAttributes["invocationParameters"] = JSON.stringify(
-        (modelInvocationOutput as Record<string, unknown>)
-          .inferenceConfiguration,
+        modelInvocationOutput.inferenceConfiguration,
       );
     }
     llmAttributes["outputMessages"] = AttributeExtractor.getOutputMessages(
@@ -377,10 +366,7 @@ export class AttributeExtractor {
     outputParams: UnknownRecord,
   ): string | undefined {
     // Try to get model name from inputParams["foundationModel"]
-    const foundationModel = getObjectDataFromUnknown({
-      data: inputParams,
-      key: "foundationModel",
-    });
+    const foundationModel = inputParams?.foundationModel;
     if (foundationModel) {
       return String(foundationModel);
     }
@@ -448,31 +434,29 @@ export class AttributeExtractor {
     modelInvocationOutput: UnknownRecord,
   ): UnknownRecord[] {
     const messages: Message[] = [];
-    const rawResponse = modelInvocationOutput?.rawResponse;
-    const rawObj = getObjectDataFromUnknown({
-      data: rawResponse,
-      key: "content",
-    });
-    if (rawObj) {
-      if (rawObj?.content) {
-        const outputText = rawObj.content;
-        try {
-          const data = JSON.parse(String(outputText));
-          const contents = data?.content || [];
-          for (const content of contents) {
-            if (typeof content === "object" && content !== null) {
-              const message = AttributeExtractor.getAttributesFromMessage(
-                content,
-                String(content?.role || "assistant"),
-              );
-              if (message) {
-                messages.push(message);
-              }
+    const rawResponse =
+      getObjectDataFromUnknown({
+        data: modelInvocationOutput,
+        key: "rawResponse",
+      }) || {};
+    const outputText = rawResponse?.content;
+    if (outputText !== undefined) {
+      try {
+        const data = JSON.parse(String(outputText));
+        const contents = data?.content || [];
+        for (const content of contents) {
+          if (typeof content === "object" && content !== null) {
+            const message = AttributeExtractor.getAttributesFromMessage(
+              content,
+              String(content?.role || "assistant"),
+            );
+            if (message) {
+              messages.push(message);
             }
           }
-        } catch (e) {
-          messages.push({ content: String(outputText), role: "assistant" });
         }
+      } catch (e) {
+        messages.push({ content: String(outputText), role: "assistant" });
       }
     }
     return messages;
