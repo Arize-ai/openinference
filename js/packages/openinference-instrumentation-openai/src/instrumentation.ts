@@ -72,7 +72,7 @@ let _isOpenInferencePatched = false;
 
 /**
  * WeakMap to store URL information for each request context
- * This allows us to correlate the URL captured in the post method with the higher-level API calls
+ * Uses the actual request arguments as the key to avoid concurrent request overwrites
  */
 const requestUrlMap = new WeakMap<object, { url: string; baseUrl?: string }>();
 
@@ -150,26 +150,19 @@ function getUrlAttributes(
 }
 
 /**
- * Gets URL attributes for a client instance from stored request information
- * @param clientInstance The OpenAI client instance
- * @returns URL attributes object using OpenTelemetry conventions
+ * Gets URL attributes for a request from stored request information
+ * @param requestBody The request body used as a unique key for this request
+ * @returns URL attributes object
  */
 function getStoredUrlAttributes(
-  clientInstance: unknown,
+  requestBody: unknown,
 ): Record<string, string> {
   try {
-    const instance = clientInstance as { _client?: object };
-
-    // Try to get URL info using the sub-resource instance first
-    let urlInfo = requestUrlMap.get(instance as object);
-
-    // If not found and there's a _client property, try that (this is the actual OpenAI client)
-    if (!urlInfo && instance._client) {
-      urlInfo = requestUrlMap.get(instance._client);
-    }
-
-    if (urlInfo) {
-      return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
+    if (requestBody && typeof requestBody === 'object') {
+      const urlInfo = requestUrlMap.get(requestBody as object);
+      if (urlInfo) {
+        return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
+      }
     }
   } catch (error) {
     diag.debug("Failed to get stored URL attributes", error);
@@ -352,7 +345,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           options?: any,
         ) {
-          // Store URL information for this request context
+          // Store URL information for this specific request
           try {
             const clientInstance = this as {
               baseURL?: string;
@@ -372,9 +365,13 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               baseUrl = clientInstance._client.baseURL;
             }
 
-            if (baseUrl && this) {
+            if (baseUrl) {
               const fullUrl = new URL(path, baseUrl).toString();
-              requestUrlMap.set(this as object, { url: fullUrl, baseUrl });
+              // Use the request body as a unique key for this specific request
+              // This avoids concurrent requests overwriting each other
+              if (body && typeof body === 'object') {
+                requestUrlMap.set(body, { url: fullUrl, baseUrl });
+              }
             }
           } catch (error) {
             diag.debug(
@@ -457,7 +454,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(this),
+                ...getStoredUrlAttributes(body),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -545,7 +542,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(this),
+                ...getStoredUrlAttributes(body),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -618,7 +615,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(this),
+                ...getStoredUrlAttributes(body),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
