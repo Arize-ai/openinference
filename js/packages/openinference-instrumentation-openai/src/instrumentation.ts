@@ -132,8 +132,7 @@ function getUrlAttributes(
           : undefined,
     };
 
-    // Get properly redacted full URL using OpenTelemetry utilities
-    const redactedUrl = getAbsoluteUrl(urlOptions, {});
+    // Note: We could use getAbsoluteUrl(urlOptions, {}) for redacted full URL if needed
 
     // Extract the path (URL - baseURL) as requested: path = full - base_url
     if (baseUrl) {
