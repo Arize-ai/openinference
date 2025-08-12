@@ -103,7 +103,6 @@ function getExecContext(span: Span) {
 
 /**
  * Extracts URL path for debugging purposes (especially useful for Azure)
- * Uses getAbsoluteUrl for proper redaction of sensitive information
  * @param fullUrl The complete URL of the request
  * @param baseUrl The base URL of the client
  * @returns Object containing URL path for debugging
