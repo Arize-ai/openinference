@@ -113,6 +113,7 @@ def _parse_completion_from_events(events: Any) -> str | None:
 
 _ROLE_LINE_RE = re.compile(r"^(user|assistant|system|tool):\s*(.*)$", re.IGNORECASE)
 
+
 def _unflatten_prompt(flat: str) -> list[Dict[str, str]]:
     """
     Turn the newline-joined OpenLIT prompt back into a list of
@@ -212,6 +213,7 @@ def _build_messages(
     output_msgs = [assistant]
     return input_msgs, output_msgs
 
+
 def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message], list[oi.Message]]:
     prompt_text = _parse_prompt_from_events(events)
     completion_text = _parse_completion_from_events(events)
@@ -228,32 +230,38 @@ def convert_to_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
 
     tool_name = openlit_attrs.get("gen_ai.tool.name")
     tool_description = openlit_attrs.get("gen_ai.tool.description")
-    
+
     if tool_name:
         oi_attrs[sc.SpanAttributes.TOOL_NAME] = tool_name
     if tool_description:
         oi_attrs[sc.SpanAttributes.TOOL_DESCRIPTION] = tool_description
-        
+
     prompt_txt = _parse_prompt_from_events(span.events)
     completion_txt = _parse_completion_from_events(span.events)
     if prompt_txt:
-        oi_attrs.update({
-            sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
-            sc.SpanAttributes.INPUT_VALUE: prompt_txt,
-        })
+        oi_attrs.update(
+            {
+                sc.SpanAttributes.INPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                sc.SpanAttributes.INPUT_VALUE: prompt_txt,
+            }
+        )
     if completion_txt:
-        oi_attrs.update({
-            sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
-            sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
-        })
+        oi_attrs.update(
+            {
+                sc.SpanAttributes.OUTPUT_MIME_TYPE: sc.OpenInferenceMimeTypeValues.TEXT.value,
+                sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
+            }
+        )
 
     return oi_attrs
+
 
 def is_openlit_tool_span(attrs: dict[str, Any]) -> bool:
     operation_name = attrs.get("gen_ai.operation.name")
     tool_name = attrs.get("gen_ai.tool.name")
     tool_description = attrs.get("gen_ai.tool.description")
     return operation_name == "execute_tool" or (tool_name and tool_description)
+
 
 def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
     invocation: Dict[str, Any] = {}
@@ -262,6 +270,7 @@ def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
         if val not in (None, "", -1):
             invocation[knob] = val
     return invocation
+
 
 def build_output_messages(output_msgs: list[oi.Message]) -> list[Dict[str, Any]]:
     out_msgs_json: list[Dict[str, Any]] = []
@@ -299,7 +308,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
 
-        oi_attrs = {sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value}
+        oi_attrs = {
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value
+        }
 
         if is_openlit_tool_span(attrs):
             oi_attrs = convert_to_oi_tool_attributes(span)
@@ -333,7 +344,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         if "gen_ai.system" not in attrs:
             return
-        
+
         input_msgs, output_msgs = parse_messages(span.events, attrs)
 
         prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens"))
@@ -383,5 +394,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             oi_attrs[sc.SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
                 invocation_params, separators=(",", ":")
             )
-        
+
         span._attributes.update(oi_attrs)
