@@ -397,5 +397,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             oi_attrs[sc.SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
                 invocation_params, separators=(",", ":")
             )
-        if span._attributes:
-            span._attributes = {**span._attributes, **oi_attrs}
+
+        span._attributes = {**span._attributes, **oi_attrs}
