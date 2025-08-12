@@ -174,8 +174,16 @@ function getStoredUrlAttributes(
   clientInstance: unknown,
 ): Record<string, string> {
   try {
-    const instance = clientInstance as object;
-    const urlInfo = requestUrlMap.get(instance);
+    const instance = clientInstance as { _client?: object };
+    
+    // Try to get URL info using the sub-resource instance first
+    let urlInfo = requestUrlMap.get(instance as object);
+    
+    // If not found and there's a _client property, try that (this is the actual OpenAI client)
+    if (!urlInfo && instance._client) {
+      urlInfo = requestUrlMap.get(instance._client);
+    }
+    
     if (urlInfo) {
       return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
     }
