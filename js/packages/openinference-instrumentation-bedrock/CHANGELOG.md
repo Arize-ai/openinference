@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.3.1
+
+### Patch Changes
+
+- 8115438: fix build and add manually instrument method
+
 ## 0.3.0
 
 ### Minor Changes
