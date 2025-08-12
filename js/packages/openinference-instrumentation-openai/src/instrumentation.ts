@@ -40,7 +40,8 @@ import {
   EmbeddingCreateParams,
 } from "openai/resources";
 import { assertUnreachable, isString } from "./typeUtils";
-import { isTracingSuppressed } from "@opentelemetry/core";
+import { isTracingSuppressed } from "@opentelemetry/core"; 
+
 
 import {
   OITracer,
@@ -70,6 +71,8 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
  */
 let _isOpenInferencePatched = false;
 
+
+
 /**
  * function to check if instrumentation is enabled / disabled
  */
@@ -94,6 +97,8 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
+
+
 
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
@@ -256,6 +261,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
+
+
     // Patch create chat completions
     type ChatCompletionCreateType =
       typeof module.OpenAI.Chat.Completions.prototype.create;
@@ -287,6 +294,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getLLMInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
+
               },
             },
           );
@@ -375,6 +383,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getCompletionInputValueAndMimeType(body),
+
               },
             },
           );
@@ -454,6 +463,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 : MimeType.JSON,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
               ...getEmbeddingTextAttributes(body),
+
             },
           });
           const execContext = getExecContext(span);
@@ -528,6 +538,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                   ...getResponsesInputMessagesAttributes(body),
                   ...getLLMToolsJSONSchema(body),
+  
                 },
               },
             );
@@ -614,6 +625,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
