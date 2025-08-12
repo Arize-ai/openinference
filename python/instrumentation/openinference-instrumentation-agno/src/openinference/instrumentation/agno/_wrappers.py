@@ -155,6 +155,16 @@ def _agent_run_attributes(
 
 
 class _RunWrapper:
+    """
+    The hierarchical path for each agent or team is constructed using context propagation.
+    When an agent or team runs, the current path is determined by appending the agent's name
+    to the parent path (if any) from the context. This path is used to generate a unique node ID
+    for each execution node in the graph. The current path is set in the context before span creation,
+    allowing child agents or teams to access and extend it, thereby maintaining the correct parent-child
+    relationships in the execution graph. For teams, both the node ID and the updated path are set in the
+    context so that all child members can reference their parent node and path, ensuring accurate
+    hierarchical tracing.
+    """
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
