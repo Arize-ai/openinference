@@ -77,6 +77,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
    * Manually patches the BedrockAgentRuntimeClient, this allows for guaranteed patching of the module when import order is hard to control.
    */
   public manuallyInstrument(module: typeof bedrockAgentRunTime) {
+    diag.debug(`Manually instrumenting ${MODULE_NAME}`);
     this.patch(module);
   }
 
