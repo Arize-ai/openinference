@@ -279,7 +279,7 @@ class _ResponsesApiAttributes:
         if (input_data := obj.input) is not None:
             yield (
                 f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                input_data,
+                safe_json_dumps({"input": input_data}),
             )
 
     @classmethod
@@ -314,7 +314,7 @@ class _ResponsesApiAttributes:
         if (input_data := obj.get("input")) is not None:
             yield (
                 f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                input_data,
+                safe_json_dumps({"input": input_data}),
             )
 
     @classmethod
