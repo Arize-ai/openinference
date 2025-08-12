@@ -8,7 +8,6 @@ import re
 from typing import Any, Dict, Tuple
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
-from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
 import openinference.semconv.trace as sc
@@ -308,7 +307,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
 
-        oi_attrs: Dict[str, AttributeValue] = {
+        oi_attrs = {
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value
         }
 
@@ -352,13 +351,11 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens"))
         total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens"))
 
-        token_count = oi.TokenCount()
-        if prompt_tokens:
-            token_count["prompt"] = prompt_tokens
-        if completion_tokens:
-            token_count["completion"] = completion_tokens
-        if total_tokens:
-            token_count["total"] = total_tokens
+        token_count = oi.TokenCount(
+            prompt=prompt_tokens,
+            completion=completion_tokens,
+            total=total_tokens,
+        )
 
         invocation_params = find_invocation_parameters(attrs)
 

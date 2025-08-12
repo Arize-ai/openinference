@@ -8,7 +8,6 @@ import re
 from typing import Any, Dict, Tuple
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
-from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
 import openinference.semconv.trace as sc
