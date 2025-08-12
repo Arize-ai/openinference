@@ -140,9 +140,9 @@ function getLLMProvider(clientInstance: unknown): LLMProvider {
 
     if (host && typeof host === "string") {
       // Follow the same pattern as Python implementation
-      if (host.endsWith("api.openai.com")) {
+      if (host.includes("api.openai.com")) {
         return LLMProvider.OPENAI;
-      } else if (host.endsWith("openai.azure.com")) {
+      } else if (host.includes("openai.azure.com")) {
         return LLMProvider.AZURE;
       } else if (host.includes("api.microsoft.com")) {
         // Additional Azure endpoint pattern
