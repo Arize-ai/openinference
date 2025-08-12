@@ -94,6 +94,69 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
+
+/**
+ * Gets the appropriate LLM provider based on the OpenAI client instance
+ * Follows the same logic as the Python implementation by checking the baseURL host
+ * @param clientInstance The OpenAI client instance
+ * @returns LLMProvider.AZURE for Azure OpenAI, LLMProvider.OPENAI for regular OpenAI
+ */
+function getLLMProvider(clientInstance: unknown): LLMProvider {
+  try {
+    // The clientInstance might be a sub-object (like Completions) that has a _client property
+    // pointing to the actual OpenAI/AzureOpenAI client
+    const instance = clientInstance as {
+      baseURL?: string | { host?: string };
+      _client?: {
+        baseURL?: string | { host?: string };
+      };
+    };
+
+    let host: string | undefined;
+    let baseURL: string | { host?: string } | undefined;
+
+    // First try to get baseURL from the instance itself
+    if (instance.baseURL) {
+      baseURL = instance.baseURL;
+    }
+    // If not found, try the _client property (this is where Azure OpenAI stores it)
+    else if (instance._client?.baseURL) {
+      baseURL = instance._client.baseURL;
+    }
+
+    if (typeof baseURL === "string") {
+      // Extract host from URL string
+      try {
+        const url = new URL(baseURL);
+        host = url.hostname;
+      } catch {
+        // If URL parsing fails, fallback to string matching
+        host = baseURL;
+      }
+    } else if (baseURL && typeof baseURL === "object" && "host" in baseURL) {
+      // Direct host property
+      host = baseURL.host;
+    }
+
+    if (host && typeof host === "string") {
+      // Follow the same pattern as Python implementation
+      if (host.endsWith("api.openai.com")) {
+        return LLMProvider.OPENAI;
+      } else if (host.endsWith("openai.azure.com")) {
+        return LLMProvider.AZURE;
+      } else if (host.includes("api.microsoft.com")) {
+        // Additional Azure endpoint pattern
+        return LLMProvider.AZURE;
+      }
+    }
+  } catch (error) {
+    // If we can't determine, default to regular OpenAI
+    diag.debug("Failed to determine LLM provider from instance", error);
+  }
+
+  // Default to OpenAI if we can't determine
+  return LLMProvider.OPENAI;
+}
 /**
  * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
@@ -221,7 +284,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
-                [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
+                [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getLLMInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
               },
@@ -310,7 +373,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                   JSON.stringify(invocationParameters),
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
-                [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
+                [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getCompletionInputValueAndMimeType(body),
               },
             },
@@ -389,6 +452,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput
                 ? MimeType.TEXT
                 : MimeType.JSON,
+              [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
               ...getEmbeddingTextAttributes(body),
             },
           });
@@ -461,7 +525,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
                     JSON.stringify(invocationParameters),
                   [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
-                  [SemanticConventions.LLM_PROVIDER]: LLMProvider.OPENAI,
+                  [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                   ...getResponsesInputMessagesAttributes(body),
                   ...getLLMToolsJSONSchema(body),
                 },
