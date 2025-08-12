@@ -40,7 +40,9 @@ import {
   EmbeddingCreateParams,
 } from "openai/resources";
 import { assertUnreachable, isString } from "./typeUtils";
-import { isTracingSuppressed } from "@opentelemetry/core"; 
+import { isTracingSuppressed } from "@opentelemetry/core";
+
+import { getAbsoluteUrl } from "@opentelemetry/instrumentation-http/build/src/utils"; 
 
 
 import {
@@ -71,6 +73,12 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
  */
 let _isOpenInferencePatched = false;
 
+/**
+ * WeakMap to store URL information for each request context
+ * This allows us to correlate the URL captured in the post method with the higher-level API calls
+ */
+const requestUrlMap = new WeakMap<object, { url: string; baseUrl?: string }>();
+
 
 
 /**
@@ -98,7 +106,78 @@ function getExecContext(span: Span) {
   return execContext;
 }
 
+/**
+ * Extracts URL path for debugging purposes (especially useful for Azure)
+ * Uses getAbsoluteUrl for proper redaction of sensitive information
+ * @param fullUrl The complete URL of the request
+ * @param baseUrl The base URL of the client
+ * @returns Object containing URL path for debugging
+ */
+function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  
+  try {
+    const url = new URL(fullUrl);
+    
+    // Use OpenTelemetry's getAbsoluteUrl for proper redaction of sensitive information
+    // Convert URL to the format expected by getAbsoluteUrl
+    const urlOptions = {
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port || undefined,
+      path: url.pathname + url.search,
+      auth: url.username && url.password ? `${url.username}:${url.password}` : undefined,
+    };
+    
+    // Get properly redacted full URL using OpenTelemetry utilities
+    const redactedUrl = getAbsoluteUrl(urlOptions, {});
+    
+    // Extract the path (URL - baseURL) as requested: path = full - base_url
+    if (baseUrl) {
+      try {
+        const path = fullUrl.replace(baseUrl.replace(/\/$/, ''), '') || url.pathname;
+        // Use a simple custom attribute for the path (useful for Azure debugging)
+        attributes["url.path"] = path;
+      } catch {
+        // If baseURL parsing fails, use the pathname
+        attributes["url.path"] = url.pathname;
+      }
+    } else {
+      attributes["url.path"] = url.pathname;
+    }
+    
+    // Safely extract api_version query parameter for Azure
+    if (url.search) {
+      const queryParams = new URLSearchParams(url.search);
+      const apiVersion = queryParams.get("api-version");
+      if (apiVersion) {
+        attributes["url.query.api_version"] = apiVersion;
+      }
+    }
+  } catch (error) {
+    diag.debug("Failed to extract URL attributes", error);
+  }
+  
+  return attributes;
+}
 
+/**
+ * Gets URL attributes for a client instance from stored request information
+ * @param clientInstance The OpenAI client instance
+ * @returns URL attributes object using OpenTelemetry conventions
+ */
+function getStoredUrlAttributes(clientInstance: unknown): Record<string, string> {
+  try {
+    const instance = clientInstance as object;
+    const urlInfo = requestUrlMap.get(instance);
+    if (urlInfo) {
+      return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
+    }
+  } catch (error) {
+    diag.debug("Failed to get stored URL attributes", error);
+  }
+  return {};
+}
 
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
@@ -261,7 +340,46 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
-
+    // Patch the post method to capture URL information
+    this._wrap(
+      module.OpenAI.prototype,
+      "post",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: any): any => {
+        return function patchedPost(
+          this: unknown,
+          path: string,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          body?: any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          options?: any
+        ) {
+          // Store URL information for this request context
+          try {
+            const clientInstance = this as {
+              baseURL?: string;
+              _client?: { baseURL?: string };
+            };
+            
+            let baseUrl: string | undefined;
+            if (clientInstance.baseURL && typeof clientInstance.baseURL === "string") {
+              baseUrl = clientInstance.baseURL;
+            } else if (clientInstance._client?.baseURL && typeof clientInstance._client.baseURL === "string") {
+              baseUrl = clientInstance._client.baseURL;
+            }
+            
+            if (baseUrl && this) {
+              const fullUrl = new URL(path, baseUrl).toString();
+              requestUrlMap.set(this as object, { url: fullUrl, baseUrl });
+            }
+          } catch (error) {
+            diag.debug("Failed to capture URL information in post method", error);
+          }
+          
+          return original.apply(this, [path, body, options]);
+        };
+      }
+    );
 
     // Patch create chat completions
     type ChatCompletionCreateType =
@@ -294,7 +412,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getLLMInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
-
+                ...getStoredUrlAttributes(this),
               },
             },
           );
@@ -383,7 +501,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getCompletionInputValueAndMimeType(body),
-
+                ...getStoredUrlAttributes(this),
               },
             },
           );
@@ -463,7 +581,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 : MimeType.JSON,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
               ...getEmbeddingTextAttributes(body),
-
+              ...getStoredUrlAttributes(this),
             },
           });
           const execContext = getExecContext(span);
@@ -538,7 +656,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                   ...getResponsesInputMessagesAttributes(body),
                   ...getLLMToolsJSONSchema(body),
-  
+                  ...getStoredUrlAttributes(this),
                 },
               },
             );
@@ -625,7 +743,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-
+    this._unwrap(moduleExports.OpenAI.prototype, "post");
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
