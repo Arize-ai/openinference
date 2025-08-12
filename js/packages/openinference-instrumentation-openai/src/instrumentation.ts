@@ -42,8 +42,7 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
-import { getAbsoluteUrl } from "@opentelemetry/instrumentation-http/build/src/utils"; 
-
+import { getAbsoluteUrl } from "@opentelemetry/instrumentation-http/build/src/utils";
 
 import {
   OITracer,
@@ -79,8 +78,6 @@ let _isOpenInferencePatched = false;
  */
 const requestUrlMap = new WeakMap<object, { url: string; baseUrl?: string }>();
 
-
-
 /**
  * function to check if instrumentation is enabled / disabled
  */
@@ -113,12 +110,15 @@ function getExecContext(span: Span) {
  * @param baseUrl The base URL of the client
  * @returns Object containing URL path for debugging
  */
-function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, string> {
+function getUrlAttributes(
+  fullUrl: string,
+  baseUrl?: string,
+): Record<string, string> {
   const attributes: Record<string, string> = {};
-  
+
   try {
     const url = new URL(fullUrl);
-    
+
     // Use OpenTelemetry's getAbsoluteUrl for proper redaction of sensitive information
     // Convert URL to the format expected by getAbsoluteUrl
     const urlOptions = {
@@ -126,16 +126,20 @@ function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, str
       hostname: url.hostname,
       port: url.port || undefined,
       path: url.pathname + url.search,
-      auth: url.username && url.password ? `${url.username}:${url.password}` : undefined,
+      auth:
+        url.username && url.password
+          ? `${url.username}:${url.password}`
+          : undefined,
     };
-    
+
     // Get properly redacted full URL using OpenTelemetry utilities
     const redactedUrl = getAbsoluteUrl(urlOptions, {});
-    
+
     // Extract the path (URL - baseURL) as requested: path = full - base_url
     if (baseUrl) {
       try {
-        const path = fullUrl.replace(baseUrl.replace(/\/$/, ''), '') || url.pathname;
+        const path =
+          fullUrl.replace(baseUrl.replace(/\/$/, ""), "") || url.pathname;
         // Use a simple custom attribute for the path (useful for Azure debugging)
         attributes["url.path"] = path;
       } catch {
@@ -145,7 +149,7 @@ function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, str
     } else {
       attributes["url.path"] = url.pathname;
     }
-    
+
     // Safely extract api_version query parameter for Azure
     if (url.search) {
       const queryParams = new URLSearchParams(url.search);
@@ -157,7 +161,7 @@ function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, str
   } catch (error) {
     diag.debug("Failed to extract URL attributes", error);
   }
-  
+
   return attributes;
 }
 
@@ -166,7 +170,9 @@ function getUrlAttributes(fullUrl: string, baseUrl?: string): Record<string, str
  * @param clientInstance The OpenAI client instance
  * @returns URL attributes object using OpenTelemetry conventions
  */
-function getStoredUrlAttributes(clientInstance: unknown): Record<string, string> {
+function getStoredUrlAttributes(
+  clientInstance: unknown,
+): Record<string, string> {
   try {
     const instance = clientInstance as object;
     const urlInfo = requestUrlMap.get(instance);
@@ -352,7 +358,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           body?: any,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          options?: any
+          options?: any,
         ) {
           // Store URL information for this request context
           try {
@@ -360,25 +366,34 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               baseURL?: string;
               _client?: { baseURL?: string };
             };
-            
+
             let baseUrl: string | undefined;
-            if (clientInstance.baseURL && typeof clientInstance.baseURL === "string") {
+            if (
+              clientInstance.baseURL &&
+              typeof clientInstance.baseURL === "string"
+            ) {
               baseUrl = clientInstance.baseURL;
-            } else if (clientInstance._client?.baseURL && typeof clientInstance._client.baseURL === "string") {
+            } else if (
+              clientInstance._client?.baseURL &&
+              typeof clientInstance._client.baseURL === "string"
+            ) {
               baseUrl = clientInstance._client.baseURL;
             }
-            
+
             if (baseUrl && this) {
               const fullUrl = new URL(path, baseUrl).toString();
               requestUrlMap.set(this as object, { url: fullUrl, baseUrl });
             }
           } catch (error) {
-            diag.debug("Failed to capture URL information in post method", error);
+            diag.debug(
+              "Failed to capture URL information in post method",
+              error,
+            );
           }
-          
+
           return original.apply(this, [path, body, options]);
         };
-      }
+      },
     );
 
     // Patch create chat completions
