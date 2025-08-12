@@ -175,15 +175,15 @@ function getStoredUrlAttributes(
 ): Record<string, string> {
   try {
     const instance = clientInstance as { _client?: object };
-    
+
     // Try to get URL info using the sub-resource instance first
     let urlInfo = requestUrlMap.get(instance as object);
-    
+
     // If not found and there's a _client property, try that (this is the actual OpenAI client)
     if (!urlInfo && instance._client) {
       urlInfo = requestUrlMap.get(instance._client);
     }
-    
+
     if (urlInfo) {
       return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
     }
@@ -435,7 +435,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getLLMInputMessagesAttributes(body),
                 ...getLLMToolsJSONSchema(body),
-                ...getStoredUrlAttributes(this),
               },
             },
           );
@@ -473,6 +472,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(this),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -524,7 +525,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
                 [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                 ...getCompletionInputValueAndMimeType(body),
-                ...getStoredUrlAttributes(this),
               },
             },
           );
@@ -560,6 +560,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(this),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -604,7 +606,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 : MimeType.JSON,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
               ...getEmbeddingTextAttributes(body),
-              ...getStoredUrlAttributes(this),
             },
           });
           const execContext = getExecContext(span);
@@ -632,6 +633,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.setAttributes({
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(this),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
@@ -679,7 +682,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
                   ...getResponsesInputMessagesAttributes(body),
                   ...getLLMToolsJSONSchema(body),
-                  ...getStoredUrlAttributes(this),
                 },
               },
             );
@@ -718,6 +720,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesUsageAttributes(result),
+                  // Add URL attributes now that the request has completed
+                  ...getStoredUrlAttributes(this),
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
