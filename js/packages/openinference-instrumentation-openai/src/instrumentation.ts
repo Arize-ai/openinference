@@ -42,8 +42,6 @@ import {
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
-import { getAbsoluteUrl } from "@opentelemetry/instrumentation-http/build/src/utils";
-
 import {
   OITracer,
   safelyJSONStringify,
@@ -119,20 +117,7 @@ function getUrlAttributes(
   try {
     const url = new URL(fullUrl);
 
-    // Use OpenTelemetry's getAbsoluteUrl for proper redaction of sensitive information
-    // Convert URL to the format expected by getAbsoluteUrl
-    const urlOptions = {
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: url.port || undefined,
-      path: url.pathname + url.search,
-      auth:
-        url.username && url.password
-          ? `${url.username}:${url.password}`
-          : undefined,
-    };
-
-    // Note: We could use getAbsoluteUrl(urlOptions, {}) for redacted full URL if needed
+    // Extract URL components for debugging (path and api_version only)
 
     // Extract the path (URL - baseURL) as requested: path = full - base_url
     if (baseUrl) {
