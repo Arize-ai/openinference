@@ -1,7 +1,15 @@
 import { AgentTraceNode } from "./collector/agent-trace-node";
-import { Span, SpanStatusCode, trace, context } from "@opentelemetry/api";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
-import { Attributes } from "./attributes/attributes";
+import {
+  Span,
+  SpanStatusCode,
+  trace,
+  context,
+  Attributes,
+} from "@opentelemetry/api";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 import {
   extractMetadataAttributesFromObservation,
   getAttributesFromInvocationInput,
@@ -13,14 +21,15 @@ import {
   getInputMessagesObject,
   getMetadataAttributes,
   getParentInputAttributesFromInvocationInput,
+  getStartAndEndTimeFromMetadata,
+  getStringAttributeValueFromUnknown,
 } from "./attributes/attributeExtractionUtils";
 import { AgentChunkSpan } from "./collector/agent-chunk-span";
 import {
   getInputAttributes,
   getOutputAttributes,
-  getSpanKindAttributes,
-} from "./attributes/attribute-utils";
-import { OITracer } from "@arizeai/openinference-core";
+} from "./attributes/attributeUtils";
+import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 import { StringKeyedObject } from "./types";
 
@@ -45,21 +54,28 @@ export class SpanCreator {
    */
   public createSpans(parentSpan: Span, traceNode: AgentTraceNode) {
     for (const traceSpan of traceNode.spans) {
-      const attributes = this.prepareSpanAttributes(traceSpan);
+      const { attributes, name } = this.prepareSpanAttributes(traceSpan);
 
       // Set span kind based on trace span type
       if (traceSpan instanceof AgentTraceNode) {
-        attributes.spanKind = OpenInferenceSpanKind.CHAIN; // Placeholder value
+        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+          OpenInferenceSpanKind.CHAIN;
         if (traceSpan.nodeType === "agent-collaborator") {
-          attributes.spanKind = OpenInferenceSpanKind.AGENT; // Placeholder value
+          attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+            OpenInferenceSpanKind.AGENT;
         }
         this.setParentSpanInputAttributes(attributes, traceSpan);
         this.setParentSpanOutputAttributes(attributes, traceSpan);
       }
 
       // Create span with appropriate timing
-      const startTime = this.fetchSpanStartTime(attributes, traceSpan);
-      const span = this.createChainSpan(parentSpan, attributes, startTime);
+      const startTime = this.fetchSpanStartTime(traceSpan);
+      const span = this.createChainSpan({
+        parentSpan,
+        attributes,
+        name,
+        startTime,
+      });
       span.setStatus({ code: SpanStatusCode.OK });
 
       // Process child spans recursively
@@ -68,7 +84,7 @@ export class SpanCreator {
       }
 
       // End span with appropriate timing
-      const endTime = this.fetchSpanEndTime(attributes, traceSpan);
+      const endTime = this.fetchSpanEndTime(traceSpan);
       span.end(endTime ? endTime : undefined);
     }
   }
@@ -79,50 +95,77 @@ export class SpanCreator {
    * @param traceSpan The trace span to process.
    * @returns The prepared attributes object.
    */
-  private prepareSpanAttributes(
-    traceSpan: AgentChunkSpan | AgentTraceNode,
-  ): Attributes {
-    const attributes = new Attributes();
-
+  private prepareSpanAttributes(traceSpan: AgentChunkSpan | AgentTraceNode): {
+    attributes: Attributes;
+    name: string;
+  } {
+    let attributes: Attributes = {};
+    let metadata: StringKeyedObject = {};
+    let name: string | null = null;
     // Set name from a node type if it's an AgentTraceNode
-    if (traceSpan instanceof AgentTraceNode) {
-      attributes.name = traceSpan.nodeType || "";
+    if (traceSpan instanceof AgentTraceNode && traceSpan.nodeType != null) {
+      name = traceSpan.nodeType;
     }
-
     // Process each chunk in the trace span
     if (Array.isArray(traceSpan.chunks)) {
       for (const traceData of traceSpan.chunks) {
         const traceEvent = getEventType(traceData);
+        if (traceEvent == null) {
+          continue;
+        }
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
+        const modelInvocationAttributes =
+          this.processModelInvocationInput(eventData);
+        const invocationAttributes = this.processInvocationInput(eventData);
+        const { attributes: outputAttributes, metadata: outputMetadata } =
+          this.processModelInvocationOutput(eventData);
+        const {
+          attributes: observationAttributes,
+          metadata: observationMetadata,
+        } = this.processObservation(eventData);
+        const rationaleAttributes = this.processRationale(eventData);
+        const kindAndName = this.getSpanKindAndNameFromEventData(eventData);
+        if (name == null) {
+          name = kindAndName.name;
+        }
 
-        // Process model invocation input
-        if ("modelInvocationInput" in eventData) {
-          this.processModelInvocationInput(eventData, attributes);
-        }
-        // Process model invocation output
-        if ("modelInvocationOutput" in eventData) {
-          this.processModelInvocationOutput(eventData, attributes);
-        }
-        // Process invocation input
-        if ("invocationInput" in eventData) {
-          this.processInvocationInput(eventData, attributes);
-        }
-        // Process observation
-        if ("observation" in eventData) {
-          this.processObservation(eventData, attributes);
-        }
-        // Process rationale
-        if ("rationale" in eventData) {
-          this.processRationale(eventData, attributes);
-        }
-        // Process failure trace
+        let failureTraceAttributes: Attributes = {};
+        let failureTraceMetadata: StringKeyedObject = {};
         if (traceEvent === "failureTrace") {
-          this.processFailureTrace(eventData, attributes);
+          const processFailureTraceResult = this.processFailureTrace(eventData);
+          failureTraceAttributes = processFailureTraceResult.attributes;
+          failureTraceMetadata = processFailureTraceResult.metadata ?? {};
         }
+        attributes = {
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: kindAndName.spanKind,
+          ...attributes,
+          ...modelInvocationAttributes,
+          ...invocationAttributes,
+          ...outputAttributes,
+          ...observationAttributes,
+          ...rationaleAttributes,
+          ...failureTraceAttributes,
+        };
+        metadata = {
+          ...metadata,
+          ...outputMetadata,
+          ...observationMetadata,
+          ...failureTraceMetadata,
+        };
       }
+      return {
+        attributes: {
+          ...attributes,
+          metadata: safelyJSONStringify(metadata) ?? undefined,
+        },
+        name: name ?? "LLM",
+      };
     }
-    return attributes;
+    return {
+      attributes: {},
+      name: "LLM",
+    };
   }
 
   /**
@@ -132,19 +175,16 @@ export class SpanCreator {
    */
   private processModelInvocationInput(
     eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
+  ): Attributes {
     const modelInvocationInput =
       getObjectDataFromUnknown({
         data: eventData,
         key: "modelInvocationInput",
       }) ?? {};
-    Object.assign(
-      attributes.requestAttributes,
-      getAttributesFromModelInvocationInput(modelInvocationInput),
-    );
-    attributes.name = "LLM";
-    attributes.spanKind = OpenInferenceSpanKind.LLM;
+    return {
+      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      ...getAttributesFromModelInvocationInput(modelInvocationInput),
+    };
   }
 
   /**
@@ -152,43 +192,44 @@ export class SpanCreator {
    * @param eventData The event data containing model invocation output.
    * @param attributes The attributes object to update.
    */
-  private processModelInvocationOutput(
-    eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
+  private processModelInvocationOutput(eventData: StringKeyedObject): {
+    attributes: Attributes;
+    metadata: StringKeyedObject | null;
+  } {
     const modelInvocationOutput =
       getObjectDataFromUnknown({
         data: eventData,
         key: "modelInvocationOutput",
       }) ?? {};
-    Object.assign(
-      attributes.outputAttributes,
-      getAttributesFromModelInvocationOutput(modelInvocationOutput),
+    const outputAttributes = getAttributesFromModelInvocationOutput(
+      modelInvocationOutput,
     );
-    Object.assign(
-      attributes.metadata,
-      getMetadataAttributes(
+    return {
+      attributes: outputAttributes,
+      metadata: getMetadataAttributes(
         getObjectDataFromUnknown({
           data: modelInvocationOutput,
           key: "metadata",
         }) ?? {},
       ),
-    );
+    };
   }
 
-  /**
-   * Processes invocation input and updates attributes.
-   * @param eventData The event data containing invocation input.
-   * @param attributes The attributes object to update.
-   */
-  private processInvocationInput(
-    eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
-    const invocationInput =
-      getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ??
-      {};
+  private getSpanKindAndNameFromEventData(eventData: StringKeyedObject): {
+    spanKind: OpenInferenceSpanKind;
+    name: string;
+  } {
+    const invocationInput = getObjectDataFromUnknown({
+      data: eventData,
+      key: "invocationInput",
+    });
 
+    if (invocationInput == null) {
+      return {
+        spanKind: OpenInferenceSpanKind.LLM,
+        name: "LLM",
+      };
+    }
     const invocationType =
       typeof invocationInput["invocationType"] === "string"
         ? invocationInput["invocationType"]
@@ -197,7 +238,7 @@ export class SpanCreator {
     if (
       "agentCollaboratorInvocationInput" in invocationInput &&
       typeof invocationInput["agentCollaboratorInvocationInput"] === "object" &&
-      invocationInput["agentCollaboratorInvocationInput"] !== null
+      invocationInput["agentCollaboratorInvocationInput"] != null
     ) {
       const agentCollaboratorInput =
         getObjectDataFromUnknown({
@@ -210,18 +251,33 @@ export class SpanCreator {
           ? agentCollaboratorInput["agentCollaboratorName"]
           : "";
 
-      attributes.name = `${invocationType.toLowerCase()}[${agentCollaboratorName}]`;
-      attributes.spanKind = OpenInferenceSpanKind.AGENT;
-      attributes.spanType = "agent_collaborator";
+      return {
+        spanKind: OpenInferenceSpanKind.AGENT,
+        name: `${invocationType.toLowerCase()}[${agentCollaboratorName}]`,
+      };
     } else {
-      attributes.name = invocationType.toLowerCase();
-      attributes.spanKind = OpenInferenceSpanKind.TOOL;
+      return {
+        spanKind: OpenInferenceSpanKind.TOOL,
+        name: invocationType.toLowerCase(),
+      };
     }
+  }
 
-    Object.assign(
-      attributes.requestAttributes,
-      getAttributesFromInvocationInput(invocationInput),
-    );
+  /**
+   * Processes invocation input and updates attributes.
+   * @param eventData The event data containing invocation input.
+   * @param attributes The attributes object to update.
+   */
+  private processInvocationInput(eventData: StringKeyedObject): Attributes {
+    const attributes: Attributes = {};
+    const invocationInput =
+      getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ??
+      {};
+
+    return {
+      ...attributes,
+      ...getAttributesFromInvocationInput(invocationInput),
+    };
   }
 
   /**
@@ -229,20 +285,16 @@ export class SpanCreator {
    * @param eventData The event data containing observation.
    * @param attributes The attributes object to update.
    */
-  private processObservation(
-    eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
+  private processObservation(eventData: StringKeyedObject): {
+    attributes: Attributes;
+    metadata: StringKeyedObject | null;
+  } {
     const observation =
       getObjectDataFromUnknown({ data: eventData, key: "observation" }) ?? {};
-    Object.assign(
-      attributes.outputAttributes,
-      getAttributesFromObservation(observation),
-    );
-    Object.assign(
-      attributes.metadata,
-      extractMetadataAttributesFromObservation(observation),
-    );
+    return {
+      attributes: getAttributesFromObservation(observation),
+      metadata: extractMetadataAttributesFromObservation(observation),
+    };
   }
 
   /**
@@ -250,19 +302,15 @@ export class SpanCreator {
    * @param eventData The event data containing rationale.
    * @param attributes The attributes object to update.
    */
-  private processRationale(
-    eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
-    const rationaleText =
-      getObjectDataFromUnknown({ data: eventData, key: "rationale" })?.text ??
-      "";
-    if (rationaleText) {
-      Object.assign(
-        attributes.outputAttributes,
-        getOutputAttributes(rationaleText),
-      );
+  private processRationale(eventData: StringKeyedObject): Attributes {
+    const rationaleText = getObjectDataFromUnknown({
+      data: eventData,
+      key: "rationale",
+    })?.text;
+    if (rationaleText != null) {
+      return getOutputAttributes(rationaleText);
     }
+    return {};
   }
 
   /**
@@ -270,24 +318,22 @@ export class SpanCreator {
    * @param eventData The event data containing failure trace.
    * @param attributes The attributes object to update.
    */
-  private processFailureTrace(
-    eventData: StringKeyedObject,
-    attributes: Attributes,
-  ): void {
-    Object.assign(
-      attributes.outputAttributes,
-      getFailureTraceAttributes(eventData),
-    );
-    Object.assign(
-      attributes.metadata,
-      getMetadataAttributes(
+  private processFailureTrace(eventData: StringKeyedObject): {
+    attributes: Attributes;
+    metadata: StringKeyedObject | null;
+  } {
+    return {
+      attributes: getFailureTraceAttributes(eventData),
+      metadata: getMetadataAttributes(
         getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {},
       ),
-    );
+    };
   }
 
   /**
    * Sets parent span input attributes by extracting from nested trace nodes.
+   * Recursively checks nested nodes for input attributes.
+   * Mutates the attributes object in place.
    * @param attributes The attributes object to update.
    * @param traceNode The agent trace node or chunk span to process.
    */
@@ -300,12 +346,13 @@ export class SpanCreator {
       return;
     }
 
-    const inputAttributes: Record<string, unknown> = {};
-
     for (const span of traceNode.spans) {
       if (!span.chunks) continue;
       for (const traceData of span.chunks) {
         const traceEvent = getEventType(traceData);
+        if (traceEvent == null) {
+          continue;
+        }
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
@@ -316,17 +363,19 @@ export class SpanCreator {
               data: eventData,
               key: "modelInvocationInput",
             }) ?? {};
-          const text = String(modelInvocationInput?.text ?? "");
+          const text = getStringAttributeValueFromUnknown(
+            modelInvocationInput?.text,
+          );
+          if (text == null) {
+            continue;
+          }
           const messages = getInputMessagesObject(text);
           for (const message of messages) {
             if (message.role === "user" && message.content) {
-              Object.assign(
-                inputAttributes,
-                getInputAttributes(message.content),
-              );
-              Object.assign(inputAttributes, attributes.requestAttributes);
-              attributes.requestAttributes = inputAttributes;
-              return;
+              attributes = {
+                ...attributes,
+                ...getInputAttributes(message.content),
+              };
             }
           }
         }
@@ -338,24 +387,23 @@ export class SpanCreator {
               data: eventData,
               key: "invocationInput",
             }) ?? {};
-          const attrs =
-            getParentInputAttributesFromInvocationInput(invocationInput);
-          Object.assign(inputAttributes, attrs);
-          Object.assign(inputAttributes, attributes.requestAttributes);
-          attributes.requestAttributes = inputAttributes;
-          return;
+          attributes = {
+            ...attributes,
+            ...getParentInputAttributesFromInvocationInput(invocationInput),
+          };
         }
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
         this.setParentSpanInputAttributes(attributes, span);
-        return;
       }
     }
   }
 
   /**
    * Sets parent span output attributes by extracting from nested trace nodes.
+   * Recursively checks nested nodes for output attributes.
+   * Mutates the attributes object in place.
    * @param attributes The attributes object to update.
    * @param traceNode The agent trace node or chunk span to process.
    */
@@ -376,6 +424,9 @@ export class SpanCreator {
       for (let j = span.chunks.length - 1; j >= 0; j--) {
         const traceData = span.chunks[j];
         const traceEvent = getEventType(traceData);
+        if (traceEvent == null) {
+          continue;
+        }
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
@@ -393,19 +444,17 @@ export class SpanCreator {
             }) ?? {};
           const outputText = parsedResponse["text"] ?? "";
           if (outputText) {
-            Object.assign(
-              attributes.requestAttributes,
-              getOutputAttributes(outputText),
-            );
-            return;
+            attributes = {
+              ...attributes,
+              ...getOutputAttributes(outputText),
+            };
           }
           const rationaleText = parsedResponse["rationale"] ?? "";
           if (rationaleText) {
-            Object.assign(
-              attributes.requestAttributes,
-              getOutputAttributes(rationaleText),
-            );
-            return;
+            attributes = {
+              ...attributes,
+              ...getOutputAttributes(rationaleText),
+            };
           }
         }
 
@@ -420,18 +469,16 @@ export class SpanCreator {
               key: "finalResponse",
             }) ?? {};
           if (finalResponse?.text) {
-            Object.assign(
-              attributes.requestAttributes,
-              getOutputAttributes(finalResponse.text),
-            );
-            return;
+            attributes = {
+              ...attributes,
+              ...getOutputAttributes(finalResponse.text),
+            };
           }
         }
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
         this.setParentSpanOutputAttributes(attributes, span);
-        return;
       }
     }
   }
@@ -443,10 +490,9 @@ export class SpanCreator {
    * @returns The start timestamp in nanoseconds if found, undefined otherwise.
    */
   private fetchSpanStartTime(
-    attributes: Attributes,
     traceSpan: AgentTraceNode | AgentChunkSpan,
   ): number | undefined {
-    return this.fetchSpanTime(attributes, traceSpan, "start_time", false);
+    return this.fetchSpanTime({ traceSpan, timeKey: "start", reverse: false });
   }
 
   /**
@@ -456,10 +502,9 @@ export class SpanCreator {
    * @returns The end timestamp in nanoseconds if found, undefined otherwise.
    */
   private fetchSpanEndTime(
-    attributes: Attributes,
     traceSpan: AgentTraceNode | AgentChunkSpan,
   ): number | undefined {
-    return this.fetchSpanTime(attributes, traceSpan, "end_time", true);
+    return this.fetchSpanTime({ traceSpan, timeKey: "end", reverse: true });
   }
 
   /**
@@ -471,16 +516,15 @@ export class SpanCreator {
    * @param reverse Whether to traverse spans and chunks in reverse order.
    * @returns The timestamp in nanoseconds if found, undefined otherwise.
    */
-  private fetchSpanTime(
-    attributes: Attributes,
-    traceSpan: AgentTraceNode | AgentChunkSpan,
-    timeKey: string,
-    reverse: boolean = false,
-  ): number | undefined {
-    // First check if time is already in attributes metadata
-    if (attributes.metadata && attributes.metadata[timeKey] !== undefined) {
-      return Number(attributes.metadata[timeKey]);
-    }
+  private fetchSpanTime({
+    traceSpan,
+    timeKey,
+    reverse,
+  }: {
+    traceSpan: AgentTraceNode | AgentChunkSpan;
+    timeKey: "start" | "end";
+    reverse: boolean;
+  }): number | undefined {
     if (!(traceSpan instanceof AgentTraceNode)) {
       return undefined;
     }
@@ -489,6 +533,9 @@ export class SpanCreator {
       const chunks = reverse ? [...span.chunks].reverse() : span.chunks;
       for (const traceData of chunks) {
         const traceEvent = getEventType(traceData);
+        if (traceEvent == null) {
+          continue;
+        }
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
         // Check model invocation output
@@ -503,9 +550,12 @@ export class SpanCreator {
               data: modelInvocationOutput,
               key: "metadata",
             }) ?? {};
-          const metadata = getMetadataAttributes(metadataObject);
-          if (metadata && metadata[timeKey] !== undefined) {
-            return Number(metadata[timeKey]);
+          const { startTime, endTime } =
+            getStartAndEndTimeFromMetadata(metadataObject);
+          if (timeKey === "start" && startTime !== undefined) {
+            return startTime;
+          } else if (timeKey === "end" && endTime !== undefined) {
+            return endTime;
           }
         }
         // Check observation
@@ -513,20 +563,22 @@ export class SpanCreator {
           const observation =
             getObjectDataFromUnknown({ data: eventData, key: "observation" }) ??
             {};
-          const metadata = getMetadataAttributes(observation);
-          if (metadata && metadata[timeKey] !== undefined) {
-            return Number(metadata[timeKey]);
+          const { startTime, endTime } =
+            getStartAndEndTimeFromMetadata(observation);
+          if (timeKey === "start" && startTime !== undefined) {
+            return startTime;
+          } else if (timeKey === "end" && endTime !== undefined) {
+            return endTime;
           }
         }
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
-        const nestedTime = this.fetchSpanTime(
-          attributes,
-          span,
+        const nestedTime = this.fetchSpanTime({
+          traceSpan: span,
           timeKey,
           reverse,
-        );
+        });
         if (nestedTime !== undefined) {
           return nestedTime;
         }
@@ -543,51 +595,26 @@ export class SpanCreator {
    * @param startTime Optional explicit start time for the span (nanoseconds).
    * @returns The newly created span.
    */
-  private createChainSpan(
-    parentSpan: Span,
-    attributes: Attributes,
-    startTime?: number,
-  ): Span {
-    // Extract start time from attributes metadata if available
-    const effectiveStartTime = attributes.metadata?.start_time ?? startTime;
-
+  private createChainSpan({
+    parentSpan,
+    attributes,
+    name,
+    startTime,
+  }: {
+    parentSpan: Span;
+    attributes: Attributes;
+    name: string;
+    startTime?: number;
+  }): Span {
     // Create the span with appropriate context
     const span = this.oiTracer.startSpan(
-      attributes.name || "LLM",
+      name,
       {
-        startTime: effectiveStartTime ? Number(effectiveStartTime) : undefined,
-        attributes: getSpanKindAttributes(attributes.spanKind),
+        startTime: startTime ? startTime : undefined,
+        attributes,
       },
       trace.setSpan(context.active(), parentSpan),
     );
-
-    // Collect and merge metadata from various sources
-    const metadata = { ...(attributes.metadata || {}) };
-
-    // Set request attributes and extract any metadata
-    if (attributes?.requestAttributes) {
-      if ("metadata" in attributes.requestAttributes) {
-        Object.assign(metadata, attributes.requestAttributes["metadata"]);
-        delete attributes.requestAttributes["metadata"];
-      }
-      span.setAttributes(
-        attributes.requestAttributes as Record<string, string>,
-      );
-    }
-
-    // Set output attributes and extract any metadata
-    if (attributes.outputAttributes) {
-      if ("metadata" in attributes.outputAttributes) {
-        Object.assign(metadata, attributes.outputAttributes["metadata"]);
-        delete attributes.outputAttributes["metadata"];
-      }
-      span.setAttributes(attributes.outputAttributes as Record<string, string>);
-    }
-
-    // Add collected metadata as a JSON string
-    if (Object.keys(metadata).length > 0) {
-      span.setAttributes({ metadata: JSON.stringify(metadata) });
-    }
     return span;
   }
 }

@@ -1,6 +1,5 @@
 import {
   MimeType,
-  OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { Attributes } from "@opentelemetry/api";
@@ -239,22 +238,6 @@ export function getLLMAttributes({
     ...outputMessageAttributes,
     ...tokenCountAttributes,
     ...toolAttributes,
-  };
-}
-
-/**
- * Returns a span kind attribute for OpenInference spans.
- * Used to specify the type of span (e.g., LLM, TOOL, AGENT, RETRIEVER) in tracing systems.
- * If no spanKind is provided, defaults to LLM.
- *
- * @param spanKind - The kind of span (e.g., OpenInferenceSpanKind.LLM, OpenInferenceSpanKind.TOOL)
- * @returns An object with the span kind attribute for OpenInference tracing.
- */
-export function getSpanKindAttributes(
-  spanKind: OpenInferenceSpanKind,
-): Attributes {
-  return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
   };
 }
 

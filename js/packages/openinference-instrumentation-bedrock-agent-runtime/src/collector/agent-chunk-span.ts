@@ -1,5 +1,5 @@
+import { StringKeyedObject } from "../types";
 import { AgentTraceNode } from "./agent-trace-node";
-import { StringKeyedObject } from "../index";
 
 /**
  * Logical work-unit inside a node. A span groups sequential chunks that share
@@ -8,9 +8,6 @@ import { StringKeyedObject } from "../index";
 export class AgentChunkSpan {
   /** Raw payloads belonging to this span in order of arrival. */
   public readonly chunks: StringKeyedObject[] = [];
-
-  /** Machine-friendly label such as `invocationInput`. */
-  public readonly spanType: string;
 
   /** Child nodes created from within this span (e.g., agent collaborators). */
   public readonly childrenNodes: AgentTraceNode[] = [];
@@ -22,9 +19,7 @@ export class AgentChunkSpan {
    * Create a new AgentChunkSpan.
    * @param spanType Type of the span (e.g., 'invocationInput').
    */
-  constructor(spanType: string) {
-    this.spanType = spanType;
-  }
+  constructor() {}
 
   /**
    * Add a chunk to this span.
@@ -40,7 +35,6 @@ export class AgentChunkSpan {
    */
   toObject(): object {
     return {
-      spanType: this.spanType,
       chunks: this.chunks,
       childrenNodes: this.childrenNodes.map((child) => child.toObject()),
       parentNodeTraceId: this.parentNode?.nodeTraceId ?? null,

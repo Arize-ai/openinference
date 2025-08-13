@@ -1,16 +1,16 @@
 import {
   getInputAttributes,
-  getSpanKindAttributes,
   getLLMAttributes,
   getOutputAttributes,
   getToolAttributes,
   getLLMInputMessageAttributes,
   getLLMOutputMessageAttributes,
   getDocumentAttributes,
-} from "./attribute-utils";
+} from "./attributeUtils";
 import {
   OpenInferenceSpanKind,
   LLMProvider,
+  SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
 import {
@@ -38,7 +38,7 @@ import { isAttributeValue } from "@opentelemetry/core";
  * Defaults to `'unknownTrace'` when not found.
  */
 export function getEventType(
-  traceData: Record<string, unknown>,
+  traceData: StringKeyedObject,
 ): TraceEventType | null {
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
@@ -50,7 +50,7 @@ export function getEventType(
  * Extract the trace ID from a trace object. Returns undefined if the trace ID is not found.
  */
 export function extractTraceId(
-  traceData: Record<string, unknown>,
+  traceData: StringKeyedObject,
 ): string | undefined {
   const eventType = getEventType(traceData);
   if (eventType == null) {
@@ -89,7 +89,9 @@ export function getChunkType(
 /**
  * Returns a string from an unknown value or null if it cannot be safely stringified.
  */
-function getStringAttributeValueFromUnknown(value: unknown): string | null {
+export function getStringAttributeValueFromUnknown(
+  value: unknown,
+): string | null {
   if (typeof value === "string") {
     return value;
   }
@@ -154,7 +156,7 @@ export function getInputMessagesObject(text: string): Message[] {
  */
 export function getParentInputAttributesFromInvocationInput(
   invocationInput: StringKeyedObject,
-): StringKeyedObject | undefined {
+): Attributes | undefined {
   if (!isObjectWithStringKeys(invocationInput)) return {};
 
   const actionGroup = getObjectDataFromUnknown({
@@ -221,6 +223,22 @@ export function getParentInputAttributesFromInvocationInput(
   return {};
 }
 
+function getTimeAttributeValue(value: unknown): number | undefined {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const maybeTime = new Date(value).getTime();
+    if (!isNaN(maybeTime)) {
+      return maybeTime;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Extracts metadata attributes from trace metadata.
  * Converts timestamps to nanoseconds and normalizes keys.
@@ -229,38 +247,15 @@ export function getParentInputAttributesFromInvocationInput(
  */
 export function getMetadataAttributes(
   traceMetadata: StringKeyedObject,
-): StringKeyedObject {
+): StringKeyedObject | null {
   const metadata: StringKeyedObject = {};
-  if (!traceMetadata || typeof traceMetadata !== "object") return metadata;
-  if (traceMetadata?.clientRequestId) {
-    metadata["client_request_id"] = traceMetadata.clientRequestId;
+  const clientRequestId = isAttributeValue(traceMetadata.clientRequestId)
+    ? traceMetadata.clientRequestId
+    : getStringAttributeValueFromUnknown(traceMetadata.clientRequestId);
+  if (clientRequestId != null) {
+    metadata["client_request_id"] = clientRequestId;
   }
-  if (traceMetadata?.endTime) {
-    const endTime = traceMetadata.endTime;
-    if (endTime instanceof Date) {
-      metadata["end_time"] = endTime.getTime();
-    } else if (typeof endTime === "number") {
-      metadata["end_time"] = endTime;
-    } else if (typeof endTime === "string") {
-      const date = new Date(endTime);
-      if (!isNaN(date.getTime())) {
-        metadata["end_time"] = date.getTime();
-      }
-    }
-  }
-  if (traceMetadata?.startTime) {
-    const startTime = traceMetadata?.startTime;
-    if (startTime instanceof Date) {
-      metadata["start_time"] = startTime.getTime();
-    } else if (typeof startTime === "number") {
-      metadata["start_time"] = startTime;
-    } else if (typeof startTime === "string") {
-      const date = new Date(startTime);
-      if (!isNaN(date.getTime())) {
-        metadata["start_time"] = date.getTime();
-      }
-    }
-  }
+
   if (traceMetadata?.operationTotalTimeMs) {
     metadata["operation_total_time_ms"] = traceMetadata.operationTotalTimeMs;
   }
@@ -268,6 +263,19 @@ export function getMetadataAttributes(
     metadata["total_time_ms"] = traceMetadata.totalTimeMs;
   }
   return metadata;
+}
+
+export function getStartAndEndTimeFromMetadata(traceData: StringKeyedObject): {
+  startTime: number | undefined;
+  endTime: number | undefined;
+} {
+  const maybeEndTimeAttribute = getTimeAttributeValue(traceData?.endTime);
+
+  const maybeStartTimeAttribute = getTimeAttributeValue(traceData?.startTime);
+  return {
+    startTime: maybeStartTimeAttribute,
+    endTime: maybeEndTimeAttribute,
+  };
 }
 
 /**
@@ -301,7 +309,7 @@ export function getAttributesFromModelInvocationInput(
   llmAttributes["provider"] = LLMProvider.AWS;
   return {
     ...getLLMAttributes({ ...llmAttributes }),
-    ...getSpanKindAttributes(OpenInferenceSpanKind.LLM),
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
     ...getInputAttributes(inputText),
   };
 }
@@ -315,9 +323,9 @@ export function getAttributesFromModelInvocationInput(
  * @returns A dictionary of extracted attributes.
  */
 export function getAttributesFromModelInvocationOutput(
-  modelInvocationOutput: Record<string, unknown>,
-): Record<string, unknown> {
-  const llmAttributes: Record<string, unknown> = {};
+  modelInvocationOutput: StringKeyedObject,
+): Attributes {
+  const llmAttributes: StringKeyedObject = {};
   const modelName = getModelName({}, modelInvocationOutput || {});
   if (modelName) {
     llmAttributes["modelName"] = modelName;
@@ -331,7 +339,7 @@ export function getAttributesFromModelInvocationOutput(
   llmAttributes["outputMessages"] = getOutputMessages(
     modelInvocationOutput || {},
   );
-  llmAttributes["tokenCount"] = getTokenCounts(modelInvocationOutput || {});
+  llmAttributes["tokenCount"] = getTokenCounts(modelInvocationOutput);
   let requestAttributes = {
     ...getLLMAttributes({ ...llmAttributes }),
   };
@@ -476,23 +484,27 @@ function getOutputMessages(
  * @param outputParams Model invocation output parameters.
  * @returns TokenCount object with prompt, completion, and total tokens.
  */
-function getTokenCounts(outputParams: StringKeyedObject): TokenCount {
+function getTokenCounts(outputParams: StringKeyedObject): TokenCount | null {
   const metadata = getObjectDataFromUnknown({
     data: outputParams,
     key: "metadata",
   });
-  if (!metadata || !("usage" in metadata)) return {};
+  if (metadata == null || !("usage" in metadata)) {
+    return null;
+  }
   const usage = getObjectDataFromUnknown({ data: metadata, key: "usage" });
-  let input = 0,
-    output = 0,
-    total = 0;
+  let input: number | undefined;
+  let output: number | undefined;
+  let total: number | undefined;
   if (typeof usage?.inputTokens === "number") {
     input = usage.inputTokens;
   }
   if (typeof usage?.outputTokens === "number") {
     output = usage.outputTokens;
   }
-  total = input + output;
+  if (input != null && output != null) {
+    total = input + output;
+  }
   return { prompt: input, completion: output, total: total };
 }
 
@@ -643,7 +655,7 @@ function getAttributesFromActionGroupInvocationInput(
       : (safelyJSONStringify(actionInput.apiPath) ?? undefined);
   }
   return {
-    ...getSpanKindAttributes(OpenInferenceSpanKind.TOOL),
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
     ...getLLMInputMessageAttributes(messages),
     ...toolAttributes,
     metadata: safelyJSONStringify(llmInvocationParameters) ?? undefined,
@@ -679,7 +691,7 @@ function getAttributesFromCodeInterpreterInput(
   };
   return {
     ...getInputAttributes(codeInput?.code ?? ""),
-    ...getSpanKindAttributes(OpenInferenceSpanKind.TOOL),
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
     ...getLLMInputMessageAttributes(messages),
     ...getToolAttributes({ name, description, parameters }),
     metadata: safelyJSONStringify(metadata) ?? undefined,
@@ -700,7 +712,8 @@ function getAttributesFromKnowledgeBaseLookupInput(
   };
   return {
     ...getInputAttributes(kbData?.text ?? ""),
-    ...getSpanKindAttributes(OpenInferenceSpanKind.RETRIEVER),
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+      OpenInferenceSpanKind.RETRIEVER,
     metadata: safelyJSONStringify(metadata) ?? undefined,
   };
 }
@@ -734,7 +747,7 @@ function getAttributesFromAgentCollaboratorInvocationInput(
     input_type: isAttributeValue(inputType) ? inputType : undefined,
   };
   return {
-    ...getSpanKindAttributes(OpenInferenceSpanKind.AGENT),
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
     ...getInputAttributes(content),
     ...getLLMInputMessageAttributes(messages),
     metadata: safelyJSONStringify(metadata) ?? undefined,
@@ -853,7 +866,7 @@ function getAttributesFromKnowledgeBaseLookupOutput(
  */
 export function getFailureTraceAttributes(
   traceData: StringKeyedObject,
-): StringKeyedObject {
+): Attributes {
   let failureMessage = "";
   if (traceData?.failureCode) {
     failureMessage += `Failure Code: ${traceData.failureCode}\n`;
@@ -874,7 +887,7 @@ export function getFailureTraceAttributes(
  */
 export function extractMetadataAttributesFromObservation(
   observation: StringKeyedObject,
-): StringKeyedObject {
+): StringKeyedObject | null {
   const events = [
     "actionGroupInvocationOutput",
     "codeInterpreterInvocationOutput",
@@ -893,7 +906,7 @@ export function extractMetadataAttributesFromObservation(
       return getMetadataAttributes(metadata);
     }
   }
-  return {};
+  return null;
 }
 
 /**

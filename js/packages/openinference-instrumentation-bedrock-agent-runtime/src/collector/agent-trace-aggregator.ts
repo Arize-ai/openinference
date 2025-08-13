@@ -6,7 +6,7 @@ import {
   getChunkType,
   getEventType,
 } from "../attributes/attributeExtractionUtils";
-import { generateUniqueTraceId } from "../attributes/attribute-utils";
+import { generateUniqueTraceId } from "../attributes/attributeUtils";
 import { getObjectDataFromUnknown } from "../utils/jsonUtils";
 import { StringKeyedObject } from "../types";
 
@@ -46,7 +46,7 @@ export class AgentTraceAggregator {
     }
     const eventType = getEventType(traceData);
     const traceId = extractTraceId(traceData);
-    if (!traceId) {
+    if (!traceId || !eventType) {
       return;
     }
     const nodeTraceId = generateUniqueTraceId(eventType, traceId);
@@ -241,7 +241,7 @@ export class AgentTraceAggregator {
       newNode.addChunk(traceData);
     } else {
       newNode = new AgentTraceNode(nodeTraceId, eventType);
-      const span = new AgentChunkSpan(chunkType);
+      const span = new AgentChunkSpan();
       span.addChunk(traceData);
       span.parentNode = parent;
       newNode.addSpan(span);
@@ -363,7 +363,7 @@ export class AgentTraceAggregator {
     chunkType: string,
     traceData: StringKeyedObject,
   ): void {
-    const span = new AgentChunkSpan(chunkType);
+    const span = new AgentChunkSpan();
     span.addChunk(traceData);
     span.parentNode = node;
     node.addSpan(span);

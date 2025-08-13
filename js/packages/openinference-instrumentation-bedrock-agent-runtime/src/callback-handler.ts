@@ -6,7 +6,7 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { AgentTraceAggregator } from "./collector/agent-trace-aggregator";
 import { OITracer } from "@arizeai/openinference-core";
-import { SpanCreator } from "./span-creator";
+import { SpanCreator } from "./spanCreator";
 
 export class CallbackHandler {
   private outputChunks: string[] = [];
