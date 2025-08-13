@@ -1,5 +1,5 @@
 duckduckgo-search
-agno>=1.7.8
+agno>=1.5.2
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 openinference-instrumentation-openai

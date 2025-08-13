@@ -35,15 +35,14 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "agno>=1.7.8",
+  "agno>=1.5.2",
 ]
 test = [
-  "agno==1.7.8",
+  "agno==1.5.2",
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",
   "duckduckgo-search",
-  "yfinance",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
