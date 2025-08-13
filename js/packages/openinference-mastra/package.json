@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-mastra",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "private": false,
   "type": "module",
   "types": "dist/esm/index.d.ts",

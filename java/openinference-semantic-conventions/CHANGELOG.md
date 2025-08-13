@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.7...java-openinference-semantic-conventions-v0.1.8) (2025-08-07)
+
+
+### Features
+
+* new experimental release ([#2050](https://github.com/Arize-ai/openinference/issues/2050)) ([3afeed2](https://github.com/Arize-ai/openinference/commit/3afeed2d72d52a0d96217c9c1c6e1f7d3e983c73))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.6...java-openinference-semantic-conventions-v0.1.7) (2025-08-06)
+
+
+### Features
+
+* Upgrade workflow java 17 ([#2044](https://github.com/Arize-ai/openinference/issues/2044)) ([2084e8e](https://github.com/Arize-ai/openinference/commit/2084e8e48761fbb9e575bf4fbfc0f75ba3998d2e))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.5...java-openinference-semantic-conventions-v0.1.6) (2025-08-05)
+
+
+### Features
+
+* Spring AI instrumentation, Java 17 update ([#2036](https://github.com/Arize-ai/openinference/issues/2036)) ([b260225](https://github.com/Arize-ai/openinference/commit/b2602255b7954296a70fa02b2c98d67c514d9b9f))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.4...java-openinference-semantic-conventions-v0.1.5) (2025-07-18)
 
 

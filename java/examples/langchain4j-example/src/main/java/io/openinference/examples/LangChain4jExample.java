@@ -8,13 +8,13 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.agent.tool.ToolSpecifications;
-import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
-import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -29,12 +29,12 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Example demonstrating OpenInference instrumentation with LangChain4j.
@@ -71,47 +71,49 @@ public class LangChain4jExample {
             System.exit(1);
         }
 
-        ChatLanguageModel model = OpenAiChatModel.builder()
+        List<ToolSpecification> toolSpecifications = ToolSpecifications.toolSpecificationsFrom(WeatherTools.class);
+
+        OpenAiChatRequestParameters openAiChatRequestParameters = OpenAiChatRequestParameters.builder()
+                .modelName("gpt-4.1")
+                .temperature(0.7)
+                .maxOutputTokens(100)
+                .toolSpecifications(toolSpecifications)
+                .build();
+
+        ChatModel model = OpenAiChatModel.builder()
                 .apiKey(apiKey)
+                .defaultRequestParameters(openAiChatRequestParameters)
                 .modelName("gpt-4.1")
                 .temperature(0.7)
                 .maxTokens(100)
                 .listeners(List.of(listener))
                 .timeout(Duration.ofSeconds(30))
                 .build();
-
         // Use the model - traces will be automatically created
         logger.info("Sending request to OpenAI...");
-        Response<AiMessage> response =
-                model.generate(UserMessage.from("What is the capital of France? Answer in one sentence."));
-        logger.info("Response: " + response.content());
-
-        List<ToolSpecification> toolSpecifications = ToolSpecifications.toolSpecificationsFrom(WeatherTools.class);
+        ChatResponse response = model.chat(UserMessage.from("What is the capital of France? Answer in one sentence."));
+        logger.info("Response: " + response.aiMessage().text());
 
         // Example with multiple messages to show conversation tracing
         logger.info("\nSending another request...");
-        Response<AiMessage> response2 = model.generate(
-                List.of(
-                        UserMessage.from("What is the capital of France? Answer in one sentence."),
-                        response.content(),
-                        UserMessage.from("What about Germany? also whats the weather like in germany")),
-                toolSpecifications);
+        ChatResponse response2 = model.chat(
+                UserMessage.from("What is the capital of France? Answer in one sentence."),
+                response.aiMessage(),
+                UserMessage.from("What about Germany? also whats the weather like in germany"));
         logger.info("Response: " + response2);
 
-        Stream<ToolExecutionResultMessage> toolExecutionResultMessages =
-                response2.content().toolExecutionRequests().stream()
-                        .map(t -> ToolExecutionResultMessage.from(t, "The weather will be 80 degrees."));
+        List<ToolExecutionResultMessage> toolExecutionResultMessages =
+                response2.aiMessage().toolExecutionRequests().stream()
+                        .map(t -> ToolExecutionResultMessage.from(t, "The weather will be 80 degrees."))
+                        .collect(Collectors.toList());
+        ArrayList<ChatMessage> messages = new ArrayList<>(List.of(
+                UserMessage.from("What is the capital of France? Answer in one sentence."),
+                response.aiMessage(),
+                UserMessage.from("What about Germany? also whats the weather like in germany"),
+                response2.aiMessage()));
+        messages.addAll(toolExecutionResultMessages);
 
-        List<ChatMessage> messages = Stream.concat(
-                        Stream.of(
-                                UserMessage.from("What is the capital of France? Answer in one sentence."),
-                                response.content(),
-                                UserMessage.from("What about Germany? also whats the weather like in germany"),
-                                response2.content()),
-                        toolExecutionResultMessages)
-                .collect(Collectors.toList());
-
-        model.generate(messages, toolSpecifications);
+        model.chat(messages);
 
         if (tracerProvider != null) {
             logger.info("Flushing and shutting down trace provider...");

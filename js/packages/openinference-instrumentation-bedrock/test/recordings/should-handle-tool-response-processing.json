@@ -1,0 +1,101 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is 15 * 23?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "toolConfig": {
+        "tools": [
+          {
+            "toolSpec": {
+              "description": "Perform mathematical calculations",
+              "inputSchema": {
+                "json": {
+                  "type": "object",
+                  "properties": {
+                    "expression": {
+                      "type": "string",
+                      "description": "Mathematical expression to evaluate"
+                    }
+                  },
+                  "required": ["expression"]
+                }
+              },
+              "name": "calculate"
+            }
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 2249
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "To calculate 15 * 23, I can use the \"calculate\" function. Let me do that for you."
+            },
+            {
+              "toolUse": {
+                "input": {
+                  "expression": "15 * 23"
+                },
+                "name": "calculate",
+                "toolUseId": "tooluse_RVjyNbnRRAqT_YlXqlJDUQ"
+              }
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 369,
+        "outputTokens": 81,
+        "totalTokens": 450
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:18:24 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "378",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "df6f8b19-b15f-4bcb-b86a-e9ef1cdcbbb0"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "398",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "f6c7b46a-8ebc-4ee4-a215-0a2bafc0064a",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "209bf9b334a99b98d0674406425c484046108609f55fb44ddc16927174c9b264",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

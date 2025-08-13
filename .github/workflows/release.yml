@@ -100,32 +100,52 @@ jobs:
         path: ${{ fromJSON(needs.separate-release-please.outputs.java_paths_released) }}
     steps:
       - uses: actions/checkout@v4
-        
-      - name: Set up JDK 11
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
 
-      - name: Remove SNAPSHOT from versions
+      - name: Set versions from release-please manifest
         working-directory: ./java
         run: |
-          echo "Removing -SNAPSHOT from gradle.properties files..."
-          find . -name "gradle.properties" -type f | while read file; do
-            if grep -q "version=.*-SNAPSHOT" "$file"; then
-              echo "Updating $file"
-              sed -i 's/\(version=.*\)-SNAPSHOT/\1/' "$file"
-              echo "New version: $(grep version= "$file")"
+          echo "Setting versions for all Java packages to ensure dependency resolution..."
+
+          # Update ALL Java package versions from manifest to prevent $VERSION placeholders
+          # The <<< (here-string) feeds jq output line-by-line to the while loop
+          # Each line becomes the value of java_path variable via the read command
+          while IFS= read -r java_path; do
+            if [ -n "$java_path" ]; then
+              PACKAGE_VERSION=$(jq -r ".\"$java_path\"" ../.release-please-manifest.json)
+              RELATIVE_PATH="${java_path#java/}"
+              GRADLE_PROPS_FILE="${RELATIVE_PATH}/gradle.properties"
+              if [ -f "$GRADLE_PROPS_FILE" ] && [ "$PACKAGE_VERSION" != "null" ]; then
+                echo "Updating ${GRADLE_PROPS_FILE} with version: $PACKAGE_VERSION"
+                if grep -q "version=\$VERSION" "$GRADLE_PROPS_FILE"; then
+                  sed -i "s/version=\$VERSION/version=$PACKAGE_VERSION/" "$GRADLE_PROPS_FILE"
+                else
+                  sed -i "s/^version=.*/version=$PACKAGE_VERSION/" "$GRADLE_PROPS_FILE"
+                fi
+                echo "Updated version: $(grep version= "$GRADLE_PROPS_FILE")"
+              fi
             fi
-          done
+          done <<< "$(jq -r 'keys[] | select(startswith("java/"))' ../.release-please-manifest.json)"
+          echo "All Java package versions have been updated for proper dependency resolution"
 
       - name: Stage artifacts locally
         working-directory: ./java
         run: |
-          ./gradlew clean publish
+          # Determine the relative path from java/ directory
+          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="${RELATIVE_PATH#java/}"
+          # Convert path to Gradle project path format
+          GRADLE_PROJECT=$(echo ":${RELATIVE_PATH}" | sed 's|/|:|g')
+          # Build and publish only the specific project
+          ./gradlew clean "${GRADLE_PROJECT}:publish"
 
       - name: Deploy to Maven Central with JReleaser
         working-directory: ./java
@@ -136,7 +156,12 @@ jobs:
           JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
           JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
         run: |
-          ./gradlew jreleaserDeploy
+          # Determine the relative path from java/ directory
+          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="${RELATIVE_PATH#java/}"
+          
+          # Configure JReleaser to only deploy this specific artifact
+          ./gradlew -PjreleaserStagingRepository=${RELATIVE_PATH}/build/staging-deploy jreleaserDeploy
 
       - name: Clean up
         if: always()

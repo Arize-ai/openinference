@@ -71,10 +71,16 @@ testpaths = [
 strict = true
 explicit_package_bases = true
 exclude = [
+  "src/openinference/instrumentation/agno/*",
   "src/openinference/instrumentation/anthropic/*",
+  "src/openinference/instrumentation/autogen/*",
+  "src/openinference/instrumentation/autogen_agentchat/*",
   "src/openinference/instrumentation/bedrock/*",
+  "src/openinference/instrumentation/beeai/*",
   "src/openinference/instrumentation/crewai/*",
   "src/openinference/instrumentation/dspy/*",
+  "src/openinference/instrumentation/google_adk/*",
+  "src/openinference/instrumentation/google_genai/*",
   "src/openinference/instrumentation/groq/*",
   "src/openinference/instrumentation/guardrails/*",
   "src/openinference/instrumentation/haystack/*",
@@ -82,8 +88,13 @@ exclude = [
   "src/openinference/instrumentation/langchain/*",
   "src/openinference/instrumentation/litellm/*",
   "src/openinference/instrumentation/llama_index/*",
+  "src/openinference/instrumentation/mcp/*",
   "src/openinference/instrumentation/mistralai/*",
   "src/openinference/instrumentation/openai/*",
+  "src/openinference/instrumentation/openai_agents/*",
+  "src/openinference/instrumentation/openllmetry/*",
+  "src/openinference/instrumentation/portkey/*",
+  "src/openinference/instrumentation/pydantic_ai/*",
   "src/openinference/instrumentation/smolagents/*",
   "src/openinference/instrumentation/vertexai/*",
 ]
@@ -97,6 +108,7 @@ target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"tests/**/*.py" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
