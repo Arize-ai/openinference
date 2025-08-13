@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.4...java-openinference-instrumentation-springAI-v0.1.5) (2025-08-13)
+
+
+### Bug Fixes
+
+* jreleaser dependency release, all packages need their version ([#2075](https://github.com/Arize-ai/openinference/issues/2075)) ([5a2de93](https://github.com/Arize-ai/openinference/commit/5a2de939136b2d151a831e8911a62a0c3f7b7717))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.3...java-openinference-instrumentation-springAI-v0.1.4) (2025-08-08)
 
 
