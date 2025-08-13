@@ -73,6 +73,12 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
     addOpenInferenceSpanKind(span, kind);
   }
 
+  // Ensure root spans pass the isOpenInferenceSpan filter
+  // Root spans have parentSpanContext === undefined and need openinference.span.kind set
+  if (span.parentSpanContext === undefined && !getOpenInferenceSpanKind(span)) {
+    addOpenInferenceSpanKind(span, OpenInferenceSpanKind.AGENT);
+  }
+
   // Map Mastra threadId to OpenInference session ID
   // Only set SESSION_ID if it doesn't already exist to avoid overwriting existing values
   const threadId = span.attributes.threadId;

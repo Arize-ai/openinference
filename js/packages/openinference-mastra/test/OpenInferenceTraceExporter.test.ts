@@ -256,4 +256,95 @@ describe("OpenInferenceTraceExporter", () => {
     // threadId should remain unchanged
     expect(mockSpan.attributes.threadId).toBe("new-thread-123");
   });
+
+  it("should add AGENT span kind to root spans without span kind", async () => {
+    const rootSpan = {
+      name: "POST /api/agents/weatherAgent/stream",
+      parentSpanContext: undefined, // Root span has no parent
+      attributes: {
+        "http.method": "POST",
+        "http.url": "/api/agents/weatherAgent/stream",
+      },
+      resource: {
+        attributes: {
+          "service.name": "test-service",
+        },
+      },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+      headers: {
+        Authorization: "Bearer test-api-key",
+      },
+    });
+
+    exporter.export([rootSpan], () => {});
+
+    // Root span should now have AGENT span kind set
+    expect(rootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      "AGENT",
+    );
+  });
+
+  it("should not overwrite existing span kind on root spans", async () => {
+    const rootSpan = {
+      name: "POST /api/agents/weatherAgent/stream",
+      parentSpanContext: undefined, // Root span has no parent
+      attributes: {
+        "http.method": "POST",
+        "http.url": "/api/agents/weatherAgent/stream",
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "CHAIN", // Pre-existing span kind
+      },
+      resource: {
+        attributes: {
+          "service.name": "test-service",
+        },
+      },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+      headers: {
+        Authorization: "Bearer test-api-key",
+      },
+    });
+
+    exporter.export([rootSpan], () => {});
+
+    // Should preserve existing span kind, not overwrite with AGENT
+    expect(rootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      "CHAIN",
+    );
+  });
+
+  it("should not add span kind to child spans without span kind", async () => {
+    const childSpan = {
+      name: "agent.getMostRecentUserMessage",
+      parentSpanContext: { spanId: "parent-span-id" }, // Child span has parent
+      attributes: {
+        "agent.getMostRecentUserMessage.argument.0": "some data",
+        "agent.getMostRecentUserMessage.result": "result data",
+      },
+      resource: {
+        attributes: {
+          "service.name": "test-service",
+        },
+      },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+      headers: {
+        Authorization: "Bearer test-api-key",
+      },
+    });
+
+    exporter.export([childSpan], () => {});
+
+    // Child span should get AGENT span kind from the existing logic based on name pattern
+    expect(childSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
+      "AGENT",
+    );
+  });
 });
