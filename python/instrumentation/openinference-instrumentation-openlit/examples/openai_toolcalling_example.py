@@ -14,13 +14,12 @@ import sys
 
 import grpc
 import openai
+import openlit
 from dotenv import load_dotenv
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from phoenix.otel import register
-import openlit
 
 from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
 

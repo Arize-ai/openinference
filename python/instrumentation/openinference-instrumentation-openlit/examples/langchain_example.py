@@ -12,15 +12,14 @@ import os
 import sys
 
 import grpc
+import openlit
 from langchain.chat_models import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from phoenix.otel import register
 from typing_extensions import Literal, TypedDict
-import openlit
 
 from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
 

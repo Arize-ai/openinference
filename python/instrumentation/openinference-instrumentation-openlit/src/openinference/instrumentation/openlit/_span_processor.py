@@ -20,7 +20,7 @@ from openinference.instrumentation import (
 
 __all__ = ["OpenInferenceSpanProcessor"]
 
-_PROVIDERS = {
+_LLM_PROVIDERS = {
     "openai",
     "ollama",
     "anthropic",
@@ -51,15 +51,17 @@ _PROVIDERS = {
 }
 
 
-def _is_wrapper_span(attrs: Dict[str, Any]) -> bool:
+def _is_chain_span(attrs: Dict[str, Any]) -> bool:
     """
-    Heuristic: True = a framework / chain / tool span (not the real LLM HTTP call).
+    Heuristic:
+    True = a framework / chain / tool span.
+    False: LLM span.
     """
     sys_name = str(attrs.get("gen_ai.system", "")).lower()
     addr = attrs.get("server.address")
     port = attrs.get("server.port")
 
-    if sys_name in _PROVIDERS:
+    if sys_name in _LLM_PROVIDERS:
         return False
 
     if addr in (None, "", "NOT_FOUND") or port in (None, "", "NOT_FOUND"):
@@ -318,8 +320,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 span._attributes = {**span._attributes, **oi_attrs}
             return
 
-        if _is_wrapper_span(attrs):
-
+        if _is_chain_span(attrs):
             prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
@@ -342,7 +343,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 )
             oi_attrs.update(
                 {
-                    sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (sc.OpenInferenceSpanKindValues.CHAIN.value),
+                    sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (
+                        sc.OpenInferenceSpanKindValues.CHAIN.value
+                    ),
                 }
             )
 
