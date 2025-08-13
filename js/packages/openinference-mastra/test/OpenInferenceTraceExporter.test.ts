@@ -77,6 +77,8 @@ describe("OpenInferenceTraceExporter", () => {
                 "http.target": "/api/agents/weatherAgent/stream",
                 "http.url": "http://localhost:4111/api/agents/weatherAgent/stream",
                 "http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+                "input.mime_type": "text/plain",
+                "input.value": "what is the weather in ann arbor",
                 "net.host.ip": "::1",
                 "net.host.name": "localhost",
                 "net.host.port": 4111,
@@ -84,6 +86,8 @@ describe("OpenInferenceTraceExporter", () => {
                 "net.peer.port": 51258,
                 "net.transport": "ip_tcp",
                 "openinference.span.kind": "AGENT",
+                "output.mime_type": "text/plain",
+                "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
               },
               "endTime": [
                 1747754797,
@@ -417,5 +421,299 @@ describe("OpenInferenceTraceExporter", () => {
     // Should only have 1 span: the agent span (mastra internal root not added)
     expect(exportedSpans).toHaveLength(1);
     expect(exportedSpans[0].name).toBe("agent.process");
+  });
+
+  it("should add input and output to root spans when I/O data is available", async () => {
+    const rootSpan = {
+      name: "POST /copilotkit",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/copilotkit",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing user input in getMostRecentUserMessage result
+    const userMessageSpan = {
+      name: "agent.getMostRecentUserMessage",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "user-msg-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.getMostRecentUserMessage.result": JSON.stringify({
+          id: "msg-123",
+          role: "user",
+          content: "what is the weather today?",
+          createdAt: "2025-01-15T10:00:00Z",
+        }),
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing agent output
+    const outputSpan = {
+      name: "ai.streamText",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "output-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]:
+          "The weather today is sunny with a high of 75°F.",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    exporter.export([rootSpan, userMessageSpan, outputSpan], () => {});
+
+    // Check that input and output were added to root span
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "what is the weather today?",
+    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "The weather today is sunny with a high of 75°F.",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+  });
+
+  it("should successfully export when I/O data is not found", async () => {
+    const rootSpan = {
+      name: "POST /api/endpoint",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-456",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:3000/api/endpoint",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span without I/O data - just a regular operation
+    const regularSpan = {
+      name: "database.query",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "db-id",
+        traceId: "trace-456",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "db.operation": "SELECT",
+        "db.table": "users",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    // This should not throw an error
+    expect(() => {
+      exporter.export([rootSpan, regularSpan], () => {});
+    }).not.toThrow();
+
+    // Root span should not have I/O attributes since no I/O data was found
+    expect(
+      rootSpan.attributes[SemanticConventions.INPUT_VALUE],
+    ).toBeUndefined();
+    expect(
+      rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE],
+    ).toBeUndefined();
+    expect(
+      rootSpan.attributes[SemanticConventions.OUTPUT_VALUE],
+    ).toBeUndefined();
+    expect(
+      rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE],
+    ).toBeUndefined();
+
+    // Should still call the underlying exporter
+    expect(OTLPTraceExporter.prototype.export).toHaveBeenCalled();
+  });
+
+  it("should extract input from agent.stream.argument.0 when getMostRecentUserMessage is not available", async () => {
+    const rootSpan = {
+      name: "POST /copilotkit",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-789",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/copilotkit",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing conversation messages with the user input as the last user message
+    const streamSpan = {
+      name: "agent.stream",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "stream-id",
+        traceId: "trace-789",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.stream.argument.0": JSON.stringify([
+          { role: "system", content: "You are a helpful assistant." },
+          { role: "user", content: "Hello there!" },
+          { role: "assistant", content: "Hi! How can I help you?" },
+          { role: "user", content: "Tell me a joke" }, // This should be extracted as input
+        ]),
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing agent output
+    const outputSpan = {
+      name: "ai.streamText",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "output-id",
+        traceId: "trace-789",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]:
+          "Why don't scientists trust atoms? Because they make up everything!",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    exporter.export([rootSpan, streamSpan, outputSpan], () => {});
+
+    // Check that input was extracted from the conversation messages (fallback method)
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "Tell me a joke",
+    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "Why don't scientists trust atoms? Because they make up everything!",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+  });
+
+  it("should not overwrite existing I/O attributes on root spans", async () => {
+    const rootSpan = {
+      name: "POST /copilotkit",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-999",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/copilotkit",
+        // Pre-existing I/O attributes that should not be overwritten
+        [SemanticConventions.INPUT_VALUE]: "existing input value",
+        [SemanticConventions.INPUT_MIME_TYPE]: "application/json",
+        [SemanticConventions.OUTPUT_VALUE]: "existing output value",
+        [SemanticConventions.OUTPUT_MIME_TYPE]: "application/json",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing new user input that should NOT overwrite existing
+    const userMessageSpan = {
+      name: "agent.getMostRecentUserMessage",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "user-msg-id",
+        traceId: "trace-999",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.getMostRecentUserMessage.result": JSON.stringify({
+          id: "msg-123",
+          role: "user",
+          content: "new input that should not overwrite",
+          createdAt: "2025-01-15T10:00:00Z",
+        }),
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing new agent output that should NOT overwrite existing
+    const outputSpan = {
+      name: "ai.streamText",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "output-id",
+        traceId: "trace-999",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]:
+          "new output that should not overwrite",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    exporter.export([rootSpan, userMessageSpan, outputSpan], () => {});
+
+    // Check that existing I/O attributes were preserved (not overwritten)
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "existing input value",
+    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
+      "application/json",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "existing output value",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
+      "application/json",
+    );
   });
 });
