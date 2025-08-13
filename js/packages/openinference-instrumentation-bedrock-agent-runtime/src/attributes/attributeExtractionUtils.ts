@@ -16,6 +16,7 @@ import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
 import {
   fixLooseJsonString,
   getObjectDataFromUnknown,
+  parseSanitizedJson,
 } from "../utils/jsonUtils";
 import { StringKeyedObject } from "../types";
 import {
@@ -438,11 +439,16 @@ function getOutputMessages(
   if (outputContent == null) {
     return null;
   }
+  let parsedContent: unknown | null = null;
   if (typeof outputContent === "string") {
-    messages.push({ content: outputContent, role: "assistant" });
-    return messages;
+    parsedContent = parseSanitizedJson(outputContent) ?? outputContent;
+    if (!isObjectWithStringKeys(parsedContent)) {
+      messages.push({ content: outputContent, role: "assistant" });
+      return messages;
+    }
   }
-  if (!isObjectWithStringKeys(outputContent)) {
+
+  if (!isObjectWithStringKeys(parsedContent)) {
     const stringifiedContent =
       getStringAttributeValueFromUnknown(outputContent);
     if (stringifiedContent) {
@@ -451,7 +457,7 @@ function getOutputMessages(
     return messages;
   }
   try {
-    const contents = outputContent.content;
+    const contents = parsedContent.content;
     if (contents == null) {
       return null;
     }
