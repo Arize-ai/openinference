@@ -2,6 +2,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { addOpenInferenceAttributesToMastraSpan } from "./attributes.js";
 import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
@@ -88,6 +89,94 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     return span.spanContext?.()?.traceId || "unknown";
   }
 
+  private extractUserInput(spans: ReadableSpan[]): string | undefined {
+    // Look for the most recent user message from agent.getMostRecentUserMessage.result
+    for (const span of spans) {
+      if (span.name === "agent.getMostRecentUserMessage") {
+        const result = span.attributes["agent.getMostRecentUserMessage.result"];
+        if (typeof result === "string") {
+          try {
+            const messageData = JSON.parse(result);
+            if (
+              messageData.content &&
+              typeof messageData.content === "string"
+            ) {
+              return messageData.content;
+            }
+          } catch {
+            // Ignore parsing errors
+          }
+        }
+      }
+    }
+
+    // Fallback: extract from agent.stream.argument.0 (conversation messages)
+    for (const span of spans) {
+      if (span.name === "agent.stream") {
+        const argument = span.attributes["agent.stream.argument.0"];
+        if (typeof argument === "string") {
+          try {
+            const messages = JSON.parse(argument);
+            if (Array.isArray(messages)) {
+              // Find the last user message
+              for (let i = messages.length - 1; i >= 0; i--) {
+                const message = messages[i];
+                if (message.role === "user" && message.content) {
+                  return typeof message.content === "string"
+                    ? message.content
+                    : message.content;
+                }
+              }
+            }
+          } catch {
+            // Ignore parsing errors
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractAgentOutput(spans: ReadableSpan[]): string | undefined {
+    // Look for output.value in any span (typically ai.streamText or similar)
+    for (const span of spans) {
+      const outputValue = span.attributes[SemanticConventions.OUTPUT_VALUE];
+      if (typeof outputValue === "string") {
+        return outputValue;
+      }
+    }
+    return undefined;
+  }
+
+  private addInputOutputToRootSpans(spans: ReadableSpan[]): void {
+    const rootSpans = spans.filter(
+      (span) => span.parentSpanContext === undefined,
+    );
+
+    if (rootSpans.length === 0) return;
+
+    const userInput = this.extractUserInput(spans);
+    const agentOutput = this.extractAgentOutput(spans);
+
+    // Add input and output to root spans
+    for (const rootSpan of rootSpans) {
+      if (userInput && !rootSpan.attributes[SemanticConventions.INPUT_VALUE]) {
+        rootSpan.attributes[SemanticConventions.INPUT_VALUE] = userInput;
+        rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE] = "text/plain";
+      }
+
+      if (
+        agentOutput &&
+        !rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]
+      ) {
+        rootSpan.attributes[SemanticConventions.OUTPUT_VALUE] = agentOutput;
+        rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE] =
+          "text/plain";
+      }
+    }
+  }
+
   private addMissingAgentRootSpans(
     allSpans: ReadableSpan[],
     filteredSpans: ReadableSpan[],
@@ -154,6 +243,10 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     }
     // Add missing root spans for traces with agent operations
     filteredSpans = this.addMissingAgentRootSpans(spans, filteredSpans);
+
+    // Add user input and agent output to root spans for Phoenix session I/O
+    this.addInputOutputToRootSpans(filteredSpans);
+
     super.export(filteredSpans, resultCallback);
   }
 }
