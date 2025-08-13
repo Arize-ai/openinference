@@ -70,6 +70,66 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     });
     this.spanFilter = spanFilter;
   }
+
+  private isAgentOperation(span: ReadableSpan): boolean {
+    return !!(
+      span.name.startsWith("agent.") ||
+      span.attributes.threadId ||
+      span.attributes.componentName ||
+      span.attributes.resourceId
+    );
+  }
+
+  private getSpanId(span: ReadableSpan): string {
+    return span.spanContext?.()?.spanId || "unknown";
+  }
+
+  private getTraceId(span: ReadableSpan): string {
+    return span.spanContext?.()?.traceId || "unknown";
+  }
+
+  private addMissingAgentRootSpans(
+    allSpans: ReadableSpan[],
+    filteredSpans: ReadableSpan[],
+  ): ReadableSpan[] {
+    const filteredSpanIds = new Set(
+      filteredSpans.map((s) => this.getSpanId(s)),
+    );
+
+    // Check filtered spans for agent operations
+    const agentTraceIds = new Set<string>();
+    for (const span of filteredSpans) {
+      if (this.isAgentOperation(span)) {
+        agentTraceIds.add(this.getTraceId(span));
+      }
+    }
+
+    // Find missing root spans for agent traces
+    const missingRoots: ReadableSpan[] = [];
+    for (const span of allSpans) {
+      if (
+        span.parentSpanContext === undefined && // is root
+        agentTraceIds.has(this.getTraceId(span)) && // is agent trace
+        !filteredSpanIds.has(this.getSpanId(span)) && // not already included
+        !span.name.startsWith("mastra.")
+      ) {
+        // not internal operation
+        // Process the missing root span
+        // TODO: duplicated logic with export()
+        addOpenInferenceProjectResourceAttributeSpan(span);
+        addOpenInferenceAttributesToSpan({
+          ...span,
+          instrumentationLibrary: {
+            name: "@arizeai/openinference-mastra",
+          },
+        });
+        addOpenInferenceAttributesToMastraSpan(span, true); // shouldMarkAsAgent = true
+        missingRoots.push(span);
+      }
+    }
+
+    return [...filteredSpans, ...missingRoots];
+  }
   export(
     spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
@@ -92,6 +152,8 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     if (this.spanFilter) {
       filteredSpans = filteredSpans.filter(this.spanFilter);
     }
+    // Add missing root spans for traces with agent operations
+    filteredSpans = this.addMissingAgentRootSpans(spans, filteredSpans);
     super.export(filteredSpans, resultCallback);
   }
 }

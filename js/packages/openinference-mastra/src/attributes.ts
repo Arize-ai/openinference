@@ -66,16 +66,23 @@ const getOpenInferenceSpanKindFromMastraSpan = (
  * enrich the span with the appropriate attributes based on the span kind and current attributes.
  *
  * @param span - The Mastra span to enrich.
+ * @param shouldMarkAsAgent - Whether this span should be marked as an AGENT span
  */
-export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
+export const addOpenInferenceAttributesToMastraSpan = (
+  span: ReadableSpan,
+  shouldMarkAsAgent: boolean = false,
+) => {
   const kind = getOpenInferenceSpanKindFromMastraSpan(span);
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }
 
-  // Ensure root spans pass the isOpenInferenceSpan filter
-  // Root spans have parentSpanContext === undefined and need openinference.span.kind set
-  if (span.parentSpanContext === undefined && !getOpenInferenceSpanKind(span)) {
+  // Mark root spans as AGENT if requested and not already set
+  if (
+    span.parentSpanContext === undefined &&
+    !getOpenInferenceSpanKind(span) &&
+    shouldMarkAsAgent
+  ) {
     addOpenInferenceSpanKind(span, OpenInferenceSpanKind.AGENT);
   }
 
