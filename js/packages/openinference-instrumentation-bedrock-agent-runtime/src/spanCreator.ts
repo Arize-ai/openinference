@@ -1,4 +1,4 @@
-import { AgentTraceNode } from "./collector/agent-trace-node";
+import { AgentTraceNode } from "./collector/agentTraceNode";
 import {
   Span,
   SpanStatusCode,

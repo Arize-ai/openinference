@@ -1,4 +1,4 @@
-import { CallbackHandler } from "./callback-handler";
+import { CallbackHandler } from "./callbackHandler";
 
 export function interceptAgentResponse<
   T extends { chunk?: { bytes?: Uint8Array }; trace?: object },

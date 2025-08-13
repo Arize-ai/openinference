@@ -1,4 +1,4 @@
-import { AgentTraceNode } from "./agent-trace-node";
+import { AgentTraceNode } from "./agentTraceNode";
 
 /**
  * Lightweight LIFO stack to keep track of the “current” AgentTraceNode while streaming.
