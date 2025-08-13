@@ -24,7 +24,6 @@ _PROVIDERS = {
     "openai",
     "ollama",
     "anthropic",
-    "deepseek",
     "gpt4all",
     "cohere",
     "mistral",
@@ -253,6 +252,7 @@ def convert_to_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
                 sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
             }
         )
+    print(oi_attrs)
 
     return oi_attrs
 
@@ -319,6 +319,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             return
 
         if _is_wrapper_span(attrs):
+
             prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
@@ -339,8 +340,16 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                         sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
                     }
                 )
+            oi_attrs.update(
+                {
+                    sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (sc.OpenInferenceSpanKindValues.CHAIN.value),
+                }
+            )
 
-            attrs.update(oi_attrs)
+            if span._attributes:
+                if attrs.get("gen_ai.system"):
+                    span._name = attrs.get("gen_ai.system")
+                span._attributes = {**span._attributes, **oi_attrs}
             return
 
         if "gen_ai.system" not in attrs:
