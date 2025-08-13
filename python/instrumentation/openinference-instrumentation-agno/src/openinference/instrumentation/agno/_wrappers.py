@@ -77,6 +77,12 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    if agent.session_id:
+        yield SESSION_ID, agent.session_id
+
+    if agent.user_id:
+        yield USER_ID, agent.user_id
+
     if isinstance(agent, Team):
         yield f"agno{key_suffix}.team", agent.name or ""
         for member in agent.members:
@@ -84,12 +90,6 @@ def _agent_run_attributes(
     elif isinstance(agent, Agent):
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
-
-        if agent.session_id:
-            yield SESSION_ID, agent.session_id
-
-        if agent.user_id:
-            yield USER_ID, agent.user_id
 
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
@@ -105,7 +105,7 @@ def _agent_run_attributes(
                     tool_names.append(tool.__name__)
                 else:
                     tool_names.append(str(tool))
-            yield "agno{key_suffix}.tools", tool_names
+            yield f"agno{key_suffix}.tools", tool_names
 
 
 class _RunWrapper:
