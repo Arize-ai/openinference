@@ -7,11 +7,7 @@ import {
   getLLMOutputMessageAttributes,
   getDocumentAttributes,
 } from "./attributeUtils";
-import {
-  OpenInferenceSpanKind,
-  LLMProvider,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { LLMProvider } from "@arizeai/openinference-semantic-conventions";
 import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
 import {
   fixLooseJsonString,
@@ -263,6 +259,12 @@ export function getMetadataAttributes(
   if (traceMetadata?.totalTimeMs) {
     metadata["total_time_ms"] = traceMetadata.totalTimeMs;
   }
+  if (traceMetadata?.startTime) {
+    metadata["start_time"] = getTimeAttributeValue(traceMetadata.startTime);
+  }
+  if (traceMetadata?.endTime) {
+    metadata["end_time"] = getTimeAttributeValue(traceMetadata.endTime);
+  }
   return metadata;
 }
 
@@ -308,9 +310,9 @@ export function getAttributesFromModelInvocationInput(
   llmAttributes["inputMessages"] =
     inputText != null ? getInputMessagesObject(inputText) : undefined;
   llmAttributes["provider"] = LLMProvider.AWS;
+
   return {
     ...getLLMAttributes({ ...llmAttributes }),
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
     ...getInputAttributes(inputText),
   };
 }
@@ -661,7 +663,6 @@ function getAttributesFromActionGroupInvocationInput(
       : (safelyJSONStringify(actionInput.apiPath) ?? undefined);
   }
   return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
     ...getLLMInputMessageAttributes(messages),
     ...toolAttributes,
     metadata: safelyJSONStringify(llmInvocationParameters) ?? undefined,
@@ -697,7 +698,6 @@ function getAttributesFromCodeInterpreterInput(
   };
   return {
     ...getInputAttributes(codeInput?.code ?? ""),
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
     ...getLLMInputMessageAttributes(messages),
     ...getToolAttributes({ name, description, parameters }),
     metadata: safelyJSONStringify(metadata) ?? undefined,
@@ -718,8 +718,6 @@ function getAttributesFromKnowledgeBaseLookupInput(
   };
   return {
     ...getInputAttributes(kbData?.text ?? ""),
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-      OpenInferenceSpanKind.RETRIEVER,
     metadata: safelyJSONStringify(metadata) ?? undefined,
   };
 }
@@ -753,7 +751,6 @@ function getAttributesFromAgentCollaboratorInvocationInput(
     input_type: isAttributeValue(inputType) ? inputType : undefined,
   };
   return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
     ...getInputAttributes(content),
     ...getLLMInputMessageAttributes(messages),
     metadata: safelyJSONStringify(metadata) ?? undefined,

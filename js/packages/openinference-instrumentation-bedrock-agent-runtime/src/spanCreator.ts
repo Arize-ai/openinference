@@ -29,7 +29,11 @@ import {
   getInputAttributes,
   getOutputAttributes,
 } from "./attributes/attributeUtils";
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  assertUnreachable,
+  OITracer,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 import { StringKeyedObject } from "./types";
 
@@ -54,23 +58,28 @@ export class SpanCreator {
    */
   public createSpans(parentSpan: Span, traceNode: AgentTraceNode) {
     for (const traceSpan of traceNode.spans) {
-      const { attributes, name } = this.prepareSpanAttributes(traceSpan);
+      const { attributes, name, rawMetadata } =
+        this.prepareSpanAttributes(traceSpan);
       let finalAttributes = { ...attributes };
 
-      // Set span kind based on trace span type
-      if (traceSpan instanceof AgentTraceNode) {
-        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+      // Set span kind based on trace span type if we didn't already set a span kind in the attributes
+      if (
+        traceSpan instanceof AgentTraceNode &&
+        finalAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] == null
+      ) {
+        finalAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
           OpenInferenceSpanKind.CHAIN;
         if (traceSpan.nodeType === "agent-collaborator") {
-          attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+          finalAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
             OpenInferenceSpanKind.AGENT;
         }
         const inputParentAttributes = this.getParentSpanInputAttributes({
           traceNode: traceSpan,
         });
-        const outputAttributes = this.getParentSpanOutputAttributes({
-          traceNode: traceSpan,
-        });
+        const { attributes: outputAttributes } =
+          this.getParentSpanOutputAttributes({
+            traceNode: traceSpan,
+          });
         finalAttributes = {
           ...finalAttributes,
           ...outputAttributes,
@@ -79,7 +88,11 @@ export class SpanCreator {
       }
 
       // Create span with appropriate timing
-      const startTime = this.fetchSpanStartTime(traceSpan);
+      const startTime = this.fetchSpanStartTime({
+        traceSpan,
+        metadata: rawMetadata,
+      });
+
       const span = this.createChainSpan({
         parentSpan,
         attributes: finalAttributes,
@@ -94,7 +107,11 @@ export class SpanCreator {
       }
 
       // End span with appropriate timing
-      const endTime = this.fetchSpanEndTime(traceSpan);
+      const endTime = this.fetchSpanEndTime({
+        traceSpan,
+        metadata: rawMetadata,
+      });
+
       span.end(endTime ? endTime : undefined);
     }
   }
@@ -108,6 +125,7 @@ export class SpanCreator {
   private prepareSpanAttributes(traceSpan: AgentChunkSpan | AgentTraceNode): {
     attributes: Attributes;
     name: string;
+    rawMetadata: StringKeyedObject;
   } {
     let attributes: Attributes = {};
     let metadata: StringKeyedObject = {};
@@ -151,11 +169,11 @@ export class SpanCreator {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: kindAndName.spanKind,
           ...attributes,
           ...modelInvocationAttributes,
-          ...invocationAttributes,
           ...outputAttributes,
           ...observationAttributes,
           ...rationaleAttributes,
           ...failureTraceAttributes,
+          ...invocationAttributes,
         };
         metadata = {
           ...metadata,
@@ -169,12 +187,14 @@ export class SpanCreator {
           ...attributes,
           metadata: safelyJSONStringify(metadata) ?? undefined,
         },
+        rawMetadata: metadata,
         name: name ?? "LLM",
       };
     }
     return {
       attributes: {},
-      name: "LLM",
+      rawMetadata: {},
+      name: name ?? "LLM",
     };
   }
 
@@ -191,10 +211,7 @@ export class SpanCreator {
         data: eventData,
         key: "modelInvocationInput",
       }) ?? {};
-    return {
-      [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-      ...getAttributesFromModelInvocationInput(modelInvocationInput),
-    };
+    return getAttributesFromModelInvocationInput(modelInvocationInput);
   }
 
   /**
@@ -266,6 +283,50 @@ export class SpanCreator {
         name: `${invocationType.toLowerCase()}[${agentCollaboratorName}]`,
       };
     } else {
+      const maybeActionGroupInvocationInput = getObjectDataFromUnknown({
+        data: invocationInput,
+        key: "actionGroupInvocationInput",
+      });
+      const name = invocationType.toLowerCase().trim();
+      if (maybeActionGroupInvocationInput) {
+        return {
+          spanKind: OpenInferenceSpanKind.TOOL,
+          name: name ?? "actionGroupInvocationInput",
+        };
+      }
+
+      const maybeCodeInterpreterInvocationInput = getObjectDataFromUnknown({
+        data: invocationInput,
+        key: "codeInterpreterInvocationInput",
+      });
+      if (maybeCodeInterpreterInvocationInput) {
+        return {
+          spanKind: OpenInferenceSpanKind.TOOL,
+          name: name ?? "codeInterpreterInvocationInput",
+        };
+      }
+
+      const maybeKnowledgeBaseLookupInput = getObjectDataFromUnknown({
+        data: invocationInput,
+        key: "knowledgeBaseLookupInput",
+      });
+      if (maybeKnowledgeBaseLookupInput) {
+        return {
+          spanKind: OpenInferenceSpanKind.RETRIEVER,
+          name: name ?? "knowledgeBaseLookupInput",
+        };
+      }
+
+      const maybeAgentCollaboratorInvocationInput = getObjectDataFromUnknown({
+        data: invocationInput,
+        key: "agentCollaboratorInvocationInput",
+      });
+      if (maybeAgentCollaboratorInvocationInput) {
+        return {
+          spanKind: OpenInferenceSpanKind.AGENT,
+          name: name ?? "agentCollaboratorInvocationInput",
+        };
+      }
       return {
         spanKind: OpenInferenceSpanKind.TOOL,
         name: invocationType.toLowerCase(),
@@ -279,15 +340,11 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processInvocationInput(eventData: StringKeyedObject): Attributes {
-    const attributes: Attributes = {};
     const invocationInput =
       getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ??
       {};
 
-    return {
-      ...attributes,
-      ...getAttributesFromInvocationInput(invocationInput),
-    };
+    return getAttributesFromInvocationInput(invocationInput);
   }
 
   /**
@@ -431,11 +488,11 @@ export class SpanCreator {
   }: {
     accumulatedAttributes?: Attributes;
     traceNode: AgentTraceNode | AgentChunkSpan;
-  }): Attributes {
+  }): { attributes: Attributes } {
     let newAttributes = { ...accumulatedAttributes };
     // Only process if traceNode is an AgentTraceNode
     if (!(traceNode instanceof AgentTraceNode)) {
-      return { ...newAttributes };
+      return { attributes: newAttributes };
     }
 
     // Reverse iterate over spans
@@ -500,13 +557,16 @@ export class SpanCreator {
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
-        this.getParentSpanOutputAttributes({
+        const { attributes } = this.getParentSpanOutputAttributes({
           accumulatedAttributes: newAttributes,
           traceNode: span,
         });
+        newAttributes = attributes;
       }
     }
-    return newAttributes;
+    return {
+      attributes: newAttributes,
+    };
   }
 
   /**
@@ -515,10 +575,19 @@ export class SpanCreator {
    * @param traceSpan The trace span to extract time from.
    * @returns The start timestamp in nanoseconds if found, undefined otherwise.
    */
-  private fetchSpanStartTime(
-    traceSpan: AgentTraceNode | AgentChunkSpan,
-  ): number | undefined {
-    return this.fetchSpanTime({ traceSpan, timeKey: "start", reverse: false });
+  private fetchSpanStartTime({
+    traceSpan,
+    metadata,
+  }: {
+    traceSpan: AgentTraceNode | AgentChunkSpan;
+    metadata: StringKeyedObject;
+  }): number | undefined {
+    return this.fetchSpanTime({
+      traceSpan,
+      timeKey: "start",
+      reverse: false,
+      metadata,
+    });
   }
 
   /**
@@ -527,10 +596,19 @@ export class SpanCreator {
    * @param traceSpan The trace span to extract time from.
    * @returns The end timestamp in nanoseconds if found, undefined otherwise.
    */
-  private fetchSpanEndTime(
-    traceSpan: AgentTraceNode | AgentChunkSpan,
-  ): number | undefined {
-    return this.fetchSpanTime({ traceSpan, timeKey: "end", reverse: true });
+  private fetchSpanEndTime({
+    traceSpan,
+    metadata,
+  }: {
+    traceSpan: AgentTraceNode | AgentChunkSpan;
+    metadata: StringKeyedObject;
+  }): number | undefined {
+    return this.fetchSpanTime({
+      traceSpan,
+      timeKey: "end",
+      reverse: true,
+      metadata,
+    });
   }
 
   /**
@@ -546,11 +624,29 @@ export class SpanCreator {
     traceSpan,
     timeKey,
     reverse,
+    metadata,
   }: {
     traceSpan: AgentTraceNode | AgentChunkSpan;
+    metadata: StringKeyedObject;
     timeKey: "start" | "end";
     reverse: boolean;
   }): number | undefined {
+    // If we've aleady found the time in the metadata, return it
+    // We don't really need to store this in the metadata of the span but with all of the traversing of various attributes this does allow us to get it from various places then use it when creating the span
+    switch (timeKey) {
+      case "start":
+        if (typeof metadata["start_time"] === "number") {
+          return metadata["start_time"];
+        }
+        break;
+      case "end":
+        if (typeof metadata["end_time"] === "number") {
+          return metadata["end_time"];
+        }
+        break;
+      default:
+        return assertUnreachable(timeKey);
+    }
     if (!(traceSpan instanceof AgentTraceNode)) {
       return undefined;
     }
@@ -604,6 +700,7 @@ export class SpanCreator {
           traceSpan: span,
           timeKey,
           reverse,
+          metadata,
         });
         if (nestedTime !== undefined) {
           return nestedTime;

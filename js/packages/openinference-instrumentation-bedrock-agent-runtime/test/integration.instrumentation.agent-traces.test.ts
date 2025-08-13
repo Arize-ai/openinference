@@ -13,6 +13,10 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { BedrockAgentInstrumentation } from "../src";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
 import { setModuleExportsForInstrumentation } from "./utils/test-utils";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 describe("BedrockAgentInstrumentation Trace Collector Integration - agent attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
@@ -146,6 +150,38 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(4);
+    const retrieverSpan = spans.find((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.RETRIEVER
+      );
+    });
+    expect(retrieverSpan).toBeDefined();
+    expect(retrieverSpan?.name).toBe("knowledge_base");
+    const agentSpan = spans.find((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT
+      );
+    });
+    expect(agentSpan).toBeDefined();
+    expect(agentSpan?.name).toBe("bedrock.invoke_agent");
+    const chainSpan = spans.find((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.CHAIN
+      );
+    });
+    expect(chainSpan).toBeDefined();
+    expect(chainSpan?.name).toBe("orchestrationTrace");
+    const llmSpan = spans.find((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.LLM
+      );
+    });
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.name).toBe("LLM");
   });
 
   it("should record all pre post orchestration traces", async () => {
