@@ -31,10 +31,6 @@ class ToolProcessor(Processor):
             {
                 SpanAttributes.TOOL_NAME: tool.name,
                 SpanAttributes.TOOL_DESCRIPTION: tool.description,
-                # TODO: what's the difference?
-                SpanAttributes.TOOL_PARAMETERS: stringify(
-                    safe_dump_model_schema(tool.input_schema)
-                ),
                 ToolAttributes.TOOL_JSON_SCHEMA: stringify(
                     safe_dump_model_schema(tool.input_schema)
                 ),

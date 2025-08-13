@@ -11,7 +11,7 @@ repositories {
 dependencies {
     api project(':openinference-instrumentation')
 
-    // Test Change
+    // Spring AI
     implementation 'io.micrometer:micrometer-observation:1.15.1'
     implementation 'io.micrometer:micrometer-tracing-bridge-brave:1.5.1'
     implementation 'org.springframework.ai:spring-ai-model:1.0.0'

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.27...python-openinference-instrumentation-dspy-v0.1.28) (2025-08-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy DummyLM ([#2067](https://github.com/Arize-ai/openinference/issues/2067)) ([0b0349d](https://github.com/Arize-ai/openinference/commit/0b0349d14f227ac6b51fdf461c4e614e8b80582a))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.26...python-openinference-instrumentation-dspy-v0.1.27) (2025-07-30)
 
 

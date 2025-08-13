@@ -118,6 +118,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
   }
 
   /**
+   * Manually instruments the BedrockRuntimeClient, this allows for guaranteed patching of the module when import order is hard to control.
+   */
+  public manuallyInstrument(module: BedrockModuleExports) {
+    diag.debug(`Manually instrumenting ${MODULE_NAME}`);
+    this.patch(module);
+  }
+
+  /**
    * Initializes the instrumentation module definition for AWS SDK Bedrock Runtime
    * @returns {InstrumentationModuleDefinition<BedrockModuleExports>[]} Array containing the module definition
    */

@@ -17,8 +17,8 @@ import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 import { extractBaseRequestAttributes } from "./attributes/requestAttributes";
 import { interceptAgentResponse } from "./streamUtils";
 import { CallbackHandler } from "./callbackHandler";
-import { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
-import * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
+import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
 
@@ -73,6 +73,14 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     });
   }
 
+  /**
+   * Manually patches the BedrockAgentRuntimeClient, this allows for guaranteed patching of the module when import order is hard to control.
+   */
+  public manuallyInstrument(module: typeof bedrockAgentRunTime) {
+    diag.debug(`Manually instrumenting ${MODULE_NAME}`);
+    this.patch(module);
+  }
+
   protected init(): InstrumentationModuleDefinition<
     typeof bedrockAgentRunTime
   >[] {
@@ -105,20 +113,21 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isBedrockAgentPatched) return moduleExports;
     if (!moduleExports) return moduleExports;
+
+    type SendMethod =
+      typeof moduleExports.BedrockAgentRuntimeClient.prototype.send;
     this._wrap(
       moduleExports.BedrockAgentRuntimeClient.prototype,
       "send",
-      (
-        original: (
-          command: InvokeAgentCommand,
-        ) => Promise<InvokeAgentCommandOutput>,
-      ) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: SendMethod): any => {
         /* eslint-disable @typescript-eslint/no-this-alias */
         const instrumentationInstance = this;
         return function patchedSend(
           this: typeof moduleExports.BedrockAgentRuntimeClient.prototype,
-          command: InvokeAgentCommand,
+          ...args: Parameters<SendMethod>
         ) {
+          const command = args[0];
           if (command instanceof InvokeAgentCommand) {
             return instrumentationInstance._handleInvokeAgentCommand(
               command,
@@ -126,7 +135,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
               this,
             );
           }
-          return original.apply(this, [command]);
+          return original.apply(this, args);
         };
       },
     );
@@ -135,9 +144,9 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
   }
 
   private _handleInvokeAgentCommand(
-    command: InvokeAgentCommand,
+    command: bedrockAgentRunTime.InvokeAgentCommand,
     original: (
-      command: InvokeAgentCommand,
+      command: bedrockAgentRunTime.InvokeAgentCommand,
     ) => Promise<InvokeAgentCommandOutput>,
     client: unknown,
   ) {
