@@ -310,20 +310,25 @@ class _ModelWrapper:
         ) as span:
             output_message = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
-            if hasattr(output_message, 'token_usage') and output_message.token_usage:
+            if hasattr(output_message, "token_usage") and output_message.token_usage:
                 span.set_attribute(LLM_TOKEN_COUNT_PROMPT, output_message.token_usage.input_tokens)
-            elif hasattr(model, 'last_input_token_count'):
+            elif hasattr(model, "last_input_token_count"):
                 span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
-            if hasattr(output_message, 'token_usage') and output_message.token_usage:
-                span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_message.token_usage.output_tokens)
-            elif hasattr(model, 'last_output_token_count'):
+            if hasattr(output_message, "token_usage") and output_message.token_usage:
+                span.set_attribute(
+                    LLM_TOKEN_COUNT_COMPLETION, output_message.token_usage.output_tokens
+                )
+            elif hasattr(model, "last_output_token_count"):
                 span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            if hasattr(output_message, 'token_usage') and output_message.token_usage:
+            if hasattr(output_message, "token_usage") and output_message.token_usage:
                 span.set_attribute(LLM_TOKEN_COUNT_TOTAL, output_message.token_usage.total_tokens)
-            elif hasattr(model, 'last_input_token_count') and hasattr(model, 'last_output_token_count'):
+            elif hasattr(model, "last_input_token_count") and hasattr(
+                model, "last_output_token_count"
+            ):
                 span.set_attribute(
-                    LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
+                    LLM_TOKEN_COUNT_TOTAL,
+                    model.last_input_token_count + model.last_output_token_count,
                 )
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
