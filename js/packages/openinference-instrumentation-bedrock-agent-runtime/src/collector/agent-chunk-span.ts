@@ -1,5 +1,5 @@
 import { AgentTraceNode } from "./agent-trace-node";
-import { UnknownRecord } from "../index";
+import { StringKeyedObject } from "../index";
 
 /**
  * Logical work-unit inside a node. A span groups sequential chunks that share
@@ -7,7 +7,7 @@ import { UnknownRecord } from "../index";
  */
 export class AgentChunkSpan {
   /** Raw payloads belonging to this span in order of arrival. */
-  public readonly chunks: UnknownRecord[] = [];
+  public readonly chunks: StringKeyedObject[] = [];
 
   /** Machine-friendly label such as `invocationInput`. */
   public readonly spanType: string;
@@ -30,7 +30,7 @@ export class AgentChunkSpan {
    * Add a chunk to this span.
    * @param chunk Chunk object to add.
    */
-  addChunk(chunk: UnknownRecord): void {
+  addChunk(chunk: StringKeyedObject): void {
     this.chunks.push(chunk);
   }
 

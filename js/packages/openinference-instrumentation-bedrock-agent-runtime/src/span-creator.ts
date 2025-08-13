@@ -2,7 +2,18 @@ import { AgentTraceNode } from "./collector/agent-trace-node";
 import { Span, SpanStatusCode, trace, context } from "@opentelemetry/api";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 import { Attributes } from "./attributes/attributes";
-import { AttributeExtractor } from "./attributes/attribute-extractor";
+import {
+  extractMetadataAttributesFromObservation,
+  getAttributesFromInvocationInput,
+  getAttributesFromModelInvocationInput,
+  getAttributesFromModelInvocationOutput,
+  getAttributesFromObservation,
+  getEventType,
+  getFailureTraceAttributes,
+  getInputMessagesObject,
+  getMetadataAttributes,
+  getParentInputAttributesFromInvocationInput,
+} from "./attributes/attributeExtractionUtils";
 import { AgentChunkSpan } from "./collector/agent-chunk-span";
 import {
   getInputAttributes,
@@ -10,8 +21,8 @@ import {
   getSpanKindAttributes,
 } from "./attributes/attribute-utils";
 import { OITracer } from "@arizeai/openinference-core";
-import { getObjectDataFromUnknown } from "./utils/json-utils";
-import { UnknownRecord } from "./index";
+import { getObjectDataFromUnknown } from "./utils/jsonUtils";
+import { StringKeyedObject } from "./types";
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -81,7 +92,7 @@ export class SpanCreator {
     // Process each chunk in the trace span
     if (Array.isArray(traceSpan.chunks)) {
       for (const traceData of traceSpan.chunks) {
-        const traceEvent = AttributeExtractor.getEventType(traceData);
+        const traceEvent = getEventType(traceData);
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
@@ -120,7 +131,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationInput(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     const modelInvocationInput =
@@ -130,9 +141,7 @@ export class SpanCreator {
       }) ?? {};
     Object.assign(
       attributes.requestAttributes,
-      AttributeExtractor.getAttributesFromModelInvocationInput(
-        modelInvocationInput,
-      ),
+      getAttributesFromModelInvocationInput(modelInvocationInput),
     );
     attributes.name = "LLM";
     attributes.spanKind = OpenInferenceSpanKind.LLM;
@@ -144,7 +153,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processModelInvocationOutput(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     const modelInvocationOutput =
@@ -154,13 +163,11 @@ export class SpanCreator {
       }) ?? {};
     Object.assign(
       attributes.outputAttributes,
-      AttributeExtractor.getAttributesFromModelInvocationOutput(
-        modelInvocationOutput,
-      ),
+      getAttributesFromModelInvocationOutput(modelInvocationOutput),
     );
     Object.assign(
       attributes.metadata,
-      AttributeExtractor.getMetadataAttributes(
+      getMetadataAttributes(
         getObjectDataFromUnknown({
           data: modelInvocationOutput,
           key: "metadata",
@@ -175,7 +182,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processInvocationInput(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     const invocationInput =
@@ -213,7 +220,7 @@ export class SpanCreator {
 
     Object.assign(
       attributes.requestAttributes,
-      AttributeExtractor.getAttributesFromInvocationInput(invocationInput),
+      getAttributesFromInvocationInput(invocationInput),
     );
   }
 
@@ -223,18 +230,18 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processObservation(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     const observation =
       getObjectDataFromUnknown({ data: eventData, key: "observation" }) ?? {};
     Object.assign(
       attributes.outputAttributes,
-      AttributeExtractor.getAttributesFromObservation(observation),
+      getAttributesFromObservation(observation),
     );
     Object.assign(
       attributes.metadata,
-      AttributeExtractor.extractMetadataAttributesFromObservation(observation),
+      extractMetadataAttributesFromObservation(observation),
     );
   }
 
@@ -244,7 +251,7 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processRationale(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     const rationaleText =
@@ -264,16 +271,16 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    */
   private processFailureTrace(
-    eventData: UnknownRecord,
+    eventData: StringKeyedObject,
     attributes: Attributes,
   ): void {
     Object.assign(
       attributes.outputAttributes,
-      AttributeExtractor.getFailureTraceAttributes(eventData),
+      getFailureTraceAttributes(eventData),
     );
     Object.assign(
       attributes.metadata,
-      AttributeExtractor.getMetadataAttributes(
+      getMetadataAttributes(
         getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {},
       ),
     );
@@ -298,19 +305,19 @@ export class SpanCreator {
     for (const span of traceNode.spans) {
       if (!span.chunks) continue;
       for (const traceData of span.chunks) {
-        const traceEvent = AttributeExtractor.getEventType(traceData);
+        const traceEvent = getEventType(traceData);
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
         // Extract from model invocation input
         if ("modelInvocationInput" in eventData) {
-          const modelInvocationInput: UnknownRecord =
+          const modelInvocationInput: StringKeyedObject =
             getObjectDataFromUnknown({
               data: eventData,
               key: "modelInvocationInput",
             }) ?? {};
           const text = String(modelInvocationInput?.text ?? "");
-          const messages = AttributeExtractor.getMessagesObject(text);
+          const messages = getInputMessagesObject(text);
           for (const message of messages) {
             if (message.role === "user" && message.content) {
               Object.assign(
@@ -332,9 +339,7 @@ export class SpanCreator {
               key: "invocationInput",
             }) ?? {};
           const attrs =
-            AttributeExtractor.getParentInputAttributesFromInvocationInput(
-              invocationInput,
-            );
+            getParentInputAttributesFromInvocationInput(invocationInput);
           Object.assign(inputAttributes, attrs);
           Object.assign(inputAttributes, attributes.requestAttributes);
           attributes.requestAttributes = inputAttributes;
@@ -370,7 +375,7 @@ export class SpanCreator {
       // Reverse iterate over chunks
       for (let j = span.chunks.length - 1; j >= 0; j--) {
         const traceData = span.chunks[j];
-        const traceEvent = AttributeExtractor.getEventType(traceData);
+        const traceEvent = getEventType(traceData);
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
 
@@ -483,7 +488,7 @@ export class SpanCreator {
     for (const span of spans) {
       const chunks = reverse ? [...span.chunks].reverse() : span.chunks;
       for (const traceData of chunks) {
-        const traceEvent = AttributeExtractor.getEventType(traceData);
+        const traceEvent = getEventType(traceData);
         const eventData =
           getObjectDataFromUnknown({ data: traceData, key: traceEvent }) ?? {};
         // Check model invocation output
@@ -498,8 +503,7 @@ export class SpanCreator {
               data: modelInvocationOutput,
               key: "metadata",
             }) ?? {};
-          const metadata =
-            AttributeExtractor.getMetadataAttributes(metadataObject);
+          const metadata = getMetadataAttributes(metadataObject);
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
           }
@@ -509,8 +513,7 @@ export class SpanCreator {
           const observation =
             getObjectDataFromUnknown({ data: eventData, key: "observation" }) ??
             {};
-          const metadata =
-            AttributeExtractor.getMetadataAttributes(observation);
+          const metadata = getMetadataAttributes(observation);
           if (metadata && metadata[timeKey] !== undefined) {
             return Number(metadata[timeKey]);
           }

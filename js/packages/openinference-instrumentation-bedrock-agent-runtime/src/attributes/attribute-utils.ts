@@ -5,6 +5,9 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 import { Attributes } from "@opentelemetry/api";
 import { Message, TokenCount, DocumentReference } from "./types";
+import { parseSanitizedJson } from "../utils/jsonUtils";
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+import { isAttributeValue } from "@opentelemetry/core";
 
 /**
  * Utility functions for extracting input and output attributes from a text.
@@ -19,12 +22,13 @@ import { Message, TokenCount, DocumentReference } from "./types";
 function normalizeMimeType(input: unknown): MimeType {
   if (typeof input === "string") {
     const trimmed = input.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const parsed = parseSanitizedJson(trimmed);
+    if (typeof parsed === "object" || Array.isArray(parsed)) {
       return MimeType.JSON;
     }
     return MimeType.TEXT;
   }
-  if (typeof input === "object" && input !== null) {
+  if (typeof input === "object" || Array.isArray(input)) {
     return MimeType.JSON;
   }
   return MimeType.TEXT;
@@ -38,14 +42,16 @@ function normalizeMimeType(input: unknown): MimeType {
  */
 export function getInputAttributes(input: unknown): Attributes {
   const attributes: Attributes = {};
-  if (input === undefined || input === null) return attributes;
+  if (input == null) {
+    return attributes;
+  }
+  const mimeType = normalizeMimeType(input);
+  attributes[SemanticConventions.INPUT_MIME_TYPE] = mimeType;
   if (typeof input === "string") {
     attributes[SemanticConventions.INPUT_VALUE] = input;
-    attributes[SemanticConventions.INPUT_MIME_TYPE] = normalizeMimeType(input);
-  }
-  if (typeof input === "object") {
-    attributes[SemanticConventions.INPUT_VALUE] = JSON.stringify(input);
-    attributes[SemanticConventions.INPUT_MIME_TYPE] = normalizeMimeType(input);
+  } else {
+    attributes[SemanticConventions.INPUT_VALUE] =
+      safelyJSONStringify(input) ?? undefined;
   }
   return attributes;
 }
@@ -56,20 +62,13 @@ export function getInputAttributes(input: unknown): Attributes {
  * @param options Optional configuration for MIME type.
  * @returns Attributes an object with output value and MIME type.
  */
-export function getOutputAttributes(
-  value: unknown,
-  options: { mimeType?: MimeType } = {},
-): Attributes {
+export function getOutputAttributes(value: unknown): Attributes {
   const attributes: Attributes = {};
-  const mimeType =
-    options.mimeType !== undefined && options.mimeType !== null
-      ? normalizeMimeType(options.mimeType)
-      : normalizeMimeType(value);
+  const mimeType = normalizeMimeType(value);
 
-  attributes[SemanticConventions.OUTPUT_VALUE] =
-    mimeType === MimeType.JSON && typeof value !== "string"
-      ? JSON.stringify(value)
-      : String(value);
+  attributes[SemanticConventions.OUTPUT_VALUE] = isAttributeValue(value)
+    ? value
+    : (safelyJSONStringify(value) ?? undefined);
   attributes[SemanticConventions.OUTPUT_MIME_TYPE] = mimeType;
   return attributes;
 }
@@ -251,10 +250,11 @@ export function getLLMAttributes({
  * @param spanKind - The kind of span (e.g., OpenInferenceSpanKind.LLM, OpenInferenceSpanKind.TOOL)
  * @returns An object with the span kind attribute for OpenInference tracing.
  */
-export function getSpanKindAttributes(spanKind: string): Attributes {
+export function getSpanKindAttributes(
+  spanKind: OpenInferenceSpanKind,
+): Attributes {
   return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-      spanKind || OpenInferenceSpanKind.LLM,
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
   };
 }
 
@@ -272,7 +272,7 @@ export function getToolAttributes({
   description,
   parameters,
 }: {
-  name: string;
+  name?: string;
   description?: string;
   parameters: string | Record<string, unknown>;
 }): Attributes {

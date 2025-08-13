@@ -1,5 +1,5 @@
 import { AgentChunkSpan } from "./agent-chunk-span";
-import { UnknownRecord } from "../index";
+import { StringKeyedObject } from "../index";
 
 /**
  * Tree node representing an agent or model invocation. Each node can own:
@@ -24,7 +24,7 @@ export class AgentTraceNode {
   public currentSpan: AgentChunkSpan | null = null;
 
   /** Chunks attached directly to the node (outside any span). */
-  public readonly chunks: UnknownRecord[] = [];
+  public readonly chunks: StringKeyedObject[] = [];
 
   /**
    * Creates a new AgentTraceNode instance.
@@ -50,7 +50,7 @@ export class AgentTraceNode {
    * Adds a chunk directly to this node (not part of any span).
    * @param chunk - The chunk object to add
    */
-  addChunk(chunk: UnknownRecord): void {
+  addChunk(chunk: StringKeyedObject): void {
     this.chunks.push(chunk);
   }
 
