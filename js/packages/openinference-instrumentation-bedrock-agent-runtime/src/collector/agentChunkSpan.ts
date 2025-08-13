@@ -1,5 +1,5 @@
 import { StringKeyedObject } from "../types";
-import { AgentTraceNode } from "./agentTraceNode";
+import { AgentTraceNode } from "./agent-trace-node";
 
 /**
  * Logical work-unit inside a node. A span groups sequential chunks that share

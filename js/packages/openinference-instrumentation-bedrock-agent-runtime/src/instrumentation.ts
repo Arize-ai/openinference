@@ -16,7 +16,7 @@ import { VERSION } from "./version";
 import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 import { extractBaseRequestAttributes } from "./attributes/requestAttributes";
 import { interceptAgentResponse } from "./streamUtils";
-import { CallbackHandler } from "./callbackHandler";
+import { CallbackHandler } from "./callback-handler";
 import { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
 import * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 

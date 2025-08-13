@@ -55,7 +55,6 @@ export class SpanCreator {
   public createSpans(parentSpan: Span, traceNode: AgentTraceNode) {
     for (const traceSpan of traceNode.spans) {
       const { attributes, name } = this.prepareSpanAttributes(traceSpan);
-      let finalAttributes = { ...attributes };
 
       // Set span kind based on trace span type
       if (traceSpan instanceof AgentTraceNode) {
@@ -65,24 +64,15 @@ export class SpanCreator {
           attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
             OpenInferenceSpanKind.AGENT;
         }
-        const inputParentAttributes = this.getParentSpanInputAttributes({
-          traceNode: traceSpan,
-        });
-        const outputAttributes = this.getParentSpanOutputAttributes({
-          traceNode: traceSpan,
-        });
-        finalAttributes = {
-          ...finalAttributes,
-          ...outputAttributes,
-          ...inputParentAttributes,
-        };
+        this.setParentSpanInputAttributes(attributes, traceSpan);
+        this.setParentSpanOutputAttributes(attributes, traceSpan);
       }
 
       // Create span with appropriate timing
       const startTime = this.fetchSpanStartTime(traceSpan);
       const span = this.createChainSpan({
         parentSpan,
-        attributes: finalAttributes,
+        attributes,
         name,
         startTime,
       });
@@ -347,17 +337,13 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    * @param traceNode The agent trace node or chunk span to process.
    */
-  private getParentSpanInputAttributes({
-    accumulatedAttributes = {},
-    traceNode,
-  }: {
-    accumulatedAttributes?: Attributes;
-    traceNode: AgentTraceNode | AgentChunkSpan;
-  }): Attributes {
-    let newAttributes = { ...accumulatedAttributes };
+  private setParentSpanInputAttributes(
+    attributes: Attributes,
+    traceNode: AgentTraceNode | AgentChunkSpan,
+  ): void {
     // Only process if traceNode is an AgentTraceNode
     if (!(traceNode instanceof AgentTraceNode)) {
-      return { ...newAttributes };
+      return;
     }
 
     for (const span of traceNode.spans) {
@@ -386,8 +372,8 @@ export class SpanCreator {
           const messages = getInputMessagesObject(text);
           for (const message of messages) {
             if (message.role === "user" && message.content) {
-              newAttributes = {
-                ...newAttributes,
+              attributes = {
+                ...attributes,
                 ...getInputAttributes(message.content),
               };
             }
@@ -401,21 +387,17 @@ export class SpanCreator {
               data: eventData,
               key: "invocationInput",
             }) ?? {};
-          newAttributes = {
-            ...newAttributes,
+          attributes = {
+            ...attributes,
             ...getParentInputAttributesFromInvocationInput(invocationInput),
           };
         }
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
-        newAttributes = this.getParentSpanInputAttributes({
-          accumulatedAttributes: newAttributes,
-          traceNode: span,
-        });
+        this.setParentSpanInputAttributes(attributes, span);
       }
     }
-    return newAttributes;
   }
 
   /**
@@ -425,17 +407,13 @@ export class SpanCreator {
    * @param attributes The attributes object to update.
    * @param traceNode The agent trace node or chunk span to process.
    */
-  private getParentSpanOutputAttributes({
-    accumulatedAttributes = {},
-    traceNode,
-  }: {
-    accumulatedAttributes?: Attributes;
-    traceNode: AgentTraceNode | AgentChunkSpan;
-  }): Attributes {
-    let newAttributes = { ...accumulatedAttributes };
+  private setParentSpanOutputAttributes(
+    attributes: Attributes,
+    traceNode: AgentTraceNode | AgentChunkSpan,
+  ): void {
     // Only process if traceNode is an AgentTraceNode
     if (!(traceNode instanceof AgentTraceNode)) {
-      return { ...newAttributes };
+      return;
     }
 
     // Reverse iterate over spans
@@ -466,15 +444,15 @@ export class SpanCreator {
             }) ?? {};
           const outputText = parsedResponse["text"] ?? "";
           if (outputText) {
-            newAttributes = {
-              ...newAttributes,
+            attributes = {
+              ...attributes,
               ...getOutputAttributes(outputText),
             };
           }
           const rationaleText = parsedResponse["rationale"] ?? "";
           if (rationaleText) {
-            newAttributes = {
-              ...newAttributes,
+            attributes = {
+              ...attributes,
               ...getOutputAttributes(rationaleText),
             };
           }
@@ -491,8 +469,8 @@ export class SpanCreator {
               key: "finalResponse",
             }) ?? {};
           if (finalResponse?.text) {
-            newAttributes = {
-              ...newAttributes,
+            attributes = {
+              ...attributes,
               ...getOutputAttributes(finalResponse.text),
             };
           }
@@ -500,13 +478,9 @@ export class SpanCreator {
       }
       // Recursively check nested nodes
       if (span instanceof AgentTraceNode) {
-        this.getParentSpanOutputAttributes({
-          accumulatedAttributes: newAttributes,
-          traceNode: span,
-        });
+        this.setParentSpanOutputAttributes(attributes, span);
       }
     }
-    return newAttributes;
   }
 
   /**
