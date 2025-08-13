@@ -156,6 +156,7 @@ def _agent_run_attributes(
 
 class _RunWrapper:
     """
+    We need to keep track of parent/child relationships for agent logging. We do this by:
     1. Team.run() starts with empty context, sets _AGNO_CURRENT_PATH_CONTEXT_KEY in context.
     2. Team computes node_id and sets _AGNO_PARENT_NODE_CONTEXT_KEY and
     _AGNO_PARENT_PATH_CONTEXT_KEY which will be inherited by child agents
