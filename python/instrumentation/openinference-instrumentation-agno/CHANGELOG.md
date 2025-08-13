@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.10...python-openinference-instrumentation-agno-v0.1.11) (2025-08-13)
+
+
+### Bug Fixes
+
+* **agno:** capture session_id and user_id for teams too ([#2086](https://github.com/Arize-ai/openinference/issues/2086)) ([0a51d50](https://github.com/Arize-ai/openinference/commit/0a51d50be89a440d6df2fca90fe72ab730ee7267))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.9...python-openinference-instrumentation-agno-v0.1.10) (2025-07-24)
 
 
