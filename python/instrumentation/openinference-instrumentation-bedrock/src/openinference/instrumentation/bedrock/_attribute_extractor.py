@@ -862,10 +862,6 @@ class AttributeExtractor:
             if "traceId" in rationale:
                 return rationale["traceId"]
 
-        # For guardrail traces
-        if "traceId" in event_data:
-            return event_data["traceId"]
-
         # Generate a unique ID if none found
         return str(uuid.uuid4())
 
