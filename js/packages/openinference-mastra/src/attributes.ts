@@ -72,5 +72,15 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }
-  // TODO: Further enrich the span with additional attributes based on the span kind
+
+  // Map Mastra threadId to OpenInference session ID
+  // Only set SESSION_ID if it doesn't already exist to avoid overwriting existing values
+  const threadId = span.attributes.threadId;
+  if (
+    threadId &&
+    (typeof threadId === "string" || typeof threadId === "number") &&
+    !span.attributes[SemanticConventions.SESSION_ID]
+  ) {
+    span.attributes[SemanticConventions.SESSION_ID] = threadId;
+  }
 };
