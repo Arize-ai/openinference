@@ -4,7 +4,7 @@ import {
   MimeType,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { AgentTraceAggregator } from "./collector/agent-trace-aggregator";
+import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
 import { OITracer } from "@arizeai/openinference-core";
 import { SpanCreator } from "./spanCreator";
 

@@ -24,7 +24,7 @@ import {
   getStartAndEndTimeFromMetadata,
   getStringAttributeValueFromUnknown,
 } from "./attributes/attributeExtractionUtils";
-import { AgentChunkSpan } from "./collector/agent-chunk-span";
+import { AgentChunkSpan } from "./collector/agentChunkSpan";
 import {
   getInputAttributes,
   getOutputAttributes,

@@ -1,6 +1,6 @@
-import { AgentTraceNode } from "./agent-trace-node";
-import { TraceNodeStack } from "./trace-node-stack";
-import { AgentChunkSpan } from "./agent-chunk-span";
+import { AgentTraceNode } from "./agentTraceNode";
+import { TraceNodeStack } from "./traceNodeStack";
+import { AgentChunkSpan } from "./agentChunkSpan";
 import {
   extractTraceId,
   getChunkType,
