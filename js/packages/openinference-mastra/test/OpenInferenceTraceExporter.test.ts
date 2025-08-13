@@ -3,6 +3,7 @@ import { OpenInferenceOTLPTraceExporter } from "../src/OpenInferenceTraceExporte
 import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import type { Mock } from "vitest";
 
 vi.mock(import("@opentelemetry/exporter-trace-otlp-proto"), () => {
   const mockedClass = vi.fn();
@@ -257,94 +258,164 @@ describe("OpenInferenceTraceExporter", () => {
     expect(mockSpan.attributes.threadId).toBe("new-thread-123");
   });
 
-  it("should add AGENT span kind to root spans without span kind", async () => {
+  it("should add missing root span when agent operations exist in trace", async () => {
     const rootSpan = {
-      name: "POST /api/agents/weatherAgent/stream",
-      parentSpanContext: undefined, // Root span has no parent
-      attributes: {
-        "http.method": "POST",
-        "http.url": "/api/agents/weatherAgent/stream",
-      },
-      resource: {
-        attributes: {
-          "service.name": "test-service",
-        },
-      },
+      name: "http.request",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {},
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const agentSpan = {
+      name: "agent.process",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "agent-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: { threadId: "thread-1" },
+      resource: { attributes: {} },
     } as unknown as ReadableSpan;
 
     const exporter = new OpenInferenceOTLPTraceExporter({
       url: "http://example.com/v1/traces",
-      headers: {
-        Authorization: "Bearer test-api-key",
-      },
+      spanFilter: (span) => span.name.startsWith("agent."), // Only export agent spans
     });
 
-    exporter.export([rootSpan], () => {});
+    exporter.export([rootSpan, agentSpan], () => {});
 
-    // Root span should now have AGENT span kind set
-    expect(rootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
-      "AGENT",
+    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock
+      .calls[0][0];
+
+    // Should have 2 spans: the filtered agent span + the added root span
+    expect(exportedSpans).toHaveLength(2);
+
+    // Check that root span was added
+    const addedRootSpan = exportedSpans.find(
+      (s: ReadableSpan) => s.name === "http.request",
     );
+    expect(addedRootSpan).toBeDefined();
+    expect(addedRootSpan.attributes["openinference.span.kind"]).toBe("AGENT");
   });
 
-  it("should not overwrite existing span kind on root spans", async () => {
+  it("should not add root span when no agent operations exist", async () => {
     const rootSpan = {
-      name: "POST /api/agents/weatherAgent/stream",
-      parentSpanContext: undefined, // Root span has no parent
-      attributes: {
-        "http.method": "POST",
-        "http.url": "/api/agents/weatherAgent/stream",
-        [SemanticConventions.OPENINFERENCE_SPAN_KIND]: "CHAIN", // Pre-existing span kind
-      },
-      resource: {
-        attributes: {
-          "service.name": "test-service",
-        },
-      },
+      name: "http.request",
+      parentSpanContext: undefined,
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {},
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const regularSpan = {
+      name: "database.query",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "db-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: { query: "SELECT * FROM users" },
+      resource: { attributes: {} },
     } as unknown as ReadableSpan;
 
     const exporter = new OpenInferenceOTLPTraceExporter({
       url: "http://example.com/v1/traces",
-      headers: {
-        Authorization: "Bearer test-api-key",
-      },
+      spanFilter: (span) => span.name.startsWith("database."),
     });
 
-    exporter.export([rootSpan], () => {});
+    exporter.export([rootSpan, regularSpan], () => {});
 
-    // Should preserve existing span kind, not overwrite with AGENT
-    expect(rootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
-      "CHAIN",
-    );
+    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock
+      .calls[0][0];
+
+    // Should only have 1 span: the filtered database span (no root added)
+    expect(exportedSpans).toHaveLength(1);
+    expect(exportedSpans[0].name).toBe("database.query");
   });
 
-  it("should not add span kind to child spans without span kind", async () => {
-    const childSpan = {
-      name: "agent.getMostRecentUserMessage",
-      parentSpanContext: { spanId: "parent-span-id" }, // Child span has parent
-      attributes: {
-        "agent.getMostRecentUserMessage.argument.0": "some data",
-        "agent.getMostRecentUserMessage.result": "result data",
-      },
-      resource: {
-        attributes: {
-          "service.name": "test-service",
-        },
-      },
+  it("should not add root span when no root span exists in trace", async () => {
+    const agentSpan = {
+      name: "agent.process",
+      parentSpanContext: { spanId: "missing-parent" }, // Has parent but no root in the batch
+      spanContext: () => ({
+        spanId: "agent-id",
+        traceId: "trace-123",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: { threadId: "thread-1" },
+      resource: { attributes: {} },
     } as unknown as ReadableSpan;
 
     const exporter = new OpenInferenceOTLPTraceExporter({
       url: "http://example.com/v1/traces",
-      headers: {
-        Authorization: "Bearer test-api-key",
-      },
+      spanFilter: (span) => span.name.startsWith("agent."),
     });
 
-    exporter.export([childSpan], () => {});
+    exporter.export([agentSpan], () => {});
 
-    // Child span should get AGENT span kind from the existing logic based on name pattern
-    expect(childSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
-      "AGENT",
-    );
+    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock
+      .calls[0][0];
+
+    // Should only have 1 span: the agent span (no root to add)
+    expect(exportedSpans).toHaveLength(1);
+    expect(exportedSpans[0].name).toBe("agent.process");
+  });
+
+  it("should not add mastra internal spans as root spans", async () => {
+    const mastraRootSpan = {
+      name: "mastra.internal.operation",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "mastra-root-id",
+        traceId: "trace-456",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {},
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const agentSpan = {
+      name: "agent.process",
+      parentSpanContext: { spanId: "mastra-root-id" },
+      spanContext: () => ({
+        spanId: "agent-id",
+        traceId: "trace-456",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: { componentName: "weatherAgent" },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+      spanFilter: (span) => span.name.startsWith("agent."),
+    });
+
+    exporter.export([mastraRootSpan, agentSpan], () => {});
+
+    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock
+      .calls[0][0];
+
+    // Should only have 1 span: the agent span (mastra internal root not added)
+    expect(exportedSpans).toHaveLength(1);
+    expect(exportedSpans[0].name).toBe("agent.process");
   });
 });
