@@ -5,8 +5,12 @@ import {
 import { Attributes } from "@opentelemetry/api";
 import { Message, TokenCount, DocumentReference } from "./types";
 import { parseSanitizedJson } from "../utils/jsonUtils";
-import { safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  isObjectWithStringKeys,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import { isAttributeValue } from "@opentelemetry/core";
+import { getStringAttributeValueFromUnknown } from "./attributeExtractionUtils";
 
 /**
  * Utility functions for extracting input and output attributes from a text.
@@ -80,8 +84,9 @@ export function getOutputAttributes(value: unknown): Attributes {
  * @returns Attributes an object for system attributes.
  */
 export function getLLMSystemAttributes(system: unknown): Attributes {
-  if (system && typeof system === "object" && "value" in system) {
-    return { [SemanticConventions.LLM_SYSTEM]: String(system.value) };
+  if (isObjectWithStringKeys(system)) {
+    const value = getStringAttributeValueFromUnknown(system.value);
+    return value ? { [SemanticConventions.LLM_SYSTEM]: value } : {};
   }
   if (typeof system === "string") {
     return { [SemanticConventions.LLM_SYSTEM]: system.toLowerCase() };
@@ -292,8 +297,9 @@ export function generateUniqueTraceId(
  * @returns Record of provider attributes.
  */
 export function getLLMProviderAttributes(provider: unknown): Attributes {
-  if (provider && typeof provider === "object" && "value" in provider) {
-    return { [SemanticConventions.LLM_PROVIDER]: String(provider.value) };
+  if (isObjectWithStringKeys(provider)) {
+    const value = getStringAttributeValueFromUnknown(provider.value);
+    return value ? { [SemanticConventions.LLM_PROVIDER]: value } : {};
   }
   if (typeof provider === "string") {
     return { [SemanticConventions.LLM_PROVIDER]: provider.toLowerCase() };
