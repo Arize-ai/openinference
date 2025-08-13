@@ -130,8 +130,12 @@ export class SpanCreator {
     let attributes: Attributes = {};
     let metadata: StringKeyedObject = {};
     let name: string | null = null;
-    // Set name from a node type if it's an AgentTraceNode
-    if (traceSpan instanceof AgentTraceNode && traceSpan.nodeType != null) {
+    // Set name from a node type if it's an AgentTraceNode and has no chunks
+    if (
+      traceSpan instanceof AgentTraceNode &&
+      traceSpan.nodeType != null &&
+      traceSpan.chunks.length === 0
+    ) {
       name = traceSpan.nodeType;
     }
     // Process each chunk in the trace span
@@ -154,6 +158,7 @@ export class SpanCreator {
         } = this.processObservation(eventData);
         const rationaleAttributes = this.processRationale(eventData);
         const kindAndName = this.getSpanKindAndNameFromEventData(eventData);
+
         if (name == null) {
           name = kindAndName.name;
         }
@@ -182,6 +187,7 @@ export class SpanCreator {
           ...failureTraceMetadata,
         };
       }
+
       return {
         attributes: {
           ...attributes,
@@ -329,7 +335,7 @@ export class SpanCreator {
       }
       return {
         spanKind: OpenInferenceSpanKind.TOOL,
-        name: invocationType.toLowerCase(),
+        name: name ?? "tool",
       };
     }
   }

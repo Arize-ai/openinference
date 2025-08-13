@@ -14,6 +14,7 @@ import { BedrockAgentInstrumentation } from "../src";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
 import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 import {
+  LLMProvider,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
@@ -119,6 +120,74 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(7);
+    const llmSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.LLM
+      );
+    });
+
+    expect(llmSpans.length).toBe(3);
+    llmSpans.forEach((span) => {
+      expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+      );
+      expect(span.attributes[SemanticConventions.LLM_PROVIDER]).toBe(
+        LLMProvider.AWS,
+      );
+      const attributeKeys = Object.keys(span.attributes);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
+        ),
+      ).toBe(true);
+    });
+    const toolSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.TOOL
+      );
+    });
+    expect(toolSpans.length).toBe(2);
+    const agentSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT
+      );
+    });
+    expect(agentSpans.length).toBe(1);
+    const chainSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.CHAIN
+      );
+    });
+    expect(chainSpans.length).toBe(1);
   });
   it("should record knowledge base traces and API response in span", async () => {
     const client = new BedrockAgentRuntimeClient({
@@ -214,6 +283,75 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(9);
+
+    const chainSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.CHAIN
+      );
+    });
+    // one pre, one orchestration, one post
+    expect(chainSpans.length).toBe(3);
+    // one top level agent span
+    const agentSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT
+      );
+    });
+    expect(agentSpans.length).toBe(1);
+
+    // The remaining spans are LLM spans
+    const llmSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.LLM
+      );
+    });
+    expect(llmSpans.length).toBe(5);
+
+    llmSpans.forEach((span, i) => {
+      expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+      );
+      expect(span.attributes[SemanticConventions.LLM_PROVIDER]).toBe(
+        LLMProvider.AWS,
+      );
+      const attributeKeys = Object.keys(span.attributes);
+      // The last message is post orchestration and is the result from the llm so does not have input messages
+      if (i !== llmSpans.length - 1) {
+        expect(
+          attributeKeys.some((key) =>
+            key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
+          ),
+        ).toBe(true);
+      }
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
+        ),
+      ).toBe(true);
+    });
   });
 
   it("should record multiple agents collaboration traces", async () => {
@@ -246,5 +384,78 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(19);
+
+    const agentSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT
+      );
+    });
+    // invoke, supervisor, 2 math solvers
+    expect(agentSpans.length).toBe(4);
+    agentSpans.forEach((span) => {
+      expect(
+        span.name === "bedrock.invoke_agent" ||
+          /agent_collaborator\[.*?\]/.test(span.name),
+      ).toBe(true);
+    });
+    const chainSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.CHAIN
+      );
+    });
+    // 1 orchestration trace for each agent
+    expect(chainSpans.length).toBe(4);
+    expect(chainSpans.every((span) => span.name === "orchestrationTrace")).toBe(
+      true,
+    );
+
+    const llmSpans = spans.filter((span) => {
+      return (
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.LLM
+      );
+    });
+    expect(llmSpans.length).toBe(11);
+    llmSpans.forEach((span) => {
+      expect(span.name).toBe("LLM");
+      const modelName = span.attributes[SemanticConventions.LLM_MODEL_NAME];
+      expect(typeof modelName).toBe("string");
+      if (typeof modelName === "string") {
+        expect(modelName.includes("anthropic.claude")).toBe(true);
+      }
+      const attributeKeys = Object.keys(span.attributes);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
+        ),
+      ).toBe(true);
+      expect(
+        attributeKeys.some((key) =>
+          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
+        ),
+      ).toBe(true);
+    });
   });
 });

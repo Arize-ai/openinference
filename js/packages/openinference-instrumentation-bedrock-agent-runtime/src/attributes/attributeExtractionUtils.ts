@@ -17,7 +17,6 @@ import {
 import { StringKeyedObject } from "../types";
 import {
   isObjectWithStringKeys,
-  safelyJSONParse,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import {
@@ -102,9 +101,10 @@ export function getStringAttributeValueFromUnknown(
 export function getInputMessagesObject(text: string): Message[] {
   try {
     const messages: Message[] = [];
-    const inputMessages = safelyJSONParse(text);
+    const inputMessages = parseSanitizedJson(text);
+
     if (!isObjectWithStringKeys(inputMessages)) {
-      return [{ content: text }];
+      return text ? [{ content: text }] : [];
     }
     const system = getStringAttributeValueFromUnknown(inputMessages?.system);
     if (system) {
@@ -141,7 +141,7 @@ export function getInputMessagesObject(text: string): Message[] {
     });
     return messages;
   } catch {
-    return [{ content: text }];
+    return text ? [{ content: text }] : [];
   }
 }
 
@@ -858,7 +858,7 @@ function getAttributesFromKnowledgeBaseLookupOutput(
       ...acc,
       ...getDocumentAttributes(i, ref),
     };
-  }, {});
+  }, {} as Attributes);
 }
 
 /**
