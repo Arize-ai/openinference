@@ -15,11 +15,11 @@ npm install --save @arizeai/openinference-instrumentation-bedrock-agent-runtime
 To load the Bedrock Agent Runtime instrumentation, specify it in the registerInstrumentations call along with any additional instrumentation you wish to enable.
 
 ```typescript
-const { NodeTracerProvider } = require("@opentelemetry/sdk-trace-node");
-const {
+import { NodeTracerProvider } = from "@opentelemetry/sdk-trace-node";
+import {
   BedrockAgentInstrumentation,
-} = require("@arizeai/openinference-instrumentation-bedrock-agent-runtime");
-const { registerInstrumentations } = require("@opentelemetry/instrumentation");
+} = from "@arizeai/openinference-instrumentation-bedrock-agent-runtime";
+import { registerInstrumentations } = "@opentelemetry/instrumentation";
 
 const provider = new NodeTracerProvider();
 provider.register();
