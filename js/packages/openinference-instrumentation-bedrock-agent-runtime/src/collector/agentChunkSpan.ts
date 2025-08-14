@@ -17,13 +17,12 @@ export class AgentChunkSpan {
 
   /**
    * Create a new AgentChunkSpan.
-   * @param spanType Type of the span (e.g., 'invocationInput').
    */
   constructor() {}
 
   /**
    * Add a chunk to this span.
-   * @param chunk Chunk object to add.
+   * @param {StringKeyedObject} chunk - Chunk object to add.
    */
   addChunk(chunk: StringKeyedObject) {
     this.chunks.push(chunk);
