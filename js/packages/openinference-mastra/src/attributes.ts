@@ -14,6 +14,8 @@ const AGENT_PATTERNS = {
   GET_RECENT_MESSAGE_RESULT: "agent.getMostRecentUserMessage.result",
   STREAM: "agent.stream",
   STREAM_ARGUMENT: "agent.stream.argument.0",
+  GENERATE: "agent.generate",
+  GENERATE_ARGUMENT: "agent.generate.argument.0",
   MASTRA_PREFIX: "mastra.",
   AGENT_PREFIX: "agent.",
 };
@@ -164,7 +166,8 @@ export const getTraceId = (span: ReadableSpan): string => {
  *
  * Looks for user input in the following order:
  * 1. agent.getMostRecentUserMessage.result attribute
- * 2. agent.stream.argument.0 conversation messages (last user message)
+ * 2. agent.generate.argument.0 (direct user input)
+ * 3. agent.stream.argument.0 conversation messages (last user message)
  *
  * @param spans - Array of spans to search through.
  * @returns The extracted user input or undefined if not found.
@@ -188,6 +191,25 @@ export const extractMastraUserInput = (
             rawResult: result,
             spanId: span.spanContext?.()?.spanId,
           });
+        }
+      }
+    }
+  }
+
+  // Look for direct user input from agent.generate.argument.0
+  for (const span of spans) {
+    if (span.name === AGENT_PATTERNS.GENERATE) {
+      const argument = span.attributes[AGENT_PATTERNS.GENERATE_ARGUMENT];
+      if (typeof argument === "string") {
+        try {
+          // Try to parse as JSON first in case it's a complex structure
+          const parsed = JSON.parse(argument);
+          if (typeof parsed === "string") {
+            return parsed;
+          }
+        } catch {
+          // If JSON parsing fails, treat as plain string (remove quotes if present)
+          return argument.replace(/^"(.*)"$/, "$1");
         }
       }
     }
