@@ -1,10 +1,12 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
 
-import { addOpenInferenceAttributesToMastraSpan } from "./attributes.js";
-import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
+import {
+  processMastraSpanAttributes,
+  addIOToRootSpans,
+  findMissingAgentRootSpans,
+} from "./attributes.js";
 
 type ConstructorArgs = {
   /**
@@ -75,23 +77,21 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     resultCallback: (result: ExportResult) => void,
   ) {
     let filteredSpans = spans.map((span) => {
-      // add OpenInference resource attributes to the span based on Mastra span attributes
-      addOpenInferenceProjectResourceAttributeSpan(span);
-      // add OpenInference attributes to the span based on Vercel span attributes
-      addOpenInferenceAttributesToSpan({
-        ...span,
-        // backwards compatibility with older versions of sdk-trace-base
-        instrumentationLibrary: {
-          name: "@arizeai/openinference-mastra",
-        },
-      });
-      // add OpenInference attributes to the span based on Mastra span attributes
-      addOpenInferenceAttributesToMastraSpan(span);
+      // Process span with all standard Mastra OpenInference attributes
+      processMastraSpanAttributes(span);
       return span;
     });
     if (this.spanFilter) {
       filteredSpans = filteredSpans.filter(this.spanFilter);
     }
+    // Add missing root spans for traces with agent operations.
+    // Consider batching for large sets of spans for performance and lower memory usage.
+    const missingRoots = findMissingAgentRootSpans(spans, filteredSpans);
+    if (missingRoots.length > 0) {
+      filteredSpans.push(...missingRoots);
+    }
+    // Add user input and agent output to root spans for Phoenix session I/O
+    addIOToRootSpans(filteredSpans);
     super.export(filteredSpans, resultCallback);
   }
 }
