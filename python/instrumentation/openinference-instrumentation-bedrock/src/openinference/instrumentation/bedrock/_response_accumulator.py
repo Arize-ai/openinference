@@ -426,16 +426,12 @@ class _ResponseAccumulator:
             status_code = StatusCode.OK
             if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
                 guardrail_actions = attributes.metadata.get("guardrails", [])
-                try:
-                    if any(
-                        (action.get("action") == "INTERVENED")
-                        for action in guardrail_actions
-                        if isinstance(action, dict)
-                    ):
-                        status_code = StatusCode.ERROR
-                except Exception:
-                    # Fallback for any unexpected structure
-                    status_code = StatusCode.OK
+                if any(
+                    (action.get("action") == "INTERVENED")
+                    for action in guardrail_actions
+                    if isinstance(action, dict)
+                ):
+                    status_code = StatusCode.ERROR
             span.set_status(Status(status_code))
 
             # Process child spans recursively
