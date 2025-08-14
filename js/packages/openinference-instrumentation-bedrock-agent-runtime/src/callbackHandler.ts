@@ -16,10 +16,10 @@ export class CallbackHandler {
 
   /**
    * Callback handler for processing agent responses and traces.
-   * @param oiTracer The OpenTelemetry span to associate with the response.
-   * @param span
+   * @param params
+   * @param params.oiTracer {OITracer} - The OpenTelemetry span to associate with the response.
+   * @param params.span {Span} - The OpenTelemetry span to associate with the response.
    */
-
   constructor(oiTracer: OITracer, span: Span) {
     this.oiTracer = oiTracer;
     this.span = span;
@@ -30,6 +30,7 @@ export class CallbackHandler {
     const text = Buffer.from(chunk).toString("utf8");
     this.outputChunks.push(text);
   }
+
   consumeTrace(trace: Record<string, unknown>) {
     this.traceAggregator.collect(trace);
   }
