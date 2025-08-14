@@ -6,11 +6,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
 import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 
-const MASTRA_AGENT_SPAN_NAME_PREFIXES = [
-  "agent",
-  "mastra.getAgent",
-  "post /api/agents",
-];
+const MASTRA_AGENT_SPAN_NAME_PREFIXES = ["agent", "mastra.getAgent"];
 
 /**
  * Add the OpenInference span kind to the given Mastra span.
@@ -36,6 +32,19 @@ const getOpenInferenceSpanKind = (span: ReadableSpan) => {
 };
 
 /**
+ * Determines whether a span represents an agent operation.
+ *
+ * @param span - The span to check.
+ * @returns `true` if the span is an agent operation, `false` otherwise.
+ */
+export const isAgentOperation = (span: ReadableSpan): boolean => {
+  const spanName = span.name.toLowerCase();
+  return !!MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) =>
+    spanName.startsWith(prefix),
+  );
+};
+
+/**
  * Get the closest OpenInference span kind for the given Mastra span.
  *
  * This function will attempt to detect the closest OpenInference span kind for the given Mastra span,
@@ -48,12 +57,7 @@ const getOpenInferenceSpanKindFromMastraSpan = (
   if (oiKind) {
     return oiKind;
   }
-  const spanName = span.name.toLowerCase();
-  if (
-    MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) =>
-      spanName.startsWith(prefix),
-    )
-  ) {
+  if (isAgentOperation(span)) {
     return OpenInferenceSpanKind.AGENT;
   }
   return null;
@@ -126,21 +130,6 @@ export const processMastraSpanAttributes = (
 };
 
 /**
- * Determines whether a span represents an agent operation.
- *
- * @param span - The span to check.
- * @returns `true` if the span is an agent operation, `false` otherwise.
- */
-export const isAgentOperation = (span: ReadableSpan): boolean => {
-  return !!(
-    span.name.startsWith("agent.") ||
-    span.attributes.threadId ||
-    span.attributes.componentName ||
-    span.attributes.resourceId
-  );
-};
-
-/**
  * Gets the span ID from a ReadableSpan.
  *
  * @param span - The span to get the ID from.
@@ -204,7 +193,7 @@ export const extractMastraUserInput = (
               if (message.role === "user" && message.content) {
                 return typeof message.content === "string"
                   ? message.content
-                  : message.content;
+                  : JSON.stringify(message.content);
               }
             }
           }
@@ -303,9 +292,8 @@ export const addMissingAgentRootSpans = (
       span.parentSpanContext === undefined && // is root
       agentTraceIds.has(getTraceId(span)) && // is agent trace
       !filteredSpanIds.has(getSpanId(span)) && // not already included
-      !span.name.startsWith("mastra.")
+      !span.name.startsWith("mastra.") // not internal operations
     ) {
-      // not internal operation
       // Process the missing root span
       processMastraSpanAttributes(span, true); // shouldMarkAsAgent = true
       missingRoots.push(span);
