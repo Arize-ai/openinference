@@ -41,7 +41,9 @@ const instrumentation = new BedrockAgentInstrumentation();
 instrumentation.manuallyInstrument(bedrockAgentRuntime);
 
 // Now use the Bedrock Agent Runtime client as normal
-const client = new bedrockAgentRuntime.BedrockAgentRuntimeClient({ region: "us-east-1" });
+const client = new bedrockAgentRuntime.BedrockAgentRuntimeClient({
+  region: "us-east-1",
+});
 ```
 
 ## Examples
