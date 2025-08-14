@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 0.3.0
+
+### Minor Changes
+
+- 9d3bdb4: Openinference core modified to force unknown type for JSON.parse. Initial release of bedrock agents runtime
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
 ## 0.2.1
 
 ### Patch Changes
