@@ -60,17 +60,21 @@ export class AgentTraceAggregator {
       diag.warn("No trace stack head found");
       return;
     }
-    const agentChildId =
-      this.detectAgentCollaboration(traceData, eventType, chunkType) &&
-      `${nodeTraceId}-agent`;
-    this.routeTraceData(
+    const agentChildId = this.detectAgentCollaboration(
       traceData,
-      this.traceStack.head,
+      eventType,
+      chunkType,
+    )
+      ? `${nodeTraceId}-agent`
+      : null;
+    this.routeTraceData({
+      traceData,
+      parent: this.traceStack.head,
       nodeTraceId,
       agentChildId,
       eventType,
       chunkType,
-    );
+    });
   }
 
   /**
@@ -119,21 +123,29 @@ export class AgentTraceAggregator {
 
   /**
    * Routes trace data to appropriate processing method based on trace state.
-   * @param traceData - The trace data to process
-   * @param parent - The parent node to which the trace data might be attached
-   * @param nodeTraceId - The unique ID for the trace node
-   * @param agentChildId - The ID for a potential agent collaboration child node, or false if not applicable
-   * @param eventType - The type of event in the trace data
-   * @param chunkType - The type of chunk in the event
+   * @param params
+   * @param params.traceData {StringKeyedObject} - The trace data to process
+   * @param params.parent {AgentTraceNode} - The parent node to which the trace data might be attached
+   * @param params.nodeTraceId {string} - The unique ID for the trace node
+   * @param params.agentChildId {string | null} - The ID for a potential agent collaboration child node, or false if not applicable
+   * @param params.eventType {string} - The type of event in the trace data
+   * @param params.chunkType {string} - The type of chunk in the event
    */
-  private routeTraceData(
-    traceData: StringKeyedObject,
-    parent: AgentTraceNode,
-    nodeTraceId: string,
-    agentChildId: string | false,
-    eventType: string,
-    chunkType: string,
-  ) {
+  private routeTraceData({
+    traceData,
+    parent,
+    nodeTraceId,
+    agentChildId,
+    eventType,
+    chunkType,
+  }: {
+    traceData: StringKeyedObject;
+    parent: AgentTraceNode;
+    nodeTraceId: string;
+    agentChildId: string | null;
+    eventType: string;
+    chunkType: string;
+  }) {
     // New node
     if (!this.seenIds.has(nodeTraceId)) {
       this.addNewTraceNodeIfAbsent(
@@ -147,34 +159,39 @@ export class AgentTraceAggregator {
 
     // Current parent is correct target
     else if ([nodeTraceId, agentChildId].includes(parent.nodeTraceId)) {
-      this.processChunkOrCreateAgentCollaborationNode(
+      this.processChunkOrCreateAgentCollaborationNode({
         parent,
         agentChildId,
         eventType,
         chunkType,
         traceData,
-      );
+      });
     }
 
     // Need to pop up to parent node
     else if (parent.parentTraceNode?.nodeTraceId === nodeTraceId) {
       this.traceStack.pop();
-      this.appendChunkToCurrentNodeOrStartNewSpan(
-        this.traceStack.head!,
+      if (!this.traceStack.head) {
+        diag.warn(
+          "No trace stack head found inside routeTraceData. Skipping appendChunkToCurrentNodeOrStartNewSpan.",
+        );
+        return;
+      }
+      this.appendChunkToCurrentNodeOrStartNewSpan({
+        node: this.traceStack.head,
         chunkType,
         traceData,
-      );
+      });
     }
 
     // Node exists elsewhere in tree
     else if (this.seenIds.has(nodeTraceId)) {
-      this.processTraceByExistingId(
-        parent,
+      this.processTraceByExistingId({
         agentChildId,
         eventType,
         chunkType,
         traceData,
-      );
+      });
     }
   }
 
@@ -255,19 +272,26 @@ export class AgentTraceAggregator {
 
   /**
    * Processes chunks for existing nodes or creates agent collaboration nodes.
-   * @param parent - The parent node to process
-   * @param agentChildId - The ID for a potential agent collaboration child node, or false if not applicable
-   * @param eventType - The type of event in the trace data
-   * @param chunkType - The type of chunk in the event
-   * @param traceData - The trace data to process
+   * @param params
+   * @param params.parent {AgentTraceNode} - The parent node to process
+   * @param params.agentChildId {string | null} - The ID for a potential agent collaboration child node, or false if not applicable
+   * @param params.eventType {string} - The type of event in the trace data
+   * @param params.chunkType {string} - The type of chunk in the event
+   * @param params.traceData {StringKeyedObject} - The trace data to process
    */
-  private processChunkOrCreateAgentCollaborationNode(
-    parent: AgentTraceNode,
-    agentChildId: string | false,
-    eventType: string,
-    chunkType: string,
-    traceData: StringKeyedObject,
-  ): void {
+  private processChunkOrCreateAgentCollaborationNode({
+    parent,
+    agentChildId,
+    eventType,
+    chunkType,
+    traceData,
+  }: {
+    parent: AgentTraceNode;
+    agentChildId: string | null;
+    eventType: string;
+    chunkType: string;
+    traceData: StringKeyedObject;
+  }) {
     const eventObj = traceData[eventType] ?? {};
     const chunkObj =
       getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {};
@@ -280,25 +304,33 @@ export class AgentTraceAggregator {
         traceData,
       );
     } else {
-      this.appendChunkToCurrentNodeOrStartNewSpan(parent, chunkType, traceData);
+      this.appendChunkToCurrentNodeOrStartNewSpan({
+        node: parent,
+        chunkType,
+        traceData,
+      });
     }
   }
 
   /**
    * Handles trace data for nodes that exist elsewhere in the trace tree.
-   * @param _parent - The parent node (unused but maintained for API consistency)
-   * @param agentChildId - The ID for a potential agent collaboration child node, or false if not applicable
-   * @param eventType - The type of event in the trace data
-   * @param chunkType - The type of chunk in the event
-   * @param traceData - The trace data to process
+   * @param params
+   * @param params.agentChildId {string | null} - The ID for a potential agent collaboration child node, or null if not applicable
+   * @param params.eventType {string} - The type of event in the trace data
+   * @param params.chunkType {string} - The type of chunk in the event
+   * @param params.traceData {StringKeyedObject} - The trace data to process
    */
-  private processTraceByExistingId(
-    _parent: AgentTraceNode,
-    agentChildId: string | false,
-    eventType: string,
-    chunkType: string,
-    traceData: StringKeyedObject,
-  ): void {
+  private processTraceByExistingId({
+    agentChildId,
+    eventType,
+    chunkType,
+    traceData,
+  }: {
+    agentChildId: string | null;
+    eventType: string;
+    chunkType: string;
+    traceData: StringKeyedObject;
+  }): void {
     const eventObj =
       getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
     const chunkObj =
@@ -313,32 +345,36 @@ export class AgentTraceAggregator {
       (this.traceStack.head ?? this.rootNode).addChunk(traceData);
     } else {
       if (this.traceStack.head) {
-        this.appendChunkToCurrentNodeOrStartNewSpan(
-          this.traceStack.head,
+        this.appendChunkToCurrentNodeOrStartNewSpan({
+          node: this.traceStack.head,
           chunkType,
           traceData,
-        );
+        });
       } else {
-        this.appendChunkToCurrentNodeOrStartNewSpan(
-          this.rootNode,
+        this.appendChunkToCurrentNodeOrStartNewSpan({
+          node: this.rootNode,
           chunkType,
           traceData,
-        );
+        });
       }
     }
   }
 
   /**
    * Appends chunk to current span or creates a new span if required.
-   * @param node - The node to which the chunk should be associated
-   * @param chunkType - The type of chunk in the trace data
-   * @param traceData - The trace data to process
+   * @param node {AgentTraceNode} - The node to which the chunk should be associated
+   * @param chunkType {string} - The type of chunk in the trace data
+   * @param traceData {StringKeyedObject} - The trace data to process
    */
-  private appendChunkToCurrentNodeOrStartNewSpan(
-    node: AgentTraceNode,
-    chunkType: string,
-    traceData: StringKeyedObject,
-  ): void {
+  private appendChunkToCurrentNodeOrStartNewSpan({
+    node,
+    chunkType,
+    traceData,
+  }: {
+    node: AgentTraceNode;
+    chunkType: string;
+    traceData: StringKeyedObject;
+  }): void {
     const mustStartNew =
       ["invocationInput", "modelInvocationInput"].includes(chunkType) ||
       !node.currentSpan;
