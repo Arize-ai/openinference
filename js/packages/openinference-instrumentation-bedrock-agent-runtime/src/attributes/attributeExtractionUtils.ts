@@ -31,19 +31,19 @@ import { isAttributeValue } from "@opentelemetry/core";
 
 /**
  * Return the first matching event type key discovered in {@link traceData}.
- * Defaults to `'unknownTrace'` when not found.
+ * @returns {TraceEventType | null} The first matching event type key or null if not found.
  */
 export function getEventType(
   traceData: StringKeyedObject,
-): TraceEventType | null {
+): TraceEventType | undefined {
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
   }
-  return null;
 }
 
 /**
- * Extract the trace ID from a trace object. Returns undefined if the trace ID is not found.
+ * Extract the trace ID from a trace object.
+ * @returns {string | undefined} The trace ID or undefined if not found.
  */
 export function extractTraceId(
   traceData: StringKeyedObject,
@@ -72,7 +72,7 @@ export function extractTraceId(
 
 /**
  * Return the first matching chunk type discovered in {@link eventData}.
- * Defaults to `'unknownChunk'` when not found.
+ * @returns {ChunkType | undefined} The first matching chunk type or undefined if not found.
  */
 export function getChunkType(
   eventData: StringKeyedObject,

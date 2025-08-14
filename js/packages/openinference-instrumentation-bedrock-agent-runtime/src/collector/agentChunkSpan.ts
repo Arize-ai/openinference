@@ -25,7 +25,7 @@ export class AgentChunkSpan {
    * Add a chunk to this span.
    * @param chunk Chunk object to add.
    */
-  addChunk(chunk: StringKeyedObject): void {
+  addChunk(chunk: StringKeyedObject) {
     this.chunks.push(chunk);
   }
 
@@ -33,7 +33,7 @@ export class AgentChunkSpan {
    * Convert the span and its children to a plain object.
    * @returns Object representation of the span and its children.
    */
-  toObject(): object {
+  toObject() {
     return {
       chunks: this.chunks,
       childrenNodes: this.childrenNodes.map((child) => child.toObject()),
