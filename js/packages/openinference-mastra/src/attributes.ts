@@ -3,10 +3,20 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import { diag } from "@opentelemetry/api";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
 import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 
 const MASTRA_AGENT_SPAN_NAME_PREFIXES = ["agent", "mastra.getAgent"];
+
+const AGENT_PATTERNS = {
+  GET_RECENT_MESSAGE: "agent.getMostRecentUserMessage",
+  GET_RECENT_MESSAGE_RESULT: "agent.getMostRecentUserMessage.result",
+  STREAM: "agent.stream",
+  STREAM_ARGUMENT: "agent.stream.argument.0",
+  MASTRA_PREFIX: "mastra.",
+  AGENT_PREFIX: "agent.",
+};
 
 /**
  * Add the OpenInference span kind to the given Mastra span.
@@ -164,16 +174,20 @@ export const extractMastraUserInput = (
 ): string | undefined => {
   // Look for the most recent user message from agent.getMostRecentUserMessage.result
   for (const span of spans) {
-    if (span.name === "agent.getMostRecentUserMessage") {
-      const result = span.attributes["agent.getMostRecentUserMessage.result"];
+    if (span.name === AGENT_PATTERNS.GET_RECENT_MESSAGE) {
+      const result = span.attributes[AGENT_PATTERNS.GET_RECENT_MESSAGE_RESULT];
       if (typeof result === "string") {
         try {
           const messageData = JSON.parse(result);
           if (messageData.content && typeof messageData.content === "string") {
             return messageData.content;
           }
-        } catch {
-          // Ignore parsing errors
+        } catch (error) {
+          diag.debug("Failed to parse agent.getMostRecentUserMessage.result", {
+            error: error instanceof Error ? error.message : String(error),
+            rawResult: result,
+            spanId: span.spanContext?.()?.spanId,
+          });
         }
       }
     }
@@ -181,8 +195,8 @@ export const extractMastraUserInput = (
 
   // Fallback: extract from agent.stream.argument.0 (conversation messages)
   for (const span of spans) {
-    if (span.name === "agent.stream") {
-      const argument = span.attributes["agent.stream.argument.0"];
+    if (span.name === AGENT_PATTERNS.STREAM) {
+      const argument = span.attributes[AGENT_PATTERNS.STREAM_ARGUMENT];
       if (typeof argument === "string") {
         try {
           const messages = JSON.parse(argument);
@@ -197,8 +211,12 @@ export const extractMastraUserInput = (
               }
             }
           }
-        } catch {
-          // Ignore parsing errors
+        } catch (error) {
+          diag.debug("Failed to parse agent.stream.argument.0", {
+            error: error instanceof Error ? error.message : String(error),
+            rawArgument: argument,
+            spanId: span.spanContext?.()?.spanId,
+          });
         }
       }
     }
@@ -292,7 +310,7 @@ export const addMissingAgentRootSpans = (
       span.parentSpanContext === undefined && // is root
       agentTraceIds.has(getTraceId(span)) && // is agent trace
       !filteredSpanIds.has(getSpanId(span)) && // not already included
-      !span.name.startsWith("mastra.") // not internal operations
+      !span.name.startsWith(AGENT_PATTERNS.MASTRA_PREFIX) // not internal operations
     ) {
       // Process the missing root span
       processMastraSpanAttributes(span, true); // shouldMarkAsAgent = true
