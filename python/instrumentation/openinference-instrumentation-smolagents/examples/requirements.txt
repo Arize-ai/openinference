@@ -1,5 +1,5 @@
 # Main dependencies of the examples in this directory:
-smolagents[e2b,gradio,litellm,openai]
+smolagents[e2b,gradio,litellm,openai]>=1.19.0
 datasets
 langchain
 langchain_community
