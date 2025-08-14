@@ -14,7 +14,7 @@ import {
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import { InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
-import { extractBaseRequestAttributes } from "./attributes/requestAttributes";
+import { safelyExtractBaseRequestAttributes } from "./attributes/requestAttributes";
 import { interceptAgentResponse } from "./streamUtils";
 import { CallbackHandler } from "./callbackHandler";
 import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
@@ -130,6 +130,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           const command = args[0];
           if (command instanceof InvokeAgentCommand) {
             return instrumentationInstance._handleInvokeAgentCommand(
+              args,
               command,
               original,
               this,
@@ -144,17 +145,22 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
   }
 
   private _handleInvokeAgentCommand(
+    args: Parameters<
+      typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
+    >,
     command: bedrockAgentRunTime.InvokeAgentCommand,
     original: (
-      command: bedrockAgentRunTime.InvokeAgentCommand,
+      ...args: Parameters<
+        typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
+      >
     ) => Promise<InvokeAgentCommandOutput>,
     client: unknown,
   ) {
     const span = this.oiTracer.startSpan("bedrock.invoke_agent", {
       kind: SpanKind.INTERNAL,
-      attributes: extractBaseRequestAttributes(command),
+      attributes: safelyExtractBaseRequestAttributes(command) ?? undefined,
     });
-    const result = original.apply(client, [command]);
+    const result = original.apply(client, args);
     return result
       .then((response: InvokeAgentCommandOutput) => {
         const callback = new CallbackHandler(this.oiTracer, span);
@@ -162,10 +168,33 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           response.completion &&
           Symbol.asyncIterator in response.completion
         ) {
-          response.completion = interceptAgentResponse(
-            response.completion,
-            callback,
-          );
+          try {
+            response.completion = interceptAgentResponse(
+              response.completion,
+              callback,
+            );
+          } catch (err: unknown) {
+            let errorMessage: string;
+            if (err instanceof Error || typeof err === "string") {
+              diag.warn(
+                `Openinference warning, unable to intercept agent response, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
+              );
+              span.recordException(err);
+              errorMessage = err instanceof Error ? err.message : err;
+            } else {
+              errorMessage =
+                "Unknown error occurred in Openinference BedrockAgentInstrumentation while trying to process agent response.";
+            }
+
+            diag.warn(
+              `Openinference warning, unable to intercept agent response, some spans may be missing or incomplete. Error: ${errorMessage}`,
+            );
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: errorMessage,
+            });
+            span.end();
+          }
         } else {
           // End the span if response.completion is not a stream
           span.setStatus({ code: SpanStatusCode.OK });
