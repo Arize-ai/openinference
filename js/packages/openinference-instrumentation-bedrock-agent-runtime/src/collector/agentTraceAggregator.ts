@@ -26,10 +26,10 @@ export class AgentTraceAggregator {
    * Creates a new instance of AgentTraceAggregator with a default root node.
    */
   constructor() {
-    this.rootNode = new AgentTraceNode(
-      "default-parent-node",
-      "bedrock_agent.invoke_agent",
-    );
+    this.rootNode = new AgentTraceNode({
+      traceId: "default-parent-node",
+      eventType: "bedrock_agent.invoke_agent",
+    });
     this.traceStack.push(this.rootNode);
     this.nodesById[this.rootNode.nodeTraceId] = this.rootNode;
     this.seenIds.add(this.rootNode.nodeTraceId);
@@ -249,13 +249,22 @@ export class AgentTraceAggregator {
       getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {};
     let newNode: AgentTraceNode;
     if (chunkObj.agentCollaboratorInvocationInput) {
-      newNode = new AgentTraceNode(nodeTraceId, "agent-collaborator");
+      newNode = new AgentTraceNode({
+        traceId: nodeTraceId,
+        eventType: "agent-collaborator",
+      });
       newNode.addChunk(traceData);
     } else if (eventType === "failureTrace") {
-      newNode = new AgentTraceNode(nodeTraceId, eventType);
+      newNode = new AgentTraceNode({
+        traceId: nodeTraceId,
+        eventType,
+      });
       newNode.addChunk(traceData);
     } else {
-      newNode = new AgentTraceNode(nodeTraceId, eventType);
+      newNode = new AgentTraceNode({
+        traceId: nodeTraceId,
+        eventType,
+      });
       const span = new AgentChunkSpan();
       span.addChunk(traceData);
       span.parentNode = parent;

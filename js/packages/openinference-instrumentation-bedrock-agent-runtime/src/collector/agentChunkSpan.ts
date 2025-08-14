@@ -28,16 +28,4 @@ export class AgentChunkSpan {
   addChunk(chunk: StringKeyedObject) {
     this.chunks.push(chunk);
   }
-
-  /**
-   * Convert the span and its children to a plain object.
-   * @returns Object representation of the span and its children.
-   */
-  toObject() {
-    return {
-      chunks: this.chunks,
-      childrenNodes: this.childrenNodes.map((child) => child.toObject()),
-      parentNodeTraceId: this.parentNode?.nodeTraceId ?? null,
-    };
-  }
 }

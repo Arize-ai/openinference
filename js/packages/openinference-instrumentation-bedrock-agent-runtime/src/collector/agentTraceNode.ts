@@ -28,10 +28,17 @@ export class AgentTraceNode {
 
   /**
    * Creates a new AgentTraceNode instance.
-   * @param traceId - Stable identifier for the node (prefixed trace-ID)
-   * @param eventType - Semantic type, e.g., 'orchestrationTrace' or 'agent-collaborator'
+   * @param params
+   * @param params.traceId {string} - Stable identifier for the node (prefixed trace-ID)
+   * @param params.eventType {string | null} - Semantic type, e.g., 'orchestrationTrace' or 'agent-collaborator'
    */
-  constructor(traceId: string, eventType: string | null = null) {
+  constructor({
+    traceId,
+    eventType = null,
+  }: {
+    traceId: string;
+    eventType: string | null;
+  }) {
     this.nodeTraceId = traceId;
     this.nodeType = eventType;
   }
@@ -52,18 +59,5 @@ export class AgentTraceNode {
    */
   addChunk(chunk: StringKeyedObject): void {
     this.chunks.push(chunk);
-  }
-
-  /**
-   * Converts the node and its children to a plain object for serialization.
-   * @returns An object representation of the node and its hierarchy
-   */
-  toObject(): object {
-    return {
-      nodeTraceId: this.nodeTraceId,
-      nodeType: this.nodeType,
-      chunks: this.chunks,
-      spans: this.spans.map((span) => span.toObject()),
-    };
   }
 }
