@@ -5,7 +5,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import {
   processMastraSpanAttributes,
   addIOToRootSpans,
-  addMissingAgentRootSpans,
+  findMissingAgentRootSpans,
 } from "./attributes.js";
 
 type ConstructorArgs = {
@@ -84,8 +84,12 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     if (this.spanFilter) {
       filteredSpans = filteredSpans.filter(this.spanFilter);
     }
-    // Add missing root spans for traces with agent operations
-    filteredSpans = addMissingAgentRootSpans(spans, filteredSpans);
+    // Add missing root spans for traces with agent operations.
+    // Consider batching for large sets of spans for performance and lower memory usage.
+    const missingRoots = findMissingAgentRootSpans(spans, filteredSpans);
+    if (missingRoots.length > 0) {
+      filteredSpans.push(...missingRoots);
+    }
     // Add user input and agent output to root spans for Phoenix session I/O
     addIOToRootSpans(filteredSpans);
     super.export(filteredSpans, resultCallback);

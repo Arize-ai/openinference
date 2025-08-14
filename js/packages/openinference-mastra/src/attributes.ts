@@ -183,7 +183,7 @@ export const extractMastraUserInput = (
             return messageData.content;
           }
         } catch (error) {
-          diag.debug("Failed to parse agent.getMostRecentUserMessage.result", {
+          diag.warn("Failed to parse agent.getMostRecentUserMessage.result", {
             error: error instanceof Error ? error.message : String(error),
             rawResult: result,
             spanId: span.spanContext?.()?.spanId,
@@ -212,7 +212,7 @@ export const extractMastraUserInput = (
             }
           }
         } catch (error) {
-          diag.debug("Failed to parse agent.stream.argument.0", {
+          diag.warn("Failed to parse agent.stream.argument.0", {
             error: error instanceof Error ? error.message : String(error),
             rawArgument: argument,
             spanId: span.spanContext?.()?.spanId,
@@ -279,17 +279,17 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
 };
 
 /**
- * Adds missing root spans for traces with agent operations.
+ * Finds missing root spans for traces with agent operations.
  *
  * When spans are filtered (e.g., only agent spans are exported), this function
- * ensures that root spans for agent traces are also included to maintain trace
+ * identifies root spans for agent traces that should be included to maintain trace
  * context for session I/O.
  *
  * @param allSpans - All spans before filtering.
  * @param filteredSpans - Spans after filtering.
- * @returns Combined array of filtered spans plus any missing root spans.
+ * @returns Array of missing root spans that should be included.
  */
-export const addMissingAgentRootSpans = (
+export const findMissingAgentRootSpans = (
   allSpans: ReadableSpan[],
   filteredSpans: ReadableSpan[],
 ): ReadableSpan[] => {
@@ -302,6 +302,9 @@ export const addMissingAgentRootSpans = (
       agentTraceIds.add(getTraceId(span));
     }
   }
+
+  // Early exit if no agent traces found
+  if (agentTraceIds.size === 0) return [];
 
   // Find missing root spans for agent traces
   const missingRoots: ReadableSpan[] = [];
@@ -318,5 +321,5 @@ export const addMissingAgentRootSpans = (
     }
   }
 
-  return [...filteredSpans, ...missingRoots];
+  return missingRoots;
 };
