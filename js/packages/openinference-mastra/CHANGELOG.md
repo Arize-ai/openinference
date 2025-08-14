@@ -1,4 +1,4 @@
-# @arizeai/openinference-vercel
+# @arizeai/openinference-mastra
 
 ## 2.1.6
 
