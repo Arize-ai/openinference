@@ -636,6 +636,77 @@ describe("OpenInferenceTraceExporter", () => {
     );
   });
 
+  it("should extract input from agent.generate.argument.0 when other methods are not available", async () => {
+    const rootSpan = {
+      name: "POST /test",
+      parentSpanContext: undefined, // This is a root span
+      spanContext: () => ({
+        spanId: "root-id",
+        traceId: "trace-generate",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/test",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing direct user input via agent.generate.argument.0
+    const generateSpan = {
+      name: "agent.generate",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "generate-id",
+        traceId: "trace-generate",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.generate.argument.0": '"What is the weather in Tokyo?"', // Quoted string as seen in actual spans
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Span containing agent output
+    const outputSpan = {
+      name: "ai.generateText",
+      parentSpanContext: { spanId: "root-id" },
+      spanContext: () => ({
+        spanId: "output-id",
+        traceId: "trace-generate",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]:
+          "The weather in Tokyo is currently cloudy with a temperature of 18°C.",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    exporter.export([rootSpan, generateSpan, outputSpan], () => {});
+
+    // Check that input was extracted from agent.generate.argument.0 (with quote removal)
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "What is the weather in Tokyo?",
+    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "The weather in Tokyo is currently cloudy with a temperature of 18°C.",
+    );
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
+      "text/plain",
+    );
+  });
+
   it("should not overwrite existing I/O attributes on root spans", async () => {
     const rootSpan = {
       name: "POST /copilotkit",
