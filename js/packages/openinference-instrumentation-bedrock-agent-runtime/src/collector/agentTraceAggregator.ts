@@ -9,6 +9,7 @@ import {
 import { generateUniqueTraceId } from "../attributes/attributeUtils";
 import { getObjectDataFromUnknown } from "../utils/jsonUtils";
 import { StringKeyedObject } from "../types";
+import { diag } from "@opentelemetry/api";
 
 /**
  * Aggregates agent trace data into a hierarchical structure of nodes and spans.
@@ -35,9 +36,8 @@ export class AgentTraceAggregator {
   }
 
   /**
-   * Processes incoming trace data and returns the current trace node.
+   * Processes incoming trace data.
    * @param raw - The raw trace data to be processed
-   * @returns The current active trace node after processing
    */
   collect(raw: StringKeyedObject) {
     const traceData = this.unwrapTrace(raw);
@@ -56,12 +56,16 @@ export class AgentTraceAggregator {
     if (!chunkType) {
       return;
     }
+    if (!this.traceStack.head) {
+      diag.warn("No trace stack head found");
+      return;
+    }
     const agentChildId =
       this.detectAgentCollaboration(traceData, eventType, chunkType) &&
       `${nodeTraceId}-agent`;
     this.routeTraceData(
       traceData,
-      this.traceStack.head!,
+      this.traceStack.head,
       nodeTraceId,
       agentChildId,
       eventType,
