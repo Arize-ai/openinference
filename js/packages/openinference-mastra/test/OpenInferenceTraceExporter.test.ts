@@ -85,7 +85,7 @@ describe("OpenInferenceTraceExporter", () => {
                 "net.peer.ip": "::1",
                 "net.peer.port": 51258,
                 "net.transport": "ip_tcp",
-                "openinference.span.kind": "AGENT",
+                "openinference.span.kind": undefined,
                 "output.mime_type": "text/plain",
                 "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
               },
