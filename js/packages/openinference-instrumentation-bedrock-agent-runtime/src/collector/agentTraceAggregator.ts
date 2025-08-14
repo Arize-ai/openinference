@@ -125,7 +125,6 @@ export class AgentTraceAggregator {
    * @param agentChildId - The ID for a potential agent collaboration child node, or false if not applicable
    * @param eventType - The type of event in the trace data
    * @param chunkType - The type of chunk in the event
-   * @returns The current trace node after processing
    */
   private routeTraceData(
     traceData: StringKeyedObject,
@@ -134,7 +133,7 @@ export class AgentTraceAggregator {
     agentChildId: string | false,
     eventType: string,
     chunkType: string,
-  ): AgentTraceNode {
+  ) {
     // New node
     if (!this.seenIds.has(nodeTraceId)) {
       this.addNewTraceNodeIfAbsent(
@@ -144,7 +143,6 @@ export class AgentTraceAggregator {
         chunkType,
         traceData,
       );
-      return this.traceStack.head!;
     }
 
     // Current parent is correct target
@@ -156,7 +154,6 @@ export class AgentTraceAggregator {
         chunkType,
         traceData,
       );
-      return this.traceStack.head!;
     }
 
     // Need to pop up to parent node
@@ -167,7 +164,6 @@ export class AgentTraceAggregator {
         chunkType,
         traceData,
       );
-      return this.traceStack.head!;
     }
 
     // Node exists elsewhere in tree
@@ -179,9 +175,7 @@ export class AgentTraceAggregator {
         chunkType,
         traceData,
       );
-      return this.traceStack.head!;
     }
-    return parent;
   }
 
   /**
