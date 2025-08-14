@@ -53,10 +53,17 @@ export class SpanCreator {
 
   /**
    * Recursively creates spans from a trace node and its children.
-   * @param parentSpan The parent span for the current trace node.
-   * @param traceNode The agent trace node to process.
+   * @param params
+   * @param params.parentSpan {Span} - The parent span for the current trace node.
+   * @param params.traceNode {AgentTraceNode} - The agent trace node to process.
    */
-  public createSpans(parentSpan: Span, traceNode: AgentTraceNode) {
+  public createSpans({
+    parentSpan,
+    traceNode,
+  }: {
+    parentSpan: Span;
+    traceNode: AgentTraceNode;
+  }) {
     for (const traceSpan of traceNode.spans) {
       const { attributes, name, rawMetadata } =
         this.prepareSpanAttributes(traceSpan);
@@ -103,7 +110,10 @@ export class SpanCreator {
 
       // Process child spans recursively
       if (traceSpan instanceof AgentTraceNode) {
-        this.createSpans(span, traceSpan);
+        this.createSpans({
+          parentSpan: span,
+          traceNode: traceSpan,
+        });
       }
 
       // End span with appropriate timing

@@ -35,10 +35,10 @@ export class CallbackHandler {
   }
   onComplete(): void {
     const finalOutput = this.outputChunks.join("");
-    new SpanCreator(this.oiTracer).createSpans(
-      this.span,
-      this.traceAggregator.rootNode,
-    );
+    new SpanCreator(this.oiTracer).createSpans({
+      parentSpan: this.span,
+      traceNode: this.traceAggregator.rootNode,
+    });
     this.span.setAttributes({
       [SemanticConventions.OUTPUT_VALUE]: finalOutput,
       [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
