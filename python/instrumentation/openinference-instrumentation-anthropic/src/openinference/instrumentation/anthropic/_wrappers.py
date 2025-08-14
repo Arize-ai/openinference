@@ -19,7 +19,9 @@ from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -433,7 +435,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
             if isinstance(content, str):
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
-                for block in content:
+                for j, block in enumerate(content):
                     if isinstance(block, ToolUseBlock):
                         if tool_call_id := block.id:
                             yield (
@@ -483,6 +485,12 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                                 )
                         elif block_type == "text":
                             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.get("text")
+                        elif (block_type == "image") and (source := block.get("source")):
+                            image_data = f"data:{source.get('media_type')};{source.get('type')}"
+                            image_data = f"{image_data},{source.get('data')}"
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
+                            yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
 
         if role := messages[i].get("role"):
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
@@ -578,8 +586,11 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
 )
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
