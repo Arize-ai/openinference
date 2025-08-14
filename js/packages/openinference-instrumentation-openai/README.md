@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-instrumentation-openai.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-instrumentation-openai)
 
-This module provides automatic instrumentation for the [OpenAI Node.js SDK](https://github.com/openai/openai-node). which may be used in conjunction with [@opentelemetry/sdk-trace-node](https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-node).
+This module provides automatic instrumentation for the [OpenAI Node.js SDK](https://github.com/openai/openai-node) which may be used in conjunction with [@opentelemetry/sdk-trace-node](https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-node).
 
 ## Installation
 

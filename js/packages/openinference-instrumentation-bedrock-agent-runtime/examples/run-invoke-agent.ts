@@ -15,7 +15,8 @@ async function run() {
   const client = new BedrockAgentRuntimeClient({ region });
 
   const params = {
-    inputText: "How do i set up an ec2 instance?",
+    inputText:
+      "How do i set up an ec2 instance? here is some code i have started with in the cli, can you interpret it for me? code: \n aws ec2 create --name myec2, i alsohave this javascript function running against the sdk code:\n const newEc2Id = new awsClient().createEc2('my-ec2');",
     agentId,
     agentAliasId,
     sessionId,
