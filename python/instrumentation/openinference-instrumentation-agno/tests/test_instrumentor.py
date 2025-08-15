@@ -123,8 +123,8 @@ def test_agno_team_coordinate_instrumentation(
     with test_vcr.use_cassette(
         "team_coordinate_run.yaml", filter_headers=["authorization", "X-API-KEY"]
     ):
-        import hashlib
         import os
+        import re
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
 
@@ -177,30 +177,54 @@ def test_agno_team_coordinate_instrumentation(
         elif span.name == "Finance_Agent.run":
             finance_agent_span = attributes
 
-    # Calculate expected node IDs based on the hash generation logic
-    team_node_id = hashlib.sha256("Team".encode()).hexdigest()[:16]
-    web_agent_node_id = hashlib.sha256("Team.Web_Agent".encode()).hexdigest()[:16]
-    finance_agent_node_id = hashlib.sha256("Team.Finance_Agent".encode()).hexdigest()[:16]
+    # Helper function to validate node ID format (16-character hex string)
+    def is_valid_node_id(node_id: str) -> bool:
+        return bool(re.match(r"^[0-9a-f]{16}$", node_id))
 
     # Validate graph attributes for team span
     assert team_span is not None, "Team span should be found"
-    assert team_span.get(SpanAttributes.GRAPH_NODE_ID) == team_node_id
+    team_node_id = team_span.get(SpanAttributes.GRAPH_NODE_ID)
+    assert team_node_id is not None, "Team node ID should be present"
+    assert isinstance(team_node_id, str), f"Team node ID should be a string: {team_node_id}"
+    assert is_valid_node_id(team_node_id), f"Team node ID should be valid hex: {team_node_id}"
     # Team should have no parent (root node)
     assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
-        assert web_agent_span.get(SpanAttributes.GRAPH_NODE_ID) == web_agent_node_id
+        web_agent_node_id = web_agent_span.get(SpanAttributes.GRAPH_NODE_ID)
+        assert web_agent_node_id is not None, "Web agent node ID should be present"
+        assert isinstance(web_agent_node_id, str), (
+            f"Web agent node ID should be a string: {web_agent_node_id}"
+        )
+        assert is_valid_node_id(web_agent_node_id), (
+            f"Web agent node ID should be valid hex: {web_agent_node_id}"
+        )
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Web Agent"
         # Web agent should have team as parent
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
+        # Ensure web agent has different node ID than team (uniqueness)
+        assert web_agent_node_id != team_node_id, "Web agent should have unique node ID"
 
     # Validate graph attributes for finance agent span
     if finance_agent_span is not None:
-        assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_ID) == finance_agent_node_id
+        finance_agent_node_id = finance_agent_span.get(SpanAttributes.GRAPH_NODE_ID)
+        assert finance_agent_node_id is not None, "Finance agent node ID should be present"
+        assert isinstance(finance_agent_node_id, str), (
+            f"Finance agent node ID should be a string: {finance_agent_node_id}"
+        )
+        assert is_valid_node_id(finance_agent_node_id), (
+            f"Finance agent node ID should be valid hex: {finance_agent_node_id}"
+        )
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Finance Agent"
         # Finance agent should have team as parent
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
+        # Ensure finance agent has different node ID than team (uniqueness)
+        assert finance_agent_node_id != team_node_id, "Finance agent should have unique node ID"
+
+    # If both agents are present, ensure they have different node IDs
+    if web_agent_span is not None and finance_agent_span is not None:
+        assert web_agent_node_id != finance_agent_node_id, "Agents should have unique node IDs"
 
     # At least one agent span should be present to validate parent-child relationship
     assert web_agent_span is not None or finance_agent_span is not None, (

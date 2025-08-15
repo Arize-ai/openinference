@@ -1,7 +1,7 @@
-import hashlib
 import json
 from enum import Enum
 from inspect import signature
+from secrets import token_hex
 from typing import (
     Any,
     Awaitable,
@@ -37,7 +37,7 @@ from openinference.semconv.trace import (
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 _AGNO_PARENT_PATH_CONTEXT_KEY = context_api.create_key("agno_parent_path")
-_AGNO_CURRENT_PATH_CONTEXT_KEY = context_api.create_key("agno_current_path")
+_AGNO_CURRENT_NODE_CONTEXT_KEY = context_api.create_key("agno_current_node_id")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -81,18 +81,17 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _generate_node_id(path: str) -> str:
-    node_id = hashlib.sha256(path.encode()).hexdigest()[:16]
-    return node_id
+    return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # Get current path from execution context
-    current_path = context_api.get_value(_AGNO_CURRENT_PATH_CONTEXT_KEY)
-
     # Get parent from execution context instead of structural parent
     context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Get the node ID that was already generated in the run() method
+    context_node_id = context_api.get_value(_AGNO_CURRENT_NODE_CONTEXT_KEY)
 
     # Existing agent-specific attributes
     if agent.session_id:
@@ -102,9 +101,9 @@ def _agent_run_attributes(
         yield USER_ID, agent.user_id
 
     if isinstance(agent, Team):
-        if current_path is None:
-            current_path = agent.name or "team"
-        node_id = _generate_node_id(cast(str, current_path))
+        # Use the node ID from context (generated in run() method)
+        if context_node_id and isinstance(context_node_id, str):
+            node_id = context_node_id
 
         # Set graph attributes for team
         yield GRAPH_NODE_ID, node_id
@@ -121,9 +120,9 @@ def _agent_run_attributes(
             yield from _agent_run_attributes(member, f".{member.name}")
 
     elif isinstance(agent, Agent):
-        if current_path is None:
-            current_path = agent.name or "agent"
-        node_id = _generate_node_id(cast(str, current_path))
+        # Use the node ID from context (generated in run() method)
+        if context_node_id and isinstance(context_node_id, str):
+            node_id = context_node_id
 
         # Set graph attributes for agent
         yield GRAPH_NODE_ID, node_id
@@ -194,11 +193,10 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id(current_path)
 
-        # Set current path in context before span creation so _agent_run_attributes can use it
-        current_path_ctx = context_api.set_value(
-            _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-        )
-        current_path_token = context_api.attach(current_path_ctx)
+        # Set current path and node ID in context before span creation
+        ctx = context_api.get_current()
+        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
+        current_context_token = context_api.attach(ctx)
 
         try:
             with self._tracer.start_as_current_span(
@@ -221,12 +219,16 @@ class _RunWrapper:
                 # Set up context for team executions
                 if isinstance(agent, Team):
                     # Set both node ID and path for children to use
-                    ctx = context_api.get_current()
-                    ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, ctx)
-                    ctx = context_api.set_value(_AGNO_PARENT_PATH_CONTEXT_KEY, current_path, ctx)
-                    token = context_api.attach(ctx)
+                    team_ctx = context_api.get_current()
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
+                    )
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                    )
+                    team_token = context_api.attach(team_ctx)
                 else:
-                    token = None
+                    team_token = None
 
                 try:
                     run_response = wrapped(*args, **kwargs)
@@ -240,10 +242,10 @@ class _RunWrapper:
                     raise
 
                 finally:
-                    if token:
-                        context_api.detach(token)
+                    if team_token:
+                        context_api.detach(team_token)
         finally:
-            context_api.detach(current_path_token)
+            context_api.detach(current_context_token)
 
     def run_stream(
         self,
@@ -267,11 +269,10 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id(current_path)
 
-        # Set current path in context before span creation so _agent_run_attributes can use it
-        current_path_ctx = context_api.set_value(
-            _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-        )
-        current_path_token = context_api.attach(current_path_ctx)
+        # Set current path and node ID in context before span creation
+        ctx = context_api.get_current()
+        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
+        current_context_token = context_api.attach(ctx)
 
         try:
             with self._tracer.start_as_current_span(
@@ -294,12 +295,16 @@ class _RunWrapper:
                 # Set up context for team executions
                 if isinstance(agent, Team):
                     # Set both node ID and path for children to use
-                    ctx = context_api.get_current()
-                    ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, ctx)
-                    ctx = context_api.set_value(_AGNO_PARENT_PATH_CONTEXT_KEY, current_path, ctx)
-                    token = context_api.attach(ctx)
+                    team_ctx = context_api.get_current()
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
+                    )
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                    )
+                    team_token = context_api.attach(team_ctx)
                 else:
-                    token = None
+                    team_token = None
 
                 try:
                     yield from wrapped(*args, **kwargs)
@@ -313,10 +318,10 @@ class _RunWrapper:
                     raise
 
                 finally:
-                    if token:
-                        context_api.detach(token)
+                    if team_token:
+                        context_api.detach(team_token)
         finally:
-            context_api.detach(current_path_token)
+            context_api.detach(current_context_token)
 
     async def arun(
         self,
@@ -341,11 +346,10 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id(current_path)
 
-        # Set current path in context before span creation so _agent_run_attributes can use it
-        current_path_ctx = context_api.set_value(
-            _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-        )
-        current_path_token = context_api.attach(current_path_ctx)
+        # Set current path and node ID in context before span creation
+        ctx = context_api.get_current()
+        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
+        current_context_token = context_api.attach(ctx)
 
         try:
             with self._tracer.start_as_current_span(
@@ -368,12 +372,16 @@ class _RunWrapper:
                 # Set up context for team executions
                 if isinstance(agent, Team):
                     # Set both node ID and path for children to use
-                    ctx = context_api.get_current()
-                    ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, ctx)
-                    ctx = context_api.set_value(_AGNO_PARENT_PATH_CONTEXT_KEY, current_path, ctx)
-                    token = context_api.attach(ctx)
+                    team_ctx = context_api.get_current()
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
+                    )
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                    )
+                    team_token = context_api.attach(team_ctx)
                 else:
-                    token = None
+                    team_token = None
 
                 try:
                     run_response = await wrapped(*args, **kwargs)
@@ -386,10 +394,10 @@ class _RunWrapper:
                     raise
 
                 finally:
-                    if token:
-                        context_api.detach(token)
+                    if team_token:
+                        context_api.detach(team_token)
         finally:
-            context_api.detach(current_path_token)
+            context_api.detach(current_context_token)
 
     async def arun_stream(
         self,
@@ -414,11 +422,10 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id(current_path)
 
-        # Set current path in context before span creation so _agent_run_attributes can use it
-        current_path_ctx = context_api.set_value(
-            _AGNO_CURRENT_PATH_CONTEXT_KEY, current_path, context_api.get_current()
-        )
-        current_path_token = context_api.attach(current_path_ctx)
+        # Set current path and node ID in context before span creation
+        ctx = context_api.get_current()
+        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
+        current_context_token = context_api.attach(ctx)
 
         try:
             with self._tracer.start_as_current_span(
@@ -441,12 +448,16 @@ class _RunWrapper:
                 # Set up context for team executions
                 if isinstance(agent, Team):
                     # Set both node ID and path for children to use
-                    ctx = context_api.get_current()
-                    ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, ctx)
-                    ctx = context_api.set_value(_AGNO_PARENT_PATH_CONTEXT_KEY, current_path, ctx)
-                    token = context_api.attach(ctx)
+                    team_ctx = context_api.get_current()
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
+                    )
+                    team_ctx = context_api.set_value(
+                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                    )
+                    team_token = context_api.attach(team_ctx)
                 else:
-                    token = None
+                    team_token = None
 
                 try:
                     async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
@@ -460,10 +471,10 @@ class _RunWrapper:
                     raise
 
                 finally:
-                    if token:
-                        context_api.detach(token)
+                    if team_token:
+                        context_api.detach(team_token)
         finally:
-            context_api.detach(current_path_token)
+            context_api.detach(current_context_token)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
