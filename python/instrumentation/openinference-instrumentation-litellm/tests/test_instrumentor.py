@@ -1402,6 +1402,84 @@ def message_contents_image_url(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
 
 
+@pytest.mark.parametrize(
+    "model,expected_provider",
+    [
+        # Supported providers that should set the LLM_PROVIDER attribute
+        ("gpt-3.5-turbo", "openai"),
+        ("gpt-4", "openai"),
+        ("gpt-4o", "openai"),
+        ("claude-3-haiku-20240307", "anthropic"),
+        ("claude-3-opus-20240229", "anthropic"),
+        ("azure/gpt-4", "azure"),
+        ("azure/gpt-35-turbo", "azure"),
+        ("bedrock/anthropic.claude-3-sonnet-20240229-v1:0", "aws"),
+        ("bedrock/amazon.titan-text-express-v1", "aws"),
+        ("gemini-pro", "google"),
+        ("text-bison", "google"),
+        ("vertex_ai/gemini-1.5-pro", "google"),
+        ("cohere/command", "cohere"),
+        ("cohere/embed-english-v3.0", "cohere"),
+        ("mistral/mistral-medium", "mistralai"),
+        ("xai/grok-beta", "xai"),
+        ("deepseek/deepseek-chat", "deepseek"),
+        # Unsupported providers that should NOT set the LLM_PROVIDER attribute
+        ("huggingface/microsoft/DialoGPT-medium", None),
+        ("together_ai/meta-llama/Llama-2-7b-chat-hf", None),
+        ("replicate/meta/llama-2-70b-chat", None),
+        ("groq/mixtral-8x7b-32768", None),
+        ("anyscale/meta-llama/Llama-2-7b-chat-hf", None),
+        ("fireworks_ai/accounts/fireworks/models/llama-v2-7b-chat", None),
+    ],
+)
+def test_provider_attribute(
+    model: str,
+    expected_provider: Optional[str],
+    setup_litellm_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    # Clear any existing spans
+    in_memory_span_exporter.clear()
+
+    # Make a completion call with the test model
+    try:
+        litellm.completion(
+            model=model,
+            messages=[{"content": "Hello", "role": "user"}],
+            mock_response="Hi there!",
+        )
+    except Exception:
+        # Some models may fail due to provider validation, but we still want to check spans
+        pass
+
+    # Check the span attributes
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # We should have exactly one span
+    assert len(spans) == 1, f"Expected 1 span for model {model}, got {len(spans)}"
+
+    span = spans[0]
+    attributes = span.attributes or {}
+
+    # Check the provider attribute
+    provider_attr = attributes.get(SpanAttributes.LLM_PROVIDER)
+
+    if expected_provider is not None:
+        # For supported providers, the attribute should be set with the correct value
+        assert provider_attr == expected_provider, (
+            f"Model {model} should have provider '{expected_provider}', but got '{provider_attr}'"
+        )
+    else:
+        # For unsupported providers, the attribute should not be set
+        assert provider_attr is None, (
+            f"Model {model} should not have provider attribute set, but got '{provider_attr}'"
+        )
+
+    # Ensure model name is always set regardless of provider support
+    model_name_attr = attributes.get(SpanAttributes.LLM_MODEL_NAME)
+    assert model_name_attr is not None, f"Model name should always be set for {model}"
+
+
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
