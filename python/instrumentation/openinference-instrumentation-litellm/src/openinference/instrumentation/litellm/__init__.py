@@ -58,36 +58,28 @@ def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) 
         span.set_attribute(name, value)
 
 
-def _get_provider_from_model(model: str) -> Optional[OpenInferenceLLMProviderValues]:
-    """
-    Extract the LLM provider from the model name using LiteLLM's get_llm_provider utility.
-    Maps LiteLLM providers to OpenInference provider values.
-    Returns the OpenInference provider enum value or None if not supported.
-    """
-    # Mapping from LiteLLM provider names to OpenInference provider values
-    LITELLM_TO_OPENINFERENCE_PROVIDER = {
-        "openai": OpenInferenceLLMProviderValues.OPENAI,
-        "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC,
-        "cohere": OpenInferenceLLMProviderValues.COHERE,
-        "mistral": OpenInferenceLLMProviderValues.MISTRALAI,
-        "vertex_ai": OpenInferenceLLMProviderValues.GOOGLE,
-        "gemini": OpenInferenceLLMProviderValues.GOOGLE,
-        "azure": OpenInferenceLLMProviderValues.AZURE,
-        "bedrock": OpenInferenceLLMProviderValues.AWS,
-        "xai": OpenInferenceLLMProviderValues.XAI,
-        "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK,
-    }
+_LITELLM_TO_OPENINFERENCE_PROVIDERS = {
+    "openai": OpenInferenceLLMProviderValues.OPENAI,
+    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC,
+    "cohere": OpenInferenceLLMProviderValues.COHERE,
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI,
+    "vertex_ai": OpenInferenceLLMProviderValues.GOOGLE,
+    "gemini": OpenInferenceLLMProviderValues.GOOGLE,
+    "azure": OpenInferenceLLMProviderValues.AZURE,
+    "bedrock": OpenInferenceLLMProviderValues.AWS,
+    "xai": OpenInferenceLLMProviderValues.XAI,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK,
+}
 
+
+def _get_oi_provider_from_litellm_model_name(
+    model_name: str,
+) -> Optional[OpenInferenceLLMProviderValues]:
     try:
-        provider_info = litellm.get_llm_provider(model=model)  # type: ignore
-        # get_llm_provider returns a tuple: (model, provider, dynamic_api_key, api_base)
-        if isinstance(provider_info, tuple) and len(provider_info) >= 2:
-            litellm_provider = provider_info[1]  # Get the provider string from LiteLLM
-            return LITELLM_TO_OPENINFERENCE_PROVIDER.get(litellm_provider)
+        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)  # type: ignore[attr-defined]
     except Exception:
-        # If get_llm_provider fails, return None
-        pass
-    return None
+        return None
+    return _LITELLM_TO_OPENINFERENCE_PROVIDERS.get(litellm_provider)
 
 
 T = TypeVar("T", bound=type)
@@ -181,14 +173,11 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(
         span, SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
     )
-    model = kwargs.get("model", "unknown_model")
-    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model)
-
-    # Extract and set provider information
-    provider = _get_provider_from_model(model)
-    provider_attributes = get_llm_provider_attributes(provider)
-    if provider_attributes:
-        span.set_attributes(provider_attributes)
+    model = kwargs.get("model")
+    if model:
+        span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model)
+        provider = _get_oi_provider_from_litellm_model_name(model)
+        span.set_attributes(get_llm_provider_attributes(provider))
 
     if messages := kwargs.get("messages"):
         messages_as_dicts = []
