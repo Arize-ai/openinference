@@ -80,7 +80,7 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
-def _generate_node_id(path: str) -> str:
+def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
@@ -160,16 +160,13 @@ class _RunWrapper:
 
     """
     We need to keep track of parent/child relationships for agent logging. We do this by:
-    1. Team.run() starts with empty context, sets _AGNO_CURRENT_PATH_CONTEXT_KEY in context.
-    2. Team computes node_id and sets _AGNO_PARENT_NODE_CONTEXT_KEY and
-    _AGNO_PARENT_PATH_CONTEXT_KEY which will be inherited by child agents
-    3. Agent.run() inherits context containing _AGNO_PARENT_PATH_CONTEXT_KEY (in run) and
-    _AGNO_PARENT_NODE_CONTEXT_KEY (in _agent_run_attributes) .
-    4. Agent computes hierarchical path and updates _AGNO_CURRENT_PATH_CONTEXT_KEY while preserving
-    parent keys.
-    5. Agent span uses _AGNO_CURRENT_PATH_CONTEXT_KEY for GRAPH_NODE_ID and
-    _AGNO_PARENT_NODE_CONTEXT_KEY for GRAPH_NODE_PARENT_ID.
-    6. This ensures correct parent-child relationships in the execution graph hierarchy.
+    1. Team.run() generates a unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
+    2. Team sets _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY for child agents.
+    3. Agent.run() generates its own unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
+    4. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY from team context.
+    5. _agent_run_attributes() retrieves the node_id from _AGNO_CURRENT_NODE_CONTEXT_KEY for GRAPH_NODE_ID.
+    6. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY for GRAPH_NODE_PARENT_ID.
+    7. This ensures correct parent-child relationships with unique node IDs for each execution.
     """
 
     def run(
