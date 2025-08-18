@@ -16,6 +16,8 @@ from openinference.instrumentation import (
     get_input_attributes,
     get_llm_attributes,
     get_output_attributes,
+    get_span_kind_attributes,
+    get_llm_invocation_parameter_attributes,
 )
 
 __all__ = ["OpenInferenceSpanProcessor"]
@@ -224,7 +226,7 @@ def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message]
     return _build_messages(prompt_text, completion_text, tool_calls_json)
 
 
-def convert_to_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
+def get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
     openlit_attrs = dict(getattr(span, "_attributes", {}))
     oi_attrs = {
         sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.TOOL.value,
@@ -267,10 +269,10 @@ def is_openlit_tool_span(attrs: dict[str, Any]) -> bool:
 
 def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
     invocation: Dict[str, Any] = {}
-    for knob in ("model", "temperature", "max_tokens", "top_p", "top_k"):
-        val = attrs.get(f"gen_ai.request.{knob}")
-        if val not in (None, "", -1):
-            invocation[knob] = val
+    for parameter in ("model", "temperature", "max_tokens", "top_p", "top_k"):
+        val = attrs.get(f"gen_ai.request.{parameter}")
+        if val not in (None, ""):
+            invocation[parameter] = val
     return invocation
 
 
@@ -309,13 +311,11 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
     def on_end(self, span: ReadableSpan) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
-
-        oi_attrs: Dict[str, AttributeValue] = {
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.CHAIN.value
-        }
-
+        oi_attrs = {}
+        
         if is_openlit_tool_span(attrs):
-            oi_attrs = convert_to_oi_tool_attributes(span)
+            oi_attrs = get_oi_tool_attributes(span)
+            oi_attrs.update(get_span_kind_attributes("tool"))
             if span._attributes:
                 span._attributes = {**span._attributes, **oi_attrs}
             return
@@ -324,30 +324,10 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
-                oi_attrs.update(
-                    {
-                        sc.SpanAttributes.INPUT_MIME_TYPE: (
-                            sc.OpenInferenceMimeTypeValues.TEXT.value
-                        ),
-                        sc.SpanAttributes.INPUT_VALUE: prompt_txt,
-                    }
-                )
+                oi_attrs.update(get_input_attributes(prompt_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value))
             if completion_txt:
-                oi_attrs.update(
-                    {
-                        sc.SpanAttributes.OUTPUT_MIME_TYPE: (
-                            sc.OpenInferenceMimeTypeValues.TEXT.value
-                        ),
-                        sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
-                    }
-                )
-            oi_attrs.update(
-                {
-                    sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (
-                        sc.OpenInferenceSpanKindValues.CHAIN.value
-                    ),
-                }
-            )
+                oi_attrs.update(get_output_attributes(completion_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value))
+            oi_attrs.update(get_span_kind_attributes("chain"))
 
             if span._attributes:
                 if attrs.get("gen_ai.system"):
@@ -403,12 +383,9 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     "messages": output_messages,
                 }
             ),
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: (sc.OpenInferenceSpanKindValues.LLM.value),
+            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
         }
 
-        if invocation_params:
-            oi_attrs[sc.SpanAttributes.LLM_INVOCATION_PARAMETERS] = json.dumps(
-                invocation_params, separators=(",", ":")
-            )
+        # oi_attrs.update(get_llm_invocation_parameter_attributes(invocation_params))
         if span._attributes:
             span._attributes = {**span._attributes, **oi_attrs}
