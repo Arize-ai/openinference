@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.8...java-openinference-semantic-conventions-v0.1.9) (2025-08-18)
+
+
+### Bug Fixes
+
+* SpringAI linking with correct dependencies ([#2098](https://github.com/Arize-ai/openinference/issues/2098)) ([8d944f8](https://github.com/Arize-ai/openinference/commit/8d944f8ab3b4b54ec449a256465128a7083d8e9e))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-semantic-conventions-v0.1.7...java-openinference-semantic-conventions-v0.1.8) (2025-08-07)
 
 

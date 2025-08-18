@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.11...python-openinference-instrumentation-agno-v0.1.12) (2025-08-18)
+
+
+### Features
+
+* **Agno:** Capture graph attributes for agent visual ([#2053](https://github.com/Arize-ai/openinference/issues/2053)) ([8d5ae09](https://github.com/Arize-ai/openinference/commit/8d5ae09b09fbcfaae7bab0dea25db3a2ad076a4d))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.10...python-openinference-instrumentation-agno-v0.1.11) (2025-08-13)
 
 
