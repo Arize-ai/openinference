@@ -1,7 +1,5 @@
 description = 'OpenInference Semantic Conventions for Java'
 
-// third test release please
-
 dependencies {
     // OpenTelemetry API
     api platform("io.opentelemetry:opentelemetry-bom:${openTelemetryVersion}")

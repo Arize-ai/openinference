@@ -9,6 +9,7 @@ repositories {
 }
 
 dependencies {
+    // upgrade openinference-instrumentation
     api project(':openinference-instrumentation')
 
     // Spring AI
