@@ -33,6 +33,13 @@ const addOpenInferenceSpanKind = (
 };
 
 /**
+ * Add the SessionId to the given Mastra span
+ */
+const addSessionId = (span: ReadableSpan, sessionId: string) => {
+  span.attributes[SemanticConventions.SESSION_ID] = sessionId;
+};
+
+/**
  * Get the OpenInference span kind for the given Mastra span.
  *
  * This function will return the OpenInference span kind for the given Mastra span, if it has already been set.
@@ -65,12 +72,31 @@ export const isAgentOperation = (span: ReadableSpan): boolean => {
 const getOpenInferenceSpanKindFromMastraSpan = (
   span: ReadableSpan,
 ): OpenInferenceSpanKind | null => {
+  // We prefer the mastra operation over the openinference span kind
+  if (isAgentOperation(span)) {
+    return OpenInferenceSpanKind.AGENT;
+  }
+  // Fallback to existing OpenInference span kind if set
   const oiKind = getOpenInferenceSpanKind(span);
   if (oiKind) {
     return oiKind;
   }
-  if (isAgentOperation(span)) {
-    return OpenInferenceSpanKind.AGENT;
+  return null;
+};
+
+/**
+ * Gets the Mastra thread ID or session ID from the attributes
+ */
+const getSessionIdFromMastraSpan = (span: ReadableSpan): string | null => {
+  const sessionId = span.attributes[SemanticConventions.SESSION_ID];
+  if (typeof sessionId === "number" || typeof sessionId === "string") {
+    // We coerce to string. See https://opentelemetry.io/docs/specs/semconv/general/session/
+    return String(sessionId);
+  }
+  // Map Mastra session ID
+  const threadId = span.attributes.threadId;
+  if (typeof threadId === "number" || typeof threadId === "string") {
+    return String(threadId);
   }
   return null;
 };
@@ -86,33 +112,14 @@ const getOpenInferenceSpanKindFromMastraSpan = (
  * @param span - The Mastra span to enrich.
  * @param shouldMarkAsAgent - Whether this span should be marked as an AGENT span
  */
-export const addOpenInferenceAttributesToMastraSpan = (
-  span: ReadableSpan,
-  shouldMarkAsAgent: boolean = false,
-) => {
+export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
   const kind = getOpenInferenceSpanKindFromMastraSpan(span);
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }
-
-  // Mark root spans as AGENT if requested and not already set
-  if (
-    span.parentSpanContext === undefined &&
-    !getOpenInferenceSpanKind(span) &&
-    shouldMarkAsAgent
-  ) {
-    addOpenInferenceSpanKind(span, OpenInferenceSpanKind.AGENT);
-  }
-
-  // Map Mastra threadId to OpenInference session ID
-  // Only set SESSION_ID if it doesn't already exist to avoid overwriting existing values
-  const threadId = span.attributes.threadId;
-  if (
-    threadId &&
-    (typeof threadId === "string" || typeof threadId === "number") &&
-    !span.attributes[SemanticConventions.SESSION_ID]
-  ) {
-    span.attributes[SemanticConventions.SESSION_ID] = threadId;
+  const sessionId = getSessionIdFromMastraSpan(span);
+  if (typeof sessionId === "string") {
+    addSessionId(span, sessionId);
   }
 };
 
@@ -125,12 +132,8 @@ export const addOpenInferenceAttributesToMastraSpan = (
  * - Adds Mastra-specific OpenInference attributes
  *
  * @param span - The span to process.
- * @param shouldMarkAsAgent - Whether root spans should be marked as AGENT spans.
  */
-export const processMastraSpanAttributes = (
-  span: ReadableSpan,
-  shouldMarkAsAgent: boolean = false,
-): void => {
+export const processMastraSpanAttributes = (span: ReadableSpan): void => {
   addOpenInferenceProjectResourceAttributeSpan(span);
   addOpenInferenceAttributesToSpan({
     ...span,
@@ -138,7 +141,7 @@ export const processMastraSpanAttributes = (
       name: "@arizeai/openinference-mastra",
     },
   });
-  addOpenInferenceAttributesToMastraSpan(span, shouldMarkAsAgent);
+  addOpenInferenceAttributesToMastraSpan(span);
 };
 
 /**
@@ -338,7 +341,7 @@ export const findMissingAgentRootSpans = (
       !span.name.startsWith(AGENT_PATTERNS.MASTRA_PREFIX) // not internal operations
     ) {
       // Process the missing root span
-      processMastraSpanAttributes(span, true); // shouldMarkAsAgent = true
+      processMastraSpanAttributes(span);
       missingRoots.push(span);
     }
   }
