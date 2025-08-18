@@ -351,7 +351,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
             if span._attributes:
                 if attrs.get("gen_ai.system"):
-                    span._name = attrs.get("gen_ai.system")
+                    if isinstance(attrs.get("gen_ai.system"), str):
+                        span._name = str(attrs.get("gen_ai.system"))
                 span._attributes = {**span._attributes, **oi_attrs}
             return
 
