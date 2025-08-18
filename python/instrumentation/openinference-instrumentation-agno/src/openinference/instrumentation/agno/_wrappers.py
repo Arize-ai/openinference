@@ -163,8 +163,10 @@ class _RunWrapper:
     1. Team.run() generates a unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
     2. Team sets _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY for child agents.
     3. Agent.run() generates its own unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
-    4. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY from team context.
-    5. _agent_run_attributes() retrieves the node_id from _AGNO_CURRENT_NODE_CONTEXT_KEY for GRAPH_NODE_ID.
+    4. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY from
+    team context.
+    5. _agent_run_attributes() retrieves the node_id from _AGNO_CURRENT_NODE_CONTEXT_KEY for
+    GRAPH_NODE_ID.
     6. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY for GRAPH_NODE_PARENT_ID.
     7. This ensures correct parent-child relationships with unique node IDs for each execution.
     """
@@ -188,7 +190,7 @@ class _RunWrapper:
         # Build hierarchical path for node ID generation
         parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id()
 
         # Set current path and node ID in context before span creation
         ctx = context_api.get_current()
@@ -264,7 +266,7 @@ class _RunWrapper:
         # Build hierarchical path for node ID generation
         parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id()
 
         # Set current path and node ID in context before span creation
         ctx = context_api.get_current()
@@ -341,7 +343,7 @@ class _RunWrapper:
         # Build hierarchical path for node ID generation
         parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id()
 
         # Set current path and node ID in context before span creation
         ctx = context_api.get_current()
@@ -417,7 +419,7 @@ class _RunWrapper:
         # Build hierarchical path for node ID generation
         parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
-        node_id = _generate_node_id(current_path)
+        node_id = _generate_node_id()
 
         # Set current path and node ID in context before span creation
         ctx = context_api.get_current()
