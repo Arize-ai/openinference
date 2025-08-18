@@ -196,9 +196,9 @@ class _AssistantAgentOnMessagesStreamWrapper(_WithTracer):
         if parent_agent_name:
             attributes[SpanAttributes.GRAPH_NODE_PARENT_ID] = parent_agent_name
 
-        async def wrapped_generator() -> (
-            AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]
-        ):
+        async def wrapped_generator() -> AsyncGenerator[
+            BaseAgentEvent | BaseChatMessage | Response, None
+        ]:
             span = tracer.start_span(
                 name=span_name,
                 attributes=attributes,
@@ -249,9 +249,9 @@ class _BaseChatAgentOnMessagesStreamWrapper(_WithTracer):
             **kwargs,
         )
 
-        async def wrapped_generator() -> (
-            AsyncGenerator[BaseAgentEvent | BaseChatMessage | Response, None]
-        ):
+        async def wrapped_generator() -> AsyncGenerator[
+            BaseAgentEvent | BaseChatMessage | Response, None
+        ]:
             span = tracer.start_span(
                 name=span_name,
                 attributes=attributes,

@@ -180,26 +180,26 @@ class TestConvertIO:
         result = list(_convert_io(input_obj))
         # Only arrays get MIME type (start with '['), simple values don't
         if expected_first_item.startswith("["):
-            assert (
-                len(result) == 2
-            ), f"Expected 2 items for {input_obj}, got {len(result)} items: {result}"
-            assert (
-                result[0] == expected_first_item
-            ), f"Expected '{expected_first_item}', got '{result[0]}' for input {input_obj}"
-            assert (
-                result[1] == OpenInferenceMimeTypeValues.JSON.value
-            ), f"Expected JSON MIME type, got '{result[1]}' for input {input_obj}"
+            assert len(result) == 2, (
+                f"Expected 2 items for {input_obj}, got {len(result)} items: {result}"
+            )
+            assert result[0] == expected_first_item, (
+                f"Expected '{expected_first_item}', got '{result[0]}' for input {input_obj}"
+            )
+            assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
+                f"Expected JSON MIME type, got '{result[1]}' for input {input_obj}"
+            )
             # Verify arrays are valid JSON
             parsed = json.loads(expected_first_item)
             assert isinstance(parsed, list)
         else:
             # Simple values (numbers, booleans, null) don't get MIME type
-            assert (
-                len(result) == 1
-            ), f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
-            assert (
-                result[0] == expected_first_item
-            ), f"Expected '{expected_first_item}', got '{result[0]}' for input {input_obj}"
+            assert len(result) == 1, (
+                f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
+            )
+            assert result[0] == expected_first_item, (
+                f"Expected '{expected_first_item}', got '{result[0]}' for input {input_obj}"
+            )
             # Verify simple JSON values can be parsed
             if (
                 expected_first_item in ("null", "true", "false")
@@ -625,15 +625,15 @@ class TestConvertIO:
         # Test complex cases (should get MIME type)
         for input_obj, expected in complex_cases:
             result = list(_convert_io(input_obj))
-            assert (
-                len(result) == 2
-            ), f"Expected 2 items for {input_obj}, got {len(result)} items: {result}"
-            assert (
-                result[0] == expected
-            ), f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
-            assert (
-                result[1] == OpenInferenceMimeTypeValues.JSON.value
-            ), f"Expected JSON MIME type, got '{result[1]}' for input {input_obj}"
+            assert len(result) == 2, (
+                f"Expected 2 items for {input_obj}, got {len(result)} items: {result}"
+            )
+            assert result[0] == expected, (
+                f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
+            )
+            assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
+                f"Expected JSON MIME type, got '{result[1]}' for input {input_obj}"
+            )
 
             # Verify arrays are valid JSON
             if expected.startswith("["):
@@ -646,24 +646,22 @@ class TestConvertIO:
         # Test simple cases (should NOT get MIME type)
         for input_obj, expected in simple_cases:
             result = list(_convert_io(input_obj))
-            assert (
-                len(result) == 1
-            ), f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
-            assert (
-                result[0] == expected
-            ), f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
+            assert len(result) == 1, (
+                f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
+            )
+            assert result[0] == expected, (
+                f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
+            )
 
         # Test direct string cases (single string values)
         for input_obj, expected in direct_string_cases:
             result = list(_convert_io(input_obj))
-            assert (
-                len(result) == 1
-            ), (
+            assert len(result) == 1, (
                 f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
             )  # Direct string return, no mime type
-            assert (
-                result[0] == expected
-            ), f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
+            assert result[0] == expected, (
+                f"Expected '{expected}', got '{result[0]}' for input {input_obj}"
+            )
 
         # Category 3: General cases (non-input/output keys or multiple keys)
         # These always get MIME type since they represent structured objects/metadata
@@ -731,9 +729,9 @@ class TestConvertIO:
         # Test string enum value
         string_enum_obj: dict[str, Any] = {"input": StatusEnum.PENDING}
         result = list(_convert_io(string_enum_obj))
-        assert (
-            len(result) == 1
-        ), f"Expected 1 item for string enum, got {len(result)} items: {result}"
+        assert len(result) == 1, (
+            f"Expected 1 item for string enum, got {len(result)} items: {result}"
+        )
         assert result[0] == '"pending"', f"Expected quoted string for enum value, got {result[0]}"
 
         # Test integer enum value
@@ -767,9 +765,9 @@ class TestConvertIO:
         full_person_obj: dict[str, Any] = {"input": person}
         result = list(_convert_io(full_person_obj))
 
-        assert (
-            len(result) == 2
-        ), f"Expected 2 items for dataclass, got {len(result)} items: {result}"
+        assert len(result) == 2, (
+            f"Expected 2 items for dataclass, got {len(result)} items: {result}"
+        )
         json_output = result[0]
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -800,9 +798,9 @@ class TestConvertIO:
         dt_input_obj: dict[str, Any] = {"input": dt}
         result = list(_convert_io(dt_input_obj))
         assert len(result) == 1, f"Expected 1 item for datetime, got {len(result)} items: {result}"
-        assert (
-            result[0] == '"2023-12-25T15:30:45"'
-        ), f"Expected ISO format datetime, got {result[0]}"
+        assert result[0] == '"2023-12-25T15:30:45"', (
+            f"Expected ISO format datetime, got {result[0]}"
+        )
 
         # Test date
         d = datetime.date(2023, 12, 25)
@@ -822,9 +820,9 @@ class TestConvertIO:
         dt_tz = datetime.datetime(2023, 12, 25, 15, 30, 45, tzinfo=datetime.timezone.utc)
         tz_input_obj: dict[str, Any] = {"input": dt_tz}
         result = list(_convert_io(tz_input_obj))
-        assert (
-            result[0] == '"2023-12-25T15:30:45+00:00"'
-        ), f"Expected ISO format with timezone, got {result[0]}"
+        assert result[0] == '"2023-12-25T15:30:45+00:00"', (
+            f"Expected ISO format with timezone, got {result[0]}"
+        )
 
         # Test in complex structure
         complex_obj: dict[str, Any] = {"metadata": {"created_at": dt, "updated_at": d}}
@@ -1005,9 +1003,9 @@ class TestConvertIO:
         negative_td = datetime.timedelta(days=-1)
         negative_td_obj: dict[str, Any] = {"input": negative_td}
         result = list(_convert_io(negative_td_obj))
-        assert result[0] == str(
-            -86400.0
-        ), f"Expected negative seconds for negative timedelta, got {result[0]}"
+        assert result[0] == str(-86400.0), (
+            f"Expected negative seconds for negative timedelta, got {result[0]}"
+        )
 
     def test_convert_io_uuid_support(self) -> None:
         """Test that UUID objects are serialized as properly escaped strings."""
@@ -1017,9 +1015,9 @@ class TestConvertIO:
         uuid_obj: dict[str, Any] = {"input": test_uuid}
         result = list(_convert_io(uuid_obj))
         assert len(result) == 1, f"Expected 1 item for UUID, got {len(result)} items: {result}"
-        assert (
-            result[0] == '"12345678-1234-5678-9abc-123456789abc"'
-        ), f"Expected quoted UUID string, got {result[0]}"
+        assert result[0] == '"12345678-1234-5678-9abc-123456789abc"', (
+            f"Expected quoted UUID string, got {result[0]}"
+        )
 
         # Test UUID in complex structure
         complex_obj: dict[str, Any] = {
@@ -1041,9 +1039,9 @@ class TestConvertIO:
         decimal_obj: dict[str, Any] = {"input": decimal_val}
         result = list(_convert_io(decimal_obj))
         assert len(result) == 1, f"Expected 1 item for Decimal, got {len(result)} items: {result}"
-        assert (
-            result[0] == '"123.456789012345678901234567890"'
-        ), f"Expected quoted decimal string, got {result[0]}"
+        assert result[0] == '"123.456789012345678901234567890"', (
+            f"Expected quoted decimal string, got {result[0]}"
+        )
 
         # Test decimal with currency context
         price = Decimal("19.99")
@@ -1064,9 +1062,9 @@ class TestConvertIO:
         path_input: dict[str, Any] = {"input": path_obj}
         result = list(_convert_io(path_input))
         assert len(result) == 1, f"Expected 1 item for Path, got {len(result)} items: {result}"
-        assert (
-            result[0] == '"/home/user/documents/file.txt"'
-        ), f"Expected quoted path string, got {result[0]}"
+        assert result[0] == '"/home/user/documents/file.txt"', (
+            f"Expected quoted path string, got {result[0]}"
+        )
 
         # Test relative path
         rel_path = Path("relative/path/to/file.py")
@@ -1294,9 +1292,9 @@ class TestConvertIO:
 
             # If 2 items, second should be JSON MIME type
             if len(result) == 2:
-                assert (
-                    result[1] == OpenInferenceMimeTypeValues.JSON.value
-                ), f"Test {test_name}: Expected JSON MIME type, got {result[1]}"
+                assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
+                    f"Test {test_name}: Expected JSON MIME type, got {result[1]}"
+                )
 
     def test_convert_io_exception_safety_comprehensive(self) -> None:
         """Test exception safety for all type conversion paths."""
