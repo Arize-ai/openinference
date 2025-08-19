@@ -54,8 +54,25 @@ export function getSystemFromModelId(modelId: string): LLMSystem {
   return LLMSystem.AMAZON;
 }
 
-export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem) {
-  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
+/**
+ * Extracts LLM provider from Bedrock model ID
+ * Maps model IDs to their corresponding provider companies, distinguishing between
+ * the cloud provider (AWS) and the actual model provider (Anthropic, Cohere, etc.)
+ *
+ * @param modelId The full Bedrock model identifier (e.g., "anthropic.claude-3-sonnet-20240229-v1:0")
+ * @returns {LLMProvider} The provider enum value (e.g., ANTHROPIC, COHERE, MISTRALAI) or AWS as fallback
+ */
+export function getProviderFromModelId(modelId: string): LLMProvider {
+  if (modelId.includes("anthropic")) return LLMProvider.ANTHROPIC;
+  if (modelId.includes("cohere")) return LLMProvider.COHERE;
+  if (modelId.includes("mistral")) return LLMProvider.MISTRALAI;
+  // For Amazon models (Nova, Titan), Meta models (Llama), and unknown models, use AWS as the provider
+  // since they are all hosted on AWS Bedrock
+  return LLMProvider.AWS;
+}
+
+export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem, llm_provider: LLMProvider) {
+  setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, llm_provider);
 
   setSpanAttribute(
     span,

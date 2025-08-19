@@ -36,6 +36,7 @@ import {
 } from "./attributes/invoke-model-streaming-response-attributes";
 import {
   getSystemFromModelId,
+  getProviderFromModelId,
   setBasicSpanAttributes,
 } from "./attributes/attribute-helpers";
 
@@ -262,7 +263,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     const modelId = command.input.modelId;
     const system = getSystemFromModelId(modelId ?? "");
-    setBasicSpanAttributes(span, system);
+    const provider = getProviderFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system, provider);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
@@ -333,7 +335,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     const modelId = command.input.modelId;
     const system = getSystemFromModelId(modelId ?? "");
-    setBasicSpanAttributes(span, system);
+    const provider = getProviderFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system, provider);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
@@ -431,7 +434,8 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     const modelId = command.input.modelId;
     const system = getSystemFromModelId(modelId ?? "");
-    setBasicSpanAttributes(span, system);
+    const provider = getProviderFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system, provider);
 
     const contextAttributes = getAttributesFromContext(context.active());
     span.setAttributes(contextAttributes);
