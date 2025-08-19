@@ -503,12 +503,51 @@ def _get_llm_tool_attributes(
     for tool_index, tool in enumerate(tools):
         if not isinstance(tool, Tool):
             continue
+
+        # Extract tool name
+        tool_name = getattr(tool, "name", None)
+        if tool_name is not None:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}"] = tool_name
+
+        # Extract tool description
+        tool_description = getattr(tool, "description", None)
+        if tool_description is not None:
+            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}"] = tool_description
+
+        # Extract tool schema
         if isinstance(tool_json_schema := getattr(tool, "schema"), str):
             attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = tool_json_schema
         elif isinstance(tool_json_schema, dict):
             attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = safe_json_dumps(
                 tool_json_schema
             )
+        elif tool_json_schema is not None:
+            # Handle other schema formats by trying to serialize them
+            try:
+                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = safe_json_dumps(
+                    tool_json_schema
+                )
+            except Exception:
+                # If serialization fails, convert to string as fallback
+                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = str(tool_json_schema)
+
+        # Extract tool parameters if available (for compatibility)
+        tool_parameters = getattr(tool, "parameters", None)
+        if tool_parameters is not None:
+            if isinstance(tool_parameters, dict):
+                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = safe_json_dumps(
+                    tool_parameters
+                )
+            elif isinstance(tool_parameters, str):
+                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = tool_parameters
+            else:
+                try:
+                    attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = safe_json_dumps(
+                        tool_parameters
+                    )
+                except Exception:
+                    attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = str(tool_parameters)
+
     return attributes
 
 
@@ -548,22 +587,82 @@ def _llm_messages_attributes(
         elif message.type == "AssistantMessage":
             content = getattr(message, "content", None)
             if content is not None:
-                # If content is a list, serialize each item if not primitive
+                # If content is a list, check if it contains FunctionCall objects for tool calls
                 if isinstance(content, list):
-                    serialized_content = [
-                        item
-                        if isinstance(item, (str, bool, int, float, bytes, type(None)))
-                        else safe_json_dumps(item)
-                        for item in content
-                    ]
-                    yield (
-                        f"{base_key}.{message_index}.{MESSAGE_CONTENT}",
-                        safe_json_dumps(serialized_content),
-                    )
+                    # Check if this is a list of FunctionCall objects (tool calls)
+                    tool_calls = []
+                    other_content = []
+
+                    for item in content:
+                        # Check if item is a FunctionCall object by looking for common attributes
+                        if (
+                            hasattr(item, "name")
+                            and hasattr(item, "arguments")
+                            and hasattr(item, "id")
+                        ):
+                            # This looks like a FunctionCall object
+                            tool_calls.append(item)
+                        else:
+                            other_content.append(item)
+
+                    # If we found tool calls, extract their attributes
+                    if tool_calls:
+                        for tool_call_index, tool_call in enumerate(tool_calls):
+                            if hasattr(tool_call, "id") and tool_call.id is not None:
+                                yield (
+                                    f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                                    f"{TOOL_CALL_ID}",
+                                    tool_call.id,
+                                )
+                            if hasattr(tool_call, "name") and tool_call.name is not None:
+                                yield (
+                                    f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                                    f"{TOOL_CALL_FUNCTION_NAME}",
+                                    tool_call.name,
+                                )
+                            if hasattr(tool_call, "arguments") and tool_call.arguments is not None:
+                                # Arguments should be JSON string
+                                arguments_json = tool_call.arguments
+                                if not isinstance(arguments_json, str):
+                                    arguments_json = safe_json_dumps(arguments_json)
+                                yield (
+                                    f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                                    f"{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                    arguments_json,
+                                )
+
+                    # Handle any other content that's not tool calls
+                    if other_content:
+                        serialized_content = [
+                            item
+                            if isinstance(item, (str, bool, int, float, bytes, type(None)))
+                            else safe_json_dumps(item)
+                            for item in other_content
+                        ]
+                        if serialized_content:
+                            yield (
+                                f"{base_key}.{message_index}.{MESSAGE_CONTENT}",
+                                safe_json_dumps(serialized_content),
+                            )
+
+                    # If no tool calls were found, serialize the entire list
+                    if not tool_calls:
+                        serialized_content = [
+                            item
+                            if isinstance(item, (str, bool, int, float, bytes, type(None)))
+                            else safe_json_dumps(item)
+                            for item in content
+                        ]
+                        yield (
+                            f"{base_key}.{message_index}.{MESSAGE_CONTENT}",
+                            safe_json_dumps(serialized_content),
+                        )
                 else:
+                    # Content is a single item
                     if not isinstance(content, (str, bool, int, float, bytes, type(None))):
                         content = safe_json_dumps(content)
                     yield f"{base_key}.{message_index}.{MESSAGE_CONTENT}", content
+
             # thought
             thought = getattr(message, "thought", None)
             if thought is not None:
@@ -625,6 +724,9 @@ MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = SpanAttributes.TOOL_NAME
+TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
+TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS

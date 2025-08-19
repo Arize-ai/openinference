@@ -1,4 +1,3 @@
-import json
 from typing import Mapping, cast
 
 import pytest
@@ -64,7 +63,33 @@ class TestAssistantAgent:
             == "What is the weather in New York?"
         )
         assert attributes.pop("llm.input_messages.2.message.role") == "assistant"
-        assert "FunctionCall" in str(attributes.pop("llm.input_messages.2.message.content"))
+
+        # Check for tool call attributes instead of serialized FunctionCall content
+        tool_call_id = attributes.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.id", None
+        )
+        assert tool_call_id is not None, "Expected tool call ID to be present"
+
+        tool_call_function_name = attributes.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
+        )
+        assert tool_call_function_name == "get_weather", (
+            f"Expected function name 'get_weather', got {tool_call_function_name}"
+        )
+
+        tool_call_arguments = attributes.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        assert tool_call_arguments is not None, "Expected tool call arguments to be present"
+
+        # Verify the arguments are valid JSON and contain the expected city parameter
+        import json
+
+        args_dict = json.loads(tool_call_arguments)  # Should always be valid JSON
+        assert "city" in args_dict, f"Expected 'city' in arguments, got {args_dict}"
+        assert args_dict["city"] == "New York", (
+            f"Expected city to be 'New York', got {args_dict['city']}"
+        )
         assert attributes.pop("llm.input_messages.3.message.role") == "function"
         assert "get_weather" in str(attributes.pop("llm.input_messages.3.function.0"))
         assert attributes.pop("output.mime_type") == "application/json"
