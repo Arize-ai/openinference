@@ -173,7 +173,7 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([mockSpan], () => {});
 
     // Should have SESSION_ID with numeric threadId
-    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe(123456);
+    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe("123456");
     // Original threadId should still be present
     expect(mockSpan.attributes.threadId).toBe(123456);
   });
@@ -307,7 +307,9 @@ describe("OpenInferenceTraceExporter", () => {
       (s: ReadableSpan) => s.name === "http.request",
     );
     expect(addedRootSpan).toBeDefined();
-    expect(addedRootSpan.attributes["openinference.span.kind"]).toBe("AGENT");
+    expect(
+      addedRootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toBe("AGENT");
   });
 
   it("should not add root span when no agent operations exist", async () => {

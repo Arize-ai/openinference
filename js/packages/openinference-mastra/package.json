@@ -42,6 +42,7 @@
     "url": "https://github.com/Arize-ai/openinference/issues"
   },
   "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@arizeai/openinference-vercel": "workspace:*"
   },

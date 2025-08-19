@@ -5,6 +5,7 @@ import {
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { diag } from "@opentelemetry/api";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+import { safelyJSONParse } from "@arizeai/openinference-core";
 import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 
 const MASTRA_AGENT_SPAN_NAME_PREFIXES = ["agent", "mastra.getAgent"];
@@ -150,8 +151,8 @@ export const processMastraSpanAttributes = (span: ReadableSpan): void => {
  * @param span - The span to get the ID from.
  * @returns The span ID or "unknown" if not available.
  */
-export const getSpanId = (span: ReadableSpan): string => {
-  return span.spanContext?.()?.spanId || "unknown";
+export const getSpanId = (span: ReadableSpan): string | null => {
+  return span.spanContext?.()?.spanId || null;
 };
 
 /**
@@ -160,8 +161,37 @@ export const getSpanId = (span: ReadableSpan): string => {
  * @param span - The span to get the trace ID from.
  * @returns The trace ID or "unknown" if not available.
  */
-export const getTraceId = (span: ReadableSpan): string => {
-  return span.spanContext?.()?.traceId || "unknown";
+export const getTraceId = (span: ReadableSpan): string | null => {
+  return span.spanContext?.()?.traceId || null;
+};
+
+/**
+ * Type definition for a chat message with role and content
+ */
+interface ChatMessage {
+  role: string;
+  content: string | unknown;
+}
+
+/**
+ * Extracts the last user message from an array of chat messages.
+ *
+ * @param messages - Array of chat messages to search through
+ * @returns The content of the last user message as a string, or undefined if no user message is found
+ */
+const extractLastUserMessage = (
+  messages: ChatMessage[],
+): string | undefined => {
+  // Find the last user message
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role === "user" && message.content) {
+      return typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content);
+    }
+  }
+  return undefined;
 };
 
 /**
@@ -183,18 +213,18 @@ export const extractMastraUserInput = (
     if (span.name === AGENT_PATTERNS.GET_RECENT_MESSAGE) {
       const result = span.attributes[AGENT_PATTERNS.GET_RECENT_MESSAGE_RESULT];
       if (typeof result === "string") {
-        try {
-          const messageData = JSON.parse(result);
-          if (messageData.content && typeof messageData.content === "string") {
-            return messageData.content;
-          }
-        } catch (error) {
+        const messageData = safelyJSONParse(result);
+        if (
+          !messageData ||
+          !messageData.content ||
+          typeof messageData.content !== "string"
+        ) {
           diag.warn("Failed to parse agent.getMostRecentUserMessage.result", {
-            error: error instanceof Error ? error.message : String(error),
             rawResult: result,
             spanId: span.spanContext?.()?.spanId,
           });
         }
+        return messageData.content;
       }
     }
   }
@@ -204,16 +234,12 @@ export const extractMastraUserInput = (
     if (span.name === AGENT_PATTERNS.GENERATE) {
       const argument = span.attributes[AGENT_PATTERNS.GENERATE_ARGUMENT];
       if (typeof argument === "string") {
-        try {
-          // Try to parse as JSON first in case it's a complex structure
-          const parsed = JSON.parse(argument);
-          if (typeof parsed === "string") {
-            return parsed;
-          }
-        } catch {
-          // If JSON parsing fails, treat as plain string (remove quotes if present)
-          return argument.replace(/^"(.*)"$/, "$1");
+        const parsedArgument = safelyJSONParse(argument);
+        if (!parsedArgument) {
+          // If the argument is not a valid JSON string, return the raw string
+          return argument;
         }
+        return parsedArgument;
       }
     }
   }
@@ -223,31 +249,19 @@ export const extractMastraUserInput = (
     if (span.name === AGENT_PATTERNS.STREAM) {
       const argument = span.attributes[AGENT_PATTERNS.STREAM_ARGUMENT];
       if (typeof argument === "string") {
-        try {
-          const messages = JSON.parse(argument);
-          if (Array.isArray(messages)) {
-            // Find the last user message
-            for (let i = messages.length - 1; i >= 0; i--) {
-              const message = messages[i];
-              if (message.role === "user" && message.content) {
-                return typeof message.content === "string"
-                  ? message.content
-                  : JSON.stringify(message.content);
-              }
-            }
-          }
-        } catch (error) {
+        const messages = safelyJSONParse(argument);
+        if (!messages) {
           diag.warn("Failed to parse agent.stream.argument.0", {
-            error: error instanceof Error ? error.message : String(error),
             rawArgument: argument,
             spanId: span.spanContext?.()?.spanId,
           });
         }
+        if (Array.isArray(messages)) {
+          return extractLastUserMessage(messages);
+        }
       }
     }
   }
-
-  return undefined;
 };
 
 /**
@@ -284,7 +298,9 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
     (span) => span.parentSpanContext === undefined,
   );
 
-  if (rootSpans.length === 0) return;
+  if (!rootSpans.length) {
+    return;
+  }
 
   const userInput = extractMastraUserInput(spans);
   const agentOutput = extractMastraAgentOutput(spans);
@@ -324,19 +340,28 @@ export const findMissingAgentRootSpans = (
   const agentTraceIds = new Set<string>();
   for (const span of filteredSpans) {
     if (isAgentOperation(span)) {
-      agentTraceIds.add(getTraceId(span));
+      const traceId = getTraceId(span);
+      if (traceId) {
+        agentTraceIds.add(traceId);
+      }
     }
   }
 
   // Early exit if no agent traces found
-  if (agentTraceIds.size === 0) return [];
+  if (!agentTraceIds.size) {
+    return [];
+  }
 
   // Find missing root spans for agent traces
   const missingRoots: ReadableSpan[] = [];
   for (const span of allSpans) {
+    const traceId = getTraceId(span);
+    if (!traceId) {
+      continue;
+    }
     if (
       span.parentSpanContext === undefined && // is root
-      agentTraceIds.has(getTraceId(span)) && // is agent trace
+      agentTraceIds.has(traceId) && // is agent trace
       !filteredSpanIds.has(getSpanId(span)) && // not already included
       !span.name.startsWith(AGENT_PATTERNS.MASTRA_PREFIX) // not internal operations
     ) {
