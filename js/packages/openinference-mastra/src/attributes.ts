@@ -191,7 +191,6 @@ const extractLastUserMessage = (
         : JSON.stringify(message.content);
     }
   }
-  return undefined;
 };
 
 /**
@@ -208,57 +207,61 @@ const extractLastUserMessage = (
 export const extractMastraUserInput = (
   spans: ReadableSpan[],
 ): string | undefined => {
-  // Look for the most recent user message from agent.getMostRecentUserMessage.result
   for (const span of spans) {
-    if (span.name === AGENT_PATTERNS.GET_RECENT_MESSAGE) {
-      const result = span.attributes[AGENT_PATTERNS.GET_RECENT_MESSAGE_RESULT];
-      if (typeof result === "string") {
-        const messageData = safelyJSONParse(result);
-        if (
-          !messageData ||
-          !messageData.content ||
-          typeof messageData.content !== "string"
-        ) {
-          diag.warn("Failed to parse agent.getMostRecentUserMessage.result", {
-            rawResult: result,
-            spanId: span.spanContext?.()?.spanId,
-          });
+    switch (span.name) {
+      case AGENT_PATTERNS.GET_RECENT_MESSAGE: {
+        const result =
+          span.attributes[AGENT_PATTERNS.GET_RECENT_MESSAGE_RESULT];
+        if (typeof result === "string") {
+          const messageData = safelyJSONParse(result);
+          if (
+            !messageData ||
+            !messageData.content ||
+            typeof messageData.content !== "string"
+          ) {
+            diag.warn("Failed to parse agent.getMostRecentUserMessage.result", {
+              rawResult: result,
+              spanId: span.spanContext?.()?.spanId,
+            });
+            continue;
+          }
+          return messageData.content;
         }
-        return messageData.content;
+        break;
       }
-    }
-  }
 
-  // Look for direct user input from agent.generate.argument.0
-  for (const span of spans) {
-    if (span.name === AGENT_PATTERNS.GENERATE) {
-      const argument = span.attributes[AGENT_PATTERNS.GENERATE_ARGUMENT];
-      if (typeof argument === "string") {
-        const parsedArgument = safelyJSONParse(argument);
-        if (!parsedArgument) {
-          // If the argument is not a valid JSON string, return the raw string
-          return argument;
+      case AGENT_PATTERNS.GENERATE: {
+        const argument = span.attributes[AGENT_PATTERNS.GENERATE_ARGUMENT];
+        if (typeof argument === "string") {
+          const parsedArgument = safelyJSONParse(argument);
+          if (!parsedArgument) {
+            // If the argument is not a valid JSON string, return the raw string
+            return argument;
+          }
+          return parsedArgument;
         }
-        return parsedArgument;
+        break;
       }
-    }
-  }
 
-  // Fallback: extract from agent.stream.argument.0 (conversation messages)
-  for (const span of spans) {
-    if (span.name === AGENT_PATTERNS.STREAM) {
-      const argument = span.attributes[AGENT_PATTERNS.STREAM_ARGUMENT];
-      if (typeof argument === "string") {
-        const messages = safelyJSONParse(argument);
-        if (!messages) {
-          diag.warn("Failed to parse agent.stream.argument.0", {
-            rawArgument: argument,
-            spanId: span.spanContext?.()?.spanId,
-          });
+      case AGENT_PATTERNS.STREAM: {
+        const argument = span.attributes[AGENT_PATTERNS.STREAM_ARGUMENT];
+        if (typeof argument === "string") {
+          const messages = safelyJSONParse(argument);
+          if (!messages) {
+            diag.warn("Failed to parse agent.stream.argument.0", {
+              rawArgument: argument,
+              spanId: span.spanContext?.()?.spanId,
+            });
+            continue;
+          }
+          if (Array.isArray(messages)) {
+            const lastUserMessage = extractLastUserMessage(messages);
+            if (lastUserMessage) {
+              return lastUserMessage;
+            }
+          }
         }
-        if (Array.isArray(messages)) {
-          return extractLastUserMessage(messages);
-        }
+        break;
       }
     }
   }
@@ -282,7 +285,6 @@ export const extractMastraAgentOutput = (
       return outputValue;
     }
   }
-  return undefined;
 };
 
 /**
