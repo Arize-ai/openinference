@@ -147,7 +147,7 @@ if __name__ == "__main__":
 
             messages.extend(
                 [
-                    choice.message,
+                    choice.message.model_dump(),
                     {
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -155,8 +155,6 @@ if __name__ == "__main__":
                     },
                 ]
             )
-
-            print("Messages:", messages)
 
             # Final step: provide answer after tool output
             final = client.chat.completions.create(

@@ -194,7 +194,7 @@ def _build_messages(
     if prompt:
         for m in _unflatten_prompt(prompt):
             content = m.get("content", "")
-            if content != "None" and content is not None:
+            if content != "" and content is not None:
                 input_msgs.append(oi.Message(role=m["role"], content=str(content)))
 
     assistant = oi.Message(role="assistant")
@@ -204,16 +204,7 @@ def _build_messages(
         assistant["content"] = str(completion) if completion is not None else ""
     tc_list = _load_tool_calls(tool_calls_json)
     if tc_list:
-        assistant["tool_calls"] = [
-            oi.ToolCall(
-                id=tc.get("id", ""),
-                function=oi.ToolCallFunction(
-                    name=tc.get("function", {}).get("name", ""),
-                    arguments=tc.get("function", {}).get("arguments", ""),
-                ),
-            )
-            for tc in tc_list
-        ]
+        assistant["tool_calls"] = tc_list
 
     output_msgs = [assistant]
     return input_msgs, output_msgs
