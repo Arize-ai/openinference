@@ -40,9 +40,6 @@ test = [
   "semantic-kernel>=1.0.0",
 ]
 
-[project.entry-points.openinference_instrumentor]
-openlit = "openinference.instrumentation.openlit:OpenInferenceSpanProcessor"
-
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openlit"
 
