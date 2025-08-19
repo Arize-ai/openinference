@@ -1,7 +1,3 @@
-# openlit_to_openinference.py
-
-from __future__ import annotations
-
 import ast
 import json
 import re
@@ -49,6 +45,27 @@ _LLM_PROVIDERS = {
     "prem_ai",
     "vector_dbs",
 }
+
+class OpenInferenceSpanProcessor(SpanProcessor):
+    """
+    Converts OpenLIT GenAI spans → OpenInference attributes in-place.
+    Add to your tracer-provider:
+        provider.add_span_processor(OpenInferenceSpanProcessor())
+    """
+
+    def on_end(self, span: ReadableSpan) -> None:
+        attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
+        oi_attrs = {}
+
+        if _is_tool_span(attrs):
+            oi_attrs = _get_oi_tool_attributes(span)
+        elif _is_chain_span(attrs):
+            oi_attrs = _get_oi_chain_attributes(span)
+        elif _is_llm_span(attrs):
+            oi_attrs = _get_llm_attributes(span)
+
+        if oi_attrs and span._attributes:
+            span._attributes = {**span._attributes, **oi_attrs}
 
 
 def _is_chain_span(attrs: Dict[str, Any]) -> bool:
@@ -342,24 +359,3 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         **get_span_kind_attributes("llm"),
     }
     return oi_attrs
-
-class OpenInferenceSpanProcessor(SpanProcessor):
-    """
-    Converts OpenLIT GenAI spans → OpenInference attributes in-place.
-    Add to your tracer-provider:
-        provider.add_span_processor(OpenInferenceSpanProcessor())
-    """
-
-    def on_end(self, span: ReadableSpan) -> None:
-        attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
-        oi_attrs = {}
-
-        if _is_tool_span(attrs):
-            oi_attrs = _get_oi_tool_attributes(span)
-        elif _is_chain_span(attrs):
-            oi_attrs = _get_oi_chain_attributes(span)
-        elif _is_llm_span(attrs):
-            oi_attrs = _get_llm_attributes(span)
-
-        if oi_attrs and span._attributes:
-            span._attributes = {**span._attributes, **oi_attrs}
