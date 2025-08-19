@@ -56,7 +56,38 @@ function processConverseStreamChunk(
         id: toolUse.toolUseId,
         name: toolUse.name,
         input: {}, // Will be filled in by delta events
+        partialJsonInput: "",
       });
+    }
+  }
+
+  // Handle raw content_block_start events from streaming
+  if (data.type === "content_block_start" && data.content_block?.type === "tool_use") {
+    const toolUse = data.content_block;
+    if (toolUse.id && toolUse.name) {
+      // Start tracking a new tool call
+      state.toolCalls.push({
+        id: toolUse.id,
+        name: toolUse.name,
+        input: {},
+        partialJsonInput: "",
+      });
+    }
+  }
+
+  // Handle input_json_delta events for tool calls
+  if (data.type === "input_json_delta" && data.partial_json) {
+    const mostRecentTool = state.toolCalls[state.toolCalls.length - 1];
+    if (mostRecentTool) {
+      mostRecentTool.partialJsonInput = (mostRecentTool.partialJsonInput || "") + data.partial_json;
+      
+      // Try to parse the accumulated JSON - if it parses successfully, we have complete input
+      try {
+        const parsedInput = JSON.parse(mostRecentTool.partialJsonInput);
+        mostRecentTool.input = parsedInput;
+      } catch (error) {
+        // JSON is still incomplete, continue accumulating
+      }
     }
   }
 
@@ -69,32 +100,28 @@ function processConverseStreamChunk(
       state.outputText += delta.text;
     }
 
-    // Accumulate tool use input (JSON string chunks)
-    if (delta && delta.toolUse?.input) {
+    // ConverseStream tool use input handling (delta.toolUse.input chunks)
+    if (delta && delta.toolUse?.input !== undefined) {
       // Find the most recent tool call to update
       const mostRecentTool = state.toolCalls[state.toolCalls.length - 1];
       if (mostRecentTool) {
-        // Tool input comes as JSON string chunks, parse when complete
+        // Accumulate JSON chunks
+        mostRecentTool.partialJsonInput = (mostRecentTool.partialJsonInput || "") + delta.toolUse.input;
+        
+        // Try to parse the accumulated JSON - if it parses successfully, we have complete input
         try {
-          // For now, we'll collect the input string and try to parse it
-          // In a real implementation, we might need to buffer partial JSON
-          const inputStr = delta.toolUse.input;
-          const parsedInput = JSON.parse(inputStr);
-          mostRecentTool.input = { ...mostRecentTool.input, ...parsedInput };
+          const parsedInput = JSON.parse(mostRecentTool.partialJsonInput);
+          mostRecentTool.input = parsedInput;
         } catch (error) {
-          // If JSON is partial/invalid, we'll try again with next chunk
-          // For now, store as raw string
-          if (
-            typeof mostRecentTool.input === "object" &&
-            mostRecentTool.input !== null
-          ) {
-            (mostRecentTool.input as any)._raw =
-              (mostRecentTool.input as any)._raw || "";
-            (mostRecentTool.input as any)._raw += delta.toolUse.input;
-          }
+          // JSON is still incomplete, continue accumulating
         }
       }
     }
+  }
+
+  // Handle raw content_block_delta events from streaming (text)
+  if (data.type === "content_block_delta" && data.delta?.type === "text_delta" && data.delta.text) {
+    state.outputText += data.delta.text;
   }
 
   // Handle content block stop events
@@ -152,9 +179,12 @@ function setConverseStreamingOutputAttributes({
     ...(usage.totalTokens !== undefined && { total_tokens: usage.totalTokens }),
   };
 
+  // Clean up tool calls - remove partialJsonInput field from final output
+  const cleanedToolCalls = toolCalls.map(({ partialJsonInput, ...toolCall }) => toolCall);
+
   const outputValue = {
     text: outputText || "",
-    tool_calls: toolCalls,
+    tool_calls: cleanedToolCalls,
     usage: normalizedUsage,
     streaming: true,
     ...(stopReason && { stop_reason: stopReason }),

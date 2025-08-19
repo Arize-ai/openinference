@@ -1658,6 +1658,584 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
       });
     });
 
+    describe("ConverseStream Functionality", () => {
+      describe("Core Functionality", () => {
+        it("should handle streaming tool calls and responses", async () => {
+          setupTestRecordingWrapper(
+            "should-handle-streaming-tool-calls-and-responses",
+          );
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What's the weather in San Francisco and what time is it there?",
+                  },
+                ],
+              },
+            ],
+            toolConfig: {
+              tools: [
+                {
+                  toolSpec: {
+                    name: "get_weather",
+                    description: "Get current weather for a location",
+                    inputSchema: {
+                      json: {
+                        type: "object",
+                        properties: {
+                          location: {
+                            type: "string",
+                            description: "The city and state, e.g. San Francisco, CA",
+                          },
+                          unit: {
+                            type: "string",
+                            enum: ["celsius", "fahrenheit"],
+                            description: "Temperature unit",
+                          },
+                        },
+                        required: ["location"],
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          // Consume the stream to trigger instrumentation
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+          // Comprehensive span attributes snapshot for streaming tool calls
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco and what time is it there?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]}}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco and what time is it there?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{"location":"San Francisco, CA","unit":"fahrenheit"}",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+  "llm.output_messages.0.message.tool_calls.0.tool_call.id": "tooluse_wnjikhCUTruJciycmmm5Kg",
+  "llm.provider": "aws",
+  "llm.stop_reason": "tool_use",
+  "llm.system": "anthropic",
+  "llm.token_count.completion": 114,
+  "llm.token_count.prompt": 414,
+  "llm.token_count.total": 528,
+  "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}",
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.","tool_calls":[{"id":"tooluse_wnjikhCUTruJciycmmm5Kg","name":"get_weather","input":{"location":"San Francisco, CA","unit":"fahrenheit"}}],"usage":{"input_tokens":414,"output_tokens":114,"total_tokens":528},"streaming":true,"stop_reason":"tool_use"}",
+}
+`);
+        });
+
+        it("should handle multi-modal content in streaming responses", async () => {
+          setupTestRecordingWrapper(
+            "should-handle-multi-modal-content-in-streaming-responses",
+          );
+
+          const client = createTestClient(isRecordingMode);
+
+          // Base64-encoded 1x1 pixel PNG for testing
+          const testImageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Describe this image and tell me a short story about it:",
+                  },
+                  {
+                    image: {
+                      format: "png",
+                      source: {
+                        bytes: Buffer.from(testImageData, "base64"),
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          // Consume the stream to trigger instrumentation
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+          // Comprehensive span attributes snapshot for multi-modal streaming
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Describe this image and tell me a short story about it:"},{"image":{"format":"png","source":{"bytes":{"type":"Buffer","data":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,31,21,196,137,0,0,0,13,73,68,65,84,120,218,99,100,248,207,80,15,0,3,134,1,128,90,52,125,107,0,0,0,0,73,69,78,68,174,66,96,130]}}}}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Describe this image and tell me a short story about it:",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.contents.1.message_content.image.format": "png",
+  "llm.input_messages.0.message.contents.1.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "llm.input_messages.0.message.contents.1.message_content.type": "image",
+  "llm.input_messages.0.message.role": "user",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.
+
+Here's a short story inspired by this image:
+
+Little Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. 
+
+In his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "anthropic",
+  "llm.token_count.completion": 230,
+  "llm.token_count.prompt": 24,
+  "llm.token_count.total": 254,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"This image shows a simple, hand-drawn sketch of a house on lined notebook paper. The house has a triangular roof, rectangular body, a door in the center, and two windows on either side of the door. It's the kind of drawing a child might make when asked to draw a basic house.\\n\\nHere's a short story inspired by this image:\\n\\nLittle Timmy sat at his desk, daydreaming during math class. As the teacher droned on about fractions, Timmy's pencil moved almost on its own across his notebook paper. With a few quick strokes, a cozy little house appeared – just like the one he wished he lived in. \\n\\nIn his imagination, this wasn't just any house. It was a magical place where homework didn't exist, where cookies were always fresh from the oven, and where his dog could talk. As the bell rang, signaling the end of class, Timmy smiled at his creation. Even if it was just a simple drawing, for a moment, it had been the most perfect home in the world.","tool_calls":[],"usage":{"input_tokens":24,"output_tokens":230,"total_tokens":254},"streaming":true,"stop_reason":"end_turn"}",
+}
+`);
+        });
+      });
+
+      describe("Error Handling", () => {
+        it("should handle streaming API errors gracefully", async () => {
+          setupTestRecordingWrapper("should-handle-streaming-api-errors-gracefully");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "invalid-streaming-model-id",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "This streaming request should fail",
+                  },
+                ],
+              },
+            ],
+          });
+
+          // Expect the API call to throw an error with 400 status
+          let thrownError: any;
+          try {
+            await client.send(command);
+            fail("Expected the API call to throw an error");
+          } catch (error) {
+            thrownError = error;
+          }
+          
+          // Validate the error contains the expected 400 status and error message
+          expect(thrownError).toBeDefined();
+          expect(thrownError.$response?.statusCode || thrownError.$metadata?.httpStatusCode).toBe(400);
+          expect(thrownError.message).toContain("model identifier is invalid");
+
+          // Verify span was created and marked as error
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+          // Verify span status is set to ERROR
+          expect(span.status.code).toBe(2); // SpanStatusCode.ERROR
+          expect(span.status.message).toBeDefined();
+
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"invalid-streaming-model-id","messages":[{"role":"user","content":[{"text":"This streaming request should fail"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "This streaming request should fail",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.model_name": "invalid-streaming-model-id",
+  "llm.provider": "aws",
+  "llm.system": "amazon",
+  "openinference.span.kind": "LLM",
+}
+`);
+        });
+
+        it("should handle large payloads and edge cases in streaming", async () => {
+          setupTestRecordingWrapper("should-handle-large-payloads-and-edge-cases-in-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          // Create a large conversation payload
+          const largeText = "This is a large test message. ".repeat(100);
+          const complexConversation = Array.from({ length: 5 }, (_, i) => ({
+            role: i % 2 === 0 ? "user" : "assistant",
+            content: [
+              {
+                text: `${largeText} Message ${i + 1} in a complex conversation.`,
+              },
+            ],
+          }));
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            messages: complexConversation as any,
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          // Consume the stream to trigger instrumentation
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+          // Verify basic attributes are captured for large payloads
+          expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes["llm.system"]).toBe("anthropic");
+          expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+          expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+          expect(span.attributes["llm.input_messages.4.message.role"]).toBe("assistant");
+        });
+      });
+
+      describe("Configuration & Context", () => {
+        it("should handle system prompts with streaming responses", async () => {
+          setupTestRecordingWrapper("should-handle-system-prompts-with-streaming-responses");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            system: [
+              {
+                text: "You are a helpful assistant that responds very concisely.",
+              },
+              {
+                text: "Always end your responses with 'Hope this helps!'",
+              },
+            ],
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What is the capital of France?",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          // Consume the stream to trigger instrumentation
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that responds very concisely."},{"text":"Always end your responses with 'Hope this helps!'"}],"messages":[{"role":"user","content":[{"text":"What is the capital of France?"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant that responds very concisely. Always end your responses with 'Hope this helps!'",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "system",
+  "llm.input_messages.1.message.contents.0.message_content.text": "What is the capital of France?",
+  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.role": "user",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "Paris. Hope this helps!",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "anthropic",
+  "llm.token_count.completion": 8,
+  "llm.token_count.prompt": 35,
+  "llm.token_count.total": 43,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"Paris. Hope this helps!","tool_calls":[],"usage":{"input_tokens":35,"output_tokens":8,"total_tokens":43},"streaming":true,"stop_reason":"end_turn"}",
+}
+`);
+        });
+
+        it("should propagate context attributes in streaming", async () => {
+          setupTestRecordingWrapper("should-propagate-context-attributes-in-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: TEST_MODEL_ID,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Hello, how are you?",
+                  },
+                ],
+              },
+            ],
+          });
+
+          // Setup OpenInference context with all supported attributes
+          await context.with(
+            setSession(
+              setUser(
+                setMetadata(
+                  setTags(
+                    setPromptTemplate(context.active(), {
+                      template: "Answer the question: {question}",
+                      version: "1.0",
+                      variables: { question: "Hello, how are you?" },
+                    }),
+                    ["test", "context", "streaming"],
+                  ),
+                  {
+                    experiment_name: "stream-context-test",
+                    version: "1.0",
+                    environment: "testing",
+                  },
+                ),
+                { userId: "test-user-streaming" },
+              ),
+              { sessionId: "test-session-streaming" },
+            ),
+            async () => {
+              // Execute within context
+              const result = await client.send(command);
+
+              expect(result).toBeDefined();
+              expect(result.stream).toBeDefined();
+
+              // Consume the stream to trigger instrumentation
+              await consumeStreamResponse({ body: result.stream });
+
+              const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+              // Verify context attributes are captured
+              expect(span.attributes[SESSION_ID]).toBe("test-session-streaming");
+              expect(span.attributes[USER_ID]).toBe("test-user-streaming");
+              expect(span.attributes[METADATA + ".experiment_name"]).toBe("stream-context-test");
+              expect(span.attributes[METADATA + ".version"]).toBe("1.0");
+              expect(span.attributes[METADATA + ".environment"]).toBe("testing");
+              expect(span.attributes[TAG_TAGS]).toBe("test,context,streaming");
+              expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe("Answer the question: {question}");
+              expect(span.attributes[PROMPT_TEMPLATE_VERSION]).toBe("1.0");
+            },
+          );
+        });
+      });
+
+      describe("Cross-Provider Streaming Models", () => {
+        it("should handle Meta Llama models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-meta-llama-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "meta.llama3-8b-instruct-v1:0",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Explain quantum computing in simple terms",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("llama3-8b-instruct");
+          expect(span.attributes["llm.system"]).toBe("meta");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+
+        it("should handle Mistral models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-mistral-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "mistral.mistral-7b-instruct-v0:2",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Write a haiku about technology",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("mistral-7b-instruct");
+          expect(span.attributes["llm.system"]).toBe("mistral");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+
+        it("should handle Amazon Titan models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-amazon-titan-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "amazon.titan-text-express-v1",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What are the benefits of cloud computing?",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("titan-text-express");
+          expect(span.attributes["llm.system"]).toBe("amazon");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+
+        it("should handle Amazon Nova models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-amazon-nova-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "amazon.nova-lite-v1:0",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Describe the process of photosynthesis",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("nova-lite");
+          expect(span.attributes["llm.system"]).toBe("amazon");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+
+        it("should handle Cohere Command models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-cohere-command-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "cohere.command-text-v14",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "Explain the concept of machine learning",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("command-text");
+          expect(span.attributes["llm.system"]).toBe("cohere");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+
+        it("should handle AI21 Jamba models with streaming", async () => {
+          setupTestRecordingWrapper("should-handle-ai21-jamba-models-with-streaming");
+
+          const client = createTestClient(isRecordingMode);
+
+          const command = new ConverseStreamCommand({
+            modelId: "ai21.jamba-1-5-mini-v1:0",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    text: "What is artificial intelligence?",
+                  },
+                ],
+              },
+            ],
+          });
+
+          const result = await client.send(command);
+          expect(result).toBeDefined();
+          expect(result.stream).toBeDefined();
+
+          await consumeStreamResponse({ body: result.stream });
+
+          const span = verifySpanBasics(spanExporter, "bedrock.converse");
+          expect(span.attributes["llm.model_name"]).toBe("jamba-1-5-mini");
+          expect(span.attributes["llm.system"]).toBe("ai21");
+          expect(span.attributes["llm.provider"]).toBe("aws");
+        });
+      });
+    });
+
     describe("System Prompts", () => {
       it("should handle single system prompt in Converse API", async () => {
         setupTestRecordingWrapper(

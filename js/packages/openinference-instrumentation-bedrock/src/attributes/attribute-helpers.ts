@@ -127,8 +127,30 @@ export function getAttributesFromMessageContent(
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
     if (content.image.source.bytes) {
-      // Convert bytes to base64 data URL using the helper function
-      const base64 = Buffer.from(content.image.source.bytes).toString("base64");
+      // Handle various byte formats: Uint8Array, string, Buffer, and Buffer objects
+      let base64: string;
+      if (content.image.source.bytes instanceof Uint8Array) {
+        // Live execution: convert Uint8Array to base64
+        base64 = Buffer.from(content.image.source.bytes).toString("base64");
+      } else if (Buffer.isBuffer(content.image.source.bytes)) {
+        // Direct Buffer: convert to base64
+        base64 = (content.image.source.bytes as Buffer).toString("base64");
+      } else if (typeof content.image.source.bytes === "string") {
+        // Nock playback: already a base64 string
+        base64 = content.image.source.bytes as string;
+      } else if (typeof content.image.source.bytes === "object" && 
+                 content.image.source.bytes !== null &&
+                 "type" in content.image.source.bytes && 
+                 (content.image.source.bytes as any).type === "Buffer" &&
+                 "data" in content.image.source.bytes &&
+                 Array.isArray((content.image.source.bytes as any).data)) {
+        // Buffer object format: convert data array to Buffer then to base64
+        base64 = Buffer.from((content.image.source.bytes as any).data).toString("base64");
+      } else {
+        // Fallback: try to convert as-is
+        base64 = Buffer.from(content.image.source.bytes as any).toString("base64");
+      }
+      
       const mimeType = `image/${content.image.format}`;
 
       attributes[
@@ -139,6 +161,10 @@ export function getAttributesFromMessageContent(
         media_type: mimeType,
       });
     }
+    // Add format attribute for image content
+    attributes[
+      `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`
+    ] = content.image.format;
   }
 
   return attributes;

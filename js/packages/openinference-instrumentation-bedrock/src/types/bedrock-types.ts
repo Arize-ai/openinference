@@ -69,6 +69,9 @@ export type InvocationParameters = Record<string, unknown>;
 // Converse Stream event data types using AWS SDK types where possible
 // This is a discriminated union of all possible streaming event types
 export interface ConverseStreamEventData {
+  // The event type discriminator
+  type?: string;
+
   // Message lifecycle events
   messageStart?: {
     role: ConversationRole;
@@ -91,6 +94,20 @@ export interface ConverseStreamEventData {
     contentBlockIndex: number;
   };
 
+  // Raw event fields from actual streaming response
+  content_block?: {
+    type: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+  };
+  index?: number;
+  delta?: {
+    type: string;
+    text?: string;
+  };
+  partial_json?: string;
+
   // Metadata and usage events
   metadata?: {
     usage: {
@@ -111,6 +128,7 @@ export interface ConverseStreamProcessingState {
     id: string;
     name: string;
     input: Record<string, unknown>;
+    partialJsonInput?: string; // Accumulates partial JSON chunks
   }>;
   usage: {
     inputTokens?: number;
@@ -216,7 +234,7 @@ export interface ConverseImageContent {
   image: {
     format: "png" | "jpeg" | "gif" | "webp";
     source: {
-      bytes: Uint8Array;
+      bytes: Uint8Array | string | Buffer | {type: "Buffer", data: number[]}; // Support various formats
     };
   };
 }
@@ -313,7 +331,13 @@ export function isConverseImageContent(
     content.image.source !== null &&
     typeof content.image.source === "object" &&
     "bytes" in content.image.source &&
-    content.image.source.bytes instanceof Uint8Array
+    (content.image.source.bytes instanceof Uint8Array || 
+     typeof content.image.source.bytes === "string" ||
+     Buffer.isBuffer(content.image.source.bytes) ||
+     (typeof content.image.source.bytes === "object" && 
+      content.image.source.bytes !== null &&
+      "type" in content.image.source.bytes && 
+      content.image.source.bytes.type === "Buffer"))
   );
 }
 
