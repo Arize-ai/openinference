@@ -105,25 +105,6 @@ def _safe_int(v: Any) -> int | None:
         return None
 
 
-def get_oi_tool_call(tc: Any) -> oi.ToolCall:
-    """
-    Convert an oi.ToolCall OR a raw dict into the JSON shape Phoenix expects.
-    """
-    if isinstance(tc, dict):
-        return tc
-
-    try:
-        return oi.ToolCall(
-            id=tc.get("id", ""),
-            function=oi.ToolCallFunction(
-                name=tc.get("function", {}).get("name", ""),
-                arguments=tc.get("function", {}).get("arguments", ""),
-            ),
-        )
-    except Exception:
-        return {}
-
-
 def _parse_prompt_from_events(events: Any) -> str | None:
     for ev in events or []:
         if ev.name == "gen_ai.content.prompt":
@@ -160,21 +141,21 @@ def _unflatten_prompt(flat: str) -> list[Dict[str, str]]:
     return msgs
 
 
-def _load_tool_calls(raw: Any) -> list[oi.ToolCall]:
+def _load_tool_calls(raw: Any) -> list[dict[str, Any]]:
     if raw is None:
         return []
 
     try:
         result = json.loads(raw)
         if isinstance(result, list):
-            return [get_oi_tool_call(tc) for tc in result]
+            return result
         return []
     except Exception:
         # 3) python literal – OpenLIT sometimes dumps repr(list)
         try:
             result = ast.literal_eval(raw)
             if isinstance(result, list):
-                return [get_oi_tool_call(tc) for tc in result]
+                return result
             return []
         except Exception:
             return []
@@ -183,7 +164,7 @@ def _load_tool_calls(raw: Any) -> list[oi.ToolCall]:
 def _build_messages(
     prompt: str | None,
     completion: str | None,
-    tool_calls_json: list[oi.ToolCall],
+    tool_calls_json: Any | None,
 ) -> Tuple[list[oi.Message], list[oi.Message]]:
     """
     Convert OpenLIT's plain-text fields into OpenInference message objects.
