@@ -142,8 +142,7 @@ def _agent_run_attributes(
 
 def _setup_team_context(agent: Union[Agent, Team], node_id: str) -> Optional[Any]:
     if isinstance(agent, Team):
-        team_ctx = context_api.get_current()
-        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
         return context_api.attach(team_ctx)
     return None
 
