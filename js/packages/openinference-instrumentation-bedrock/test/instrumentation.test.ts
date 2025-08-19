@@ -419,7 +419,7 @@ The key things are to dress for the warm temperatures and have layers you can",
         expect(span.attributes["llm.model_name"]).toBe(
           "claude-3-5-sonnet-20240620",
         );
-        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.provider"]).toBe("anthropic");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
@@ -473,7 +473,7 @@ The key things are to dress for the warm temperatures and have layers you can",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and covers most of the visible page. While I can't make out specific words or content due to the resolution, the handwriting looks neat and consistent. The paper has a light yellow or cream color, which could indicate it's an older document or simply the natural color of the paper. There are horizontal blue lines visible, typical of standard lined notebook or writing paper. The overall impression is",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
+  "llm.provider": "anthropic",
   "llm.system": "anthropic",
   "llm.token_count.completion": 100,
   "llm.token_count.prompt": 19,
@@ -518,7 +518,7 @@ The key things are to dress for the warm temperatures and have layers you can",
         expect(span.attributes["llm.model_name"]).toBe(
           "claude-3-5-sonnet-20240620",
         );
-        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.provider"]).toBe("anthropic");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
@@ -577,7 +577,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 
 Honeybees can recognize human faces.",
   "llm.output_messages.0.message.role": "assistant",
-  "llm.provider": "aws",
+  "llm.provider": "anthropic",
   "llm.system": "anthropic",
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
@@ -1157,7 +1157,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         expect(span.attributes["llm.model_name"]).toBe(
           "claude-3-5-sonnet-20240620",
         );
-        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.provider"]).toBe("anthropic");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
@@ -1258,7 +1258,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         expect(span.attributes["llm.model_name"]).toBe(
           "claude-3-5-sonnet-20240620",
         );
-        expect(span.attributes["llm.provider"]).toBe("aws");
+        expect(span.attributes["llm.provider"]).toBe("anthropic");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
@@ -3017,7 +3017,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const span = verifySpanBasics(customMemoryExporter);
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
-      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.provider"]).toBe("anthropic");
       expect(span.attributes["llm.model_name"]).toBe(
         "claude-3-sonnet-20240229",
       );
@@ -3086,7 +3086,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const span = verifySpanBasics(customMemoryExporter);
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
-      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.provider"]).toBe("anthropic");
       expect(span.attributes["llm.model_name"]).toBe(
         "claude-3-sonnet-20240229",
       );
@@ -3158,7 +3158,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const span = verifySpanBasics(customMemoryExporter);
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
-      expect(span.attributes["llm.provider"]).toBe("aws");
+      expect(span.attributes["llm.provider"]).toBe("anthropic");
       expect(span.attributes["llm.model_name"]).toBe(
         "claude-3-sonnet-20240229",
       );
