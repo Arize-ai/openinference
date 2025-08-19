@@ -287,7 +287,8 @@ export const extractMastraAgentOutput = (
  * Adds input and output attributes to root spans for session I/O support.
  *
  * Extracts user input and agent output from the provided spans and adds them
- * to any root spans that don't already have I/O attributes set.
+ * to any root spans that don't already have I/O attributes set. Handles spans
+ * from different traces correctly by grouping spans by trace ID.
  *
  * @param spans - Array of spans to process.
  */
@@ -300,19 +301,40 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
     return;
   }
 
-  const userInput = extractMastraUserInput(spans);
-  const agentOutput = extractMastraAgentOutput(spans);
+  // Group spans by trace ID
+  const spansByTrace = new Map<string, ReadableSpan[]>();
+  for (const span of spans) {
+    const traceId = getTraceId(span);
+    if (traceId) {
+      if (!spansByTrace.has(traceId)) {
+        spansByTrace.set(traceId, []);
+      }
+      spansByTrace.get(traceId)!.push(span);
+    }
+  }
 
-  // Add input and output to root spans
+  // Process each trace separately
   for (const rootSpan of rootSpans) {
+    const rootTraceId = getTraceId(rootSpan);
+    if (!rootTraceId) {
+      continue;
+    }
+
+    const traceSpans = spansByTrace.get(rootTraceId);
+    if (!traceSpans) {
+      continue;
+    }
+
+    const userInput = extractMastraUserInput(traceSpans);
+    const agentOutput = extractMastraAgentOutput(traceSpans);
+
+    // Add input and output to root span
     if (userInput && !rootSpan.attributes[SemanticConventions.INPUT_VALUE]) {
       rootSpan.attributes[SemanticConventions.INPUT_VALUE] = userInput;
-      rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE] = "text/plain";
     }
 
     if (agentOutput && !rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]) {
       rootSpan.attributes[SemanticConventions.OUTPUT_VALUE] = agentOutput;
-      rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE] = "text/plain";
     }
   }
 };

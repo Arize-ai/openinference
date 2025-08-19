@@ -7,11 +7,7 @@
           "agent.sanitizeResponseMessages.result": "[]",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -40,11 +36,7 @@
           "agent.fetchMemory.result": "{"threadId":"93dcfcda-a269-4fb3-99be-8e03e432db24","messages":[{"role":"user","content":"what is the weather in ann arbor"}]}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -73,11 +65,7 @@
           "agent.preExecute.result": "{"coreMessages":[{"role":"user","content":"what is the weather in ann arbor"}],"threadIdToUse":"93dcfcda-a269-4fb3-99be-8e03e432db24"}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -106,11 +94,7 @@
           "agent.getAssignedTools.result": "{"weatherTool":{"type":"function","description":"Get current weather for a location","parameters":{"jsonSchema":{"type":"object","properties":{"location":{"type":"string","description":"City name"}},"required":["location"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -139,11 +123,7 @@
           "agent.getMemoryTools.result": "{}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -172,11 +152,7 @@
           "agent.getToolsets.result": "{}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -205,11 +181,7 @@
           "agent.getClientTools.result": "{}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -238,11 +210,7 @@
           "agent.getWorkflowTools.result": "{}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -271,11 +239,7 @@
           "agent.convertTools.result": "{"weatherTool":{"type":"function","description":"Get current weather for a location","parameters":{"jsonSchema":{"type":"object","properties":{"location":{"type":"string","description":"City name"}},"required":["location"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -305,11 +269,7 @@
           "agent.stream.result": "{"warningsPromise":{"status":{"type":"pending"}},"usagePromise":{"status":{"type":"pending"}},"finishReasonPromise":{"status":{"type":"pending"}},"providerMetadataPromise":{"status":{"type":"pending"}},"textPromise":{"status":{"type":"pending"}},"reasoningPromise":{"status":{"type":"pending"}},"reasoningDetailsPromise":{"status":{"type":"pending"}},"sourcesPromise":{"status":{"type":"pending"}},"filesPromise":{"status":{"type":"pending"}},"toolCallsPromise":{"status":{"type":"pending"}},"toolResultsPromise":{"status":{"type":"pending"}},"requestPromise":{"status":{"type":"pending"}},"responsePromise":{"status":{"type":"pending"}},"stepsPromise":{"status":{"type":"pending"}},"baseStream":{}}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754793,
@@ -336,11 +296,7 @@
         "attributes": {
           "http.request.method": "POST",
           "http.request.method_original": "POST",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": undefined,
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754794,
@@ -441,8 +397,6 @@
           "gen_ai.usage.input_tokens": 179,
           "gen_ai.usage.output_tokens": 15,
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "llm.input_messages.0.message.content": "
       You are a helpful weather assistant that provides accurate weather information.
 
@@ -473,7 +427,7 @@
           "openinference.span.kind": "LLM",
           "operation.name": "ai.streamText.doStream",
           "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
+          "output.value": "",
         },
         "endTime": [
           1747754795,
@@ -500,11 +454,7 @@
         "attributes": {
           "http.request.method": "POST",
           "http.request.method_original": "POST",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": undefined,
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,
@@ -580,8 +530,6 @@
           "gen_ai.usage.input_tokens": 246,
           "gen_ai.usage.output_tokens": 64,
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "llm.input_messages.0.message.content": "
       You are a helpful weather assistant that provides accurate weather information.
 
@@ -650,11 +598,7 @@
           "agent.getMostRecentUserMessage.result": "{"role":"user","content":"what is the weather in ann arbor"}",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,
@@ -683,11 +627,7 @@
           "agent.sanitizeResponseMessages.result": "[{"role":"user","content":"what is the weather in ann arbor"}]",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,
@@ -716,11 +656,7 @@
           "agent.sanitizeResponseMessages.result": "[{"role":"assistant","content":[{"type":"tool-call","toolCallId":"call_jNucVMVoqwhzfOZ1wfx92lXo","toolName":"weatherTool","args":{"location":"Ann Arbor"}}],"id":"msg-NR1VI5rKK1BH6BWwFUTyA2UN"},{"role":"tool","id":"msg-AaK5V3CygaWNC9Qcu8MEfW0Q","content":[{"type":"tool-result","toolCallId":"call_jNucVMVoqwhzfOZ1wfx92lXo","toolName":"weatherTool","result":{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}}]},{"role":"assistant","content":[{"type":"text","text":"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h."}],"id":"msg-5mfT3Rz7bKnssiEcn235nQta"}]",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,
@@ -749,11 +685,7 @@
           "agent.getResponseMessages.result": "[{"id":"msg-NR1VI5rKK1BH6BWwFUTyA2UN","threadId":"93dcfcda-a269-4fb3-99be-8e03e432db24","resourceId":"weatherAgent","role":"assistant","content":[{"type":"tool-call","toolCallId":"call_jNucVMVoqwhzfOZ1wfx92lXo","toolName":"weatherTool","args":{"location":"Ann Arbor"}}],"createdAt":"2025-05-20T15:26:37.190Z","toolCallIds":["call_jNucVMVoqwhzfOZ1wfx92lXo"],"toolCallArgs":[{"location":"Ann Arbor"}],"toolNames":["weatherTool"],"type":"tool-call"},{"id":"msg-AaK5V3CygaWNC9Qcu8MEfW0Q","threadId":"93dcfcda-a269-4fb3-99be-8e03e432db24","resourceId":"weatherAgent","role":"tool","content":[{"type":"tool-result","toolCallId":"call_jNucVMVoqwhzfOZ1wfx92lXo","toolName":"weatherTool","result":{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}}],"createdAt":"2025-05-20T15:26:37.191Z","toolCallIds":["call_jNucVMVoqwhzfOZ1wfx92lXo"],"type":"tool-result"},{"id":"msg-5mfT3Rz7bKnssiEcn235nQta","threadId":"93dcfcda-a269-4fb3-99be-8e03e432db24","resourceId":"weatherAgent","role":"assistant","content":[{"type":"text","text":"The current weather in Ann Arbor is overcast with a temperature of 12.2°C, though it feels like 8.8°C. The humidity level is at 61%, and there is a wind speed of 21.6 km/h with gusts reaching up to 35.3 km/h."}],"createdAt":"2025-05-20T15:26:37.192Z","type":"text"}]",
           "componentName": "Weather Agent",
           "http.request_id": "98823c5f-b2ec-4a4e-a056-f22f7bcb53ae",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "openinference.span.kind": "AGENT",
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,
@@ -835,8 +767,6 @@
           "http.target": "/api/agents/weatherAgent/stream",
           "http.url": "http://localhost:4111/api/agents/weatherAgent/stream",
           "http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-          "input.mime_type": "text/plain",
-          "input.value": "what is the weather in ann arbor",
           "net.host.ip": "::1",
           "net.host.name": "localhost",
           "net.host.port": 4111,
@@ -844,8 +774,6 @@
           "net.peer.port": 51258,
           "net.transport": "ip_tcp",
           "openinference.span.kind": undefined,
-          "output.mime_type": "text/plain",
-          "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
         },
         "endTime": [
           1747754797,

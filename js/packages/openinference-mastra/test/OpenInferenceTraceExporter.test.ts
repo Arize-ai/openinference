@@ -78,8 +78,6 @@ describe("OpenInferenceTraceExporter", () => {
                 "http.target": "/api/agents/weatherAgent/stream",
                 "http.url": "http://localhost:4111/api/agents/weatherAgent/stream",
                 "http.user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-                "input.mime_type": "text/plain",
-                "input.value": "what is the weather in ann arbor",
                 "net.host.ip": "::1",
                 "net.host.name": "localhost",
                 "net.host.port": 4111,
@@ -87,8 +85,6 @@ describe("OpenInferenceTraceExporter", () => {
                 "net.peer.port": 51258,
                 "net.transport": "ip_tcp",
                 "openinference.span.kind": undefined,
-                "output.mime_type": "text/plain",
-                "output.value": "{"temperature":12.2,"feelsLike":8.8,"humidity":61,"windSpeed":21.6,"windGust":35.3,"conditions":"Overcast","location":"Ann Arbor"}",
               },
               "endTime": [
                 1747754797,
@@ -788,6 +784,142 @@ describe("OpenInferenceTraceExporter", () => {
     );
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
       "application/json",
+    );
+  });
+
+  it("should handle spans from different traces without cross-contamination", async () => {
+    // Root span from trace A
+    const rootSpanA = {
+      name: "POST /api/trace-a",
+      parentSpanContext: undefined,
+      spanContext: () => ({
+        spanId: "root-a-id",
+        traceId: "trace-a",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/api/trace-a",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Input span from trace A
+    const inputSpanA = {
+      name: "agent.getMostRecentUserMessage",
+      parentSpanContext: { spanId: "root-a-id" },
+      spanContext: () => ({
+        spanId: "input-a-id",
+        traceId: "trace-a",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.getMostRecentUserMessage.result": JSON.stringify({
+          id: "msg-a",
+          role: "user",
+          content: "Input for trace A",
+          createdAt: "2025-01-15T10:00:00Z",
+        }),
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Output span from trace A
+    const outputSpanA = {
+      name: "ai.streamText",
+      parentSpanContext: { spanId: "root-a-id" },
+      spanContext: () => ({
+        spanId: "output-a-id",
+        traceId: "trace-a",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]: "Output for trace A",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Root span from trace B (different trace)
+    const rootSpanB = {
+      name: "POST /api/trace-b",
+      parentSpanContext: undefined,
+      spanContext: () => ({
+        spanId: "root-b-id",
+        traceId: "trace-b",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "http.method": "POST",
+        "http.url": "http://localhost:4111/api/trace-b",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Input span from trace B
+    const inputSpanB = {
+      name: "agent.getMostRecentUserMessage",
+      parentSpanContext: { spanId: "root-b-id" },
+      spanContext: () => ({
+        spanId: "input-b-id",
+        traceId: "trace-b",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        "agent.getMostRecentUserMessage.result": JSON.stringify({
+          id: "msg-b",
+          role: "user",
+          content: "Input for trace B",
+          createdAt: "2025-01-15T10:00:00Z",
+        }),
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    // Output span from trace B
+    const outputSpanB = {
+      name: "ai.streamText",
+      parentSpanContext: { spanId: "root-b-id" },
+      spanContext: () => ({
+        spanId: "output-b-id",
+        traceId: "trace-b",
+        traceFlags: 0,
+        traceState: undefined,
+      }),
+      attributes: {
+        [SemanticConventions.OUTPUT_VALUE]: "Output for trace B",
+      },
+      resource: { attributes: {} },
+    } as unknown as ReadableSpan;
+
+    const exporter = new OpenInferenceOTLPTraceExporter({
+      url: "http://example.com/v1/traces",
+    });
+
+    // Export spans from both traces together (simulating a batch export)
+    exporter.export([
+      rootSpanA, inputSpanA, outputSpanA,
+      rootSpanB, inputSpanB, outputSpanB
+    ], () => {});
+
+    // Root span A should only have input/output from trace A
+    expect(rootSpanA.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "Input for trace A",
+    );
+    expect(rootSpanA.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "Output for trace A",
+    );
+
+    // Root span B should only have input/output from trace B
+    expect(rootSpanB.attributes[SemanticConventions.INPUT_VALUE]).toBe(
+      "Input for trace B",
+    );
+    expect(rootSpanB.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
+      "Output for trace B",
     );
   });
 });
