@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.ChatOptions;
 
@@ -228,14 +229,14 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
             }
 
             // Get the first result's output
-            var results = context.getResponse().getResults();
-            if (!results.isEmpty()) {
-                var generation = results.get(0);
+            List<Generation> results = context.getResponse().getResults();
+            for (int i=0; i < results.size(); i++) {
+                Generation generation = results.get(i);
                 var output = generation.getOutput();
 
                 if (output instanceof AssistantMessage) {
                     AssistantMessage assistantMessage = (AssistantMessage) output;
-                    String prefix = String.format("%s.%d.", SemanticConventions.LLM_OUTPUT_MESSAGES, 0);
+                    String prefix = String.format("%s.%d.", SemanticConventions.LLM_OUTPUT_MESSAGES, i);
 
                     span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), "assistant");
                     span.setAttribute(
