@@ -2,7 +2,7 @@
 .vscode
 .idea
 .tox
-# .history
+.history
 node_modules
 dist
 sdist
