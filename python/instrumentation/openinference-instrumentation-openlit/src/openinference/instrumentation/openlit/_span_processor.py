@@ -362,7 +362,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     "messages": output_msgs,
                 }
             ),
-            sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
+            **get_span_kind_attributes("llm"),
         }
 
         if span._attributes:
