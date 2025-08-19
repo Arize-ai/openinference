@@ -318,26 +318,23 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
 };
 
 /**
- * Finds missing root spans for traces with agent operations.
+ * Contextualizes root spans for traces with agent operations.
  *
- * When spans are filtered (e.g., only agent spans are exported), this function
- * identifies root spans for agent traces that should be included to maintain trace
- * context for session I/O.
+ * This function will add the OpenInference span kind to the given Mastra span if it is an agent operation.
+ * Behavior relies on all spans being contextualized with OpenInference attributes to identify missing root spans.
  *
- * @param allSpans - All spans before filtering.
- * @param filteredSpans - Spans after filtering.
- * @returns Array of missing root spans that should be included.
+ * @param oiContextualizedSpans - List of spans that have been contextualized with OpenInference attributes if possible.
  */
-export const findMissingAgentRootSpans = (
-  allSpans: ReadableSpan[],
-  filteredSpans: ReadableSpan[],
-): ReadableSpan[] => {
-  const filteredSpanIds = new Set(filteredSpans.map((s) => getSpanId(s)));
-
-  // Check filtered spans for agent operations
+export const contextualizeAgentRootSpans = (
+  oiContextualizedSpans: ReadableSpan[],
+): void => {
+  // List of trace IDs that have agent operations
   const agentTraceIds = new Set<string>();
-  for (const span of filteredSpans) {
-    if (isAgentOperation(span)) {
+
+  // Find all trace IDs that have agent operations
+  for (const span of oiContextualizedSpans) {
+    const oiKind = getOpenInferenceSpanKind(span);
+    if (oiKind === OpenInferenceSpanKind.AGENT) {
       const traceId = getTraceId(span);
       if (traceId) {
         agentTraceIds.add(traceId);
@@ -347,27 +344,22 @@ export const findMissingAgentRootSpans = (
 
   // Early exit if no agent traces found
   if (!agentTraceIds.size) {
-    return [];
+    return;
   }
 
-  // Find missing root spans for agent traces
-  const missingRoots: ReadableSpan[] = [];
-  for (const span of allSpans) {
+  // Contextualize root spans from agent traces that are missing the OpenInference AGENT span kind
+  for (const span of oiContextualizedSpans) {
     const traceId = getTraceId(span);
     if (!traceId) {
       continue;
     }
     if (
+      getOpenInferenceSpanKind(span) === undefined && // is missing the OpenInference span kind
       span.parentSpanContext === undefined && // is root
-      agentTraceIds.has(traceId) && // is agent trace
-      !filteredSpanIds.has(getSpanId(span)) && // not already included
-      !span.name.startsWith(MASTRA_INTERNAL_SPAN_NAME_PREFIX) // not internal operations
+      !span.name.startsWith(MASTRA_INTERNAL_SPAN_NAME_PREFIX) && // not internal operations
+      agentTraceIds.has(traceId) // is agent trace
     ) {
-      // Process the missing root span
-      processMastraSpanAttributes(span);
-      missingRoots.push(span);
+      addOpenInferenceSpanKind(span, OpenInferenceSpanKind.AGENT);
     }
   }
-
-  return missingRoots;
 };

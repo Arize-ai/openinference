@@ -1,5 +1,6 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { OpenInferenceOTLPTraceExporter } from "../src/OpenInferenceTraceExporter.js";
+import { isOpenInferenceSpan } from "../src/utils.js";
 import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
@@ -291,7 +292,7 @@ describe("OpenInferenceTraceExporter", () => {
 
     const exporter = new OpenInferenceOTLPTraceExporter({
       url: "http://example.com/v1/traces",
-      spanFilter: (span) => span.name.startsWith("agent."), // Only export agent spans
+      spanFilter: isOpenInferenceSpan,
     });
 
     exporter.export([rootSpan, agentSpan], () => {});
