@@ -257,7 +257,6 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                     List<Map<String, Object>> messagesList = convertMessages(outs);
                     String messagesJson = objectMapper.writeValueAsString(messagesList);
 
-//                    String json = objectMapper.writeValueAsString(outs);
                     span.setAttribute(SemanticConventions.OUTPUT_VALUE, messagesJson);
                     span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
                 }
