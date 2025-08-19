@@ -46,6 +46,7 @@ _LLM_PROVIDERS = {
     "vector_dbs",
 }
 
+
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     Converts OpenLIT GenAI spans → OpenInference attributes in-place.
@@ -296,9 +297,7 @@ def _get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
     completion_txt = _parse_completion_from_events(span.events)
     if prompt_txt:
         oi_attrs.update(
-            get_input_attributes(
-                prompt_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value
-            )
+            get_input_attributes(prompt_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value)
         )
     if completion_txt:
         oi_attrs.update(
@@ -313,6 +312,7 @@ def _get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
 
 def _is_llm_span(attrs: dict[str, Any]) -> bool:
     return "gen_ai.system" in attrs
+
 
 def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
     attrs = dict(getattr(span, "_attributes", {}))
