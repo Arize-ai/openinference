@@ -224,7 +224,7 @@ def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message]
     return _build_messages(prompt_text, completion_text, tool_calls_json)
 
 
-def get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
+def _get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
     openlit_attrs = dict(getattr(span, "_attributes", {}))
     oi_attrs = {
         sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.TOOL.value,
@@ -273,7 +273,7 @@ def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
     return invocation
 
 
-def get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
+def _get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
     oi_attrs = {}
     prompt_txt = _parse_prompt_from_events(span.events)
     completion_txt = _parse_completion_from_events(span.events)
@@ -293,75 +293,73 @@ def get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
 
     return oi_attrs
 
+
+def _is_llm_span(attrs: dict[str, Any]) -> bool:
+    return "gen_ai.system" in attrs
+
+def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
+    attrs = dict(getattr(span, "_attributes", {}))
+    input_msgs, output_msgs = parse_messages(span.events, attrs)
+    prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens"))
+    completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens"))
+    total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens"))
+
+    token_count = oi.TokenCount()
+    if prompt_tokens:
+        token_count["prompt"] = prompt_tokens
+    if completion_tokens:
+        token_count["completion"] = completion_tokens
+    if total_tokens:
+        token_count["total"] = total_tokens
+
+    invocation_params = find_invocation_parameters(attrs)
+
+    oi_attrs = {
+        **get_llm_attributes(
+            provider=attrs.get("gen_ai.system", "").lower(),
+            system=attrs.get("gen_ai.system", "").lower(),
+            model_name=attrs.get("gen_ai.request.model") or attrs.get("gen_ai.response.model"),
+            input_messages=input_msgs,
+            output_messages=output_msgs,
+            token_count=token_count,
+            invocation_parameters=invocation_params or None,
+        ),
+        **get_input_attributes(
+            {
+                "messages": [
+                    {"role": m.get("role"), "content": m.get("content", "")} for m in input_msgs
+                ],
+                "model": attrs.get("gen_ai.request.model"),
+                **invocation_params,
+            }
+        ),
+        **get_output_attributes(
+            {
+                "id": attrs.get("gen_ai.response.id"),
+                "messages": output_msgs,
+            }
+        ),
+        **get_span_kind_attributes("llm"),
+    }
+    return oi_attrs
+
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     Converts OpenLIT GenAI spans → OpenInference attributes in-place.
     Add to your tracer-provider:
-
         provider.add_span_processor(OpenInferenceSpanProcessor())
     """
 
     def on_end(self, span: ReadableSpan) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
+        oi_attrs = {}
 
         if _is_tool_span(attrs):
-            oi_attrs = get_oi_tool_attributes(span)
-            if span._attributes:
-                span._attributes = {**span._attributes, **oi_attrs}
-            return
+            oi_attrs = _get_oi_tool_attributes(span)
+        elif _is_chain_span(attrs):
+            oi_attrs = _get_oi_chain_attributes(span)
+        elif _is_llm_span(attrs):
+            oi_attrs = _get_llm_attributes(span)
 
-        if _is_chain_span(attrs):
-            oi_attrs = get_oi_chain_attributes(span)
-            if span._attributes:
-                span._attributes = {**span._attributes, **oi_attrs}
-            return
-
-        if "gen_ai.system" not in attrs:
-            return
-
-        input_msgs, output_msgs = parse_messages(span.events, attrs)
-
-        prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens"))
-        completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens"))
-        total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens"))
-
-        token_count = oi.TokenCount()
-        if prompt_tokens:
-            token_count["prompt"] = prompt_tokens
-        if completion_tokens:
-            token_count["completion"] = completion_tokens
-        if total_tokens:
-            token_count["total"] = total_tokens
-
-        invocation_params = find_invocation_parameters(attrs)
-
-        oi_attrs = {
-            **get_llm_attributes(
-                provider=attrs.get("gen_ai.system", "").lower(),
-                system=attrs.get("gen_ai.system", "").lower(),
-                model_name=attrs.get("gen_ai.request.model") or attrs.get("gen_ai.response.model"),
-                input_messages=input_msgs,
-                output_messages=output_msgs,
-                token_count=token_count,
-                invocation_parameters=invocation_params or None,
-            ),
-            **get_input_attributes(
-                {
-                    "messages": [
-                        {"role": m.get("role"), "content": m.get("content", "")} for m in input_msgs
-                    ],
-                    "model": attrs.get("gen_ai.request.model"),
-                    **invocation_params,
-                }
-            ),
-            **get_output_attributes(
-                {
-                    "id": attrs.get("gen_ai.response.id"),
-                    "messages": output_msgs,
-                }
-            ),
-            **get_span_kind_attributes("llm"),
-        }
-
-        if span._attributes:
+        if oi_attrs and span._attributes:
             span._attributes = {**span._attributes, **oi_attrs}
