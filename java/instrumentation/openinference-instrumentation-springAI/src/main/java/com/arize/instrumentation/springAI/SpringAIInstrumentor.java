@@ -174,7 +174,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         }
     }
 
-    private void setInputMessageAttributes(Span span, ChatModelObservationContext context) {
+    protected void setInputMessageAttributes(Span span, ChatModelObservationContext context) {
         try {
             List<Message> messages = context.getRequest().getInstructions();
             if (messages == null || messages.isEmpty()) {
@@ -222,14 +222,15 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
         }
     }
 
-    private void setOutputMessageAttributes(Span span, ChatModelObservationContext context) {
+    protected void setOutputMessageAttributes(Span span, ChatModelObservationContext context) {
         try {
             if (context.getResponse() == null || context.getResponse().getResults() == null) {
                 return;
             }
 
-            // Get the first result's output
+            // Get the results and combine the output
             List<Generation> results = context.getResponse().getResults();
+            List<Message> outs = new ArrayList<>();
             for (int i=0; i < results.size(); i++) {
                 Generation generation = results.get(i);
                 var output = generation.getOutput();
@@ -249,8 +250,16 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
                         setToolCallAttributes(span, prefix, assistantMessage.getToolCalls());
                     }
 
-                    span.setAttribute(SemanticConventions.OUTPUT_VALUE, assistantMessage.getText());
-                    span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "text/plain");
+                    outs.add(assistantMessage);
+                }
+
+                if (!outs.isEmpty()) {
+                    List<Map<String, Object>> messagesList = convertMessages(outs);
+                    String messagesJson = objectMapper.writeValueAsString(messagesList);
+
+//                    String json = objectMapper.writeValueAsString(outs);
+                    span.setAttribute(SemanticConventions.OUTPUT_VALUE, messagesJson);
+                    span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
                 }
             }
         } catch (Exception e) {
