@@ -88,6 +88,16 @@ def _is_chain_span(attrs: Dict[str, Any]) -> bool:
     return False
 
 
+def _is_tool_span(attrs: dict[str, Any]) -> bool:
+    operation_name = attrs.get("gen_ai.operation.name")
+    tool_name = attrs.get("gen_ai.tool.name")
+    return operation_name == "execute_tool" or tool_name is not None
+
+
+def _is_llm_span(attrs: dict[str, Any]) -> bool:
+    return "gen_ai.system" in attrs
+
+
 def _safe_int(v: Any) -> int | None:
     try:
         return int(v)
@@ -95,7 +105,7 @@ def _safe_int(v: Any) -> int | None:
         return None
 
 
-def _tool_call_to_dict(tc: Any) -> Dict[str, Any]:
+def get_oi_tool_call(tc: Any) -> oi.ToolCall:
     """
     Convert an oi.ToolCall OR a raw dict into the JSON shape Phoenix expects.
     """
@@ -103,14 +113,13 @@ def _tool_call_to_dict(tc: Any) -> Dict[str, Any]:
         return tc
 
     try:
-        fn = tc["function"]
-        args = fn["arguments"] if isinstance(fn, dict) else ""
-        name = fn["name"] if isinstance(fn, dict) else ""
-        return {
-            "id": tc.get("id", ""),
-            "type": "function",
-            "function": {"name": name, "arguments": args},
-        }
+        return oi.ToolCall(
+            id=tc.get("id", ""),
+            function=oi.ToolCallFunction(
+                name=tc.get("function", {}).get("name", ""),
+                arguments=tc.get("function", {}).get("arguments", ""),
+            ),
+        )
     except Exception:
         return {}
 
@@ -151,54 +160,30 @@ def _unflatten_prompt(flat: str) -> list[Dict[str, str]]:
     return msgs
 
 
-def _load_tool_calls(raw: Any) -> list[Dict[str, Any]]:
-    """
-    Parse the value that OpenLIT stores in
-    `gen_ai.response.tool_calls`.
-
-    * already a list      → return as-is
-    * JSON string         → json.loads(...)
-    * Python-literal str  → ast.literal_eval(...)
-    * anything else       → []
-    """
+def _load_tool_calls(raw: Any) -> list[oi.ToolCall]:
     if raw is None:
         return []
 
-    # 1) direct list
-    if isinstance(raw, list):
-        return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in raw]
-
-    # 2) JSON string
-    if isinstance(raw, str):
-        try:
-            result = json.loads(raw)
-            if isinstance(result, list):
-                return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
-            return []
-        except Exception:
-            # 3) python literal – OpenLIT sometimes dumps repr(list)
-            try:
-                result = ast.literal_eval(raw)
-                if isinstance(result, list):
-                    return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
-                return []
-            except Exception:
-                return []
-
-    # 4) fallback
     try:
         result = json.loads(raw)
         if isinstance(result, list):
-            return [tc if isinstance(tc, dict) else _tool_call_to_dict(tc) for tc in result]
+            return [get_oi_tool_call(tc) for tc in result]
         return []
     except Exception:
-        return []
+        # 3) python literal – OpenLIT sometimes dumps repr(list)
+        try:
+            result = ast.literal_eval(raw)
+            if isinstance(result, list):
+                return [get_oi_tool_call(tc) for tc in result]
+            return []
+        except Exception:
+            return []
 
 
 def _build_messages(
     prompt: str | None,
     completion: str | None,
-    tool_calls_json: Any,
+    tool_calls_json: list[oi.ToolCall],
 ) -> Tuple[list[oi.Message], list[oi.Message]]:
     """
     Convert OpenLIT's plain-text fields into OpenInference message objects.
@@ -238,7 +223,6 @@ def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message]
     prompt_text = _parse_prompt_from_events(events)
     completion_text = _parse_completion_from_events(events)
     tool_calls_json = attrs.get("gen_ai.response.tool_calls")
-
     return _build_messages(prompt_text, completion_text, tool_calls_json)
 
 
@@ -277,12 +261,6 @@ def _get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
     return oi_attrs
 
 
-def _is_tool_span(attrs: dict[str, Any]) -> bool:
-    operation_name = attrs.get("gen_ai.operation.name")
-    tool_name = attrs.get("gen_ai.tool.name")
-    return operation_name == "execute_tool" or tool_name is not None
-
-
 def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
     invocation: Dict[str, Any] = {}
     for parameter in ("model", "temperature", "max_tokens", "top_p", "top_k"):
@@ -309,10 +287,6 @@ def _get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
     oi_attrs.update(get_span_kind_attributes("chain"))
 
     return oi_attrs
-
-
-def _is_llm_span(attrs: dict[str, Any]) -> bool:
-    return "gen_ai.system" in attrs
 
 
 def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
