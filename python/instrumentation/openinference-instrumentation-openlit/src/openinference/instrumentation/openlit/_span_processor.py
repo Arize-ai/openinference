@@ -274,31 +274,6 @@ def find_invocation_parameters(attrs: Dict[str, Any]) -> Dict[str, Any]:
     return invocation
 
 
-def build_output_messages(output_msgs: list[oi.Message]) -> list[Dict[str, Any]]:
-    out_msgs_json: list[Dict[str, Any]] = []
-    for m in output_msgs:
-        try:
-            mdict = dict(m)
-        except (TypeError, ValueError):
-            mdict = {}
-
-        # drop falsy content keys
-        if not mdict.get("content"):
-            mdict.pop("content", None)
-
-        # normalise tool-calls …
-        if "tool_calls" in mdict:
-            tool_calls = mdict["tool_calls"]
-            if hasattr(tool_calls, "__iter__") and not isinstance(tool_calls, (str, bytes)):
-                mdict["tool_calls"] = [_tool_call_to_dict(tc) for tc in tool_calls]
-            else:
-                # If tool_calls is not iterable, remove it
-                mdict.pop("tool_calls", None)
-
-        out_msgs_json.append(mdict)
-    return out_msgs_json
-
-
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     Converts OpenLIT GenAI spans → OpenInference attributes in-place.
@@ -361,8 +336,6 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         invocation_params = find_invocation_parameters(attrs)
 
-        output_messages = build_output_messages(output_msgs)
-
         oi_attrs = {
             **oi_attrs,
             **get_llm_attributes(
@@ -386,7 +359,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             **get_output_attributes(
                 {
                     "id": attrs.get("gen_ai.response.id"),
-                    "messages": output_messages,
+                    "messages": output_msgs,
                 }
             ),
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
