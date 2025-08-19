@@ -334,6 +334,89 @@ class _BaseGroupChatRunStreamWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
 
 
+class _AssistantAgentExecuteToolCallWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        tool_call = kwargs.get("tool_call")
+        tools = kwargs.get("tools", [])
+        handoff_tools = kwargs.get("handoff_tools", [])
+        agent_name = kwargs.get("agent_name", "unknown_agent")
+
+        if not tool_call or not hasattr(tool_call, "name"):
+            return await wrapped(*args, **kwargs)
+
+        # Find the actual tool for additional attributes
+        all_tools = list(tools) + list(handoff_tools)
+        tool = next((t for t in all_tools if hasattr(t, "name") and t.name == tool_call.name), None)
+
+        span_name = f"{agent_name}.{tool_call.name}"
+        attributes = dict(get_attributes_from_context())
+        attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.TOOL.value
+        attributes[SpanAttributes.TOOL_NAME] = tool_call.name
+
+        # Add tool description if available
+        if tool and hasattr(tool, "description"):
+            attributes[SpanAttributes.TOOL_DESCRIPTION] = tool.description
+
+        # Add input parameters (tool call arguments)
+        if hasattr(tool_call, "arguments") and tool_call.arguments:
+            attributes[SpanAttributes.TOOL_PARAMETERS] = tool_call.arguments
+            attributes[SpanAttributes.INPUT_VALUE] = tool_call.arguments
+            attributes[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=attributes,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            try:
+                tool_call_result, function_execution_result = await wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+
+                # Set output attributes
+                if hasattr(function_execution_result, "content"):
+                    output_content = function_execution_result.content
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, output_content)
+                    # Determine output MIME type
+                    try:
+                        # Try to parse as JSON first (using already imported json module)
+                        json.loads(output_content)
+                        span.set_attribute(
+                            SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        # Fallback to text
+                        span.set_attribute(
+                            SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
+                        )
+
+                # Set error status if tool execution failed
+                is_error = (
+                    hasattr(function_execution_result, "is_error")
+                    and function_execution_result.is_error
+                )
+                if is_error:
+                    span.set_status(
+                        trace_api.Status(trace_api.StatusCode.ERROR, "Tool execution failed")
+                    )
+
+                return tool_call_result, function_execution_result
+
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+
+
 class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
     async def __call__(
         self,
@@ -382,11 +465,17 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
             try:
                 result = await wrapped(*args, **valid_kwargs)
                 span.set_status(trace_api.StatusCode.OK)
+
+                # Extract output attributes and process tool calls in response
+                output_attributes = dict(get_output_attributes(result))
+                tool_call_attributes = dict(_extract_output_tool_calls(result))
+
                 span.set_attributes(
                     dict(
                         _flatten(
                             {
-                                **dict(get_output_attributes(result)),
+                                **output_attributes,
+                                **tool_call_attributes,
                             }
                         )
                     )
@@ -447,11 +536,16 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
             try:
                 async for res in wrapped(*args, **valid_kwargs):
                     if isinstance(res, CreateResult):
+                        # Extract output attributes and process tool calls in response
+                        output_attributes = dict(get_output_attributes(res))
+                        tool_call_attributes = dict(_extract_output_tool_calls(res))
+
                         span.set_attributes(
                             dict(
                                 _flatten(
                                     {
-                                        **dict(get_output_attributes(res)),
+                                        **output_attributes,
+                                        **tool_call_attributes,
                                     }
                                 )
                             )
@@ -492,6 +586,57 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> di
     bound_args = method_signature.bind(*args, **valid_kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
+
+def _extract_output_tool_calls(result: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract tool call attributes from CreateResult response content.
+    This handles tool calls that appear in the LLM response (output messages).
+    """
+    if not hasattr(result, "content"):
+        return
+
+    content = getattr(result, "content", None)
+    if not isinstance(content, list):
+        return
+
+    # Check if content contains FunctionCall objects (tool calls from LLM response)
+    tool_calls = []
+    for item in content:
+        # Check if item is a FunctionCall object by looking for common attributes
+        if hasattr(item, "name") and hasattr(item, "arguments") and hasattr(item, "id"):
+            tool_calls.append(item)
+
+    if not tool_calls:
+        return
+
+    # Process as output message with tool calls (assistant role)
+    message_index = 0  # First (and typically only) output message
+    yield f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}", "assistant"
+
+    for tool_call_index, tool_call in enumerate(tool_calls):
+        if hasattr(tool_call, "id") and tool_call.id is not None:
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                f"{TOOL_CALL_ID}",
+                tool_call.id,
+            )
+        if hasattr(tool_call, "name") and tool_call.name is not None:
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                f"{TOOL_CALL_FUNCTION_NAME}",
+                tool_call.name,
+            )
+        if hasattr(tool_call, "arguments") and tool_call.arguments is not None:
+            # Arguments should be JSON string
+            arguments_json = tool_call.arguments
+            if not isinstance(arguments_json, str):
+                arguments_json = safe_json_dumps(arguments_json)
+            yield (
+                f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}."
+                f"{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                arguments_json,
+            )
 
 
 def _get_llm_tool_attributes(
