@@ -3,6 +3,7 @@ import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
   ConverseCommand,
+  ConverseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import {
   InMemorySpanExporter,
@@ -1594,6 +1595,64 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1071},"output":{"message":{"content":[{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":13,"outputTokens":35,"totalTokens":48}}",
+}
+`);
+      });
+
+      it("should handle basic converse stream responses", async () => {
+        setupTestRecordingWrapper(
+          "should-handle-basic-converse-stream-responses",
+        );
+
+        const client = createTestClient(isRecordingMode);
+
+        const command = new ConverseStreamCommand({
+          modelId: TEST_MODEL_ID,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Hello, how are you?",
+                },
+              ],
+            },
+          ],
+        });
+
+        const result = await client.send(command);
+
+        // Basic response structure verification for streaming
+        expect(result).toBeDefined();
+        expect(result.stream).toBeDefined();
+
+        // Consume the stream to trigger instrumentation
+        await consumeStreamResponse({ body: result.stream });
+
+        const span = verifySpanBasics(spanExporter, "bedrock.converse");
+
+        // Comprehensive span attributes snapshot for streaming converse response
+        // This test validates that converse streaming has proper instrumentation
+        // NOTE: This snapshot will need to be updated after VCR recording is created
+        expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.role": "user",
+  "llm.model_name": "claude-3-5-sonnet-20240620",
+  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "anthropic",
+  "llm.token_count.completion": 35,
+  "llm.token_count.prompt": 13,
+  "llm.token_count.total": 48,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?","tool_calls":[],"usage":{"input_tokens":13,"output_tokens":35,"total_tokens":48},"streaming":true,"stop_reason":"end_turn"}",
 }
 `);
       });

@@ -22,6 +22,7 @@ import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
   ConverseCommand,
+  ConverseStreamCommand,
   BedrockRuntimeClient,
   InvokeModelResponse,
   ConverseResponse,
@@ -34,6 +35,7 @@ import {
   consumeBedrockStreamChunks,
   safelySplitStream,
 } from "./attributes/invoke-model-streaming-response-attributes";
+import { consumeConverseStreamChunks } from "./attributes/converse-streaming-response-attributes";
 import {
   getSystemFromModelId,
   setBasicSpanAttributes,
@@ -71,6 +73,7 @@ export function isPatched(): boolean {
  * - InvokeModel commands (synchronous)
  * - InvokeModelWithResponseStream commands (streaming)
  * - Converse commands (conversation API)
+ * - ConverseStream commands (streaming conversation API)
  *
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
@@ -204,6 +207,14 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
             if (command?.constructor?.name === "ConverseCommand") {
               return instrumentation.handleConverseCommand(
                 command as ConverseCommand,
+                original,
+                this,
+              );
+            }
+
+            if (command?.constructor?.name === "ConverseStreamCommand") {
+              return instrumentation.handleConverseStreamCommand(
+                command as ConverseStreamCommand,
                 original,
                 this,
               );
@@ -471,5 +482,104 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       span.end();
       throw error;
     }
+  }
+
+  /**
+   * Handles instrumentation for streaming Converse commands with guaranteed stream preservation
+   *
+   * This method ensures the original user stream is preserved regardless of instrumentation
+   * success or failure. The user stream is returned immediately while instrumentation
+   * happens asynchronously in the background using stream splitting.
+   *
+   * @param command The ConverseStreamCommand to instrument
+   * @param original The original send method from the Bedrock client
+   * @param client The Bedrock client instance
+   * @returns {Promise<{stream: AsyncIterable<unknown>}>} Promise resolving to the response with preserved user stream
+   */
+  private handleConverseStreamCommand(
+    command: ConverseStreamCommand,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    original: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    client: any,
+  ) {
+    const span = this.oiTracer.startSpan("bedrock.converse", {
+      kind: SpanKind.INTERNAL,
+    });
+
+    const modelId = command.input.modelId;
+    const system = getSystemFromModelId(modelId ?? "");
+    setBasicSpanAttributes(span, system);
+
+    const contextAttributes = getAttributesFromContext(context.active());
+    span.setAttributes(contextAttributes);
+
+    extractConverseRequestAttributes({
+      span,
+      command: command as unknown as ConverseCommand,
+    });
+
+    // Execute AWS SDK call and handle stream splitting outside error boundaries
+    // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
+    const result = original.apply(client, [command]) as Promise<{
+      stream: AsyncIterable<unknown>;
+    }>;
+
+    return result
+      .then((response: { stream: AsyncIterable<unknown> }) => {
+        // Guard against missing response stream - return original response
+        if (!response.stream) {
+          span.recordException(new Error("Response stream is undefined"));
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: "Response stream is undefined",
+          });
+          span.end();
+          return response;
+        }
+
+        const { instrumentationStream, userStream } = safelySplitStream({
+          originalStream: response.stream,
+        });
+
+        // Start background instrumentation processing (non-blocking)
+        // Only the instrumentation is wrapped in error handling - the user stream is protected
+        if (instrumentationStream) {
+          // @ts-expect-error - instrumentationStream is guaranteed non-null by the if check above
+          consumeConverseStreamChunks({
+            stream: instrumentationStream,
+            span,
+          })
+            .then(() => {
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+            })
+            .catch((error: Error) => {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+            });
+        } else {
+          // No instrumentation stream available, end span cleanly
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+        }
+
+        // Return user stream immediately - instrumentation cannot interfere
+        return { ...response, stream: userStream };
+      })
+      .catch((error: Error) => {
+        // If the AWS SDK call itself fails, record error but still try to return original response
+        span.recordException(error);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error.message,
+        });
+        span.end();
+        throw error; // Re-throw since we have no stream to return
+      });
   }
 }

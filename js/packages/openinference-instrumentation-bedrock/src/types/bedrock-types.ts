@@ -29,6 +29,11 @@ import {
   ContentBlockDeltaEvent,
   ContentBlockStartEvent,
   ContentBlockStopEvent,
+
+  // Converse Stream types
+  ConverseStreamCommand,
+  ConverseStreamCommandInput,
+  ConverseStreamCommandOutput,
 } from "@aws-sdk/client-bedrock-runtime";
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
@@ -49,6 +54,9 @@ export {
   ContentBlockDeltaEvent,
   ContentBlockStartEvent,
   ContentBlockStopEvent,
+  ConverseStreamCommand,
+  ConverseStreamCommandInput,
+  ConverseStreamCommandOutput,
 };
 
 // Custom types that extend or aren't available in the SDK
@@ -57,6 +65,60 @@ export {
 export type InvokeModelRequestBody = Record<string, unknown>;
 export type InvokeModelResponseBody = Record<string, unknown>;
 export type InvocationParameters = Record<string, unknown>;
+
+// Converse Stream event data types using AWS SDK types where possible
+// This is a discriminated union of all possible streaming event types
+export interface ConverseStreamEventData {
+  // Message lifecycle events
+  messageStart?: {
+    role: ConversationRole;
+  };
+  messageStop?: {
+    stopReason: string;
+    additionalModelResponseFields?: Record<string, unknown>;
+  };
+
+  // Content block events using AWS SDK types
+  contentBlockStart?: {
+    start: ContentBlockStart;
+    contentBlockIndex: number;
+  };
+  contentBlockDelta?: {
+    delta: ContentBlockDelta;
+    contentBlockIndex: number;
+  };
+  contentBlockStop?: {
+    contentBlockIndex: number;
+  };
+
+  // Metadata and usage events
+  metadata?: {
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    };
+    metrics: {
+      latencyMs: number;
+    };
+  };
+}
+
+// Stream processing state for converse streaming
+export interface ConverseStreamProcessingState {
+  outputText: string;
+  toolCalls: Array<{
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+  }>;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  stopReason?: string;
+}
 
 // Extended conversation role type to support additional roles like "tool" and "system" for Mistral
 export type ExtendedConversationRole = ConversationRole | "tool" | "system";
@@ -281,4 +343,47 @@ export function isConverseToolResultContent(
     "toolUseId" in content.toolResult &&
     typeof content.toolResult.toolUseId === "string"
   );
+}
+
+// Type guards for Converse streaming types
+export function isValidConverseStreamEventData(
+  data: unknown,
+): data is ConverseStreamEventData {
+  return isObjectWithStringKeys(data);
+}
+
+export function isConverseMessageStartEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.messageStart !== undefined;
+}
+
+export function isConverseMessageStopEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.messageStop !== undefined;
+}
+
+export function isConverseContentBlockStartEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.contentBlockStart !== undefined;
+}
+
+export function isConverseContentBlockDeltaEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.contentBlockDelta !== undefined;
+}
+
+export function isConverseContentBlockStopEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.contentBlockStop !== undefined;
+}
+
+export function isConverseMetadataEvent(
+  data: ConverseStreamEventData,
+): boolean {
+  return data.metadata !== undefined;
 }
