@@ -37,7 +37,6 @@ from openinference.semconv.trace import (
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 _AGNO_PARENT_PATH_CONTEXT_KEY = context_api.create_key("agno_parent_path")
-_AGNO_CURRENT_NODE_CONTEXT_KEY = context_api.create_key("agno_current_node_id")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -90,9 +89,6 @@ def _agent_run_attributes(
     # Get parent from execution context instead of structural parent
     context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
 
-    # Get the node ID that was already generated in the run() method
-    context_node_id = context_api.get_value(_AGNO_CURRENT_NODE_CONTEXT_KEY)
-
     # Existing agent-specific attributes
     if agent.session_id:
         yield SESSION_ID, agent.session_id
@@ -101,12 +97,7 @@ def _agent_run_attributes(
         yield USER_ID, agent.user_id
 
     if isinstance(agent, Team):
-        # Use the node ID from context (generated in run() method)
-        if context_node_id and isinstance(context_node_id, str):
-            node_id = context_node_id
-
         # Set graph attributes for team
-        yield GRAPH_NODE_ID, node_id
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
 
@@ -120,12 +111,7 @@ def _agent_run_attributes(
             yield from _agent_run_attributes(member, f".{member.name}")
 
     elif isinstance(agent, Agent):
-        # Use the node ID from context (generated in run() method)
-        if context_node_id and isinstance(context_node_id, str):
-            node_id = context_node_id
-
         # Set graph attributes for agent
-        yield GRAPH_NODE_ID, node_id
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
 
@@ -160,15 +146,13 @@ class _RunWrapper:
 
     """
     We need to keep track of parent/child relationships for agent logging. We do this by:
-    1. Team.run() generates a unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
-    2. Team sets _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY for child agents.
-    3. Agent.run() generates its own unique node_id and stores it in _AGNO_CURRENT_NODE_CONTEXT_KEY.
-    4. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY from
-    team context.
-    5. _agent_run_attributes() retrieves the node_id from _AGNO_CURRENT_NODE_CONTEXT_KEY for
-    GRAPH_NODE_ID.
-    6. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY for GRAPH_NODE_PARENT_ID.
-    7. This ensures correct parent-child relationships with unique node IDs for each execution.
+    1. Each run() method generates a unique node_id and sets it directly as GRAPH_NODE_ID in span
+    attributes
+    2. Team.run() sets _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY for child
+    agents
+    3. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY from team context for parent relationships
+    4. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY to set GRAPH_NODE_PARENT_ID
+    5. This ensures correct parent-child relationships with unique node IDs for each execution
     """
 
     def run(
@@ -192,59 +176,50 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id()
 
-        # Set current path and node ID in context before span creation
-        ctx = context_api.get_current()
-        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
-        current_context_token = context_api.attach(ctx)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            # Set up context for team executions
+            if isinstance(agent, Team):
+                # Set both node ID and path for children to use
+                team_ctx = context_api.get_current()
+                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+                team_ctx = context_api.set_value(
+                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                )
+                team_token = context_api.attach(team_ctx)
+            else:
+                team_token = None
 
-        try:
-            with self._tracer.start_as_current_span(
-                span_name,
-                attributes=dict(
-                    _flatten(
-                        {
-                            OPENINFERENCE_SPAN_KIND: AGENT,
-                            INPUT_VALUE: _get_input_value(
-                                wrapped,
-                                *args,
-                                **kwargs,
-                            ),
-                            **dict(_agent_run_attributes(agent)),
-                            **dict(get_attributes_from_context()),
-                        }
-                    )
-                ),
-            ) as span:
-                # Set up context for team executions
-                if isinstance(agent, Team):
-                    # Set both node ID and path for children to use
-                    team_ctx = context_api.get_current()
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
-                    )
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                    )
-                    team_token = context_api.attach(team_ctx)
-                else:
-                    team_token = None
+            try:
+                run_response = wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
 
-                try:
-                    run_response = wrapped(*args, **kwargs)
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                    return run_response
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
 
-                except Exception as e:
-                    span.set_status(trace_api.StatusCode.ERROR, str(e))
-                    raise
-
-                finally:
-                    if team_token:
-                        context_api.detach(team_token)
-        finally:
-            context_api.detach(current_context_token)
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     def run_stream(
         self,
@@ -268,59 +243,50 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id()
 
-        # Set current path and node ID in context before span creation
-        ctx = context_api.get_current()
-        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
-        current_context_token = context_api.attach(ctx)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            # Set up context for team executions
+            if isinstance(agent, Team):
+                # Set both node ID and path for children to use
+                team_ctx = context_api.get_current()
+                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+                team_ctx = context_api.set_value(
+                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                )
+                team_token = context_api.attach(team_ctx)
+            else:
+                team_token = None
 
-        try:
-            with self._tracer.start_as_current_span(
-                span_name,
-                attributes=dict(
-                    _flatten(
-                        {
-                            OPENINFERENCE_SPAN_KIND: AGENT,
-                            INPUT_VALUE: _get_input_value(
-                                wrapped,
-                                *args,
-                                **kwargs,
-                            ),
-                            **dict(_agent_run_attributes(agent)),
-                            **dict(get_attributes_from_context()),
-                        }
-                    )
-                ),
-            ) as span:
-                # Set up context for team executions
-                if isinstance(agent, Team):
-                    # Set both node ID and path for children to use
-                    team_ctx = context_api.get_current()
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
-                    )
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                    )
-                    team_token = context_api.attach(team_ctx)
-                else:
-                    team_token = None
+            try:
+                yield from wrapped(*args, **kwargs)
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
-                try:
-                    yield from wrapped(*args, **kwargs)
-                    run_response = agent.run_response
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
 
-                except Exception as e:
-                    span.set_status(trace_api.StatusCode.ERROR, str(e))
-                    raise
-
-                finally:
-                    if team_token:
-                        context_api.detach(team_token)
-        finally:
-            context_api.detach(current_context_token)
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     async def arun(
         self,
@@ -345,58 +311,49 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id()
 
-        # Set current path and node ID in context before span creation
-        ctx = context_api.get_current()
-        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
-        current_context_token = context_api.attach(ctx)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            # Set up context for team executions
+            if isinstance(agent, Team):
+                # Set both node ID and path for children to use
+                team_ctx = context_api.get_current()
+                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+                team_ctx = context_api.set_value(
+                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                )
+                team_token = context_api.attach(team_ctx)
+            else:
+                team_token = None
 
-        try:
-            with self._tracer.start_as_current_span(
-                span_name,
-                attributes=dict(
-                    _flatten(
-                        {
-                            OPENINFERENCE_SPAN_KIND: AGENT,
-                            INPUT_VALUE: _get_input_value(
-                                wrapped,
-                                *args,
-                                **kwargs,
-                            ),
-                            **dict(_agent_run_attributes(agent)),
-                            **dict(get_attributes_from_context()),
-                        }
-                    )
-                ),
-            ) as span:
-                # Set up context for team executions
-                if isinstance(agent, Team):
-                    # Set both node ID and path for children to use
-                    team_ctx = context_api.get_current()
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
-                    )
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                    )
-                    team_token = context_api.attach(team_ctx)
-                else:
-                    team_token = None
+            try:
+                run_response = await wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
 
-                try:
-                    run_response = await wrapped(*args, **kwargs)
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                    return run_response
-                except Exception as e:
-                    span.set_status(trace_api.StatusCode.ERROR, str(e))
-                    raise
-
-                finally:
-                    if team_token:
-                        context_api.detach(team_token)
-        finally:
-            context_api.detach(current_context_token)
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     async def arun_stream(
         self,
@@ -421,59 +378,50 @@ class _RunWrapper:
         current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
         node_id = _generate_node_id()
 
-        # Set current path and node ID in context before span creation
-        ctx = context_api.get_current()
-        ctx = context_api.set_value(_AGNO_CURRENT_NODE_CONTEXT_KEY, node_id, ctx)
-        current_context_token = context_api.attach(ctx)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            # Set up context for team executions
+            if isinstance(agent, Team):
+                # Set both node ID and path for children to use
+                team_ctx = context_api.get_current()
+                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+                team_ctx = context_api.set_value(
+                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
+                )
+                team_token = context_api.attach(team_ctx)
+            else:
+                team_token = None
 
-        try:
-            with self._tracer.start_as_current_span(
-                span_name,
-                attributes=dict(
-                    _flatten(
-                        {
-                            OPENINFERENCE_SPAN_KIND: AGENT,
-                            INPUT_VALUE: _get_input_value(
-                                wrapped,
-                                *args,
-                                **kwargs,
-                            ),
-                            **dict(_agent_run_attributes(agent)),
-                            **dict(get_attributes_from_context()),
-                        }
-                    )
-                ),
-            ) as span:
-                # Set up context for team executions
-                if isinstance(agent, Team):
-                    # Set both node ID and path for children to use
-                    team_ctx = context_api.get_current()
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx
-                    )
-                    team_ctx = context_api.set_value(
-                        _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                    )
-                    team_token = context_api.attach(team_ctx)
-                else:
-                    team_token = None
+            try:
+                async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
+                    yield response
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
 
-                try:
-                    async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
-                        yield response
-                    run_response = agent.run_response
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                except Exception as e:
-                    span.set_status(trace_api.StatusCode.ERROR, str(e))
-                    raise
-
-                finally:
-                    if team_token:
-                        context_api.detach(team_token)
-        finally:
-            context_api.detach(current_context_token)
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
