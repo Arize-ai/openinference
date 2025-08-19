@@ -36,7 +36,7 @@ from openinference.semconv.trace import (
 )
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
-_AGNO_PARENT_PATH_CONTEXT_KEY = context_api.create_key("agno_parent_path")
+# _AGNO_PARENT_PATH_CONTEXT_KEY = context_api.create_key("agno_parent_path")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -140,6 +140,14 @@ def _agent_run_attributes(
             yield f"agno{key_suffix}.tools", tool_names
 
 
+def _setup_team_context(agent: Union[Agent, Team], node_id: str) -> Optional[Any]:
+    if isinstance(agent, Team):
+        team_ctx = context_api.get_current()
+        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
+        return context_api.attach(team_ctx)
+    return None
+
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -148,8 +156,7 @@ class _RunWrapper:
     We need to keep track of parent/child relationships for agent logging. We do this by:
     1. Each run() method generates a unique node_id and sets it directly as GRAPH_NODE_ID in span
     attributes
-    2. Team.run() sets _AGNO_PARENT_NODE_CONTEXT_KEY and _AGNO_PARENT_PATH_CONTEXT_KEY for child
-    agents
+    2. Team.run() sets _AGNO_PARENT_NODE_CONTEXT_KEY for child agents
     3. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY from team context for parent relationships
     4. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY to set GRAPH_NODE_PARENT_ID
     5. This ensures correct parent-child relationships with unique node IDs for each execution
@@ -171,9 +178,7 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Build hierarchical path for node ID generation
-        parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
-        current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
+        # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
         with self._tracer.start_as_current_span(
@@ -194,17 +199,7 @@ class _RunWrapper:
                 )
             ),
         ) as span:
-            # Set up context for team executions
-            if isinstance(agent, Team):
-                # Set both node ID and path for children to use
-                team_ctx = context_api.get_current()
-                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
-                team_ctx = context_api.set_value(
-                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                )
-                team_token = context_api.attach(team_ctx)
-            else:
-                team_token = None
+            team_token = _setup_team_context(agent, node_id)
 
             try:
                 run_response = wrapped(*args, **kwargs)
@@ -238,9 +233,7 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Build hierarchical path for node ID generation
-        parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
-        current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
+        # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
         with self._tracer.start_as_current_span(
@@ -261,17 +254,7 @@ class _RunWrapper:
                 )
             ),
         ) as span:
-            # Set up context for team executions
-            if isinstance(agent, Team):
-                # Set both node ID and path for children to use
-                team_ctx = context_api.get_current()
-                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
-                team_ctx = context_api.set_value(
-                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                )
-                team_token = context_api.attach(team_ctx)
-            else:
-                team_token = None
+            team_token = _setup_team_context(agent, node_id)
 
             try:
                 yield from wrapped(*args, **kwargs)
@@ -306,9 +289,7 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Build hierarchical path for node ID generation
-        parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
-        current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
+        # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
         with self._tracer.start_as_current_span(
@@ -329,17 +310,7 @@ class _RunWrapper:
                 )
             ),
         ) as span:
-            # Set up context for team executions
-            if isinstance(agent, Team):
-                # Set both node ID and path for children to use
-                team_ctx = context_api.get_current()
-                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
-                team_ctx = context_api.set_value(
-                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                )
-                team_token = context_api.attach(team_ctx)
-            else:
-                team_token = None
+            team_token = _setup_team_context(agent, node_id)
 
             try:
                 run_response = await wrapped(*args, **kwargs)
@@ -373,9 +344,7 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Build hierarchical path for node ID generation
-        parent_path = context_api.get_value(_AGNO_PARENT_PATH_CONTEXT_KEY) or ""
-        current_path = f"{parent_path}.{agent_name}" if parent_path else agent_name
+        # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
         with self._tracer.start_as_current_span(
@@ -396,17 +365,7 @@ class _RunWrapper:
                 )
             ),
         ) as span:
-            # Set up context for team executions
-            if isinstance(agent, Team):
-                # Set both node ID and path for children to use
-                team_ctx = context_api.get_current()
-                team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id, team_ctx)
-                team_ctx = context_api.set_value(
-                    _AGNO_PARENT_PATH_CONTEXT_KEY, current_path, team_ctx
-                )
-                team_token = context_api.attach(team_ctx)
-            else:
-                team_token = None
+            team_token = _setup_team_context(agent, node_id)
 
             try:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
