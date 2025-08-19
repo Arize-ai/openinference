@@ -876,6 +876,12 @@ class AttributeExtractor:
         metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
         if client_request_id := metadata_attributes.get("client_request_id"):
             guardrail_trace_data["client_request_id"] = client_request_id
+        if "start_time" in metadata_attributes:
+            guardrail_trace_data["start_time"] = metadata_attributes["start_time"]
+        if "end_time" in metadata_attributes:
+            guardrail_trace_data["end_time"] = metadata_attributes["end_time"]
+        if "total_time_ms" in metadata_attributes:
+            guardrail_trace_data["total_time_ms"] = metadata_attributes["total_time_ms"]
 
         # Normalize keys to snake_case for consistency in metadata
         if "action" in guardrail_trace:

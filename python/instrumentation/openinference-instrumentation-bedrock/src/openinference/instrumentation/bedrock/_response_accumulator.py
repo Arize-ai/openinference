@@ -609,9 +609,6 @@ class _ResponseAccumulator:
         attributes.name = "Guardrails"
 
         guardrail_attributes = AttributeExtractor.get_attributes_from_guardrail_trace(event_data)
-        attributes.metadata.update(
-            AttributeExtractor.get_metadata_attributes(event_data.get("metadata", {}))
-        )
 
         if "guardrails" not in attributes.metadata:
             attributes.metadata["guardrails"] = []

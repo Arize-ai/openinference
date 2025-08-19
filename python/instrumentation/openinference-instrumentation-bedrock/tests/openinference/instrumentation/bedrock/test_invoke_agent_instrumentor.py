@@ -687,9 +687,16 @@ def test_streaming_with_guardrails(in_memory_span_exporter: InMemorySpanExporter
     assert isinstance(guardrail_metadata, str)
     guardrail_metadata = json.loads(guardrail_metadata)
     assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.get("guardrails", [])
+    guardrails = guardrail_metadata.pop("guardrails", [])
     assert isinstance(guardrails, list)
     assert len(guardrails) == 6
+    assert guardrails[0].pop("action") == "NONE"
+    assert guardrails[0].pop("client_request_id") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
+    assert guardrails[0].pop("start_time") == 1.755127229666712e18
+    assert guardrails[0].pop("end_time") == 1.755127229981549e18
+    assert guardrails[0].pop("total_time_ms") == 315
+    assert guardrails[0].pop("input_assessments") == [{}]
+    assert not guardrails[0]
     assert guardrail_span.status.status_code == StatusCode.OK
     assert not guardrail_span_attributes
 
