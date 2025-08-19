@@ -71,7 +71,11 @@ export function getProviderFromModelId(modelId: string): LLMProvider {
   return LLMProvider.AWS;
 }
 
-export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem, llm_provider: LLMProvider) {
+export function setBasicSpanAttributes(
+  span: Span,
+  llm_system: LLMSystem,
+  llm_provider: LLMProvider,
+) {
   setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, llm_provider);
 
   setSpanAttribute(
