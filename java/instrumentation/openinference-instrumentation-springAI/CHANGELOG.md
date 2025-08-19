@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.6...java-openinference-instrumentation-springAI-v0.1.7) (2025-08-19)
+
+
+### Bug Fixes
+
+* SpringAI multiple output messages ([#2106](https://github.com/Arize-ai/openinference/issues/2106)) ([3c5fd97](https://github.com/Arize-ai/openinference/commit/3c5fd97ed045a36dd95d4689a8b5315b95ee6366))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.5...java-openinference-instrumentation-springAI-v0.1.6) (2025-08-18)
 
 

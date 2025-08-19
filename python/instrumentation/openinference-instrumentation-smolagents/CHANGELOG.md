@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.14...python-openinference-instrumentation-smolagents-v0.1.15) (2025-08-19)
+
+
+### Bug Fixes
+
+* **smolagents:** use new token_usage structure ([#2087](https://github.com/Arize-ai/openinference/issues/2087)) ([c691712](https://github.com/Arize-ai/openinference/commit/c6917124a236eb6deff1e1faf214075662ebfc58))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.13...python-openinference-instrumentation-smolagents-v0.1.14) (2025-07-10)
 
 
