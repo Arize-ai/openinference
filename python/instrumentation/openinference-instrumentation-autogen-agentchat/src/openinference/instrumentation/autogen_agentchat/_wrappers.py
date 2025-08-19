@@ -346,16 +346,35 @@ class _AssistantAgentExecuteToolCallWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         tool_call = kwargs.get("tool_call")
-        tools = kwargs.get("tools", [])
-        handoff_tools = kwargs.get("handoff_tools", [])
         agent_name = kwargs.get("agent_name", "unknown_agent")
+        handoff_tools = kwargs.get("handoff_tools", [])
 
         if not tool_call or not hasattr(tool_call, "name"):
             return await wrapped(*args, **kwargs)
 
+        tools = []
+        if "tools" in kwargs:
+            # Old signature (v0.5): tools parameter directly available
+            tools = kwargs.get("tools", [])
+        elif "workbench" in kwargs:
+            # New signature (v0.7): extract tools from workbench
+            workbench = kwargs.get("workbench", [])
+            for wb in workbench:
+                if hasattr(wb, "tools"):
+                    tools.extend(wb.tools)
+                elif hasattr(wb, "_tools"):
+                    tools.extend(wb._tools)
+
         # Find the actual tool for additional attributes
         all_tools = list(tools) + list(handoff_tools)
         tool = next((t for t in all_tools if hasattr(t, "name") and t.name == tool_call.name), None)
+
+        # If we still didn't find the tool, try to get it from the agent instance
+        if tool is None and hasattr(instance, "_tools"):
+            agent_tools = getattr(instance, "_tools", [])
+            tool = next(
+                (t for t in agent_tools if hasattr(t, "name") and t.name == tool_call.name), None
+            )
 
         span_name = f"{agent_name}.{tool_call.name}"
         attributes = dict(get_attributes_from_context())
@@ -791,7 +810,7 @@ def _llm_messages_attributes(
                             )
 
                     # If no tool calls were found, serialize the entire list
-                    if not tool_calls:
+                    elif not tool_calls:
                         serialized_content = [
                             item
                             if isinstance(item, (str, bool, int, float, bytes, type(None)))
