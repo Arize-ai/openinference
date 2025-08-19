@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
+from secrets import token_hex
 from typing import (
     Any,
     Awaitable,
@@ -12,6 +13,7 @@ from typing import (
     OrderedDict,
     Tuple,
     Union,
+    cast,
 )
 
 from opentelemetry import context as context_api
@@ -32,6 +34,8 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+_AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -74,9 +78,17 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
+def _generate_node_id() -> str:
+    return token_hex(8)  # Generates 16 hex characters (8 bytes)
+
+
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    # Get parent from execution context instead of structural parent
+    context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Existing agent-specific attributes
     if agent.session_id:
         yield SESSION_ID, agent.session_id
 
@@ -84,10 +96,29 @@ def _agent_run_attributes(
         yield USER_ID, agent.user_id
 
     if isinstance(agent, Team):
+        # Set graph attributes for team
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
+
+        # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
         for member in agent.members:
             yield from _agent_run_attributes(member, f".{member.name}")
+
     elif isinstance(agent, Agent):
+        # Set graph attributes for agent
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
+
+        # Set legacy agent attributes
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
 
@@ -108,9 +139,26 @@ def _agent_run_attributes(
             yield f"agno{key_suffix}.tools", tool_names
 
 
+def _setup_team_context(agent: Union[Agent, Team], node_id: str) -> Optional[Any]:
+    if isinstance(agent, Team):
+        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+        return context_api.attach(team_ctx)
+    return None
+
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
+
+    """
+    We need to keep track of parent/child relationships for agent logging. We do this by:
+    1. Each run() method generates a unique node_id and sets it directly as GRAPH_NODE_ID in span
+    attributes
+    2. Team.run() sets _AGNO_PARENT_NODE_CONTEXT_KEY for child agents
+    3. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY from team context for parent relationships
+    4. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY to set GRAPH_NODE_PARENT_ID
+    5. This ensures correct parent-child relationships with unique node IDs for each execution
+    """
 
     def run(
         self,
@@ -128,12 +176,16 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -145,6 +197,8 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
             try:
                 run_response = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
@@ -155,6 +209,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     def run_stream(
         self,
@@ -173,12 +231,16 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -190,6 +252,8 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
             try:
                 yield from wrapped(*args, **kwargs)
                 run_response = agent.run_response
@@ -200,6 +264,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     async def arun(
         self,
@@ -219,12 +287,16 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -236,6 +308,8 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
             try:
                 run_response = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
@@ -245,6 +319,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     async def arun_stream(
         self,
@@ -264,12 +342,16 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -281,6 +363,8 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
             try:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
@@ -291,6 +375,10 @@ class _RunWrapper:
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -678,6 +766,9 @@ TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 USER_ID = SpanAttributes.USER_ID
+GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
+GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
+GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

@@ -43,6 +43,7 @@ test = [
   "pytest-recording",
   "openai",
   "duckduckgo-search",
+  "yfinance",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
