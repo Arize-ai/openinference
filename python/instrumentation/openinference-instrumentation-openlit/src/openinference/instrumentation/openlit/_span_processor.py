@@ -244,7 +244,7 @@ def parse_messages(events: Any, attrs: Dict[str, Any]) -> Tuple[list[oi.Message]
 
 def _get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
     openlit_attrs = dict(getattr(span, "_attributes", {}))
-    oi_attrs = {
+    oi_attrs: dict[str, Any] = {
         sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.TOOL.value,
     }
 
@@ -272,6 +272,7 @@ def _get_oi_tool_attributes(span: ReadableSpan) -> dict[str, Any]:
                 sc.SpanAttributes.OUTPUT_VALUE: completion_txt,
             }
         )
+
     oi_attrs.update(get_span_kind_attributes("tool"))
     return oi_attrs
 
