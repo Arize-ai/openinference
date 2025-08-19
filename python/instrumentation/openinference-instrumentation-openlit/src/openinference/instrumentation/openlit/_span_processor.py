@@ -312,7 +312,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         attrs: Dict[str, Any] = dict(getattr(span, "_attributes", {}))
         oi_attrs = {}
-        
+
         if is_openlit_tool_span(attrs):
             oi_attrs = get_oi_tool_attributes(span)
             oi_attrs.update(get_span_kind_attributes("tool"))
@@ -324,9 +324,17 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             prompt_txt = _parse_prompt_from_events(span.events)
             completion_txt = _parse_completion_from_events(span.events)
             if prompt_txt:
-                oi_attrs.update(get_input_attributes(prompt_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value))
+                oi_attrs.update(
+                    get_input_attributes(
+                        prompt_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value
+                    )
+                )
             if completion_txt:
-                oi_attrs.update(get_output_attributes(completion_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value))
+                oi_attrs.update(
+                    get_output_attributes(
+                        completion_txt, mime_type=sc.OpenInferenceMimeTypeValues.TEXT.value
+                    )
+                )
             oi_attrs.update(get_span_kind_attributes("chain"))
 
             if span._attributes:
@@ -386,6 +394,5 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             sc.SpanAttributes.OPENINFERENCE_SPAN_KIND: sc.OpenInferenceSpanKindValues.LLM.value,
         }
 
-        # oi_attrs.update(get_llm_invocation_parameter_attributes(invocation_params))
         if span._attributes:
             span._attributes = {**span._attributes, **oi_attrs}
