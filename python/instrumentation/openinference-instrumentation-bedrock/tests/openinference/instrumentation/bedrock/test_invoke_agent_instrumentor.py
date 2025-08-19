@@ -125,7 +125,7 @@ def test_tool_calls_with_input_params(
     assert llm_span_attributes.pop("llm.token_count.prompt") == 915
     assert llm_span_attributes.pop("llm.token_count.total") == 971
 
-    assert starts_with(llm_span_attributes.pop("metadata"), '{"client_request_id": "edfe2c05-72')
+    assert starts_with(llm_span_attributes.pop("metadata"), '{"clientRequestId": "edfe2c05-72')
     assert llm_span_attributes.pop("openinference.span.kind") == "LLM"
     assert llm_span_attributes.pop("output.mime_type") == "text/plain"
     assert starts_with(
@@ -151,7 +151,7 @@ def test_tool_calls_with_input_params(
     )
 
     assert starts_with(
-        action_group_span_attributes.pop("metadata"), '{"client_request_id": "73759b26'
+        action_group_span_attributes.pop("metadata"), '{"clientRequestId": "73759b26'
     )
     assert action_group_span_attributes.pop("openinference.span.kind") == "TOOL"
     assert action_group_span_attributes.pop("output.mime_type") == "text/plain"
@@ -258,7 +258,7 @@ def test_tool_calls_without_input_params(
     assert llm_span_attributes.pop("llm.token_count.completion") == 103
     assert llm_span_attributes.pop("llm.token_count.prompt") == 980
     assert llm_span_attributes.pop("llm.token_count.total") == 1083
-    assert starts_with(llm_span_attributes.pop("metadata"), '{"client_request_id": "603b')
+    assert starts_with(llm_span_attributes.pop("metadata"), '{"clientRequestId": "603b')
     assert llm_span_attributes.pop("openinference.span.kind") == "LLM"
     assert llm_span_attributes.pop("output.mime_type") == "text/plain"
     assert starts_with(llm_span_attributes.pop("output.value"), "To answer the question about")
@@ -275,9 +275,7 @@ def test_tool_calls_without_input_params(
         action_group_span_attributes.pop(f"{tool_prefix}.0.tool_call.function.name") == "get_time"
     )
     assert action_group_span_attributes.pop(f"{tool_prefix}.0.tool_call.id") == "default"
-    assert starts_with(
-        action_group_span_attributes.pop("metadata"), '{"client_request_id": "fd79a6'
-    )
+    assert starts_with(action_group_span_attributes.pop("metadata"), '{"clientRequestId": "fd79a6')
     assert action_group_span_attributes.pop("openinference.span.kind") == "TOOL"
     assert action_group_span_attributes.pop("output.mime_type") == "text/plain"
     assert starts_with(
@@ -353,7 +351,7 @@ def test_knowledge_base_results(
     data = dict(knowledge_base_span.attributes or {})
     assert starts_with(data.pop("input.mime_type"), "text/plain")
     assert starts_with(data.pop("input.value"), "What is task decompositi")
-    assert starts_with(data.pop("metadata"), '{"client_request_id": "7fc9')
+    assert starts_with(data.pop("metadata"), '{"clientRequestId": "7fc9')
     assert starts_with(data.pop("openinference.span.kind"), "RETRIEVER")
     assert starts_with(
         data.pop("retrieval.documents.0.document.content"), "Fig. 1. Overview of a LLM-pow"
@@ -599,9 +597,7 @@ def test_multi_agent_collaborator(
         == "The sum of the numbers 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 is 55."
     )
     assert simple_supervisor_attributes.pop("llm.output_messages.0.message.role") == "assistant"
-    assert starts_with(
-        simple_supervisor_attributes.pop("metadata"), '{"client_request_id": "0a6ddb'
-    )
+    assert starts_with(simple_supervisor_attributes.pop("metadata"), '{"clientRequestId": "0a6ddb')
     assert simple_supervisor_attributes.pop("openinference.span.kind") == "AGENT"
     assert simple_supervisor_attributes.pop("output.mime_type") == "text/plain"
     assert (
@@ -631,7 +627,7 @@ def test_multi_agent_collaborator(
     assert math_agent_span_attributes.pop("llm.output_messages.0.message.role") == "assistant"
     assert starts_with(
         math_agent_span_attributes.pop("metadata"),
-        '{"client_request_id": "5e3443ad-23b1-4b06-a073-b805ed323336", "end_time": 1.74782',
+        '{"clientRequestId": "5e3443ad-23b1-4b06-a073-b805ed323336", "endTime": 1.74782',
     )
     assert math_agent_span_attributes.pop("openinference.span.kind") == "AGENT"
     assert math_agent_span_attributes.pop("output.mime_type") == "text/plain"
@@ -691,11 +687,11 @@ def test_streaming_with_guardrails(in_memory_span_exporter: InMemorySpanExporter
     assert isinstance(guardrails, list)
     assert len(guardrails) == 6
     assert guardrails[0].pop("action") == "NONE"
-    assert guardrails[0].pop("client_request_id") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
-    assert guardrails[0].pop("start_time") == 1.755127229666712e18
-    assert guardrails[0].pop("end_time") == 1.755127229981549e18
-    assert guardrails[0].pop("total_time_ms") == 315
-    assert guardrails[0].pop("input_assessments") == [{}]
+    assert guardrails[0].pop("clientRequestId") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
+    assert guardrails[0].pop("startTime") == 1.755127229666712e18
+    assert guardrails[0].pop("endTime") == 1.755127229981549e18
+    assert guardrails[0].pop("totalTimeMs") == 315
+    assert guardrails[0].pop("inputAssessments") == [{}]
     assert not guardrails[0]
     assert guardrail_span.status.status_code == StatusCode.OK
     assert not guardrail_span_attributes

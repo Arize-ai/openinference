@@ -170,7 +170,7 @@ class _ResponseAccumulator:
         """
         # Extract start time from attributes metadata if available
         start_time = (
-            attributes.metadata.get("start_time", None) if attributes.metadata else start_time
+            attributes.metadata.get("startTime", None) if attributes.metadata else start_time
         )
 
         # Create the span with appropriate context
@@ -219,7 +219,7 @@ class _ResponseAccumulator:
         Args:
             attributes: The attributes object that may contain timing metadata
             trace_span: The trace span to extract time from
-            time_key: The key to look for ('start_time' or 'end_time')
+            time_key: The key to look for ('startTime' or 'endTime')
             reverse: Whether to traverse spans and chunks in reverse order
                      (useful for finding end times which are typically at the end)
 
@@ -286,7 +286,7 @@ class _ResponseAccumulator:
         Returns:
             The start timestamp in nanoseconds if found, None otherwise
         """
-        return self._fetch_span_time(attributes, trace_span, "start_time", reverse=False)
+        return self._fetch_span_time(attributes, trace_span, "startTime", reverse=False)
 
     def _fetch_span_end_time(
         self, attributes: _Attributes, trace_span: Union[TraceSpan, TraceNode]
@@ -301,7 +301,7 @@ class _ResponseAccumulator:
         Returns:
             The end timestamp in nanoseconds if found, None otherwise
         """
-        return self._fetch_span_time(attributes, trace_span, "end_time", reverse=True)
+        return self._fetch_span_time(attributes, trace_span, "endTime", reverse=True)
 
     def _set_parent_span_input_attributes(
         self, attributes: _Attributes, trace_span: Union[TraceSpan, TraceNode]

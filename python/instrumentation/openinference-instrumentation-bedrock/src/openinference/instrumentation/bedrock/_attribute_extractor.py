@@ -316,30 +316,30 @@ class AttributeExtractor:
         if not trace_metadata:
             return metadata
         if client_request_id := trace_metadata.get("clientRequestId"):
-            metadata["client_request_id"] = client_request_id
+            metadata["clientRequestId"] = client_request_id
         if end_time := trace_metadata.get("endTime"):
-            metadata["end_time"] = end_time.timestamp() * 1_000_000_000
+            metadata["endTime"] = end_time.timestamp() * 1_000_000_000
         if start_time := trace_metadata.get("startTime"):
-            metadata["start_time"] = start_time.timestamp() * 1_000_000_000
+            metadata["startTime"] = start_time.timestamp() * 1_000_000_000
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
-            metadata["operation_total_time_ms"] = operation_total_time_ms
+            metadata["operationTotalTimeMs"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms"] = total_time_ms
+            metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
     def get_observation_metadata_attributes(cls, trace_metadata: dict[str, Any]) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
         if client_request_id := trace_metadata.get("clientRequestId"):
-            metadata["client_request_id"] = client_request_id
+            metadata["clientRequestId"] = client_request_id
         if end_time := trace_metadata.get("endTime"):
-            metadata["end_time"] = int(end_time.timestamp() * 1_000_000_000)
+            metadata["endTime"] = int(end_time.timestamp() * 1_000_000_000)
         if start_time := trace_metadata.get("startTime"):
-            metadata["start_time"] = int(start_time.timestamp() * 1_000_000_000)
+            metadata["startTime"] = int(start_time.timestamp() * 1_000_000_000)
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
-            metadata["operation_total_time_ms"] = operation_total_time_ms
+            metadata["operationTotalTimeMs"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms"] = total_time_ms
+            metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
@@ -874,22 +874,20 @@ class AttributeExtractor:
 
         # Extract client_request_id from the guardrail metadata if present
         metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
-        if client_request_id := metadata_attributes.get("client_request_id"):
-            guardrail_trace_data["client_request_id"] = client_request_id
-        if "start_time" in metadata_attributes:
-            guardrail_trace_data["start_time"] = metadata_attributes["start_time"]
-        if "end_time" in metadata_attributes:
-            guardrail_trace_data["end_time"] = metadata_attributes["end_time"]
-        if "total_time_ms" in metadata_attributes:
-            guardrail_trace_data["total_time_ms"] = metadata_attributes["total_time_ms"]
-
-        # Normalize keys to snake_case for consistency in metadata
+        if client_request_id := metadata_attributes.get("clientRequestId"):
+            guardrail_trace_data["clientRequestId"] = client_request_id
+        if "startTime" in metadata_attributes:
+            guardrail_trace_data["startTime"] = metadata_attributes["startTime"]
+        if "endTime" in metadata_attributes:
+            guardrail_trace_data["endTime"] = metadata_attributes["endTime"]
+        if "totalTimeMs" in metadata_attributes:
+            guardrail_trace_data["totalTimeMs"] = metadata_attributes["totalTimeMs"]
         if "action" in guardrail_trace:
             guardrail_trace_data["action"] = guardrail_trace["action"]
         if "inputAssessments" in guardrail_trace:
-            guardrail_trace_data["input_assessments"] = guardrail_trace["inputAssessments"]
+            guardrail_trace_data["inputAssessments"] = guardrail_trace["inputAssessments"]
         if "outputAssessments" in guardrail_trace:
-            guardrail_trace_data["output_assessments"] = guardrail_trace["outputAssessments"]
+            guardrail_trace_data["outputAssessments"] = guardrail_trace["outputAssessments"]
 
         return guardrail_trace_data
 
