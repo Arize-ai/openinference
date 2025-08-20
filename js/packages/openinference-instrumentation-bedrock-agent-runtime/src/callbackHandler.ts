@@ -7,6 +7,9 @@ import {
 import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
 import { OITracer } from "@arizeai/openinference-core";
 import { SpanCreator } from "./spanCreator";
+import { getOutputAttributes } from "./attributes/attributeUtils";
+import { extractRetrievedReferencesAttributes } from "./attributes/ragAttributeExtractionUtils";
+import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export class CallbackHandler {
   private outputChunks: string[] = [];
@@ -16,9 +19,9 @@ export class CallbackHandler {
 
   /**
    * Callback handler for processing agent responses and traces.
-   * @param params
-   * @param params.oiTracer {OITracer} - The OpenTelemetry span to associate with the response.
-   * @param params.span {Span} - The OpenTelemetry span to associate with the response.
+   * @param oiTracer {OITracer} - The OpenTelemetry span to associate with the response.
+   * @param span {Span} - The OpenTelemetry span to associate with the response.
+
    */
   constructor(oiTracer: OITracer, span: Span) {
     this.oiTracer = oiTracer;
@@ -52,6 +55,64 @@ export class CallbackHandler {
     this.span.end();
   }
 
+  onError(error: unknown): void {
+    if (error instanceof Error) {
+      this.span.recordException(error);
+    }
+    const message =
+      error &&
+      typeof error === "object" &&
+      "message" in error &&
+      typeof error.message === "string"
+        ? error.message
+        : String(error);
+    this.span.setStatus({ code: SpanStatusCode.ERROR, message });
+    this.span.end();
+  }
+}
+
+/**
+ * RagCallbackHandler is responsible for handling streaming RAG (Retrieve and Generate)
+ * responses and citations during Bedrock agent runtime instrumentation.
+ *
+ * This handler accumulates output and citation data as the RAG operation progresses,
+ * and sets the appropriate OpenTelemetry span attributes upon completion or error.
+ *
+ * - handleCitation: Collects citation objects as they are received.
+ * - onComplete: Sets output and citation attributes on the span and ends it.
+ * - onError: Records exceptions and sets error status on the span.
+ */
+export class RagCallbackHandler {
+  private output: string;
+  private citation: Citation[];
+  private readonly span: Span;
+
+  /**
+   * Callback handler for processing agent responses and traces.
+   * @param span {Span} - The OpenTelemetry span to associate with the response.
+   */
+  constructor(span: Span) {
+    this.span = span;
+    this.output = "";
+    this.citation = [];
+  }
+
+  handleOutput(output: string) {
+    this.output = this.output + output;
+  }
+  handleCitation(citation: Record<string, unknown>) {
+    if (citation && Object.keys(citation).length > 0) {
+      this.citation.push(citation);
+    }
+  }
+  onComplete(): void {
+    this.span.setAttributes({
+      ...getOutputAttributes(this.output),
+      ...extractRetrievedReferencesAttributes(this.citation),
+    });
+    this.span.setStatus({ code: SpanStatusCode.OK });
+    this.span.end();
+  }
   onError(error: unknown): void {
     if (error instanceof Error) {
       this.span.recordException(error);
