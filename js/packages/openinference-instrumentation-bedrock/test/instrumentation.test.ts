@@ -2245,9 +2245,31 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("mistral-7b-instruct");
-          expect(span.attributes["llm.system"]).toBe("mistral");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Write a haiku about technology"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "Write a haiku about technology",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "mistral-7b-instruct-v0:2",
+  "llm.output_messages.0.message.content": " Silent screens glow,
+
+Connecting hearts, worlds apart,
+
+Life in digital.",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "end_turn",
+  "llm.system": "mistralai",
+  "llm.token_count.completion": 21,
+  "llm.token_count.prompt": 15,
+  "llm.token_count.total": 36,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":" Silent screens glow,\\n\\nConnecting hearts, worlds apart,\\n\\nLife in digital.","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":21,"total_tokens":36},"streaming":true,"stop_reason":"end_turn"}",
+}
+`);
         });
 
         it("should handle Amazon Titan models with streaming", async () => {
@@ -2280,9 +2302,33 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("titan-text-express");
-          expect(span.attributes["llm.system"]).toBe("amazon");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"amazon.titan-text-express-v1","messages":[{"role":"user","content":[{"text":"What are the benefits of cloud computing?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "What are the benefits of cloud computing?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "titan-text-express-v1",
+  "llm.output_messages.0.message.content": "
+
+Cloud computing offers several benefits, including:
+1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.
+2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.
+3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.
+4. Security: Cloud computing providers offer",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "amazon",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 11,
+  "llm.token_count.total": 111,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"\\n\\nCloud computing offers several benefits, including:\\n1. Cost savings: Cloud computing allows businesses to reduce their IT costs by eliminating the need for expensive hardware and software investments.\\n2. Scalability: Cloud computing allows businesses to scale their operations up or down quickly and easily, depending on their needs.\\n3. Flexibility: Cloud computing allows businesses to access their data and applications from anywhere, at any time, and on any device.\\n4. Security: Cloud computing providers offer","tool_calls":[],"usage":{"input_tokens":11,"output_tokens":100,"total_tokens":111},"streaming":true,"stop_reason":"max_tokens"}",
+}
+`);
         });
 
         it("should handle Amazon Nova models with streaming", async () => {
@@ -2315,9 +2361,35 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("nova-lite");
-          expect(span.attributes["llm.system"]).toBe("amazon");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"amazon.nova-lite-v1:0","messages":[{"role":"user","content":[{"text":"Describe the process of photosynthesis"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "Describe the process of photosynthesis",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "nova-lite-v1:0",
+  "llm.output_messages.0.message.content": "Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.
+
+Here's a detailed breakdown of the photosynthesis process:
+
+### Location:
+Photosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.
+
+### Main Stages:
+Photosynthesis can",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "amazon",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 5,
+  "llm.token_count.total": 105,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"Photosynthesis is the process by which green plants, algae, and some bacteria convert light energy, usually from the sun, into chemical energy stored in glucose, a type of sugar. This process is crucial for life on Earth as it provides the primary source of organic matter for nearly all organisms.\\n\\nHere's a detailed breakdown of the photosynthesis process:\\n\\n### Location:\\nPhotosynthesis occurs in the chloroplasts of plant cells, which contain a green pigment called chlorophyll.\\n\\n### Main Stages:\\nPhotosynthesis can","tool_calls":[],"usage":{"input_tokens":5,"output_tokens":100,"total_tokens":105},"streaming":true,"stop_reason":"max_tokens"}",
+}
+`);
         });
 
         it("should handle Cohere Command models with streaming", async () => {
@@ -2326,7 +2398,7 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           const client = createTestClient(isRecordingMode);
 
           const command = new ConverseStreamCommand({
-            modelId: "cohere.command-text-v14",
+            modelId: "cohere.command-r-v1:0",
             messages: [
               {
                 role: "user",
@@ -2350,9 +2422,29 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("command-text");
-          expect(span.attributes["llm.system"]).toBe("cohere");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"cohere.command-r-v1:0","messages":[{"role":"user","content":[{"text":"Explain the concept of machine learning"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "Explain the concept of machine learning",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "command-r-v1:0",
+  "llm.output_messages.0.message.content": "Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.
+
+At its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "cohere",
+  "llm.token_count.completion": 98,
+  "llm.token_count.prompt": 6,
+  "llm.token_count.total": 104,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"Machine learning is a fascinating field of artificial intelligence that enables computers to learn and improve from experience, without being explicitly programmed. It's a process of data-driven knowledge extraction, where systems can analyze vast amounts of data, identify patterns, make predictions, and improve their performance over time.\\n\\nAt its core, machine learning involves creating algorithms and models that can automatically discover important features or patterns in data. These algorithms are often based on mathematical models, such as decision trees, neural networks, or support","tool_calls":[],"usage":{"input_tokens":6,"output_tokens":98,"total_tokens":104},"streaming":true,"stop_reason":"max_tokens"}",
+}
+`);
         });
 
         it("should handle AI21 Jamba models with streaming", async () => {
@@ -2385,9 +2477,29 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("jamba-1-5-mini");
-          expect(span.attributes["llm.system"]).toBe("ai21");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"ai21.jamba-1-5-mini-v1:0","messages":[{"role":"user","content":[{"text":"What is artificial intelligence?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "What is artificial intelligence?",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "jamba-1-5-mini-v1:0",
+  "llm.output_messages.0.message.content": " Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:
+
+1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "ai21",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 15,
+  "llm.token_count.total": 115,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":" Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These machines can perform tasks that typically require human intelligence, such as understanding natural language, recognizing patterns, solving problems, and making decisions. AI encompasses a wide range of technologies and approaches, including:\\n\\n1. **Machine Learning (ML):** A subset of AI that involves training algorithms on data to enable machines to learn from experience and improve their performance over time without being explicitly","tool_calls":[],"usage":{"input_tokens":15,"output_tokens":100,"total_tokens":115},"streaming":true,"stop_reason":"max_tokens"}",
+}
+`);
         });
       });
     });
