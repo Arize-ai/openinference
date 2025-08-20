@@ -609,13 +609,13 @@ class _ResponseAccumulator:
         if "intervening_guardrails" not in attributes.metadata:
             attributes.metadata["intervening_guardrails"] = []
 
-        if "passed_guardrails" not in attributes.metadata:
-            attributes.metadata["passed_guardrails"] = []
+        if "non_intervening_guardrails" not in attributes.metadata:
+            attributes.metadata["non_intervening_guardrails"] = []
 
         if guardrail_attributes.get("action") == "INTERVENED":
             attributes.metadata["intervening_guardrails"].append(guardrail_attributes)
         else:
-            attributes.metadata["passed_guardrails"].append(guardrail_attributes)
+            attributes.metadata["non_intervening_guardrails"].append(guardrail_attributes)
 
     @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:
