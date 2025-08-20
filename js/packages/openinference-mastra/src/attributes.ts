@@ -211,7 +211,7 @@ export const extractMastraUserInput = (
         if (typeof result === "string") {
           const messageData = safelyJSONParse(result);
           if (
-            !messageData ||
+            messageData === null ||
             !messageData.content ||
             typeof messageData.content !== "string"
           ) {
@@ -230,11 +230,14 @@ export const extractMastraUserInput = (
         const argument = span.attributes[AGENT_GENERATE_ARGUMENT];
         if (typeof argument === "string") {
           const parsedArgument = safelyJSONParse(argument);
-          if (!parsedArgument) {
+          if (parsedArgument === null) {
             // If the argument is not a valid JSON string, return the raw string
             return argument;
           }
-          return parsedArgument;
+          // Convert parsed argument to string for consistent return type
+          return typeof parsedArgument === "string" 
+            ? parsedArgument 
+            : JSON.stringify(parsedArgument);
         }
         break;
       }
@@ -243,7 +246,7 @@ export const extractMastraUserInput = (
         const argument = span.attributes[AGENT_STREAM_ARGUMENT];
         if (typeof argument === "string") {
           const messages = safelyJSONParse(argument);
-          if (!messages) {
+          if (messages === null) {
             diag.warn("Failed to parse agent.stream.argument.0", {
               rawArgument: argument,
               spanId: span.spanContext?.()?.spanId,
