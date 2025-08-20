@@ -136,6 +136,8 @@ export interface ConverseStreamProcessingState {
     totalTokens?: number;
   };
   stopReason?: string;
+  /** Map of contentBlockIndex -> toolUseId for correlating input chunks */
+  toolUseIdByIndex?: Record<number, string>;
 }
 
 // Extended conversation role type to support additional roles like "tool" and "system" for Mistral
@@ -376,38 +378,53 @@ export function isValidConverseStreamEventData(
   return isObjectWithStringKeys(data);
 }
 
-export function isConverseMessageStartEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.messageStart !== undefined;
-}
+export type NormalizedConverseStreamEvent =
+  | { kind: "messageStart" }
+  | { kind: "messageStop"; stopReason?: string }
+  | { kind: "textDelta"; text: string }
+  | { kind: "toolUseStart"; id: string; name: string; contentBlockIndex?: number }
+  | { kind: "toolUseInputChunk"; chunk: string; contentBlockIndex?: number; id?: string }
+  | { kind: "metadata"; usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } };
 
-export function isConverseMessageStopEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.messageStop !== undefined;
-}
+export function toNormalizedConverseStreamEvent(e: ConverseStreamEventData): NormalizedConverseStreamEvent | undefined {
+  // Structured SDK events
+  if (e.messageStart) return { kind: "messageStart" };
+  if (e.messageStop) return { kind: "messageStop", stopReason: e.messageStop.stopReason };
+  if (e.contentBlockDelta?.delta?.text) return { kind: "textDelta", text: e.contentBlockDelta.delta.text };
+  if (e.contentBlockStart?.start?.toolUse?.toolUseId && e.contentBlockStart.start.toolUse.name) {
+    return {
+      kind: "toolUseStart",
+      id: e.contentBlockStart.start.toolUse.toolUseId,
+      name: e.contentBlockStart.start.toolUse.name,
+      contentBlockIndex: e.contentBlockStart.contentBlockIndex,
+    };
+  }
+  if (e.contentBlockDelta?.delta?.toolUse?.input !== undefined) {
+    return {
+      kind: "toolUseInputChunk",
+      chunk: String(e.contentBlockDelta.delta.toolUse.input),
+      contentBlockIndex: e.contentBlockDelta.contentBlockIndex,
+    };
+  }
 
-export function isConverseContentBlockStartEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.contentBlockStart !== undefined;
-}
-
-export function isConverseContentBlockDeltaEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.contentBlockDelta !== undefined;
-}
-
-export function isConverseContentBlockStopEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.contentBlockStop !== undefined;
-}
-
-export function isConverseMetadataEvent(
-  data: ConverseStreamEventData,
-): boolean {
-  return data.metadata !== undefined;
+  // Raw wire events
+  if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
+    return { kind: "textDelta", text: e.delta.text };
+  }
+  if (e.type === "content_block_start" && e.content_block?.type === "tool_use" && e.content_block.id && e.content_block.name) {
+    return { kind: "toolUseStart", id: e.content_block.id, name: e.content_block.name };
+  }
+  if (e.type === "input_json_delta" && e.partial_json) {
+    return { kind: "toolUseInputChunk", chunk: e.partial_json };
+  }
+  if (e.metadata?.usage) {
+    return {
+      kind: "metadata",
+      usage: {
+        inputTokens: e.metadata.usage.inputTokens,
+        outputTokens: e.metadata.usage.outputTokens,
+        totalTokens: e.metadata.usage.totalTokens,
+      },
+    };
+  }
 }

@@ -10,24 +10,15 @@
  */
 
 import { Span, diag } from "@opentelemetry/api";
-import {
-  withSafety,
-  isObjectWithStringKeys,
-} from "@arizeai/openinference-core";
+import { withSafety } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { setSpanAttribute } from "./attribute-helpers";
 import {
   ConverseStreamEventData,
   ConverseStreamProcessingState,
   isValidConverseStreamEventData,
-  isConverseMessageStartEvent,
-  isConverseMessageStopEvent,
-  isConverseContentBlockStartEvent,
-  isConverseContentBlockDeltaEvent,
-  isConverseContentBlockStopEvent,
-  isConverseMetadataEvent,
+  toNormalizedConverseStreamEvent,
 } from "../types/bedrock-types";
-import { safelySplitStream } from "./invoke-model-streaming-response-attributes";
 
 /**
  * Processes Converse stream chunks and updates processing state
@@ -37,117 +28,72 @@ import { safelySplitStream } from "./invoke-model-streaming-response-attributes"
  * @param state Current processing state to update
  * @returns Updated processing state
  */
+function startToolCall(
+  state: ConverseStreamProcessingState,
+  { id, name, contentBlockIndex }: { id: string; name: string; contentBlockIndex?: number }
+) {
+  if (contentBlockIndex !== undefined) {
+    state.toolUseIdByIndex ??= {};
+    state.toolUseIdByIndex[contentBlockIndex] = id;
+  }
+  state.toolCalls.push({ id, name, input: {}, partialJsonInput: "" });
+}
+
+function appendToolInputChunk(
+  state: ConverseStreamProcessingState,
+  { chunk, contentBlockIndex, id }: { chunk: string; contentBlockIndex?: number; id?: string }
+) {
+  const resolveId = () => {
+    if (id) return id;
+    if (contentBlockIndex !== undefined && state.toolUseIdByIndex?.[contentBlockIndex]) {
+      return state.toolUseIdByIndex[contentBlockIndex];
+    }
+  };
+  const targetId = resolveId();
+  if (!targetId) return;
+  const tool = state.toolCalls.find(t => t.id === targetId) ?? state.toolCalls[state.toolCalls.length - 1];
+  if (!tool) return;
+
+  tool.partialJsonInput = (tool.partialJsonInput ?? "") + chunk;
+
+  try {
+    const parsed = JSON.parse(tool.partialJsonInput);
+    tool.input = parsed as Record<string, unknown>;
+  } catch {
+    // keep accumulating
+  }
+}
+
 function processConverseStreamChunk(
   data: ConverseStreamEventData,
   state: ConverseStreamProcessingState,
-): ConverseStreamProcessingState {
-  // Handle message start events
-  if (isConverseMessageStartEvent(data)) {
-    // Message start just indicates the beginning of a message, no data to accumulate
-    // The role is already known from the response context (always "assistant")
-  }
+): void {
+  const ev = toNormalizedConverseStreamEvent(data);
+  if (!ev) return;
 
-  // Handle content block start events (primarily for tool use)
-  if (isConverseContentBlockStartEvent(data) && data.contentBlockStart) {
-    const toolUse = data.contentBlockStart.start?.toolUse;
-    if (toolUse && toolUse.toolUseId && toolUse.name) {
-      // Start tracking a new tool call
-      state.toolCalls.push({
-        id: toolUse.toolUseId,
-        name: toolUse.name,
-        input: {}, // Will be filled in by delta events
-        partialJsonInput: "",
-      });
-    }
-  }
-
-  // Handle raw content_block_start events from streaming
-  if (data.type === "content_block_start" && data.content_block?.type === "tool_use") {
-    const toolUse = data.content_block;
-    if (toolUse.id && toolUse.name) {
-      // Start tracking a new tool call
-      state.toolCalls.push({
-        id: toolUse.id,
-        name: toolUse.name,
-        input: {},
-        partialJsonInput: "",
-      });
-    }
-  }
-
-  // Handle input_json_delta events for tool calls
-  if (data.type === "input_json_delta" && data.partial_json) {
-    const mostRecentTool = state.toolCalls[state.toolCalls.length - 1];
-    if (mostRecentTool) {
-      mostRecentTool.partialJsonInput = (mostRecentTool.partialJsonInput || "") + data.partial_json;
-      
-      // Try to parse the accumulated JSON - if it parses successfully, we have complete input
-      try {
-        const parsedInput = JSON.parse(mostRecentTool.partialJsonInput);
-        mostRecentTool.input = parsedInput;
-      } catch (error) {
-        // JSON is still incomplete, continue accumulating
-      }
-    }
-  }
-
-  // Handle content block delta events (text content and tool input)
-  if (isConverseContentBlockDeltaEvent(data) && data.contentBlockDelta) {
-    const delta = data.contentBlockDelta.delta;
-
-    // Accumulate text content
-    if (delta && delta.text) {
-      state.outputText += delta.text;
-    }
-
-    // ConverseStream tool use input handling (delta.toolUse.input chunks)
-    if (delta && delta.toolUse?.input !== undefined) {
-      // Find the most recent tool call to update
-      const mostRecentTool = state.toolCalls[state.toolCalls.length - 1];
-      if (mostRecentTool) {
-        // Accumulate JSON chunks
-        mostRecentTool.partialJsonInput = (mostRecentTool.partialJsonInput || "") + delta.toolUse.input;
-        
-        // Try to parse the accumulated JSON - if it parses successfully, we have complete input
-        try {
-          const parsedInput = JSON.parse(mostRecentTool.partialJsonInput);
-          mostRecentTool.input = parsedInput;
-        } catch (error) {
-          // JSON is still incomplete, continue accumulating
-        }
-      }
-    }
-  }
-
-  // Handle raw content_block_delta events from streaming (text)
-  if (data.type === "content_block_delta" && data.delta?.type === "text_delta" && data.delta.text) {
-    state.outputText += data.delta.text;
-  }
-
-  // Handle content block stop events
-  if (isConverseContentBlockStopEvent(data)) {
-    // Content block is complete, no additional processing needed for now
-    // Could be used for finalizing tool input parsing if needed
-  }
-
-  // Handle message stop events
-  if (isConverseMessageStopEvent(data) && data.messageStop) {
-    state.stopReason = data.messageStop.stopReason;
-  }
-
-  // Handle metadata events (usage information)
-  if (isConverseMetadataEvent(data) && data.metadata) {
-    const usage = data.metadata.usage;
-    if (usage) {
+  switch (ev.kind) {
+    case "messageStart":
+      return;
+    case "messageStop":
+      state.stopReason = ev.stopReason;
+      return;
+    case "textDelta":
+      state.outputText += ev.text;
+      return;
+    case "toolUseStart":
+      startToolCall(state, ev);
+      return;
+    case "toolUseInputChunk":
+      appendToolInputChunk(state, ev);
+      return;
+    case "metadata":
       state.usage = {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
+        inputTokens: ev.usage.inputTokens ?? state.usage.inputTokens,
+        outputTokens: ev.usage.outputTokens ?? state.usage.outputTokens,
+        totalTokens: ev.usage.totalTokens ?? state.usage.totalTokens,
       };
-    }
+      return;
   }
-
-  return state;
 }
 
 /**
@@ -179,8 +125,8 @@ function setConverseStreamingOutputAttributes({
     ...(usage.totalTokens !== undefined && { total_tokens: usage.totalTokens }),
   };
 
-  // Clean up tool calls - remove partialJsonInput field from final output
-  const cleanedToolCalls = toolCalls.map(({ partialJsonInput, ...toolCall }) => toolCall);
+  // Clean up tool calls - drop partialJsonInput from final output
+  const cleanedToolCalls = toolCalls.map(({ id, name, input }) => ({ id, name, input }));
 
   const outputValue = {
     text: outputText || "",
