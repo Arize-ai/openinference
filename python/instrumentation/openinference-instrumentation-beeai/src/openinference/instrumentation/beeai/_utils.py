@@ -22,7 +22,7 @@ def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = ""
         obj_ref = obj
         obj = json.loads(stringify(obj))
         if not isinstance(obj, dict) and not isinstance(obj, list):
-            logger.warning(f"Cannot unpack object of type {type(obj_ref)} (prefix={prefix})")
+            logger.debug(f"Cannot unpack object of type {type(obj_ref)} (prefix={prefix})")
             return {"value": str(obj)}
 
     if prefix and prefix.startswith("."):
@@ -34,7 +34,7 @@ def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = ""
     for key, value in obj.items() if isinstance(obj, dict) else enumerate(obj):
         if value is None:
             continue
-        if is_primitive(value):
+        if is_primitive(value) or has_custom_str(value):
             output[f"{prefix}{key}"] = str(value)
         else:
             output.update(_unpack_object(value, prefix=f"{prefix}{key}"))
@@ -43,6 +43,10 @@ def _unpack_object(obj: dict[str, Any] | list[Any] | BaseModel, prefix: str = ""
 
 def is_primitive(value: Any) -> bool:
     return isinstance(value, str | bool | int | float | type(None))
+
+
+def has_custom_str(value: Any) -> bool:
+    return value.__class__.__str__ is not object.__str__
 
 
 def stringify(value: Any, pretty: bool = False) -> str:
