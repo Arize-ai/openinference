@@ -185,7 +185,7 @@ def _build_messages(
         assistant["content"] = str(completion) if completion is not None else ""
     tc_list = _load_tool_calls(tool_calls_json)
     if tc_list:
-        assistant["tool_calls"] = tc_list
+        assistant["tool_calls"] = tc_list  # type: ignore
 
     output_msgs = [assistant]
     return input_msgs, output_msgs
