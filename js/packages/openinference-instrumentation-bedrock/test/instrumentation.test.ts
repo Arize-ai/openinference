@@ -1841,6 +1841,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           });
 
           // Expect the API call to throw an error with 400 status
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let thrownError: any;
           try {
             await client.send(command);
@@ -1898,6 +1899,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
           const command = new ConverseStreamCommand({
             modelId: TEST_MODEL_ID,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             messages: complexConversation as any,
           });
 

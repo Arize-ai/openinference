@@ -142,17 +142,20 @@ export function getAttributesFromMessageContent(
         typeof content.image.source.bytes === "object" &&
         content.image.source.bytes !== null &&
         "type" in content.image.source.bytes &&
-        (content.image.source.bytes as any).type === "Buffer" &&
+        (content.image.source.bytes as { type: string; data: number[] })
+          .type === "Buffer" &&
         "data" in content.image.source.bytes &&
-        Array.isArray((content.image.source.bytes as any).data)
+        Array.isArray(
+          (content.image.source.bytes as { type: string; data: number[] }).data,
+        )
       ) {
         // Buffer object format: convert data array to Buffer then to base64
-        base64 = Buffer.from((content.image.source.bytes as any).data).toString(
-          "base64",
-        );
+        base64 = Buffer.from(
+          (content.image.source.bytes as { type: string; data: number[] }).data,
+        ).toString("base64");
       } else {
         // Fallback: try to convert as-is
-        base64 = Buffer.from(content.image.source.bytes as any).toString(
+        base64 = Buffer.from(content.image.source.bytes as Uint8Array).toString(
           "base64",
         );
       }
