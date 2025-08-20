@@ -22,7 +22,7 @@ export function createPolly(name: string, recordIfMissing = true): Polly {
     "unnamed-test";
   const fullName = `${name} - ${sanitizeTestName(testName)}`;
 
-  return new Polly(fullName, {
+  const polly = new Polly(fullName, {
     adapters: ["node-http"],
     persister: "fs",
     recordIfMissing,
@@ -44,4 +44,9 @@ export function createPolly(name: string, recordIfMissing = true): Polly {
       },
     },
   });
+  polly.server.any().on("beforePersist", (_req, recording) => {
+    recording.request.headers = [];
+    recording.response.headers = [];
+  });
+  return polly;
 }

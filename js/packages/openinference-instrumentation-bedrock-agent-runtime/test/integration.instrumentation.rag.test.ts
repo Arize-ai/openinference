@@ -1,6 +1,9 @@
 import {
   BedrockAgentRuntimeClient,
-  InvokeAgentCommand,
+  RetrieveAndGenerateCommand,
+  RetrieveAndGenerateCommandInput,
+  RetrieveCommand,
+  RetrieveCommandInput,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import { createPolly } from "./utils/polly.config";
 import { Polly } from "@pollyjs/core";
@@ -13,18 +16,19 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { BedrockAgentInstrumentation } from "../src";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
 import { setModuleExportsForInstrumentation } from "./utils/test-utils";
-import {
-  LLMProvider,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
 
-describe("BedrockAgentInstrumentation Trace Collector Integration - agent attributes and API recording", () => {
+describe("BedrockAgent RAG Instrumentation - attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
   let provider: NodeTracerProvider;
   let memoryExporter: InMemorySpanExporter;
 
-  const cassettePrefix = "bedrock-agent-with-traces";
+  const knowledgeBaseId = "SSGLURQ9A5";
+  const modelArn = "anthropic.claude-3-haiku-20240307-v1:0";
+  const s3Uri = "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf";
+  const s3InputText = "What is Telos?";
+  const knowledgeBaseInputText = "What is Task Decomposition?";
+
+  const cassettePrefix = "bedrock-agent-rag";
 
   let polly: Polly;
 
@@ -58,404 +62,274 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     await provider.shutdown();
   });
 
-  it("should record agent trace attributes and API response in span", async () => {
+  it("should record rag attributes and API response in span", async () => {
     const client = new BedrockAgentRuntimeClient({
-      region: "us-east-1",
+      region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
     });
-    const params = {
-      inputText: "What is the current price of Microsoft?",
-      agentId: "9Y27QONH1T",
-      agentAliasId: "AHSAF5QT0K",
-      sessionId: "default-session1_1234567891",
-      enableTrace: true,
-    };
-    const command = new InvokeAgentCommand(params);
-    const response = await client.send(command);
-    for await (const event of response.completion as AsyncIterable<{
-      chunk: { bytes: Uint8Array };
-      trace?: object;
-    }>) {
-      if (event.chunk?.bytes) {
-        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        expect(outputText).not.toBeNull();
-      }
-    }
-    expect(response).toBeDefined();
-    expect(typeof response).toBe("object");
-    const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(3);
-  });
-
-  it("should record Code Interpreter Orchestration Trace", async () => {
-    const client = new BedrockAgentRuntimeClient({
-      region: "us-east-1",
-      credentials: {
-        accessKeyId: "test-access-key-id",
-        secretAccessKey: "test-access-key",
+    const params: RetrieveAndGenerateCommandInput = {
+      input: {
+        text: knowledgeBaseInputText,
       },
-    });
-    const params = {
-      inputText: "Write programe for (a+b)**3?",
-      agentId: "EQWGOQC49C",
-      agentAliasId: "ALR0DJYNLC",
-      sessionId: "default-session1_1234567891",
-      enableTrace: true,
+      retrieveAndGenerateConfiguration: {
+        knowledgeBaseConfiguration: {
+          knowledgeBaseId: knowledgeBaseId,
+          modelArn: modelArn,
+        },
+        type: "KNOWLEDGE_BASE",
+      },
     };
-    const command = new InvokeAgentCommand(params);
+    const command = new RetrieveAndGenerateCommand(params);
     const response = await client.send(command);
-    for await (const event of response.completion as AsyncIterable<{
-      chunk: { bytes: Uint8Array };
-      trace?: object;
-    }>) {
-      if (event.chunk?.bytes) {
-        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        expect(outputText).not.toBeNull();
-      }
-    }
     expect(response).toBeDefined();
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(7);
-    const llmSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM
-      );
-    });
+    expect(spans.length).toBe(1);
+    const attrs = spans[0].attributes;
+    expect(attrs).toBeDefined();
+    expect(attrs["input.mime_type"]).toBe("text/plain");
+    expect(attrs["input.value"]).toMatch(/^What is Task/);
 
-    expect(llmSpans.length).toBe(3);
-    llmSpans.forEach((span) => {
-      expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
-        "anthropic.claude-3-sonnet-20240229-v1:0",
+    const invocation = attrs["llm.invocation_parameters"];
+    expect(invocation).toContain('"retrieveAndGenerateConfiguration"');
+    expect(invocation).toContain("SSGLURQ9A5");
+
+    expect(attrs["llm.model_name"]).toBe(
+      "anthropic.claude-3-haiku-20240307-v1:0",
+    );
+    expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
+    expect(attrs["output.mime_type"]).toBe("text/plain");
+
+    const outputVal = attrs["output.value"];
+    expect(outputVal).toMatch(/^Task Decomposition is a technique/);
+    expect(outputVal).toContain("Chain of Thought");
+    expect(outputVal).toContain("Tree of Thoughts");
+
+    for (let i = 0; i < 2; i++) {
+      const prefix = `retrieval.documents.${i}.document`;
+      const content = attrs[`${prefix}.content`];
+      expect(typeof content).toBe("string");
+      expect(content).toContain("Task Decomposition");
+
+      const metadata = attrs[`${prefix}.metadata`];
+      expect(metadata).toContain('"customDocumentLocation":{"id":"2222"}');
+      expect(metadata).toContain(
+        '"x-amz-bedrock-kb-data-source-id":"VYV3J5D9O6"',
       );
-      expect(span.attributes[SemanticConventions.LLM_PROVIDER]).toBe(
-        LLMProvider.AWS,
-      );
-      const attributeKeys = Object.keys(span.attributes);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
-        ),
-      ).toBe(true);
-    });
-    const toolSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.TOOL
-      );
-    });
-    expect(toolSpans.length).toBe(2);
-    const agentSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.AGENT
-      );
-    });
-    expect(agentSpans.length).toBe(1);
-    const chainSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.CHAIN
-      );
-    });
-    expect(chainSpans.length).toBe(1);
+    }
+
+    // Final assertion: no unexpected attributes remain
+    const expectedKeys = [
+      "input.mime_type",
+      "input.value",
+      "llm.invocation_parameters",
+      "llm.model_name",
+      "openinference.span.kind",
+      "output.mime_type",
+      "output.value",
+      "llm.system",
+      "llm.provider",
+      ...Array.from(
+        { length: 2 },
+        (_, i) => `retrieval.documents.${i}.document.content`,
+      ),
+      ...Array.from(
+        { length: 2 },
+        (_, i) => `retrieval.documents.${i}.document.score`,
+      ),
+      ...Array.from(
+        { length: 2 },
+        (_, i) => `retrieval.documents.${i}.document.metadata`,
+      ),
+    ];
+    const remainingAttrs = Object.keys(attrs).filter(
+      (key) => !expectedKeys.includes(key),
+    );
+    expect(remainingAttrs.length).toBe(0);
   });
-  it("should record knowledge base traces and API response in span", async () => {
+  it("should record rag external attributes and API response in span", async () => {
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
-        accessKeyId: "test-access-key-id",
-        secretAccessKey: "test-access-key",
+        accessKeyId: "test",
+        secretAccessKey: "test",
       },
     });
-    const params = {
-      inputText: "What is Task decomposition?",
-      agentId: "G0OUMYARBX",
-      agentAliasId: "YYTTVM7BYE",
-      sessionId: "default-session1_1234567891",
-      enableTrace: true,
+    const params: RetrieveAndGenerateCommandInput = {
+      input: {
+        text: s3InputText,
+      },
+      retrieveAndGenerateConfiguration: {
+        type: "EXTERNAL_SOURCES",
+        externalSourcesConfiguration: {
+          sources: [
+            {
+              s3Location: {
+                uri: s3Uri,
+              },
+              sourceType: "S3",
+            },
+          ],
+          modelArn: modelArn,
+        },
+      },
     };
-    const command = new InvokeAgentCommand(params);
+    const command = new RetrieveAndGenerateCommand(params);
     const response = await client.send(command);
-    for await (const event of response.completion as AsyncIterable<{
-      chunk: { bytes: Uint8Array };
-      trace?: object;
-    }>) {
-      if (event.chunk?.bytes) {
-        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        expect(outputText).not.toBeNull();
-      }
-    }
     expect(response).toBeDefined();
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(4);
-    const retrieverSpan = spans.find((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.RETRIEVER
-      );
-    });
-    expect(retrieverSpan).toBeDefined();
-    expect(retrieverSpan?.name).toBe("knowledge_base");
-    const agentSpan = spans.find((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.AGENT
-      );
-    });
-    expect(agentSpan).toBeDefined();
-    expect(agentSpan?.name).toBe("bedrock.invoke_agent");
-    const chainSpan = spans.find((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.CHAIN
-      );
-    });
-    expect(chainSpan).toBeDefined();
-    expect(chainSpan?.name).toBe("orchestrationTrace");
-    const llmSpan = spans.find((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM
-      );
-    });
-    expect(llmSpan).toBeDefined();
-    expect(llmSpan?.name).toBe("LLM");
-  });
+    expect(spans.length).toBe(1);
+    const attrs = { ...spans[0].attributes };
+    expect(attrs["input.mime_type"]).toBe("text/plain");
+    expect(attrs["input.value"]).toBe("What is Telos?");
+    expect(attrs["llm.model_name"]).toBe(
+      "anthropic.claude-3-haiku-20240307-v1:0",
+    );
+    expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
+    expect(attrs["output.mime_type"]).toBe("text/plain");
 
-  it("should record all pre post orchestration traces", async () => {
-    const client = new BedrockAgentRuntimeClient({
-      region: "us-east-1",
-      credentials: {
-        accessKeyId: "test-access-key-id",
-        secretAccessKey: "test-access-key",
-      },
-    });
-    const params = {
-      inputText: "Find the sum of first 5 fibnonic numbers?",
-      agentId: "XNW1LGJJZT",
-      agentAliasId: "K0P4LV9GPO",
-      sessionId: "default-session1_1234567892",
-      enableTrace: true,
-    };
-    const command = new InvokeAgentCommand(params);
-    const response = await client.send(command);
-    for await (const event of response.completion as AsyncIterable<{
-      chunk: { bytes: Uint8Array };
-      trace?: object;
-    }>) {
-      if (event.chunk?.bytes) {
-        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        expect(outputText).not.toBeNull();
-      }
-    }
-    expect(response).toBeDefined();
-    expect(typeof response).toBe("object");
-    const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(9);
-
-    const chainSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.CHAIN
-      );
-    });
-    // one pre, one orchestration, one post
-    expect(chainSpans.length).toBe(3);
-    // one top level agent span
-    const agentSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.AGENT
-      );
-    });
-    expect(agentSpans.length).toBe(1);
-
-    // The remaining spans are LLM spans
-    const llmSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM
-      );
-    });
-    expect(llmSpans.length).toBe(5);
-
-    llmSpans.forEach((span, i) => {
-      expect(span.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe(
-        "anthropic.claude-3-sonnet-20240229-v1:0",
-      );
-      expect(span.attributes[SemanticConventions.LLM_PROVIDER]).toBe(
-        LLMProvider.AWS,
-      );
-      const attributeKeys = Object.keys(span.attributes);
-      // The last message is post orchestration and is the result from the llm so does not have input messages
-      if (i !== llmSpans.length - 1) {
-        expect(
-          attributeKeys.some((key) =>
-            key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
-          ),
-        ).toBe(true);
-      }
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
-        ),
-      ).toBe(true);
-    });
-  });
-
-  it("should record multiple agents collaboration traces", async () => {
-    const client = new BedrockAgentRuntimeClient({
-      region: "us-east-1",
-      credentials: {
-        accessKeyId: "test-access-key-id",
-        secretAccessKey: "test-access-key",
-      },
-    });
-    const params = {
-      inputText: "Find the sum of first 10 fibnonic numbers?",
-      agentId: "2X9SRVPLWB",
-      agentAliasId: "KUXISKYLTT",
-      sessionId: "default-session1_1234567893",
-      enableTrace: true,
-    };
-    const command = new InvokeAgentCommand(params);
-    const response = await client.send(command);
-    for await (const event of response.completion as AsyncIterable<{
-      chunk: { bytes: Uint8Array };
-      trace?: object;
-    }>) {
-      if (event.chunk?.bytes) {
-        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        expect(outputText).not.toBeNull();
-      }
-    }
-    expect(response).toBeDefined();
-    expect(typeof response).toBe("object");
-    const spans = memoryExporter.getFinishedSpans();
-    expect(spans.length).toBe(19);
-
-    const agentSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.AGENT
-      );
-    });
-    // invoke, supervisor, 2 math solvers
-    expect(agentSpans.length).toBe(4);
-    agentSpans.forEach((span) => {
-      expect(
-        span.name === "bedrock.invoke_agent" ||
-          /agent_collaborator\[.*?\]/.test(span.name),
-      ).toBe(true);
-    });
-    const chainSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.CHAIN
-      );
-    });
-    // 1 orchestration trace for each agent
-    expect(chainSpans.length).toBe(4);
-    expect(chainSpans.every((span) => span.name === "orchestrationTrace")).toBe(
-      true,
+    const output = attrs["output.value"];
+    expect(output).toContain("Telos is a knowledge representation language");
+    expect(output).toContain("Telos treats attributes as first-class citizens");
+    expect(output).toContain(
+      "Telos propositions are organized along three dimensions",
+    );
+    expect(output).toContain("history time and belief time");
+    expect(output).toContain(
+      "assertion language for expressing deductive rules",
     );
 
-    const llmSpans = spans.filter((span) => {
-      return (
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM
-      );
-    });
-    expect(llmSpans.length).toBe(11);
-    llmSpans.forEach((span) => {
-      expect(span.name).toBe("LLM");
-      const modelName = span.attributes[SemanticConventions.LLM_MODEL_NAME];
-      expect(typeof modelName).toBe("string");
-      if (typeof modelName === "string") {
-        expect(modelName.includes("anthropic.claude")).toBe(true);
+    // Validate retrieval documents
+    for (let i = 0; i < 9; i++) {
+      const contentKey = `retrieval.documents.${i}.document.content`;
+      const metadataKey = `retrieval.documents.${i}.document.metadata`;
+      if (contentKey in attrs) {
+        const content = attrs[contentKey];
+        expect(content).not.toBeNull();
+        delete attrs[contentKey];
       }
-      const attributeKeys = Object.keys(span.attributes);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_INPUT_MESSAGES),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_OUTPUT_MESSAGES),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_INVOCATION_PARAMETERS),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_PROMPT),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION),
-        ),
-      ).toBe(true);
-      expect(
-        attributeKeys.some((key) =>
-          key.includes(SemanticConventions.LLM_TOKEN_COUNT_TOTAL),
-        ),
-      ).toBe(true);
+      if (metadataKey in attrs) {
+        const metadata = attrs[metadataKey];
+        expect(metadata).toContain(
+          "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf",
+        );
+        delete attrs[metadataKey];
+      }
+    }
+
+    // Validate invocation parameters
+    const invocation = attrs["llm.invocation_parameters"];
+    expect(invocation).toContain("sourceType");
+    expect(invocation).toContain("S3");
+    expect(invocation).toContain("anthropic.claude-3-haiku-20240307-v1:0");
+    delete attrs["llm.invocation_parameters"];
+    // Final assertion: no unexpected attributes remain
+    const expectedKeys = [
+      "input.mime_type",
+      "input.value",
+      "llm.model_name",
+      "openinference.span.kind",
+      "output.mime_type",
+      "output.value",
+      "llm.invocation_parameters",
+      "llm.system",
+      "llm.provider",
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.content`,
+      ),
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.metadata`,
+      ),
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.score`,
+      ),
+    ];
+    const remainingAttrs = Object.keys(attrs).filter(
+      (key) => !expectedKeys.includes(key),
+    );
+    expect(remainingAttrs.length).toBe(0);
+  });
+  it("should record retrieve attributes and API response in span", async () => {
+    const client = new BedrockAgentRuntimeClient({
+      region: "ap-south-1",
+      credentials: {
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
     });
+    const params: RetrieveCommandInput = {
+      retrievalQuery: {
+        text: knowledgeBaseInputText,
+      },
+      knowledgeBaseId: knowledgeBaseId,
+    };
+    const command = new RetrieveCommand(params);
+    const response = await client.send(command);
+    expect(response).toBeDefined();
+    expect(typeof response).toBe("object");
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    const attrs = { ...spans[0].attributes };
+    expect(attrs["input.mime_type"]).toBe("text/plain");
+    expect(attrs["input.value"]).toBe("What is Task Decomposition?");
+    expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
+    expect(attrs["llm.invocation_parameters"]).toContain("SSGLURQ9A5");
+
+    // Validate retrieval documents
+    for (let i = 0; i < 5; i++) {
+      const contentKey = `retrieval.documents.${i}.document.content`;
+      const metadataKey = `retrieval.documents.${i}.document.metadata`;
+      if (contentKey in attrs) {
+        const content = attrs[contentKey];
+        expect(content).not.toBeNull();
+        delete attrs[contentKey];
+      }
+      if (metadataKey in attrs) {
+        const metadata = attrs[metadataKey];
+        expect(metadata).toContain('"customDocumentLocation":{"id":"2222"}');
+        delete attrs[metadataKey];
+      }
+    }
+
+    // Validate invocation parameters
+    const invocation = attrs["llm.invocation_parameters"];
+    expect(invocation).toContain('"knowledgeBaseId":"SSGLURQ9A5"');
+    delete attrs["llm.invocation_parameters"];
+
+    // Final assertion: no unexpected attributes remain
+    const expectedKeys = [
+      "input.mime_type",
+      "input.value",
+      "llm.model_name",
+      "openinference.span.kind",
+      "output.mime_type",
+      "output.value",
+      "llm.invocation_parameters",
+      "llm.system",
+      "llm.provider",
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.content`,
+      ),
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.metadata`,
+      ),
+      ...Array.from(
+        { length: 9 },
+        (_, i) => `retrieval.documents.${i}.document.score`,
+      ),
+    ];
+    const remainingAttrs = Object.keys(attrs).filter(
+      (key) => !expectedKeys.includes(key),
+    );
+    expect(remainingAttrs.length).toBe(0);
   });
 });
