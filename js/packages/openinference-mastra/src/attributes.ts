@@ -294,7 +294,7 @@ export const extractMastraAgentOutput = (
  *
  * @param spans - Array of spans to process.
  */
-export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
+export const addIOToRootSpans = (spans: ProcessedReadableSpan[]): void => {
   const rootSpans = spans.filter(
     (span) => span.parentSpanContext === undefined,
   );
@@ -342,6 +342,18 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
 };
 
 /**
+ * A ReadableSpan that has been processed with OpenInference attributes.
+ */
+export type ProcessedReadableSpan = ReadableSpan & {
+  attributes: ReadableSpan["attributes"] & {
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]?: OpenInferenceSpanKind;
+    [SemanticConventions.SESSION_ID]?: string;
+    [SemanticConventions.INPUT_VALUE]?: string;
+    [SemanticConventions.OUTPUT_VALUE]?: string;
+  };
+};
+
+/**
  * Identifies and marks unlabeled root spans in traces containing agent operations.
  *
  * This function performs retroactive span kind assignment for root spans that were not
@@ -358,7 +370,7 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
  *                                Must include all spans from traces to ensure accurate identification.
  */
 export const markUnlabeledRootSpansInAgentTraces = (
-  oiContextualizedSpans: ReadableSpan[],
+  oiContextualizedSpans: ProcessedReadableSpan[],
 ): void => {
   // List of trace IDs that have agent operations
   const agentTraceIds = new Set<string>();

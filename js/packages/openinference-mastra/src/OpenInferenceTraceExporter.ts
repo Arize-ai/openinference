@@ -6,6 +6,7 @@ import {
   processMastraSpanAttributes,
   markUnlabeledRootSpansInAgentTraces,
   addIOToRootSpans,
+  type ProcessedReadableSpan,
 } from "./attributes.js";
 
 type ConstructorArgs = {
@@ -76,7 +77,7 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
   ) {
-    let filteredSpans = spans.map((span) => {
+    let filteredSpans: ProcessedReadableSpan[] = spans.map((span) => {
       processMastraSpanAttributes(span);
       return span;
     });
