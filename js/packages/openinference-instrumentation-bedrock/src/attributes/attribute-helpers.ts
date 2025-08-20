@@ -138,19 +138,25 @@ export function getAttributesFromMessageContent(
       } else if (typeof content.image.source.bytes === "string") {
         // Nock playback: already a base64 string
         base64 = content.image.source.bytes as string;
-      } else if (typeof content.image.source.bytes === "object" && 
-                 content.image.source.bytes !== null &&
-                 "type" in content.image.source.bytes && 
-                 (content.image.source.bytes as any).type === "Buffer" &&
-                 "data" in content.image.source.bytes &&
-                 Array.isArray((content.image.source.bytes as any).data)) {
+      } else if (
+        typeof content.image.source.bytes === "object" &&
+        content.image.source.bytes !== null &&
+        "type" in content.image.source.bytes &&
+        (content.image.source.bytes as any).type === "Buffer" &&
+        "data" in content.image.source.bytes &&
+        Array.isArray((content.image.source.bytes as any).data)
+      ) {
         // Buffer object format: convert data array to Buffer then to base64
-        base64 = Buffer.from((content.image.source.bytes as any).data).toString("base64");
+        base64 = Buffer.from((content.image.source.bytes as any).data).toString(
+          "base64",
+        );
       } else {
         // Fallback: try to convert as-is
-        base64 = Buffer.from(content.image.source.bytes as any).toString("base64");
+        base64 = Buffer.from(content.image.source.bytes as any).toString(
+          "base64",
+        );
       }
-      
+
       const mimeType = `image/${content.image.format}`;
 
       attributes[
@@ -162,9 +168,8 @@ export function getAttributesFromMessageContent(
       });
     }
     // Add format attribute for image content
-    attributes[
-      `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`
-    ] = content.image.format;
+    attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] =
+      content.image.format;
   }
 
   return attributes;
@@ -186,7 +191,10 @@ export function getAttributesFromMessage(message: Message): Attributes {
 
   if (message.content) {
     // Check if this is a simple single text content case
-    if (message.content.length === 1 && isConverseTextContent(message.content[0])) {
+    if (
+      message.content.length === 1 &&
+      isConverseTextContent(message.content[0])
+    ) {
       // Use simple format for single text content
       attributes[SemanticConventions.MESSAGE_CONTENT] = message.content[0].text;
     } else {
@@ -197,8 +205,9 @@ export function getAttributesFromMessage(message: Message): Attributes {
         // Process content as our custom types for attribute extraction
         const contentAttributes = getAttributesFromMessageContent(content);
         for (const [key, value] of Object.entries(contentAttributes)) {
-          attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
-            value as AttributeValue;
+          attributes[
+            `${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`
+          ] = value as AttributeValue;
         }
 
         // Handle tool calls at the message level using proper semantic conventions

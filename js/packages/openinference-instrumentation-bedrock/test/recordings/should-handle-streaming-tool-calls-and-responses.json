@@ -29,16 +29,11 @@
                     },
                     "unit": {
                       "type": "string",
-                      "enum": [
-                        "celsius",
-                        "fahrenheit"
-                      ],
+                      "enum": ["celsius", "fahrenheit"],
                       "description": "Temperature unit"
                     }
                   },
-                  "required": [
-                    "location"
-                  ]
+                  "required": ["location"]
                 }
               },
               "name": "get_weather"

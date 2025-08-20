@@ -236,7 +236,7 @@ export interface ConverseImageContent {
   image: {
     format: "png" | "jpeg" | "gif" | "webp";
     source: {
-      bytes: Uint8Array | string | Buffer | {type: "Buffer", data: number[]}; // Support various formats
+      bytes: Uint8Array | string | Buffer | { type: "Buffer"; data: number[] }; // Support various formats
     };
   };
 }
@@ -333,13 +333,13 @@ export function isConverseImageContent(
     content.image.source !== null &&
     typeof content.image.source === "object" &&
     "bytes" in content.image.source &&
-    (content.image.source.bytes instanceof Uint8Array || 
-     typeof content.image.source.bytes === "string" ||
-     Buffer.isBuffer(content.image.source.bytes) ||
-     (typeof content.image.source.bytes === "object" && 
-      content.image.source.bytes !== null &&
-      "type" in content.image.source.bytes && 
-      content.image.source.bytes.type === "Buffer"))
+    (content.image.source.bytes instanceof Uint8Array ||
+      typeof content.image.source.bytes === "string" ||
+      Buffer.isBuffer(content.image.source.bytes) ||
+      (typeof content.image.source.bytes === "object" &&
+        content.image.source.bytes !== null &&
+        "type" in content.image.source.bytes &&
+        content.image.source.bytes.type === "Buffer"))
   );
 }
 
@@ -382,16 +382,40 @@ export type NormalizedConverseStreamEvent =
   | { kind: "messageStart" }
   | { kind: "messageStop"; stopReason?: string }
   | { kind: "textDelta"; text: string }
-  | { kind: "toolUseStart"; id: string; name: string; contentBlockIndex?: number }
-  | { kind: "toolUseInputChunk"; chunk: string; contentBlockIndex?: number; id?: string }
-  | { kind: "metadata"; usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } };
+  | {
+      kind: "toolUseStart";
+      id: string;
+      name: string;
+      contentBlockIndex?: number;
+    }
+  | {
+      kind: "toolUseInputChunk";
+      chunk: string;
+      contentBlockIndex?: number;
+      id?: string;
+    }
+  | {
+      kind: "metadata";
+      usage: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
+    };
 
-export function toNormalizedConverseStreamEvent(e: ConverseStreamEventData): NormalizedConverseStreamEvent | undefined {
+export function toNormalizedConverseStreamEvent(
+  e: ConverseStreamEventData,
+): NormalizedConverseStreamEvent | undefined {
   // Structured SDK events
   if (e.messageStart) return { kind: "messageStart" };
-  if (e.messageStop) return { kind: "messageStop", stopReason: e.messageStop.stopReason };
-  if (e.contentBlockDelta?.delta?.text) return { kind: "textDelta", text: e.contentBlockDelta.delta.text };
-  if (e.contentBlockStart?.start?.toolUse?.toolUseId && e.contentBlockStart.start.toolUse.name) {
+  if (e.messageStop)
+    return { kind: "messageStop", stopReason: e.messageStop.stopReason };
+  if (e.contentBlockDelta?.delta?.text)
+    return { kind: "textDelta", text: e.contentBlockDelta.delta.text };
+  if (
+    e.contentBlockStart?.start?.toolUse?.toolUseId &&
+    e.contentBlockStart.start.toolUse.name
+  ) {
     return {
       kind: "toolUseStart",
       id: e.contentBlockStart.start.toolUse.toolUseId,
@@ -408,11 +432,24 @@ export function toNormalizedConverseStreamEvent(e: ConverseStreamEventData): Nor
   }
 
   // Raw wire events
-  if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
+  if (
+    e.type === "content_block_delta" &&
+    e.delta?.type === "text_delta" &&
+    e.delta.text
+  ) {
     return { kind: "textDelta", text: e.delta.text };
   }
-  if (e.type === "content_block_start" && e.content_block?.type === "tool_use" && e.content_block.id && e.content_block.name) {
-    return { kind: "toolUseStart", id: e.content_block.id, name: e.content_block.name };
+  if (
+    e.type === "content_block_start" &&
+    e.content_block?.type === "tool_use" &&
+    e.content_block.id &&
+    e.content_block.name
+  ) {
+    return {
+      kind: "toolUseStart",
+      id: e.content_block.id,
+      name: e.content_block.name,
+    };
   }
   if (e.type === "input_json_delta" && e.partial_json) {
     return { kind: "toolUseInputChunk", chunk: e.partial_json };

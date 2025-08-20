@@ -30,7 +30,11 @@ import {
  */
 function startToolCall(
   state: ConverseStreamProcessingState,
-  { id, name, contentBlockIndex }: { id: string; name: string; contentBlockIndex?: number }
+  {
+    id,
+    name,
+    contentBlockIndex,
+  }: { id: string; name: string; contentBlockIndex?: number },
 ) {
   if (contentBlockIndex !== undefined) {
     state.toolUseIdByIndex ??= {};
@@ -41,17 +45,26 @@ function startToolCall(
 
 function appendToolInputChunk(
   state: ConverseStreamProcessingState,
-  { chunk, contentBlockIndex, id }: { chunk: string; contentBlockIndex?: number; id?: string }
+  {
+    chunk,
+    contentBlockIndex,
+    id,
+  }: { chunk: string; contentBlockIndex?: number; id?: string },
 ) {
   const resolveId = () => {
     if (id) return id;
-    if (contentBlockIndex !== undefined && state.toolUseIdByIndex?.[contentBlockIndex]) {
+    if (
+      contentBlockIndex !== undefined &&
+      state.toolUseIdByIndex?.[contentBlockIndex]
+    ) {
       return state.toolUseIdByIndex[contentBlockIndex];
     }
   };
   const targetId = resolveId();
   if (!targetId) return;
-  const tool = state.toolCalls.find(t => t.id === targetId) ?? state.toolCalls[state.toolCalls.length - 1];
+  const tool =
+    state.toolCalls.find((t) => t.id === targetId) ??
+    state.toolCalls[state.toolCalls.length - 1];
   if (!tool) return;
 
   tool.partialJsonInput = (tool.partialJsonInput ?? "") + chunk;
@@ -126,7 +139,11 @@ function setConverseStreamingOutputAttributes({
   };
 
   // Clean up tool calls - drop partialJsonInput from final output
-  const cleanedToolCalls = toolCalls.map(({ id, name, input }) => ({ id, name, input }));
+  const cleanedToolCalls = toolCalls.map(({ id, name, input }) => ({
+    id,
+    name,
+    input,
+  }));
 
   const outputValue = {
     text: outputText || "",

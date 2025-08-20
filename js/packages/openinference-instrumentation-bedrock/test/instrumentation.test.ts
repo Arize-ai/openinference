@@ -1688,7 +1688,8 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
                         properties: {
                           location: {
                             type: "string",
-                            description: "The city and state, e.g. San Francisco, CA",
+                            description:
+                              "The city and state, e.g. San Francisco, CA",
                           },
                           unit: {
                             type: "string",
@@ -1749,7 +1750,8 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
           const client = createTestClient(isRecordingMode);
 
           // Base64-encoded 1x1 pixel PNG for testing
-          const testImageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+          const testImageData =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
           const command = new ConverseStreamCommand({
             modelId: TEST_MODEL_ID,
@@ -1818,7 +1820,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Error Handling", () => {
         it("should handle streaming API errors gracefully", async () => {
-          setupTestRecordingWrapper("should-handle-streaming-api-errors-gracefully");
+          setupTestRecordingWrapper(
+            "should-handle-streaming-api-errors-gracefully",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -1844,10 +1848,13 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           } catch (error) {
             thrownError = error;
           }
-          
+
           // Validate the error contains the expected 400 status and error message
           expect(thrownError).toBeDefined();
-          expect(thrownError.$response?.statusCode || thrownError.$metadata?.httpStatusCode).toBe(400);
+          expect(
+            thrownError.$response?.statusCode ||
+              thrownError.$metadata?.httpStatusCode,
+          ).toBe(400);
           expect(thrownError.message).toContain("model identifier is invalid");
 
           // Verify span was created and marked as error
@@ -1872,7 +1879,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
         });
 
         it("should handle large payloads and edge cases in streaming", async () => {
-          setupTestRecordingWrapper("should-handle-large-payloads-and-edge-cases-in-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-large-payloads-and-edge-cases-in-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -1903,16 +1912,30 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
           // Verify the streaming response contains the expected content from the recording
           // The response should end with "Message 6 in a complex conversation." as seen in the recording
-          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
+          const outputContent = span.attributes[
+            "llm.output_messages.0.message.content"
+          ] as string;
           expect(outputContent).toContain("This is a large test message");
-          expect(outputContent).toContain("Message 6 in a complex conversation");
+          expect(outputContent).toContain(
+            "Message 6 in a complex conversation",
+          );
 
           // Verify all input messages are captured correctly (5 messages total, indexed 0-4)
-          expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
-          expect(span.attributes["llm.input_messages.1.message.role"]).toBe("assistant");
-          expect(span.attributes["llm.input_messages.2.message.role"]).toBe("user");
-          expect(span.attributes["llm.input_messages.3.message.role"]).toBe("assistant");
-          expect(span.attributes["llm.input_messages.4.message.role"]).toBe("user"); // 5th message (index 4) is user role
+          expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+            "user",
+          );
+          expect(span.attributes["llm.input_messages.1.message.role"]).toBe(
+            "assistant",
+          );
+          expect(span.attributes["llm.input_messages.2.message.role"]).toBe(
+            "user",
+          );
+          expect(span.attributes["llm.input_messages.3.message.role"]).toBe(
+            "assistant",
+          );
+          expect(span.attributes["llm.input_messages.4.message.role"]).toBe(
+            "user",
+          ); // 5th message (index 4) is user role
 
           // Verify token usage is captured from the streaming metadata
           expect(span.attributes["llm.token_count.prompt"]).toBe(3569);
@@ -1920,7 +1943,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(span.attributes["llm.token_count.total"]).toBe(4282);
 
           // Create reusable variables for the large text (same construction as in test setup)
-          const expectedLargeText = "This is a large test message. ".repeat(100);
+          const expectedLargeText = "This is a large test message. ".repeat(
+            100,
+          );
 
           // Create expected message content with variable interpolation for readability
           const expectedMessage1 = `${expectedLargeText} Message 1 in a complex conversation.`;
@@ -1938,17 +1963,21 @@ In his imagination, this wasn't just any house. It was a magical place where hom
               { role: "assistant", content: [{ text: expectedMessage2 }] },
               { role: "user", content: [{ text: expectedMessage3 }] },
               { role: "assistant", content: [{ text: expectedMessage4 }] },
-              { role: "user", content: [{ text: expectedMessage5 }] }
-            ]
+              { role: "user", content: [{ text: expectedMessage5 }] },
+            ],
           });
 
           // Create expected JSON structure for output.value
           const expectedOutputValue = JSON.stringify({
             text: expectedMessage6,
             tool_calls: [],
-            usage: { input_tokens: 3569, output_tokens: 713, total_tokens: 4282 },
+            usage: {
+              input_tokens: 3569,
+              output_tokens: 713,
+              total_tokens: 4282,
+            },
             streaming: true,
-            stop_reason: "end_turn"
+            stop_reason: "end_turn",
           });
 
           // Verify the complete span attributes match our expectations using readable variable structure
@@ -1983,7 +2012,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Configuration & Context", () => {
         it("should handle system prompts with streaming responses", async () => {
-          setupTestRecordingWrapper("should-handle-system-prompts-with-streaming-responses");
+          setupTestRecordingWrapper(
+            "should-handle-system-prompts-with-streaming-responses",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2019,19 +2050,33 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
           // Verify that system prompts are correctly processed and concatenated with newline
-          const systemPromptText = span.attributes["llm.input_messages.0.message.content"] as string;
-          expect(systemPromptText).toBe("You are a helpful assistant that responds very concisely.\n\nAlways end your responses with 'Hope this helps!'");
-          expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
+          const systemPromptText = span.attributes[
+            "llm.input_messages.0.message.content"
+          ] as string;
+          expect(systemPromptText).toBe(
+            "You are a helpful assistant that responds very concisely.\n\nAlways end your responses with 'Hope this helps!'",
+          );
+          expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
+            "system",
+          );
 
           // Verify user message is captured correctly
-          expect(span.attributes["llm.input_messages.1.message.content"]).toBe("What is the capital of France?");
-          expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
+          expect(span.attributes["llm.input_messages.1.message.content"]).toBe(
+            "What is the capital of France?",
+          );
+          expect(span.attributes["llm.input_messages.1.message.role"]).toBe(
+            "user",
+          );
 
           // Verify the streaming response follows the system prompt instructions
-          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
+          const outputContent = span.attributes[
+            "llm.output_messages.0.message.content"
+          ] as string;
           expect(outputContent).toContain("The capital of France is Paris");
           expect(outputContent).toContain("Hope this helps!"); // Should follow system instruction
-          expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+          expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+            "assistant",
+          );
 
           // Verify token usage from the actual recording (37 input, 14 output, 51 total)
           expect(span.attributes["llm.token_count.prompt"]).toBe(37);
@@ -2039,21 +2084,33 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(span.attributes["llm.token_count.total"]).toBe(51);
 
           // Verify system metadata
-          expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
+          expect(span.attributes["llm.model_name"]).toBe(
+            "claude-3-5-sonnet-20240620",
+          );
           expect(span.attributes["llm.system"]).toBe("anthropic");
           expect(span.attributes["llm.provider"]).toBe("aws");
           expect(span.attributes["llm.stop_reason"]).toBe("end_turn");
 
           // Verify input structure contains both system and user messages
-          const inputValue = JSON.parse(span.attributes["input.value"] as string);
+          const inputValue = JSON.parse(
+            span.attributes["input.value"] as string,
+          );
           expect(inputValue.system).toHaveLength(2);
-          expect(inputValue.system[0].text).toBe("You are a helpful assistant that responds very concisely.");
-          expect(inputValue.system[1].text).toBe("Always end your responses with 'Hope this helps!'");
+          expect(inputValue.system[0].text).toBe(
+            "You are a helpful assistant that responds very concisely.",
+          );
+          expect(inputValue.system[1].text).toBe(
+            "Always end your responses with 'Hope this helps!'",
+          );
           expect(inputValue.messages).toHaveLength(1);
-          expect(inputValue.messages[0].content[0].text).toBe("What is the capital of France?");
+          expect(inputValue.messages[0].content[0].text).toBe(
+            "What is the capital of France?",
+          );
 
           // Verify output value structure for streaming response
-          const outputValue = JSON.parse(span.attributes["output.value"] as string);
+          const outputValue = JSON.parse(
+            span.attributes["output.value"] as string,
+          );
           expect(outputValue.text).toContain("The capital of France is Paris");
           expect(outputValue.text).toContain("Hope this helps!");
           expect(outputValue.streaming).toBe(true);
@@ -2064,7 +2121,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
         });
 
         it("should propagate context attributes in streaming", async () => {
-          setupTestRecordingWrapper("should-propagate-context-attributes-in-streaming");
+          setupTestRecordingWrapper(
+            "should-propagate-context-attributes-in-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2153,7 +2212,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Cross-Provider Streaming Models", () => {
         it("should handle Meta Llama models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-meta-llama-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-meta-llama-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2216,7 +2277,9 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
         });
 
         it("should handle Mistral models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-mistral-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-mistral-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2273,7 +2336,9 @@ Life in digital.",
         });
 
         it("should handle Amazon Titan models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-amazon-titan-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-amazon-titan-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2332,7 +2397,9 @@ Cloud computing offers several benefits, including:
         });
 
         it("should handle Amazon Nova models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-amazon-nova-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-amazon-nova-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2393,7 +2460,9 @@ Photosynthesis can",
         });
 
         it("should handle Cohere Command models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-cohere-command-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-cohere-command-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
@@ -2448,7 +2517,9 @@ At its core, machine learning involves creating algorithms and models that can a
         });
 
         it("should handle AI21 Jamba models with streaming", async () => {
-          setupTestRecordingWrapper("should-handle-ai21-jamba-models-with-streaming");
+          setupTestRecordingWrapper(
+            "should-handle-ai21-jamba-models-with-streaming",
+          );
 
           const client = createTestClient(isRecordingMode);
 
