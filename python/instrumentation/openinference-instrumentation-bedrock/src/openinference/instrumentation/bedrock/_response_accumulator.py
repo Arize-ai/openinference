@@ -425,8 +425,8 @@ class _ResponseAccumulator:
             span = self._create_chain_span(parent_span, attributes, start_time)
             status_code = StatusCode.OK
             if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
-                blocked_guardrails = attributes.metadata.get("blocked_guardrails", [])
-                if len(blocked_guardrails) > 0:
+                intervening_guardrails = attributes.metadata.get("intervening_guardrails", [])
+                if AttributeExtractor.get_blocked_guardrail_status(intervening_guardrails):
                     status_code = StatusCode.ERROR
             span.set_status(Status(status_code))
 
@@ -606,16 +606,16 @@ class _ResponseAccumulator:
 
         guardrail_attributes = AttributeExtractor.get_attributes_from_guardrail_trace(event_data)
 
-        if "blocked_guardrails" not in attributes.metadata:
-            attributes.metadata["blocked_guardrails"] = []
+        if "intervening_guardrails" not in attributes.metadata:
+            attributes.metadata["intervening_guardrails"] = []
 
-        if "guardrails" not in attributes.metadata:
-            attributes.metadata["guardrails"] = []
+        if "passed_guardrails" not in attributes.metadata:
+            attributes.metadata["passed_guardrails"] = []
 
         if guardrail_attributes.get("action") == "INTERVENED":
-            attributes.metadata["blocked_guardrails"].append(guardrail_attributes)
+            attributes.metadata["intervening_guardrails"].append(guardrail_attributes)
         else:
-            attributes.metadata["guardrails"].append(guardrail_attributes)
+            attributes.metadata["passed_guardrails"].append(guardrail_attributes)
 
     @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:

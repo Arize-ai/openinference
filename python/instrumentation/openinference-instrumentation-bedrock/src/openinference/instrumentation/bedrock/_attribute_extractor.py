@@ -892,6 +892,39 @@ class AttributeExtractor:
         return guardrail_trace_data
 
     @classmethod
+    def get_blocked_guardrail_status(cls, guardrails: List[dict[str, Any]]) -> bool:
+        """
+        Determine whether an agent invocation was blocked by any intervening guardrails
+        """
+
+        blocked = "BLOCKED"
+
+        for guardrail in guardrails:
+            assessments = guardrail.get("inputAssessments", []) + guardrail.get(
+                "outputAssessments", []
+            )
+            for assessment in assessments:
+                if policy := assessment.get("contentPolicy"):
+                    for filter in policy.get("filters", []):
+                        if filter.get("action") == blocked:
+                            return True
+                if policy := assessment.get("sensitiveInformationPolicy"):
+                    filters = policy.get("piiEntities", []) + policy.get("regexes", [])
+                    for filter in filters:
+                        if filter.get("action") == blocked:
+                            return True
+                if policy := assessment.get("topicPolicy"):
+                    for topic in policy.get("topics", []):
+                        if topic.get("action") == blocked:
+                            return True
+                if policy := assessment.get("wordPolicy"):
+                    words = policy.get("customWords", []) + policy.get("managedWordLists", [])
+                    for word in words:
+                        if word.get("action") == blocked:
+                            return True
+        return False
+
+    @classmethod
     def get_failure_trace_attributes(cls, trace_data: dict[str, Any]) -> dict[str, Any]:
         failure_message = ""
         if failure_code := trace_data.get("failureCode"):

@@ -683,7 +683,7 @@ def test_streaming_with_guardrails(in_memory_span_exporter: InMemorySpanExporter
     assert isinstance(guardrail_metadata, str)
     guardrail_metadata = json.loads(guardrail_metadata)
     assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.pop("guardrails", [])
+    guardrails = guardrail_metadata.pop("passed_guardrails", [])
     assert isinstance(guardrails, list)
     assert len(guardrails) == 6
     assert guardrails[0].pop("action") == "NONE"
@@ -739,7 +739,7 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     assert isinstance(guardrail_metadata, str)
     guardrail_metadata = json.loads(guardrail_metadata)
     assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.get("blocked_guardrails", [])
+    guardrails = guardrail_metadata.get("intervening_guardrails", [])
     assert isinstance(guardrails, list)
     assert len(guardrails) == 1
     assert guardrail_span.status.status_code == StatusCode.ERROR
