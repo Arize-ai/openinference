@@ -1579,12 +1579,10 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -1638,8 +1636,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
@@ -1722,8 +1719,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco and what time is it there?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco and what time is it there?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "What's the weather in San Francisco and what time is it there?",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "I can certainly help you with the weather in San Francisco, but I'm afraid I don't have a specific tool to check the current time there. Let me get the weather information for you.",
@@ -1865,8 +1861,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"invalid-streaming-model-id","messages":[{"role":"user","content":[{"text":"This streaming request should fail"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "This streaming request should fail",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "This streaming request should fail",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "invalid-streaming-model-id",
   "llm.provider": "aws",
@@ -1956,25 +1951,19 @@ In his imagination, this wasn't just any house. It was a magical place where hom
             stop_reason: "end_turn"
           });
 
-          // Verify the complete span attributes match our expectations using readable structure
-          expect(span.attributes).toEqual(
-{
+          // Verify the complete span attributes match our expectations using readable variable structure
+          expect(span.attributes).toEqual({
             "input.mime_type": "application/json",
             "input.value": expectedInputValue,
-            "llm.input_messages.0.message.contents.0.message_content.text": expectedMessage1,
-            "llm.input_messages.0.message.contents.0.message_content.type": "text",
+            "llm.input_messages.0.message.content": expectedMessage1,
             "llm.input_messages.0.message.role": "user",
-            "llm.input_messages.1.message.contents.0.message_content.text": expectedMessage2,
-            "llm.input_messages.1.message.contents.0.message_content.type": "text",
+            "llm.input_messages.1.message.content": expectedMessage2,
             "llm.input_messages.1.message.role": "assistant",
-            "llm.input_messages.2.message.contents.0.message_content.text": expectedMessage3,
-            "llm.input_messages.2.message.contents.0.message_content.type": "text",
+            "llm.input_messages.2.message.content": expectedMessage3,
             "llm.input_messages.2.message.role": "user",
-            "llm.input_messages.3.message.contents.0.message_content.text": expectedMessage4,
-            "llm.input_messages.3.message.contents.0.message_content.type": "text",
+            "llm.input_messages.3.message.content": expectedMessage4,
             "llm.input_messages.3.message.role": "assistant",
-            "llm.input_messages.4.message.contents.0.message_content.text": expectedMessage5,
-            "llm.input_messages.4.message.contents.0.message_content.type": "text",
+            "llm.input_messages.4.message.content": expectedMessage5,
             "llm.input_messages.4.message.role": "user",
             "llm.model_name": "claude-3-5-sonnet-20240620",
             "llm.output_messages.0.message.content": expectedMessage6,
@@ -2030,12 +2019,12 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
 
           // Verify that system prompts are correctly processed and concatenated with newline
-          const systemPromptText = span.attributes["llm.input_messages.0.message.contents.0.message_content.text"] as string;
+          const systemPromptText = span.attributes["llm.input_messages.0.message.content"] as string;
           expect(systemPromptText).toBe("You are a helpful assistant that responds very concisely.\n\nAlways end your responses with 'Hope this helps!'");
           expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
 
           // Verify user message is captured correctly
-          expect(span.attributes["llm.input_messages.1.message.contents.0.message_content.text"]).toBe("What is the capital of France?");
+          expect(span.attributes["llm.input_messages.1.message.content"]).toBe("What is the capital of France?");
           expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
 
           // Verify the streaming response follows the system prompt instructions
@@ -2134,8 +2123,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, how are you?"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, how are you?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, how are you?",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
   "llm.output_messages.0.message.content": "Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?",
@@ -2163,7 +2151,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
         });
       });
 
-      xdescribe("Cross-Provider Streaming Models", () => {
+      describe("Cross-Provider Streaming Models", () => {
         it("should handle Meta Llama models with streaming", async () => {
           setupTestRecordingWrapper("should-handle-meta-llama-models-with-streaming");
 
@@ -2181,6 +2169,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2190,9 +2182,37 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           await consumeStreamResponse({ body: result.stream });
 
           const span = verifySpanBasics(spanExporter, "bedrock.converse");
-          expect(span.attributes["llm.model_name"]).toBe("llama3-8b-instruct");
-          expect(span.attributes["llm.system"]).toBe("meta");
-          expect(span.attributes["llm.provider"]).toBe("aws");
+          expect(span.attributes).toMatchInlineSnapshot(`
+{
+  "input.mime_type": "application/json",
+  "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Explain quantum computing in simple terms"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
+  "llm.input_messages.0.message.content": "Explain quantum computing in simple terms",
+  "llm.input_messages.0.message.role": "user",
+  "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
+  "llm.model_name": "llama3-8b-instruct-v1:0",
+  "llm.output_messages.0.message.content": "
+
+Quantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:
+
+**Classical Computing**
+
+Regular computers use "bits" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.
+
+**Quantum Computing**
+
+Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
+  "llm.output_messages.0.message.role": "assistant",
+  "llm.provider": "aws",
+  "llm.stop_reason": "max_tokens",
+  "llm.system": "meta",
+  "llm.token_count.completion": 100,
+  "llm.token_count.prompt": 21,
+  "llm.token_count.total": 121,
+  "openinference.span.kind": "LLM",
+  "output.mime_type": "application/json",
+  "output.value": "{"text":"\\n\\nQuantum computing is a new way of processing information that's different from the way regular computers work. Here's a simple explanation:\\n\\n**Classical Computing**\\n\\nRegular computers use \\"bits\\" to store and process information. Bits are either 0 or 1, like a light switch that's either on or off. These bits are used to perform calculations and store data.\\n\\n**Quantum Computing**\\n\\nQuantum computers use \\"qubits\\" (quantum bits) instead of bits. Qubits are","tool_calls":[],"usage":{"input_tokens":21,"output_tokens":100,"total_tokens":121},"streaming":true,"stop_reason":"max_tokens"}",
+}
+`);
         });
 
         it("should handle Mistral models with streaming", async () => {
@@ -2212,6 +2232,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2243,6 +2267,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2274,6 +2302,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2305,6 +2337,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2336,6 +2372,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
                 ],
               },
             ],
+            inferenceConfig: {
+              maxTokens: 100,
+              temperature: 0.1,
+            },
           });
 
           const result = await client.send(command);
@@ -2392,15 +2432,12 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that responds concisely."}],"messages":[{"role":"user","content":[{"text":"What is the capital of France?"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant that responds concisely.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "You are a helpful assistant that responds concisely.",
   "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.contents.0.message_content.text": "What is the capital of France?",
-  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.content": "What is the capital of France?",
   "llm.input_messages.1.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "The capital of France is Paris.",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": "The capital of France is Paris.",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -2457,17 +2494,14 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant."},{"text":"Respond briefly."}],"messages":[{"role":"user","content":[{"text":"What is TypeScript?"}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant.
+  "llm.input_messages.0.message.content": "You are a helpful assistant.
 
 Respond briefly.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.contents.0.message_content.text": "What is TypeScript?",
-  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.content": "What is TypeScript?",
   "llm.input_messages.1.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript.",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": "TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript.",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -2526,12 +2560,11 @@ Respond briefly.",
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Explain machine learning briefly."}]}],"inferenceConfig":{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Explain machine learning briefly.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Explain machine learning briefly.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":150,"temperature":0.7,"topP":0.9,"stopSequences":["END","STOP"]}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.
+  "llm.output_messages.0.message.content": "Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.
 
 In essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:
 
@@ -2541,7 +2574,6 @@ In essence, machine learning allows computers to learn from data and make predic
    - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.
 
 2. Process:",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",
@@ -2618,25 +2650,21 @@ In essence, machine learning allows computers to learn from data and make predic
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant. How can I help you today?"}]},{"role":"user","content":[{"text":"Can you tell me a joke?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, what's your name?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, what's your name?",
   "llm.input_messages.0.message.role": "user",
-  "llm.input_messages.1.message.contents.0.message_content.text": "I'm Claude, an AI assistant. How can I help you today?",
-  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.content": "I'm Claude, an AI assistant. How can I help you today?",
   "llm.input_messages.1.message.role": "assistant",
-  "llm.input_messages.2.message.contents.0.message_content.text": "Can you tell me a joke?",
-  "llm.input_messages.2.message.contents.0.message_content.type": "text",
+  "llm.input_messages.2.message.content": "Can you tell me a joke?",
   "llm.input_messages.2.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Sure, I'd be happy to tell you a joke! Here's one for you:
+  "llm.output_messages.0.message.content": "Sure, I'd be happy to tell you a joke! Here's one for you:
 
 Why don't scientists trust atoms?
 
 Because they make up everything!
 
 I hope that gave you a little chuckle. Do you have any favorite types of jokes?",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -2714,27 +2742,22 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are a helpful assistant that tells jokes."}],"messages":[{"role":"user","content":[{"text":"Tell me about yourself."}]},{"role":"assistant","content":[{"text":"I'm Claude, an AI assistant who loves to help and tell jokes!"}]},{"role":"user","content":[{"text":"Great! Tell me a joke then."}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "You are a helpful assistant that tells jokes.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "You are a helpful assistant that tells jokes.",
   "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.contents.0.message_content.text": "Tell me about yourself.",
-  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.content": "Tell me about yourself.",
   "llm.input_messages.1.message.role": "user",
-  "llm.input_messages.2.message.contents.0.message_content.text": "I'm Claude, an AI assistant who loves to help and tell jokes!",
-  "llm.input_messages.2.message.contents.0.message_content.type": "text",
+  "llm.input_messages.2.message.content": "I'm Claude, an AI assistant who loves to help and tell jokes!",
   "llm.input_messages.2.message.role": "assistant",
-  "llm.input_messages.3.message.contents.0.message_content.text": "Great! Tell me a joke then.",
-  "llm.input_messages.3.message.contents.0.message_content.type": "text",
+  "llm.input_messages.3.message.content": "Great! Tell me a joke then.",
   "llm.input_messages.3.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "Alright, here's a joke for you:
+  "llm.output_messages.0.message.content": "Alright, here's a joke for you:
 
 Why don't scientists trust atoms?
 Because they make up everything!
 
 Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -2816,10 +2839,9 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.
+  "llm.output_messages.0.message.content": "This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.
 
 While I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",
@@ -2897,12 +2919,11 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.
+  "llm.output_messages.0.message.content": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.
 
 The text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.
 
 At the top of the",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",
@@ -2964,13 +2985,11 @@ At the top of the",
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"mistral.mistral-7b-instruct-v0:2","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, can you tell me about yourself?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "mistral-7b-instruct-v0:2",
-  "llm.output_messages.0.message.contents.0.message_content.text": " I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": " I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -3028,19 +3047,17 @@ At the top of the",
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"meta.llama3-8b-instruct-v1:0","messages":[{"role":"user","content":[{"text":"Hello, can you tell me about yourself?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, can you tell me about yourself?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, can you tell me about yourself?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "llama3-8b-instruct-v1:0",
-  "llm.output_messages.0.message.contents.0.message_content.text": "
+  "llm.output_messages.0.message.content": "
 
 I'd be happy to introduce myself.
 
 I am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm a large language model, which means I've been trained on a massive dataset of text from various sources, including books, articles, and online conversations.
 
 I'm designed to be helpful and informative, and I can assist with a wide range of topics and tasks. I can answer questions, provide definitions, offer suggestions",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",
@@ -3102,13 +3119,11 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Brief response please."}]}],"inferenceConfig":{"maxTokens":50,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Brief response please.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Brief response please.",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":50,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": "I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",
@@ -3158,8 +3173,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"invalid-model-id","messages":[{"role":"user","content":[{"text":"This should fail"}]}],"inferenceConfig":{"maxTokens":50}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "This should fail",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "This should fail",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":50}",
   "llm.model_name": "invalid-model-id",
@@ -3208,11 +3222,9 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"One word response."}]}]}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "One word response.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "One word response.",
   "llm.input_messages.0.message.role": "user",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "end_turn",
@@ -3300,8 +3312,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What's the weather in San Francisco?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What's the weather in San Francisco?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "What's the weather in San Francisco?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -3391,8 +3402,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"What is 15 * 23?"}]}],"toolConfig":{"tools":[{"toolSpec":{"name":"calculate","description":"Perform mathematical calculations","inputSchema":{"json":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}}]},"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "What is 15 * 23?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "What is 15 * 23?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
@@ -3493,13 +3503,11 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","messages":[{"role":"user","content":[{"text":"Hello, what's your name?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "Hello, what's your name?",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "Hello, what's your name?",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "My name is Claude. It's nice to meet you!",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.content": "My name is Claude. It's nice to meet you!",
   "llm.output_messages.0.message.role": "assistant",
   "llm.prompt_template.template": "Hello {{user_input}}, what's your name?",
   "llm.prompt_template.variables": "{"user_input":"user"}",
@@ -3607,15 +3615,13 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
 {
   "input.mime_type": "application/json",
   "input.value": "{"modelId":"anthropic.claude-3-5-sonnet-20240620-v1:0","system":[{"text":"You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."}],"messages":[{"role":"user","content":[{"text":"What is the capital of Germany?"}]}],"inferenceConfig":{"maxTokens":100,"temperature":0.1}}",
-  "llm.input_messages.0.message.contents.0.message_content.text": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.",
-  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.content": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant.",
   "llm.input_messages.0.message.role": "system",
-  "llm.input_messages.1.message.contents.0.message_content.text": "What is the capital of Germany?",
-  "llm.input_messages.1.message.contents.0.message_content.type": "text",
+  "llm.input_messages.1.message.content": "What is the capital of Germany?",
   "llm.input_messages.1.message.role": "user",
   "llm.invocation_parameters": "{"maxTokens":100,"temperature":0.1}",
   "llm.model_name": "claude-3-5-sonnet-20240620",
-  "llm.output_messages.0.message.contents.0.message_content.text": "The capital of Germany is Berlin. 
+  "llm.output_messages.0.message.content": "The capital of Germany is Berlin. 
 
 Berlin has a rich and complex history as the capital city:
 
@@ -3624,7 +3630,6 @@ Berlin has a rich and complex history as the capital city:
 2. After World War I, it remained the capital of the Weimar Republic.
 
 3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of",
-  "llm.output_messages.0.message.contents.0.message_content.type": "text",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
   "llm.stop_reason": "max_tokens",

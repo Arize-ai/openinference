@@ -185,31 +185,38 @@ export function getAttributesFromMessage(message: Message): Attributes {
   }
 
   if (message.content) {
-    let toolCallIndex = 0;
+    // Check if this is a simple single text content case
+    if (message.content.length === 1 && isConverseTextContent(message.content[0])) {
+      // Use simple format for single text content
+      attributes[SemanticConventions.MESSAGE_CONTENT] = message.content[0].text;
+    } else {
+      // Use complex format for multi-modal or multi-content messages
+      let toolCallIndex = 0;
 
-    for (const [index, content] of message.content.entries()) {
-      // Process content as our custom types for attribute extraction
-      const contentAttributes = getAttributesFromMessageContent(content);
-      for (const [key, value] of Object.entries(contentAttributes)) {
-        attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
-          value as AttributeValue;
-      }
+      for (const [index, content] of message.content.entries()) {
+        // Process content as our custom types for attribute extraction
+        const contentAttributes = getAttributesFromMessageContent(content);
+        for (const [key, value] of Object.entries(contentAttributes)) {
+          attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
+            value as AttributeValue;
+        }
 
-      // Handle tool calls at the message level using proper semantic conventions
-      if (isConverseToolUseContent(content)) {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-        attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
-          content.toolUse.toolUseId;
-        attributes[
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-        ] = content.toolUse.name;
-        attributes[
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = JSON.stringify(content.toolUse.input);
-        toolCallIndex++;
-      } else if (isConverseToolResultContent(content)) {
-        attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
-          content.toolResult.toolUseId;
+        // Handle tool calls at the message level using proper semantic conventions
+        if (isConverseToolUseContent(content)) {
+          const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+          attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
+            content.toolUse.toolUseId;
+          attributes[
+            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+          ] = content.toolUse.name;
+          attributes[
+            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+          ] = JSON.stringify(content.toolUse.input);
+          toolCallIndex++;
+        } else if (isConverseToolResultContent(content)) {
+          attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
+            content.toolResult.toolUseId;
+        }
       }
     }
   }
