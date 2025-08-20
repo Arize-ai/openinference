@@ -21,6 +21,9 @@ from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
     Response,
+    ResponseCustomToolCall,
+    ResponseCustomToolCallOutputParam,
+    ResponseCustomToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseInputContentParam,
@@ -266,6 +269,14 @@ def _get_attributes_from_input(
             )
         elif item["type"] == "function_call_output":
             yield from _get_attributes_from_function_call_output(item, prefix)
+        elif item["type"] == "custom_tool_call":
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_custom_tool_call_param(
+                item,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
+        elif item["type"] == "custom_tool_call_output":
+            yield from _get_attributes_from_response_custom_tool_call_output_param(item, prefix)
         elif item["type"] == "reasoning":
             continue  # TODO
         elif item["type"] == "item_reference":
@@ -314,6 +325,32 @@ def _get_attributes_from_response_function_tool_call_param(
     yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", obj["name"]
     if obj["arguments"] != "{}":
         yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", obj["arguments"]
+
+
+def _get_attributes_from_response_custom_tool_call_param(
+    obj: ResponseCustomToolCallParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (call_id := obj.get("call_id")) is not None:
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", call_id
+    if (name := obj.get("name")) is not None:
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
+    if (input_data := obj.get("input")) is not None:
+        yield (
+            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+            safe_json_dumps({"input": input_data}),
+        )
+
+
+def _get_attributes_from_response_custom_tool_call_output_param(
+    obj: ResponseCustomToolCallOutputParam,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
+    if (call_id := obj.get("call_id")) is not None:
+        yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
+    if (output := obj.get("output")) is not None:
+        yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
 
 
 def _get_attributes_from_function_call_output(
@@ -565,6 +602,12 @@ def _get_attributes_from_response_output(
             prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}.{MESSAGE_TOOL_CALLS}.{tool_call_idx}."
             yield from _get_attributes_from_function_tool_call(item, prefix)
             tool_call_idx += 1
+        elif item.type == "custom_tool_call":
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from _get_attributes_from_response_custom_tool_call(
+                item,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
         elif item.type == "file_search_call":
             ...  # TODO
         elif item.type == "web_search_call":
@@ -606,6 +649,21 @@ def _get_attributes_from_function_tool_call(
     yield f"{prefix}{TOOL_CALL_FUNCTION_NAME}", obj.name
     if obj.arguments != "{}":
         yield f"{prefix}{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}", obj.arguments
+
+
+def _get_attributes_from_response_custom_tool_call(
+    obj: ResponseCustomToolCall,
+    prefix: str = "",
+) -> Iterator[tuple[str, AttributeValue]]:
+    if (call_id := obj.call_id) is not None:
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", call_id
+    if (name := obj.name) is not None:
+        yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
+    if (input_data := obj.input) is not None:
+        yield (
+            f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+            safe_json_dumps({"input": input_data}),
+        )
 
 
 def _get_attributes_from_message(

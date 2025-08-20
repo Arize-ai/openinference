@@ -9,6 +9,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -29,6 +30,7 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
+    get_llm_provider_attributes,
     safe_json_dumps,
 )
 from openinference.instrumentation.litellm.package import _instruments
@@ -38,6 +40,7 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -53,6 +56,30 @@ KEYS_TO_REDACT = ["api_key", "messages"]
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     if value is not None and value != "":
         span.set_attribute(name, value)
+
+
+_LITELLM_TO_OPENINFERENCE_PROVIDERS = {
+    "openai": OpenInferenceLLMProviderValues.OPENAI,
+    "anthropic": OpenInferenceLLMProviderValues.ANTHROPIC,
+    "cohere": OpenInferenceLLMProviderValues.COHERE,
+    "mistral": OpenInferenceLLMProviderValues.MISTRALAI,
+    "vertex_ai": OpenInferenceLLMProviderValues.GOOGLE,
+    "gemini": OpenInferenceLLMProviderValues.GOOGLE,
+    "azure": OpenInferenceLLMProviderValues.AZURE,
+    "bedrock": OpenInferenceLLMProviderValues.AWS,
+    "xai": OpenInferenceLLMProviderValues.XAI,
+    "deepseek": OpenInferenceLLMProviderValues.DEEPSEEK,
+}
+
+
+def _get_oi_provider_from_litellm_model_name(
+    model_name: str,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    try:
+        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    return _LITELLM_TO_OPENINFERENCE_PROVIDERS.get(litellm_provider)
 
 
 T = TypeVar("T", bound=type)
@@ -146,7 +173,11 @@ def _instrument_func_type_completion(span: trace_api.Span, kwargs: Dict[str, Any
     _set_span_attribute(
         span, SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
     )
-    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, kwargs.get("model", "unknown_model"))
+    model = kwargs.get("model")
+    if model:
+        span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model)
+        provider = _get_oi_provider_from_litellm_model_name(model)
+        span.set_attributes(get_llm_provider_attributes(provider))
 
     if messages := kwargs.get("messages"):
         messages_as_dicts = []

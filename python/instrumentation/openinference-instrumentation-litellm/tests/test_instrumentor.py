@@ -30,12 +30,12 @@ from openinference.semconv.trace import (
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
     resource = Resource(attributes={})
     tracer_provider = TracerProvider(resource=resource)
@@ -1400,6 +1400,42 @@ def message_contents_text(prefix: str, i: int, j: int) -> str:
 
 def message_contents_image_url(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}"
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_provider",
+    [
+        pytest.param("gpt-4o", "openai", id="openai"),
+        pytest.param("claude-3-haiku-20240307", "anthropic", id="anthropic"),
+        pytest.param("azure/gpt-4", "azure", id="azure"),
+        pytest.param("bedrock/anthropic.claude-3-sonnet-20240229-v1:0", "aws", id="aws"),
+        pytest.param("vertex_ai/gemini-1.5-pro", "google", id="google"),
+        pytest.param("cohere/command", "cohere", id="cohere"),
+        pytest.param("mistral/mistral-medium", "mistralai", id="mistralai"),
+        pytest.param("xai/grok-beta", "xai", id="xai"),
+        pytest.param("deepseek/deepseek-chat", "deepseek", id="deepseek"),
+        pytest.param("huggingface/together/deepseek-ai/DeepSeek-R1", None, id="unknown-provider"),
+    ],
+)
+def test_provider_attribute_correctly_set(
+    model_name: str,
+    expected_provider: Optional[str],
+    setup_litellm_instrumentation: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    litellm.completion(
+        model=model_name,
+        messages=[{"content": "Hello", "role": "user"}],
+        mock_response="Hi there!",
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = span.attributes
+    assert attributes is not None
+    provider = attributes.get(SpanAttributes.LLM_PROVIDER)
+    assert provider == expected_provider
 
 
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

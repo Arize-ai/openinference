@@ -25,6 +25,10 @@ export function withSafety<T extends GenericFunction>({
   };
 }
 
+const unknownJSONParse = (...args: Parameters<typeof JSON.parse>): unknown => {
+  return JSON.parse(...args);
+};
+
 export const safelyJSONStringify = withSafety({ fn: JSON.stringify });
 
-export const safelyJSONParse = withSafety({ fn: JSON.parse });
+export const safelyJSONParse = withSafety({ fn: unknownJSONParse });

@@ -1,7 +1,7 @@
 description = 'OpenInference Base Instrumentation for Java'
 
 dependencies {
-    // OpenInference semantic conventions
+    // OpenInference semantic conventions update
     api project(':openinference-semantic-conventions')
     
     // OpenTelemetry dependencies

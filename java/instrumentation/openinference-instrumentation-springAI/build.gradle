@@ -3,18 +3,19 @@ plugins {
 }
 
 group = 'com.arize'
-version = '0.1.1'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // upgrade openinference-instrumentation
     api project(':openinference-instrumentation')
 
+    // Spring AI
     implementation 'io.micrometer:micrometer-observation:1.15.1'
     implementation 'io.micrometer:micrometer-tracing-bridge-brave:1.5.1'
-    implementation 'org.springframework.ai:spring-ai-model:1.0.0'
+    implementation 'org.springframework.ai:spring-ai-model:1.0.1'
 
     // OpenTelemetry
     api "io.opentelemetry:opentelemetry-api"

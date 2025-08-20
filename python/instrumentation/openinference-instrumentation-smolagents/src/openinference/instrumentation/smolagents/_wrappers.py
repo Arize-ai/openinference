@@ -310,12 +310,19 @@ class _ModelWrapper:
         ) as span:
             output_message = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
+            token_usage = getattr(output_message, "token_usage", None)
+            if token_usage:
+                input_tokens = token_usage.input_tokens
+                output_tokens = token_usage.output_tokens
+                total_tokens = token_usage.total_tokens
+            else:
+                input_tokens = model.last_input_token_count
+                output_tokens = model.last_output_token_count
+                total_tokens = input_tokens + output_tokens
+            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
+            span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
-            )
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))

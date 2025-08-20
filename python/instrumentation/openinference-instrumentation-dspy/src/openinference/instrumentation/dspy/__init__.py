@@ -86,6 +86,24 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_LMAcallWrapper(self._tracer),),
         )
 
+        # The DummyLM class is the only typical subclass of DSPy's LM class.
+        # It is used for unit testing and does not typically get used in
+        # production, however it is helpful to instrument it to understand
+        # program flow within testing scenarios.
+        wrap_object(
+            module="dspy.utils",
+            name="DummyLM.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_LMCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module="dspy.utils",
+            name="DummyLM.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_LMAcallWrapper(self._tracer),),
+        )
+
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
         # forward method. We instrument both the forward methods of the base
