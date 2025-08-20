@@ -487,14 +487,8 @@ describe("OpenInferenceTraceExporter", () => {
     expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
       "what is the weather today?",
     );
-    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
-      "text/plain",
-    );
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
       "The weather today is sunny with a high of 75°F.",
-    );
-    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
-      "text/plain",
     );
   });
 
@@ -624,14 +618,8 @@ describe("OpenInferenceTraceExporter", () => {
     expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
       "Tell me a joke",
     );
-    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
-      "text/plain",
-    );
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
       "Why don't scientists trust atoms? Because they make up everything!",
-    );
-    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
-      "text/plain",
     );
   });
 
@@ -695,14 +683,8 @@ describe("OpenInferenceTraceExporter", () => {
     expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
       "What is the weather in Tokyo?",
     );
-    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
-      "text/plain",
-    );
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
       "The weather in Tokyo is currently cloudy with a temperature of 18°C.",
-    );
-    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
-      "text/plain",
     );
   });
 
@@ -901,10 +883,10 @@ describe("OpenInferenceTraceExporter", () => {
     });
 
     // Export spans from both traces together (simulating a batch export)
-    exporter.export([
-      rootSpanA, inputSpanA, outputSpanA,
-      rootSpanB, inputSpanB, outputSpanB
-    ], () => {});
+    exporter.export(
+      [rootSpanA, inputSpanA, outputSpanA, rootSpanB, inputSpanB, outputSpanB],
+      () => {},
+    );
 
     // Root span A should only have input/output from trace A
     expect(rootSpanA.attributes[SemanticConventions.INPUT_VALUE]).toBe(

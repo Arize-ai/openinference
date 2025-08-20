@@ -4,7 +4,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 
 import {
   processMastraSpanAttributes,
-  contextualizeAgentRootSpans,
+  markUnlabeledRootSpansInAgentTraces,
   addIOToRootSpans,
 } from "./attributes.js";
 
@@ -81,7 +81,7 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
       return span;
     });
 
-    contextualizeAgentRootSpans(filteredSpans);
+    markUnlabeledRootSpansInAgentTraces(filteredSpans);
 
     addIOToRootSpans(filteredSpans);
 

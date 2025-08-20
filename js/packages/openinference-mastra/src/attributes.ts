@@ -290,6 +290,8 @@ export const extractMastraAgentOutput = (
  * to any root spans that don't already have I/O attributes set. Handles spans
  * from different traces correctly by grouping spans by trace ID.
  *
+ * This function modifies spans in place for memory efficiency.
+ *
  * @param spans - Array of spans to process.
  */
 export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
@@ -340,14 +342,22 @@ export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
 };
 
 /**
- * Contextualizes root spans for traces with agent operations.
+ * Identifies and marks unlabeled root spans in traces containing agent operations.
  *
- * This function will add the OpenInference span kind to the given Mastra span if it is an agent operation.
- * Behavior relies on all spans being contextualized with OpenInference attributes to identify missing root spans.
+ * This function performs retroactive span kind assignment for root spans that were not
+ * initially identified as agent operations through basic span name prefix matching.
  *
- * @param oiContextualizedSpans - List of spans that have been contextualized with OpenInference attributes if possible.
+ * The function works by:
+ * 1. Identifying traces that contain agent operations (spans with AGENT span kind)
+ * 2. Finding root spans in those traces that lack OpenInference span kind attribution
+ * 3. Marking those unlabeled root spans as AGENT spans (excluding internal operations)
+ *
+ * The function modifies spans in place for memory efficiency.
+ *
+ * @param oiContextualizedSpans - Array of spans that have been processed with OpenInference attributes.
+ *                                Must include all spans from traces to ensure accurate identification.
  */
-export const contextualizeAgentRootSpans = (
+export const markUnlabeledRootSpansInAgentTraces = (
   oiContextualizedSpans: ReadableSpan[],
 ): void => {
   // List of trace IDs that have agent operations
