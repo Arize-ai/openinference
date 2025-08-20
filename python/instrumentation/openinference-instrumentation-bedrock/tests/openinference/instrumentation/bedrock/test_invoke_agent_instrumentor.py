@@ -739,7 +739,7 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     assert isinstance(guardrail_metadata, str)
     guardrail_metadata = json.loads(guardrail_metadata)
     assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.get("guardrails", [])
+    guardrails = guardrail_metadata.get("blocked_guardrails", [])
     assert isinstance(guardrails, list)
     assert len(guardrails) == 1
     assert guardrail_span.status.status_code == StatusCode.ERROR
