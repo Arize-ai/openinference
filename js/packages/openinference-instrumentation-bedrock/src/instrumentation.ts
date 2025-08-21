@@ -40,6 +40,7 @@ import {
   getSystemFromModelId,
   setBasicSpanAttributes,
 } from "./attributes/attribute-helpers";
+import { isPromise } from "util/types";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-bedrock";
@@ -290,13 +291,23 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractInvokeModelRequestAttributes({ span, command, system });
 
     try {
-      const result = original.apply(
-        client,
-        args,
-      ) as unknown as Promise<InvokeModelResponse>;
+      const result = original.apply(client, args);
 
-      // AWS SDK v3 send() method always returns a Promise
-      return result
+      // AWS SDK v3 send() method should always return a Promise
+      if (!isPromise(result)) {
+        diag.warn(
+          "Expected Promise from AWS SDK send method, got:",
+          typeof result,
+        );
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: "Unexpected return type from AWS SDK",
+        });
+        span.end();
+        return result as Promise<InvokeModelResponse>;
+      }
+
+      return (result as Promise<InvokeModelResponse>)
         .then((response: InvokeModelResponse) => {
           extractInvokeModelResponseAttributes({
             span,
@@ -366,11 +377,23 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries
     // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
-    const result = original.apply(client, args) as unknown as Promise<{
-      body: AsyncIterable<unknown>;
-    }>;
+    const result = original.apply(client, args);
 
-    return result
+    // Validate that we got a Promise as expected
+    if (!isPromise(result)) {
+      diag.warn(
+        "Expected Promise from AWS SDK send method, got:",
+        typeof result,
+      );
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: "Unexpected return type from AWS SDK",
+      });
+      span.end();
+      return result as Promise<{ body: AsyncIterable<unknown> }>;
+    }
+
+    return (result as Promise<{ body: AsyncIterable<unknown> }>)
       .then((response: { body: AsyncIterable<unknown> }) => {
         // Guard against missing response body - return original response
         if (!response.body) {
@@ -414,7 +437,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               });
           }
         } else {
-          diag.debug("No instrumentation stream available, ending span cleanly");
+          diag.debug(
+            "No instrumentation stream available, ending span cleanly",
+          );
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }
@@ -463,13 +488,23 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractConverseRequestAttributes({ span, command });
 
     try {
-      const result = original.apply(
-        client,
-        args,
-      ) as unknown as Promise<ConverseResponse>;
+      const result = original.apply(client, args);
 
-      // AWS SDK v3 send() method always returns a Promise
-      return result
+      // AWS SDK v3 send() method should always return a Promise
+      if (!isPromise(result)) {
+        diag.warn(
+          "Expected Promise from AWS SDK send method, got:",
+          typeof result,
+        );
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: "Unexpected return type from AWS SDK",
+        });
+        span.end();
+        return result as Promise<ConverseResponse>;
+      }
+
+      return (result as Promise<ConverseResponse>)
         .then((response: ConverseResponse) => {
           extractConverseResponseAttributes({ span, response });
           span.setStatus({ code: SpanStatusCode.OK });
@@ -534,11 +569,23 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     // Execute AWS SDK call and handle stream splitting outside error boundaries
     // This ensures the user stream is ALWAYS returned, regardless of instrumentation failures
-    const result = original.apply(client, args) as unknown as Promise<{
-      stream: AsyncIterable<unknown>;
-    }>;
+    const result = original.apply(client, args);
 
-    return result
+    // Validate that we got a Promise as expected
+    if (!isPromise(result)) {
+      diag.warn(
+        "Expected Promise from AWS SDK send method, got:",
+        typeof result,
+      );
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: "Unexpected return type from AWS SDK",
+      });
+      span.end();
+      return result as Promise<{ stream: AsyncIterable<unknown> }>;
+    }
+
+    return (result as Promise<{ stream: AsyncIterable<unknown> }>)
       .then((response: { stream: AsyncIterable<unknown> }) => {
         // Guard against missing response stream - return original response
         if (!response.stream) {
@@ -576,7 +623,9 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               span.end();
             });
         } else {
-          diag.debug("No instrumentation stream available, ending span cleanly");
+          diag.debug(
+            "No instrumentation stream available, ending span cleanly",
+          );
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }

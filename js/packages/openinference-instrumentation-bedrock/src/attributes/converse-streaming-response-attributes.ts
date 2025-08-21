@@ -113,7 +113,7 @@ function appendToolInputChunk(
 
   const parsed = safelyJSONParse(tool.partialJsonInput);
   if (parsed != null && isObjectWithStringKeys(parsed)) {
-    tool.input = parsed 
+    tool.input = parsed;
   }
 }
 
