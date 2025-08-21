@@ -198,18 +198,6 @@ class TraceCollector:
         self.trace_nodes: dict[str, TraceNode] = {default_trace_id: self.initial_node}
         self.trace_ids: List[str] = [self.initial_node.node_trace_id]
 
-    def find_node_by_trace_id(self, trace_id: str) -> Optional[TraceNode]:
-        """
-        Find a trace node by its trace ID using the trace_nodes dictionary.
-
-        Args:
-            trace_id: The trace ID to search for
-
-        Returns:
-            The matching TraceNode or None if not found
-        """
-        return self.trace_nodes.get(trace_id)
-
     def _handle_chunk_for_current_node(
         self, node: TraceNode, chunk_type: str, trace_data: Dict[str, Any]
     ) -> None:
@@ -457,8 +445,7 @@ class TraceCollector:
                 self._handle_chunk_for_current_node(parent_trace_node, chunk_type, trace_data)
         elif node_trace_id in self.trace_ids:
             # Handle case where trace ID exists but parent node doesn't match
-
-            if trace_node := self.find_node_by_trace_id(node_trace_id):
+            if trace_node := self.trace_nodes.get(node_trace_id):
                 parent_trace_node = trace_node
             self._handle_existing_trace_id_scenario(
                 parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data

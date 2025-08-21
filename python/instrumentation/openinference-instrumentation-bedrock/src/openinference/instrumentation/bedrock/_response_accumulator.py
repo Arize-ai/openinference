@@ -426,7 +426,7 @@ class _ResponseAccumulator:
             status_code = StatusCode.OK
             if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
                 intervening_guardrails = attributes.metadata.get("intervening_guardrails", [])
-                if AttributeExtractor.get_blocked_guardrail_status(intervening_guardrails):
+                if AttributeExtractor.is_blocked_guardrail(intervening_guardrails):
                     status_code = StatusCode.ERROR
             span.set_status(Status(status_code))
 

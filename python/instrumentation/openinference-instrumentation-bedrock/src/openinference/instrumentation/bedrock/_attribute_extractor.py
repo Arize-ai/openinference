@@ -892,36 +892,42 @@ class AttributeExtractor:
         return guardrail_trace_data
 
     @classmethod
-    def get_blocked_guardrail_status(cls, guardrails: List[dict[str, Any]]) -> bool:
+    def is_blocked_guardrail(cls, guardrails: List[dict[str, Any]]) -> bool:
         """
         Determine whether an agent invocation was blocked by any intervening guardrails
         """
-
-        blocked = "BLOCKED"
 
         for guardrail in guardrails:
             assessments = guardrail.get("inputAssessments", []) + guardrail.get(
                 "outputAssessments", []
             )
             for assessment in assessments:
-                if policy := assessment.get("contentPolicy"):
-                    for filter in policy.get("filters", []):
-                        if filter.get("action") == blocked:
-                            return True
-                if policy := assessment.get("sensitiveInformationPolicy"):
-                    filters = policy.get("piiEntities", []) + policy.get("regexes", [])
-                    for filter in filters:
-                        if filter.get("action") == blocked:
-                            return True
-                if policy := assessment.get("topicPolicy"):
-                    for topic in policy.get("topics", []):
-                        if topic.get("action") == blocked:
-                            return True
-                if policy := assessment.get("wordPolicy"):
-                    words = policy.get("customWords", []) + policy.get("managedWordLists", [])
-                    for word in words:
-                        if word.get("action") == blocked:
-                            return True
+                # Check each of the assessment policy types to see if the guardrail is blocked
+                if cls.is_assessment_blocked(assessment, "contentPolicy", ["filters"]):
+                    return True
+                if cls.is_assessment_blocked(assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"]):
+                    return True
+                if cls.is_assessment_blocked(assessment, "topicPolicy", ["topics"]):
+                    return True
+                if cls.is_assessment_blocked(assessment, "wordPolicy", ["customWords", "managedWordLists"]):
+                    return True
+        return False
+    
+    @classmethod
+    def is_assessment_blocked(cls, assessment: dict[str, Any], policy_type: str, policy_filters: List[str]) -> bool:
+        """
+        Parses through guardrail assessment to determine if the action is BLOCKED
+        """
+        blocked = "BLOCKED"
+        policy = assessment.get(policy_type, {})
+
+        filters = []
+        for filter_type in policy_filters:
+            filters += policy.get(filter_type, [])
+
+        for filter in filters:
+            if filter.get("action") == blocked:
+                return True
         return False
 
     @classmethod
