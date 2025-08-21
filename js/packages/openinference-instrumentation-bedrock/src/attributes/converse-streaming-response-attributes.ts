@@ -15,6 +15,7 @@ import {
   safelyJSONParse,
   safelyJSONStringify,
   isObjectWithStringKeys,
+  assertUnreachable,
 } from "@arizeai/openinference-core";
 import {
   SemanticConventions,
@@ -153,6 +154,8 @@ function processConverseStreamChunk(
         totalTokens: ev.usage.totalTokens ?? state.usage.totalTokens,
       };
       return;
+    default:
+      assertUnreachable(ev);
   }
 }
 
