@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.0
+
+### Minor Changes
+
+- 1fd8521: Add support for converse-stream
+
 ## 0.3.2
 
 ### Patch Changes
