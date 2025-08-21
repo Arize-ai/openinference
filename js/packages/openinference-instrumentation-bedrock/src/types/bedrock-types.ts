@@ -61,13 +61,26 @@ export {
 
 // Custom types that extend or aren't available in the SDK
 
-// Flexible type for multi-provider support with runtime validation
+/**
+ * Arbitrary request body for Bedrock InvokeModel-style APIs.
+ * Provider-specific payloads vary; callers should validate at runtime.
+ */
 export type InvokeModelRequestBody = Record<string, unknown>;
+/**
+ * Arbitrary response body for Bedrock InvokeModel-style APIs.
+ * Provider-specific payloads vary; consumers should normalize as needed.
+ */
 export type InvokeModelResponseBody = Record<string, unknown>;
+/** Generic invocation parameters bag used across providers. */
 export type InvocationParameters = Record<string, unknown>;
 
-// Converse Stream event data types using AWS SDK types where possible
-// This is a discriminated union of all possible streaming event types
+// Converse Stream raw event data as emitted by the SDK and Bedrock service
+// This is a flexible shape; it is normalized by toNormalizedConverseStreamEvent below
+/**
+ * Raw Converse streaming event structure capturing the superset of possible
+ * fields. Use toNormalizedConverseStreamEvent to map to a discriminated union
+ * for downstream processing.
+ */
 export interface ConverseStreamEventData {
   // The event type discriminator
   type?: string;
@@ -121,7 +134,7 @@ export interface ConverseStreamEventData {
   };
 }
 
-// Stream processing state for converse streaming
+/** In-memory state accumulated while consuming a Converse stream. */
 export interface ConverseStreamProcessingState {
   outputText: string;
   toolCalls: Array<{
@@ -140,36 +153,42 @@ export interface ConverseStreamProcessingState {
   toolUseIdByIndex?: Record<number, string>;
 }
 
-// Extended conversation role type to support additional roles like "tool" and "system" for Mistral
+/**
+ * Extended role type used by some providers (e.g., Mistral) in legacy InvokeModel flows.
+ */
 export type ExtendedConversationRole = ConversationRole | "tool" | "system";
 
-// Legacy message format for InvokeModel (different from Converse Message)
+/** Legacy InvokeModel message format (different from Converse messages). */
 export interface BedrockMessage {
   role: ExtendedConversationRole;
   content: MessageContent;
 }
 
+/** Union of legacy InvokeModel message content types. */
 export type MessageContent =
   | string
   | (TextContent | ImageContent | ToolUseContent | ToolResultContent)[];
 
-// Content types for legacy InvokeModel API
+/** Text content block used by legacy InvokeModel APIs. */
 export interface TextContent {
   type: "text";
   text: string;
 }
 
+/** Base64-encoded image source used by legacy InvokeModel APIs. */
 export interface ImageSource {
   type: "base64";
   media_type: string;
   data: string;
 }
 
+/** Image content block used by legacy InvokeModel APIs. */
 export interface ImageContent {
   type: "image";
   source: ImageSource;
 }
 
+/** Tool call content used by legacy InvokeModel APIs. */
 export interface ToolUseContent {
   type: "tool_use";
   id: string;
@@ -177,13 +196,14 @@ export interface ToolUseContent {
   input: Record<string, unknown>;
 }
 
+/** Tool result content used by legacy InvokeModel APIs. */
 export interface ToolResultContent {
   type: "tool_result";
   tool_use_id: string;
   content: string;
 }
 
-// Tool definition for legacy InvokeModel API
+/** Tool/function definition used by legacy InvokeModel APIs. */
 export interface ToolDefinition {
   name: string;
   description: string;
@@ -194,7 +214,7 @@ export interface ToolDefinition {
   };
 }
 
-// Usage information
+/** Provider-reported usage info (legacy InvokeModel flavor). */
 export interface UsageInfo {
   input_tokens: number;
   output_tokens: number;
@@ -221,17 +241,19 @@ export interface UsageAttributes {
 }
 
 // Content blocks for Converse API (map to SDK ContentBlock structure)
-// These are used for type guards since AWS SDK ContentBlock has complex union types
+// These are used for type guards since AWS SDK ContentBlock has complex unions
 export type ConverseContentBlock =
   | ConverseTextContent
   | ConverseImageContent
   | ConverseToolUseContent
   | ConverseToolResultContent;
 
+/** Text content block in Converse API messages. */
 export interface ConverseTextContent {
   text: string;
 }
 
+/** Image content block in Converse API messages. */
 export interface ConverseImageContent {
   image: {
     format: "png" | "jpeg" | "gif" | "webp";
@@ -241,6 +263,7 @@ export interface ConverseImageContent {
   };
 }
 
+/** Tool call content block in Converse API messages. */
 export interface ConverseToolUseContent {
   toolUse: {
     toolUseId: string;
@@ -249,6 +272,7 @@ export interface ConverseToolUseContent {
   };
 }
 
+/** Tool result content block in Converse API messages. */
 export interface ConverseToolResultContent {
   toolResult: {
     toolUseId: string;
@@ -257,7 +281,7 @@ export interface ConverseToolResultContent {
   };
 }
 
-// Type guards for legacy InvokeModel content types
+/** Type guard for legacy text content blocks. */
 export function isTextContent(content: unknown): content is TextContent {
   return (
     content !== null &&
@@ -269,6 +293,7 @@ export function isTextContent(content: unknown): content is TextContent {
   );
 }
 
+/** Type guard for legacy image content blocks. */
 export function isImageContent(content: unknown): content is ImageContent {
   return (
     content !== null &&
@@ -283,6 +308,7 @@ export function isImageContent(content: unknown): content is ImageContent {
   );
 }
 
+/** Type guard for legacy tool call content blocks. */
 export function isToolUseContent(content: unknown): content is ToolUseContent {
   return (
     content !== null &&
@@ -294,6 +320,7 @@ export function isToolUseContent(content: unknown): content is ToolUseContent {
   );
 }
 
+/** Type guard for legacy tool result content blocks. */
 export function isToolResultContent(
   content: unknown,
 ): content is ToolResultContent {
@@ -307,8 +334,7 @@ export function isToolResultContent(
   );
 }
 
-// Type guards for Converse content blocks
-// These are needed because AWS SDK ContentBlock has complex union types that don't match our processing needs
+/** Type guard for Converse text content. */
 export function isConverseTextContent(
   content: unknown,
 ): content is ConverseTextContent {
@@ -320,6 +346,7 @@ export function isConverseTextContent(
   );
 }
 
+/** Type guard for Converse image content. */
 export function isConverseImageContent(
   content: unknown,
 ): content is ConverseImageContent {
@@ -343,6 +370,7 @@ export function isConverseImageContent(
   );
 }
 
+/** Type guard for Converse tool call content. */
 export function isConverseToolUseContent(
   content: unknown,
 ): content is ConverseToolUseContent {
@@ -359,6 +387,7 @@ export function isConverseToolUseContent(
   );
 }
 
+/** Type guard for Converse tool result content. */
 export function isConverseToolResultContent(
   content: unknown,
 ): content is ConverseToolResultContent {
@@ -371,13 +400,35 @@ export function isConverseToolResultContent(
   );
 }
 
-// Type guards for Converse streaming types
+/**
+ * Loose type guard for Converse streaming events.
+ * Ensures we have an object and at least one known event marker.
+ * Exhaustive discrimination happens in toNormalizedConverseStreamEvent.
+ */
 export function isValidConverseStreamEventData(
   data: unknown,
 ): data is ConverseStreamEventData {
-  return isObjectWithStringKeys(data);
+  if (!isObjectWithStringKeys(data)) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  // Middle ground: object with at least one known Converse stream marker
+  return (
+    "messageStart" in obj ||
+    "messageStop" in obj ||
+    "contentBlockStart" in obj ||
+    "contentBlockDelta" in obj ||
+    "contentBlockStop" in obj ||
+    "metadata" in obj ||
+    // raw-wire style events expose `type`
+    "type" in obj
+  );
 }
 
+/**
+ * Discriminated union of normalized Converse streaming events.
+ * Produced by toNormalizedConverseStreamEvent for safe downstream handling.
+ */
 export type NormalizedConverseStreamEvent =
   | { kind: "messageStart" }
   | { kind: "messageStop"; stopReason?: string }
@@ -403,6 +454,10 @@ export type NormalizedConverseStreamEvent =
       };
     };
 
+/**
+ * Normalizes raw Converse streaming events into a discriminated union.
+ * Handles both structured SDK events and raw-wire events.
+ */
 export function toNormalizedConverseStreamEvent(
   e: ConverseStreamEventData,
 ): NormalizedConverseStreamEvent | undefined {
