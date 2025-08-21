@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": ".",
+    "types": ["vitest/globals"],
+    "lib": ["ES2020", "DOM"]
   },
   "files": [],
   "include": ["src/**/*.ts", "test/**/*.ts"],

@@ -14,6 +14,7 @@ import { CreateEmbeddingResponse } from "openai/resources/embeddings";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { vi } from "vitest";
 
 // Function tools
 async function getCurrentLocation() {
@@ -53,7 +54,7 @@ describe("OpenAIInstrumentation", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   it("is patched", () => {
     expect(
@@ -91,7 +92,7 @@ describe("OpenAIInstrumentation", () => {
       },
     };
     // Mock out the chat completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -153,7 +154,7 @@ describe("OpenAIInstrumentation", () => {
       },
     };
     // Mock out the chat completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -206,7 +207,7 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
     };
     // Mock out the completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -245,28 +246,31 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 0, total_tokens: 0 },
     };
 
-    // Mock out the embedding create endpoint with proper Promise handling
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    // Mock out the embedding create endpoint
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({ apiKey: "fake-api-key" }),
-        new Promise((resolve) => {
-          resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+        openai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123",
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-            options: {
-              method: "post",
-              path: "/embeddings",
-            },
-            controller: new AbortController(),
-          });
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,
+          options: {
+            method: "post",
+            path: "/embeddings",
+          },
+          controller: new AbortController(),
         }),
       );
     });
@@ -293,7 +297,7 @@ describe("OpenAIInstrumentation", () => {
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         const iterator = () =>
@@ -417,8 +421,7 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 121, completion_tokens: 20, total_tokens: 141 },
       system_fingerprint: null,
     };
-    jest
-      .spyOn(openai, "post")
+    vi.spyOn(openai, "post")
       .mockImplementationOnce(
         // @ts-expect-error the response type is not correct - this is just for testing
         async (): Promise<unknown> => {
@@ -574,7 +577,7 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
   it("should capture tool calls with streaming", async () => {
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         const iterator = () =>
@@ -706,7 +709,7 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
   it("should capture a function call with streaming", async () => {
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         const iterator = () =>
@@ -843,7 +846,7 @@ describe("OpenAIInstrumentation", () => {
       },
     };
     // Mock out the chat completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -886,7 +889,7 @@ describe("OpenAIInstrumentation", () => {
       },
     };
     // Mock out the chat completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -955,7 +958,7 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
     };
     // Mock out the completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -1023,31 +1026,36 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
     };
 
-    // Mock out the chat completions endpoint that will be called under the hood by `.parse`
-    jest
-      .spyOn(openai, "post")
-      .mockImplementation((): ReturnType<typeof openai.post> => {
-        return new APIPromise(
-          openai,
-          Promise.resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            controller: new AbortController(),
-            options: {
-              method: "post",
-              path: "/chat/completions/create",
-            },
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+    // Mock out the post method that chat completions uses internally
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      // Create a full APIPromise-like object that satisfies all OpenAI SDK expectations
+      const apiPromise = new APIPromise(
+        openai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123",
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-          }),
-        );
-      });
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,
+          options: {
+            method: "post",
+            path: "/chat/completions",
+          },
+          controller: new AbortController(),
+        }),
+      );
+      return apiPromise;
+    });
 
     const CalendarEvent = z.object({
       name: z.string(),
@@ -1124,7 +1132,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   it("is patched", () => {
     expect(
@@ -1149,7 +1157,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
       usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
     };
     // Mock out the completions endpoint
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -1209,7 +1217,7 @@ describe("AzureOpenAIInstrumentation", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("is patched", () => {
@@ -1243,7 +1251,7 @@ describe("AzureOpenAIInstrumentation", () => {
       },
     };
     // Mock out the chat completions endpoint
-    jest.spyOn(azureOpenai, "post").mockImplementation(
+    vi.spyOn(azureOpenai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         return response;
@@ -1287,28 +1295,31 @@ describe("AzureOpenAIInstrumentation", () => {
       usage: { prompt_tokens: 0, total_tokens: 0 },
     };
 
-    // Mock out the embedding create endpoint with proper Promise handling
-    jest.spyOn(azureOpenai, "post").mockImplementation(() => {
+    // Mock out the embedding create endpoint
+    vi.spyOn(azureOpenai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({ apiKey: "fake-api-key" }),
-        new Promise((resolve) => {
-          resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+        azureOpenai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123",
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-            options: {
-              method: "post",
-              path: "/embeddings",
-            },
-            controller: new AbortController(),
-          });
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,
+          options: {
+            method: "post",
+            path: "/embeddings",
+          },
+          controller: new AbortController(),
         }),
       );
     });
@@ -1336,7 +1347,7 @@ describe("AzureOpenAIInstrumentation", () => {
 
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
-    jest.spyOn(azureOpenai, "post").mockImplementation(
+    vi.spyOn(azureOpenai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       async (): Promise<unknown> => {
         const iterator = () =>
@@ -1423,8 +1434,8 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -1451,7 +1462,7 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
         },
       };
 
-      jest.spyOn(openai, "post").mockImplementation(
+      vi.spyOn(openai, "post").mockImplementation(
         // @ts-expect-error the response type is not correct - this is just for testing
         async (): Promise<unknown> => {
           return response;
@@ -1510,8 +1521,8 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -1538,7 +1549,7 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
         },
       };
 
-      jest.spyOn(openai, "post").mockImplementation(
+      vi.spyOn(openai, "post").mockImplementation(
         // @ts-expect-error the response type is not correct - this is just for testing
         async (): Promise<unknown> => {
           return response;
@@ -1600,8 +1611,8 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -1628,7 +1639,7 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
         },
       };
 
-      jest.spyOn(openai, "post").mockImplementation(
+      vi.spyOn(openai, "post").mockImplementation(
         // @ts-expect-error the response type is not correct - this is just for testing
         async (): Promise<unknown> => {
           return response;
