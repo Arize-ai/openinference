@@ -10,8 +10,8 @@
  */
 
 import { Span, diag } from "@opentelemetry/api";
-import { withSafety } from "@arizeai/openinference-core";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import { withSafety, safelyJSONParse, safelyJSONStringify } from "@arizeai/openinference-core";
+import { SemanticConventions, MimeType } from "@arizeai/openinference-semantic-conventions";
 import { setSpanAttribute } from "./attribute-helpers";
 import {
   ConverseStreamEventData,
@@ -21,12 +21,39 @@ import {
 } from "../types/bedrock-types";
 
 /**
- * Processes Converse stream chunks and updates processing state
- * Handles messageStart, contentBlockDelta, toolUse events, and metadata with proper accumulation
+ * Resolves the target tool use id from either an explicit id or a content block index.
  *
- * @param data The parsed Converse stream event data
- * @param state Current processing state to update
- * @returns Updated processing state
+ * @param params.id Optional explicit tool id carried on the event
+ * @param params.contentBlockIndex Optional content block index to map into an id
+ * @param params.indexMap Optional index->id mapping established at tool start
+ * @returns The resolved tool id if available
+ */
+function resolveToolUseId({
+  id,
+  contentBlockIndex,
+  indexMap,
+}: {
+  id?: string;
+  contentBlockIndex?: number;
+  indexMap?: Record<number, string>;
+}): string | undefined {
+  if (id) return id;
+  if (contentBlockIndex !== undefined && indexMap) {
+    return indexMap[contentBlockIndex];
+  }
+}
+
+/**
+ * Starts tracking a tool call encountered in a Converse stream.
+ *
+ * Records the mapping between a content block index and a toolUseId so that
+ * subsequent input chunks can be correlated, and initializes a new tool call
+ * entry with an empty input buffer for incremental JSON accumulation.
+ *
+ * @param state Stream processing state to update
+ * @param params.id The tool use identifier from the stream event
+ * @param params.name The tool name provided by the model
+ * @param params.contentBlockIndex Optional index to correlate future input chunks
  */
 function startToolCall(
   state: ConverseStreamProcessingState,
@@ -43,6 +70,19 @@ function startToolCall(
   state.toolCalls.push({ id, name, input: {}, partialJsonInput: "" });
 }
 
+/**
+ * Appends a partial JSON input chunk for the current tool call.
+ *
+ * Resolves the target tool call either by explicit id or by the content block
+ * index mapping established at tool start. Accumulates the chunk into a
+ * string buffer and attempts to parse it into a JSON object; on parse errors,
+ * accumulation continues until valid JSON is formed by subsequent chunks.
+ *
+ * @param state Stream processing state to update
+ * @param params.chunk Partial JSON string for tool input
+ * @param params.contentBlockIndex Optional index to resolve the tool id
+ * @param params.id Optional explicit tool id
+ */
 function appendToolInputChunk(
   state: ConverseStreamProcessingState,
   {
@@ -51,32 +91,29 @@ function appendToolInputChunk(
     id,
   }: { chunk: string; contentBlockIndex?: number; id?: string },
 ) {
-  const resolveId = () => {
-    if (id) return id;
-    if (
-      contentBlockIndex !== undefined &&
-      state.toolUseIdByIndex?.[contentBlockIndex]
-    ) {
-      return state.toolUseIdByIndex[contentBlockIndex];
-    }
-  };
-  const targetId = resolveId();
+  const targetId = resolveToolUseId({
+    id,
+    contentBlockIndex,
+    indexMap: state.toolUseIdByIndex,
+  });
   if (!targetId) return;
-  const tool =
-    state.toolCalls.find((t) => t.id === targetId) ??
-    state.toolCalls[state.toolCalls.length - 1];
+  const tool = state.toolCalls.find((t) => t.id === targetId)
   if (!tool) return;
 
   tool.partialJsonInput = (tool.partialJsonInput ?? "") + chunk;
 
-  try {
-    const parsed = JSON.parse(tool.partialJsonInput);
-    tool.input = parsed as Record<string, unknown>;
-  } catch {
-    // keep accumulating
-  }
+  const parsed = safelyJSONParse(tool.partialJsonInput);
+  tool.input = parsed as Record<string, unknown>;
 }
 
+/**
+ * Processes Converse stream chunks and updates processing state
+ * Handles messageStart, contentBlockDelta, toolUse events, and metadata with proper accumulation
+ *
+ * @param data The parsed Converse stream event data
+ * @param state Current processing state to update
+ * @returns Updated processing state
+ */
 function processConverseStreamChunk(
   data: ConverseStreamEventData,
   state: ConverseStreamProcessingState,
@@ -157,12 +194,12 @@ function setConverseStreamingOutputAttributes({
   setSpanAttribute(
     span,
     SemanticConventions.OUTPUT_VALUE,
-    JSON.stringify(outputValue),
+    safelyJSONStringify(outputValue),
   );
   setSpanAttribute(
     span,
     SemanticConventions.OUTPUT_MIME_TYPE,
-    "application/json",
+    MimeType.JSON,
   );
 
   // Set the message role (always assistant for converse responses)
@@ -198,7 +235,7 @@ function setConverseStreamingOutputAttributes({
     setSpanAttribute(
       span,
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-      JSON.stringify(toolCall.input),
+      safelyJSONStringify(toolCall.input),
     );
   });
 
@@ -260,7 +297,6 @@ export const consumeConverseStreamChunks = withSafety({
     stream: AsyncIterable<unknown>;
     span: Span;
   }): Promise<void> => {
-    // Initialize processing state for Converse streaming
     const state: ConverseStreamProcessingState = {
       outputText: "",
       toolCalls: [],
@@ -270,12 +306,10 @@ export const consumeConverseStreamChunks = withSafety({
     for await (const chunk of stream) {
       // ConverseStream returns events directly as objects, no need to decode bytes
       if (isValidConverseStreamEventData(chunk)) {
-        const data: ConverseStreamEventData = chunk;
-        processConverseStreamChunk(data, state);
+        processConverseStreamChunk(chunk, state);
       }
     }
 
-    // Set final streaming output attributes
     setConverseStreamingOutputAttributes({
       span,
       outputText: state.outputText,

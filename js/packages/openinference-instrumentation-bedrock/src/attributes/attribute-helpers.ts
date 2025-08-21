@@ -108,6 +108,31 @@ export function aggregateMessages(
 }
 
 /**
+ * Safely converts supported byte-like inputs to base64.
+ * Handles: Uint8Array, Buffer, base64 string passthrough, and {type:'Buffer', data:number[]}.
+ * On unsupported inputs, logs a warning and returns undefined.
+ */
+const toBase64ImageBytes = withSafety({
+  fn: (
+    bytes:
+      | Uint8Array
+      | Buffer
+  ): string | undefined => {
+    if (Buffer.isBuffer(bytes)) {
+      return (bytes as Buffer).toString("base64");
+    }
+    if (bytes instanceof Uint8Array) {
+      return Buffer.from(bytes).toString("base64");
+    }
+    diag.warn("Unsupported image bytes type encountered");
+    return undefined;
+  },
+  onError: (error) => {
+    diag.warn("Failed to convert image bytes to base64", error as Error);
+  },
+});
+
+/**
  * Extracts OpenInference semantic convention attributes from message content blocks
  * Handles text, image, and tool content types with appropriate attribute mapping
  *
@@ -141,31 +166,6 @@ export function getAttributesFromMessageContent(
 
   return attributes;
 }
-
-/**
- * Safely converts supported byte-like inputs to base64.
- * Handles: Uint8Array, Buffer, base64 string passthrough, and {type:'Buffer', data:number[]}.
- * On unsupported inputs, logs a warning and returns undefined.
- */
-const toBase64ImageBytes = withSafety({
-  fn: (
-    bytes:
-      | Uint8Array
-      | Buffer
-  ): string | undefined => {
-    if (Buffer.isBuffer(bytes)) {
-      return (bytes as Buffer).toString("base64");
-    }
-    if (bytes instanceof Uint8Array) {
-      return Buffer.from(bytes).toString("base64");
-    }
-    diag.warn("Unsupported image bytes type encountered");
-    return undefined;
-  },
-  onError: (error) => {
-    diag.warn("Failed to convert image bytes to base64", error as Error);
-  },
-});
 
 /**
  * Extracts OpenInference semantic convention attributes from a single Bedrock message
