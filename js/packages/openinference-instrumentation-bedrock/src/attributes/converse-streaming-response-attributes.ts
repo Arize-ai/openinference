@@ -14,6 +14,7 @@ import {
   withSafety,
   safelyJSONParse,
   safelyJSONStringify,
+  isObjectWithStringKeys,
 } from "@arizeai/openinference-core";
 import {
   SemanticConventions,
@@ -110,7 +111,9 @@ function appendToolInputChunk(
   tool.partialJsonInput = (tool.partialJsonInput ?? "") + chunk;
 
   const parsed = safelyJSONParse(tool.partialJsonInput);
-  tool.input = parsed as Record<string, unknown>;
+  if (parsed != null && isObjectWithStringKeys(parsed)) {
+    tool.input = parsed as Record<string, unknown>;
+  }
 }
 
 /**

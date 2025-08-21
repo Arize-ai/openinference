@@ -361,12 +361,7 @@ export function isConverseImageContent(
     typeof content.image.source === "object" &&
     "bytes" in content.image.source &&
     (content.image.source.bytes instanceof Uint8Array ||
-      typeof content.image.source.bytes === "string" ||
-      Buffer.isBuffer(content.image.source.bytes) ||
-      (typeof content.image.source.bytes === "object" &&
-        content.image.source.bytes !== null &&
-        "type" in content.image.source.bytes &&
-        content.image.source.bytes.type === "Buffer"))
+      Buffer.isBuffer(content.image.source.bytes))
   );
 }
 
