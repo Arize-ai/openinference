@@ -271,7 +271,7 @@ describe("OpenAIInstrumentation", () => {
             path: "/embeddings",
           },
           controller: new AbortController(),
-        })
+        }),
       );
     });
 
@@ -421,8 +421,7 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 121, completion_tokens: 20, total_tokens: 141 },
       system_fingerprint: null,
     };
-    vi
-      .spyOn(openai, "post")
+    vi.spyOn(openai, "post")
       .mockImplementationOnce(
         // @ts-expect-error the response type is not correct - this is just for testing
         async (): Promise<unknown> => {
@@ -1034,7 +1033,7 @@ describe("OpenAIInstrumentation", () => {
         openai,
         Promise.resolve({
           requestLogID: "123",
-          retryOfRequestLogID: "123", 
+          retryOfRequestLogID: "123",
           startTime: 123,
           response: {
             json: () => Promise.resolve(response),
@@ -1047,13 +1046,13 @@ describe("OpenAIInstrumentation", () => {
             status: 200,
             statusText: "OK",
             ok: true,
-          } as Response,  
+          } as Response,
           options: {
             method: "post",
             path: "/chat/completions",
           },
           controller: new AbortController(),
-        })
+        }),
       );
       return apiPromise;
     });
@@ -1321,7 +1320,7 @@ describe("AzureOpenAIInstrumentation", () => {
             path: "/embeddings",
           },
           controller: new AbortController(),
-        })
+        }),
       );
     });
 
