@@ -43,7 +43,8 @@ class Processor:
         pass
 
     async def end(self, event: "RunContextFinishEvent", meta: "EventMeta") -> None:
-        self.span.record_exception(event.error)
+        if event.error is not None:
+            self.span.record_exception(event.error)
 
         if event.output is not None:
             if SpanAttributes.OUTPUT_VALUE not in self.span.attributes:

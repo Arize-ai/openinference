@@ -77,9 +77,6 @@ class SpanWrapper:
     def set_status(self, status: StatusCode) -> None:
         self.status = status
 
-    def record_exception(self, error: Exception | None) -> None:
+    def record_exception(self, error: Exception) -> None:
         self.error = error
-        if error is None:
-            self.set_status(StatusCode.UNSET)
-        else:
-            self.set_status(StatusCode.ERROR)
+        self.set_status(StatusCode.ERROR)
