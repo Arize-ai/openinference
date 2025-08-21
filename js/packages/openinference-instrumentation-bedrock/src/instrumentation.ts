@@ -390,24 +390,29 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
         // Start background instrumentation processing (non-blocking)
         // Only the instrumentation is wrapped in error handling - the user stream is protected
         if (instrumentationStream) {
-          // @ts-expect-error - instrumentationStream is guaranteed non-null by the if check above
-          consumeBedrockStreamChunks({
+          const consumed = consumeBedrockStreamChunks({
             stream: instrumentationStream,
             span,
             modelType: system,
-          })
-            .then(() => {
-              span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
-            })
-            .catch((error: Error) => {
-              span.recordException(error);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error.message,
+          });
+          if (consumed == null) {
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+          } else {
+            consumed
+              .then(() => {
+                span.setStatus({ code: SpanStatusCode.OK });
+                span.end();
+              })
+              .catch((error: Error) => {
+                span.recordException(error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: error.message,
+                });
+                span.end();
               });
-              span.end();
-            });
+          }
         } else {
           // No instrumentation stream available, end span cleanly
           span.setStatus({ code: SpanStatusCode.OK });
