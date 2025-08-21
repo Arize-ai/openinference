@@ -46,6 +46,9 @@ def is_primitive(value: Any) -> bool:
 
 
 def has_custom_str(value: Any) -> bool:
+    if value.__class__.__module__ == "builtins":
+        return False
+
     return value.__class__.__str__ is not object.__str__
 
 
