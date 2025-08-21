@@ -77,5 +77,20 @@ class SpanWrapper:
     def set_status(self, status: StatusCode) -> None:
         self.status = status
 
+    def reset_exception(self) -> None:
+        self.error = None
+        self.set_status(StatusCode.OK)
+
     def record_exception(self, error: Exception) -> None:
+        from beeai_framework.errors import FrameworkError
+
         self.error = error
+        self.set_status(StatusCode.ERROR)
+        self.set_attributes(
+            {
+                SpanAttributes.OUTPUT_VALUE: error.explain()
+                if isinstance(error, FrameworkError)
+                else str(error),
+                SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
+            }
+        )

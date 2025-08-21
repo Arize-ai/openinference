@@ -2,6 +2,8 @@ import logging
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, Callable, Collection
 
+from opentelemetry.trace import StatusCode
+
 if TYPE_CHECKING:
     from beeai_framework.emitter import EventMeta
 
@@ -82,7 +84,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
                 self._build_tree(children)
 
             current_span.set_status(node.status)
-            if node.error is not None:
+            if node.error is not None and node.status == StatusCode.ERROR:
                 current_span.record_exception(node.error)
 
             current_span.end(_datetime_to_span_time(node.ended_at) if node.ended_at else None)

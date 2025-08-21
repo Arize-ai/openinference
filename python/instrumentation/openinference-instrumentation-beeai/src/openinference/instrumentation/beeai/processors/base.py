@@ -43,6 +43,9 @@ class Processor:
         pass
 
     async def end(self, event: "RunContextFinishEvent", meta: "EventMeta") -> None:
+        if event.error is not None:
+            self.span.record_exception(event.error)
+
         if event.output is not None:
             if SpanAttributes.OUTPUT_VALUE not in self.span.attributes:
                 self.span.attributes.update(
@@ -52,9 +55,5 @@ class Processor:
                     }
                 )
             self.span.set_status(StatusCode.OK)
-
-        if event.error is not None:
-            self.span.set_status(StatusCode.ERROR)
-            self.span.record_exception(event.error)
 
         self.span.ended_at = meta.created_at
