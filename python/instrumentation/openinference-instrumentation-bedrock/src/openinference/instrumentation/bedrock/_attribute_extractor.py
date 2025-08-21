@@ -905,16 +905,22 @@ class AttributeExtractor:
                 # Check each of the assessment policy types to see if the guardrail is blocked
                 if cls.is_assessment_blocked(assessment, "contentPolicy", ["filters"]):
                     return True
-                if cls.is_assessment_blocked(assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"]):
+                if cls.is_assessment_blocked(
+                    assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"]
+                ):
                     return True
                 if cls.is_assessment_blocked(assessment, "topicPolicy", ["topics"]):
                     return True
-                if cls.is_assessment_blocked(assessment, "wordPolicy", ["customWords", "managedWordLists"]):
+                if cls.is_assessment_blocked(
+                    assessment, "wordPolicy", ["customWords", "managedWordLists"]
+                ):
                     return True
         return False
-    
+
     @classmethod
-    def is_assessment_blocked(cls, assessment: dict[str, Any], policy_type: str, policy_filters: List[str]) -> bool:
+    def is_assessment_blocked(
+        cls, assessment: dict[str, Any], policy_type: str, policy_filters: List[str]
+    ) -> bool:
         """
         Parses through guardrail assessment to determine if the action is BLOCKED
         """
