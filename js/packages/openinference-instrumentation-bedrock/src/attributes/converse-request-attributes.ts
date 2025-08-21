@@ -5,6 +5,7 @@ import {
   ToolConfiguration,
   SystemContentBlock,
   Message,
+  ConverseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import {
   SemanticConventions,
@@ -148,7 +149,13 @@ function extractInputToolAttributes({
  * @param params.command The ConverseCommand to extract attributes from
  */
 export const extractConverseRequestAttributes = withSafety({
-  fn: ({ span, command }: { span: Span; command: ConverseCommand }): void => {
+  fn: ({
+    span,
+    command,
+  }: {
+    span: Span;
+    command: ConverseCommand | ConverseStreamCommand;
+  }): void => {
     const input = command.input;
     if (!input || !isConverseRequest(input)) {
       return;

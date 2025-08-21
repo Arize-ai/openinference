@@ -21,7 +21,9 @@ export const createNockMock = (
   const targetModelId = modelId || defaultModelId;
   let endpoint: string;
 
-  if (isConverse) {
+  if (isConverse && isStreaming) {
+    endpoint = "converse-stream";
+  } else if (isConverse) {
     endpoint = "converse";
   } else if (isStreaming) {
     endpoint = "invoke-with-response-stream";
@@ -120,9 +122,9 @@ export const setupTestRecording = (
             : null;
 
         // Determine endpoint type
-        const isStreaming = recording.path?.includes(
-          "invoke-with-response-stream",
-        );
+        const isStreaming =
+          recording.path?.includes("invoke-with-response-stream") ||
+          recording.path?.includes("converse-stream");
         const isConverse = recording.path?.includes("/converse");
 
         createNockMock(

@@ -1,4 +1,5 @@
-import { Span, AttributeValue, Attributes } from "@opentelemetry/api";
+import { Span, AttributeValue, Attributes, diag } from "@opentelemetry/api";
+import { withSafety, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   SemanticConventions,
   LLMSystem,
@@ -107,6 +108,27 @@ export function aggregateMessages(
 }
 
 /**
+ * Safely converts supported byte-like inputs to base64.
+ * Handles: Uint8Array, Buffer.
+ * On unsupported inputs, logs a warning and returns undefined.
+ */
+const toBase64ImageBytes = withSafety({
+  fn: (bytes: Uint8Array | Buffer): string | undefined => {
+    if (Buffer.isBuffer(bytes)) {
+      return (bytes as Buffer).toString("base64");
+    }
+    if (bytes instanceof Uint8Array) {
+      return Buffer.from(bytes).toString("base64");
+    }
+    diag.warn("Unsupported image bytes type encountered");
+    return undefined;
+  },
+  onError: (error) => {
+    diag.warn("Failed to convert image bytes to base64", error as Error);
+  },
+});
+
+/**
  * Extracts OpenInference semantic convention attributes from message content blocks
  * Handles text, image, and tool content types with appropriate attribute mapping
  *
@@ -126,11 +148,9 @@ export function getAttributesFromMessageContent(
     attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
-    if (content.image.source.bytes) {
-      // Convert bytes to base64 data URL using the helper function
-      const base64 = Buffer.from(content.image.source.bytes).toString("base64");
+    const base64 = toBase64ImageBytes(content.image.source.bytes);
+    if (base64) {
       const mimeType = `image/${content.image.format}`;
-
       attributes[
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
       ] = formatImageUrl({
@@ -139,6 +159,9 @@ export function getAttributesFromMessageContent(
         media_type: mimeType,
       });
     }
+    // Add format attribute for image content
+    attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] =
+      content.image.format;
   }
 
   return attributes;
@@ -159,31 +182,45 @@ export function getAttributesFromMessage(message: Message): Attributes {
   }
 
   if (message.content) {
-    let toolCallIndex = 0;
+    // Check if this is a simple single text content case
+    if (
+      message.content.length === 1 &&
+      isConverseTextContent(message.content[0])
+    ) {
+      // Use simple format for single text content
+      attributes[SemanticConventions.MESSAGE_CONTENT] = message.content[0].text;
+    } else {
+      // Use complex format for multi-modal or multi-content messages
+      let toolCallIndex = 0;
 
-    for (const [index, content] of message.content.entries()) {
-      // Process content as our custom types for attribute extraction
-      const contentAttributes = getAttributesFromMessageContent(content);
-      for (const [key, value] of Object.entries(contentAttributes)) {
-        attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
-          value as AttributeValue;
-      }
+      for (const [index, content] of message.content.entries()) {
+        // Process content as our custom types for attribute extraction
+        const contentAttributes = getAttributesFromMessageContent(content);
+        for (const key in contentAttributes) {
+          attributes[
+            `${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`
+          ] = contentAttributes[key];
+        }
 
-      // Handle tool calls at the message level using proper semantic conventions
-      if (isConverseToolUseContent(content)) {
-        const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
-        attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
-          content.toolUse.toolUseId;
-        attributes[
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-        ] = content.toolUse.name;
-        attributes[
-          `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-        ] = JSON.stringify(content.toolUse.input);
-        toolCallIndex++;
-      } else if (isConverseToolResultContent(content)) {
-        attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
-          content.toolResult.toolUseId;
+        // Handle tool calls at the message level using proper semantic conventions
+        if (isConverseToolUseContent(content)) {
+          const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
+          attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
+            content.toolUse.toolUseId;
+          attributes[
+            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+          ] = content.toolUse.name;
+          const argsJson = safelyJSONStringify(content.toolUse.input);
+          if (argsJson) {
+            attributes[
+              `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+            ] = argsJson;
+          }
+          toolCallIndex++;
+        } else if (isConverseToolResultContent(content)) {
+          attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
+            content.toolResult.toolUseId;
+        }
       }
     }
   }
