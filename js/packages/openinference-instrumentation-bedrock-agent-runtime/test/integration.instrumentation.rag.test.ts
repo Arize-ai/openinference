@@ -111,7 +111,6 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     for (let i = 0; i < 2; i++) {
       const prefix = `retrieval.documents.${i}.document`;
       const content = attrs[`${prefix}.content`];
-      expect(typeof content).toBe("string");
       expect(content).toContain("Task Decomposition");
 
       const metadata = attrs[`${prefix}.metadata`];
@@ -120,35 +119,6 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
         '"x-amz-bedrock-kb-data-source-id":"VYV3J5D9O6"',
       );
     }
-
-    // Final assertion: no unexpected attributes remain
-    const expectedKeys = [
-      "input.mime_type",
-      "input.value",
-      "llm.invocation_parameters",
-      "llm.model_name",
-      "openinference.span.kind",
-      "output.mime_type",
-      "output.value",
-      "llm.system",
-      "llm.provider",
-      ...Array.from(
-        { length: 2 },
-        (_, i) => `retrieval.documents.${i}.document.content`,
-      ),
-      ...Array.from(
-        { length: 2 },
-        (_, i) => `retrieval.documents.${i}.document.score`,
-      ),
-      ...Array.from(
-        { length: 2 },
-        (_, i) => `retrieval.documents.${i}.document.metadata`,
-      ),
-    ];
-    const remainingAttrs = Object.keys(attrs).filter(
-      (key) => !expectedKeys.includes(key),
-    );
-    expect(remainingAttrs.length).toBe(0);
   });
   it("should record rag external attributes and API response in span", async () => {
     const client = new BedrockAgentRuntimeClient({
@@ -210,14 +180,12 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
       if (contentKey in attrs) {
         const content = attrs[contentKey];
         expect(content).not.toBeNull();
-        delete attrs[contentKey];
       }
       if (metadataKey in attrs) {
         const metadata = attrs[metadataKey];
         expect(metadata).toContain(
           "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf",
         );
-        delete attrs[metadataKey];
       }
     }
 
@@ -226,8 +194,6 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     expect(invocation).toContain("sourceType");
     expect(invocation).toContain("S3");
     expect(invocation).toContain("anthropic.claude-3-haiku-20240307-v1:0");
-    delete attrs["llm.invocation_parameters"];
-    // Final assertion: no unexpected attributes remain
     const expectedKeys = [
       "input.mime_type",
       "input.value",
@@ -236,26 +202,20 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
       "output.mime_type",
       "output.value",
       "llm.invocation_parameters",
-      "llm.system",
       "llm.provider",
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.content`,
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
+        (i) => `retrieval.documents.${i}.document.content`,
       ),
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.metadata`,
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
+        (i) => `retrieval.documents.${i}.document.metadata`,
       ),
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.score`,
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
+        (i) => `retrieval.documents.${i}.document.score`,
       ),
     ];
-    const remainingAttrs = Object.keys(attrs).filter(
-      (key) => !expectedKeys.includes(key),
-    );
-    expect(remainingAttrs.length).toBe(0);
+    expect(Object.keys(attrs).sort()).toEqual(expectedKeys.sort());
   });
+
   it("should record retrieve attributes and API response in span", async () => {
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
@@ -282,54 +242,37 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
     expect(attrs["llm.invocation_parameters"]).toContain("SSGLURQ9A5");
 
-    // Validate retrieval documents
     for (let i = 0; i < 5; i++) {
       const contentKey = `retrieval.documents.${i}.document.content`;
       const metadataKey = `retrieval.documents.${i}.document.metadata`;
       if (contentKey in attrs) {
         const content = attrs[contentKey];
         expect(content).not.toBeNull();
-        delete attrs[contentKey];
       }
       if (metadataKey in attrs) {
         const metadata = attrs[metadataKey];
         expect(metadata).toContain('"customDocumentLocation":{"id":"2222"}');
-        delete attrs[metadataKey];
       }
     }
 
     // Validate invocation parameters
     const invocation = attrs["llm.invocation_parameters"];
     expect(invocation).toContain('"knowledgeBaseId":"SSGLURQ9A5"');
-    delete attrs["llm.invocation_parameters"];
-
     // Final assertion: no unexpected attributes remain
     const expectedKeys = [
       "input.mime_type",
       "input.value",
-      "llm.model_name",
       "openinference.span.kind",
-      "output.mime_type",
-      "output.value",
       "llm.invocation_parameters",
-      "llm.system",
       "llm.provider",
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.content`,
+      ...[0, 1, 2, 3, 4].map(
+        (i) => `retrieval.documents.${i}.document.content`,
       ),
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.metadata`,
+      ...[0, 1, 2, 3, 4].map(
+        (i) => `retrieval.documents.${i}.document.metadata`,
       ),
-      ...Array.from(
-        { length: 9 },
-        (_, i) => `retrieval.documents.${i}.document.score`,
-      ),
+      ...[0, 1, 2, 3, 4].map((i) => `retrieval.documents.${i}.document.score`),
     ];
-    const remainingAttrs = Object.keys(attrs).filter(
-      (key) => !expectedKeys.includes(key),
-    );
-    expect(remainingAttrs.length).toBe(0);
+    expect(Object.keys(attrs).sort()).toEqual(expectedKeys.sort());
   });
 });

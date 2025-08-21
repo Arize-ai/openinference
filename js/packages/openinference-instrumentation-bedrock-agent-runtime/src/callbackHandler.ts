@@ -5,7 +5,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
-import { OITracer } from "@arizeai/openinference-core";
+import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import { SpanCreator } from "./spanCreator";
 import { getOutputAttributes } from "./attributes/attributeUtils";
 import { extractRetrievedReferencesAttributes } from "./attributes/ragAttributeExtractionUtils";
@@ -84,7 +84,7 @@ export class CallbackHandler {
  */
 export class RagCallbackHandler {
   private output: string;
-  private citation: Citation[];
+  private citations: Citation[];
   private readonly span: Span;
 
   /**
@@ -94,7 +94,7 @@ export class RagCallbackHandler {
   constructor(span: Span) {
     this.span = span;
     this.output = "";
-    this.citation = [];
+    this.citations = [];
   }
 
   handleOutput(output: string) {
@@ -102,29 +102,41 @@ export class RagCallbackHandler {
   }
   handleCitation(citation: Record<string, unknown>) {
     if (citation && Object.keys(citation).length > 0) {
-      this.citation.push(citation);
+      this.citations.push(citation);
     }
   }
   onComplete(): void {
-    this.span.setAttributes({
-      ...getOutputAttributes(this.output),
-      ...extractRetrievedReferencesAttributes(this.citation),
-    });
-    this.span.setStatus({ code: SpanStatusCode.OK });
-    this.span.end();
+    try {
+      this.span.setAttributes({
+        ...getOutputAttributes(this.output),
+        ...extractRetrievedReferencesAttributes(this.citations),
+      });
+      this.span.setStatus({ code: SpanStatusCode.OK });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.span.recordException(error);
+      }
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : (safelyJSONStringify(error) ?? undefined);
+      this.span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: errorMessage,
+      });
+    } finally {
+      this.span.end();
+    }
   }
   onError(error: unknown): void {
     if (error instanceof Error) {
       this.span.recordException(error);
     }
-    const message =
-      error &&
-      typeof error === "object" &&
-      "message" in error &&
-      typeof error.message === "string"
+    const errorMessage =
+      error instanceof Error
         ? error.message
-        : String(error);
-    this.span.setStatus({ code: SpanStatusCode.ERROR, message });
+        : (safelyJSONStringify(error) ?? undefined);
+    this.span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
     this.span.end();
   }
 }

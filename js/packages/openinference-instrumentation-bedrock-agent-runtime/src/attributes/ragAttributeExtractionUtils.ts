@@ -8,6 +8,7 @@ import { Attributes } from "@opentelemetry/api";
 import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 import { DocumentReference } from "./types";
 import { getObjectDataFromUnknown } from "../utils/jsonUtils";
+import { safelyJSONStringify } from "@arizeai/openinference-core";
 
 /**
  * Extracts invocation parameters from a Bedrock RAG (Retrieve and Generate) command input.
@@ -23,14 +24,12 @@ export function extractRagInvocationParams(
 ): Attributes {
   const invocationParams: Attributes = {};
   if (input?.retrieveAndGenerateConfiguration) {
-    invocationParams["retrieveAndGenerateConfiguration"] = JSON.stringify(
-      input.retrieveAndGenerateConfiguration,
-    );
+    invocationParams["retrieveAndGenerateConfiguration"] =
+      safelyJSONStringify(input.retrieveAndGenerateConfiguration) || "";
   }
   if (input?.sessionConfiguration) {
-    invocationParams["sessionConfiguration"] = JSON.stringify(
-      input.sessionConfiguration,
-    );
+    invocationParams["sessionConfiguration"] =
+      safelyJSONStringify(input.sessionConfiguration) || "";
   }
   if (input?.sessionId) {
     invocationParams["sessionId"] = input.sessionId;
@@ -71,6 +70,20 @@ export function getModelNameAttributes(
   return {};
 }
 
+function constructRagDocument(
+  document: bedrockAgentRunTime.RetrievedReference,
+): DocumentReference {
+  const location = getObjectDataFromUnknown({
+    data: document,
+    key: "location",
+  });
+  return {
+    metadata: document.metadata,
+    content: document.content,
+    ...(location && { location: location }),
+  };
+}
+
 /**
  * Extracts document-level attributes from a list of Bedrock RAG citations.
  *
@@ -83,22 +96,16 @@ export function getModelNameAttributes(
 export function extractRetrievedReferencesAttributes(
   citations: bedrockAgentRunTime.Citation[],
 ): Attributes {
-  let index = 0;
   let attributes: Attributes = {};
-  citations = Array.isArray(citations) ? citations : [];
-  for (const citation of citations) {
+  let index = 0;
+  for (const citation of Array.isArray(citations) ? citations : []) {
     const documents: bedrockAgentRunTime.RetrievedReference[] = Array.isArray(
       citation?.retrievedReferences,
     )
       ? citation.retrievedReferences
       : [];
     for (const document of documents) {
-      const ragDocument: DocumentReference = {
-        metadata: document.metadata,
-        content: document.content,
-        location:
-          getObjectDataFromUnknown({ data: document, key: "location" }) ?? {},
-      };
+      const ragDocument = constructRagDocument(document);
       attributes = {
         ...attributes,
         ...getDocumentAttributes(index, ragDocument),
@@ -121,7 +128,7 @@ export function extractRetrievedReferencesAttributes(
  *                 - output: Generated text output
  *                 - citations: List of citations with retrieved references
  *                 - sessionId: Session identifier (optional)
- * @returns A dictionary of OpenTelemetry attributes containing:
+ * @returns OpenTelemetry attributes containing:
  *          - Document attributes: Information about each retrieved document
  *            from citations, including IDs, content, scores, and metadata
  *          - Output attributes: The generated text response
@@ -147,30 +154,22 @@ export function extractBedrockRagResponseAttributes(
  * attributes for trace and span enrichment.
  *
  * @param response Bedrock RetrieveCommandOutput containing retrievalResults.
- * @returns A dictionary of OpenTelemetry attributes for all retrieved documents.
+ * @returns OpenTelemetry attributes for all retrieved documents.
  */
 export function extractBedrockRetrieveResponseAttributes(
   response: bedrockAgentRunTime.RetrieveCommandOutput,
 ): Attributes {
-  let index = 0;
-  let attributes: Attributes = {};
   const documents: bedrockAgentRunTime.RetrievedReference[] = Array.isArray(
     response?.retrievalResults,
   )
     ? response?.retrievalResults
     : [];
-  for (const document of documents) {
-    const ragDocument: DocumentReference = {
-      metadata: document.metadata,
-      content: document.content,
-      location:
-        getObjectDataFromUnknown({ data: document, key: "location" }) ?? {},
-    };
+  let attributes: Attributes = {};
+  documents.forEach((document, index) => {
     attributes = {
       ...attributes,
-      ...getDocumentAttributes(index, ragDocument),
+      ...getDocumentAttributes(index, constructRagDocument(document)),
     };
-    index += 1;
-  }
+  });
   return attributes;
 }

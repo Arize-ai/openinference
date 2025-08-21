@@ -1,7 +1,6 @@
 import { Attributes, diag } from "@opentelemetry/api";
 import {
   LLMProvider,
-  LLMSystem,
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -62,7 +61,6 @@ function extractRagBaseRequestAttributes(
   return {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
       OpenInferenceSpanKind.RETRIEVER,
-    [SemanticConventions.LLM_SYSTEM]: LLMSystem.AMAZON,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
     ...getModelNameAttributes(command?.input),
     ...getInputAttributes(command?.input?.input?.text),
@@ -95,7 +93,6 @@ function extractRetrieveBaseRequestAttributes(
   return {
     [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
       OpenInferenceSpanKind.RETRIEVER,
-    [SemanticConventions.LLM_SYSTEM]: LLMSystem.AMAZON,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
     ...getInputAttributes(command?.input?.retrievalQuery?.text),
     ...getLLMInvocationParameterAttributes(invocationParams),
