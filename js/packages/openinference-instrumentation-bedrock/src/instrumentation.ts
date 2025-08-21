@@ -193,7 +193,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
             this: BedrockClient,
             ...args: Parameters<SendMethod>
           ) {
-            const [command] = args as [unknown, ...unknown[]];
+            const command = args[0];
             if (command instanceof InvokeModelCommand) {
               return instrumentation.handleInvokeModelCommand(
                 args,
@@ -414,7 +414,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               });
           }
         } else {
-          // No instrumentation stream available, end span cleanly
+          diag.debug("No instrumentation stream available, ending span cleanly");
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }
@@ -576,7 +576,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               span.end();
             });
         } else {
-          // No instrumentation stream available, end span cleanly
+          diag.debug("No instrumentation stream available, ending span cleanly");
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }

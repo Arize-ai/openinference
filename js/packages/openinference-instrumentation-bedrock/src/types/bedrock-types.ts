@@ -36,6 +36,7 @@ import {
   ConverseStreamCommandOutput,
 } from "@aws-sdk/client-bedrock-runtime";
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
+import { diag } from "@opentelemetry/api";
 
 // Re-export AWS SDK types for convenience
 export {
@@ -406,17 +407,16 @@ export function isValidConverseStreamEventData(
   if (!isObjectWithStringKeys(data)) {
     return false;
   }
-  const obj = data as Record<string, unknown>;
-  // Middle ground: object with at least one known Converse stream marker
+
   return (
-    "messageStart" in obj ||
-    "messageStop" in obj ||
-    "contentBlockStart" in obj ||
-    "contentBlockDelta" in obj ||
-    "contentBlockStop" in obj ||
-    "metadata" in obj ||
+    "messageStart" in data ||
+    "messageStop" in data ||
+    "contentBlockStart" in data ||
+    "contentBlockDelta" in data ||
+    "contentBlockStop" in data ||
+    "metadata" in data ||
     // raw-wire style events expose `type`
-    "type" in obj
+    "type" in data
   );
 }
 
@@ -514,4 +514,7 @@ export function toNormalizedConverseStreamEvent(
       },
     };
   }
+
+  // Exhaustive warning for unexpected/unhandled event shape
+  diag.warn("Encountered unexpected Converse stream event shape; dropping.", e);
 }

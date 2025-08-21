@@ -109,7 +109,7 @@ export function aggregateMessages(
 
 /**
  * Safely converts supported byte-like inputs to base64.
- * Handles: Uint8Array, Buffer, base64 string passthrough, and {type:'Buffer', data:number[]}.
+ * Handles: Uint8Array, Buffer.
  * On unsupported inputs, logs a warning and returns undefined.
  */
 const toBase64ImageBytes = withSafety({
