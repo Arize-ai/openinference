@@ -20,7 +20,7 @@
     "test": "jest .",
     "validate:invoke-model": "tsx scripts/validate-invoke-model.ts",
     "validate:converse-comprehensive": "tsx scripts/validate-converse-comprehensive.ts",
-    "validate:converse-stream-phoenix": "tsx scripts/validate-converse-stream-phoenix.ts"
+    "validate:converse-stream": "tsx scripts/validate-converse-stream.ts"
   },
   "exports": {
     ".": {

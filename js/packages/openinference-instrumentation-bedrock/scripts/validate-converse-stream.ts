@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * Converse Stream Phoenix Validation Script for Bedrock instrumentation
+ * Converse Stream Validation Script for Bedrock instrumentation
  *
  * This script tests the Bedrock Converse Stream instrumentation by sending real spans
  * to Phoenix collector with 4 key streaming scenarios:
@@ -15,10 +15,10 @@
  * validate-converse-comprehensive.ts but focuses specifically on streaming.
  *
  * Usage:
- *   npm run validate:converse-stream-phoenix
- *   tsx scripts/validate-converse-stream-phoenix.ts
- *   tsx scripts/validate-converse-stream-phoenix.ts --scenario tool-calling
- *   tsx scripts/validate-converse-stream-phoenix.ts --debug
+ *   npm run validate:converse-stream
+ *   tsx scripts/validate-converse-stream.ts
+ *   tsx scripts/validate-converse-stream.ts --scenario tool-calling
+ *   tsx scripts/validate-converse-stream.ts --debug
  */
 
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any */
@@ -787,7 +787,7 @@ function parseArgs(): ValidationOptions {
         break;
       case "--help":
         console.log(`
-Usage: tsx scripts/validate-converse-stream-phoenix.ts [options]
+Usage: tsx scripts/validate-converse-stream.ts [options]
 
 This script tests Bedrock Converse Stream instrumentation by sending real spans to Phoenix:
 
@@ -818,9 +818,9 @@ Environment Variables:
   AWS_PROFILE               AWS profile to use
 
 Examples:
-  tsx scripts/validate-converse-stream-phoenix.ts
-  tsx scripts/validate-converse-stream-phoenix.ts --scenario tool-calling
-  tsx scripts/validate-converse-stream-phoenix.ts --debug --scenario multi-modal
+  tsx scripts/validate-converse-stream.ts
+  tsx scripts/validate-converse-stream.ts --scenario tool-calling
+  tsx scripts/validate-converse-stream.ts --debug --scenario multi-modal
         `);
         process.exit(0);
         break;

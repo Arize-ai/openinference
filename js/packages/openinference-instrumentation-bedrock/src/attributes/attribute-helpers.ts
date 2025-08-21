@@ -1,4 +1,5 @@
-import { Span, AttributeValue, Attributes } from "@opentelemetry/api";
+import { Span, AttributeValue, Attributes, diag } from "@opentelemetry/api";
+import { withSafety, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   SemanticConventions,
   LLMSystem,
@@ -126,49 +127,12 @@ export function getAttributesFromMessageContent(
     attributes[SemanticConventions.MESSAGE_CONTENT_TEXT] = content.text;
   } else if (isConverseImageContent(content)) {
     attributes[SemanticConventions.MESSAGE_CONTENT_TYPE] = "image";
-    if (content.image.source.bytes) {
-      // Handle various byte formats: Uint8Array, string, Buffer, and Buffer objects
-      let base64: string;
-      if (content.image.source.bytes instanceof Uint8Array) {
-        // Live execution: convert Uint8Array to base64
-        base64 = Buffer.from(content.image.source.bytes).toString("base64");
-      } else if (Buffer.isBuffer(content.image.source.bytes)) {
-        // Direct Buffer: convert to base64
-        base64 = (content.image.source.bytes as Buffer).toString("base64");
-      } else if (typeof content.image.source.bytes === "string") {
-        // Nock playback: already a base64 string
-        base64 = content.image.source.bytes as string;
-      } else if (
-        typeof content.image.source.bytes === "object" &&
-        content.image.source.bytes !== null &&
-        "type" in content.image.source.bytes &&
-        (content.image.source.bytes as { type: string; data: number[] })
-          .type === "Buffer" &&
-        "data" in content.image.source.bytes &&
-        Array.isArray(
-          (content.image.source.bytes as { type: string; data: number[] }).data,
-        )
-      ) {
-        // Buffer object format: convert data array to Buffer then to base64
-        base64 = Buffer.from(
-          (content.image.source.bytes as { type: string; data: number[] }).data,
-        ).toString("base64");
-      } else {
-        // Fallback: try to convert as-is
-        base64 = Buffer.from(content.image.source.bytes as Uint8Array).toString(
-          "base64",
-        );
-      }
-
+    const base64 = toBase64ImageBytes(content.image.source.bytes);
+    if (base64) {
       const mimeType = `image/${content.image.format}`;
-
       attributes[
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-      ] = formatImageUrl({
-        type: "base64",
-        data: base64,
-        media_type: mimeType,
-      });
+      ] = formatImageUrl({ type: "base64", data: base64, media_type: mimeType });
     }
     // Add format attribute for image content
     attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] =
@@ -177,6 +141,31 @@ export function getAttributesFromMessageContent(
 
   return attributes;
 }
+
+/**
+ * Safely converts supported byte-like inputs to base64.
+ * Handles: Uint8Array, Buffer, base64 string passthrough, and {type:'Buffer', data:number[]}.
+ * On unsupported inputs, logs a warning and returns undefined.
+ */
+const toBase64ImageBytes = withSafety({
+  fn: (
+    bytes:
+      | Uint8Array
+      | Buffer
+  ): string | undefined => {
+    if (Buffer.isBuffer(bytes)) {
+      return (bytes as Buffer).toString("base64");
+    }
+    if (bytes instanceof Uint8Array) {
+      return Buffer.from(bytes).toString("base64");
+    }
+    diag.warn("Unsupported image bytes type encountered");
+    return undefined;
+  },
+  onError: (error) => {
+    diag.warn("Failed to convert image bytes to base64", error as Error);
+  },
+});
 
 /**
  * Extracts OpenInference semantic convention attributes from a single Bedrock message
@@ -207,10 +196,10 @@ export function getAttributesFromMessage(message: Message): Attributes {
       for (const [index, content] of message.content.entries()) {
         // Process content as our custom types for attribute extraction
         const contentAttributes = getAttributesFromMessageContent(content);
-        for (const [key, value] of Object.entries(contentAttributes)) {
+        for (const key in contentAttributes) {
           attributes[
             `${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`
-          ] = value as AttributeValue;
+          ] = contentAttributes[key];
         }
 
         // Handle tool calls at the message level using proper semantic conventions
@@ -221,9 +210,10 @@ export function getAttributesFromMessage(message: Message): Attributes {
           attributes[
             `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
           ] = content.toolUse.name;
-          attributes[
-            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-          ] = JSON.stringify(content.toolUse.input);
+          const argsJson = safelyJSONStringify(content.toolUse.input);
+          if (argsJson) {
+            attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = argsJson;
+          }
           toolCallIndex++;
         } else if (isConverseToolResultContent(content)) {
           attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
