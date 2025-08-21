@@ -246,29 +246,32 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 0, total_tokens: 0 },
     };
 
-    // Mock out the embedding create endpoint with proper Promise handling
+    // Mock out the embedding create endpoint
     vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({ apiKey: "fake-api-key" }),
-        new Promise((resolve) => {
-          resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+        openai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123",
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-            options: {
-              method: "post",
-              path: "/embeddings",
-            },
-            controller: new AbortController(),
-          });
-        }),
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,
+          options: {
+            method: "post",
+            path: "/embeddings",
+          },
+          controller: new AbortController(),
+        })
       );
     });
 
@@ -1024,31 +1027,36 @@ describe("OpenAIInstrumentation", () => {
       usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
     };
 
-    // Mock out the chat completions endpoint that will be called under the hood by `.parse`
-    vi
-      .spyOn(openai, "post")
-      .mockImplementation((): ReturnType<typeof openai.post> => {
-        return new APIPromise(
-          openai,
-          Promise.resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            controller: new AbortController(),
-            options: {
-              method: "post",
-              path: "/chat/completions/create",
-            },
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+    // Mock out the post method that chat completions uses internally
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      // Create a full APIPromise-like object that satisfies all OpenAI SDK expectations
+      const apiPromise = new APIPromise(
+        openai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123", 
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-          }),
-        );
-      });
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,  
+          options: {
+            method: "post",
+            path: "/chat/completions",
+          },
+          controller: new AbortController(),
+        })
+      );
+      return apiPromise;
+    });
 
     const CalendarEvent = z.object({
       name: z.string(),
@@ -1288,29 +1296,32 @@ describe("AzureOpenAIInstrumentation", () => {
       usage: { prompt_tokens: 0, total_tokens: 0 },
     };
 
-    // Mock out the embedding create endpoint with proper Promise handling
+    // Mock out the embedding create endpoint
     vi.spyOn(azureOpenai, "post").mockImplementation(() => {
       return new APIPromise(
-        new OpenAI({ apiKey: "fake-api-key" }),
-        new Promise((resolve) => {
-          resolve({
-            requestLogID: "123",
-            retryOfRequestLogID: "123",
-            startTime: 123,
-            response: new Response(JSON.stringify(response), {
-              headers: {
-                "content-type": "application/json",
-              },
-              status: 200,
-              statusText: "OK",
+        azureOpenai,
+        Promise.resolve({
+          requestLogID: "123",
+          retryOfRequestLogID: "123",
+          startTime: 123,
+          response: {
+            json: () => Promise.resolve(response),
+            text: () => Promise.resolve(JSON.stringify(response)),
+            clone: () => ({
+              json: () => Promise.resolve(response),
+              text: () => Promise.resolve(JSON.stringify(response)),
             }),
-            options: {
-              method: "post",
-              path: "/embeddings",
-            },
-            controller: new AbortController(),
-          });
-        }),
+            headers: new Headers({ "content-type": "application/json" }),
+            status: 200,
+            statusText: "OK",
+            ok: true,
+          } as Response,
+          options: {
+            method: "post",
+            path: "/embeddings",
+          },
+          controller: new AbortController(),
+        })
       );
     });
 
