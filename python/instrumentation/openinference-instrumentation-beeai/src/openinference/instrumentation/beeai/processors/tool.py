@@ -51,6 +51,7 @@ class ToolProcessor(Processor):
             case ToolSuccessEvent():
                 output_cls = type(event.output)
 
+                self.span.reset_exception()
                 self.span.set_attributes(
                     {
                         SpanAttributes.OUTPUT_VALUE: event.output.get_text_content(),
@@ -62,6 +63,7 @@ class ToolProcessor(Processor):
             case ToolErrorEvent():
                 span = self.span.child(meta.name, event=(event, meta))
                 span.record_exception(event.error)
+                self.span.record_exception(event.error)
             case ToolRetryEvent():
                 self.span.child(meta.name, event=(event, meta))
             case _:
