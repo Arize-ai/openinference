@@ -149,7 +149,13 @@ function extractInputToolAttributes({
  * @param params.command The ConverseCommand to extract attributes from
  */
 export const extractConverseRequestAttributes = withSafety({
-  fn: ({ span, command }: { span: Span; command: ConverseCommand | ConverseStreamCommand }): void => {
+  fn: ({
+    span,
+    command,
+  }: {
+    span: Span;
+    command: ConverseCommand | ConverseStreamCommand;
+  }): void => {
     const input = command.input;
     if (!input || !isConverseRequest(input)) {
       return;

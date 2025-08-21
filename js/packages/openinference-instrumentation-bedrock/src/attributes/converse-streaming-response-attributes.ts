@@ -10,8 +10,15 @@
  */
 
 import { Span, diag } from "@opentelemetry/api";
-import { withSafety, safelyJSONParse, safelyJSONStringify } from "@arizeai/openinference-core";
-import { SemanticConventions, MimeType } from "@arizeai/openinference-semantic-conventions";
+import {
+  withSafety,
+  safelyJSONParse,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
+import {
+  SemanticConventions,
+  MimeType,
+} from "@arizeai/openinference-semantic-conventions";
 import { setSpanAttribute } from "./attribute-helpers";
 import {
   ConverseStreamEventData,
@@ -97,7 +104,7 @@ function appendToolInputChunk(
     indexMap: state.toolUseIdByIndex,
   });
   if (!targetId) return;
-  const tool = state.toolCalls.find((t) => t.id === targetId)
+  const tool = state.toolCalls.find((t) => t.id === targetId);
   if (!tool) return;
 
   tool.partialJsonInput = (tool.partialJsonInput ?? "") + chunk;
@@ -196,11 +203,7 @@ function setConverseStreamingOutputAttributes({
     SemanticConventions.OUTPUT_VALUE,
     safelyJSONStringify(outputValue),
   );
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_MIME_TYPE,
-    MimeType.JSON,
-  );
+  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   // Set the message role (always assistant for converse responses)
   setSpanAttribute(

@@ -113,11 +113,7 @@ export function aggregateMessages(
  * On unsupported inputs, logs a warning and returns undefined.
  */
 const toBase64ImageBytes = withSafety({
-  fn: (
-    bytes:
-      | Uint8Array
-      | Buffer
-  ): string | undefined => {
+  fn: (bytes: Uint8Array | Buffer): string | undefined => {
     if (Buffer.isBuffer(bytes)) {
       return (bytes as Buffer).toString("base64");
     }
@@ -157,7 +153,11 @@ export function getAttributesFromMessageContent(
       const mimeType = `image/${content.image.format}`;
       attributes[
         `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-      ] = formatImageUrl({ type: "base64", data: base64, media_type: mimeType });
+      ] = formatImageUrl({
+        type: "base64",
+        data: base64,
+        media_type: mimeType,
+      });
     }
     // Add format attribute for image content
     attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] =
@@ -212,7 +212,9 @@ export function getAttributesFromMessage(message: Message): Attributes {
           ] = content.toolUse.name;
           const argsJson = safelyJSONStringify(content.toolUse.input);
           if (argsJson) {
-            attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = argsJson;
+            attributes[
+              `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+            ] = argsJson;
           }
           toolCallIndex++;
         } else if (isConverseToolResultContent(content)) {

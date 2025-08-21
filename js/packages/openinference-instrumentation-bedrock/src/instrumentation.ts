@@ -290,7 +290,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractInvokeModelRequestAttributes({ span, command, system });
 
     try {
-      const result = original.apply(client, args) as unknown as Promise<InvokeModelResponse>;
+      const result = original.apply(
+        client,
+        args,
+      ) as unknown as Promise<InvokeModelResponse>;
 
       // AWS SDK v3 send() method always returns a Promise
       return result
@@ -455,7 +458,10 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
     extractConverseRequestAttributes({ span, command });
 
     try {
-      const result = original.apply(client, args) as unknown as Promise<ConverseResponse>;
+      const result = original.apply(
+        client,
+        args,
+      ) as unknown as Promise<ConverseResponse>;
 
       // AWS SDK v3 send() method always returns a Promise
       return result
