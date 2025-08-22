@@ -13,12 +13,8 @@ import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 import {
   MASTRA_AGENT_SPAN_NAME_PREFIXES,
   MASTRA_INTERNAL_SPAN_NAME_PREFIX,
-  AGENT_GET_RECENT_MESSAGE,
-  AGENT_GET_RECENT_MESSAGE_RESULT,
-  AGENT_STREAM,
-  AGENT_STREAM_ARGUMENT,
-  AGENT_GENERATE,
-  AGENT_GENERATE_ARGUMENT,
+  MastraSpanAttributes,
+  MastraSpanNames,
 } from "./constants.js";
 
 /**
@@ -209,8 +205,9 @@ export const extractMastraUserInput = (
 ): string | null | undefined => {
   for (const span of spans) {
     switch (span.name) {
-      case AGENT_GET_RECENT_MESSAGE: {
-        const result = span.attributes[AGENT_GET_RECENT_MESSAGE_RESULT];
+      case MastraSpanNames.AGENT_GET_RECENT_MESSAGE: {
+        const result =
+          span.attributes[MastraSpanAttributes.AGENT_GET_RECENT_MESSAGE_RESULT];
         if (typeof result === "string") {
           const messageData = safelyJSONParse(result);
           if (
@@ -226,8 +223,9 @@ export const extractMastraUserInput = (
         break;
       }
 
-      case AGENT_GENERATE: {
-        const argument = span.attributes[AGENT_GENERATE_ARGUMENT];
+      case MastraSpanNames.AGENT_GENERATE: {
+        const argument =
+          span.attributes[MastraSpanAttributes.AGENT_GENERATE_ARGUMENT];
         if (typeof argument === "string") {
           const parsedArgument = safelyJSONParse(argument);
           if (parsedArgument === null) {
@@ -242,8 +240,9 @@ export const extractMastraUserInput = (
         break;
       }
 
-      case AGENT_STREAM: {
-        const argument = span.attributes[AGENT_STREAM_ARGUMENT];
+      case MastraSpanNames.AGENT_STREAM: {
+        const argument =
+          span.attributes[MastraSpanAttributes.AGENT_STREAM_ARGUMENT];
         if (typeof argument === "string") {
           const messages = safelyJSONParse(argument);
           if (messages === null) {

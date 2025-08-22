@@ -13,32 +13,28 @@ export const MASTRA_AGENT_SPAN_NAME_PREFIXES = ["agent", "mastra.getAgent"];
 export const MASTRA_INTERNAL_SPAN_NAME_PREFIX = "mastra.";
 
 /**
- * Span name for Mastra getting the most recent user message
+ * Known Mastra span names.
  */
-export const AGENT_GET_RECENT_MESSAGE = "agent.getMostRecentUserMessage";
+export const MastraSpanNames = {
+  AGENT_GET_RECENT_MESSAGE: "agent.getMostRecentUserMessage",
+  /**
+   * Span name for Mastra streaming text
+   */
+  AGENT_STREAM: "agent.stream",
+  AGENT_GENERATE: "agent.generate",
+} as const;
 
-/**
- * Span attribute containing the contents of the most recent user message
- */
-export const AGENT_GET_RECENT_MESSAGE_RESULT =
-  "agent.getMostRecentUserMessage.result";
-
-/**
- * Span name for Mastra streaming text
- */
-export const AGENT_STREAM = "agent.stream";
-
-/**
- * Span attribute containing the arguments at index 0 when calling agent.stream
- */
-export const AGENT_STREAM_ARGUMENT = "agent.stream.argument.0";
-
-/**
- * Span name for Mastra generating text
- */
-export const AGENT_GENERATE = "agent.generate";
-
-/**
- * Span attribute containing the arguments at index 0 when calling agent.generate
- */
-export const AGENT_GENERATE_ARGUMENT = "agent.generate.argument.0";
+export const MastraSpanAttributes = {
+  /**
+   * Span attribute containing the contents of the most recent user message
+   */
+  AGENT_GET_RECENT_MESSAGE_RESULT: "agent.getMostRecentUserMessage.result",
+  /**
+   * Span attribute containing the arguments at index 0 when calling agent.generate
+   */
+  AGENT_GENERATE_ARGUMENT: "agent.generate.argument.0",
+  /**
+   * Span attribute containing the arguments at the first index when calling agent.stream
+   */
+  AGENT_STREAM_ARGUMENT: "agent.stream.argument.0",
+} as const;
