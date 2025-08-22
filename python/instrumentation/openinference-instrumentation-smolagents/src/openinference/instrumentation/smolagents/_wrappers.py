@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Option
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
@@ -517,9 +518,10 @@ def _has_active_llm_parent_span() -> bool:
     """
     current_span = trace_api.get_current_span()
     return (
-        current_span.is_recording
-        and current_span.get_span_context().is_valid
-        and current_span.attributes.get(OPENINFERENCE_SPAN_KIND) == LLM
+        current_span.get_span_context().is_valid
+        and current_span.is_recording()
+        and isinstance(current_span, ReadableSpan)
+        and (current_span.attributes or {}).get(OPENINFERENCE_SPAN_KIND) == LLM
     )
 
 
