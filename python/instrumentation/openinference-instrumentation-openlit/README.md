@@ -57,7 +57,7 @@ tracer_provider.add_span_processor(
     )
 )
 
-# Initialize OpenLit with the tracer
+# Initialize OpenLit tracer
 tracer = tracer_provider.get_tracer(__name__)
 openlit.init(tracer=tracer)
 
