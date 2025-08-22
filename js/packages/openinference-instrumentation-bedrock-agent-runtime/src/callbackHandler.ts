@@ -1,4 +1,4 @@
-import { SpanStatusCode, Span } from "@opentelemetry/api";
+import { SpanStatusCode, Span, diag } from "@opentelemetry/api";
 
 import {
   MimeType,
@@ -111,20 +111,10 @@ export class RagCallbackHandler {
         ...getOutputAttributes(this.output),
         ...extractRetrievedReferencesAttributes(this.citations),
       });
-      this.span.setStatus({ code: SpanStatusCode.OK });
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        this.span.recordException(error);
-      }
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : (safelyJSONStringify(error) ?? undefined);
-      this.span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: errorMessage,
-      });
+      diag.debug("Error in onComplete callback:", error);
     } finally {
+      this.span.setStatus({ code: SpanStatusCode.OK });
       this.span.end();
     }
   }

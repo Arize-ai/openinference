@@ -11,11 +11,7 @@ import {
   Tracer,
   TracerProvider,
 } from "@opentelemetry/api";
-import {
-  OITracer,
-  safelyJSONStringify,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
+import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 import { VERSION } from "./version";
 import {
   InvokeAgentCommand,
@@ -216,29 +212,11 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
               callback,
             );
           } catch (err: unknown) {
-            let errorMessage: string;
-            if (err instanceof Error || typeof err === "string") {
-              diag.warn(
-                `Openinference warning, unable to intercept agent response, some spans may be missing or incomplete. Error: ${err instanceof Error ? err.message : err}`,
-              );
-              span.recordException(err);
-              errorMessage = err instanceof Error ? err.message : err;
-            } else {
-              errorMessage =
-                "Unknown error occurred in Openinference BedrockAgentInstrumentation while trying to process agent response.";
-            }
-
-            diag.warn(
-              `Openinference warning, unable to intercept agent response, some spans may be missing or incomplete. Error: ${errorMessage}`,
-            );
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: errorMessage,
-            });
+            diag.debug("Error in _handleInvokeAgent:", err);
+            span.setStatus({ code: SpanStatusCode.OK });
             span.end();
           }
         } else {
-          // End the span if response.completion is not a stream
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }
@@ -296,18 +274,8 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
             try {
               response.stream = interceptRagResponse(response.stream, callback);
             } catch (err: unknown) {
-              let errorMessage: string;
-              if (err instanceof Error || typeof err === "string") {
-                span.recordException(err);
-                errorMessage = err instanceof Error ? err.message : err;
-              } else {
-                errorMessage =
-                  "Unknown error occurred in Openinference Bedrock Agent Instrumentation while trying to process rag stream response.";
-              }
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: errorMessage,
-              });
+              diag.debug("Error in _handleRAGStreamCommand:", err);
+              span.setStatus({ code: SpanStatusCode.OK });
               span.end();
             }
           } else {
@@ -360,22 +328,11 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
         (response: bedrockAgentRunTime.RetrieveAndGenerateCommandOutput) => {
           try {
             span.setAttributes(extractBedrockRagResponseAttributes(response));
-            span.setStatus({ code: SpanStatusCode.OK });
-          } catch (error: unknown) {
-            if (error instanceof Error) {
-              span.recordException(error);
-            }
-            const errorMessage =
-              error instanceof Error
-                ? error.message
-                : (safelyJSONStringify(error) ?? undefined);
-            span.setStatus({
-              code: SpanStatusCode.ERROR,
-              message: errorMessage,
-            });
-          } finally {
-            span.end();
+          } catch (err: unknown) {
+            diag.debug("Error in _handleRetrieveAndGenerateCommand:", err);
           }
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
           return response;
         },
       )
@@ -423,19 +380,11 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
           span.setAttributes(
             extractBedrockRetrieveResponseAttributes(response),
           );
-          span.setStatus({ code: SpanStatusCode.OK });
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            span.recordException(error);
-          }
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : (safelyJSONStringify(error) ?? undefined);
-          span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
-        } finally {
-          span.end();
+        } catch (err: unknown) {
+          diag.debug("Error in _handleRetrieveCommand:", err);
         }
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
         return response;
       })
       .catch((err: Error) => {

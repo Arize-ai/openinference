@@ -1,6 +1,7 @@
 import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
 import { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
+import { diag } from "@opentelemetry/api";
 
 export function interceptAgentResponse<
   T extends { chunk?: { bytes?: Uint8Array }; trace?: object },
@@ -12,14 +13,22 @@ export function interceptAgentResponse<
     async *[Symbol.asyncIterator]() {
       try {
         for await (const item of originalStream) {
-          if (item.chunk?.bytes) {
-            callback.consumeResponse(item.chunk.bytes);
-          } else if (item.trace) {
-            callback.consumeTrace(item.trace as Record<string, unknown>);
+          try {
+            if (item.chunk?.bytes) {
+              callback.consumeResponse(item.chunk.bytes);
+            } else if (item.trace) {
+              callback.consumeTrace(item.trace as Record<string, unknown>);
+            }
+          } catch (err: unknown) {
+            diag.debug("Error in interceptAgentResponse Stream:", err);
           }
           yield item;
         }
-        callback.onComplete();
+        try {
+          callback.onComplete();
+        } catch (err: unknown) {
+          diag.debug("Error in interceptAgentResponse:", err);
+        }
       } catch (err) {
         callback.onError(err);
         throw err;
@@ -54,17 +63,25 @@ export function interceptRagResponse<
     async *[Symbol.asyncIterator]() {
       try {
         for await (const item of originalStream) {
-          if (item.output?.text) {
-            callback.handleOutput(item.output?.text);
-          }
-          if (item?.citation) {
-            callback.handleCitation(
-              getObjectDataFromUnknown({ data: item, key: "citation" }) || {},
-            );
+          try {
+            if (item.output?.text) {
+              callback.handleOutput(item.output?.text);
+            }
+            if (item?.citation) {
+              callback.handleCitation(
+                getObjectDataFromUnknown({ data: item, key: "citation" }) || {},
+              );
+            }
+          } catch (err: unknown) {
+            diag.debug("Error in interceptRagResponse stream", err);
           }
           yield item;
         }
-        callback.onComplete();
+        try {
+          callback.onComplete();
+        } catch (err: unknown) {
+          diag.debug("Error in interceptRagResponse:", err);
+        }
       } catch (err) {
         callback.onError(err);
         throw err;

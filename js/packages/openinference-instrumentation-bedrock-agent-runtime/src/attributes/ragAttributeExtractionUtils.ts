@@ -25,11 +25,11 @@ export function extractRagInvocationParams(
   const invocationParams: Attributes = {};
   if (input?.retrieveAndGenerateConfiguration) {
     invocationParams["retrieveAndGenerateConfiguration"] =
-      safelyJSONStringify(input.retrieveAndGenerateConfiguration) || "";
+      safelyJSONStringify(input.retrieveAndGenerateConfiguration) || undefined;
   }
   if (input?.sessionConfiguration) {
     invocationParams["sessionConfiguration"] =
-      safelyJSONStringify(input.sessionConfiguration) || "";
+      safelyJSONStringify(input.sessionConfiguration) || undefined;
   }
   if (input?.sessionId) {
     invocationParams["sessionId"] = input.sessionId;
