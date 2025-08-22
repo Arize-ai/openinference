@@ -72,5 +72,4 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
   if (kind) {
     addOpenInferenceSpanKind(span, kind);
   }
-  // TODO: Further enrich the span with additional attributes based on the span kind
 };
