@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any, Generator, Optional
 
 import pytest
@@ -125,12 +124,11 @@ class TestModels:
     )
     def test_openai_server_model_has_expected_attributes(
         self,
-        openai_api_key: str,
+        # openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
             api_base="https://api.openai.com/v1",
         )
         input_message_content = (
@@ -187,13 +185,12 @@ class TestModels:
     )
     def test_openai_server_model_with_tool_has_expected_attributes(
         self,
-        openai_api_key: str,
+        # openai_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
         tracer_provider: trace_api.TracerProvider,
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
             api_base="https://api.openai.com/v1",
         )
         input_message_content = "What is the weather in Paris?"
@@ -295,14 +292,13 @@ class TestModels:
     )
     def test_litellm_reasoning_model_has_expected_attributes(
         self,
-        anthropic_api_key: str,
+        # anthropic_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         model_params = {"thinking": {"type": "enabled", "budget_tokens": 4000}}
 
         model = LiteLLMModel(
             model_id="anthropic/claude-3-7-sonnet-20250219",
-            api_key=os.environ["ANTHROPIC_API_KEY"],
             **model_params,
         )
 
