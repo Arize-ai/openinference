@@ -213,10 +213,10 @@ export const extractMastraUserInput = (
           if (
             typeof messageData === "object" &&
             messageData !== null &&
-            "content" in messageData
+            "content" in messageData &&
+            typeof messageData.content === "string"
           ) {
-            const content = messageData.content;
-            return safelyJSONStringify(content);
+            return messageData.content;
           }
           // We could log a warning here, but avoiding for now
         }
