@@ -331,6 +331,10 @@ class _ModelWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+
+        if _has_active_llm_parent_span():
+            return wrapped(*args, **kwargs)
+
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         span_name = f"{instance.__class__.__name__}.generate"
         model = instance
@@ -421,6 +425,18 @@ def _output_value_and_mime_type_for_tool_span(
         yield OUTPUT_MIME_TYPE, JSON
 
     # TODO: handle other types
+
+
+def _has_active_llm_parent_span() -> bool:
+    """
+    Returns true if there is a currently actively LLM span.
+    """
+    current_span = trace_api.get_current_span()
+    return (
+        current_span.is_recording
+        and current_span.get_span_context().is_valid
+        and current_span.attributes.get(OPENINFERENCE_SPAN_KIND) == LLM
+    )
 
 
 # span attributes
