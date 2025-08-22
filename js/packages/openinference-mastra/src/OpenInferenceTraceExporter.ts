@@ -77,19 +77,18 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
   ) {
-    let filteredSpans: ProcessedReadableSpan[] = spans.map((span) => {
+    let processedSpans: ProcessedReadableSpan[] = spans.map((span) => {
       processMastraSpanAttributes(span);
       return span;
     });
+    markUnlabeledRootSpansInAgentTraces(processedSpans);
+    addIOToRootSpans(processedSpans);
 
-    markUnlabeledRootSpansInAgentTraces(filteredSpans);
-
-    addIOToRootSpans(filteredSpans);
-
+    // Apply the user-provided span filter after processing the spans
     if (this.spanFilter) {
-      filteredSpans = filteredSpans.filter(this.spanFilter);
+      processedSpans = processedSpans.filter(this.spanFilter);
     }
 
-    super.export(filteredSpans, resultCallback);
+    super.export(processedSpans, resultCallback);
   }
 }

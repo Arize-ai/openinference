@@ -310,10 +310,12 @@ export const addIOToRootSpans = (spans: ProcessedReadableSpan[]): void => {
   for (const span of spans) {
     const traceId = getTraceId(span);
     if (traceId) {
-      if (!spansByTrace.has(traceId)) {
-        spansByTrace.set(traceId, []);
+      let traceSpans = spansByTrace.get(traceId);
+      if (!traceSpans) {
+        traceSpans = [];
+        spansByTrace.set(traceId, traceSpans);
       }
-      spansByTrace.get(traceId)!.push(span);
+      traceSpans.push(span);
     }
   }
 
@@ -400,8 +402,8 @@ export const markUnlabeledRootSpansInAgentTraces = (
       continue;
     }
     if (
-      getOpenInferenceSpanKind(span) === undefined && // is missing the OpenInference span kind
-      span.parentSpanContext === undefined && // is root
+      !getOpenInferenceSpanKind(span) && // is missing the OpenInference span kind
+      !span.parentSpanContext && // is root
       !span.name.startsWith(MASTRA_INTERNAL_SPAN_NAME_PREFIX) && // not internal operations
       agentTraceIds.has(traceId) // is agent trace
     ) {
