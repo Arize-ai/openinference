@@ -310,8 +310,10 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                         oi_function: oi.ToolCallFunction = {}
                         if (name := getattr(function, "name", None)) is not None:
                             oi_function["name"] = name
-                        if isinstance(arguments := getattr(function, "arguments", None), str):
-                            oi_function["arguments"] = arguments
+                        if isinstance(
+                            function_arguments := getattr(function, "arguments", None), str
+                        ):
+                            oi_function["arguments"] = function_arguments
                         oi_tool_call["function"] = oi_function
                         oi_tool_calls.append(oi_tool_call)
 
