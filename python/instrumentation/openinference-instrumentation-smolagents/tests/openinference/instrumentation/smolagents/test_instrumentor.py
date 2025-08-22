@@ -17,7 +17,7 @@ from smolagents.agents import (  # type: ignore[import-untyped]
 from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
 )
 
 from openinference.instrumentation import OITracer
@@ -380,7 +380,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="search_agent",
                                         arguments="Who is the current US president?",
                                     ),
@@ -396,7 +396,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="final_answer", arguments="Final report."
                                     ),
                                 )
@@ -444,7 +444,7 @@ final_answer("Final report.")
                         ChatMessageToolCall(
                             id="call_0",
                             type="function",
-                            function=ChatMessageToolCallDefinition(
+                            function=ChatMessageToolCallFunction(
                                 name="final_answer",
                                 arguments="Report on the current US president",
                             ),
