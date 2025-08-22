@@ -229,7 +229,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                             oi_function["arguments"] = arguments
                         oi_tool_call["function"] = oi_function
                         oi_tool_calls.append(oi_tool_call)
-            
+
             oi_message["tool_calls"] = oi_tool_calls
             oi_messages.append(oi_message)
 
