@@ -83,7 +83,7 @@ export class MyInstrumentation extends InstrumentationBase {
 
 ### Testing Considerations
 
-- Uses Jest with manual module mocking due to instrumentation timing requirements
+- Uses Vite with manual module mocking due to instrumentation timing requirements
 - Pattern: `instrumentation._modules[0].moduleExports = module` for manual mocks
 - Must test suppress tracing, context propagation, and trace configuration features
 
