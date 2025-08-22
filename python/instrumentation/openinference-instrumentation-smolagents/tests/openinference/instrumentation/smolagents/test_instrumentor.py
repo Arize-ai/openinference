@@ -1,5 +1,4 @@
 import json
-import os
 from typing import Any, Generator, Optional
 
 import pytest
@@ -17,7 +16,7 @@ from smolagents.agents import (  # type: ignore[import-untyped]
 from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessage,
     ChatMessageToolCall,
-    ChatMessageToolCallDefinition,
+    ChatMessageToolCallFunction,
 )
 
 from openinference.instrumentation import OITracer
@@ -130,7 +129,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = (
@@ -193,7 +192,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = "What is the weather in Paris?"
@@ -302,7 +301,7 @@ class TestModels:
 
         model = LiteLLMModel(
             model_id="anthropic/claude-3-7-sonnet-20250219",
-            api_key=os.environ["ANTHROPIC_API_KEY"],
+            api_key=anthropic_api_key,
             **model_params,
         )
 
@@ -380,7 +379,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="search_agent",
                                         arguments="Who is the current US president?",
                                     ),
@@ -396,7 +395,7 @@ class TestRun:
                                 ChatMessageToolCall(
                                     id="call_0",
                                     type="function",
-                                    function=ChatMessageToolCallDefinition(
+                                    function=ChatMessageToolCallFunction(
                                         name="final_answer", arguments="Final report."
                                     ),
                                 )
@@ -444,7 +443,7 @@ final_answer("Final report.")
                         ChatMessageToolCall(
                             id="call_0",
                             type="function",
-                            function=ChatMessageToolCallDefinition(
+                            function=ChatMessageToolCallFunction(
                                 name="final_answer",
                                 arguments="Report on the current US president",
                             ),
