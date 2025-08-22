@@ -5,7 +5,10 @@ import {
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { diag } from "@opentelemetry/api";
 import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
-import { safelyJSONParse } from "@arizeai/openinference-core";
+import {
+  safelyJSONParse,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 import {
   MASTRA_AGENT_SPAN_NAME_PREFIXES,
@@ -203,7 +206,7 @@ const extractLastUserMessage = (
  */
 export const extractMastraUserInput = (
   spans: ReadableSpan[],
-): string | undefined => {
+): string | null | undefined => {
   for (const span of spans) {
     switch (span.name) {
       case AGENT_GET_RECENT_MESSAGE: {
@@ -211,17 +214,14 @@ export const extractMastraUserInput = (
         if (typeof result === "string") {
           const messageData = safelyJSONParse(result);
           if (
-            messageData === null ||
-            !messageData.content ||
-            typeof messageData.content !== "string"
+            typeof messageData === "object" &&
+            messageData !== null &&
+            "content" in messageData
           ) {
-            diag.warn("Failed to parse agent.getMostRecentUserMessage.result", {
-              rawResult: result,
-              spanId: span.spanContext?.()?.spanId,
-            });
-            continue;
+            const content = messageData.content;
+            return safelyJSONStringify(content);
           }
-          return messageData.content;
+          // We could log a warning here, but avoiding for now
         }
         break;
       }
@@ -235,9 +235,9 @@ export const extractMastraUserInput = (
             return argument;
           }
           // Convert parsed argument to string for consistent return type
-          return typeof parsedArgument === "string" 
-            ? parsedArgument 
-            : JSON.stringify(parsedArgument);
+          return typeof parsedArgument === "string"
+            ? parsedArgument
+            : safelyJSONStringify(parsedArgument);
         }
         break;
       }
