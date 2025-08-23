@@ -1,5 +1,11 @@
 # @arizeai/openinference-mastra
 
+## 2.2.0
+
+### Minor Changes
+
+- 4f1dda2: Added automatic root span discovery for agent traces, mastra threadId to OpenInference sessionId extraction and user input/LLM output capture on child spans for top level conversation tracking.
+
 ## 2.1.6
 
 ### Patch Changes
