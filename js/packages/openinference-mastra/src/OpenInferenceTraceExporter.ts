@@ -1,10 +1,12 @@
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
 
-import { addOpenInferenceAttributesToMastraSpan } from "./attributes.js";
-import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
+import {
+  processMastraSpanAttributes,
+  markUnlabeledRootSpansInAgentTraces,
+  addIOToRootSpans,
+} from "./attributes.js";
 
 type ConstructorArgs = {
   /**
@@ -74,24 +76,18 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
     spans: ReadableSpan[],
     resultCallback: (result: ExportResult) => void,
   ) {
-    let filteredSpans = spans.map((span) => {
-      // add OpenInference resource attributes to the span based on Mastra span attributes
-      addOpenInferenceProjectResourceAttributeSpan(span);
-      // add OpenInference attributes to the span based on Vercel span attributes
-      addOpenInferenceAttributesToSpan({
-        ...span,
-        // backwards compatibility with older versions of sdk-trace-base
-        instrumentationLibrary: {
-          name: "@arizeai/openinference-mastra",
-        },
-      });
-      // add OpenInference attributes to the span based on Mastra span attributes
-      addOpenInferenceAttributesToMastraSpan(span);
+    let processedSpans = spans.map((span) => {
+      processMastraSpanAttributes(span);
       return span;
     });
+    markUnlabeledRootSpansInAgentTraces(processedSpans);
+    addIOToRootSpans(processedSpans);
+
+    // Apply the user-provided span filter after processing the spans
     if (this.spanFilter) {
-      filteredSpans = filteredSpans.filter(this.spanFilter);
+      processedSpans = processedSpans.filter(this.spanFilter);
     }
-    super.export(filteredSpans, resultCallback);
+
+    super.export(processedSpans, resultCallback);
   }
 }

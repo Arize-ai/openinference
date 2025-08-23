@@ -14,6 +14,7 @@
         "langchain",
         "litellm",
         "llms",
+        "Mastra",
         "mistralai",
         "nextjs",
         "openinference",
@@ -26,5 +27,7 @@
         "vertexai",
         "weaviate"
     ],
-    "flagWords": ["hte"]
+    "flagWords": [
+        "hte"
+    ]
 }
