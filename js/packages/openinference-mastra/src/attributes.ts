@@ -197,7 +197,7 @@ const extractLastUserMessage = (
  * 2. agent.generate.argument.0 (direct user input)
  * 3. agent.stream.argument.0 conversation messages (last user message)
  *
- * @param spans - Array of spans to search through.
+ * @param spans - Array of spans to search through from a given trace.
  * @returns The extracted user input or undefined if not found.
  */
 export const extractMastraUserInput = (
