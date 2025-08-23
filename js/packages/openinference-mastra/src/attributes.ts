@@ -166,8 +166,29 @@ export const getTraceId = (span: ReadableSpan): string | null => {
  */
 interface ChatMessage {
   role: string;
-  content: string | unknown;
+  content: string | object;
 }
+
+/**
+ * Type guard for a chat message
+ */
+const isChatMessage = (message: unknown): message is ChatMessage => {
+  return (
+    typeof message === "object" &&
+    message != null &&
+    "role" in message &&
+    typeof message.role === "string" &&
+    "content" in message &&
+    (typeof message.content === "string" || typeof message.content === "object")
+  );
+};
+
+/**
+ * Type guard for an array of chat messages
+ */
+const isChatMessages = (messages: unknown): messages is ChatMessage[] => {
+  return Array.isArray(messages) && messages.every(isChatMessage);
+};
 
 /**
  * Extracts the last user message from an array of chat messages.
@@ -252,7 +273,7 @@ export const extractMastraUserInput = (
             });
             continue;
           }
-          if (Array.isArray(messages)) {
+          if (isChatMessages(messages)) {
             const lastUserMessage = extractLastUserMessage(messages);
             if (lastUserMessage) {
               return lastUserMessage;
