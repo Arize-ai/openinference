@@ -360,6 +360,84 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
     return zip((OUTPUT_VALUE, OUTPUT_MIME_TYPE), values)
 
 
+def _extract_content_from_messages(messages: Any) -> Optional[str]:
+    """
+    Extract content strings from LangGraph/LangChain messages.
+
+    Args:
+        messages: List of message objects or similar structure
+
+    Returns:
+        str: Content from the last message, or concatenated content if multiple messages
+    """
+    if not messages:
+        return None
+
+    contents = []
+
+    # Handle list of messages
+    if isinstance(messages, list):
+        for message in messages:
+            content = _extract_single_message_content(message)
+            if content:
+                contents.append(content)
+    else:
+        # Handle single message
+        content = _extract_single_message_content(messages)
+        if content:
+            return content
+
+    # For multiple messages, return the last content (most recent) or join if needed
+    if contents:
+        # If there's only one content, return it directly
+        if len(contents) == 1:
+            return contents[0]
+        # For multiple contents, return the last one (most recent message)
+        return contents[-1]
+
+    return None
+
+
+def _extract_single_message_content(message: Any) -> Optional[str]:
+    """
+    Extract content from a single message object.
+
+    Args:
+        message: A single message object (BaseMessage, dict, or string representation)
+
+    Returns:
+        str: The content of the message, or None if no content found
+    """
+    if isinstance(message, str):
+        # Handle string representations like "content='...' additional_kwargs={} response_metadata={}"
+        content_match = re.search(r"content='([^']*)'", message)
+        if content_match:
+            return content_match.group(1)
+        # Handle string representations with double quotes
+        content_match = re.search(r'content="([^"]*)"', message)
+        if content_match:
+            return content_match.group(1)
+        return message
+
+    # Handle BaseMessage objects
+    if hasattr(message, "content"):
+        return str(message.content) if message.content else None
+
+    # Handle dict representations
+    if isinstance(message, dict):
+        # Direct content key
+        if "content" in message:
+            return str(message["content"]) if message["content"] else None
+
+        # Nested in kwargs (LangChain message format)
+        if "kwargs" in message and isinstance(message["kwargs"], dict):
+            kwargs = message["kwargs"]
+            if "content" in kwargs:
+                return str(kwargs["content"]) if kwargs["content"] else None
+
+    return None
+
+
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
@@ -369,7 +447,8 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     2. Single string values: return the string directly (performance optimization, no MIME type)
     3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
        - Conditional MIME type: only for structured data (objects/arrays), not primitives
-    4. Multiple keys or other cases: use _json_dumps for consistent formatting
+    4. Special handling for LangGraph messages: extract content from message objects
+    5. Multiple keys or other cases: use _json_dumps for consistent formatting
        - Always includes JSON MIME type since these are always structured objects
 
     Args:
@@ -395,6 +474,13 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
 
         key = next(iter(obj.keys()))
 
+        # Special handling for LangGraph messages: extract content
+        if key == "messages" and value:
+            content = _extract_content_from_messages(value)
+            if content:
+                yield content
+                return
+
         # Special handling for input/output keys: use custom JSON formatting
         # that preserves readability and handles edge cases like NaN values
         if key in ("input", "output"):
@@ -410,6 +496,14 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
                 and json_value.endswith("]")
             ):
                 yield OpenInferenceMimeTypeValues.JSON.value
+            return
+
+    # Special handling for multi-key objects that contain messages
+    if "messages" in obj and obj["messages"]:
+        content = _extract_content_from_messages(obj["messages"])
+        if content:
+            # Return just the extracted content, regardless of other keys
+            yield content
             return
 
     # Default case: multiple keys or non-input/output keys
