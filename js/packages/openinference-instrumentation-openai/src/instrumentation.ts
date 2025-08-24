@@ -71,6 +71,12 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 let _isOpenInferencePatched = false;
 
 /**
+ * WeakMap to store URL information for each request context
+ * Uses the actual request arguments as the key to avoid concurrent request overwrites
+ */
+const requestUrlMap = new WeakMap<object, { url: string; baseUrl?: string }>();
+
+/**
  * function to check if instrumentation is enabled / disabled
  */
 export function isPatched() {
@@ -93,6 +99,72 @@ function getExecContext(span: Span) {
     trace.deleteSpan(activeContext);
   }
   return execContext;
+}
+
+/**
+ * Extracts URL path for debugging purposes (especially useful for Azure)
+ * @param fullUrl The complete URL of the request
+ * @param baseUrl The base URL of the client
+ * @returns Object containing URL path for debugging
+ */
+function getUrlAttributes(
+  fullUrl: string,
+  baseUrl?: string,
+): Record<string, string> {
+  const attributes: Record<string, string> = {};
+
+  try {
+    const url = new URL(fullUrl);
+
+    // Extract URL components for debugging (path and api_version only)
+
+    // Extract the path (URL - baseURL) as requested: path = full - base_url
+    if (baseUrl) {
+      try {
+        const path =
+          fullUrl.replace(baseUrl.replace(/\/$/, ""), "") || url.pathname;
+        // Use a simple custom attribute for the path (useful for Azure debugging)
+        attributes["url.path"] = path;
+      } catch {
+        // If baseURL parsing fails, use the pathname
+        attributes["url.path"] = url.pathname;
+      }
+    } else {
+      attributes["url.path"] = url.pathname;
+    }
+
+    // Safely extract api_version query parameter for Azure
+    if (url.search) {
+      const queryParams = new URLSearchParams(url.search);
+      const apiVersion = queryParams.get("api-version");
+      if (apiVersion) {
+        attributes["url.query.api_version"] = apiVersion;
+      }
+    }
+  } catch (error) {
+    diag.debug("Failed to extract URL attributes", error);
+  }
+
+  return attributes;
+}
+
+/**
+ * Gets URL attributes for a request from stored request information
+ * @param requestBody The request body used as a unique key for this request
+ * @returns URL attributes object
+ */
+function getStoredUrlAttributes(requestBody: unknown): Record<string, string> {
+  try {
+    if (requestBody && typeof requestBody === "object") {
+      const urlInfo = requestUrlMap.get(requestBody as object);
+      if (urlInfo) {
+        return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
+      }
+    }
+  } catch (error) {
+    diag.debug("Failed to get stored URL attributes", error);
+  }
+  return {};
 }
 
 /**
@@ -256,6 +328,60 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
+    // Patch the post method to capture URL information
+    this._wrap(
+      module.OpenAI.prototype,
+      "post",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: any): any => {
+        return function patchedPost(
+          this: unknown,
+          path: string,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          body?: any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          options?: any,
+        ) {
+          // Store URL information for this specific request
+          try {
+            const clientInstance = this as {
+              baseURL?: string;
+              _client?: { baseURL?: string };
+            };
+
+            let baseUrl: string | undefined;
+            if (
+              clientInstance.baseURL &&
+              typeof clientInstance.baseURL === "string"
+            ) {
+              baseUrl = clientInstance.baseURL;
+            } else if (
+              clientInstance._client?.baseURL &&
+              typeof clientInstance._client.baseURL === "string"
+            ) {
+              baseUrl = clientInstance._client.baseURL;
+            }
+
+            if (baseUrl) {
+              const fullUrl = new URL(path, baseUrl).toString();
+              // Use the request body as a unique key for this specific request
+              // This avoids concurrent requests overwriting each other
+              if (body && typeof body === "object") {
+                requestUrlMap.set(body, { url: fullUrl, baseUrl });
+              }
+            }
+          } catch (error) {
+            diag.debug(
+              "Failed to capture URL information in post method",
+              error,
+            );
+          }
+
+          return original.apply(this, [path, body, options]);
+        };
+      },
+    );
+
     // Patch create chat completions
     type ChatCompletionCreateType =
       typeof module.OpenAI.Chat.Completions.prototype.create;
@@ -324,6 +450,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(body),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -410,6 +538,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(body),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -481,6 +611,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.setAttributes({
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
+                // Add URL attributes now that the request has completed
+                ...getStoredUrlAttributes(body),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
@@ -566,6 +698,8 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesUsageAttributes(result),
+                  // Add URL attributes now that the request has completed
+                  ...getStoredUrlAttributes(this),
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
@@ -614,6 +748,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+    this._unwrap(moduleExports.OpenAI.prototype, "post");
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
