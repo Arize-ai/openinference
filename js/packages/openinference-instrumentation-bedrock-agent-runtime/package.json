@@ -18,7 +18,8 @@
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
     "test": "jest .",
-    "validate:invoke-agent": "tsx --env-file examples/.env examples/run-invoke-agent.ts"
+    "validate:invoke-agent": "tsx --env-file examples/.env examples/run-invoke-agent.ts",
+    "validate:invoke-rag": "tsx --env-file examples/.env examples/run-rag.ts"
   },
   "exports": {
     ".": {
