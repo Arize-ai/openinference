@@ -94,3 +94,25 @@ export interface DocumentReference {
   location?: Record<string, unknown>;
   [key: string]: unknown;
 }
+
+
+export interface BaseInvocationInput {
+  invocationType: string;
+  [key: string]: string | number | boolean | object | null | undefined;
+}
+
+export interface AgentCollaboratorInvocationInput extends BaseInvocationInput {
+  invocationType: "AGENT_COLLABORATOR";
+}
+
+export interface ActionGroupInvocationInput extends BaseInvocationInput {
+  invocationType: "ACTION_GROUP";
+}
+
+export interface CodeInterpreterInvocationInput extends BaseInvocationInput {
+  invocationType: "ACTION_GROUP_CODE_INTERPRETER";
+}
+
+export interface KnowledgeBaseLookupInput extends BaseInvocationInput {
+  invocationType: "KNOWLEDGE_BASE";
+}

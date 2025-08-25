@@ -7,6 +7,7 @@ export const TRACE_EVENT_TYPES = [
   "orchestrationTrace",
   "postProcessingTrace",
   "failureTrace",
+  "guardrailTrace",
 ] as const;
 
 export type TraceEventType = (typeof TRACE_EVENT_TYPES)[number];

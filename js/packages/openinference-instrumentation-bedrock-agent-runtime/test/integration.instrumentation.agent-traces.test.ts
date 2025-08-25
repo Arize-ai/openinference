@@ -18,6 +18,7 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+import { SpanStatusCode } from "@opentelemetry/api";
 
 describe("BedrockAgentInstrumentation Trace Collector Integration - agent attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
@@ -88,6 +89,69 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(3);
+  });
+
+  it("should record guardrail trace", async () => {
+    const client = new BedrockAgentRuntimeClient({
+      region: "us-east-2",
+      credentials: {
+        accessKeyId: "test",
+        secretAccessKey: "test",
+      },
+    });
+    const params = {
+      inputText: "fuck",
+      agentId: "G6ROF5ON4Y",
+      agentAliasId: "TSTALIASID",
+      sessionId: "default-session1_1234567891",
+      enableTrace: true,
+    };
+    const command = new InvokeAgentCommand(params);
+    const response = await client.send(command);
+    for await (const event of response.completion as AsyncIterable<{
+      chunk: { bytes: Uint8Array };
+      trace?: object;
+    }>) {
+      if (event.chunk?.bytes) {
+        const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
+        expect(outputText).not.toBeNull();
+      }
+    }
+    expect(response).toBeDefined();
+    expect(typeof response).toBe("object");
+    const spans = memoryExporter.getFinishedSpans();
+    const guardrailSpan = spans.find((span) => {
+      return span.name === "Guardrails";  
+    });
+    expect(guardrailSpan?.name).toBe("Guardrails");
+
+    expect(guardrailSpan).toBeDefined();
+    expect(guardrailSpan?.status.code).toBe(SpanStatusCode.ERROR);
+    expect(guardrailSpan?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.GUARDRAIL);
+    expect(guardrailSpan?.attributes["metadata"]).toBeDefined();
+    const metadata = guardrailSpan?.attributes["metadata"]?.toString();
+    expect(metadata).toBeDefined();
+    const deserializedMetadata = JSON.parse(metadata as string);
+
+    expect(deserializedMetadata.intervening_guardrails).toBeDefined();
+    expect(deserializedMetadata.intervening_guardrails.length).toBe(1);
+
+    const interveningGuardrail = deserializedMetadata.intervening_guardrails[0];
+    expect(interveningGuardrail.action).toBe("INTERVENED");
+    expect(interveningGuardrail.client_request_id).toBeDefined();
+    expect(interveningGuardrail.start_time).toBeDefined();
+    expect(interveningGuardrail.end_time).toBeDefined();
+    expect(interveningGuardrail.total_time_ms).toBeGreaterThan(0);
+    expect(interveningGuardrail.inputAssessments).toBeDefined();
+
+    expect(deserializedMetadata.non_intervening_guardrails).toBeDefined();
+    expect(deserializedMetadata.non_intervening_guardrails.length).toBe(0);
+    
+
+    const guardrailTrace = spans.find((span) => {
+      return span.name === "guardrailTrace";
+    });
+    expect(guardrailTrace).toBeDefined();
   });
 
   it("should record Code Interpreter Orchestration Trace", async () => {
