@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.0.0
+
+### Major Changes
+
+- 44032b4: Added support for Bedrock agent - RetrieveCommand, RetrieveAndGenerateCommand, RetrieveAndGenerateStreamCommand
+
 ## 0.3.0
 
 ### Minor Changes
