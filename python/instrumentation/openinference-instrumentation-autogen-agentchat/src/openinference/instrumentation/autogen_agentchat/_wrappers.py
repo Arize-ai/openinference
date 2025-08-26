@@ -668,16 +668,6 @@ def _get_llm_tool_attributes(
         if not isinstance(tool, Tool):
             continue
 
-        # Extract tool name
-        tool_name = getattr(tool, "name", None)
-        if tool_name is not None:
-            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_NAME}"] = tool_name
-
-        # Extract tool description
-        tool_description = getattr(tool, "description", None)
-        if tool_description is not None:
-            attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_DESCRIPTION}"] = tool_description
-
         # Extract tool schema
         if isinstance(tool_json_schema := getattr(tool, "schema"), str):
             attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = tool_json_schema
@@ -694,23 +684,6 @@ def _get_llm_tool_attributes(
             except Exception:
                 # If serialization fails, convert to string as fallback
                 attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = str(tool_json_schema)
-
-        # Extract tool parameters if available (for compatibility)
-        tool_parameters = getattr(tool, "parameters", None)
-        if tool_parameters is not None:
-            if isinstance(tool_parameters, dict):
-                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = safe_json_dumps(
-                    tool_parameters
-                )
-            elif isinstance(tool_parameters, str):
-                attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = tool_parameters
-            else:
-                try:
-                    attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = safe_json_dumps(
-                        tool_parameters
-                    )
-                except Exception:
-                    attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_PARAMETERS}"] = str(tool_parameters)
 
     return attributes
 
