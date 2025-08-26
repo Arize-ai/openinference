@@ -121,13 +121,15 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(typeof response).toBe("object");
     const spans = memoryExporter.getFinishedSpans();
     const guardrailSpan = spans.find((span) => {
-      return span.name === "Guardrails";  
+      return span.name === "Guardrails";
     });
     expect(guardrailSpan?.name).toBe("Guardrails");
 
     expect(guardrailSpan).toBeDefined();
     expect(guardrailSpan?.status.code).toBe(SpanStatusCode.ERROR);
-    expect(guardrailSpan?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(OpenInferenceSpanKind.GUARDRAIL);
+    expect(
+      guardrailSpan?.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toBe(OpenInferenceSpanKind.GUARDRAIL);
     expect(guardrailSpan?.attributes["metadata"]).toBeDefined();
     const metadata = guardrailSpan?.attributes["metadata"]?.toString();
     expect(metadata).toBeDefined();
@@ -146,7 +148,6 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
 
     expect(deserializedMetadata.non_intervening_guardrails).toBeDefined();
     expect(deserializedMetadata.non_intervening_guardrails.length).toBe(0);
-    
 
     const guardrailTrace = spans.find((span) => {
       return span.name === "guardrailTrace";

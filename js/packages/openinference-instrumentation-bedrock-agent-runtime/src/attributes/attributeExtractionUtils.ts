@@ -62,7 +62,11 @@ export function extractTraceId(
   if (!eventData) {
     return;
   }
-  if (eventData && 'traceId' in eventData && typeof eventData.traceId === "string") {
+  if (
+    eventData &&
+    "traceId" in eventData &&
+    typeof eventData.traceId === "string"
+  ) {
     return eventData.traceId;
   }
 
@@ -71,7 +75,11 @@ export function extractTraceId(
       data: eventData,
       key: chunkType,
     });
-    if (chunkData  && 'traceId' in chunkData && typeof chunkData["traceId"] === "string") {
+    if (
+      chunkData &&
+      "traceId" in chunkData &&
+      typeof chunkData["traceId"] === "string"
+    ) {
       return chunkData["traceId"];
     }
   }
@@ -904,12 +912,18 @@ export function getGuardrailTraceMetadata(
   if (action) {
     guardrailTraceData.action = action;
   }
-  
-  if ("inputAssessments" in guardrailTrace && isArrayOfObjectWithStringKeys(guardrailTrace["inputAssessments"])) {
+
+  if (
+    "inputAssessments" in guardrailTrace &&
+    isArrayOfObjectWithStringKeys(guardrailTrace["inputAssessments"])
+  ) {
     guardrailTraceData.inputAssessments = guardrailTrace.inputAssessments;
   }
-  
-  if ("outputAssessments" in guardrailTrace && isArrayOfObjectWithStringKeys(guardrailTrace.outputAssessments)) {
+
+  if (
+    "outputAssessments" in guardrailTrace &&
+    isArrayOfObjectWithStringKeys(guardrailTrace.outputAssessments)
+  ) {
     guardrailTraceData.outputAssessments = guardrailTrace.outputAssessments;
   }
 
@@ -923,22 +937,36 @@ export function getGuardrailTraceMetadata(
  */
 export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
   for (const guardrail of guardrails) {
-    const inputAssessments = Array.isArray(guardrail.inputAssessments) ? guardrail.inputAssessments : [];
-    const outputAssessments = Array.isArray(guardrail.outputAssessments) ? guardrail.outputAssessments : [];
+    const inputAssessments = Array.isArray(guardrail.inputAssessments)
+      ? guardrail.inputAssessments
+      : [];
+    const outputAssessments = Array.isArray(guardrail.outputAssessments)
+      ? guardrail.outputAssessments
+      : [];
     const assessments = [...inputAssessments, ...outputAssessments];
-    
+
     for (const assessment of assessments) {
       // Check each of the assessment policy types to see if the guardrail is blocked
       if (isAssessmentBlocked(assessment, "contentPolicy", ["filters"])) {
         return true;
       }
-      if (isAssessmentBlocked(assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"])) {
+      if (
+        isAssessmentBlocked(assessment, "sensitiveInformationPolicy", [
+          "piiEntities",
+          "regexes",
+        ])
+      ) {
         return true;
       }
       if (isAssessmentBlocked(assessment, "topicPolicy", ["topics"])) {
         return true;
       }
-      if (isAssessmentBlocked(assessment, "wordPolicy", ["customWords", "managedWordLists"])) {
+      if (
+        isAssessmentBlocked(assessment, "wordPolicy", [
+          "customWords",
+          "managedWordLists",
+        ])
+      ) {
         return true;
       }
     }
@@ -956,13 +984,16 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
 function isAssessmentBlocked(
   assessment: StringKeyedObject,
   policyType: string,
-  policyFilters: string[]
+  policyFilters: string[],
 ): boolean {
-  const policy = getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
+  const policy =
+    getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
 
   const filters: StringKeyedObject[] = [];
   for (const filterType of policyFilters) {
-    const filterArray = Array.isArray(policy[filterType]) ? policy[filterType] : [];
+    const filterArray = Array.isArray(policy[filterType])
+      ? policy[filterType]
+      : [];
     filters.push(...filterArray);
   }
 

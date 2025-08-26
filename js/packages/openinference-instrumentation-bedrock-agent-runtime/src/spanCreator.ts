@@ -22,20 +22,19 @@ import { Attributes, SpanStatusCode } from "@opentelemetry/api";
 import { trace, context, Span } from "@opentelemetry/api";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
-import { safelyJSONStringify, assertUnreachable } from "@arizeai/openinference-core";
-import { 
-  GuardrailTraceMetadata, 
-  StringKeyedObject
-} from "./types";
+import {
+  safelyJSONStringify,
+  assertUnreachable,
+} from "@arizeai/openinference-core";
+import { GuardrailTraceMetadata, StringKeyedObject } from "./types";
 import { getObjectDataFromUnknown } from "./utils/jsonUtils";
-import { getInputAttributes, getOutputAttributes } from "./attributes/attributeUtils";
-import { 
-  BaseInvocationInput,
-} from "./attributes/types";
+import {
+  getInputAttributes,
+  getOutputAttributes,
+} from "./attributes/attributeUtils";
+import { BaseInvocationInput } from "./attributes/types";
 import { TraceEventType } from "./attributes/constants";
 import { isStringKeyedObjectArray } from "./utils/typeUtils";
-
-
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -84,9 +83,15 @@ export class SpanCreator {
       let statusCode = SpanStatusCode.OK;
 
       // Set error code if guardrail is blocked
-      if (attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.GUARDRAIL) {
+      if (
+        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.GUARDRAIL
+      ) {
         const interveningGuardrails = rawMetadata?.intervening_guardrails || [];
-        if (isStringKeyedObjectArray(interveningGuardrails) && isBlockedGuardrail(interveningGuardrails)) {
+        if (
+          isStringKeyedObjectArray(interveningGuardrails) &&
+          isBlockedGuardrail(interveningGuardrails)
+        ) {
           statusCode = SpanStatusCode.ERROR;
         }
       }
@@ -161,7 +166,8 @@ export class SpanCreator {
       const traceEventType = getEventType(firstChunk);
       if (traceEventType) {
         const eventData =
-          getObjectDataFromUnknown({ data: firstChunk, key: traceEventType }) ?? {};
+          getObjectDataFromUnknown({ data: firstChunk, key: traceEventType }) ??
+          {};
         let kindAndName: { spanKind: OpenInferenceSpanKind; name: string };
 
         switch (traceEventType) {
@@ -174,19 +180,21 @@ export class SpanCreator {
           case "orchestrationTrace":
           case "preProcessingTrace":
           case "postProcessingTrace":
-            kindAndName = this.getSpanKindAndNameFromOrchestrationEventData(eventData);
+            kindAndName =
+              this.getSpanKindAndNameFromOrchestrationEventData(eventData);
             break;
           default:
             // Fallback for unknown event types
             kindAndName = {
               spanKind: OpenInferenceSpanKind.CHAIN,
-              name: "Unknown"
+              name: "Unknown",
             };
             break;
         }
 
-        name = kindAndName?.name ?? "UNKNOWN";    
-        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] = kindAndName.spanKind;
+        name = kindAndName?.name ?? "UNKNOWN";
+        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+          kindAndName.spanKind;
       }
 
       for (const traceData of traceSpan.chunks) {
@@ -195,7 +203,8 @@ export class SpanCreator {
           continue;
         }
         const eventData =
-          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ?? {};
+          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ??
+          {};
         const {
           modelInvocationAttributes,
           invocationAttributes,
@@ -216,18 +225,24 @@ export class SpanCreator {
           if (!isStringKeyedObjectArray(metadata.non_intervening_guardrails)) {
             metadata.non_intervening_guardrails = [];
           }
-          
-          const newIntervening = guardrailTraceMetadata.intervening_guardrails || [];
-          const newNonIntervening = guardrailTraceMetadata.non_intervening_guardrails || [];
-          
+
+          const newIntervening =
+            guardrailTraceMetadata.intervening_guardrails || [];
+          const newNonIntervening =
+            guardrailTraceMetadata.non_intervening_guardrails || [];
+
           if (newIntervening.length > 0) {
-            (metadata.intervening_guardrails as StringKeyedObject[]).push(...newIntervening);
+            (metadata.intervening_guardrails as StringKeyedObject[]).push(
+              ...newIntervening,
+            );
           }
           if (newNonIntervening.length > 0) {
-            (metadata.non_intervening_guardrails as StringKeyedObject[]).push(...newNonIntervening);
+            (metadata.non_intervening_guardrails as StringKeyedObject[]).push(
+              ...newNonIntervening,
+            );
           }
         }
-        
+
         // Merge attributes from all chunks
         attributes = {
           ...attributes,
@@ -244,7 +259,6 @@ export class SpanCreator {
           ...observationMetadata,
           ...failureTraceMetadata,
         };
-        
       }
 
       return {
@@ -263,7 +277,10 @@ export class SpanCreator {
     };
   }
 
-  private processTraceEvent(traceEventType: TraceEventType, eventData: StringKeyedObject): {
+  private processTraceEvent(
+    traceEventType: TraceEventType,
+    eventData: StringKeyedObject,
+  ): {
     modelInvocationAttributes: Attributes;
     invocationAttributes: Attributes;
     outputAttributes: Attributes;
@@ -285,16 +302,18 @@ export class SpanCreator {
       rationaleAttributes: {} as Attributes,
       failureTraceAttributes: {} as Attributes,
       failureTraceMetadata: {} as StringKeyedObject,
-      guardrailTraceMetadata: null as GuardrailTraceMetadata | null
+      guardrailTraceMetadata: null as GuardrailTraceMetadata | null,
     };
 
     switch (traceEventType) {
-      case 'orchestrationTrace': {
-        const processModelInvocationInputResult = this.processModelInvocationOutput(eventData);
+      case "orchestrationTrace": {
+        const processModelInvocationInputResult =
+          this.processModelInvocationOutput(eventData);
         const processObservationResult = this.processObservation(eventData);
         return {
           ...defaultResult,
-          modelInvocationAttributes: this.processModelInvocationInput(eventData),
+          modelInvocationAttributes:
+            this.processModelInvocationInput(eventData),
           invocationAttributes: this.processInvocationInput(eventData),
           outputAttributes: processModelInvocationInputResult.attributes,
           outputMetadata: processModelInvocationInputResult.metadata,
@@ -303,8 +322,8 @@ export class SpanCreator {
           rationaleAttributes: this.processRationale(eventData),
         };
       }
-      
-      case 'failureTrace': {
+
+      case "failureTrace": {
         const processFailureTraceResult = this.processFailureTrace(eventData);
         return {
           ...defaultResult,
@@ -312,32 +331,35 @@ export class SpanCreator {
           failureTraceMetadata: processFailureTraceResult.metadata ?? {},
         };
       }
-      
-      case 'guardrailTrace': {
+
+      case "guardrailTrace": {
         const traceResult = this.processGuardrailTrace(eventData);
         return {
           ...defaultResult,
           guardrailTraceMetadata: traceResult.guardrailTraceMetadata,
         };
       }
-      
-      case 'preProcessingTrace': {
+
+      case "preProcessingTrace": {
         return {
           ...defaultResult,
           invocationAttributes: this.processInvocationInput(eventData),
-          outputAttributes: this.processModelInvocationOutput(eventData).attributes,
-          modelInvocationAttributes: this.processModelInvocationInput(eventData),
+          outputAttributes:
+            this.processModelInvocationOutput(eventData).attributes,
+          modelInvocationAttributes:
+            this.processModelInvocationInput(eventData),
         };
-
       }
 
-      case 'postProcessingTrace': {
+      case "postProcessingTrace": {
         return {
           ...defaultResult,
           invocationAttributes: this.processInvocationInput(eventData),
-          outputAttributes: this.processModelInvocationOutput(eventData).attributes,
-          modelInvocationAttributes: this.processModelInvocationInput(eventData),
-        };      
+          outputAttributes:
+            this.processModelInvocationOutput(eventData).attributes,
+          modelInvocationAttributes:
+            this.processModelInvocationInput(eventData),
+        };
       }
       default: {
         const _exhaustiveCheck: never = traceEventType;
@@ -354,7 +376,10 @@ export class SpanCreator {
   private processModelInvocationInput(
     eventData: StringKeyedObject,
   ): Attributes {
-    const modelInvocationInput = getObjectDataFromUnknown({ data: eventData, key: "modelInvocationInput" });
+    const modelInvocationInput = getObjectDataFromUnknown({
+      data: eventData,
+      key: "modelInvocationInput",
+    });
     if (!modelInvocationInput) return {};
     return getAttributesFromModelInvocationInput(modelInvocationInput);
   }
@@ -368,7 +393,10 @@ export class SpanCreator {
     attributes: Attributes;
     metadata: StringKeyedObject | null;
   } {
-    const modelInvocationOutput = getObjectDataFromUnknown({ data: eventData, key: "modelInvocationOutput" })
+    const modelInvocationOutput = getObjectDataFromUnknown({
+      data: eventData,
+      key: "modelInvocationOutput",
+    });
     if (!modelInvocationOutput) {
       return { attributes: {}, metadata: null };
     }
@@ -389,11 +417,16 @@ export class SpanCreator {
   /**
    * Gets span kind and name for orchestration event data (preProcessing, orchestration, postProcessing)
    */
-  private getSpanKindAndNameFromOrchestrationEventData(eventData: StringKeyedObject): {
+  private getSpanKindAndNameFromOrchestrationEventData(
+    eventData: StringKeyedObject,
+  ): {
     spanKind: OpenInferenceSpanKind;
     name: string;
   } {
-    const invocationInput = getObjectDataFromUnknown({ data: eventData, key: "invocationInput" });
+    const invocationInput = getObjectDataFromUnknown({
+      data: eventData,
+      key: "invocationInput",
+    });
     if (!invocationInput?.invocationType) {
       return {
         spanKind: OpenInferenceSpanKind.LLM,
@@ -404,7 +437,11 @@ export class SpanCreator {
     const { invocationType } = invocationInput as BaseInvocationInput;
     switch (invocationType) {
       case "AGENT_COLLABORATOR": {
-        const agentCollaboratorName = getObjectDataFromUnknown({ data: invocationInput, key: "agentCollaboratorInvocationInput" })?.agentCollaboratorName ?? "";
+        const agentCollaboratorName =
+          getObjectDataFromUnknown({
+            data: invocationInput,
+            key: "agentCollaboratorInvocationInput",
+          })?.agentCollaboratorName ?? "";
         return {
           spanKind: OpenInferenceSpanKind.AGENT,
           name: `${invocationType.toLowerCase()}[${agentCollaboratorName}]`,
@@ -463,7 +500,8 @@ export class SpanCreator {
    */
   private processInvocationInput(eventData: StringKeyedObject): Attributes {
     const invocationInput =
-      getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ?? {};
+      getObjectDataFromUnknown({ data: eventData, key: "invocationInput" }) ??
+      {};
     if (!invocationInput) return {};
     return getAttributesFromInvocationInput(invocationInput);
   }
@@ -477,7 +515,10 @@ export class SpanCreator {
     attributes: Attributes;
     metadata: StringKeyedObject | null;
   } {
-    const observation = getObjectDataFromUnknown({ data: eventData, key: "observation" });
+    const observation = getObjectDataFromUnknown({
+      data: eventData,
+      key: "observation",
+    });
     if (!observation) {
       return { attributes: {}, metadata: null };
     }
@@ -493,7 +534,10 @@ export class SpanCreator {
    * @returns Rationale attributes.
    */
   private processRationale(eventData: StringKeyedObject): Attributes {
-    const rationale = getObjectDataFromUnknown({ data: eventData, key: "rationale" });
+    const rationale = getObjectDataFromUnknown({
+      data: eventData,
+      key: "rationale",
+    });
     if (!rationale) return {};
     return getAttributesFromRationale(rationale);
   }
@@ -507,11 +551,17 @@ export class SpanCreator {
     attributes: Attributes;
     metadata: StringKeyedObject | null;
   } {
-    const failureTrace = getObjectDataFromUnknown({ data: eventData, key: "failureTrace" });
+    const failureTrace = getObjectDataFromUnknown({
+      data: eventData,
+      key: "failureTrace",
+    });
     if (!failureTrace) {
       return { attributes: {}, metadata: null };
     }
-    const failureTraceMetadata = getObjectDataFromUnknown({ data: failureTrace, key: "metadata" });
+    const failureTraceMetadata = getObjectDataFromUnknown({
+      data: failureTrace,
+      key: "metadata",
+    });
     return {
       attributes: getFailureTraceAttributes(failureTrace),
       metadata: getMetadataAttributes(failureTraceMetadata ?? {}),
@@ -531,15 +581,17 @@ export class SpanCreator {
     );
     const guardrailMetadata = {
       ...getGuardrailTraceMetadata(eventData),
-      ...metadata
+      ...metadata,
     };
 
     const isInterveningGuardrail = guardrailMetadata.action === "INTERVENED";
     const guardrailTraceMetadata: GuardrailTraceMetadata = {
       intervening_guardrails: isInterveningGuardrail ? [guardrailMetadata] : [],
-      non_intervening_guardrails: isInterveningGuardrail ? [] : [guardrailMetadata]
+      non_intervening_guardrails: isInterveningGuardrail
+        ? []
+        : [guardrailMetadata],
     };
-    
+
     return { guardrailTraceMetadata };
   }
 
@@ -571,7 +623,8 @@ export class SpanCreator {
           continue;
         }
         const eventData =
-          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ?? {};
+          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ??
+          {};
 
         if ("modelInvocationInput" in eventData) {
           const modelInvocationInput: StringKeyedObject =
@@ -652,9 +705,10 @@ export class SpanCreator {
           continue;
         }
         const eventData =
-          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ?? {};
+          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ??
+          {};
 
-          if ("modelInvocationOutput" in eventData) {
+        if ("modelInvocationOutput" in eventData) {
           const modelInvocationOutput =
             getObjectDataFromUnknown({
               data: traceData,
@@ -850,7 +904,6 @@ export class SpanCreator {
     }
     return undefined;
   }
-
 
   /**
    * Creates a new span with the given attributes and parent span.

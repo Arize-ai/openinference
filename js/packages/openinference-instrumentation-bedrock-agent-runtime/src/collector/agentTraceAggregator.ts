@@ -248,8 +248,10 @@ export class AgentTraceAggregator {
   ): void {
     const eventObj =
       getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
-    const chunkObj = chunkType ? getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {} : {};
-    
+    const chunkObj = chunkType
+      ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
+      : {};
+
     let newNode: AgentTraceNode;
     if (chunkObj && chunkObj.agentCollaboratorInvocationInput) {
       newNode = new AgentTraceNode({
@@ -313,16 +315,19 @@ export class AgentTraceAggregator {
     chunkType: ChunkType | undefined;
     traceData: StringKeyedObject;
   }) {
-    const eventObj = getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
-    const chunkObj = chunkType ? getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {} : {};
+    const eventObj =
+      getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
+    const chunkObj = chunkType
+      ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
+      : {};
     if (agentChildId && chunkObj.agentCollaboratorInvocationInput) {
-        this.createAndAttachChildNode(
-          parent,
-          agentChildId,
-          eventType,
-          chunkType,
-          traceData,
-        );
+      this.createAndAttachChildNode(
+        parent,
+        agentChildId,
+        eventType,
+        chunkType,
+        traceData,
+      );
     } else {
       this.appendChunkToCurrentNodeOrStartNewSpan({
         node: parent,
@@ -353,9 +358,15 @@ export class AgentTraceAggregator {
   }): void {
     const eventObj =
       getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
-    const chunkObj =
-      chunkType ? getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? undefined : undefined;
-    if (agentChildId && chunkObj && chunkObj.agentCollaboratorInvocationOutput) {
+    const chunkObj = chunkType
+      ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ??
+        undefined)
+      : undefined;
+    if (
+      agentChildId &&
+      chunkObj &&
+      chunkObj.agentCollaboratorInvocationOutput
+    ) {
       while (
         this.traceStack.head &&
         this.traceStack.head.nodeTraceId !== agentChildId
@@ -396,7 +407,8 @@ export class AgentTraceAggregator {
     traceData: StringKeyedObject;
   }): void {
     const mustStartNew =
-      (chunkType && ["invocationInput", "modelInvocationInput"].includes(chunkType)) ||
+      (chunkType &&
+        ["invocationInput", "modelInvocationInput"].includes(chunkType)) ||
       !node.currentSpan;
 
     if (mustStartNew) {

@@ -95,7 +95,6 @@ export interface DocumentReference {
   [key: string]: unknown;
 }
 
-
 export interface BaseInvocationInput {
   invocationType: string;
   [key: string]: string | number | boolean | object | null | undefined;
