@@ -14,7 +14,7 @@ import {
   getObjectDataFromUnknown,
   parseSanitizedJson,
 } from "../utils/jsonUtils";
-import { StringKeyedObject } from "../types";
+import { GuardrailTraceMetadata, StringKeyedObject } from "../types";
 import {
   isObjectWithStringKeys,
   safelyJSONStringify,
@@ -901,9 +901,9 @@ export function getFailureTraceAttributes(
  * @returns Guardrail trace attributes.
  */
 export function getGuardrailTraceMetadata(
-  guardrailTrace: StringKeyedObject,
-): StringKeyedObject {
-  const guardrailTraceData: StringKeyedObject = {};
+  guardrailTrace: GuardrailTraceMetadata,
+): GuardrailTraceMetadata {
+  const guardrailTraceData: GuardrailTraceMetadata = {};
 
   const action = getStringAttributeValueFromUnknown(guardrailTrace.action);
   if (action) {
