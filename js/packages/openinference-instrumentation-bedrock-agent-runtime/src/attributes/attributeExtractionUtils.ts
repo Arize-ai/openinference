@@ -982,7 +982,7 @@ function isAssessmentBlocked({assessment, policyType, policyFilters}: {
 
   const filters: StringKeyedObject[] = [];
   for (const filterType of policyFilters) {
-    const filterArray = Array.isArray(policy[filterType])
+    const filterArray = isArrayOfObjectWithStringKeys(policy[filterType])
       ? policy[filterType]
       : [];
     filters.push(...filterArray);
@@ -1081,3 +1081,5 @@ function getAttributesFromOutputMessage({
   }
   return null;
 }
+
+

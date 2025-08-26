@@ -265,16 +265,7 @@ export class AgentTraceAggregator {
         eventType,
       });
       newNode.addChunk(traceData);
-    } else if (eventType === "guardrailTrace") {
-      newNode = new AgentTraceNode({
-        traceId: nodeTraceId,
-        eventType,
-      });
-      const span = new AgentChunkSpan();
-      span.addChunk(traceData);
-      span.parentNode = parent;
-      newNode.addSpan(span);
-    } else {
+    } else { // e.g. guardrailTrace
       newNode = new AgentTraceNode({
         traceId: nodeTraceId,
         eventType,
@@ -359,12 +350,11 @@ export class AgentTraceAggregator {
     const eventObj =
       getObjectDataFromUnknown({ data: traceData, key: eventType }) ?? {};
     const chunkObj = chunkType
-      ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ??
-        undefined)
-      : undefined;
+      ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
+      : {};
+
     if (
       agentChildId &&
-      chunkObj &&
       chunkObj.agentCollaboratorInvocationOutput
     ) {
       while (

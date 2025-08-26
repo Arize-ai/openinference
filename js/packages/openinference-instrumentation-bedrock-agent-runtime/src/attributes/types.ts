@@ -97,7 +97,7 @@ export interface DocumentReference {
 
 export interface BaseInvocationInput {
   invocationType: string;
-  [key: string]: string | number | boolean | object | null | undefined;
+  [key: string]: string | unknown;
 }
 
 export interface AgentCollaboratorInvocationInput extends BaseInvocationInput {
