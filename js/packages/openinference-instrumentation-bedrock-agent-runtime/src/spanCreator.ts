@@ -34,7 +34,7 @@ import {
 } from "./attributes/attributeUtils";
 import { BaseInvocationInput } from "./attributes/types";
 import { TraceEventType } from "./attributes/constants";
-import { isStringKeyedObjectArray } from "./utils/typeUtils";
+import { isArrayOfObjectWithStringKeys } from "./utils/typeUtils";
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -89,7 +89,7 @@ export class SpanCreator {
       ) {
         const interveningGuardrails = rawMetadata?.intervening_guardrails || [];
         if (
-          isStringKeyedObjectArray(interveningGuardrails) &&
+          isArrayOfObjectWithStringKeys(interveningGuardrails) &&
           isBlockedGuardrail(interveningGuardrails)
         ) {
           statusCode = SpanStatusCode.ERROR;
@@ -219,10 +219,10 @@ export class SpanCreator {
         } = this.processTraceEvent(traceEventType, eventData);
 
         if (guardrailTraceMetadata) {
-          if (!isStringKeyedObjectArray(metadata.intervening_guardrails)) {
+          if (!isArrayOfObjectWithStringKeys(metadata.intervening_guardrails)) {
             metadata.intervening_guardrails = [];
           }
-          if (!isStringKeyedObjectArray(metadata.non_intervening_guardrails)) {
+          if (!isArrayOfObjectWithStringKeys(metadata.non_intervening_guardrails)) {
             metadata.non_intervening_guardrails = [];
           }
 
@@ -362,8 +362,7 @@ export class SpanCreator {
         };
       }
       default: {
-        const _exhaustiveCheck: never = traceEventType;
-        return defaultResult;
+        assertUnreachable(traceEventType);
       }
     }
   }
@@ -711,7 +710,7 @@ export class SpanCreator {
         if ("modelInvocationOutput" in eventData) {
           const modelInvocationOutput =
             getObjectDataFromUnknown({
-              data: traceData,
+              data: eventData,
               key: "modelInvocationOutput",
             }) ?? {};
           const parsedResponse =

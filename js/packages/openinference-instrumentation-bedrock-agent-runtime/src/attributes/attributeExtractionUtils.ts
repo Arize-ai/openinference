@@ -36,12 +36,9 @@ import { isAttributeValue } from "@opentelemetry/core";
 export function getEventType(
   traceData: StringKeyedObject,
 ): TraceEventType | undefined {
-  if (!traceData) return undefined;
-
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
   }
-  return;
 }
 
 /**
@@ -773,7 +770,7 @@ function getAttributesFromAgentCollaboratorInvocationInput(
 }
 
 /**
- * Extract spanattributes from observation event.
+ * Extract span attributes from observation event.
  * Processes the observation event to extract output attributes.
  * @param observation The observation event object.
  * @returns A dictionary of extracted output attributes.
@@ -947,25 +944,19 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
 
     for (const assessment of assessments) {
       // Check each of the assessment policy types to see if the guardrail is blocked
-      if (isAssessmentBlocked(assessment, "contentPolicy", ["filters"])) {
+      if (isAssessmentBlocked({assessment, policyType: "contentPolicy", policyFilters: ["filters"]})) {
         return true;
       }
       if (
-        isAssessmentBlocked(assessment, "sensitiveInformationPolicy", [
-          "piiEntities",
-          "regexes",
-        ])
+        isAssessmentBlocked({assessment, policyType: "sensitiveInformationPolicy", policyFilters: ["piiEntities", "regexes"]})
       ) {
         return true;
       }
-      if (isAssessmentBlocked(assessment, "topicPolicy", ["topics"])) {
+      if (isAssessmentBlocked({assessment, policyType: "topicPolicy", policyFilters: ["topics"]})) {
         return true;
       }
       if (
-        isAssessmentBlocked(assessment, "wordPolicy", [
-          "customWords",
-          "managedWordLists",
-        ])
+        isAssessmentBlocked({assessment, policyType: "wordPolicy", policyFilters: ["customWords", "managedWordLists"]})
       ) {
         return true;
       }
@@ -981,11 +972,11 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
  * @param policyFilters Array of filter types to check
  * @returns True if the assessment is blocked, false otherwise
  */
-function isAssessmentBlocked(
+function isAssessmentBlocked({assessment, policyType, policyFilters}: {
   assessment: StringKeyedObject,
   policyType: string,
   policyFilters: string[],
-): boolean {
+}): boolean {
   const policy =
     getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
 
