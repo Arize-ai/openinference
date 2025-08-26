@@ -28,7 +28,7 @@ def project_override_wrapper(project_name: str) -> Callable[..., None]:
     return wrapper
 
 
-class dangrously_using_project:
+class dangerously_using_project:
     """
     A context manager that switches the project for all spans created within the context.
 

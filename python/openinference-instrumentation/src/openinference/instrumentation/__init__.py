@@ -22,7 +22,7 @@ from ._attributes import (
     get_user_id_attributes,
 )
 from ._capture import capture_span_context
-from ._project import dangrously_using_project
+from ._project import dangerously_using_project
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
@@ -69,7 +69,7 @@ __all__ = [
     "using_session",
     "using_tags",
     "using_user",
-    "dangrously_using_project",
+    "dangerously_using_project",
     "safe_json_dumps",
     "suppress_tracing",
     "TraceConfig",
