@@ -57,15 +57,16 @@ const {
   RETRIEVAL_DOCUMENTS,
 } = SemanticConventions;
 
-jest.mock("@langchain/openaiV0.2", () => {
-  const originalModule = jest.requireActual("@langchain/openaiV0.2");
+vi.mock("@langchain/openaiV0.2", async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const originalModule = await vi.importActual("@langchain/openaiV0.2") as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
       this.client = {
         chat: {
           completions: {
-            create: jest.fn().mockResolvedValue(completionsResponse),
+            create: vi.fn().mockResolvedValue(completionsResponse),
           },
         },
       };
@@ -189,8 +190,9 @@ describe("LangChainInstrumentation", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.resetAllMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
     expect(
@@ -287,7 +289,8 @@ describe("LangChainInstrumentation", () => {
   it("should add attributes to llm spans when streaming", async () => {
     // Do this to update the mock to return a streaming response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.2");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { ChatOpenAI } = await vi.importMock("@langchain/openaiV0.2") as any;
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -448,7 +451,8 @@ describe("LangChainInstrumentation", () => {
   it("should add function calls to spans", async () => {
     // Do this to update the mock to return a function call response
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openaiV0.2");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { ChatOpenAI } = await vi.importMock("@langchain/openaiV0.2") as any;
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -709,8 +713,9 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.resetAllMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
     expect(
@@ -795,8 +800,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -850,8 +856,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -903,8 +910,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
