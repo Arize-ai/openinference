@@ -3,7 +3,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation } from "../src";
+import { LangChainInstrumentation, isPatched } from "../src";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
@@ -150,9 +150,9 @@ describe("LangChainInstrumentation", () => {
   `;
   const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
 
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-  instrumentation._modules[0].moduleExports = CallbackManager;
   beforeAll(() => {
+    // Use manual instrumentation as intended for LangChain
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -163,14 +163,11 @@ describe("LangChainInstrumentation", () => {
   });
   afterEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
     vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
-    expect(
-      (CallbackManager as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    // Check global patched state - this is the reliable indicator
+    expect(isPatched()).toBe(true);
   });
 
   const testDocuments = [
@@ -259,18 +256,15 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add attributes to llm spans when streaming", async () => {
-    // Do this to update the mock to return a streaming response
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ChatOpenAI } = await vi.importMock("@langchain/openai") as any;
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       streaming: true,
     });
 
-    chatModel.client.chat.completions.create.mockResolvedValue(
+    // Access the mock from the mocked class
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (chatModel as any).client.chat.completions.create.mockResolvedValue(
       new Stream(async function* iterator() {
         yield { choices: [{ delta: { content: "This is " } }] };
         yield { choices: [{ delta: { content: "a test stream." } }] };
@@ -421,18 +415,14 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add function calls to spans", async () => {
-    // Do this to update the mock to return a function call response
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ChatOpenAI } = await vi.importMock("@langchain/openai") as any;
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 1,
     });
 
-    chatModel.client.chat.completions.create.mockResolvedValue(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (chatModel as any).client.chat.completions.create.mockResolvedValue(
       functionCallResponse,
     );
 
@@ -501,9 +491,6 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should capture tool json schema in llm spans for bound tools", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { ChatOpenAI } = await vi.importMock("@langchain/openai") as any;
 
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
@@ -721,9 +708,9 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-  instrumentation._modules[0].moduleExports = CallbackManager;
   beforeAll(() => {
+    // Use manual instrumentation as intended for LangChain
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -734,14 +721,11 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   });
   afterEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
     vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
-    expect(
-      (CallbackManager as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    // Check global patched state - this is the reliable indicator
+    expect(isPatched()).toBe(true);
   });
 
   it("should respect trace config options", async () => {
@@ -806,11 +790,10 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
     instrumentation.disable();
 
-    // Mock the module exports like in other tests
-    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-    instrumentation._modules[0].moduleExports = CallbackManager;
-
     beforeAll(() => {
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
     });
 
@@ -825,7 +808,6 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     afterEach(() => {
       vi.clearAllMocks();
-      vi.resetModules();
       vi.restoreAllMocks();
     });
 
@@ -859,14 +841,14 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation();
-    instrumentation.setTracerProvider(customTracerProvider);
     instrumentation.disable();
 
-    // Mock the module exports like in other tests
-    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-    instrumentation._modules[0].moduleExports = CallbackManager;
-
     beforeAll(() => {
+      // Set tracer provider BEFORE manual instrumentation to ensure correct tracer is used
+      instrumentation.setTracerProvider(customTracerProvider);
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
     });
 
@@ -881,7 +863,6 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     afterEach(() => {
       vi.clearAllMocks();
-      vi.resetModules();
       vi.restoreAllMocks();
     });
 
@@ -916,11 +897,12 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
     instrumentation.disable();
 
-    // Mock the module exports like in other tests
-    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-    instrumentation._modules[0].moduleExports = CallbackManager;
-
     beforeAll(() => {
+      // For manual instrumentation, we need to explicitly set the tracer provider
+      instrumentation.setTracerProvider(customTracerProvider);
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
     });
 
@@ -935,7 +917,6 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     afterEach(() => {
       vi.clearAllMocks();
-      vi.resetModules();
       vi.restoreAllMocks();
     });
 

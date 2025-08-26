@@ -107,8 +107,12 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
   setTracerProvider(tracerProvider: TracerProvider): void {
     super.setTracerProvider(tracerProvider);
     this.tracerProvider = tracerProvider;
+    // Recreate the OITracer with the new tracer provider
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
+      tracer: this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      ),
       traceConfig: this.traceConfig,
     });
   }
@@ -125,7 +129,8 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       }`,
     );
     if (module?.openInferencePatched || _isOpenInferencePatched) {
-      return module;
+      // If already patched, unpatch first to allow re-patching with new instrumentation
+      this.unpatch(module, moduleVersion);
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;

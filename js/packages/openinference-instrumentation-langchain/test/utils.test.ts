@@ -402,7 +402,6 @@ describe("formatRetrievalDocuments", () => {
 describe("formatLLMParams", () => {
   afterEach(() => {
     vi.clearAllMocks();
-    vi.resetModules();
     vi.restoreAllMocks();
   });
   it("should return null if runExtra is not an object or runExtra.invocation_params is not an object", () => {
