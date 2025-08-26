@@ -179,8 +179,8 @@ export class SpanCreator {
           default:
             // Fallback for unknown event types
             kindAndName = {
-              spanKind: OpenInferenceSpanKind.LLM,
-              name: "LLM"
+              spanKind: OpenInferenceSpanKind.CHAIN,
+              name: "Unknown"
             };
             break;
         }
