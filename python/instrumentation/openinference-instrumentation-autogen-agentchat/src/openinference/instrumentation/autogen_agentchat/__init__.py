@@ -38,6 +38,7 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
         from autogen_agentchat.agents import AssistantAgent, BaseChatAgent
         from autogen_agentchat.teams import BaseGroupChat
         from openinference.instrumentation.autogen_agentchat._wrappers import (
+            _AssistantAgentExecuteToolCallWrapper,
             _AssistantAgentOnMessagesStreamWrapper,
             _BaseChatAgentOnMessagesStreamWrapper,
             _BaseGroupChatRunStreamWrapper,
@@ -57,6 +58,7 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
             BaseOpenAIChatCompletionClient.create_stream: (
                 _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)
             ),
+            AssistantAgent._execute_tool_call: _AssistantAgentExecuteToolCallWrapper(self._tracer),
         }
 
         for method, wrapper in method_wrappers.items():
