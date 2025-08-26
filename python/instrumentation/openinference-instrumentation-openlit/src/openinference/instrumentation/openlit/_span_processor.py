@@ -98,7 +98,7 @@ def _is_llm_span(attrs: dict[str, Any]) -> bool:
     return "gen_ai.system" in attrs
 
 
-def _safe_int(v: Any) -> int | None:
+def _int_safe(v: Any) -> int | None:
     try:
         return int(v)
     except Exception:
@@ -151,7 +151,7 @@ def _load_tool_calls(raw: Any) -> list[dict[str, Any]]:
             return result
         return []
     except Exception:
-        # 3) python literal – OpenLIT sometimes dumps repr(list)
+        # python literal – OpenLIT sometimes dumps repr(list)
         try:
             result = ast.literal_eval(raw)
             if isinstance(result, list):
@@ -264,9 +264,9 @@ def _get_oi_chain_attributes(span: ReadableSpan) -> Dict[str, Any]:
 def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
     attrs = dict(getattr(span, "_attributes", {}))
     input_msgs, output_msgs = parse_messages(span.events, attrs)
-    prompt_tokens = _safe_int(attrs.get("gen_ai.usage.input_tokens"))
-    completion_tokens = _safe_int(attrs.get("gen_ai.usage.output_tokens"))
-    total_tokens = _safe_int(attrs.get("gen_ai.usage.total_tokens"))
+    prompt_tokens = _int_safe(attrs.get("gen_ai.usage.input_tokens"))
+    completion_tokens = _int_safe(attrs.get("gen_ai.usage.output_tokens"))
+    total_tokens = _int_safe(attrs.get("gen_ai.usage.total_tokens"))
 
     token_count = oi.TokenCount()
     if prompt_tokens:
