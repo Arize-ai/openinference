@@ -894,6 +894,40 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
 
+    # maps langchain_core.messages.ai.UsageMetadata object
+    for attribute_name, details_key, keys in [
+        (LLM_TOKEN_COUNT_PROMPT, None, ("input_tokens",)),
+        (LLM_TOKEN_COUNT_COMPLETION, None, ("output_tokens",)),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            "input_token_details",
+            ("audio",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+            "input_token_details",
+            ("cache_creation",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            "input_token_details",
+            ("cache_read",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            "output_token_details",
+            ("audio",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            "output_token_details",
+            ("reasoning",),
+        ),
+    ]:
+        if (details := token_usage.get(details_key, token_usage)) is not None:
+            if (token_count := _get_first_value(details, keys)) is not None:
+                yield attribute_name, token_count
+
 
 def _parse_token_usage_for_vertexai(
     outputs: Optional[Mapping[str, Any]],
