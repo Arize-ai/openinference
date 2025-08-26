@@ -733,8 +733,9 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    vi.resetAllMocks();
     vi.clearAllMocks();
+    vi.resetModules();
+    vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
     expect(
@@ -823,8 +824,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
       vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -878,8 +880,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
       vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
@@ -931,8 +934,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(() => {
-      vi.resetAllMocks();
       vi.clearAllMocks();
+      vi.resetModules();
+      vi.restoreAllMocks();
     });
 
     it("should use the provided tracer provider instead of the global one", async () => {
