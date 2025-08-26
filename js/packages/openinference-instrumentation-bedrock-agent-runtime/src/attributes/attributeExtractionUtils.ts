@@ -36,9 +36,12 @@ import { isAttributeValue } from "@opentelemetry/core";
 export function getEventType(
   traceData: StringKeyedObject,
 ): TraceEventType | undefined {
+  if (!traceData) return undefined;
+
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
   }
+  return;
 }
 
 /**
@@ -59,7 +62,7 @@ export function extractTraceId(
   if (!eventData) {
     return;
   }
-  if (eventData.traceId && typeof eventData.traceId === "string") {
+  if (eventData && 'traceId' in eventData && typeof eventData.traceId === "string") {
     return eventData.traceId;
   }
 
@@ -68,7 +71,7 @@ export function extractTraceId(
       data: eventData,
       key: chunkType,
     });
-    if (chunkData  && typeof chunkData["traceId"] === "string") {
+    if (chunkData  && 'traceId' in chunkData && typeof chunkData["traceId"] === "string") {
       return chunkData["traceId"];
     }
   }
