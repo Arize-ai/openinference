@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.3...python-openinference-instrumentation-autogen-agentchat-v0.1.4) (2025-08-26)
+
+
+### Features
+
+* **autogen-agentchat:** add tool call semantic convention attributes ([#2104](https://github.com/Arize-ai/openinference/issues/2104)) ([fe0780d](https://github.com/Arize-ai/openinference/commit/fe0780d243e9ecf89e6548e5793c7265dede1b86))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.2...python-openinference-instrumentation-autogen-agentchat-v0.1.3) (2025-07-22)
 
 
