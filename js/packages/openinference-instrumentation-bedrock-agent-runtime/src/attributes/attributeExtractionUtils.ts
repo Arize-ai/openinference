@@ -901,7 +901,7 @@ export function getFailureTraceAttributes(
  * @returns Guardrail trace attributes.
  */
 export function getGuardrailTraceMetadata(
-  guardrailTrace: GuardrailTraceMetadata,
+  guardrailTrace: StringKeyedObject,
 ): GuardrailTraceMetadata {
   const guardrailTraceData: GuardrailTraceMetadata = {};
 

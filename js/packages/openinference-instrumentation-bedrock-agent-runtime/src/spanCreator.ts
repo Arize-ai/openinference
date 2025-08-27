@@ -858,10 +858,14 @@ export class SpanCreator {
         if (traceEventType == null) {
           continue;
         }
-        if ("modelInvocationOutput" in traceData) {
+        const eventData =
+          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ??
+          {};
+
+        if ("modelInvocationOutput" in eventData) {
           const modelInvocationOutput: Record<string, unknown> =
             getObjectDataFromUnknown({
-              data: traceData,
+              data: eventData,
               key: "modelInvocationOutput",
             }) ?? {};
           const metadataObject =
@@ -878,9 +882,9 @@ export class SpanCreator {
           }
         }
 
-        if ("observation" in traceData) {
+        if ("observation" in eventData) {
           const observation =
-            getObjectDataFromUnknown({ data: traceData, key: "observation" }) ??
+            getObjectDataFromUnknown({ data: eventData, key: "observation" }) ??
             {};
           const { startTime, endTime } =
             getStartAndEndTimeFromMetadata(observation);
