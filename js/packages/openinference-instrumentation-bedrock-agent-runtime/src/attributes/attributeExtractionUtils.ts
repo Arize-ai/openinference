@@ -14,7 +14,7 @@ import {
   getObjectDataFromUnknown,
   parseSanitizedJson,
 } from "../utils/jsonUtils";
-import { StringKeyedObject } from "../types";
+import { GuardrailTraceMetadata, StringKeyedObject } from "../types";
 import {
   isObjectWithStringKeys,
   safelyJSONStringify,
@@ -22,6 +22,8 @@ import {
 import {
   CHUNK_TYPES,
   ChunkType,
+  PolicyFilterType,
+  PolicyType,
   TRACE_EVENT_TYPES,
   TraceEventType,
 } from "./constants";
@@ -31,7 +33,7 @@ import { isAttributeValue } from "@opentelemetry/core";
 
 /**
  * Return the first matching event type key discovered in {@link traceData}.
- * @returns {TraceEventType | null} The first matching event type key or null if not found.
+ * @returns {TraceEventType | undefined} The first matching trace event type key or undefined if not found.
  */
 export function getEventType(
   traceData: StringKeyedObject,
@@ -56,15 +58,27 @@ export function extractTraceId(
     data: traceData,
     key: eventType,
   });
-  if (eventData === undefined || eventData === null) {
+  if (!eventData) {
     return;
   }
+  if (
+    eventData &&
+    "traceId" in eventData &&
+    typeof eventData.traceId === "string"
+  ) {
+    return eventData.traceId;
+  }
+
   for (const chunkType of CHUNK_TYPES) {
     const chunkData = getObjectDataFromUnknown({
       data: eventData,
       key: chunkType,
     });
-    if (chunkData !== null && typeof chunkData["traceId"] === "string") {
+    if (
+      chunkData &&
+      "traceId" in chunkData &&
+      typeof chunkData["traceId"] === "string"
+    ) {
       return chunkData["traceId"];
     }
   }
@@ -723,7 +737,7 @@ function getAttributesFromKnowledgeBaseLookupInput(
 }
 
 /**
- * Extract attributes from agent collaborator invocation input.
+ * Extract span attributes from agent collaborator invocation input.
  * Extracts content, builds messages, and adds metadata for agent collaborator invocation.
  */
 function getAttributesFromAgentCollaboratorInvocationInput(
@@ -758,7 +772,7 @@ function getAttributesFromAgentCollaboratorInvocationInput(
 }
 
 /**
- * Extract attributes from observation event.
+ * Extract span attributes from observation event.
  * Processes the observation event to extract output attributes.
  * @param observation The observation event object.
  * @returns A dictionary of extracted output attributes.
@@ -871,16 +885,147 @@ export function getFailureTraceAttributes(
   traceData: StringKeyedObject,
 ): Attributes {
   let failureMessage = "";
-  if (traceData?.failureCode) {
+  if (traceData?.failureCode && typeof traceData.failureCode === "string") {
     failureMessage += `Failure Code: ${traceData.failureCode}\n`;
   }
-  if (traceData?.failureReason) {
+  if (traceData?.failureReason && typeof traceData.failureReason === "string") {
     failureMessage += `Failure Reason: ${traceData.failureReason}`;
   }
   if (failureMessage) {
     return getOutputAttributes(failureMessage);
   }
   return {};
+}
+
+/**
+ * Extract attributes from guardrail trace data.
+ * @param guardrailTrace Guardrail trace data object.
+ * @returns Guardrail trace attributes.
+ */
+export function getGuardrailTraceMetadata(
+  guardrailTrace: StringKeyedObject,
+): GuardrailTraceMetadata {
+  const guardrailTraceData: GuardrailTraceMetadata = {};
+
+  const action = getStringAttributeValueFromUnknown(guardrailTrace.action);
+  if (action) {
+    guardrailTraceData.action = action;
+  }
+
+  if (
+    "inputAssessments" in guardrailTrace &&
+    isArrayOfObjectWithStringKeys(guardrailTrace["inputAssessments"])
+  ) {
+    guardrailTraceData.inputAssessments = guardrailTrace.inputAssessments;
+  }
+
+  if (
+    "outputAssessments" in guardrailTrace &&
+    isArrayOfObjectWithStringKeys(guardrailTrace.outputAssessments)
+  ) {
+    guardrailTraceData.outputAssessments = guardrailTrace.outputAssessments;
+  }
+
+  return guardrailTraceData;
+}
+
+/**
+ * Determine whether an agent invocation was blocked by any intervening guardrails
+ * @param guardrails Array of guardrail objects to check
+ * @returns True if any guardrail is blocked, false otherwise
+ */
+export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
+  for (const guardrail of guardrails) {
+    const inputAssessments = Array.isArray(guardrail.inputAssessments)
+      ? guardrail.inputAssessments
+      : [];
+    const outputAssessments = Array.isArray(guardrail.outputAssessments)
+      ? guardrail.outputAssessments
+      : [];
+    const assessments = [...inputAssessments, ...outputAssessments];
+
+    for (const assessment of assessments) {
+      // Check each of the assessment policy types to see if the guardrail is blocked
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: PolicyType.CONTENT,
+          policyFilters: [PolicyFilterType.FILTERS],
+        })
+      ) {
+        return true;
+      }
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: PolicyType.SENSITIVE_INFORMATION,
+          policyFilters: [
+            PolicyFilterType.PII_ENTITIES,
+            PolicyFilterType.REGEXES,
+          ],
+        })
+      ) {
+        return true;
+      }
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: PolicyType.TOPIC,
+          policyFilters: [PolicyFilterType.TOPICS],
+        })
+      ) {
+        return true;
+      }
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: PolicyType.WORD,
+          policyFilters: [
+            PolicyFilterType.CUSTOM_WORDS,
+            PolicyFilterType.MANAGED_WORD_LISTS,
+          ],
+        })
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Parses through guardrail assessment to determine if the action is BLOCKED
+ * @param assessment The assessment object to check
+ * @param policyType The type of policy to check
+ * @param policyFilters Array of filter types to check
+ * @returns True if the assessment is blocked, false otherwise
+ */
+function isAssessmentBlocked({
+  assessment,
+  policyType,
+  policyFilters,
+}: {
+  assessment: StringKeyedObject;
+  policyType: string;
+  policyFilters: string[];
+}): boolean {
+  const policy =
+    getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
+
+  const filters: StringKeyedObject[] = [];
+  for (const filterType of policyFilters) {
+    const filterArray = isArrayOfObjectWithStringKeys(policy[filterType])
+      ? policy[filterType]
+      : [];
+    filters.push(...filterArray);
+  }
+
+  for (const filter of filters) {
+    if (filter?.action === "BLOCKED") {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
