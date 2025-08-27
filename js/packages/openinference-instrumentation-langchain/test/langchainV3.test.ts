@@ -62,7 +62,7 @@ const {
 
 vi.mock("@langchain/openai", async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const originalModule = await vi.importActual("@langchain/openai") as any;
+  const originalModule = (await vi.importActual("@langchain/openai")) as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
@@ -491,7 +491,6 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should capture tool json schema in llm spans for bound tools", async () => {
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-4o-mini",
