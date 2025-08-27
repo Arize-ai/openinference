@@ -42,7 +42,7 @@ test = [
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",
-  "duckduckgo-search",
+  "ddgs",
   "yfinance",
 ]
 

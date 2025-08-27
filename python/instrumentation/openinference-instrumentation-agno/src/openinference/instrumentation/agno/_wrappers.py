@@ -82,18 +82,22 @@ def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
+def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    user_id = arguments.get("user_id")
+    session_id = arguments.get("session_id")
+
+    if session_id:
+        yield SESSION_ID, session_id
+
+    if user_id:
+        yield USER_ID, user_id
+
+
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
     # Get parent from execution context instead of structural parent
     context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
-
-    # Existing agent-specific attributes
-    if agent.session_id:
-        yield SESSION_ID, agent.session_id
-
-    if agent.user_id:
-        yield USER_ID, agent.user_id
 
     if isinstance(agent, Team):
         # Set graph attributes for team
@@ -179,6 +183,8 @@ class _RunWrapper:
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -192,6 +198,7 @@ class _RunWrapper:
                             **kwargs,
                         ),
                         **dict(_agent_run_attributes(agent)),
+                        **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -233,6 +240,7 @@ class _RunWrapper:
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         with self._tracer.start_as_current_span(
             span_name,
@@ -247,6 +255,7 @@ class _RunWrapper:
                             **kwargs,
                         ),
                         **dict(_agent_run_attributes(agent)),
+                        **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -290,6 +299,8 @@ class _RunWrapper:
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -303,6 +314,7 @@ class _RunWrapper:
                             **kwargs,
                         ),
                         **dict(_agent_run_attributes(agent)),
+                        **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -345,6 +357,8 @@ class _RunWrapper:
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -358,6 +372,7 @@ class _RunWrapper:
                             **kwargs,
                         ),
                         **dict(_agent_run_attributes(agent)),
+                        **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
