@@ -899,7 +899,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         (LLM_TOKEN_COUNT_PROMPT, None, ("input_tokens",)),
         (LLM_TOKEN_COUNT_COMPLETION, None, ("output_tokens",)),
         (
-            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
             "input_token_details",
             ("audio",),
         ),
@@ -914,7 +914,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ("cache_read",),
         ),
         (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
             "output_token_details",
             ("audio",),
         ),
