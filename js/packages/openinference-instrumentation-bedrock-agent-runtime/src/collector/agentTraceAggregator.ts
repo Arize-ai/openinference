@@ -45,6 +45,7 @@ export class AgentTraceAggregator {
     if (!traceData) {
       return;
     }
+
     const eventType = getEventType(traceData);
     const traceId = extractTraceId(traceData);
     if (!traceId || !eventType) {
@@ -253,7 +254,7 @@ export class AgentTraceAggregator {
       : {};
 
     let newNode: AgentTraceNode;
-    if (chunkObj && chunkObj.agentCollaboratorInvocationInput) {
+    if (chunkObj && (chunkObj.agentCollaboratorInvocationInput || chunkObj.agentCollaboratorInvocationOutput)) {
       newNode = new AgentTraceNode({
         traceId: nodeTraceId,
         eventType: "agent-collaborator",
@@ -312,7 +313,7 @@ export class AgentTraceAggregator {
     const chunkObj = chunkType
       ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
       : {};
-    if (agentChildId && chunkObj.agentCollaboratorInvocationInput) {
+    if (agentChildId && (chunkObj.agentCollaboratorInvocationInput || chunkObj.agentCollaboratorInvocationOutput)) {
       this.createAndAttachChildNode(
         parent,
         agentChildId,
@@ -354,7 +355,7 @@ export class AgentTraceAggregator {
       ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
       : {};
 
-    if (agentChildId && chunkObj.agentCollaboratorInvocationOutput) {
+    if ((agentChildId && chunkObj.agentCollaboratorInvocationOutput) || Object.keys(chunkObj).length === 0) {
       while (
         this.traceStack.head &&
         this.traceStack.head.nodeTraceId !== agentChildId

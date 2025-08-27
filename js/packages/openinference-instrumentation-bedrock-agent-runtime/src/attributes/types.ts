@@ -100,10 +100,6 @@ export interface BaseInvocationInput {
   [key: string]: string | unknown;
 }
 
-export interface AgentCollaboratorInvocationInput extends BaseInvocationInput {
-  invocationType: "AGENT_COLLABORATOR";
-}
-
 export interface ActionGroupInvocationInput extends BaseInvocationInput {
   invocationType: "ACTION_GROUP";
 }

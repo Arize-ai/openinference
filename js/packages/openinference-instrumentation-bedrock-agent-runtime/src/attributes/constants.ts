@@ -8,6 +8,7 @@ export const TRACE_EVENT_TYPES = [
   "postProcessingTrace",
   "failureTrace",
   "guardrailTrace",
+  "routingClassifierTrace"
 ] as const;
 
 export type TraceEventType = (typeof TRACE_EVENT_TYPES)[number];

@@ -17,6 +17,7 @@ import {
 import { GuardrailTraceMetadata, StringKeyedObject } from "../types";
 import {
   isObjectWithStringKeys,
+  safelyJSONParse,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import {
@@ -416,7 +417,14 @@ function getOutputValue(outputParams: StringKeyedObject): string | undefined {
       rawResponse.content,
     );
     if (stringContent) {
-      return stringContent;
+      const content = safelyJSONParse(stringContent);
+      if (isObjectWithStringKeys(content)) {
+        const output = getObjectDataFromUnknown({
+          data: content,
+          key: "output",
+        });
+        return safelyJSONStringify(output) ?? undefined;
+      }
     }
   }
 

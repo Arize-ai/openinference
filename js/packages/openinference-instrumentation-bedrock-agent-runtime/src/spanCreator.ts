@@ -34,6 +34,7 @@ import {
 import { BaseInvocationInput } from "./attributes/types";
 import { TraceEventType } from "./attributes/constants";
 import { isArrayOfObjectWithStringKeys } from "./utils/typeUtils";
+import { isAttributeValue } from "@opentelemetry/core";
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.
@@ -129,16 +130,14 @@ export class SpanCreator {
     let metadata: StringKeyedObject = {};
     let name: string | null = null;
 
-    if (
-      traceSpan instanceof AgentTraceNode &&
-      traceSpan.nodeType != null &&
-      traceSpan.chunks.length === 0
-    ) {
-      let spanKind = OpenInferenceSpanKind.CHAIN;
+    if (traceSpan instanceof AgentTraceNode && traceSpan.chunks.length === 0) {
+      name = traceSpan.nodeType 
+      attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+      OpenInferenceSpanKind.CHAIN;
       if (traceSpan.nodeType === "agent-collaborator") {
-        spanKind = OpenInferenceSpanKind.AGENT;
+        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+          OpenInferenceSpanKind.AGENT;
       }
-
       const inputParentAttributes = this.getParentSpanInputAttributes({
         traceNode: traceSpan,
       });
@@ -146,70 +145,75 @@ export class SpanCreator {
         this.getParentSpanOutputAttributes({
           traceNode: traceSpan,
         });
-
-      return {
-        attributes: {
-          [SemanticConventions.OPENINFERENCE_SPAN_KIND]: spanKind,
-          ...inputParentAttributes,
-          ...outputAttributes,
-        },
-        rawMetadata: {},
-        name: traceSpan.nodeType ?? "CHAIN",
+        attributes = {
+        ...attributes,
+        ...outputAttributes,
+        ...inputParentAttributes,
       };
-    }
-
-    if (Array.isArray(traceSpan.chunks) && traceSpan.chunks.length > 0) {
-      // Process the first chunk to determine the span kind and name
-      // We should expect that all chunks have the same event type
-      const firstChunk = traceSpan.chunks[0];
-      const traceEventType = getEventType(firstChunk);
-      const eventData = traceEventType
-        ? (getObjectDataFromUnknown({
-            data: firstChunk,
-            key: traceEventType,
-          }) ?? {})
-        : {};
-      let kindAndName = {
-        spanKind: OpenInferenceSpanKind.LLM,
-        name: "UNKNOWN",
-      };
-
-      switch (traceEventType) {
-        case "guardrailTrace":
-          kindAndName = this.getSpanKindAndNameFromGuardrailEventData();
-          break;
-        case "failureTrace":
-          kindAndName = this.getSpanKindAndNameFromFailureEventData();
-          break;
-        case "orchestrationTrace":
-        case "preProcessingTrace":
-        case "postProcessingTrace":
-          kindAndName =
-            this.getSpanKindAndNameFromOrchestrationEventData(eventData);
-          break;
-        case undefined:
-          kindAndName = {
-            spanKind: OpenInferenceSpanKind.LLM,
-            name: "UNKNOWN",
-          };
-          break;
-        default: {
-          assertUnreachable(traceEventType);
-        }
-      }
-
-      name = kindAndName.name;
-      attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
-        kindAndName.spanKind;
-
+    } else if (Array.isArray(traceSpan.chunks) && traceSpan.chunks.length > 0) {
       for (const traceData of traceSpan.chunks) {
         const traceEventType = getEventType(traceData);
+        const eventData = traceEventType
+          ? (getObjectDataFromUnknown({
+              data: traceData,
+              key: traceEventType,
+            }) ?? {})
+          : {};
+
+        let kindAndName: { spanKind: OpenInferenceSpanKind; name: string };
+        switch (traceEventType) {
+          case "guardrailTrace":
+            kindAndName = this.getSpanKindAndNameFromGuardrailEventData();
+            break;
+          case "failureTrace":
+            kindAndName = this.getSpanKindAndNameFromFailureEventData();
+            break;
+          case "orchestrationTrace":
+          case "preProcessingTrace":
+          case "postProcessingTrace":
+            kindAndName =
+              this.getSpanKindAndNameFromOrchestrationEventData(eventData);
+            break;
+          case "routingClassifierTrace":
+            if (traceSpan instanceof AgentTraceNode && traceSpan.nodeType === "agent-collaborator") {
+              kindAndName = this.getSpanKindAndNameFromRoutingClassifierEventData(eventData);
+              const inputParentAttributes = this.getParentSpanInputAttributes({
+                traceNode: traceSpan,
+              });
+              const { attributes: outputAttributes } =
+                this.getParentSpanOutputAttributes({
+                  traceNode: traceSpan,
+                });
+              attributes = {
+                ...attributes,
+                ...inputParentAttributes,
+                ...outputAttributes,
+              };
+            } else {
+              kindAndName = {
+                spanKind: OpenInferenceSpanKind.LLM,
+                name: "Routing Classifer",
+              };
+            }
+            break;
+          case undefined:
+            kindAndName = {
+              spanKind: OpenInferenceSpanKind.LLM,
+              name: "UNKNOWN",
+            };
+            break;
+          default: {
+            assertUnreachable(traceEventType);
+          }
+        }
+      
         if (traceEventType == null) {
           continue;
         }
-        const eventData =
-          getObjectDataFromUnknown({ data: traceData, key: traceEventType }) ??
-          {};
+        name = kindAndName.name;
+        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+          kindAndName.spanKind;
+
         const {
           modelInvocationAttributes,
           invocationAttributes,
@@ -217,7 +221,7 @@ export class SpanCreator {
           outputMetadata,
           observationAttributes,
           observationMetadata,
-          rationaleAttributes,
+          rationaleMetadata,
           failureTraceAttributes,
           failureTraceMetadata,
           guardrailTraceMetadata,
@@ -256,7 +260,6 @@ export class SpanCreator {
           ...modelInvocationAttributes,
           ...outputAttributes,
           ...observationAttributes,
-          ...rationaleAttributes,
           ...failureTraceAttributes,
           ...invocationAttributes,
         };
@@ -265,6 +268,7 @@ export class SpanCreator {
           ...outputMetadata,
           ...observationMetadata,
           ...failureTraceMetadata,
+          ...rationaleMetadata,
         };
       }
 
@@ -278,10 +282,42 @@ export class SpanCreator {
       };
     }
     return {
-      attributes: {},
+      attributes: attributes,
       rawMetadata: {},
       name: name ?? "LLM",
     };
+  }
+  
+  private getSpanKindAndNameFromRoutingClassifierEventData(eventData: StringKeyedObject): { spanKind: OpenInferenceSpanKind; name: string; } {
+    const invocationInput = getObjectDataFromUnknown({
+      data: eventData,
+      key: "invocationInput",
+    });
+
+    const agentCollaboratorInvocationInput = getObjectDataFromUnknown({
+        data: invocationInput,
+        key: "agentCollaboratorInvocationInput",
+      })
+    if (agentCollaboratorInvocationInput?.agentCollaboratorName ) {
+      return {
+        spanKind: OpenInferenceSpanKind.AGENT,
+        name: `${agentCollaboratorInvocationInput.agentCollaboratorName}]`,
+      };
+    } else {
+      const observation = getObjectDataFromUnknown({
+        data: eventData,
+        key: "observation",
+      });
+      const agentCollaboratorInvocationOutput = getObjectDataFromUnknown({
+        data: observation,
+        key: "agentCollaboratorInvocationOutput",
+      })
+      const name = typeof agentCollaboratorInvocationOutput?.agentCollaboratorName === "string" ? agentCollaboratorInvocationOutput.agentCollaboratorName : "UNKNOWN";
+      return {
+        spanKind: OpenInferenceSpanKind.AGENT,
+        name: name,
+      };
+    }
   }
 
   private processTraceEvent(
@@ -294,7 +330,7 @@ export class SpanCreator {
     outputMetadata: StringKeyedObject | null;
     observationAttributes: Attributes;
     observationMetadata: StringKeyedObject | null;
-    rationaleAttributes: Attributes;
+    rationaleMetadata: StringKeyedObject;
     failureTraceAttributes: Attributes;
     failureTraceMetadata: StringKeyedObject;
     guardrailTraceMetadata: GuardrailTraceMetadata | null;
@@ -306,7 +342,7 @@ export class SpanCreator {
       outputMetadata: null as StringKeyedObject | null,
       observationAttributes: {} as Attributes,
       observationMetadata: null as StringKeyedObject | null,
-      rationaleAttributes: {} as Attributes,
+      rationaleMetadata: {} as StringKeyedObject,
       failureTraceAttributes: {} as Attributes,
       failureTraceMetadata: {} as StringKeyedObject,
       guardrailTraceMetadata: null as GuardrailTraceMetadata | null,
@@ -326,7 +362,8 @@ export class SpanCreator {
           outputMetadata: processModelInvocationInputResult.metadata,
           observationAttributes: processObservationResult.attributes,
           observationMetadata: processObservationResult.metadata,
-          rationaleAttributes: this.processRationale(eventData),
+          rationaleMetadata: this.processRationaleMetadata(eventData),
+          
         };
       }
 
@@ -366,6 +403,19 @@ export class SpanCreator {
             this.processModelInvocationOutput(eventData).attributes,
           modelInvocationAttributes:
             this.processModelInvocationInput(eventData),
+        };
+      }
+      case "routingClassifierTrace": {
+        const processObservationResult = this.processObservation(eventData);
+        const processModelInvocationOutputResult = this.processModelInvocationOutput(eventData);
+        return {
+          ...defaultResult,
+          modelInvocationAttributes: this.processModelInvocationInput(eventData),
+          outputAttributes: processModelInvocationOutputResult.attributes,
+          outputMetadata: processModelInvocationOutputResult.metadata,
+          observationAttributes: processObservationResult.attributes,
+          observationMetadata: processObservationResult.metadata,
+          invocationAttributes: this.processInvocationInput(eventData),
         };
       }
       default: {
@@ -442,18 +492,6 @@ export class SpanCreator {
 
     const { invocationType } = invocationInput as BaseInvocationInput;
     switch (invocationType) {
-      case "AGENT_COLLABORATOR": {
-        const agentCollaboratorName =
-          getObjectDataFromUnknown({
-            data: invocationInput,
-            key: "agentCollaboratorInvocationInput",
-          })?.agentCollaboratorName ?? "";
-        return {
-          spanKind: OpenInferenceSpanKind.AGENT,
-          name: `${invocationType.toLowerCase()}[${agentCollaboratorName}]`,
-        };
-      }
-
       case "ACTION_GROUP":
         return {
           spanKind: OpenInferenceSpanKind.TOOL,
@@ -535,17 +573,19 @@ export class SpanCreator {
   }
 
   /**
-   * Processes rationale data and extracts attributes.
+   * Processes rationale metadata.
    * @param eventData The event data containing rationale information.
    * @returns Rationale attributes.
    */
-  private processRationale(eventData: StringKeyedObject): Attributes {
+  private processRationaleMetadata(eventData: StringKeyedObject): StringKeyedObject {
     const rationaleText = getObjectDataFromUnknown({
       data: eventData,
       key: "rationale",
     });
     if (!rationaleText) return {};
-    return getOutputAttributes(rationaleText);
+    const rationale = isAttributeValue(rationaleText) ? rationaleText : (safelyJSONStringify(rationaleText) ?? undefined);
+    
+    return { "rationale" : rationale };
   }
 
   /**
