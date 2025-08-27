@@ -322,6 +322,18 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   "image.com",
                 [`${firstInputMessageContentsPrefix}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
                   undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]:
+                  undefined,
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                   OpenInferenceSpanKind.LLM,
               },
@@ -544,13 +556,12 @@ function setupTraceProvider({
 }) {
   memoryExporter.reset();
   trace.disable();
-  traceProvider = new BasicTracerProvider();
   memoryExporter = new InMemorySpanExporter();
   processor = new Processor({
     exporter: memoryExporter,
     spanFilter,
   });
-  traceProvider.addSpanProcessor(processor);
+  traceProvider = new BasicTracerProvider({ spanProcessors: [processor] });
   trace.setGlobalTracerProvider(traceProvider);
 }
 
@@ -635,6 +646,27 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(0);
   });
+
+  it("should not overwrite existing openinference.span.kind", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("ai.generateText.doGenerate");
+
+    // Set the span kind manually first
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.CHAIN,
+    );
+    span.setAttribute("operation.name", "ai.generateText.doGenerate");
+
+    span.end();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+
+    // The span kind should remain as CHAIN, not be overwritten to LLM
+    expect(
+      spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toBe(OpenInferenceSpanKind.CHAIN);
+  });
 });
 
 describe("OpenInferenceBatchSpanProcessor", () => {
@@ -704,5 +736,27 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     await processor.forceFlush();
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(0);
+  });
+
+  it("should not overwrite existing openinference.span.kind", async () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("ai.generateText.doGenerate");
+
+    // Set the span kind manually first
+    span.setAttribute(
+      SemanticConventions.OPENINFERENCE_SPAN_KIND,
+      OpenInferenceSpanKind.CHAIN,
+    );
+    span.setAttribute("operation.name", "ai.generateText.doGenerate");
+
+    span.end();
+    await processor.forceFlush();
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+
+    // The span kind should remain as CHAIN, not be overwritten to LLM
+    expect(
+      spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
+    ).toBe(OpenInferenceSpanKind.CHAIN);
   });
 });

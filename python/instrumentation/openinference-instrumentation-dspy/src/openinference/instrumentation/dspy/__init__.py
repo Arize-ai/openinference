@@ -86,6 +86,24 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_LMAcallWrapper(self._tracer),),
         )
 
+        # The DummyLM class is the only typical subclass of DSPy's LM class.
+        # It is used for unit testing and does not typically get used in
+        # production, however it is helpful to instrument it to understand
+        # program flow within testing scenarios.
+        wrap_object(
+            module="dspy.utils",
+            name="DummyLM.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_LMCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module="dspy.utils",
+            name="DummyLM.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_LMAcallWrapper(self._tracer),),
+        )
+
         # Predict is a concrete (non-abstract) class that may be invoked
         # directly, but DSPy also has subclasses of Predict that override the
         # forward method. We instrument both the forward methods of the base
@@ -167,6 +185,20 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             name="Adapter.acall",
             factory=CopyableFunctionWrapper,
             args=(_AdapterAcallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.__call__",
+            factory=CopyableFunctionWrapper,
+            args=(_ToolCallWrapper(self._tracer),),
+        )
+
+        wrap_object(
+            module=_DSPY_MODULE,
+            name="Tool.acall",
+            factory=CopyableFunctionWrapper,
+            args=(_AsyncToolCallWrapper(self._tracer),),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -254,6 +286,7 @@ class _LMCallWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: LLM,
                         **dict(_input_value_and_mime_type(arguments)),
                         **dict(_llm_model_name(instance)),
+                        **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
                         **dict(get_attributes_from_context()),
@@ -300,6 +333,7 @@ class _LMAcallWrapper(_WithTracer):
                         OPENINFERENCE_SPAN_KIND: LLM,
                         **dict(_input_value_and_mime_type(arguments)),
                         **dict(_llm_model_name(instance)),
+                        **dict(_llm_provider(instance)),
                         **dict(_llm_invocation_parameters(instance, arguments)),
                         **dict(_llm_input_messages(arguments)),
                         **dict(get_attributes_from_context()),
@@ -532,14 +566,7 @@ class _ModuleForwardWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = wrapped(*args, **kwargs)
             span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-                )
+                dict(_flatten(_module_prediction_output_attributes(prediction, instance)))
             )
             span.set_status(StatusCode.OK)
         return prediction
@@ -585,14 +612,7 @@ class _ModuleAforwardWrapper(_WithTracer):
             span.set_attributes(dict(get_attributes_from_context()))
             prediction = await wrapped(*args, **kwargs)
             span.set_attributes(
-                dict(
-                    _flatten(
-                        {
-                            OUTPUT_VALUE: safe_json_dumps(prediction, cls=DSPyJSONEncoder),
-                            OUTPUT_MIME_TYPE: JSON,
-                        }
-                    )
-                )
+                dict(_flatten(_module_prediction_output_attributes(prediction, instance)))
             )
             span.set_status(StatusCode.OK)
         return prediction
@@ -775,6 +795,82 @@ class _AdapterAcallWrapper(_WithTracer):
         return response
 
 
+class _ToolCallWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".__call__"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
+class _AsyncToolCallWrapper(_WithTracer):
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[type, Any],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        span_name = (instance.name or instance.__class__.__name__) + ".acall"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        **dict(_input_value_and_mime_type(arguments)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            span.set_status(StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _flatten(
+                        {
+                            **dict(_output_value_and_mime_type(response)),
+                        }
+                    )
+                )
+            )
+        return response
+
+
 class DSPyJSONEncoder(json.JSONEncoder):
     """
     Provides support for non-JSON-serializable objects in DSPy.
@@ -898,9 +994,59 @@ def _output_value_and_mime_type(response: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
 
 
+def parse_provider_and_model(model_str: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """
+    Parse a model string like 'openai/gpt-4', 'text-completion-openai/gpt-3.5-turbo-instruct/', etc.
+    Returns (provider, model_name), both lowercased and stripped of trailing slashes.
+    """
+    if not isinstance(model_str, str) or not model_str:
+        return None, None
+    model_str = model_str.strip().rstrip("/")
+    if "/" in model_str:
+        provider, model_name = model_str.split("/", 1)
+        provider = provider.strip().lower()
+        model_name = model_name.strip()
+        # Handle cases like 'text-completion-openai' -> 'openai'
+        if "-" in provider:
+            provider = provider.split("-")[-1]
+        return provider, model_name
+    return None, model_str.strip() if model_str else None
+
+
 def _llm_model_name(lm: "LM") -> Iterator[Tuple[str, Any]]:
     if (model_name := getattr(lm, "model_name", None)) is not None:
         yield LLM_MODEL_NAME, model_name
+        return
+    elif (model := getattr(lm, "model", None)) is not None:
+        provider, model_name = parse_provider_and_model(str(model))
+        if model_name:
+            yield LLM_MODEL_NAME, model_name
+
+
+def _llm_provider(lm: "LM") -> Iterator[Tuple[str, Any]]:
+    """
+    Extract the LLM provider from a DSPy LM instance.
+
+    This function attempts to extract the provider name through two strategies:
+    1. From the provider attribute's class name (e.g., OpenAIProvider -> openai)
+    2. Parsing from the model string (LiteLLM-style format like "openai/gpt-4")
+    """
+    # First try to get provider from the provider attribute
+    if (provider := getattr(lm, "provider", None)) is not None:
+        # Extract provider name from class name (e.g., OpenAIProvider -> openai)
+        provider_class_name = provider.__class__.__name__.lower()
+        if "provider" in provider_class_name and provider_class_name != "provider":
+            provider_name = provider_class_name.removesuffix("provider")
+            yield LLM_PROVIDER, provider_name
+            return
+
+    # Fallback: Parse provider from LiteLLM-style model string
+    # LiteLLM uses format "provider/model" (e.g., "openai/gpt-4")
+    # Also handles prefixed formats like "text-completion-openai/gpt-3.5-turbo-instruct"
+    if (model := getattr(lm, "model", None)) is not None:
+        provider, _ = parse_provider_and_model(str(model))
+        if provider:
+            yield LLM_PROVIDER, provider
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -928,7 +1074,9 @@ def _llm_output_messages(response: Any) -> Iterator[Tuple[str, Any]]:
 def _llm_invocation_parameters(lm: "LM", arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     lm_kwargs = _ if isinstance(_ := getattr(lm, "kwargs", {}), dict) else {}
     kwargs = _ if isinstance(_ := arguments.get("kwargs"), dict) else {}
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(lm_kwargs | kwargs)
+    combined_kwargs = lm_kwargs | kwargs
+    combined_kwargs.pop("api_key", None)
+    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(combined_kwargs)
 
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -938,9 +1086,24 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
     return bound_args.arguments
 
 
+def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict[str, Any]:
+    output_attributes = {OUTPUT_MIME_TYPE: JSON}
+    import dspy
+
+    if isinstance(prediction, dspy.Prediction):
+        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/example.py#L107C1-L108C1  # noqa E501
+        # The Prediction object in DSPy works like a dictionary
+        # https://github.com/stanfordnlp/dspy/blob/6fe693528323c9c10c82d90cb26711a985e18b29/dspy/primitives/prediction.py#L22  # noqa E501
+        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction.toDict())
+    else:
+        output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
+    return output_attributes
+
+
 JSON = OpenInferenceMimeTypeValues.JSON.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 LLM = OpenInferenceSpanKindValues.LLM
+TOOL = OpenInferenceSpanKindValues.TOOL.value
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
@@ -955,3 +1118,4 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER

@@ -17,7 +17,7 @@ from openinference.instrumentation.haystack.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("haystack-ai >= 2.9.0",)
+_instruments = ("haystack-ai >= 2.13.0",)
 
 
 class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -34,8 +34,6 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        import haystack
-
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -46,6 +44,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
         )
+        import haystack
 
         self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
@@ -53,7 +52,10 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             name="Pipeline.run",
             wrapper=_PipelineWrapper(tracer=self._tracer),
         )
-        self._original_pipeline_run_component = haystack.Pipeline._run_component
+        from haystack.core.pipeline.pipeline import Pipeline
+
+        original = Pipeline.__dict__["_run_component"]
+        self._original_pipeline_run_component = original.__func__
         self._original_component_run_methods: dict[type[Any], Callable[..., Any]] = {}
 
         def wrap_component_run_method(
@@ -68,9 +70,9 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 )
 
         wrap_function_wrapper(
-            module="haystack.core.pipeline.pipeline",
-            name="Pipeline._run_component",
-            wrapper=_PipelineRunComponentWrapper(
+            Pipeline,
+            "_run_component",
+            _PipelineRunComponentWrapper(
                 tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
             ),
         )
@@ -79,10 +81,12 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import haystack
 
         if self._original_pipeline_run is not None:
-            haystack.Pipeline.run = self._original_pipeline_run
+            setattr(haystack.Pipeline, "run", self._original_pipeline_run)
 
         if self._original_pipeline_run_component is not None:
-            haystack.Pipeline._run_component = self._original_pipeline_run_component
+            from haystack.core.pipeline.pipeline import Pipeline
+
+            setattr(Pipeline, "_run_component", staticmethod(self._original_pipeline_run_component))
 
         for component_cls, original_run_method in self._original_component_run_methods.items():
-            component_cls.run = original_run_method
+            setattr(component_cls, "run", original_run_method)

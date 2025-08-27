@@ -1,7 +1,8 @@
-openai
-openai_agents==0.0.7
+openai==1.99.9
+openai_agents==0.2.6
 openinference-instrumentation-openai
 opentelemetry-sdk
 respx
+pytest-asyncio
 pytest-vcr
 vcrpy>=6.0.1

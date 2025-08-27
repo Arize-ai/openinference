@@ -154,21 +154,27 @@ def test_handler_basic_retrieval(
             main()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    traces: DefaultDict[int, Dict[str, ReadableSpan]] = defaultdict(dict)
+    traces: DefaultDict[int, Dict[str, List[ReadableSpan]]] = defaultdict(lambda: defaultdict(list))
     for span in spans:
-        traces[span.context.trace_id][span.name] = span
+        traces[span.context.trace_id][span.name].append(span)
 
     assert len(traces) == n
     for spans_by_name in traces.values():
-        spans_by_id = _spans_by_id(spans_by_name.values())
+        spans_by_id = _spans_by_id(
+            [span for span_list in spans_by_name.values() for span in span_list]
+        )
         if is_stream and len(spans_by_name) == 1:
             # This is the span from the OpenAIInstrumentor. It's on a separate
             # trace because no span is open when the stream iteration starts.
             continue
         if is_async:
-            assert (query_span := spans_by_name.pop("BaseQueryEngine.aquery")) is not None
+            assert (
+                query_span := _pop_span(spans_by_name, "RetrieverQueryEngine.aquery")
+            ) is not None
         else:
-            assert (query_span := spans_by_name.pop("BaseQueryEngine.query")) is not None
+            assert (
+                query_span := _pop_span(spans_by_name, "RetrieverQueryEngine.query")
+            ) is not None
         assert query_span.parent is None
         query_attributes = dict(query_span.attributes or {})
         assert query_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == CHAIN.value
@@ -190,11 +196,11 @@ def test_handler_basic_retrieval(
 
         if is_async:
             assert (
-                _query_span := spans_by_name.pop("RetrieverQueryEngine._aquery", None)
+                _query_span := _pop_span(spans_by_name, "RetrieverQueryEngine._aquery")
             ) is not None
         else:
             assert (
-                _query_span := spans_by_name.pop("RetrieverQueryEngine._query", None)
+                _query_span := _pop_span(spans_by_name, "RetrieverQueryEngine._query")
             ) is not None
         assert _is_descendant(_query_span, query_span, spans_by_id)
 
@@ -203,9 +209,13 @@ def test_handler_basic_retrieval(
         assert query_attributes == {}  # all attributes should be accounted for
 
         if is_async:
-            assert (retrieve_span := spans_by_name.pop("BaseRetriever.aretrieve", None)) is not None
+            assert (
+                retrieve_span := _pop_span(spans_by_name, "SummaryIndexRetriever.aretrieve")
+            ) is not None
         else:
-            assert (retrieve_span := spans_by_name.pop("BaseRetriever.retrieve", None)) is not None
+            assert (
+                retrieve_span := _pop_span(spans_by_name, "SummaryIndexRetriever.retrieve")
+            ) is not None
         assert _is_descendant(retrieve_span, _query_span, spans_by_id)
         retrieve_attributes = dict(retrieve_span.attributes or {})
         assert retrieve_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == RETRIEVER.value
@@ -233,11 +243,11 @@ def test_handler_basic_retrieval(
 
         if is_async:
             assert (
-                synthesize_span := spans_by_name.pop("BaseSynthesizer.asynthesize", None)
+                synthesize_span := _pop_span(spans_by_name, "CompactAndRefine.asynthesize")
             ) is not None
         else:
             assert (
-                synthesize_span := spans_by_name.pop("BaseSynthesizer.synthesize", None)
+                synthesize_span := _pop_span(spans_by_name, "CompactAndRefine.synthesize")
             ) is not None
         assert _is_descendant(synthesize_span, _query_span, spans_by_id)
         synthesize_attributes = dict(synthesize_span.attributes or {})
@@ -260,28 +270,34 @@ def test_handler_basic_retrieval(
         assert synthesize_attributes == {}  # all attributes should be accounted for
 
         if is_async:
-            assert (_ := spans_by_name.pop("CompactAndRefine.aget_response", None)) is not None
-            assert (refine_span := spans_by_name.pop("Refine.aget_response", None)) is not None
+            assert (_pop_span(spans_by_name, "CompactAndRefine.aget_response")) is not None
+            assert (
+                refine_span := _pop_span(spans_by_name, "CompactAndRefine.aget_response")
+            ) is not None
         else:
-            assert (_ := spans_by_name.pop("CompactAndRefine.get_response", None)) is not None
-            assert (refine_span := spans_by_name.pop("Refine.get_response", None)) is not None
+            assert (_pop_span(spans_by_name, "CompactAndRefine.get_response")) is not None
+            assert (
+                refine_span := _pop_span(spans_by_name, "CompactAndRefine.get_response")
+            ) is not None
         assert _is_descendant(refine_span, synthesize_span, spans_by_id)
 
         if is_async:
             if is_stream:
-                assert (llm_span := spans_by_name.pop("LLM.astream", None)) is not None
+                assert (llm_span := _pop_span(spans_by_name, "OpenAI.astream")) is not None
             else:
-                assert (llm_span := spans_by_name.pop("LLM.apredict", None)) is not None
+                assert (llm_span := _pop_span(spans_by_name, "OpenAI.apredict")) is not None
         else:
             if is_stream:
-                assert (llm_span := spans_by_name.pop("LLM.stream", None)) is not None
+                assert (llm_span := _pop_span(spans_by_name, "OpenAI.stream")) is not None
             else:
-                assert (llm_span := spans_by_name.pop("LLM.predict", None)) is not None
+                assert (llm_span := _pop_span(spans_by_name, "OpenAI.predict")) is not None
         assert _is_descendant(llm_span, refine_span, spans_by_id)
         llm_attributes = dict(llm_span.attributes or {})
         assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert llm_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert llm_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert llm_attributes.pop(LLM_PROVIDER, None) == "openai"
+        assert llm_attributes.pop(LLM_SYSTEM, None) == "openai"
         assert llm_attributes.pop(LLM_PROMPT_TEMPLATE, None) is not None
         template_variables = json.loads(
             cast(str, llm_attributes.pop(f"{LLM_PROMPT_TEMPLATE_VARIABLES}", None))
@@ -305,19 +321,21 @@ def test_handler_basic_retrieval(
 
         if is_async:
             if is_stream:
-                assert (openai_span := spans_by_name.pop("OpenAI.astream_chat")) is not None
+                assert (openai_span := _pop_span(spans_by_name, "OpenAI.astream_chat")) is not None
             else:
-                assert (openai_span := spans_by_name.pop("OpenAI.achat")) is not None
+                assert (openai_span := _pop_span(spans_by_name, "OpenAI.achat")) is not None
         else:
             if is_stream:
-                assert (openai_span := spans_by_name.pop("OpenAI.stream_chat")) is not None
+                assert (openai_span := _pop_span(spans_by_name, "OpenAI.stream_chat")) is not None
             else:
-                assert (openai_span := spans_by_name.pop("OpenAI.chat")) is not None
+                assert (openai_span := _pop_span(spans_by_name, "OpenAI.chat")) is not None
         assert _is_descendant(openai_span, llm_span, spans_by_id)
         openai_attributes = dict(openai_span.attributes or {})
         assert openai_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
         assert openai_attributes.pop(LLM_MODEL_NAME, None) is not None
         assert openai_attributes.pop(LLM_INVOCATION_PARAMETERS, None) is not None
+        assert openai_attributes.pop(LLM_PROVIDER, None) == "openai"
+        assert openai_attributes.pop(LLM_SYSTEM, None) == "openai"
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", None) == "system"
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", None) is not None
         assert openai_attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}", None) == "user"
@@ -344,8 +362,9 @@ def test_handler_basic_retrieval(
             _check_context_attributes(openai_attributes, session_id, user_id, metadata, tags)
         assert openai_attributes == {}  # all attributes should be accounted for
 
-        for span in spans_by_name.values():
-            assert _is_descendant(span, query_span, spans_by_id)
+        for span_list in spans_by_name.values():
+            for span in span_list:
+                assert _is_descendant(span, query_span, spans_by_id)
     assert len(questions) == 0  # all questions should be accounted for
 
 
@@ -354,6 +373,19 @@ def _spans_by_id(spans: Iterable[ReadableSpan]) -> Dict[int, ReadableSpan]:
     for span in spans:
         spans_by_id[span.context.span_id] = span
     return spans_by_id
+
+
+def _pop_span(
+    spans_by_name: Dict[str, List[ReadableSpan]], span_name: str
+) -> Optional[ReadableSpan]:
+    """Pop the first span with the given name from spans_by_name."""
+    if span_name not in spans_by_name or not spans_by_name[span_name]:
+        return None
+    span = spans_by_name[span_name].pop(0)
+    # Clean up empty lists to maintain the same behavior as the original dict.pop()
+    if not spans_by_name[span_name]:
+        del spans_by_name[span_name]
+    return span
 
 
 def _is_descendant(
@@ -522,6 +554,8 @@ LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

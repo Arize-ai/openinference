@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.27...python-openinference-instrumentation-dspy-v0.1.28) (2025-08-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy DummyLM ([#2067](https://github.com/Arize-ai/openinference/issues/2067)) ([0b0349d](https://github.com/Arize-ai/openinference/commit/0b0349d14f227ac6b51fdf461c4e614e8b80582a))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.26...python-openinference-instrumentation-dspy-v0.1.27) (2025-07-30)
+
+
+### Bug Fixes
+
+* **instrumentation-dspy:** pin urllib3&lt;2.0 for pytest-recording compatibility ([#2007](https://github.com/Arize-ai/openinference/issues/2007)) ([51f5040](https://github.com/Arize-ai/openinference/commit/51f5040af8bef8f7407dde7451ea1f2fb6ca7950))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.25...python-openinference-instrumentation-dspy-v0.1.26) (2025-07-23)
+
+
+### Bug Fixes
+
+* **dspy:** mask api keys passed as arguments ([#1990](https://github.com/Arize-ai/openinference/issues/1990)) ([98218a1](https://github.com/Arize-ai/openinference/commit/98218a1bf710f860a93eb941194e2abcc2eec63f))
+
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.24...python-openinference-instrumentation-dspy-v0.1.25) (2025-06-09)
+
+
+### Features
+
+* Add model name and provider fields to DSPy for better model tracking/instrumentation [#1730](https://github.com/Arize-ai/openinference/issues/1730) ([#1730](https://github.com/Arize-ai/openinference/issues/1730)) ([3613f66](https://github.com/Arize-ai/openinference/commit/3613f66331d3529f9131c2b9432696a79a4b7b21))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.23...python-openinference-instrumentation-dspy-v0.1.24) (2025-05-30)
+
+
+### Features
+
+* **dspy:** Display Module.forward Output in JSON Format ([#1729](https://github.com/Arize-ai/openinference/issues/1729)) ([591a2d9](https://github.com/Arize-ai/openinference/commit/591a2d921d6fa09342059d71d43da46076ba8fad))
+
+
+### Bug Fixes
+
+* **dspy:** upstream max token default value change ([#1718](https://github.com/Arize-ai/openinference/issues/1718)) ([1654bc1](https://github.com/Arize-ai/openinference/commit/1654bc1e0734b0424f67d678ad1e5e4271a9942c))
+
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.22...python-openinference-instrumentation-dspy-v0.1.23) (2025-05-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy.Tool ([#1617](https://github.com/Arize-ai/openinference/issues/1617)) ([e1ee8ff](https://github.com/Arize-ai/openinference/commit/e1ee8ff86148a3fe0a8abf69bde675c8e0491cf5))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.21...python-openinference-instrumentation-dspy-v0.1.22) (2025-05-11)
 
 

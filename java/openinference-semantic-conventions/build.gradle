@@ -1,0 +1,10 @@
+description = 'OpenInference Semantic Conventions for Java'
+
+dependencies {
+    // OpenTelemetry API
+    api platform("io.opentelemetry:opentelemetry-bom:${openTelemetryVersion}")
+    api "io.opentelemetry:opentelemetry-api"
+    
+    // Jackson for JSON support
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+} 

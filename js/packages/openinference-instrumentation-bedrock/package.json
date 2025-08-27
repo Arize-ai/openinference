@@ -1,0 +1,68 @@
+{
+  "name": "@arizeai/openinference-instrumentation-bedrock",
+  "version": "0.4.0",
+  "description": "OpenInference instrumentation for AWS Bedrock",
+  "private": false,
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "esnext": "dist/esnext/index.js",
+  "types": "dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "scripts": {
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
+    "version:update": "../../scripts/version-update.js",
+    "type:check": "tsc --noEmit",
+    "test": "jest .",
+    "validate:invoke-model": "tsx scripts/validate-invoke-model.ts",
+    "validate:converse-comprehensive": "tsx scripts/validate-converse-comprehensive.ts",
+    "validate:converse-stream": "tsx scripts/validate-converse-stream.ts"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
+  },
+  "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/instrumentation": "^0.46.0"
+  },
+  "keywords": [
+    "aws",
+    "bedrock",
+    "instrumentation",
+    "opentelemetry",
+    "openinference",
+    "ai",
+    "llm"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "author": "oss-devs@arize.com",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.693.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-node": "^1.25.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
+    "@types/node": "^20.14.11",
+    "jest": "^29.7.0",
+    "nock": "^13.5.0",
+    "tsx": "^4.7.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  }
+}

@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from inspect import signature
+from secrets import token_hex
 from typing import (
     Any,
     Awaitable,
@@ -12,6 +13,7 @@ from typing import (
     OrderedDict,
     Tuple,
     Union,
+    cast,
 )
 
 from opentelemetry import context as context_api
@@ -32,6 +34,8 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+_AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -74,19 +78,49 @@ def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
 
 
+def _generate_node_id() -> str:
+    return token_hex(8)  # Generates 16 hex characters (8 bytes)
+
+
 def _agent_run_attributes(
     agent: Union[Agent, Team], key_suffix: str = ""
 ) -> Iterator[Tuple[str, AttributeValue]]:
+    # Get parent from execution context instead of structural parent
+    context_parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Existing agent-specific attributes
+    if agent.session_id:
+        yield SESSION_ID, agent.session_id
+
+    if agent.user_id:
+        yield USER_ID, agent.user_id
+
     if isinstance(agent, Team):
+        # Set graph attributes for team
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
+
+        # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
         for member in agent.members:
             yield from _agent_run_attributes(member, f".{member.name}")
+
     elif isinstance(agent, Agent):
+        # Set graph attributes for agent
+        if agent.name:
+            yield GRAPH_NODE_NAME, agent.name
+
+        # Use context parent instead of structural parent
+        if context_parent_id:
+            yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
+
+        # Set legacy agent attributes
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
-
-        if agent.session_id:
-            yield SESSION_ID, agent.session_id
 
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
@@ -102,14 +136,85 @@ def _agent_run_attributes(
                     tool_names.append(tool.__name__)
                 else:
                     tool_names.append(str(tool))
-            yield "agno{key_suffix}.tools", tool_names
+            yield f"agno{key_suffix}.tools", tool_names
+
+
+def _setup_team_context(agent: Union[Agent, Team], node_id: str) -> Optional[Any]:
+    if isinstance(agent, Team):
+        team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+        return context_api.attach(team_ctx)
+    return None
 
 
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
+    """
+    We need to keep track of parent/child relationships for agent logging. We do this by:
+    1. Each run() method generates a unique node_id and sets it directly as GRAPH_NODE_ID in span
+    attributes
+    2. Team.run() sets _AGNO_PARENT_NODE_CONTEXT_KEY for child agents
+    3. Agent.run() inherits _AGNO_PARENT_NODE_CONTEXT_KEY from team context for parent relationships
+    4. _agent_run_attributes() uses _AGNO_PARENT_NODE_CONTEXT_KEY to set GRAPH_NODE_PARENT_ID
+    5. This ensures correct parent-child relationships with unique node IDs for each execution
+    """
+
     def run(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        agent = instance
+        if hasattr(agent, "name") and agent.name:
+            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        else:
+            agent_name = "Agent"
+        span_name = f"{agent_name}.run"
+
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
+            try:
+                run_response = wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
+
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
+
+    def run_stream(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -126,12 +231,16 @@ class _RunWrapper:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -143,33 +252,22 @@ class _RunWrapper:
                 )
             ),
         ) as span:
-            try:
-                if "stream" in kwargs and kwargs["stream"] is True:
-                    yield from wrapped(*args, **kwargs)
-                    run_response = agent.run_response
-                else:
-                    response = wrapped(*args, **kwargs)
-                    for run_response in response:
-                        # We choose not to double-count tokens here
-                        # Because another instrumentor may be providing token counts
-                        # We might want to make this configurable in the future
+            team_token = _setup_team_context(agent, node_id)
 
-                        # input_tokens = run_response.metrics.get("input_tokens", [])
-                        # output_tokens = run_response.metrics.get("output_tokens", [])
-                        # total_tokens = run_response.metrics.get("total_tokens", [])
-                        # span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
-                        # span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
-                        # span.set_attribute(
-                        #     LLM_TOKEN_COUNT_TOTAL,
-                        #     total_tokens,
-                        # )
-                        span.set_status(trace_api.StatusCode.OK)
-                        span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                        yield run_response
+            try:
+                yield from wrapped(*args, **kwargs)
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
     async def arun(
         self,
@@ -179,19 +277,18 @@ class _RunWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            if "stream" in kwargs and kwargs["stream"] is True:
-                async for response in await wrapped(*args, **kwargs):
-                    yield response
-            else:
-                response = await wrapped(*args, **kwargs)
-                yield response
+            response = await wrapped(*args, **kwargs)
+            return response
 
         agent = instance
-        if hasattr(agent, "name"):
+        if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
             agent_name = "Agent"
         span_name = f"{agent_name}.run"
+
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
 
         with self._tracer.start_as_current_span(
             span_name,
@@ -199,6 +296,7 @@ class _RunWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
@@ -210,30 +308,77 @@ class _RunWrapper:
                 )
             ),
         ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
             try:
-                if "stream" in kwargs and kwargs["stream"] is True:
-                    span.set_status(trace_api.StatusCode.OK)
-                    async for response in await wrapped(*args, **kwargs):
-                        yield response
-                else:
-                    run_response = await wrapped(*args, **kwargs)
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_PROMPT, sum(run_response.metrics.get("input_tokens", []))
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_COMPLETION,
-                        sum(run_response.metrics.get("output_tokens", [])),
-                    )
-                    span.set_attribute(
-                        LLM_TOKEN_COUNT_TOTAL,
-                        sum(run_response.metrics.get("total_tokens", [])),
-                    )
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    yield run_response
+                run_response = await wrapped(*args, **kwargs)
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                return run_response
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
+
+    async def arun_stream(
+        self,
+        wrapped: Callable[..., Awaitable[Any]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            async for response in await wrapped(*args, **kwargs):
+                yield response
+
+        agent = instance
+        if hasattr(agent, "name") and agent.name:
+            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        else:
+            agent_name = "Agent"
+        span_name = f"{agent_name}.run"
+
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: AGENT,
+                        GRAPH_NODE_ID: node_id,
+                        INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
+                        **dict(_agent_run_attributes(agent)),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        ) as span:
+            team_token = _setup_team_context(agent, node_id)
+
+            try:
+                async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
+                    yield response
+                run_response = agent.run_response
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                raise
+
+            finally:
+                if team_token:
+                    context_api.detach(team_token)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -247,9 +392,17 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         if content:
             yield from process_message(i, role, content)
 
+    tools = arguments.get("tools", [])
+    for tool_index, tool in enumerate(tools):
+        yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
-def _llm_invocation_parameters(model: Model) -> Iterator[Tuple[str, Any]]:
+
+def _llm_invocation_parameters(
+    model: Model, arguments: Optional[Mapping[str, Any]] = None
+) -> Iterator[Tuple[str, Any]]:
     request_kwargs = {}
+    # TODO (v2.0.0): with the cleanup of the agno.models.base.Model class we will
+    # handle these attributes in a more consistent way.
     if getattr(model, "request_kwargs", None):
         request_kwargs = model.request_kwargs  # type: ignore[attr-defined]
     if getattr(model, "request_params", None):
@@ -257,10 +410,41 @@ def _llm_invocation_parameters(model: Model) -> Iterator[Tuple[str, Any]]:
     if getattr(model, "get_request_kwargs", None):
         request_kwargs = model.get_request_kwargs()  # type: ignore[attr-defined]
     if getattr(model, "get_request_params", None):
-        request_kwargs = model.get_request_params()  # type: ignore[attr-defined]
+        # Special handling for OpenAIResponses model
+        if model.__class__.__name__ == "OpenAIResponses" and arguments:
+            messages = arguments.get("messages", [])
+            request_kwargs = model.get_request_params(messages=messages)  # type: ignore[attr-defined]
+        else:
+            request_kwargs = model.get_request_params()  # type: ignore[attr-defined]
 
     if request_kwargs:
-        yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(request_kwargs)
+        filtered_kwargs = _filter_sensitive_params(request_kwargs)
+        yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(filtered_kwargs)
+
+
+def _filter_sensitive_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter out sensitive parameters from model request parameters."""
+    sensitive_keys = frozenset(
+        [
+            "api_key",
+            "api_base",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_access_key",
+            "aws_secret_key",
+            "azure_endpoint",
+            "azure_deployment",
+            "azure_ad_token",
+            "azure_ad_token_provider",
+        ]
+    )
+
+    return {
+        key: "[REDACTED]"
+        if any(sensitive_key in key.lower() for sensitive_key in sensitive_keys)
+        else value
+        for key, value in params.items()
+    }
 
 
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -307,7 +491,7 @@ class _ModelWrapper:
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
-                **dict(_llm_invocation_parameters(model)),
+                **dict(_llm_invocation_parameters(model, arguments)),
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
@@ -447,6 +631,13 @@ def _function_call_attributes(function_call: FunctionCall) -> Iterator[Tuple[str
     yield TOOL_PARAMETERS, safe_json_dumps(function_arguments)
 
 
+def _input_value_and_mime_type_for_tool_span(
+    arguments: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
+    yield INPUT_MIME_TYPE, JSON
+    yield INPUT_VALUE, safe_json_dumps(arguments)
+
+
 def _output_value_and_mime_type_for_tool_span(result: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_VALUE, str(result)
     yield OUTPUT_MIME_TYPE, TEXT
@@ -477,22 +668,31 @@ class _FunctionCallWrapper:
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
-                INPUT_VALUE: safe_json_dumps(function_arguments),
+                **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
             response = wrapped(*args, **kwargs)
-            function_result = function_call.result
 
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                dict(
-                    _output_value_and_mime_type_for_tool_span(
-                        result=function_result,
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
+                        )
                     )
                 )
-            )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attribute(OUTPUT_VALUE, function_error_message)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
     async def arun(
@@ -508,6 +708,7 @@ class _FunctionCallWrapper:
         function_call = instance
         function = function_call.function
         function_name = function.name
+        function_arguments = function_call.arguments
 
         span_name = f"{function_name}"
 
@@ -515,26 +716,31 @@ class _FunctionCallWrapper:
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
-                INPUT_VALUE: _get_input_value(
-                    wrapped,
-                    *args,
-                    **kwargs,
-                ),
+                **dict(_input_value_and_mime_type_for_tool_span(function_arguments)),
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
             response = await wrapped(*args, **kwargs)
-            function_result = function_call.result
 
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(
-                dict(
-                    _output_value_and_mime_type_for_tool_span(
-                        result=function_result,
+            if response.status == "success":
+                function_result = function_call.result
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(
+                    dict(
+                        _output_value_and_mime_type_for_tool_span(
+                            result=function_result,
+                        )
                     )
                 )
-            )
+            elif response.status == "failure":
+                function_error_message = function_call.error
+                span.set_status(trace_api.StatusCode.ERROR, function_error_message)
+                span.set_attribute(OUTPUT_VALUE, function_error_message)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            else:
+                span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+
         return response
 
 
@@ -542,6 +748,7 @@ class _FunctionCallWrapper:
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 SESSION_ID = SpanAttributes.SESSION_ID
+LLM_TOOLS = SpanAttributes.LLM_TOOLS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
@@ -551,13 +758,17 @@ LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
-LLM_TOOLS = SpanAttributes.LLM_TOOLS
+LLM_FUNCTION_CALL = SpanAttributes.LLM_FUNCTION_CALL
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
+USER_ID = SpanAttributes.USER_ID
+GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
+GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
+GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

@@ -9,7 +9,10 @@
         },
         "python/openinference-instrumentation": {
             "package-name": "python-openinference-instrumentation",
-            "release-type": "python"
+            "release-type": "python",
+            "exclude-paths": [
+                ".gitignore"
+            ]
         },
         "python/instrumentation/openinference-instrumentation-agno": {
             "package-name": "python-openinference-instrumentation-agno",
@@ -98,6 +101,66 @@
         "python/instrumentation/openinference-instrumentation-google-genai": {
             "package-name": "python-openinference-instrumentation-google-genai",
             "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-autogen-agentchat": {
+            "package-name": "python-openinference-instrumentation-autogen-agentchat",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-pydantic-ai": {
+            "package-name": "python-openinference-instrumentation-pydantic-ai",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-google-adk": {
+            "package-name": "python-openinference-instrumentation-google-adk",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-openllmetry": {
+            "package-name": "python-openinference-instrumentation-openllmetry",
+            "release-type": "python"
+        },
+        "java/openinference-semantic-conventions": {
+            "package-name": "java-openinference-semantic-conventions",
+            "release-type": "simple",
+            "version-file": "java/openinference-semantic-conventions/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/openinference-semantic-conventions/gradle.properties"
+                }
+            ]
+        },
+        "java/openinference-instrumentation": {
+            "package-name": "java-openinference-instrumentation",
+            "release-type": "simple",
+            "version-file": "java/openinference-instrumentation/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/openinference-instrumentation/gradle.properties"
+                }
+            ]
+        },
+        "java/instrumentation/openinference-instrumentation-langchain4j": {
+            "package-name": "java-openinference-instrumentation-langchain4j",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-langchain4j/gradle.properties"
+                }
+            ]
+        },
+        "java/instrumentation/openinference-instrumentation-springAI": {
+            "package-name": "java-openinference-instrumentation-springAI",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-springAI/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-springAI/gradle.properties"
+                }
+            ]
         }
     }
 }

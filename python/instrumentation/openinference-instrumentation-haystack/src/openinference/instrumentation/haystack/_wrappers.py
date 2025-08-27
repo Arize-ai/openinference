@@ -43,6 +43,16 @@ class _PipelineRunComponentWrapper:
     method invoked by `haystack.Pipeline._run_component`. We dynamically wrap
     the component `run` method if it is not already wrapped from within
     `haystack.Pipeline._run_component`.
+
+    This wrapper handles the static method signature of Pipeline._run_component:
+    @staticmethod
+    def _run_component(
+        component_name: str,
+        component: Dict[str, Any],
+        inputs: Dict[str, Any],
+        component_visits: Dict[str, int],
+        parent_span: Optional[tracing.Span] = None,
+    ) -> Dict[str, Any]:
     """
 
     def __init__(
@@ -223,7 +233,7 @@ def _get_component_by_name(pipeline: "Pipeline", component_name: str) -> Optiona
         component := node.get("instance")
     ) is None:
         return None
-    return component
+    return cast(Optional["Component"], component)
 
 
 def _get_component_class_name(component: "Component") -> str:
@@ -246,8 +256,7 @@ def _get_component_type(component: "Component") -> ComponentType:
     outputs. In the absence of typing information, we make a best-effort attempt
     to infer the component type.
     """
-
-    from haystack.components.builders import PromptBuilder
+    from haystack.components.builders.prompt_builder import PromptBuilder
 
     component_name = _get_component_class_name(component)
     if (run_method := _get_component_run_method(component)) is None:
@@ -300,7 +309,7 @@ def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a generator-like `run` method.
     """
-    from haystack.dataclasses import ChatMessage
+    from haystack.dataclasses.chat_message import ChatMessage
 
     if (output_types := _get_run_method_output_types(run_method)) is None or (
         replies := output_types.get("replies")
@@ -383,7 +392,7 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
     """
     Extracts input messages.
     """
-    from haystack.dataclasses import ChatMessage
+    from haystack.dataclasses.chat_message import ChatMessage
 
     if isinstance(messages := arguments.get("messages"), Sequence) and all(
         map(lambda x: isinstance(x, ChatMessage), messages)
@@ -404,7 +413,7 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
     """
     Extracts output messages.
     """
-    from haystack.dataclasses import ChatMessage
+    from haystack.dataclasses.chat_message import ChatMessage
 
     if not isinstance(replies := response.get("replies"), Sequence):
         return
@@ -441,7 +450,7 @@ def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str
     """
     Extracts LLM model attributes from response.
     """
-    from haystack.dataclasses import ChatMessage
+    from haystack.dataclasses.chat_message import ChatMessage
 
     if (
         isinstance(response_meta := response.get("meta"), Sequence)
@@ -462,7 +471,7 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
     """
     Extracts token counts from response.
     """
-    from haystack.dataclasses import ChatMessage
+    from haystack.dataclasses.chat_message import ChatMessage
 
     token_usage = None
     if (

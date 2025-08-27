@@ -10,8 +10,6 @@ rank_bm25
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-distro
-# Source of openinference-instrumentation-smolagents
--e ../
 
 
 # Both `opentelemetry-instrument` and main need .env variables. Run like this:

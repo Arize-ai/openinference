@@ -29,6 +29,8 @@ import {
   setSession,
 } from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
+import { tool } from "@langchain/core/tools";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -54,6 +56,8 @@ const {
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
   RETRIEVAL_DOCUMENTS,
+  LLM_TOOLS,
+  TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
 jest.mock("@langchain/openai", () => {
@@ -492,6 +496,42 @@ describe("LangChainInstrumentation", () => {
     expect(outputValue).toBeDefined();
   });
 
+  it("should capture tool json schema in llm spans for bound tools", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
+
+    const chatModel = new ChatOpenAI({
+      openAIApiKey: "my-api-key",
+      modelName: "gpt-4o-mini",
+      temperature: 1,
+    });
+
+    const multiply = tool(
+      ({ a, b }: { a: number; b: number }): number => {
+        return a * b;
+      },
+      {
+        name: "multiply",
+        description: "Multiply two numbers",
+      },
+    );
+
+    const modelWithTools = chatModel.bindTools([multiply]);
+    await modelWithTools.invoke("What is 2 * 3?");
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toBeDefined();
+
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes[`${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`]).toBe(
+      '{"type":"function","function":{"name":"multiply","description":"Multiply two numbers","parameters":{"type":"object","properties":{"input":{"type":"string"}},"required":["input"],"additionalProperties":false,"$schema":"http://json-schema.org/draft-07/schema#"}}}',
+    );
+  });
+
   it("should add tool information to tool spans", async () => {
     const simpleTool = new DynamicTool({
       name: "test_tool",
@@ -741,6 +781,167 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     expect(span.attributes["output.mime_type"]).toBe("application/json");
     // Output value is unstable, so we don't check it
     expect(span.attributes["session.id"]).toBe("session-id");
+  });
+});
+
+describe("LangChainInstrumentation with a custom tracer provider", () => {
+  describe("LangChainInstrumentation with custom TracerProvider passed in", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation({
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
+
+    beforeAll(() => {
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+
+      await chatModel.invoke("test message", {
+        metadata: {
+          conversation_id: "conv-789",
+        },
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    instrumentation.setTracerProvider(customTracerProvider);
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
+
+    beforeAll(() => {
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    registerInstrumentations({
+      instrumentations: [instrumentation],
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    // Mock the module exports like in other tests
+    // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+    instrumentation._modules[0].moduleExports = CallbackManager;
+
+    beforeAll(() => {
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+      jest.clearAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
   });
 });
 

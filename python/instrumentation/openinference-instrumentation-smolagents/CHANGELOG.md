@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.15...python-openinference-instrumentation-smolagents-v0.1.16) (2025-08-22)
+
+
+### Bug Fixes
+
+* **smolagents:** prevent duplicate llm spans ([#2118](https://github.com/Arize-ai/openinference/issues/2118)) ([f1a2946](https://github.com/Arize-ai/openinference/commit/f1a29460344d37e7e431d2bd76bc6f724bcbb931))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.14...python-openinference-instrumentation-smolagents-v0.1.15) (2025-08-19)
+
+
+### Bug Fixes
+
+* **smolagents:** use new token_usage structure ([#2087](https://github.com/Arize-ai/openinference/issues/2087)) ([c691712](https://github.com/Arize-ai/openinference/commit/c6917124a236eb6deff1e1faf214075662ebfc58))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.13...python-openinference-instrumentation-smolagents-v0.1.14) (2025-07-10)
+
+
+### Features
+
+* **smolagents:** Improve Display Of Handled Errors ([#1845](https://github.com/Arize-ai/openinference/issues/1845)) ([fb7eb1f](https://github.com/Arize-ai/openinference/commit/fb7eb1fa36adb7bb5ff001dce196c32ceb244a18))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.12...python-openinference-instrumentation-smolagents-v0.1.13) (2025-06-09)
+
+
+### Bug Fixes
+
+* **smolagents:** instrument both __call__ and generate methods for complete model tracing ([#1744](https://github.com/Arize-ai/openinference/issues/1744)) ([a963b96](https://github.com/Arize-ai/openinference/commit/a963b9619776abe79fb6719eeb9eda01850aeff5))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.11...python-openinference-instrumentation-smolagents-v0.1.12) (2025-05-28)
+
+
+### Bug Fixes
+
+* **smolagents:** include reasoning content ([#1697](https://github.com/Arize-ai/openinference/issues/1697)) ([0c8ea99](https://github.com/Arize-ai/openinference/commit/0c8ea99312874f605e1ab751e38dd13c8b0d4ea0))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.10...python-openinference-instrumentation-smolagents-v0.1.11) (2025-04-28)
 
 

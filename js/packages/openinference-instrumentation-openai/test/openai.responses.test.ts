@@ -5,10 +5,12 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
-import OpenAI from "openai";
+import OpenAI, { APIPromise } from "openai";
 import { Stream } from "openai/streaming";
-import { APIPromise } from "openai/core";
 import { Response as ResponseType } from "openai/resources/responses/responses";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
+import { vi } from "vitest";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -66,7 +68,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("creates a span for responses", async () => {
@@ -92,8 +94,9 @@ describe("OpenAIInstrumentation - Responses", () => {
       output_text: "This is a test.",
     } satisfies ResponseType;
     // Mock out the responses endpoint
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -161,8 +164,9 @@ describe("OpenAIInstrumentation - Responses", () => {
       output_text: "This is a test.",
     } satisfies ResponseType;
     // Mock out the responses endpoint
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
           resolve({
             response: new Response(),
@@ -225,7 +229,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -257,6 +261,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -310,7 +315,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("should capture tool calls with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -377,6 +382,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -456,7 +462,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("should capture tool calls, instructions, and multiple messages with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -523,6 +529,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         const controller = new AbortController();
         const stream = new Stream(iterator, controller);
         return new APIPromise(
+          new OpenAI({ apiKey: "fake-api-key" }),
           // @ts-expect-error the response type is not correct - this is just for testing
           Promise.resolve({
             response: new Response(),
@@ -605,6 +612,69 @@ describe("OpenAIInstrumentation - Responses", () => {
   "openinference.span.kind": "LLM",
   "output.mime_type": "application/json",
   "output.value": "{"id":"resp-890","object":"response","created":1705535755,"model":"gpt-4.1","output_text":null,"output":[{"id":"fc_1234","type":"function_call","status":"completed","arguments":"{\\"location\\":\\"boston\\"}","call_id":"call_abc123","name":"get_weather"}],"tools":[{"type":"function","description":null,"name":"get_weather","parameters":{"type":"object","properties":{"location":{"type":"string"}},"additionalProperties":false,"required":["location"]},"strict":true}],"usage":{"prompt_tokens":86,"completion_tokens":15,"total_tokens":101}}",
+}
+`);
+  });
+
+  it("should handle structured outputs", async () => {
+    const response = {
+      id: "resp-890",
+      object: "response",
+      created: 1705535755,
+      model: "gpt-4.1",
+      output: [
+        {
+          type: "message",
+          status: "completed",
+          content: [
+            {
+              type: "output_text",
+              text: '{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}',
+            },
+          ],
+        },
+      ],
+    };
+    vi.spyOn(openai, "post").mockImplementation(() => {
+      return new APIPromise(
+        new OpenAI({ apiKey: "fake-api-key" }),
+        new Promise((resolve) => {
+          resolve({
+            response: new Response(JSON.stringify(response)),
+            // @ts-expect-error the response type is not correct - this is just for testing
+            options: {},
+            controller: new AbortController(),
+          });
+        }),
+        () => response,
+      );
+    });
+    const CalendarEvent = z.object({
+      name: z.string(),
+      date: z.string(),
+      participants: z.array(z.string()),
+    });
+    const parsed = await openai.responses.parse({
+      input: [
+        { role: "system", content: "Extract the event information." },
+        {
+          role: "user",
+          content: "Alice and Bob are going to a science fair on Friday.",
+        },
+      ],
+      model: "gpt-4.1",
+      text: {
+        format: zodTextFormat(CalendarEvent, "event"),
+      },
+    });
+    expect(parsed.output_parsed).toMatchInlineSnapshot(`
+{
+  "date": "Friday",
+  "name": "science fair",
+  "participants": [
+    "Alice",
+    "Bob",
+  ],
 }
 `);
   });

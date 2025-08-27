@@ -16,6 +16,7 @@ llama-index-agent-openai = "0.2.7"
 openinference-semantic-conventions = "*"
 openinference-instrumentation-llama-index = "^2.0.0"
 opentelemetry-exporter-otlp = "^1.25.0"
+h11 = ">0.14.0"
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]

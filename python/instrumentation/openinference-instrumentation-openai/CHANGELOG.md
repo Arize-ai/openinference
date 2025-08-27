@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.30...python-openinference-instrumentation-openai-v0.1.31) (2025-08-18)
+
+
+### Features
+
+* openai + openai agent support custom tool calls ([#2080](https://github.com/Arize-ai/openinference/issues/2080)) ([ee8693c](https://github.com/Arize-ai/openinference/commit/ee8693c3325380440e4af4e0df708851c5598c30))
+
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.29...python-openinference-instrumentation-openai-v0.1.30) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents Follow Up ([#1733](https://github.com/Arize-ai/openinference/issues/1733)) ([ec1e855](https://github.com/Arize-ai/openinference/commit/ec1e8552b40c8a04ee2b3b92073e41e405b95293))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.28...python-openinference-instrumentation-openai-v0.1.29) (2025-05-30)
+
+
+### Bug Fixes
+
+* CI Failures For OpenAI & OpenAI Agents ([#1725](https://github.com/Arize-ai/openinference/issues/1725)) ([69576ca](https://github.com/Arize-ai/openinference/commit/69576cac4628f7d3b1b36558ad6cf8e4ae65b2d8))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.27...python-openinference-instrumentation-openai-v0.1.28) (2025-05-11)
 
 

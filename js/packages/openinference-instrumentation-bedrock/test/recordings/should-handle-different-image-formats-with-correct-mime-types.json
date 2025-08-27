@@ -1,0 +1,78 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Describe this JPEG image."
+            },
+            {
+              "image": {
+                "format": "jpeg",
+                "source": {
+                  "bytes": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+                }
+              }
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 3361
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.\n\nThe text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.\n\nAt the top of the"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 18,
+        "outputTokens": 100,
+        "totalTokens": 118
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 15:38:40 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "656",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "8cead2d7-3652-4513-a16b-4fcfbe7d625c"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "279",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "e8f99409-ee01-474f-8568-f18acc262e50",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "fc666a09e9d75ce8dfa6c72719ac5ad5a805d3eefbe81197dc84729084f3fb9a",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

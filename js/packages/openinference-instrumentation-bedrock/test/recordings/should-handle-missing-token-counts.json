@@ -1,0 +1,68 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 50,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Brief response please."
+            }
+          ],
+          "role": "user"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 4083
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "outputTokens": 50
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Fri, 18 Jul 2025 19:00:41 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "417",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "4c7379e3-021b-4a70-936f-b3f303b101b8"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "129",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "8bc5b4b8-f3c9-4067-beb2-efb30dfa8140",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "a19dc1dd9f806a91c74f53944a5b2a8a139830127f7185aba7ba801b580ea684",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

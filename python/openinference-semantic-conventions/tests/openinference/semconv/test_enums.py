@@ -8,47 +8,49 @@ from openinference.semconv.trace import (
 
 class TestOpenInferenceSpanKindValues:
     def test_values(self) -> None:
-        assert {e.name: e.value for e in OpenInferenceSpanKindValues} == {
-            "AGENT": "AGENT",
-            "CHAIN": "CHAIN",
-            "EMBEDDING": "EMBEDDING",
-            "EVALUATOR": "EVALUATOR",
-            "GUARDRAIL": "GUARDRAIL",
-            "LLM": "LLM",
-            "RERANKER": "RERANKER",
-            "RETRIEVER": "RETRIEVER",
-            "TOOL": "TOOL",
-            "UNKNOWN": "UNKNOWN",
+        assert {e: e.value for e in OpenInferenceSpanKindValues} == {
+            OpenInferenceSpanKindValues.AGENT: "AGENT",
+            OpenInferenceSpanKindValues.CHAIN: "CHAIN",
+            OpenInferenceSpanKindValues.EMBEDDING: "EMBEDDING",
+            OpenInferenceSpanKindValues.EVALUATOR: "EVALUATOR",
+            OpenInferenceSpanKindValues.GUARDRAIL: "GUARDRAIL",
+            OpenInferenceSpanKindValues.LLM: "LLM",
+            OpenInferenceSpanKindValues.RERANKER: "RERANKER",
+            OpenInferenceSpanKindValues.RETRIEVER: "RETRIEVER",
+            OpenInferenceSpanKindValues.TOOL: "TOOL",
+            OpenInferenceSpanKindValues.UNKNOWN: "UNKNOWN",
         }
 
 
 class TestOpenInferenceMimeTypeValues:
     def test_values(self) -> None:
-        assert {e.name: e.value for e in OpenInferenceMimeTypeValues} == {
-            "JSON": "application/json",
-            "TEXT": "text/plain",
+        assert {e: e.value for e in OpenInferenceMimeTypeValues} == {
+            OpenInferenceMimeTypeValues.JSON: "application/json",
+            OpenInferenceMimeTypeValues.TEXT: "text/plain",
         }
 
 
 class TestOpenInferenceLLMSystemValues:
     def test_values(self) -> None:
-        assert {e.name: e.value for e in OpenInferenceLLMSystemValues} == {
-            "ANTHROPIC": "anthropic",
-            "COHERE": "cohere",
-            "MISTRALAI": "mistralai",
-            "OPENAI": "openai",
-            "VERTEXAI": "vertexai",
+        assert {e: e.value for e in OpenInferenceLLMSystemValues} == {
+            OpenInferenceLLMSystemValues.ANTHROPIC: "anthropic",
+            OpenInferenceLLMSystemValues.COHERE: "cohere",
+            OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
+            OpenInferenceLLMSystemValues.OPENAI: "openai",
+            OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
         }
 
 
 class TestOpenInferenceLLMProviderValues:
     def test_values(self) -> None:
-        assert {e.name: e.value for e in OpenInferenceLLMProviderValues} == {
-            "ANTHROPIC": "anthropic",
-            "AWS": "aws",
-            "AZURE": "azure",
-            "COHERE": "cohere",
-            "GOOGLE": "google",
-            "MISTRALAI": "mistralai",
-            "OPENAI": "openai",
+        assert {e: e.value for e in OpenInferenceLLMProviderValues} == {
+            OpenInferenceLLMProviderValues.ANTHROPIC: "anthropic",
+            OpenInferenceLLMProviderValues.AWS: "aws",
+            OpenInferenceLLMProviderValues.AZURE: "azure",
+            OpenInferenceLLMProviderValues.COHERE: "cohere",
+            OpenInferenceLLMProviderValues.GOOGLE: "google",
+            OpenInferenceLLMProviderValues.MISTRALAI: "mistralai",
+            OpenInferenceLLMProviderValues.OPENAI: "openai",
+            OpenInferenceLLMProviderValues.XAI: "xai",
+            OpenInferenceLLMProviderValues.DEEPSEEK: "deepseek",
         }

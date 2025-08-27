@@ -1,0 +1,124 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "You are a helpful assistant that can check the
+      weather.", "role": "system"}, {"name": "user", "role": "user", "content": "What
+      is the weather in New York?"}], "model": "gpt-3.5-turbo", "stream": true, "tools":
+      [{"type": "function", "function": {"name": "get_weather", "description": "Get
+      the weather for a given city.", "parameters": {"type": "object", "properties":
+      {"city": {"description": "city", "title": "City", "type": "string"}}, "required":
+      ["city"], "additionalProperties": false}, "strict": false}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_5jThFlMZalovykfv1WkqJBOO","type":"function","function":{"name":"get_weather","arguments":""}}],"refusal":null},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\""}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"city"}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":\""}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"New"}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"
+        York"}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"}"}}]},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrwwZP0t3yrETFW4CXi0lvGJtjM","object":"chat.completion.chunk","created":1752681720,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}]}
+
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"content": "You are a helpful assistant that can check the
+      weather.", "role": "system"}, {"name": "user", "role": "user", "content": "What
+      is the weather in New York?"}, {"name": "weather_agent", "role": "assistant",
+      "tool_calls": [{"id": "call_5jThFlMZalovykfv1WkqJBOO", "function": {"arguments":
+      "{\"city\":\"New York\"}", "name": "get_weather"}, "type": "function"}]}, {"content":
+      "The weather in New York is 73 degrees and Sunny.", "role": "tool", "tool_call_id":
+      "call_5jThFlMZalovykfv1WkqJBOO"}], "model": "gpt-3.5-turbo", "stream": true}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"The"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        weather"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        in"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        New"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        York"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        is"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        currently"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        "},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"73"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        degrees"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        and"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"
+        sunny"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"content":"."},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-BtyrxBthDKl98tbkcbsSqUOEco12o","object":"chat.completion.chunk","created":1752681721,"model":"gpt-3.5-turbo-0125","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}
+
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

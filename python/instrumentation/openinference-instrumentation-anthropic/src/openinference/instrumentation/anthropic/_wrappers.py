@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
@@ -6,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
+from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (
@@ -16,7 +19,9 @@ from openinference.instrumentation.anthropic._with_span import _WithSpan
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -29,6 +34,7 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from anthropic.lib.streaming import MessageStreamManager
     from anthropic.types import Message, Usage
 
 
@@ -295,6 +301,61 @@ class _AsyncMessagesWrapper(_WithTracer):
                 return response
 
 
+class _MessagesStreamWrapper(_WithTracer):
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        arguments = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
+
+        with self._start_as_current_span(
+            span_name="MessagesStream",
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_model_name_from_input(arguments),
+                    _get_llm_provider(),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_llm_input_messages(llm_input_messages),
+                    _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
+                    _get_inputs(arguments),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
+                span.record_exception(exception)
+                raise
+
+            return _MessageStreamManager(response, span)
+
+
+class _MessageStreamManager(ObjectProxy):  # type: ignore
+    def __init__(
+        self,
+        manager: MessageStreamManager,
+        with_span: _WithSpan,
+    ) -> None:
+        super().__init__(manager)
+        self._self_with_span = with_span
+
+    def __enter__(self) -> Iterator[str]:
+        raw = self.__api_request()
+        return _MessagesStream(raw, self._self_with_span)
+
+
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_VALUE, safe_json_dumps(arguments)
     yield INPUT_MIME_TYPE, JSON
@@ -374,7 +435,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
             if isinstance(content, str):
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
-                for block in content:
+                for j, block in enumerate(content):
                     if isinstance(block, ToolUseBlock):
                         if tool_call_id := block.id:
                             yield (
@@ -424,6 +485,12 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                                 )
                         elif block_type == "text":
                             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.get("text")
+                        elif (block_type == "image") and (source := block.get("source")):
+                            image_data = f"data:{source.get('media_type')};{source.get('type')}"
+                            image_data = f"{image_data},{source.get('data')}"
+                            prefix = f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENTS}.{j}"
+                            yield f"{prefix}.{MESSAGE_CONTENT_TYPE}", "image"
+                            yield f"{prefix}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", image_data
 
         if role := messages[i].get("role"):
             yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
@@ -519,8 +586,11 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
 )
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
+IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE

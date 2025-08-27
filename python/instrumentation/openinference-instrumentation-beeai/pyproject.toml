@@ -7,9 +7,8 @@ name = "openinference-instrumentation-beeai"
 dynamic = ["version"]
 description = "OpenInference BeeAI Instrumentation"
 license = "Apache-2.0"
-authors = [
-    {name = "Milan Gallas",email = "gallas.milan@gmail.com"}
-]
+authors = [{ name = "IBM Corp." }]
+maintainers = [{name = "Tomas Dvorak", email = "toomas2d@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 classifiers = [
@@ -23,21 +22,23 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "openinference-semantic-conventions>=0.1.17",
-    "opentelemetry-api>=1.31.1",
-    "opentelemetry-instrumentation>=0.52b1",
-    "opentelemetry-semantic-conventions>=0.52b1",
-    "openinference-instrumentation>=0.1.27",
-    "wrapt>=1.17.2",
+    "beeai-framework (>=0.1.36,<0.2.0)",
+    "openinference-instrumentation>=0.1.37",
+    "openinference-semantic-conventions>=0.1.21",
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-instrumentation>=0.57b0",
+    "opentelemetry-semantic-conventions>=0.57b0",
+    "wrapt>=1.17.2"
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "beeai-framework >= 0.1.10",
+  "beeai-framework >= 0.1.36",
 ]
 test = [
-  "beeai-framework >= 0.1.19",
-  "opentelemetry-sdk"
+  "beeai-framework >= 0.1.36",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -69,7 +70,6 @@ testpaths = [
 [tool.mypy]
 strict = true
 explicit_package_bases = true
-mypy_path = "src"
 exclude = [
   "examples",
   "dist",
@@ -84,7 +84,7 @@ module = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py311"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
@@ -94,3 +94,10 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
+
+[tool.poetry]
+version = "0.1"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.12.2"
+

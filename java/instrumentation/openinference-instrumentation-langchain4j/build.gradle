@@ -1,0 +1,25 @@
+description = 'OpenInference Instrumentation for LangChain4j'
+
+dependencies {
+    api project(':openinference-instrumentation')
+    
+    // LangChain4j
+    compileOnly "dev.langchain4j:langchain4j-core:${langchain4jVersion}"
+    
+    // OpenTelemetry
+    api "io.opentelemetry:opentelemetry-api"
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api"
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:${openTelemetryInstrumentationAlphaVersion}"
+    
+    // Jackson for JSON handling
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    
+    // Auto-service for service provider
+    compileOnly "com.google.auto.service:auto-service:${autoServiceVersion}"
+    annotationProcessor "com.google.auto.service:auto-service:${autoServiceVersion}"
+    
+    // Test dependencies
+    testImplementation "dev.langchain4j:langchain4j-core:${langchain4jVersion}"
+    testImplementation "dev.langchain4j:langchain4j-open-ai:${langchain4jVersion}"
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
+} 

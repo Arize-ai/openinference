@@ -1,5 +1,50 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.4.2
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 3.4.1
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 3.4.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
+## 3.3.2
+
+### Patch Changes
+
+- Updated dependencies [34a4159]
+  - @arizeai/openinference-semantic-conventions@2.1.0
+  - @arizeai/openinference-core@1.0.4
+
+## 3.3.1
+
+### Patch Changes
+
+- Updated dependencies [c2ee804]
+- Updated dependencies [5f904bf]
+- Updated dependencies [5f90a80]
+  - @arizeai/openinference-semantic-conventions@2.0.0
+  - @arizeai/openinference-core@1.0.3
+
+## 3.3.0
+
+### Minor Changes
+
+- 2869d93: captures the json schema for function calls that are bound to llm calls as tools
+
 ## 3.2.0
 
 ### Minor Changes

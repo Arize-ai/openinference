@@ -4,8 +4,10 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Option
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.util.types import AttributeValue
 
+import openinference.instrumentation as oi
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -164,8 +166,23 @@ class _StepWrapper:
             step_log = args[0]  # ActionStep
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
             if step_log.error is not None:
-                span.record_exception(step_log.error)
-            span.set_status(trace_api.StatusCode.OK)
+                # Check expected errors
+                error_type = step_log.error.__class__.__name__
+                is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
+                if is_expected:
+                    # Add a neutral event for recoverable errors
+                    span.add_event(
+                        name="agent.step_recovery",
+                        attributes={**step_log.error.dict(), "severity": "expected"},
+                    )
+                    span.set_status(trace_api.StatusCode.OK)
+                else:
+                    # Record unexpected errors properly
+                    span.record_exception(step_log.error)
+                    span.set_status(trace_api.StatusCode.ERROR)
+            else:
+                # No error occurred
+                span.set_status(trace_api.StatusCode.OK)
         return result
 
 
@@ -187,35 +204,43 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                         yield from process_message(i, role, text)
 
 
-def _llm_output_messages(output_message: Any) -> Iterator[Tuple[str, Any]]:
+def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
+    oi_message: oi.Message = {}
+    oi_message_contents: list[oi.MessageContent] = []
     if (role := getattr(output_message, "role", None)) is not None:
-        yield (
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}",
-            role,
-        )
+        oi_message["role"] = role
     if (content := getattr(output_message, "content", None)) is not None:
-        yield (
-            f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}",
-            content,
-        )
+        oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
+
+    # Add the reasoning_content if available in raw.choices[0].message structure
+    if (raw := getattr(output_message, "raw", None)) is not None:
+        if (choices := getattr(raw, "choices", None)) is not None:
+            if isinstance(choices, list) and len(choices) > 0:
+                if (message := getattr(choices[0], "message", None)) is not None:
+                    if (
+                        reasoning_content := getattr(message, "reasoning_content", None)
+                    ) is not None:
+                        oi_message_contents.append(
+                            oi.TextMessageContent(type="text", text=reasoning_content)
+                        )
+
+    oi_message["contents"] = oi_message_contents
+    oi_tool_calls: list[oi.ToolCall] = []
     if isinstance(tool_calls := getattr(output_message, "tool_calls", None), list):
-        for tool_call_index, tool_call in enumerate(tool_calls):
+        for tool_call in tool_calls:
+            oi_tool_call: oi.ToolCall = {}
             if (tool_call_id := getattr(tool_call, "id", None)) is not None:
-                yield (
-                    f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
-                    tool_call_id,
-                )
+                oi_tool_call["id"] = tool_call_id
             if (function := getattr(tool_call, "function", None)) is not None:
+                oi_function: oi.ToolCallFunction = {}
                 if (name := getattr(function, "name", None)) is not None:
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
-                        name,
-                    )
-                if isinstance(arguments := getattr(function, "arguments", None), dict):
-                    yield (
-                        f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                        safe_json_dumps(arguments),
-                    )
+                    oi_function["name"] = name
+                if isinstance(arguments := getattr(function, "arguments", None), str):
+                    oi_function["arguments"] = arguments
+                oi_tool_call["function"] = oi_function
+                oi_tool_calls.append(oi_tool_call)
+    oi_message["tool_calls"] = oi_tool_calls
+    return oi.get_llm_output_message_attributes(messages=[oi_message])
 
 
 def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
@@ -271,8 +296,12 @@ class _ModelWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+
+        if _has_active_llm_parent_span():
+            return wrapped(*args, **kwargs)
+
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        span_name = f"{instance.__class__.__name__}.__call__"
+        span_name = f"{instance.__class__.__name__}.generate"
         model = instance
         with self._tracer.start_as_current_span(
             span_name,
@@ -286,13 +315,20 @@ class _ModelWrapper:
         ) as span:
             output_message = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, model.last_input_token_count)
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, model.last_output_token_count)
+            token_usage = getattr(output_message, "token_usage", None)
+            if token_usage:
+                input_tokens = token_usage.input_tokens
+                output_tokens = token_usage.output_tokens
+                total_tokens = token_usage.total_tokens
+            else:
+                input_tokens = model.last_input_token_count
+                output_tokens = model.last_output_token_count
+                total_tokens = input_tokens + output_tokens
+            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
+            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
+            span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
-            span.set_attribute(
-                LLM_TOKEN_COUNT_TOTAL, model.last_input_token_count + model.last_output_token_count
-            )
-            span.set_attributes(dict(_llm_output_messages(output_message)))
+            span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
         return output_message
@@ -354,6 +390,19 @@ def _output_value_and_mime_type_for_tool_span(
         yield OUTPUT_MIME_TYPE, JSON
 
     # TODO: handle other types
+
+
+def _has_active_llm_parent_span() -> bool:
+    """
+    Returns true if there is a currently actively LLM span.
+    """
+    current_span = trace_api.get_current_span()
+    return (
+        current_span.get_span_context().is_valid
+        and current_span.is_recording()
+        and isinstance(current_span, ReadableSpan)
+        and (current_span.attributes or {}).get(OPENINFERENCE_SPAN_KIND) == LLM
+    )
 
 
 # span attributes

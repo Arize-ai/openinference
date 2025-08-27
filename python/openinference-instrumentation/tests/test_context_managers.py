@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 import pytest
 from opentelemetry.context import (
@@ -7,8 +7,11 @@ from opentelemetry.context import (
     get_current,
     get_value,
 )
+from opentelemetry.trace import INVALID_SPAN_CONTEXT, SpanContext
 
 from openinference.instrumentation import (
+    TracerProvider,
+    capture_span_context,
     get_attributes_from_context,
     safe_json_dumps,
     suppress_tracing,
@@ -240,6 +243,28 @@ def test_safe_json_dumps_encodes_non_ascii_characters_without_escaping() -> None
         safe_json_dumps({"naïve façade café": "안녕하세요"})
         == '{"naïve façade café": "안녕하세요"}'
     )
+
+
+def test_capture_span_context() -> None:
+    tracer = TracerProvider().get_tracer("test_capture_span_context")
+    with capture_span_context() as capture:
+        assert capture.get_last_span_id() is None
+        assert capture.get_first_span_id() is None
+        assert capture.get_span_contexts() == []
+        span1 = tracer.start_span("span1")
+        assert capture.get_last_span_id() == f"{span1.get_span_context().span_id:016x}"
+        assert capture.get_first_span_id() == f"{span1.get_span_context().span_id:016x}"
+        assert capture.get_span_contexts() == [span1.get_span_context()]
+        span2 = tracer.start_span("span2")
+        assert span1.get_span_context() != span2.get_span_context()
+        assert capture.get_last_span_id() == f"{span2.get_span_context().span_id:016x}"
+        assert capture.get_first_span_id() == f"{span1.get_span_context().span_id:016x}"
+        assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
+        cast(list[SpanContext], capture.get_span_contexts()).append(INVALID_SPAN_CONTEXT)
+        assert capture.get_span_contexts() == [span1.get_span_context(), span2.get_span_context()]
+
+    assert capture.get_last_span_id() is None
+    assert capture.get_span_contexts() == []
 
 
 @pytest.fixture

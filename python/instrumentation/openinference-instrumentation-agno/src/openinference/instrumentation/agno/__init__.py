@@ -15,7 +15,7 @@ from openinference.instrumentation.agno._wrappers import (
 )
 from openinference.instrumentation.agno.version import __version__
 
-_instruments = ("agno >= 1.4.5",)
+_instruments = ("agno >= 1.5.2",)
 
 
 # Find all model classes in agno.models that inherit from BaseModel
@@ -53,15 +53,29 @@ def find_model_subclasses() -> List[Type[Any]]:
         # If agno.models can't be imported, return empty list
         pass
 
-    return list(model_subclasses)
+    # Sort the model subclasses by their method resolution order (MRO) length.
+    # This ensures that subclasses are listed before their superclasses and that the
+    # most specific classes come first. If a base class's method was wrapped before
+    # the method of a subclass that inherits it, the resolution for the subclass would
+    # find the already-wrapped base method (see wrap_function_wrapper execution flow).
+    # This would result in the wrapper being applied a second time, leading to incorrect
+    # behavior such as duplicated spans or metrics. By sorting from the most specific
+    # class to the most general, we ensure that any method is wrapped only once,
+    # starting at the level of the most-derived class in the hierarchy.
+    sorted_models = sorted(list(model_subclasses), key=lambda cls: len(cls.__mro__), reverse=True)
+    return sorted_models
 
 
 class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_run_method",
+        "_original_run_stream_method",
         "_original_arun_method",
+        "_original_arun_stream_method",
         "_original_team_run_method",
+        "_original_team_run_stream_method",
         "_original_team_arun_method",
+        "_original_team_arun_stream_method",
         "_original_function_execute_method",
         "_original_function_aexecute_method",
         "_original_model_call_methods",
@@ -94,28 +108,49 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             name="_run",
             wrapper=run_wrapper.run,
         )
-
-        # Register async wrapper
+        self._original_run_stream_method = getattr(Agent, "_run_stream", None)
+        wrap_function_wrapper(
+            module=Agent,
+            name="_run_stream",
+            wrapper=run_wrapper.run_stream,
+        )
         self._original_arun_method = getattr(Agent, "_arun", None)
         wrap_function_wrapper(
             module=Agent,
             name="_arun",
             wrapper=run_wrapper.arun,
         )
+        self._original_arun_stream_method = getattr(Agent, "_arun_stream", None)
+        wrap_function_wrapper(
+            module=Agent,
+            name="_arun_stream",
+            wrapper=run_wrapper.arun_stream,
+        )
 
+        # Register wrapper for team
         self._original_team_run_method = getattr(Team, "_run", None)
         wrap_function_wrapper(
             module=Team,
             name="_run",
             wrapper=run_wrapper.run,
         )
-
-        # Register async wrapper for team
+        self._original_team_run_stream_method = getattr(Team, "_run_stream", None)
+        wrap_function_wrapper(
+            module=Team,
+            name="_run_stream",
+            wrapper=run_wrapper.run_stream,
+        )
         self._original_team_arun_method = getattr(Team, "_arun", None)
         wrap_function_wrapper(
             module=Team,
             name="_arun",
             wrapper=run_wrapper.arun,
+        )
+        self._original_team_arun_stream_method = getattr(Team, "_arun_stream", None)
+        wrap_function_wrapper(
+            module=Team,
+            name="_arun_stream",
+            wrapper=run_wrapper.arun_stream,
         )
 
         self._original_model_call_methods: Optional[dict[type, dict[str, Callable[..., Any]]]] = {}

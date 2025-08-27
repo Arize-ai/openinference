@@ -29,6 +29,7 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response_function_web_search_param import ActionSearch
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
     FunctionCallOutput,
@@ -200,6 +201,10 @@ from openinference.instrumentation.openai_agents._processor import (
                     type="web_search_call",
                     id="web-123",
                     status="searching",
+                    action=ActionSearch(
+                        type="search",
+                        query="test query",
+                    ),
                 )
             ],
             {
@@ -1023,6 +1028,21 @@ def test_get_attributes_from_chat_completions_usage(
                 "output.mime_type": "application/json",
             },
             id="complex_json_data",
+        ),
+        pytest.param(
+            FunctionSpanData(
+                name="test_func",
+                input=json.dumps({"k": "v"}),
+                output="",
+                mcp_data=None,
+            ),
+            {
+                "tool.name": "test_func",
+                "input.value": '{"k": "v"}',
+                "input.mime_type": "application/json",
+                "output.value": "",
+            },
+            id="empty_string_output",
         ),
     ],
 )

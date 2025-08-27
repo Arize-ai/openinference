@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.49...python-openinference-instrumentation-langchain-v0.1.50) (2025-07-30)
+
+
+### Features
+
+* Instrument sssistant tool calls made by LangGraph  ([#2012](https://github.com/Arize-ai/openinference/issues/2012)) ([f0e5852](https://github.com/Arize-ai/openinference/commit/f0e585258aca591dbb4e97cc1a7503b56971cebc))
+
+## [0.1.49](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.48...python-openinference-instrumentation-langchain-v0.1.49) (2025-07-24)
+
+
+### Bug Fixes
+
+* tool call for anthropic bedrock invoke model ([#1995](https://github.com/Arize-ai/openinference/issues/1995)) ([c26ffe5](https://github.com/Arize-ai/openinference/commit/c26ffe57e696221cd82c32e262b4cc8fd32fbe8a))
+
+## [0.1.48](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.47...python-openinference-instrumentation-langchain-v0.1.48) (2025-07-23)
+
+
+### Features
+
+* unwrap input output keys from io values ([#1993](https://github.com/Arize-ai/openinference/issues/1993)) ([534c727](https://github.com/Arize-ai/openinference/commit/534c72764a72cfd995ecf3d0f70ecaafc7cf359a))
+
+## [0.1.47](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.46...python-openinference-instrumentation-langchain-v0.1.47) (2025-07-20)
+
+
+### Bug Fixes
+
+* **Langchain:** Handle custom data in additional kwargs ([#1898](https://github.com/Arize-ai/openinference/issues/1898)) ([c7f71e1](https://github.com/Arize-ai/openinference/commit/c7f71e19a128ff6054cd66120bb00b79d70e51ef))
+
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.45...python-openinference-instrumentation-langchain-v0.1.46) (2025-07-03)
+
+
+### Features
+
+* add span attributes `llm.provider` and `llm.system` to langchain instrumentation ([#1791](https://github.com/Arize-ai/openinference/issues/1791)) ([545f52d](https://github.com/Arize-ai/openinference/commit/545f52d25ce803410d92ba7f18da8bf2a8d87087))
+
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.44...python-openinference-instrumentation-langchain-v0.1.45) (2025-07-02)
+
+
+### Bug Fixes
+
+* small typo in str() call ([#1822](https://github.com/Arize-ai/openinference/issues/1822)) ([4a7385b](https://github.com/Arize-ai/openinference/commit/4a7385b968330e420c67a9a9066fc0f95b4109c5))
+
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.43...python-openinference-instrumentation-langchain-v0.1.44) (2025-07-01)
+
+
+### Bug Fixes
+
+* use `llm_output` and `metadata` for model name ([#1819](https://github.com/Arize-ai/openinference/issues/1819)) ([8cb7439](https://github.com/Arize-ai/openinference/commit/8cb7439daf45910f918468651624519de1c1b8de))
+
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.42...python-openinference-instrumentation-langchain-v0.1.43) (2025-05-20)
+
+
+### Features
+
+* **langchain:** track tool schemas from LLM invocation parameters ([#1643](https://github.com/Arize-ai/openinference/issues/1643)) ([65d3a82](https://github.com/Arize-ai/openinference/commit/65d3a8219a1a061a4fdea19b17760096b5aca76a))
+
 ## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.41...python-openinference-instrumentation-langchain-v0.1.42) (2025-04-28)
 
 

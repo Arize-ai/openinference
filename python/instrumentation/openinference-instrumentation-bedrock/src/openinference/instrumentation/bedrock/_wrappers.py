@@ -8,6 +8,8 @@ from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Status, StatusCode, Tracer
 
+from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+from openinference.instrumentation.bedrock._rag_wrappers import _RagEventStream
 from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
 from openinference.instrumentation.bedrock.utils.anthropic._messages import (
@@ -100,6 +102,40 @@ class _InvokeAgentWithResponseStream(_WithTracer):
                 )
                 return response
             except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
+
+
+class _RetrieveAndGenerateStream(_WithTracer):
+    _name = "bedrock_agent.retrieve_and_generate_stream"
+
+    @wrapt.decorator  # type: ignore[misc]
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        with self._tracer.start_as_current_span(
+            self._name,
+            end_on_exit=False,
+        ) as span:
+            try:
+                span.set_attributes(AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs))
+                response = wrapped(*args, **kwargs)
+                response["stream"] = _EventStream(
+                    response["stream"],
+                    _RagEventStream(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise e

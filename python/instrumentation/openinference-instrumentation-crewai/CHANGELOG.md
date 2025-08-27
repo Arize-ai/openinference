@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.10...python-openinference-instrumentation-crewai-v0.1.11) (2025-07-16)
+
+
+### Features
+
+* **crewai:** capture graph.node.id and graph.node.parent_id semantics ([#1794](https://github.com/Arize-ai/openinference/issues/1794)) ([4645932](https://github.com/Arize-ai/openinference/commit/4645932b68f7ed5ab3ecd8818ddad9e1011c027e))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.9...python-openinference-instrumentation-crewai-v0.1.10) (2025-05-27)
+
+
+### Bug Fixes
+
+* **crewai:** crewai default empty tasks ([#1682](https://github.com/Arize-ai/openinference/issues/1682)) ([4a47bfc](https://github.com/Arize-ai/openinference/commit/4a47bfc065b88b55bfcb7605abf66ef12a286ec9))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.8...python-openinference-instrumentation-crewai-v0.1.9) (2025-04-28)
 
 

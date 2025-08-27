@@ -15,7 +15,6 @@ import {
 import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
-  ReadWriteSpan,
   SpanFilter,
 } from "./types";
 import {
@@ -57,7 +56,13 @@ const getVercelFunctionNameFromOperationName = (
  */
 const getOISpanKindFromAttributes = (
   attributes: Attributes,
-): OpenInferenceSpanKind | undefined => {
+): OpenInferenceSpanKind | string | undefined => {
+  // If the span kind is already set, just use it
+  const existingOISpanKind =
+    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
+    return existingOISpanKind;
+  }
   const maybeOperationName = attributes["operation.name"];
   if (maybeOperationName == null || typeof maybeOperationName !== "string") {
     return;
@@ -242,10 +247,44 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 
   return messages.reduce((acc: Attributes, message, index) => {
     const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
-    if (isArrayOfObjects(message.content)) {
+    if (message.role === "tool") {
+      return {
+        ...acc,
+        ...message,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: message.role,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+          Array.isArray(message.content)
+            ? typeof message.content[0]?.toolCallId === "string"
+              ? message.content[0].toolCallId
+              : undefined
+            : typeof message.toolCallId === "string"
+              ? message.toolCallId
+              : undefined,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: Array.isArray(
+          message.content,
+        )
+          ? typeof message.content[0]?.toolName === "string"
+            ? message.content[0].toolName
+            : undefined
+          : typeof message.toolName === "string"
+            ? message.toolName
+            : undefined,
+        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
+          Array.isArray(message.content)
+            ? typeof message.content[0]?.result === "string"
+              ? message.content[0].result
+              : message.content[0]?.result
+                ? JSON.stringify(message.content[0].result)
+                : undefined
+            : typeof message.content === "string"
+              ? message.content
+              : undefined,
+      };
+    } else if (isArrayOfObjects(message.content)) {
       const messageAttributes = message.content.reduce(
         (acc: Attributes, content, contentIndex) => {
           const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+          const TOOL_CALL_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}`;
           return {
             ...acc,
             [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
@@ -254,6 +293,20 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               typeof content.text === "string" ? content.text : undefined,
             [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
               typeof content.image === "string" ? content.image : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+              typeof content.toolCallId === "string"
+                ? content.toolCallId
+                : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+              typeof content.toolName === "string"
+                ? content.toolName
+                : undefined,
+            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+              typeof content.args === "string"
+                ? content.args
+                : typeof content.args === "object"
+                  ? JSON.stringify(content.args)
+                  : undefined,
           };
         },
         {},
@@ -536,10 +589,13 @@ export const shouldExportSpan = ({
  * @param span - The span to add OpenInference attributes to.
  */
 export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
-  const attributes = { ...span.attributes };
-
-  (span as ReadWriteSpan).attributes = {
-    ...span.attributes,
-    ...safelyGetOpenInferenceAttributes(attributes),
+  const newAttributes = {
+    ...safelyGetOpenInferenceAttributes(span.attributes),
   };
+
+  // newer versions of opentelemetry will not allow you to reassign
+  // the attributes object, so you must edit it by keyname instead
+  Object.entries(newAttributes).forEach(([key, value]) => {
+    span.attributes[key] = value as AttributeValue;
+  });
 };
