@@ -959,7 +959,10 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
         isAssessmentBlocked({
           assessment,
           policyType: PolicyType.SENSITIVE_INFORMATION,
-          policyFilters: [PolicyFilterType.PII_ENTITIES, PolicyFilterType.REGEXES],
+          policyFilters: [
+            PolicyFilterType.PII_ENTITIES,
+            PolicyFilterType.REGEXES,
+          ],
         })
       ) {
         return true;
@@ -977,7 +980,10 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
         isAssessmentBlocked({
           assessment,
           policyType: PolicyType.WORD,
-          policyFilters: [PolicyFilterType.CUSTOM_WORDS, PolicyFilterType.MANAGED_WORD_LISTS],
+          policyFilters: [
+            PolicyFilterType.CUSTOM_WORDS,
+            PolicyFilterType.MANAGED_WORD_LISTS,
+          ],
         })
       ) {
         return true;
