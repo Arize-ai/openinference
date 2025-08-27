@@ -4,9 +4,9 @@ import sys
 
 
 def main() -> None:
-    assert (
-        num_arguments := len(sys.argv)
-    ) == 3, f"Script requires two arguments, but received {num_arguments}"
+    assert (num_arguments := len(sys.argv)) == 3, (
+        f"Script requires two arguments, but received {num_arguments}"
+    )
     diff_files = json.loads(sys.argv[1])
     tox_environments = json.loads(sys.argv[2])
 
