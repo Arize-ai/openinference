@@ -924,7 +924,8 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ("reasoning",),
         ),
     ]:
-        if (details := token_usage.get(details_key, token_usage)) is not None:
+        details = token_usage.get(details_key) if details_key else token_usage
+        if details is not None:
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
 
