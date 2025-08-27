@@ -164,38 +164,41 @@ export class SpanCreator {
       // We should expect that all chunks have the same event type
       const firstChunk = traceSpan.chunks[0];
       const traceEventType = getEventType(firstChunk);
-      if (traceEventType) {
-        const eventData =
-          getObjectDataFromUnknown({ data: firstChunk, key: traceEventType }) ??
-          {};
-        let kindAndName: { spanKind: OpenInferenceSpanKind; name: string };
+      const eventData = traceEventType 
+        ? getObjectDataFromUnknown({ data: firstChunk, key: traceEventType }) ?? {}
+        : {};
+      let kindAndName = {
+        spanKind: OpenInferenceSpanKind.LLM,
+        name: "UNKNOWN"
+      };
 
-        switch (traceEventType) {
-          case "guardrailTrace":
-            kindAndName = this.getSpanKindAndNameFromGuardrailEventData();
-            break;
-          case "failureTrace":
-            kindAndName = this.getSpanKindAndNameFromFailureEventData();
-            break;
-          case "orchestrationTrace":
-          case "preProcessingTrace":
-          case "postProcessingTrace":
-            kindAndName =
-              this.getSpanKindAndNameFromOrchestrationEventData(eventData);
-            break;
-          default:
-            // Fallback for unknown event types
-            kindAndName = {
-              spanKind: OpenInferenceSpanKind.CHAIN,
-              name: "Unknown",
-            };
-            break;
+      switch (traceEventType) {
+        case "guardrailTrace":
+          kindAndName = this.getSpanKindAndNameFromGuardrailEventData();
+          break;
+        case "failureTrace":
+          kindAndName = this.getSpanKindAndNameFromFailureEventData();
+          break;
+        case "orchestrationTrace":
+        case "preProcessingTrace":
+        case "postProcessingTrace":
+          kindAndName =
+            this.getSpanKindAndNameFromOrchestrationEventData(eventData);
+          break;
+        case undefined:
+          kindAndName = {
+            spanKind: OpenInferenceSpanKind.LLM,
+            name: "UNKNOWN"
+          };
+          break;
+        default: {
+          assertUnreachable(traceEventType);
         }
-
-        name = kindAndName?.name ?? "UNKNOWN";
-        attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
-          kindAndName.spanKind;
       }
+
+      name = kindAndName.name;
+      attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] =
+        kindAndName.spanKind;
 
       for (const traceData of traceSpan.chunks) {
         const traceEventType = getEventType(traceData);
