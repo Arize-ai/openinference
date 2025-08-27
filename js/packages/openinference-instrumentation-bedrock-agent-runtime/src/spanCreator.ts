@@ -164,12 +164,15 @@ export class SpanCreator {
       // We should expect that all chunks have the same event type
       const firstChunk = traceSpan.chunks[0];
       const traceEventType = getEventType(firstChunk);
-      const eventData = traceEventType 
-        ? getObjectDataFromUnknown({ data: firstChunk, key: traceEventType }) ?? {}
+      const eventData = traceEventType
+        ? (getObjectDataFromUnknown({
+            data: firstChunk,
+            key: traceEventType,
+          }) ?? {})
         : {};
       let kindAndName = {
         spanKind: OpenInferenceSpanKind.LLM,
-        name: "UNKNOWN"
+        name: "UNKNOWN",
       };
 
       switch (traceEventType) {
@@ -188,7 +191,7 @@ export class SpanCreator {
         case undefined:
           kindAndName = {
             spanKind: OpenInferenceSpanKind.LLM,
-            name: "UNKNOWN"
+            name: "UNKNOWN",
           };
           break;
         default: {
@@ -225,7 +228,9 @@ export class SpanCreator {
           if (!isArrayOfObjectWithStringKeys(metadata.intervening_guardrails)) {
             metadata.intervening_guardrails = [];
           }
-          if (!isArrayOfObjectWithStringKeys(metadata.non_intervening_guardrails)) {
+          if (
+            !isArrayOfObjectWithStringKeys(metadata.non_intervening_guardrails)
+          ) {
             metadata.non_intervening_guardrails = [];
           }
 

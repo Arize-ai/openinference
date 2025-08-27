@@ -115,4 +115,3 @@ export interface CodeInterpreterInvocationInput extends BaseInvocationInput {
 export interface KnowledgeBaseLookupInput extends BaseInvocationInput {
   invocationType: "KNOWLEDGE_BASE";
 }
-

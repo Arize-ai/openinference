@@ -9,4 +9,3 @@ export function isArrayOfObjectWithStringKeys(
 ): maybeArray is StringKeyedObject[] {
   return Array.isArray(maybeArray) && maybeArray.every(isObjectWithStringKeys);
 }
-

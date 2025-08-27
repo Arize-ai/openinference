@@ -944,19 +944,39 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
 
     for (const assessment of assessments) {
       // Check each of the assessment policy types to see if the guardrail is blocked
-      if (isAssessmentBlocked({assessment, policyType: "contentPolicy", policyFilters: ["filters"]})) {
-        return true;
-      }
       if (
-        isAssessmentBlocked({assessment, policyType: "sensitiveInformationPolicy", policyFilters: ["piiEntities", "regexes"]})
+        isAssessmentBlocked({
+          assessment,
+          policyType: "contentPolicy",
+          policyFilters: ["filters"],
+        })
       ) {
         return true;
       }
-      if (isAssessmentBlocked({assessment, policyType: "topicPolicy", policyFilters: ["topics"]})) {
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: "sensitiveInformationPolicy",
+          policyFilters: ["piiEntities", "regexes"],
+        })
+      ) {
         return true;
       }
       if (
-        isAssessmentBlocked({assessment, policyType: "wordPolicy", policyFilters: ["customWords", "managedWordLists"]})
+        isAssessmentBlocked({
+          assessment,
+          policyType: "topicPolicy",
+          policyFilters: ["topics"],
+        })
+      ) {
+        return true;
+      }
+      if (
+        isAssessmentBlocked({
+          assessment,
+          policyType: "wordPolicy",
+          policyFilters: ["customWords", "managedWordLists"],
+        })
       ) {
         return true;
       }
@@ -972,10 +992,14 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
  * @param policyFilters Array of filter types to check
  * @returns True if the assessment is blocked, false otherwise
  */
-function isAssessmentBlocked({assessment, policyType, policyFilters}: {
-  assessment: StringKeyedObject,
-  policyType: string,
-  policyFilters: string[],
+function isAssessmentBlocked({
+  assessment,
+  policyType,
+  policyFilters,
+}: {
+  assessment: StringKeyedObject;
+  policyType: string;
+  policyFilters: string[];
 }): boolean {
   const policy =
     getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
@@ -1081,5 +1105,3 @@ function getAttributesFromOutputMessage({
   }
   return null;
 }
-
-

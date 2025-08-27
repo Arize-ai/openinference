@@ -265,7 +265,8 @@ export class AgentTraceAggregator {
         eventType,
       });
       newNode.addChunk(traceData);
-    } else { // e.g. guardrailTrace
+    } else {
+      // e.g. guardrailTrace
       newNode = new AgentTraceNode({
         traceId: nodeTraceId,
         eventType,
@@ -353,10 +354,7 @@ export class AgentTraceAggregator {
       ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
       : {};
 
-    if (
-      agentChildId &&
-      chunkObj.agentCollaboratorInvocationOutput
-    ) {
+    if (agentChildId && chunkObj.agentCollaboratorInvocationOutput) {
       while (
         this.traceStack.head &&
         this.traceStack.head.nodeTraceId !== agentChildId
