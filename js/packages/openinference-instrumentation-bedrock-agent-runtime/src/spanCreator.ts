@@ -3,7 +3,6 @@ import {
   getAttributesFromModelInvocationOutput,
   getAttributesFromInvocationInput,
   getAttributesFromObservation,
-  getAttributesFromRationale,
   getFailureTraceAttributes,
   getGuardrailTraceMetadata,
   getMetadataAttributes,
@@ -541,12 +540,12 @@ export class SpanCreator {
    * @returns Rationale attributes.
    */
   private processRationale(eventData: StringKeyedObject): Attributes {
-    const rationale = getObjectDataFromUnknown({
+    const rationaleText = getObjectDataFromUnknown({
       data: eventData,
       key: "rationale",
     });
-    if (!rationale) return {};
-    return getAttributesFromRationale(rationale);
+    if (!rationaleText) return {};
+    return getOutputAttributes(rationaleText);
   }
 
   /**

@@ -1021,21 +1021,6 @@ function isAssessmentBlocked({
 }
 
 /**
- * Extract attributes from rationale data.
- * @param rationale The rationale object containing text data.
- * @returns Rationale attributes.
- */
-export function getAttributesFromRationale(
-  rationale: StringKeyedObject,
-): Attributes {
-  const rationaleText = getStringAttributeValueFromUnknown(rationale.text);
-  if (rationaleText) {
-    return getOutputAttributes(rationaleText);
-  }
-  return {};
-}
-
-/**
  * Extract metadata attributes from an observation event.
  * @param observation The observation object containing event data.
  * @returns Extracted metadata attributes or an empty object.
