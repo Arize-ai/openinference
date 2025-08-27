@@ -6,18 +6,23 @@ The OpenInference Specification defines a set of environment variables you can c
 
 The possible settings are:
 
-| Environment Variable Name             | Effect                                                       | Type | Default |
-|---------------------------------------|--------------------------------------------------------------|------|---------|
-| OPENINFERENCE_HIDE_INPUTS             | Hides input value, all input messages & embedding input text | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUTS            | Hides output value & all output messages                     | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_MESSAGES     | Hides all input messages & embedding input text              | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUT_MESSAGES    | Hides all output messages                                    | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_IMAGES       | Hides images from input messages                             | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_TEXT         | Hides text from input messages & input embeddings            | bool | False   |
-| OPENINFERENCE_HIDE_PROMPTS            | Hides LLM prompts                                            | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUT_TEXT        | Hides text from output messages                              | bool | False   |
-| OPENINFERENCE_HIDE_EMBEDDING_VECTORS  | Hides returned embedding vectors                             | bool | False   |
-| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH | Limits characters of a base64 encoding of an image           | int  | 32,000  |
+| Environment Variable Name                    | Effect                                                                                                                         | Type | Default |
+|----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------|---------|
+| OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS | Hides LLM invocation parameters (independent of input/output hiding)                                                           | bool | False   |
+| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value and all input messages (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true)      | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
+| OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts                                                                                                              | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Hides embedding vectors                                                                                                        | bool | False   |
+| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
+
+## Redacted Content
+
+When content is hidden due to privacy configuration settings, the value `"__REDACTED__"` is used as a placeholder. This constant value allows consumers of the trace data to identify that content was intentionally hidden rather than missing or empty.
 
 ## Usage
 
@@ -35,7 +40,8 @@ To set up this configuration you can either:
 If you are working in Python, and want to set up a configuration different than the default you can define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below demonstrates using the OpenAIInstrumentator)
 ```python
     from openinference.instrumentation import TraceConfig
-    config = TraceConfig(        
+    config = TraceConfig(
+        hide_llm_invocation_parameters=...,
         hide_inputs=...,
         hide_outputs=...,
         hide_input_messages=...,
@@ -66,7 +72,7 @@ import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-op
  * Everything left out of here will fallback to
  * environment variables then defaults
  */
-const traceConfig = { hideInputs: true } 
+const traceConfig = { hideInputs: true }
 
 const instrumentation = new OpenAIInstrumentation({ traceConfig })
 ```
