@@ -26,3 +26,23 @@ export const CHUNK_TYPES = [
 ] as const;
 
 export type ChunkType = (typeof CHUNK_TYPES)[number];
+
+export const PolicyFilterType = {
+  FILTERS: "filters",
+  PII_ENTITIES: "piiEntities",
+  REGEXES: "regexes",
+  TOPICS: "topics",
+  CUSTOM_WORDS: "customWords",
+  MANAGED_WORD_LISTS: "managedWordLists",
+} as const;
+
+export type PolicyFilterType = (typeof PolicyFilterType)[keyof typeof PolicyFilterType];
+
+export const PolicyType = {
+  CONTENT: "contentPolicy",
+  SENSITIVE_INFORMATION: "sensitiveInformationPolicy",
+  TOPIC: "topicPolicy",
+  WORD: "wordPolicy",
+} as const;
+
+export type PolicyType = (typeof PolicyType)[keyof typeof PolicyType];

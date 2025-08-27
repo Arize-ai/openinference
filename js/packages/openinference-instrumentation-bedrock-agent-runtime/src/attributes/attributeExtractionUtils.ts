@@ -22,6 +22,8 @@ import {
 import {
   CHUNK_TYPES,
   ChunkType,
+  PolicyFilterType,
+  PolicyType,
   TRACE_EVENT_TYPES,
   TraceEventType,
 } from "./constants";
@@ -947,8 +949,8 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
       if (
         isAssessmentBlocked({
           assessment,
-          policyType: "contentPolicy",
-          policyFilters: ["filters"],
+          policyType: PolicyType.CONTENT,
+          policyFilters: [PolicyFilterType.FILTERS],
         })
       ) {
         return true;
@@ -956,8 +958,8 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
       if (
         isAssessmentBlocked({
           assessment,
-          policyType: "sensitiveInformationPolicy",
-          policyFilters: ["piiEntities", "regexes"],
+          policyType: PolicyType.SENSITIVE_INFORMATION,
+          policyFilters: [PolicyFilterType.PII_ENTITIES, PolicyFilterType.REGEXES],
         })
       ) {
         return true;
@@ -965,8 +967,8 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
       if (
         isAssessmentBlocked({
           assessment,
-          policyType: "topicPolicy",
-          policyFilters: ["topics"],
+          policyType: PolicyType.TOPIC,
+          policyFilters: [PolicyFilterType.TOPICS],
         })
       ) {
         return true;
@@ -974,8 +976,8 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
       if (
         isAssessmentBlocked({
           assessment,
-          policyType: "wordPolicy",
-          policyFilters: ["customWords", "managedWordLists"],
+          policyType: PolicyType.WORD,
+          policyFilters: [PolicyFilterType.CUSTOM_WORDS, PolicyFilterType.MANAGED_WORD_LISTS],
         })
       ) {
         return true;
