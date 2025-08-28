@@ -57,10 +57,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_step_methods: Optional[dict[type, Optional[Callable[..., Any]]]] = {}
         step_wrapper = _StepWrapper(tracer=self._tracer)
         for step_cls in [CodeAgent, ToolCallingAgent]:
-            self._original_step_methods[step_cls] = getattr(step_cls, "step", None)
+            self._original_step_methods[step_cls] = getattr(step_cls, "_step_stream", None)
             wrap_function_wrapper(
                 module="smolagents",
-                name=f"{step_cls.__name__}.step",
+                name=f"{step_cls.__name__}._step_stream",
                 wrapper=step_wrapper,
             )
 
@@ -101,7 +101,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_step_methods is not None:
             for step_cls, original_step_method in self._original_step_methods.items():
-                setattr(step_cls, "step", original_step_method)
+                setattr(step_cls, "_step_stream", original_step_method)
             self._original_step_methods = None
 
         if self._original_model_generate_methods is not None:

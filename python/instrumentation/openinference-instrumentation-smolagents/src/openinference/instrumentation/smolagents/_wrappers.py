@@ -150,8 +150,11 @@ class _StepWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            yield from wrapped(*args, **kwargs)
+            return
+
         agent = instance
         span_name = f"Step {agent.step_number}"
         with self._tracer.start_as_current_span(
@@ -162,7 +165,13 @@ class _StepWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            result = wrapped(*args, **kwargs)
+            try:
+                yield from wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(trace_api.StatusCode.ERROR)
+                raise
+
             step_log = args[0]  # ActionStep
             span.set_attribute(OUTPUT_VALUE, step_log.observations)
             if step_log.error is not None:
@@ -183,7 +192,6 @@ class _StepWrapper:
             else:
                 # No error occurred
                 span.set_status(trace_api.StatusCode.OK)
-        return result
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
