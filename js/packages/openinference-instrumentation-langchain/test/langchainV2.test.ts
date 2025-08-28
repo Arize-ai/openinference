@@ -61,6 +61,7 @@ vi.mock("@langchain/openaiV0.2", async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const originalModule = (await vi.importActual(
     "@langchain/openaiV0.2",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   )) as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
