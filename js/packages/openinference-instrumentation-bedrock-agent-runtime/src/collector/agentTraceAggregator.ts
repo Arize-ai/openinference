@@ -191,6 +191,7 @@ export class AgentTraceAggregator {
     // Node exists elsewhere in tree
     else if (this.seenIds.has(nodeTraceId)) {
       this.processTraceByExistingId({
+        nodeTraceId,
         agentChildId,
         eventType,
         chunkType,
@@ -254,7 +255,11 @@ export class AgentTraceAggregator {
       : {};
 
     let newNode: AgentTraceNode;
-    if (chunkObj && (chunkObj.agentCollaboratorInvocationInput || chunkObj.agentCollaboratorInvocationOutput)) {
+    if (
+      chunkObj &&
+      (chunkObj.agentCollaboratorInvocationInput ||
+        chunkObj.agentCollaboratorInvocationOutput)
+    ) {
       newNode = new AgentTraceNode({
         traceId: nodeTraceId,
         eventType: "agent-collaborator",
@@ -313,7 +318,11 @@ export class AgentTraceAggregator {
     const chunkObj = chunkType
       ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
       : {};
-    if (agentChildId && (chunkObj.agentCollaboratorInvocationInput || chunkObj.agentCollaboratorInvocationOutput)) {
+    if (
+      agentChildId &&
+      (chunkObj.agentCollaboratorInvocationInput ||
+        chunkObj.agentCollaboratorInvocationOutput)
+    ) {
       this.createAndAttachChildNode(
         parent,
         agentChildId,
@@ -339,11 +348,13 @@ export class AgentTraceAggregator {
    * @param params.traceData {StringKeyedObject} - The trace data to process
    */
   private processTraceByExistingId({
+    nodeTraceId,
     agentChildId,
     eventType,
     chunkType,
     traceData,
   }: {
+    nodeTraceId: string;
     agentChildId: string | null;
     eventType: string;
     chunkType: ChunkType | undefined;
@@ -355,7 +366,7 @@ export class AgentTraceAggregator {
       ? (getObjectDataFromUnknown({ data: eventObj, key: chunkType }) ?? {})
       : {};
 
-    if ((agentChildId && chunkObj.agentCollaboratorInvocationOutput) || Object.keys(chunkObj).length === 0) {
+    if (agentChildId && chunkObj.agentCollaboratorInvocationOutput) {
       while (
         this.traceStack.head &&
         this.traceStack.head.nodeTraceId !== agentChildId
@@ -364,9 +375,9 @@ export class AgentTraceAggregator {
       }
       (this.traceStack.head ?? this.rootNode).addChunk(traceData);
     } else {
-      if (this.traceStack.head) {
+      if (this.nodesById[nodeTraceId]) {
         this.appendChunkToCurrentNodeOrStartNewSpan({
-          node: this.traceStack.head,
+          node: this.nodesById[nodeTraceId],
           chunkType,
           traceData,
         });

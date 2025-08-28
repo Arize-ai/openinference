@@ -95,19 +95,8 @@ export interface DocumentReference {
   [key: string]: unknown;
 }
 
-export interface BaseInvocationInput {
-  invocationType: string;
-  [key: string]: string | unknown;
-}
-
-export interface ActionGroupInvocationInput extends BaseInvocationInput {
-  invocationType: "ACTION_GROUP";
-}
-
-export interface CodeInterpreterInvocationInput extends BaseInvocationInput {
-  invocationType: "ACTION_GROUP_CODE_INTERPRETER";
-}
-
-export interface KnowledgeBaseLookupInput extends BaseInvocationInput {
-  invocationType: "KNOWLEDGE_BASE";
-}
+export type InvocationType =
+  | "AGENT_COLLABORATOR"
+  | "ACTION_GROUP"
+  | "ACTION_GROUP_CODE_INTERPRETER"
+  | "KNOWLEDGE_BASE";

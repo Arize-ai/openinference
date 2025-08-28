@@ -7,14 +7,17 @@ import {
   getLLMOutputMessageAttributes,
   getDocumentAttributes,
 } from "./attributeUtils";
-import { LLMProvider } from "@arizeai/openinference-semantic-conventions";
+import {
+  LLMProvider,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
 import {
   fixLooseJsonString,
   getObjectDataFromUnknown,
   parseSanitizedJson,
 } from "../utils/jsonUtils";
-import { GuardrailTraceMetadata, StringKeyedObject } from "../types";
+import { StringKeyedObject } from "../types";
 import {
   isObjectWithStringKeys,
   safelyJSONParse,
@@ -265,20 +268,20 @@ export function getMetadataAttributes(
     ? traceMetadata.clientRequestId
     : getStringAttributeValueFromUnknown(traceMetadata.clientRequestId);
   if (clientRequestId != null) {
-    metadata["client_request_id"] = clientRequestId;
+    metadata["clientRequestId"] = clientRequestId;
   }
 
   if (traceMetadata?.operationTotalTimeMs) {
-    metadata["operation_total_time_ms"] = traceMetadata.operationTotalTimeMs;
+    metadata["operationTotalTimeMs"] = traceMetadata.operationTotalTimeMs;
   }
   if (traceMetadata?.totalTimeMs) {
-    metadata["total_time_ms"] = traceMetadata.totalTimeMs;
+    metadata["totalTimeMs"] = traceMetadata.totalTimeMs;
   }
   if (traceMetadata?.startTime) {
-    metadata["start_time"] = getTimeAttributeValue(traceMetadata.startTime);
+    metadata["startTime"] = getTimeAttributeValue(traceMetadata.startTime);
   }
   if (traceMetadata?.endTime) {
-    metadata["end_time"] = getTimeAttributeValue(traceMetadata.endTime);
+    metadata["endTime"] = getTimeAttributeValue(traceMetadata.endTime);
   }
   return metadata;
 }
@@ -411,38 +414,66 @@ function getModelName(
  * @returns Output value as a string, or undefined if not found.
  */
 function getOutputValue(outputParams: StringKeyedObject): string | undefined {
-  const rawResponse = outputParams.rawResponse;
-  if (isObjectWithStringKeys(rawResponse) && rawResponse.content != null) {
-    const stringContent = getStringAttributeValueFromUnknown(
-      rawResponse.content,
-    );
-    if (stringContent) {
-      const content = safelyJSONParse(stringContent);
-      if (isObjectWithStringKeys(content)) {
-        const output = getObjectDataFromUnknown({
-          data: content,
-          key: "output",
-        });
-        return safelyJSONStringify(output) ?? undefined;
-      }
-    }
+  const valueFromRawResponse = getValueFromRawResponse(outputParams);
+  if (valueFromRawResponse) {
+    return valueFromRawResponse;
   }
 
-  const parsedResponse = outputParams?.parsedResponse;
-
-  if (isObjectWithStringKeys(parsedResponse)) {
-    const maybeText = getStringAttributeValueFromUnknown(parsedResponse.text);
-    if (maybeText) {
-      return maybeText;
-    }
-    const maybeRationale = getStringAttributeValueFromUnknown(
-      parsedResponse.rationale,
-    );
-    if (maybeRationale) {
-      return maybeRationale;
-    }
+  const valueFromParsedResponse = getValueFromParsedResponse(outputParams);
+  if (valueFromParsedResponse) {
+    return valueFromParsedResponse;
   }
+
   return undefined;
+}
+
+function getValueFromRawResponse(
+  outputParams: StringKeyedObject,
+): string | undefined {
+  const rawResponse = outputParams.rawResponse;
+  if (!isObjectWithStringKeys(rawResponse) || rawResponse.content == null) {
+    return undefined;
+  }
+
+  const stringContent = getStringAttributeValueFromUnknown(rawResponse.content);
+  if (!stringContent) {
+    return undefined;
+  }
+
+  const content = safelyJSONParse(stringContent);
+  if (!isObjectWithStringKeys(content)) {
+    return stringContent;
+  }
+
+  const output = getObjectDataFromUnknown({ data: content, key: "output" });
+  if (!output) {
+    return stringContent;
+  }
+
+  const message = getObjectDataFromUnknown({ data: output, key: "message" });
+  if (!message) {
+    return stringContent;
+  }
+
+  const messageContent =
+    Array.isArray(message.content) && message.content.length > 0
+      ? message.content[0]
+      : message.content;
+  return typeof messageContent?.text === "string"
+    ? messageContent.text
+    : undefined;
+}
+
+function getValueFromParsedResponse(
+  outputParams: StringKeyedObject,
+): string | undefined {
+  const parsedResponse = outputParams?.parsedResponse;
+  if (!isObjectWithStringKeys(parsedResponse)) {
+    return undefined;
+  }
+
+  const text = getStringAttributeValueFromUnknown(parsedResponse.text);
+  return text || undefined;
 }
 
 /**
@@ -469,6 +500,12 @@ function getOutputMessages(
     if (!isObjectWithStringKeys(parsedContent)) {
       messages.push({ content: outputContent, role: "assistant" });
       return messages;
+    } else {
+      const stringifiedContent =
+        getStringAttributeValueFromUnknown(outputContent);
+      if (stringifiedContent) {
+        messages.push({ content: stringifiedContent, role: "assistant" });
+      }
     }
   }
 
@@ -687,7 +724,8 @@ function getAttributesFromActionGroupInvocationInput(
   return {
     ...getLLMInputMessageAttributes(messages),
     ...toolAttributes,
-    metadata: safelyJSONStringify(llmInvocationParameters) ?? undefined,
+    [SemanticConventions.TOOL_PARAMETERS]:
+      safelyJSONStringify(llmInvocationParameters) ?? undefined,
   };
 }
 
@@ -827,6 +865,7 @@ export function getAttributesFromObservation(
       maybeAgentCollaboratorInvocationOutput,
     );
   }
+
   return {};
 }
 
@@ -906,43 +945,33 @@ export function getFailureTraceAttributes(
 }
 
 /**
- * Extract attributes from guardrail trace data.
- * @param guardrailTrace Guardrail trace data object.
- * @returns Guardrail trace attributes.
- */
-export function getGuardrailTraceMetadata(
-  guardrailTrace: StringKeyedObject,
-): GuardrailTraceMetadata {
-  const guardrailTraceData: GuardrailTraceMetadata = {};
-
-  const action = getStringAttributeValueFromUnknown(guardrailTrace.action);
-  if (action) {
-    guardrailTraceData.action = action;
-  }
-
-  if (
-    "inputAssessments" in guardrailTrace &&
-    isArrayOfObjectWithStringKeys(guardrailTrace["inputAssessments"])
-  ) {
-    guardrailTraceData.inputAssessments = guardrailTrace.inputAssessments;
-  }
-
-  if (
-    "outputAssessments" in guardrailTrace &&
-    isArrayOfObjectWithStringKeys(guardrailTrace.outputAssessments)
-  ) {
-    guardrailTraceData.outputAssessments = guardrailTrace.outputAssessments;
-  }
-
-  return guardrailTraceData;
-}
-
-/**
  * Determine whether an agent invocation was blocked by any intervening guardrails
  * @param guardrails Array of guardrail objects to check
  * @returns True if any guardrail is blocked, false otherwise
  */
 export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
+  const policyChecks = [
+    {
+      policyType: PolicyType.CONTENT,
+      policyFilters: [PolicyFilterType.FILTERS],
+    },
+    {
+      policyType: PolicyType.SENSITIVE_INFORMATION,
+      policyFilters: [PolicyFilterType.PII_ENTITIES, PolicyFilterType.REGEXES],
+    },
+    {
+      policyType: PolicyType.TOPIC,
+      policyFilters: [PolicyFilterType.TOPICS],
+    },
+    {
+      policyType: PolicyType.WORD,
+      policyFilters: [
+        PolicyFilterType.CUSTOM_WORDS,
+        PolicyFilterType.MANAGED_WORD_LISTS,
+      ],
+    },
+  ];
+
   for (const guardrail of guardrails) {
     const inputAssessments = Array.isArray(guardrail.inputAssessments)
       ? guardrail.inputAssessments
@@ -953,48 +982,10 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
     const assessments = [...inputAssessments, ...outputAssessments];
 
     for (const assessment of assessments) {
-      // Check each of the assessment policy types to see if the guardrail is blocked
-      if (
-        isAssessmentBlocked({
-          assessment,
-          policyType: PolicyType.CONTENT,
-          policyFilters: [PolicyFilterType.FILTERS],
-        })
-      ) {
-        return true;
-      }
-      if (
-        isAssessmentBlocked({
-          assessment,
-          policyType: PolicyType.SENSITIVE_INFORMATION,
-          policyFilters: [
-            PolicyFilterType.PII_ENTITIES,
-            PolicyFilterType.REGEXES,
-          ],
-        })
-      ) {
-        return true;
-      }
-      if (
-        isAssessmentBlocked({
-          assessment,
-          policyType: PolicyType.TOPIC,
-          policyFilters: [PolicyFilterType.TOPICS],
-        })
-      ) {
-        return true;
-      }
-      if (
-        isAssessmentBlocked({
-          assessment,
-          policyType: PolicyType.WORD,
-          policyFilters: [
-            PolicyFilterType.CUSTOM_WORDS,
-            PolicyFilterType.MANAGED_WORD_LISTS,
-          ],
-        })
-      ) {
-        return true;
+      for (const { policyType, policyFilters } of policyChecks) {
+        if (isAssessmentBlocked({ assessment, policyType, policyFilters })) {
+          return true;
+        }
       }
     }
   }
@@ -1020,6 +1011,7 @@ function isAssessmentBlocked({
   const policy =
     getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
 
+  // Collect all filters from the specified policy types
   const filters: StringKeyedObject[] = [];
   for (const filterType of policyFilters) {
     const filterArray = isArrayOfObjectWithStringKeys(policy[filterType])
@@ -1028,12 +1020,7 @@ function isAssessmentBlocked({
     filters.push(...filterArray);
   }
 
-  for (const filter of filters) {
-    if (filter?.action === "BLOCKED") {
-      return true;
-    }
-  }
-  return false;
+  return filters.some((filter) => filter?.action === "BLOCKED");
 }
 
 /**

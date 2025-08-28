@@ -286,6 +286,12 @@ export function generateUniqueTraceId(
   eventType: string,
   traceId: string,
 ): string {
+  if (traceId.includes("guardrail")) {
+    // if guardrail, use the first 7 parts of the trace id in order to differentiate
+    // between pre and post guardrail; it will look something like this:
+    // 4ce64021-13b2-23c5-9d70-aaefe8881138-guardrail-pre-0
+    return `${eventType}_${traceId.split("-").slice(0, 7).join("-")}`;
+  }
   return `${eventType}_${traceId.split("-").slice(0, 5).join("-")}`;
 }
 

@@ -13,8 +13,8 @@ export function interceptAgentResponse<
           if (item.chunk?.bytes) {
             callback.consumeResponse(item.chunk.bytes);
           } else if (item.trace) {
-            callback.consumeTrace(item.trace as Record<string, unknown>); 
-          } 
+            callback.consumeTrace(item.trace as Record<string, unknown>);
+          }
           yield item;
         }
         callback.onComplete();
