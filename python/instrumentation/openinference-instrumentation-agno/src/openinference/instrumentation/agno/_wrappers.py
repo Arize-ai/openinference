@@ -215,7 +215,7 @@ class _RunWrapper:
                 run_response: RunResponse = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.content)
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
                 return run_response
 
             except Exception as e:
@@ -273,7 +273,7 @@ class _RunWrapper:
                 run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.content)
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -331,7 +331,7 @@ class _RunWrapper:
                 run_response: RunResponse = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.content)
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
                 return run_response
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -391,7 +391,7 @@ class _RunWrapper:
                 run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.content)
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
