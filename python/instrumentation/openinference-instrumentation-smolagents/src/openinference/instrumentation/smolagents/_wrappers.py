@@ -206,10 +206,8 @@ class _StepWrapper:
                         attributes={"error": str(attr_error)}
                     )
 
-                    if status_set:
-                        return
-                    
-                    span.set_status(trace_api.StatusCode.ERROR)
+                    if not status_set:
+                        span.set_status(trace_api.StatusCode.ERROR)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
