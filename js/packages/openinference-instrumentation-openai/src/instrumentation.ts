@@ -71,10 +71,10 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 let _isOpenInferencePatched = false;
 
 /**
- * WeakMap to store URL information for each request context
- * Uses the actual request arguments as the key to avoid concurrent request overwrites
+ * Map to store URL information for each request using trace context
+ * Uses trace ID + span ID as the key to avoid concurrent request overwrites
  */
-const requestUrlMap = new WeakMap<object, { url: string; baseUrl?: string }>();
+const requestUrlMap = new Map<string, { url: string; baseUrl?: string }>();
 
 /**
  * function to check if instrumentation is enabled / disabled
@@ -121,12 +121,29 @@ function getUrlAttributes(
     // Extract the path (URL - baseURL) as requested: path = full - base_url
     if (baseUrl) {
       try {
-        const path =
-          fullUrl.replace(baseUrl.replace(/\/$/, ""), "") || url.pathname;
-        // Use a simple custom attribute for the path (useful for Azure debugging)
-        attributes["url.path"] = path;
+        const baseUrlObj = new URL(baseUrl);
+        const fullUrlObj = new URL(fullUrl);
+
+        // If the hosts match, calculate the path difference
+        if (baseUrlObj.hostname === fullUrlObj.hostname) {
+          // Calculate the relative path by removing the base path from the full path
+          const basePath = baseUrlObj.pathname.replace(/\/$/, "");
+          const fullPath = fullUrlObj.pathname;
+
+          if (fullPath.startsWith(basePath)) {
+            // Remove base path to get the relative path
+            const relativePath = fullPath.substring(basePath.length) || "/";
+            attributes["url.path"] = relativePath;
+          } else {
+            // If paths don't align, use the full path
+            attributes["url.path"] = fullPath;
+          }
+        } else {
+          // Different hosts, use pathname
+          attributes["url.path"] = url.pathname;
+        }
       } catch {
-        // If baseURL parsing fails, use the pathname
+        // If URL parsing fails, use the pathname
         attributes["url.path"] = url.pathname;
       }
     } else {
@@ -150,16 +167,26 @@ function getUrlAttributes(
 
 /**
  * Gets URL attributes for a request from stored request information
- * @param requestBody The request body used as a unique key for this request
+ * @param span The span to get URL attributes for
  * @returns URL attributes object
  */
-function getStoredUrlAttributes(requestBody: unknown): Record<string, string> {
+function getStoredUrlAttributes(span: Span): Record<string, string> {
   try {
-    if (requestBody && typeof requestBody === "object") {
-      const urlInfo = requestUrlMap.get(requestBody as object);
-      if (urlInfo) {
-        return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
-      }
+    const spanContext = span.spanContext();
+    const contextKey = `${spanContext.traceId}-${spanContext.spanId}`;
+    const urlInfo = requestUrlMap.get(contextKey);
+    if (urlInfo) {
+      diag.debug("Retrieved URL info from requestUrlMap", {
+        urlInfo,
+        contextKey,
+      });
+      // Clean up after use to prevent memory leaks
+      requestUrlMap.delete(contextKey);
+      return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
+    } else {
+      diag.debug("No URL info found in requestUrlMap for this span", {
+        contextKey,
+      });
     }
   } catch (error) {
     diag.debug("Failed to get stored URL attributes", error);
@@ -364,10 +391,24 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
 
             if (baseUrl) {
               const fullUrl = new URL(path, baseUrl).toString();
-              // Use the request body as a unique key for this specific request
-              // This avoids concurrent requests overwriting each other
-              if (body && typeof body === "object") {
-                requestUrlMap.set(body, { url: fullUrl, baseUrl });
+              // Store URL info using the current active span context
+              const activeSpan = trace.getActiveSpan();
+              if (activeSpan) {
+                const spanContext = activeSpan.spanContext();
+                const contextKey = `${spanContext.traceId}-${spanContext.spanId}`;
+                requestUrlMap.set(contextKey, { url: fullUrl, baseUrl });
+                diag.debug("Stored URL info for request", {
+                  fullUrl,
+                  baseUrl,
+                  contextKey,
+                });
+                // Clean up old entries to prevent memory leaks
+                if (requestUrlMap.size > 1000) {
+                  const oldestKey = requestUrlMap.keys().next().value;
+                  if (oldestKey) {
+                    requestUrlMap.delete(oldestKey);
+                  }
+                }
               }
             }
           } catch (error) {
@@ -451,7 +492,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(body),
+                ...getStoredUrlAttributes(span),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -539,7 +580,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(body),
+                ...getStoredUrlAttributes(span),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -612,7 +653,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
                 // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(body),
+                ...getStoredUrlAttributes(span),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
@@ -699,7 +740,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesUsageAttributes(result),
                   // Add URL attributes now that the request has completed
-                  ...getStoredUrlAttributes(this),
+                  ...getStoredUrlAttributes(span),
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
