@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, Callable, Collection
@@ -35,6 +36,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
         super().__init__(*args, **kwargs)
         self._cleanup: Callable[[], None] = lambda: None
         self._processes: dict[str, Processor] = {}
+        self._processes_deps: dict[str, list[Processor]] = {}
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -66,8 +68,16 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         self._cleanup()
         self._processes.clear()
+        self._processes_deps.clear()
 
-    def _build_tree(self, node: SpanWrapper) -> None:
+    def _build_tree(self, processor: Processor) -> None:
+        with self._build_tree_for_span(processor.span):
+            for child in self._processes_deps.pop(processor.run_id):
+                self._build_tree(child)
+        self._processes.pop(processor.run_id)
+
+    @contextlib.contextmanager
+    def _build_tree_for_span(self, node: SpanWrapper):
         with self._tracer.start_as_current_span(
             name=node.name,
             openinference_span_kind=node.kind,
@@ -75,6 +85,8 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             start_time=_datetime_to_span_time(node.started_at) if node.started_at else None,
             end_on_exit=False,  # we do it manually
         ) as current_span:
+            yield current_span
+
             for event in node.events:
                 current_span.add_event(
                     name=event.name, attributes=event.attributes, timestamp=event.timestamp
@@ -91,7 +103,8 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
 
     @exception_handler
     async def _handler(self, data: Any, event: "EventMeta") -> None:
-        assert event.trace is not None, "Event must have a trace"
+        if event.trace is None:
+            return
 
         if event.trace.run_id not in self._processes:
             parent = (
@@ -102,9 +115,10 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             if event.trace.parent_run_id and not parent:
                 raise ValueError(f"Parent run with ID {event.trace.parent_run_id} was not found!")
 
+            self._processes_deps[event.trace.run_id] = []
             node = self._processes[event.trace.run_id] = ProcessorLocator.locate(data, event)
             if parent is not None:
-                parent.span.children.append(node.span)
+                self._processes_deps[event.trace.parent_run_id].append(node)
         else:
             node = self._processes[event.trace.run_id]
 
@@ -112,8 +126,8 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if isinstance(data, RunContextFinishEvent):
             await node.end(data, event)
-            self._build_tree(node.span)
-            self._processes.pop(event.trace.run_id)
+            if event.trace.parent_run_id is None:
+                self._build_tree(node)
         else:
             if event.context.get("internal"):
                 return

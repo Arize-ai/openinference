@@ -24,6 +24,7 @@ class Processor:
         assert isinstance(meta.creator, RunContext)
         target_cls = type(meta.creator.instance)
 
+        self.run_id = meta.trace.run_id
         self.span = SpanWrapper(name=target_cls.__name__, kind=type(self).kind)
         self.span.started_at = meta.created_at
         self.span.attributes.update(
