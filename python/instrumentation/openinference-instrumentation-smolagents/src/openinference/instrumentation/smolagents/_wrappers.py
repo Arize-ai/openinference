@@ -153,10 +153,9 @@ class _StepWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             yield from wrapped(*args, **kwargs)
             return
-        
+            
         agent = instance
         span_name = f"Step {agent.step_number}"
-        
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -166,7 +165,6 @@ class _StepWrapper:
             },
         ) as span:
             status_set = False
-            
             try:
                 yield from wrapped(*args, **kwargs)
             except Exception as e:
@@ -179,33 +177,28 @@ class _StepWrapper:
                     step_log = args[0]
                     span.set_attribute(OUTPUT_VALUE, step_log.observations)
                     
-                    if status_set:
-                        return
-                    
-                    if step_log.error is None:
+                    if not status_set and step_log.error is None:
                         span.set_status(trace_api.StatusCode.OK)
-                        return
-                    
-                    error_type = step_log.error.__class__.__name__
-                    is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
-                    
-                    if is_expected:
-                        span.add_event(
-                            name="agent.step_recovery",
-                            attributes={**step_log.error.dict(), "severity": "expected"},
-                        )
-                        span.set_status(trace_api.StatusCode.OK)
-                        return
-                    
-                    span.record_exception(step_log.error)
-                    span.set_status(trace_api.StatusCode.ERROR)
+                        
+                    if not status_set and step_log.error is not None:
+                        error_type = step_log.error.__class__.__name__
+                        is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
+                        
+                        if is_expected:
+                            span.add_event(
+                                name="agent.step_recovery",
+                                attributes={**step_log.error.dict(), "severity": "expected"},
+                            )
+                            span.set_status(trace_api.StatusCode.OK)
+                        else:
+                            span.record_exception(step_log.error)
+                            span.set_status(trace_api.StatusCode.ERROR)
                             
                 except Exception as attr_error:
                     span.add_event(
                         name="span_finalization_error",
                         attributes={"error": str(attr_error)}
                     )
-
                     if not status_set:
                         span.set_status(trace_api.StatusCode.ERROR)
 
