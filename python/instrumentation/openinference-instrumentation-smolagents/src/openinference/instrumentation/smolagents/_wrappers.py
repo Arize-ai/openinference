@@ -142,7 +142,7 @@ class _RunWrapper:
 class _StepWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
-
+        
     def __call__(
         self,
         wrapped: Callable[..., Any],
@@ -153,7 +153,7 @@ class _StepWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             yield from wrapped(*args, **kwargs)
             return
-
+        
         agent = instance
         span_name = f"Step {agent.step_number}"
         
@@ -165,51 +165,51 @@ class _StepWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            exception_occurred = False
+            status_set = False
+            
             try:
                 yield from wrapped(*args, **kwargs)
             except Exception as e:
-                exception_occurred = True
                 span.record_exception(e)
                 span.set_status(trace_api.StatusCode.ERROR)
+                status_set = True
                 raise
             finally:
-
                 try:
                     step_log = args[0]
                     span.set_attribute(OUTPUT_VALUE, step_log.observations)
                     
-                    if exception_occurred:
-                        # Generator exception already recorded, just ensure status is set
-                        pass
+                    if status_set:
+                        return
                     
-                    if not exception_occurred and step_log.error is None:
+                    if step_log.error is None:
                         span.set_status(trace_api.StatusCode.OK)
+                        return
                     
-                    if not exception_occurred and step_log.error is not None:
-                        error_type = step_log.error.__class__.__name__
-                        is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
-                        
-                        if not is_expected:
-                            span.record_exception(step_log.error)
-                            span.set_status(trace_api.StatusCode.ERROR)
-                        
-                        if is_expected:
-                            span.add_event(
-                                name="agent.step_recovery",
-                                attributes={**step_log.error.dict(), "severity": "expected"},
-                            )
-                            span.set_status(trace_api.StatusCode.OK)
+                    error_type = step_log.error.__class__.__name__
+                    is_expected = error_type in {"AgentToolCallError", "AgentToolExecutionError"}
                     
+                    if is_expected:
+                        span.add_event(
+                            name="agent.step_recovery",
+                            attributes={**step_log.error.dict(), "severity": "expected"},
+                        )
+                        span.set_status(trace_api.StatusCode.OK)
+                        return
+                    
+                    span.record_exception(step_log.error)
+                    span.set_status(trace_api.StatusCode.ERROR)
+                            
                 except Exception as attr_error:
-
                     span.add_event(
                         name="span_finalization_error",
                         attributes={"error": str(attr_error)}
                     )
 
-                    if span.get_status() == trace_api.StatusCode.UNSET:
-                        span.set_status(trace_api.StatusCode.OK if not exception_occurred else trace_api.StatusCode.ERROR)
+                    if status_set:
+                        return
+                    
+                    span.set_status(trace_api.StatusCode.ERROR)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
