@@ -13,9 +13,9 @@ class WhoamiResult(Result):
     name: str
 
 
-class TestServerRequest(RootModel[WhoamiRequest]):
+class WhoamiServerRequest(RootModel[WhoamiRequest]):
     pass
 
 
-class TestClientResult(RootModel[WhoamiResult]):
+class WhoamiClientResult(RootModel[WhoamiResult]):
     pass

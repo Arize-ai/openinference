@@ -1,4 +1,5 @@
 import asyncio
+import socket
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -12,7 +13,7 @@ from mcp.types import ClientResult, ServerNotification, ServerRequest, TextConte
 from opentelemetry.trace import Tracer
 
 from tests.collector import OTLPServer, Telemetry
-from tests.whoami import TestClientResult, TestServerRequest, WhoamiResult
+from tests.whoami import WhoamiClientResult, WhoamiResult, WhoamiServerRequest
 
 
 # The way MCP SDK creates async tasks means we need this to be called inline with the test,
@@ -34,10 +35,29 @@ async def mcp_client(
         if not isinstance(message, RequestResponder) or message.request.root.method != "whoami":
             return
         with message as responder, tracer.start_as_current_span("whoami"):
-            await responder.respond(TestClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
+            await responder.respond(WhoamiClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
 
     server_script = str(Path(__file__).parent / "mcpserver.py")
     pythonpath = str(Path(__file__).parent.parent)
+
+    def _choose_free_port() -> int:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]  # type: ignore
+
+    async def _wait_for_port(
+        host: str, port: int, attempts: int = 100, delay: float = 0.05
+    ) -> None:
+        for _ in range(attempts):
+            try:
+                reader, writer = await asyncio.open_connection(host, port)
+                writer.close()
+                await writer.wait_closed()
+                return
+            except Exception:
+                await asyncio.sleep(delay)
+        raise RuntimeError(f"Timed out waiting for server on {host}:{port}")
+
     match transport:
         case "stdio":
             async with stdio_client(
@@ -53,15 +73,17 @@ async def mcp_client(
             ) as (reader, writer), ClientSession(
                 reader, writer, message_handler=message_handler
             ) as client:
-                client._receive_request_type = TestServerRequest
+                client._receive_request_type = WhoamiServerRequest
                 await client.initialize()
                 yield client
         case "sse":
+            port = _choose_free_port()
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 server_script,
                 env={
                     "MCP_TRANSPORT": "sse",
+                    "MCP_PORT": str(port),
                     "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
                     "PYTHONPATH": pythonpath,
                 },
@@ -69,30 +91,25 @@ async def mcp_client(
                 stderr=subprocess.PIPE,
             )
             try:
-                stderr = proc.stderr
-                assert stderr is not None
-                for i in range(100):
-                    line = str(await stderr.readline())
-                    if "Uvicorn running on http://0.0.0.0:" in line:
-                        _, rest = line.split("http://0.0.0.0:", 1)
-                        port, _ = rest.split(" ", 1)
-                        async with sse_client(f"http://localhost:{port}/sse") as (
-                            reader,
-                            writer,
-                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                            client._receive_request_type = TestServerRequest
-                            await client.initialize()
-                            yield client
-                        break
+                await _wait_for_port("127.0.0.1", port)
+                async with sse_client(f"http://localhost:{port}/sse") as (
+                    reader,
+                    writer,
+                ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                    client._receive_request_type = WhoamiServerRequest
+                    await client.initialize()
+                    yield client
             finally:
                 proc.kill()
                 await proc.wait()
         case "streamable-http":
+            port = _choose_free_port()
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 server_script,
                 env={
                     "MCP_TRANSPORT": "streamable-http",
+                    "MCP_PORT": str(port),
                     "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
                     "PYTHONPATH": pythonpath,
                 },
@@ -100,22 +117,15 @@ async def mcp_client(
                 stderr=subprocess.PIPE,
             )
             try:
-                stderr = proc.stderr
-                assert stderr is not None
-                for i in range(100):
-                    line = str(await stderr.readline())
-                    if "Uvicorn running on http://0.0.0.0:" in line:
-                        _, rest = line.split("http://0.0.0.0:", 1)
-                        port, _ = rest.split(" ", 1)
-                        async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
-                            reader,
-                            writer,
-                            _,
-                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                            client._receive_request_type = TestServerRequest
-                            await client.initialize()
-                            yield client
-                        break
+                await _wait_for_port("127.0.0.1", port)
+                async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
+                    reader,
+                    writer,
+                    _,
+                ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                    client._receive_request_type = WhoamiServerRequest
+                    await client.initialize()
+                    yield client
             finally:
                 proc.kill()
                 await proc.wait()
