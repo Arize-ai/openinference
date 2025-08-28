@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.50...python-openinference-instrumentation-langchain-v0.1.51) (2025-08-28)
+
+
+### Documentation
+
+* create gemini_tracing.py ([#1456](https://github.com/Arize-ai/openinference/issues/1456)) ([46e135f](https://github.com/Arize-ai/openinference/commit/46e135fdc394234e80510808fbd8b04746365b66))
+
 ## [0.1.50](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.49...python-openinference-instrumentation-langchain-v0.1.50) (2025-07-30)
 
 
