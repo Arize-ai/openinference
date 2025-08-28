@@ -34,6 +34,8 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from agno.run.response import RunResponse
+from agno.run.messages import RunMessages
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
@@ -56,12 +58,13 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
                 value = value.value
             yield key, value
 
-
-def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     arguments = _bind_arguments(method, *args, **kwargs)
     arguments = _strip_method_args(arguments)
-    return safe_json_dumps(arguments)
-
+    run_messages: RunMessages = arguments.get("run_messages")
+    if run_messages and run_messages.user_message:
+        return run_messages.user_message.content
+    return ""
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
@@ -192,7 +195,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -207,9 +210,9 @@ class _RunWrapper:
             team_token = _setup_team_context(agent, node_id)
 
             try:
-                run_response = wrapped(*args, **kwargs)
+                run_response: RunResponse = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_VALUE, run_response.content)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
 
@@ -249,7 +252,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -265,9 +268,9 @@ class _RunWrapper:
 
             try:
                 yield from wrapped(*args, **kwargs)
-                run_response = agent.run_response
+                run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_VALUE, run_response.content)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
@@ -308,7 +311,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -323,9 +326,9 @@ class _RunWrapper:
             team_token = _setup_team_context(agent, node_id)
 
             try:
-                run_response = await wrapped(*args, **kwargs)
+                run_response: RunResponse = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_VALUE, run_response.content)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
             except Exception as e:
@@ -366,7 +369,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -383,9 +386,9 @@ class _RunWrapper:
             try:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
-                run_response = agent.run_response
+                run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_VALUE, run_response.content)
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
