@@ -49,7 +49,7 @@ _LLM_PROVIDERS = {
 
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
-    Converts OpenLIT GenAI spans → OpenInference attributes in-place.
+    Augments OpenLIT GenAI spans with the corresponding OpenInference attributes.
     Add to your tracer-provider:
         provider.add_span_processor(OpenInferenceSpanProcessor())
     """
