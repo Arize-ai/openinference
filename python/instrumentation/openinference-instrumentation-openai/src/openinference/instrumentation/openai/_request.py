@@ -161,11 +161,15 @@ class _WithOpenAI(ABC):
             config = getattr(getattr(self, "_tracer", None), "_self_config", None)
 
             # Apply image redaction if configured
-            if config and getattr(config, "hide_input_images", False):
+            hide_images = config and getattr(config, "hide_input_images", False)
+            max_length = getattr(config, "base64_image_max_length", 0) if config else 0
+
+            if hide_images or (config and max_length > 0):
+                # Redact images if hide_input_images=True OR if base64_image_max_length is set
                 processed_params = redact_images_from_request_parameters(
                     dict(request_parameters),
-                    hide_input_images=config.hide_input_images,
-                    base64_image_max_length=getattr(config, "base64_image_max_length", 0),
+                    hide_input_images=hide_images,
+                    base64_image_max_length=max_length,
                 )
             else:
                 processed_params = dict(request_parameters)

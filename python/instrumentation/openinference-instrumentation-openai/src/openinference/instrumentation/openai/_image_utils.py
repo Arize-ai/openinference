@@ -21,7 +21,7 @@ def redact_images_from_request_parameters(
     Returns:
         Modified copy of request parameters with images redacted if configured
     """
-    if not hide_input_images:
+    if not hide_input_images and base64_image_max_length <= 0:
         return request_parameters
 
     # Create a deep copy to avoid modifying the original
@@ -31,13 +31,15 @@ def redact_images_from_request_parameters(
     if "messages" in modified_params and isinstance(modified_params["messages"], list):
         for message in modified_params["messages"]:
             if isinstance(message, dict) and "content" in message:
-                _redact_images_from_message_content(message["content"], base64_image_max_length)
+                _redact_images_from_message_content(
+                    message["content"], base64_image_max_length, hide_input_images
+                )
 
     return modified_params
 
 
 def _redact_images_from_message_content(
-    content: Union[str, List[Dict[str, Any]]], base64_image_max_length: int
+    content: Union[str, List[Dict[str, Any]]], base64_image_max_length: int, hide_input_images: bool
 ) -> None:
     """
     Redact image data from message content in-place.
@@ -45,6 +47,7 @@ def _redact_images_from_message_content(
     Args:
         content: Message content (string or list of content items)
         base64_image_max_length: Maximum length for base64 images before redaction
+        hide_input_images: Whether to hide all images
     """
     if not isinstance(content, list):
         return
@@ -60,14 +63,14 @@ def _redact_images_from_message_content(
             if isinstance(image_url_obj, dict) and "url" in image_url_obj:
                 url = image_url_obj["url"]
                 if isinstance(url, str):
-                    # Redact based on the same logic as the existing config
-                    should_redact = (
-                        # Always redact regular HTTP/HTTPS URLs when hiding images
-                        not url.startswith("data:image")
-                        or
-                        # For base64 images, redact if they exceed the length limit
-                        (is_base64_url(url) and len(url) > base64_image_max_length)
-                    )
+                    should_redact = False
+
+                    if hide_input_images:
+                        # When hide_input_images=True, redact ALL images regardless of type or length
+                        should_redact = True
+                    elif is_base64_url(url) and len(url) > base64_image_max_length:
+                        # When hide_input_images=False, only redact base64 images that exceed length limit
+                        should_redact = True
 
                     if should_redact:
                         image_url_obj["url"] = REDACTED_VALUE
