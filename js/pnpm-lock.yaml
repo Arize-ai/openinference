@@ -302,18 +302,12 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.25.1
         version: 1.34.0
-      '@types/jest':
-        specifier: ^29.5.12
-        version: 29.5.12
       '@types/node':
         specifier: ^20.14.11
         version: 20.14.11
       dotenv:
         specifier: ^16.4.5
         version: 16.4.5
-      jest:
-        specifier: ^29.7.0
-        version: 29.7.0(@types/node@20.14.11)(ts-node@10.9.2(@types/node@20.14.11)(typescript@5.5.4))
       langchain:
         specifier: ^0.3.3
         version: 0.3.3(@langchain/core@0.3.13(openai@4.95.1(zod@3.24.3)))(axios@1.7.9)(openai@4.95.1(zod@3.24.3))
@@ -326,6 +320,9 @@ importers:
       openai:
         specifier: ^4.52.7
         version: 4.95.1(zod@3.24.3)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@20.14.11)
 
   packages/openinference-instrumentation-mcp:
     dependencies:

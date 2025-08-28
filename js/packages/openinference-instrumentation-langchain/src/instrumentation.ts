@@ -125,7 +125,8 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       }`,
     );
     if (module?.openInferencePatched || _isOpenInferencePatched) {
-      return module;
+      // If already patched, unpatch first to allow re-patching with new instrumentation
+      this.unpatch(module, moduleVersion);
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;
