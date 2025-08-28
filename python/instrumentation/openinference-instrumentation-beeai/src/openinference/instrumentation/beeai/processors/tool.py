@@ -2,7 +2,7 @@ from typing import Any, ClassVar
 
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
-from beeai_framework.tools import ToolErrorEvent, ToolRetryEvent, ToolSuccessEvent
+from beeai_framework.tools import ToolErrorEvent, ToolRetryEvent, ToolStartEvent, ToolSuccessEvent
 from beeai_framework.tools.tool import Tool
 from typing_extensions import override
 
@@ -48,6 +48,10 @@ class ToolProcessor(Processor):
         self.span.add_event(f"{meta.name} ({meta.path})", timestamp=meta.created_at)
 
         match event:
+            case ToolStartEvent():
+                pass
+            case None:  # finish event
+                pass
             case ToolSuccessEvent():
                 output_cls = type(event.output)
 
