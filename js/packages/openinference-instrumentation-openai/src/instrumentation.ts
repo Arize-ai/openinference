@@ -102,10 +102,10 @@ function getExecContext(span: Span) {
 }
 
 /**
- * Extracts URL path for debugging purposes (especially useful for Azure)
+ * Extracts URL attributes for debugging purposes (especially useful for Azure)
  * @param fullUrl The complete URL of the request
  * @param baseUrl The base URL of the client
- * @returns Object containing URL path for debugging
+ * @returns Object containing URL attributes for debugging
  */
 function getUrlAttributes(
   fullUrl: string,
@@ -116,9 +116,10 @@ function getUrlAttributes(
   try {
     const url = new URL(fullUrl);
 
-    // Extract URL components for debugging (path and api_version only)
+    // Always include the full URL for complete debugging context
+    attributes["url.full"] = fullUrl;
 
-    // Extract the path (URL - baseURL) as requested: path = full - base_url
+    // Extract the path component
     if (baseUrl) {
       try {
         const baseUrlObj = new URL(baseUrl);
@@ -126,28 +127,56 @@ function getUrlAttributes(
 
         // If the hosts match, calculate the path difference
         if (baseUrlObj.hostname === fullUrlObj.hostname) {
-          // Calculate the relative path by removing the base path from the full path
-          const basePath = baseUrlObj.pathname.replace(/\/$/, "");
+          // For Azure OpenAI, we want to reconstruct the deployment path
+          // baseUrl example: "https://example.openai.azure.com/openai/deployments/gpt-4"
+          // fullUrl example: "https://example.openai.azure.com/chat/completions"
+          // We want to extract the deployment info from baseUrl and combine with the endpoint
+
+          const basePath = baseUrlObj.pathname;
           const fullPath = fullUrlObj.pathname;
 
-          if (fullPath.startsWith(basePath)) {
-            // Remove base path to get the relative path
-            const relativePath = fullPath.substring(basePath.length) || "/";
-            attributes["url.path"] = relativePath;
+          // Extract deployment information from the base URL
+          if (basePath.includes("/deployments/")) {
+            // Extract the deployment part: "deployments/model-name"
+            const deploymentMatch = basePath.match(/\/deployments\/([^/]+)/);
+            if (deploymentMatch) {
+              const deploymentName = deploymentMatch[1];
+              const endpoint = fullPath.startsWith("/")
+                ? fullPath.substring(1)
+                : fullPath;
+              attributes["url.path"] =
+                `deployments/${deploymentName}/${endpoint}`;
+            } else {
+              // Fallback to just the endpoint
+              attributes["url.path"] = fullPath.startsWith("/")
+                ? fullPath.substring(1)
+                : fullPath;
+            }
           } else {
-            // If paths don't align, use the full path
-            attributes["url.path"] = fullPath;
+            // Not a deployment URL, use the full path
+            attributes["url.path"] = fullPath.startsWith("/")
+              ? fullPath.substring(1)
+              : fullPath;
           }
         } else {
-          // Different hosts, use pathname
-          attributes["url.path"] = url.pathname;
+          // Different hosts, use pathname without leading slash
+          const pathname = url.pathname.startsWith("/")
+            ? url.pathname.substring(1)
+            : url.pathname;
+          attributes["url.path"] = pathname || "/";
         }
       } catch {
         // If URL parsing fails, use the pathname
-        attributes["url.path"] = url.pathname;
+        const pathname = url.pathname.startsWith("/")
+          ? url.pathname.substring(1)
+          : url.pathname;
+        attributes["url.path"] = pathname || "/";
       }
     } else {
-      attributes["url.path"] = url.pathname;
+      const pathname = url.pathname.startsWith("/")
+        ? url.pathname.substring(1)
+        : url.pathname;
+      attributes["url.path"] = pathname || "/";
     }
 
     // Safely extract api_version query parameter for Azure
@@ -390,7 +419,20 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
             }
 
             if (baseUrl) {
-              const fullUrl = new URL(path, baseUrl).toString();
+              // Construct the full URL with query parameters if available
+              let fullUrl = new URL(path, baseUrl).toString();
+
+              // Add query parameters if they exist in options
+              if (options?.query && typeof options.query === "object") {
+                const url = new URL(fullUrl);
+                Object.entries(options.query).forEach(([key, value]) => {
+                  if (value !== undefined && value !== null) {
+                    url.searchParams.set(key, String(value));
+                  }
+                });
+                fullUrl = url.toString();
+              }
+
               // Store URL info using the current active span context
               const activeSpan = trace.getActiveSpan();
               if (activeSpan) {
