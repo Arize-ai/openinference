@@ -68,6 +68,12 @@ def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: 
     return ""
 
 
+def _extract_run_response_output(run_response: RunResponse) -> str:
+    if run_response and run_response.content:
+        return run_response.content
+    return ""
+
+
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
     bound_args = method_signature.bind(*args, **kwargs)
@@ -214,7 +220,7 @@ class _RunWrapper:
             try:
                 run_response: RunResponse = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.content)
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
                 return run_response
 
@@ -272,7 +278,7 @@ class _RunWrapper:
                 yield from wrapped(*args, **kwargs)
                 run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.content)
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
             except Exception as e:
@@ -330,7 +336,7 @@ class _RunWrapper:
             try:
                 run_response: RunResponse = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.content)
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
                 return run_response
             except Exception as e:
@@ -390,7 +396,7 @@ class _RunWrapper:
                     yield response
                 run_response: RunResponse = agent.run_response
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.content)
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
