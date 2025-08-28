@@ -26,6 +26,7 @@
     "python/instrumentation/openinference-instrumentation-autogen-agentchat": "0.1.4",
     "python/instrumentation/openinference-instrumentation-pydantic-ai": "0.1.4",
     "python/instrumentation/openinference-instrumentation-google-adk": "0.1.3",
+    "python/instrumentation/openinference-instrumentation-openlit": "0.1.0",
     "python/instrumentation/openinference-instrumentation-openllmetry": "0.1.2",
     "java/openinference-semantic-conventions": "0.1.9",
     "java/openinference-instrumentation": "0.1.7",
