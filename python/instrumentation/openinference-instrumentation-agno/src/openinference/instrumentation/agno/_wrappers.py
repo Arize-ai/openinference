@@ -58,6 +58,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
                 value = value.value
             yield key, value
 
+
 def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     arguments = _bind_arguments(method, *args, **kwargs)
     arguments = _strip_method_args(arguments)
@@ -65,6 +66,7 @@ def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: 
     if run_messages and run_messages.user_message:
         return run_messages.user_message.content
     return ""
+
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
