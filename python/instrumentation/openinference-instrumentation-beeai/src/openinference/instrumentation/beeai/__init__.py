@@ -1,9 +1,11 @@
 import contextlib
 import logging
 from importlib.metadata import PackageNotFoundError, version
-from typing import TYPE_CHECKING, Any, Callable, Collection
+from typing import TYPE_CHECKING, Any, Callable, Collection, Generator
 
 from opentelemetry.trace import StatusCode
+
+from openinference.instrumentation._spans import OpenInferenceSpan
 
 if TYPE_CHECKING:
     from beeai_framework.emitter import EventMeta
@@ -30,7 +32,7 @@ except PackageNotFoundError:
 
 
 class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
-    __slots__ = ("_tracer", "_cleanup", "_processes")
+    __slots__ = ("_tracer", "_cleanup", "_processes", "_processes_deps")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -77,7 +79,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._processes.pop(processor.run_id)
 
     @contextlib.contextmanager
-    def _build_tree_for_span(self, node: SpanWrapper):
+    def _build_tree_for_span(self, node: SpanWrapper) -> Generator[OpenInferenceSpan, None, None]:
         with self._tracer.start_as_current_span(
             name=node.name,
             openinference_span_kind=node.kind,
@@ -93,7 +95,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
                 )
 
             for children in node.children:
-                self._build_tree(children)
+                self._build_tree_for_span(children)
 
             current_span.set_status(node.status)
             if node.error is not None and node.status == StatusCode.ERROR:
@@ -118,7 +120,7 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             self._processes_deps[event.trace.run_id] = []
             node = self._processes[event.trace.run_id] = ProcessorLocator.locate(data, event)
             if parent is not None:
-                self._processes_deps[event.trace.parent_run_id].append(node)
+                self._processes_deps[parent.run_id].append(node)
         else:
             node = self._processes[event.trace.run_id]
 
