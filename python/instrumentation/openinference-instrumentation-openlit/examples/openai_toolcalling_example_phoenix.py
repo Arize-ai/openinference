@@ -37,7 +37,7 @@ class DebugPrintProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         if "gen_ai.request.model" not in span.attributes:
             return
-        print(f"\n=== RAW OpenLLMetry span: {span.name} ===", file=sys.stderr)
+        print(f"\n=== RAW OpenLIT span: {span.name} ===", file=sys.stderr)
         print(json.dumps(dict(span.attributes), default=str, indent=2), file=sys.stderr)
 
 

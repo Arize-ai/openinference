@@ -4,7 +4,7 @@ Email Composer Agent with Observability
 This script defines a LangGraph-based multi-step agent that generates,
 formats, and tones email drafts based on bullet points and a desired tone.
 It includes OpenLIT instrumentation and OpenLIT → OpenInference trace conversion
-for real-time tracing and observability in Phoenix or Arize.
+for real-time tracing and observability in Arize.
 """
 
 import json
@@ -16,9 +16,9 @@ import openlit
 from langchain.chat_models import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from phoenix.otel import register
+from arize.otel import register
 from typing_extensions import Literal, TypedDict
 
 from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
@@ -27,26 +27,13 @@ from openinference.instrumentation.openlit import OpenInferenceSpanProcessor
 # Setup OpenTelemetry Tracing
 # --------------------------------------------------------------------------------
 
-
-class DebugPrintProcessor(SpanProcessor):
-    """Optional span processor for debugging."""
-
-    def on_end(self, span):
-        print(f"\n=== RAW OpenLLMetry span: {span.name} ===", file=sys.stderr)
-        print(json.dumps(dict(span.attributes), default=str, indent=2), file=sys.stderr)
-
-    def on_start(self, span, parent_context=None):
-        pass
-
-    def shutdown(self):
-        return True
-
-    def force_flush(self, timeout_millis=None):
-        return True
-
+API_KEY = os.getenv("ARIZE_API_KEY") or "enter-your-api-key-here"
+SPACE_ID = os.getenv("ARIZE_SPACE_ID") or "enter-your-space-id-here"
 
 provider = register(
-    project_name="email-agent-observability",
+    space_id=SPACE_ID,
+    api_key=API_KEY,
+    project_name="langchain-example",
     set_global_tracer_provider=True,
 )
 
@@ -55,8 +42,14 @@ provider.add_span_processor(OpenInferenceSpanProcessor())
 provider.add_span_processor(
     BatchSpanProcessor(
         OTLPSpanExporter(
-            endpoint="http://localhost:4317",
-            headers={},
+            endpoint="otlp.arize.com:443",
+            headers={
+                "authorization": f"Bearer {API_KEY}",
+                "api_key": API_KEY,
+                "arize-space-id": SPACE_ID,
+                "arize-interface": "python",
+                "user-agent": "arize-python",
+            },
             compression=grpc.Compression.Gzip,
         )
     )
