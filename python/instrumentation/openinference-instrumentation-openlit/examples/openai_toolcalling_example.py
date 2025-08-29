@@ -1,8 +1,8 @@
 """
-Tool-Calling OpenAI Chat with OpenLLMetry → Phoenix Observability
+Tool-Calling OpenAI Chat with OpenLIT → OpenInference → Phoenix Observability
 
 This script shows how to:
-- Instrument OpenAI tool-calling requests with OpenTelemetry.
+- Instrument OpenAI tool-calling requests with OpenLIT.
 - Convert traces to OpenInference format using OpenInferenceSpanProcessor.
 - Export spans to Phoenix via OTLP gRPC.
 - Define tools (e.g., weather, traffic) and serve tool outputs.
