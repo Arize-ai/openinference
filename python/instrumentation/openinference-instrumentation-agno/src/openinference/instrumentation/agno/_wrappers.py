@@ -22,6 +22,8 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.base import Model
+from agno.run.messages import RunMessages
+from agno.run.response import RunResponse
 from agno.team import Team
 from agno.tools.function import Function, FunctionCall
 from agno.tools.toolkit import Toolkit
@@ -34,8 +36,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from agno.run.response import RunResponse
-from agno.run.messages import RunMessages
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
