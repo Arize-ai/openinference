@@ -98,7 +98,6 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
                 with self._build_tree_for_span(children):
                     pass
 
-
             current_span.set_status(node.status)
             if node.error is not None and node.status == StatusCode.ERROR:
                 current_span.record_exception(node.error)
