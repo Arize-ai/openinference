@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.9...python-openinference-instrumentation-beeai-v0.1.10) (2025-08-30)
+
+
+### Bug Fixes
+
+* **beeaI:** dedupe traces/spans ([#2148](https://github.com/Arize-ai/openinference/issues/2148)) ([c528758](https://github.com/Arize-ai/openinference/commit/c5287584878089c4ea891b6768c5f2e4d86cbdb9))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.8...python-openinference-instrumentation-beeai-v0.1.9) (2025-08-21)
 
 
