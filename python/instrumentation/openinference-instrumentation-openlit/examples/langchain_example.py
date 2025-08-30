@@ -3,7 +3,7 @@ Email Composer Agent with Observability
 
 This script defines a LangGraph-based multi-step agent that generates,
 formats, and tones email drafts based on bullet points and a desired tone.
-It includes OpenLLMetry instrumentation and OpenLLMetry → OpenInference trace conversion
+It includes OpenLIT instrumentation and OpenLIT → OpenInference trace conversion
 for real-time tracing and observability in Phoenix or Arize.
 """
 
