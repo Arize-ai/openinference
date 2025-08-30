@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.1...python-openinference-instrumentation-openlit-v0.1.2) (2025-08-30)
+
+
+### Bug Fixes
+
+* fixing comments/file strings in openinference-instrumentation-openlit ([#2159](https://github.com/Arize-ai/openinference/issues/2159)) ([7a0a9d1](https://github.com/Arize-ai/openinference/commit/7a0a9d146aa2ce7f060e996c05b15b9dbbedb2fc))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.0...python-openinference-instrumentation-openlit-v0.1.1) (2025-08-28)
 
 
