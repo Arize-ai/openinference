@@ -988,7 +988,8 @@ function getRawMetadataFromTraceSpan(
         case "guardrailTrace":
         case "failureTrace": {
           const metadata =
-            getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {};
+            getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ??
+            {};
           mergeMetadata(metadata);
           break;
         }
@@ -1048,8 +1049,10 @@ function getRawMetadataFromTraceSpan(
               key: "modelInvocationOutput",
             });
             const metadata =
-              getObjectDataFromUnknown({ data: modelOutput, key: "metadata" }) ??
-              {};
+              getObjectDataFromUnknown({
+                data: modelOutput,
+                key: "metadata",
+              }) ?? {};
             mergeMetadata(metadata);
           }
           break;
