@@ -21,7 +21,6 @@ from smolagents.models import (  # type: ignore[import-untyped]
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-from openinference.instrumentation.smolagents._wrappers import _RunWrapper
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
