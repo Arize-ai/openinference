@@ -502,7 +502,7 @@ function getOutputMessages(
       return messages;
     } else {
       const stringifiedContent =
-        getStringAttributeValueFromUnknown(outputContent);
+        getStringAttributeValueFromUnknown(parsedContent);
       if (stringifiedContent) {
         messages.push({ content: stringifiedContent, role: "assistant" });
       }
@@ -517,6 +517,7 @@ function getOutputMessages(
     }
     return messages;
   }
+  
   try {
     const contents = parsedContent.content;
     if (contents == null) {

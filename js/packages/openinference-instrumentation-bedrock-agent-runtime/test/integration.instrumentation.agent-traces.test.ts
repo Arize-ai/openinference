@@ -147,7 +147,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
     expect(deserializedMetadata.non_intervening_guardrails.length).toBe(0);
 
     const guardrailTrace = spans.find((span) => {
-      return span.name === "guardrailTrace";
+      return span.name === "preGuardrailTrace";
     });
     expect(guardrailTrace).toBeDefined();
   });

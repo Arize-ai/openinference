@@ -984,66 +984,78 @@ function getRawMetadataFromTraceSpan(
             key: traceEventType,
           })
         : {};
-
-      if (traceEventType === "guardrailTrace") {
-        const metadata =
-          getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {};
-        mergeMetadata(metadata);
-      } else if (traceEventType === "routingClassifierTrace") {
-        const observation = getObjectDataFromUnknown({
-          data: eventData,
-          key: "observation",
-        });
-        if (observation) {
-          const finalResponse = getObjectDataFromUnknown({
-            data: observation,
-            key: "finalResponse",
+      switch (traceEventType) {
+        case "guardrailTrace":
+        case "failureTrace": {
+          const metadata =
+            getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ?? {};
+          mergeMetadata(metadata);
+          break;
+        }
+        case "routingClassifierTrace": {
+          const observation = getObjectDataFromUnknown({
+            data: eventData,
+            key: "observation",
           });
-          if (finalResponse) {
-            const agentOutput = getObjectDataFromUnknown({
+          if (observation) {
+            const finalResponse = getObjectDataFromUnknown({
               data: observation,
-              key: "agentCollaboratorInvocationOutput",
+              key: "finalResponse",
             });
-            const metadata =
-              getObjectDataFromUnknown({
-                data: agentOutput,
-                key: "metadata",
-              }) ?? {};
-            mergeMetadata(metadata);
-          } else {
+            if (finalResponse) {
+              const agentOutput = getObjectDataFromUnknown({
+                data: observation,
+                key: "agentCollaboratorInvocationOutput",
+              });
+              const metadata =
+                getObjectDataFromUnknown({
+                  data: agentOutput,
+                  key: "metadata",
+                }) ?? {};
+              mergeMetadata(metadata);
+            } else {
+              const metadata =
+                getObjectDataFromUnknown({
+                  data: finalResponse,
+                  key: "metadata",
+                }) ?? {};
+              mergeMetadata(metadata);
+            }
+          }
+          break;
+        }
+        case "preProcessingTrace":
+        case "postProcessingTrace":
+        case "orchestrationTrace": {
+          const observation = getObjectDataFromUnknown({
+            data: eventData,
+            key: "observation",
+          });
+          if (observation) {
+            const finalResponse = getObjectDataFromUnknown({
+              data: observation,
+              key: "finalResponse",
+            });
             const metadata =
               getObjectDataFromUnknown({
                 data: finalResponse,
                 key: "metadata",
               }) ?? {};
             mergeMetadata(metadata);
+          } else {
+            const modelOutput = getObjectDataFromUnknown({
+              data: eventData,
+              key: "modelInvocationOutput",
+            });
+            const metadata =
+              getObjectDataFromUnknown({ data: modelOutput, key: "metadata" }) ??
+              {};
+            mergeMetadata(metadata);
           }
+          break;
         }
-      } else if (traceEventType === "orchestrationTrace") {
-        const observation = getObjectDataFromUnknown({
-          data: eventData,
-          key: "observation",
-        });
-        if (observation) {
-          const finalResponse = getObjectDataFromUnknown({
-            data: observation,
-            key: "finalResponse",
-          });
-          const metadata =
-            getObjectDataFromUnknown({
-              data: finalResponse,
-              key: "metadata",
-            }) ?? {};
-          mergeMetadata(metadata);
-        } else {
-          const modelOutput = getObjectDataFromUnknown({
-            data: eventData,
-            key: "modelInvocationOutput",
-          });
-          const metadata =
-            getObjectDataFromUnknown({ data: modelOutput, key: "metadata" }) ??
-            {};
-          mergeMetadata(metadata);
+        default: {
+          assertUnreachable(traceEventType);
         }
       }
     }
