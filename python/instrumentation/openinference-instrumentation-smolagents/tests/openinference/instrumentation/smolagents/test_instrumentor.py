@@ -1,8 +1,5 @@
 import json
-import os
-from types import GeneratorType
-from typing import Any, Generator
-from unittest.mock import MagicMock
+from typing import Any, Generator, Optional
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -12,7 +9,15 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import LiteLLMModel, OpenAIServerModel, Tool
-from smolagents.models import ChatMessageToolCall  # type: ignore[import-untyped]
+from smolagents.agents import (  # type: ignore[import-untyped]
+    CodeAgent,
+    ToolCallingAgent,
+)
+from smolagents.models import (  # type: ignore[import-untyped]
+    ChatMessage,
+    ChatMessageToolCall,
+    ChatMessageToolCallFunction,
+)
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
@@ -125,7 +130,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = (
@@ -188,7 +193,7 @@ class TestModels:
     ) -> None:
         model = OpenAIServerModel(
             model_id="gpt-4o",
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=openai_api_key,
             api_base="https://api.openai.com/v1",
         )
         input_message_content = "What is the weather in Paris?"
@@ -297,7 +302,7 @@ class TestModels:
 
         model = LiteLLMModel(
             model_id="anthropic/claude-3-7-sonnet-20250219",
-            api_key=os.environ["ANTHROPIC_API_KEY"],
+            api_key=anthropic_api_key,
             **model_params,
         )
 
@@ -355,68 +360,129 @@ class TestModels:
         assert not attributes
 
 
-class BaseDummyAgent:
-    def __init__(self) -> None:
-        self.monitor = MagicMock()
-        self.monitor.steps = []
-        self.monitor.history = []
-        self.monitor.total_input_token_count = 10
-        self.monitor.total_output_token_count = 20
-        self.task: str = "Dummy Task"
-        self.max_steps: int = 30
-        self.tools: dict[str, Any] = {}
-        self.managed_agents: dict[str, Any] = {}
+class TestRun:
+    @pytest.mark.xfail
+    def test_multiagents(self) -> None:
+        class FakeModelMultiagentsManagerAgent:
+            def __call__(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                if tools_to_call_from is not None:
+                    if len(messages) < 3:
+                        return ChatMessage(
+                            role="assistant",
+                            content="",
+                            tool_calls=[
+                                ChatMessageToolCall(
+                                    id="call_0",
+                                    type="function",
+                                    function=ChatMessageToolCallFunction(
+                                        name="search_agent",
+                                        arguments="Who is the current US president?",
+                                    ),
+                                )
+                            ],
+                        )
+                    else:
+                        assert "Report on the current US president" in str(messages)
+                        return ChatMessage(
+                            role="assistant",
+                            content="",
+                            tool_calls=[
+                                ChatMessageToolCall(
+                                    id="call_0",
+                                    type="function",
+                                    function=ChatMessageToolCallFunction(
+                                        name="final_answer", arguments="Final report."
+                                    ),
+                                )
+                            ],
+                        )
+                else:
+                    if len(messages) < 3:
+                        return ChatMessage(
+                            role="assistant",
+                            content="""
+Thought: Let's call our search agent.
+Code:
+```py
+result = search_agent("Who is the current US president?")
+```<end_code>
+""",
+                        )
+                    else:
+                        assert "Report on the current US president" in str(messages)
+                        return ChatMessage(
+                            role="assistant",
+                            content="""
+Thought: Let's return the report.
+Code:
+```py
+final_answer("Final report.")
+```<end_code>
+""",
+                        )
 
-    def run(self, prompt: str = "Base Prompt") -> Any:
-        raise NotImplementedError
+        manager_model = FakeModelMultiagentsManagerAgent()
 
+        class FakeModelMultiagentsManagedAgent:
+            def __call__(
+                self,
+                messages: list[dict[str, Any]],
+                tools_to_call_from: Optional[list[Tool]] = None,
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+            ) -> Any:
+                return ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        ChatMessageToolCall(
+                            id="call_0",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer",
+                                arguments="Report on the current US president",
+                            ),
+                        )
+                    ],
+                )
 
-class DummyGeneratorAgent(BaseDummyAgent):
-    def run(self, prompt: str = "Generator Prompt") -> Generator[str, None, None]:
-        yield "First Generator Response."
-        yield "Second Generator Response."
-        yield "Third Generator Response."
+        managed_model = FakeModelMultiagentsManagedAgent()
 
-
-class DummySimpleAgent(BaseDummyAgent):
-    def run(self, prompt: str = "Simple Prompt") -> str:
-        return "Final Simple Response."
-
-
-class TestRunWrapper:
-    def test_run_wrapper_generator_agent(
-        self, in_memory_span_exporter: InMemorySpanExporter
-    ) -> None:
-        tracer = trace_api.get_tracer(__name__)
-        run_wrapper = _RunWrapper(tracer)
-        agent = DummyGeneratorAgent()
-
-        wrapped_method = DummyGeneratorAgent.run
-        result = run_wrapper(wrapped_method, agent, ("Hi",), {})
-
-        assert isinstance(result, GeneratorType), "Expected result to be a generator"
-        output = "".join(chunk for chunk in result)
-        assert (
-            output == "First Generator Response.Second Generator Response.Third Generator Response."
+        web_agent = ToolCallingAgent(
+            tools=[],
+            model=managed_model,
+            max_steps=10,
+            name="search_agent",
+            description=(
+                "Runs web searches for you. Give it your request as an argument. "
+                "Make the request as detailed as needed, you can ask for thorough reports"
+            ),
         )
-        assert agent.monitor.total_input_token_count == 10
-        assert agent.monitor.total_output_token_count == 20
 
-    def test_run_wrapper_simple_agent(self, in_memory_span_exporter: InMemorySpanExporter) -> None:
-        tracer = trace_api.get_tracer(__name__)
-        run_wrapper = _RunWrapper(tracer)
-        agent = DummySimpleAgent()
-
-        wrapped_method = DummySimpleAgent.run
-        result = run_wrapper(wrapped_method, agent, ("Hi",), {})
-
-        assert isinstance(result, str)
-        assert not isinstance(result, GeneratorType), (
-            "Expected result to be a string, not generator"
+        manager_code_agent = CodeAgent(
+            tools=[],
+            model=manager_model,
+            managed_agents=[web_agent],
+            additional_authorized_imports=["time", "numpy", "pandas"],
         )
-        assert result == "Final Simple Response."
-        assert agent.monitor.total_input_token_count == 10
-        assert agent.monitor.total_output_token_count == 20
+
+        report = manager_code_agent.run("Fake question.")
+        assert report == "Final report."
+
+        manager_toolcalling_agent = ToolCallingAgent(
+            tools=[],
+            model=manager_model,
+            managed_agents=[web_agent],
+        )
+
+        report = manager_toolcalling_agent.run("Fake question.")
+        assert report == "Final report."
 
 
 class TestTools:

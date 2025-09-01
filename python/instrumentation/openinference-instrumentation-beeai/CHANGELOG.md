@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.9...python-openinference-instrumentation-beeai-v0.1.10) (2025-08-30)
+
+
+### Bug Fixes
+
+* **beeaI:** dedupe traces/spans ([#2148](https://github.com/Arize-ai/openinference/issues/2148)) ([c528758](https://github.com/Arize-ai/openinference/commit/c5287584878089c4ea891b6768c5f2e4d86cbdb9))
+
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.8...python-openinference-instrumentation-beeai-v0.1.9) (2025-08-21)
+
+
+### Features
+
+* update BeeAI data serialization ([#2108](https://github.com/Arize-ai/openinference/issues/2108)) ([0994ec5](https://github.com/Arize-ai/openinference/commit/0994ec58ffbb905da975b5e0be5ea9b512ca528b))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.7...python-openinference-instrumentation-beeai-v0.1.8) (2025-08-09)
+
+
+### Features
+
+* BeeAI Framework Updates ([#2060](https://github.com/Arize-ai/openinference/issues/2060)) ([720d1fe](https://github.com/Arize-ai/openinference/commit/720d1fe2db55fa95fa9721438b441c4f7924c726))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.6...python-openinference-instrumentation-beeai-v0.1.7) (2025-08-05)
+
+
+### Features
+
+* update beeai-framework integration ([#1829](https://github.com/Arize-ai/openinference/issues/1829)) ([c788ec3](https://github.com/Arize-ai/openinference/commit/c788ec3b8f1783fba1bb3d57022523d5de684b0a))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.5...python-openinference-instrumentation-beeai-v0.1.6) (2025-05-01)
 
 

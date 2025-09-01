@@ -1,0 +1,92 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/invoke",
+    "body": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 100,
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get current weather for a location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state"
+              }
+            },
+            "required": ["location"]
+          }
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the weather like in San Francisco?"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "id": "msg_bdrk_01UCkMJ9Yp7J1ZpAWtK8CdYN",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-3-5-sonnet-20240620",
+      "content": [
+        {
+          "type": "text",
+          "text": "Certainly! I can help you with that information. To get the current weather for San Francisco, I'll use the get_weather function. Let me fetch that data for you."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_bdrk_01MqHGzs8QwkdkVjJYrbLTPp",
+          "name": "get_weather",
+          "input": {
+            "location": "San Francisco, CA"
+          }
+        }
+      ],
+      "stop_reason": "tool_use",
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 373,
+        "output_tokens": 94
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Wed, 09 Jul 2025 21:18:55 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "533",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "ac155db7-f18e-4cee-9a76-5f518d18ba73",
+      "X-Amzn-Bedrock-Invocation-Latency",
+      "2332",
+      "X-Amzn-Bedrock-Output-Token-Count",
+      "94",
+      "X-Amzn-Bedrock-Input-Token-Count",
+      "373"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "accept": "application/json",
+      "content-length": "362",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "9e12a639-eca4-4346-9457-6ba0d53b17f1",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "22c8aaa0f695900013d883b4976926314c434d5682601362fa8892cfdcfc8305",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

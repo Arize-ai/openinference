@@ -22,6 +22,7 @@ import {
 import { diag } from "@opentelemetry/api";
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
 import { LLMMessage } from "../src/types";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 describe("safelyFlattenAttributes", () => {
   const testAttributes = {
@@ -400,9 +401,8 @@ describe("formatRetrievalDocuments", () => {
 });
 describe("formatLLMParams", () => {
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.resetModules();
-    jest.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
   it("should return null if runExtra is not an object or runExtra.invocation_params is not an object", () => {
     expect(safelyFormatLLMParams(undefined)).toBeNull();
@@ -411,7 +411,7 @@ describe("formatLLMParams", () => {
   });
 
   it("should return swallow errors stringifying invocation params, but still add model_name if possible", () => {
-    const diagMock = jest.spyOn(diag, "warn");
+    const diagMock = vi.spyOn(diag, "warn");
     const runExtra = getLangchainRun({
       extra: { invocation_params: { badKey: BigInt(1), model_name: "gpt-4" } },
     }).extra;

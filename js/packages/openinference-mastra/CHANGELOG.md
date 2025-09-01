@@ -1,4 +1,24 @@
-# @arizeai/openinference-vercel
+# @arizeai/openinference-mastra
+
+## 2.2.0
+
+### Minor Changes
+
+- 4f1dda2: Added automatic root span discovery for agent traces, mastra threadId to OpenInference sessionId extraction and user input/LLM output capture on child spans for top level conversation tracking.
+
+## 2.1.6
+
+### Patch Changes
+
+- @arizeai/openinference-vercel@2.3.3
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-vercel@2.3.2
 
 ## 2.1.4
 

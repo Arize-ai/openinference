@@ -7,11 +7,13 @@ import {
   isWrapped,
 } from "@opentelemetry/instrumentation";
 import { VERSION } from "./version";
-import { diag } from "@opentelemetry/api";
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import { addTracerToHandlers } from "./instrumentationUtils";
 import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
 
 const MODULE_NAME = "@langchain/core/callbacks";
+
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain";
 
 /**
  * Flag to check if the openai module has been patched
@@ -35,10 +37,13 @@ type CallbackManagerModule = typeof CallbackManagerModuleV02;
  */
 export class LangChainInstrumentation extends InstrumentationBase<CallbackManagerModule> {
   private oiTracer: OITracer;
+  private tracerProvider?: TracerProvider;
+  private traceConfig?: TraceConfigOptions;
 
   constructor({
     instrumentationConfig,
     traceConfig,
+    tracerProvider,
   }: {
     /**
      * The config for the instrumentation
@@ -50,14 +55,25 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
      * @see {@link TraceConfigOptions}
      */
     traceConfig?: TraceConfigOptions;
+    /**
+     * An optional custom trace provider to be used for tracing. If not provided, a tracer will be created using the global tracer provider.
+     * This is useful if you want to use a non-global tracer provider.
+     *
+     * @see {@link TracerProvider}
+     */
+    tracerProvider?: TracerProvider;
   } = {}) {
     super(
-      "@arizeai/openinference-instrumentation-langchain",
+      INSTRUMENTATION_NAME,
       VERSION,
       Object.assign({}, instrumentationConfig),
     );
+    this.tracerProvider = tracerProvider;
+    this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer: this.tracer,
+      tracer:
+        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
+        this.tracer,
       traceConfig,
     });
   }
@@ -78,6 +94,25 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     return module;
   }
 
+  get tracer(): Tracer {
+    if (this.tracerProvider) {
+      return this.tracerProvider.getTracer(
+        this.instrumentationName,
+        this.instrumentationVersion,
+      );
+    }
+    return super.tracer;
+  }
+
+  setTracerProvider(tracerProvider: TracerProvider): void {
+    super.setTracerProvider(tracerProvider);
+    this.tracerProvider = tracerProvider;
+    this.oiTracer = new OITracer({
+      tracer: this.tracer,
+      traceConfig: this.traceConfig,
+    });
+  }
+
   private patch(
     module: CallbackManagerModule & {
       openInferencePatched?: boolean;
@@ -90,7 +125,8 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       }`,
     );
     if (module?.openInferencePatched || _isOpenInferencePatched) {
-      return module;
+      // If already patched, unpatch first to allow re-patching with new instrumentation
+      this.unpatch(module, moduleVersion);
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation = this;

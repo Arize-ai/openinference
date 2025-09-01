@@ -2,18 +2,45 @@
 
 LLM spans capture the API parameters sent to a LLM provider such as OpenAI or Cohere.
 
+## Required Attributes
+
+All LLM spans MUST include:
+- `openinference.span.kind`: Set to `"LLM"`
+- `llm.system`: The AI system/product (e.g., "openai", "anthropic")
+
+## Common Attributes
+
+LLM spans typically include:
+- `llm.model_name`: The specific model used (e.g., "gpt-4-0613")
+- `llm.invocation_parameters`: JSON string of parameters sent to the model
+- `input.value`: The raw input as a JSON string
+- `input.mime_type`: Usually "application/json"
+- `output.value`: The raw output as a JSON string
+- `output.mime_type`: Usually "application/json"
+- `llm.input_messages`: Flattened list of input messages
+- `llm.output_messages`: Flattened list of output messages
+- `llm.token_count.*`: Token usage metrics
+
+## Attribute Flattening
+
+Note that while the examples below show attributes in a nested JSON format for readability, in actual OpenTelemetry spans, these attributes are flattened using indexed dot notation:
+
+- `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
+- `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
+- `llm.tools.0.tool.json_schema` for tool definitions
+
 ## Examples
 
-A span for a tool call with OpenAI
+A span for a tool call with OpenAI (shown in logical JSON format for clarity)
 
 ```json
 {
-    "name": "llm",
+    "name": "ChatCompletion",
     "context": {
         "trace_id": "409df945-e058-4829-b240-cfbdd2ff4488",
         "span_id": "01fa9612-01b8-4358-85d6-e3e067305ec3"
     },
-    "span_kind": "LLM",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": "2fe8a793-2cf1-42d7-a1df-bd7d46e017ef",
     "start_time": "2024-01-11T16:45:17.982858-07:00",
     "end_time": "2024-01-11T16:45:18.517639-07:00",

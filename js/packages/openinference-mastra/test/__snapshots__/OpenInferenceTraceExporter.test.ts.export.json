@@ -773,7 +773,7 @@
           "net.peer.ip": "::1",
           "net.peer.port": 51258,
           "net.transport": "ip_tcp",
-          "openinference.span.kind": "AGENT",
+          "openinference.span.kind": undefined,
         },
         "endTime": [
           1747754797,

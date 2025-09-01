@@ -1,0 +1,27 @@
+description = 'OpenInference Base Instrumentation for Java'
+
+dependencies {
+    // OpenInference semantic conventions update
+    api project(':openinference-semantic-conventions')
+    
+    // OpenTelemetry dependencies
+    api platform("io.opentelemetry:opentelemetry-bom:${openTelemetryVersion}")
+    api "io.opentelemetry:opentelemetry-api"
+    api "io.opentelemetry:opentelemetry-sdk"
+    api "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure"
+    
+    // OpenTelemetry Instrumentation
+    api platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:${openTelemetryInstrumentationVersion}")
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api"
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:${openTelemetryInstrumentationAlphaVersion}"
+    
+    // Logging
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    
+    // Jackson for JSON handling
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    
+    // Auto-service for service provider
+    compileOnly "com.google.auto.service:auto-service:${autoServiceVersion}"
+    annotationProcessor "com.google.auto.service:auto-service:${autoServiceVersion}"
+} 

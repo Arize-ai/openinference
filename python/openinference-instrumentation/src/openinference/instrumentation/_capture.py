@@ -52,9 +52,17 @@ class capture_span_context:
                 pass
         self._contexts.clear()
 
+    def get_first_span_id(self) -> Optional[str]:
+        """
+        Returns the first captured span ID, or None if no spans were captured.
+        This can be useful if the first span is the one that you want to annotate or evaluate.
+        """
+        return format_span_id(self._contexts[0].span_id) if self._contexts else None
+
     def get_last_span_id(self) -> Optional[str]:
         """
         Returns the last captured span ID, or None if no spans were captured.
+        This can be useful if the last span is the one that you want to annotate or evaluate.
         """
         return format_span_id(self._contexts[-1].span_id) if self._contexts else None
 

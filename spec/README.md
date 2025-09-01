@@ -22,9 +22,18 @@ A trace is made of one or more spans. The first span represents the root span. E
 
 ## Specifications
 
-- [Traces](./traces.md)
-- [Semantic Conventions](./semantic_conventions.md)
-- [Configuration](./configuration.md)
+### Core Specifications
+- [Traces](./traces.md) - Core tracing concepts and structure
+- [Semantic Conventions](./semantic_conventions.md) - Complete list of attributes and their meanings
+- [Configuration](./configuration.md) - Environment variables and privacy settings
+
+### Span Type Specifications
+- [LLM Spans](./llm_spans.md) - Large Language Model operation spans
+- [Embedding Spans](./embedding_spans.md) - Vector embedding generation spans
+
+### Attribute Conventions
+- [Tool Calling](./tool_calling.md) - Function/tool calling conventions
+- [Multimodal Attributes](./multimodal_attributes.md) - Image, audio, and multimodal content representation
 
 
 ## Notation Conventions and Compliance

@@ -245,6 +245,11 @@ class TraceCollector:
         elif event_type == "failureTrace":
             trace_node = TraceNode(node_trace_id, event_type)
             trace_node.chunks.append(trace_data)
+        elif event_type == "guardrailTrace":
+            trace_node = TraceNode(node_trace_id, event_type)
+            trace_span = TraceSpan(chunk_type)
+            trace_span.add_chunk(trace_data)
+            trace_node.add_span(trace_span)
         else:
             trace_node = TraceNode(node_trace_id, event_type)
             trace_span = TraceSpan(chunk_type)
@@ -335,6 +340,7 @@ class TraceCollector:
         Returns:
             The current TraceNode after processing
         """
+
         # Extract trace data from the input object
         trace_data: Dict[str, Any] = self._extract_trace_data(obj)
 
@@ -350,6 +356,8 @@ class TraceCollector:
             event_type, AttributeExtractor.extract_trace_id(trace_data)
         )
         chunk_type = AttributeExtractor.get_chunk_type(trace_data.get(event_type, {}))
+        if event_type == "guardrailTrace":
+            chunk_type = "guardrail"
 
         # Initialize variables
         agent_node_trace_id = ""
@@ -437,6 +445,8 @@ class TraceCollector:
                 self._handle_chunk_for_current_node(parent_trace_node, chunk_type, trace_data)
         elif node_trace_id in self.trace_ids:
             # Handle case where trace ID exists but parent node doesn't match
+            if trace_node := self.trace_nodes.get(node_trace_id):
+                parent_trace_node = trace_node
             self._handle_existing_trace_id_scenario(
                 parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
             )

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.24...python-openinference-instrumentation-litellm-v0.1.25) (2025-08-18)
+
+
+### Features
+
+* **litellm:** add llm provider attributes ([#2094](https://github.com/Arize-ai/openinference/issues/2094)) ([86e681a](https://github.com/Arize-ai/openinference/commit/86e681aaf98116016848fc7d1b6c26a8c6607a25))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.23...python-openinference-instrumentation-litellm-v0.1.24) (2025-07-15)
 
 

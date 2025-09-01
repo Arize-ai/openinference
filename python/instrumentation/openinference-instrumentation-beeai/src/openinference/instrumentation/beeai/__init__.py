@@ -1,23 +1,15 @@
-# Copyright 2025 IBM Corp.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
+import contextlib
 import logging
-from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, Callable, Collection, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Collection, Generator
 
-import wrapt
+from opentelemetry.trace import StatusCode
+
+from openinference.instrumentation._spans import OpenInferenceSpan
+
+if TYPE_CHECKING:
+    from beeai_framework.emitter import EventMeta
+
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 
@@ -25,13 +17,14 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues
-
-from .middleware import create_telemetry_middleware
+from openinference.instrumentation.beeai._span import SpanWrapper
+from openinference.instrumentation.beeai._utils import _datetime_to_span_time, exception_handler
+from openinference.instrumentation.beeai.processors.base import Processor
+from openinference.instrumentation.beeai.processors.locator import ProcessorLocator
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("beeai-framework >= 0.1.10",)
+_instruments = ("beeai-framework >= 0.1.32",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:
@@ -39,14 +32,13 @@ except PackageNotFoundError:
 
 
 class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
-    __slots__ = (
-        "_original_react_agent_run",
-        "_original_tool_calling_agent_run",
-        "_original_chat_model_create",
-        "_original_chat_model_create_structure",
-        "_original_tool_run",
-        "_tracer",
-    )
+    __slots__ = ("_tracer", "_cleanup", "_processes", "_processes_deps")
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._cleanup: Callable[[], None] = lambda: None
+        self._processes: dict[str, Processor] = {}
+        self._processes_deps: dict[str, list[Processor]] = {}
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -60,89 +52,90 @@ class BeeAIInstrumentor(BaseInstrumentor):  # type: ignore
             else:
                 assert isinstance(config, TraceConfig)
 
-            from beeai_framework.agents.base import BaseAgent
-            from beeai_framework.agents.react.agent import ReActAgent
-            from beeai_framework.agents.tool_calling.agent import ToolCallingAgent
-            from beeai_framework.backend.chat import ChatModel
-            from beeai_framework.tools import Tool
-
             self._tracer = OITracer(
                 trace_api.get_tracer(__name__, __version__, tracer_provider),
                 config=config,
             )
 
-            F = TypeVar("F", bound=Callable[..., Any])
+            from beeai_framework.emitter import Emitter, EmitterOptions
 
-            @wrapt.decorator  # type: ignore
-            def run_wrapper(
-                wrapped: F, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-            ) -> Any:
-                result = wrapped(*args, **kwargs)
-
-                span_kind = OpenInferenceSpanKindValues.UNKNOWN
-                if isinstance(instance, ChatModel):
-                    span_kind = OpenInferenceSpanKindValues.LLM
-                if isinstance(instance, BaseAgent):
-                    span_kind = OpenInferenceSpanKindValues.AGENT
-                if isinstance(instance, Tool):
-                    span_kind = OpenInferenceSpanKindValues.TOOL
-
-                if result.middleware:
-                    result.middleware(create_telemetry_middleware(self._tracer, span_kind.value))
-
-                return result
-
-            ## Agent support
-            self._original_react_agent_run = getattr(
-                import_module("beeai_framework.agents.react.agent"), "run", None
+            self._cleanup = Emitter.root().match(
+                "*.*",
+                self._handler,
+                EmitterOptions(match_nested=True, is_blocking=True),
             )
-            setattr(ReActAgent, "run", run_wrapper(ReActAgent.run))
-            self._original_tool_calling_agent_run = getattr(
-                import_module("beeai_framework.agents.tool_calling.agent"), "run", None
-            )
-            setattr(ToolCallingAgent, "run", run_wrapper(ToolCallingAgent.run))
-            ## LLM support
-            self._original_chat_model_create = getattr(
-                import_module("beeai_framework.backend.chat"), "create", None
-            )
-            setattr(ChatModel, "create", run_wrapper(ChatModel.create))
-            self._original_chat_model_create_structure = getattr(
-                import_module("beeai_framework.backend.chat"), "create_structure", None
-            )
-            setattr(ChatModel, "create_structure", run_wrapper(ChatModel.create_structure))
-
-            ## Tool support
-            self._original_tool_run = getattr(import_module("beeai_framework.tools"), "run", None)
-            setattr(Tool, "run", run_wrapper(Tool.run))
-
-        except ImportError as e:
-            logger.error("ImportError during instrumentation", exc_info=e)
         except Exception as e:
             logger.error("Instrumentation error", exc_info=e)
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        if self._original_react_agent_run is not None:
-            from beeai_framework.agents.react.agent import ReActAgent
+        self._cleanup()
+        self._processes.clear()
+        self._processes_deps.clear()
 
-            setattr(ReActAgent, "run", self._original_react_agent_run)
-            self._original_react_agent_run = None
-        if self._original_tool_calling_agent_run is not None:
-            from beeai_framework.agents.tool_calling.agent import ToolCallingAgent
+    def _build_tree(self, processor: Processor) -> None:
+        with self._build_tree_for_span(processor.span):
+            for child in self._processes_deps.pop(processor.run_id):
+                self._build_tree(child)
+        self._processes.pop(processor.run_id)
 
-            setattr(ToolCallingAgent, "run", self._original_tool_calling_agent_run)
-            self._original_tool_calling_agent_run = None
-        if self._original_chat_model_create is not None:
-            from beeai_framework.backend.chat import ChatModel
+    @contextlib.contextmanager
+    def _build_tree_for_span(self, node: SpanWrapper) -> Generator[OpenInferenceSpan, None, None]:
+        with self._tracer.start_as_current_span(
+            name=node.name,
+            openinference_span_kind=node.kind,
+            attributes=node.attributes,
+            start_time=_datetime_to_span_time(node.started_at) if node.started_at else None,
+            end_on_exit=False,  # we do it manually
+        ) as current_span:
+            yield current_span
 
-            setattr(ChatModel, "create", self._original_chat_model_create)
-            self._original_chat_model_create = None
-        if self._original_chat_model_create_structure is not None:
-            from beeai_framework.backend.chat import ChatModel
+            for event in node.events:
+                current_span.add_event(
+                    name=event.name, attributes=event.attributes, timestamp=event.timestamp
+                )
 
-            setattr(ChatModel, "create_structure", self._original_chat_model_create_structure)
-            self._original_chat_model_create_structure = None
-        if self._original_tool_run is not None:
-            from beeai_framework.tools import Tool
+            for children in node.children:
+                with self._build_tree_for_span(children):
+                    pass
 
-            setattr(Tool, "run", self._original_tool_run)
-            self._original_tool_run = None
+            current_span.set_status(node.status)
+            if node.error is not None and node.status == StatusCode.ERROR:
+                current_span.record_exception(node.error)
+
+            current_span.end(_datetime_to_span_time(node.ended_at) if node.ended_at else None)
+
+    @exception_handler
+    async def _handler(self, data: Any, event: "EventMeta") -> None:
+        if event.trace is None:
+            return
+
+        if event.trace.run_id not in self._processes:
+            parent = (
+                self._processes.get(event.trace.parent_run_id)
+                if event.trace.parent_run_id
+                else None
+            )
+            if event.trace.parent_run_id and not parent:
+                raise ValueError(f"Parent run with ID {event.trace.parent_run_id} was not found!")
+
+            self._processes_deps[event.trace.run_id] = []
+            node = self._processes[event.trace.run_id] = ProcessorLocator.locate(data, event)
+            if parent is not None:
+                self._processes_deps[parent.run_id].append(node)
+        else:
+            node = self._processes[event.trace.run_id]
+
+        from beeai_framework.context import RunContextFinishEvent
+
+        if isinstance(data, RunContextFinishEvent):
+            await node.end(data, event)
+            if event.trace.parent_run_id is None:
+                self._build_tree(node)
+        else:
+            if event.context.get("internal"):
+                return
+
+            await node.update(
+                data,
+                event,
+            )

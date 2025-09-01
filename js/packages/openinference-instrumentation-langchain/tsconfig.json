@@ -3,14 +3,15 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node", "jest"]
+    "baseUrl": ".",
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "langchainV0.1/*": ["node_modules/langchainV0.1/*"],
+      "@langchain/coreV0.1/*": ["node_modules/@langchain/coreV0.1/*"],
+      "@langchain/openaiV0.1/*": ["node_modules/@langchain/openaiV0.1/*"]
+    }
   },
   "files": [],
-  "include": ["src/**/*.ts", "examples/**/*.ts"],
-  "references": [],
-  "paths": {
-    "langchainV0.1/*": ["node_modules/langchainV0.1/*"],
-    "@langchain/coreV0.1/*": ["node_modules/@langchain/coreV0.1/*"],
-    "@langchain/openaiV0.1/*": ["node_modules/@langchain/openaiV0.1/*"]
-  }
+  "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"],
+  "references": []
 }

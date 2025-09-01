@@ -1,5 +1,26 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.2
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 1.5.1
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 1.5.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
 ## 1.4.2
 
 ### Patch Changes

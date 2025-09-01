@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.26...python-openinference-instrumentation-bedrock-v0.1.27) (2025-08-22)
+
+
+### Features
+
+* **bedrock:** Add instrumentation for guardrailTrace ([#2058](https://github.com/Arize-ai/openinference/issues/2058)) ([8ea1eef](https://github.com/Arize-ai/openinference/commit/8ea1eef5db0a334c5ca66c77f7217246156d7ef0))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.25...python-openinference-instrumentation-bedrock-v0.1.26) (2025-06-19)
 
 

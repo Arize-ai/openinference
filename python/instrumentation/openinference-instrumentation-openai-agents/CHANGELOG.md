@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.1...python-openinference-instrumentation-openai-agents-v1.2.0) (2025-08-18)
+
+
+### Features
+
+* openai + openai agent support custom tool calls ([#2080](https://github.com/Arize-ai/openinference/issues/2080)) ([ee8693c](https://github.com/Arize-ai/openinference/commit/ee8693c3325380440e4af4e0df708851c5598c30))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.0...python-openinference-instrumentation-openai-agents-v1.1.1) (2025-07-30)
+
+
+### Bug Fixes
+
+* openai-agents CI add eval_type_backport dependency for Python &lt;3.10 compatibility ([#2004](https://github.com/Arize-ai/openinference/issues/2004)) ([f38ed8e](https://github.com/Arize-ai/openinference/commit/f38ed8efe6734297a3e77c0b4d4ddde32bc8ba11))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.0.0...python-openinference-instrumentation-openai-agents-v1.1.0) (2025-07-18)
+
+
+### Features
+
+* **openai-agents:** capture graph.node.id and graph.node.parent_id semantics  ([#1854](https://github.com/Arize-ai/openinference/issues/1854)) ([0864c13](https://github.com/Arize-ai/openinference/commit/0864c13fdfa9e289468ac0a79a2860a155be46de))
+
+
+### Bug Fixes
+
+* fix IndexError for empty function output ([#1878](https://github.com/Arize-ai/openinference/issues/1878)) ([e6453e7](https://github.com/Arize-ai/openinference/commit/e6453e72784aac519e05c98b541a551500b814a4))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v0.1.14...python-openinference-instrumentation-openai-agents-v1.0.0) (2025-07-02)
 
 

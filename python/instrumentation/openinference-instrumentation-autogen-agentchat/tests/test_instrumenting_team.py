@@ -6,6 +6,8 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util.types import AttributeValue
 
+from openinference.semconv.trace import SpanAttributes
+
 
 class TestTeam:
     @pytest.mark.asyncio
@@ -74,3 +76,14 @@ class TestTeam:
         assert attributes["participant_names"] == ("primary", "critic")
         assert len(attributes["participant_descriptions"]) == 2
         assert attributes["openinference.span.kind"] == "CHAIN"
+
+        # Check span attributes:
+        primary_span = next(s for s in spans if s.name == "primary.on_messages_stream")
+        primary_attrs = dict(cast(Mapping[str, AttributeValue], primary_span.attributes))
+        assert primary_attrs[SpanAttributes.GRAPH_NODE_ID] == "primary"
+        assert primary_attrs[SpanAttributes.GRAPH_NODE_PARENT_ID] == "start"
+
+        critic_span = next(s for s in spans if s.name == "critic.on_messages_stream")
+        critic_attrs = dict(cast(Mapping[str, AttributeValue], critic_span.attributes))
+        assert critic_attrs[SpanAttributes.GRAPH_NODE_ID] == "critic"
+        assert critic_attrs[SpanAttributes.GRAPH_NODE_PARENT_ID] == "primary"

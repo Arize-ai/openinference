@@ -1,0 +1,27 @@
+interactions:
+- request:
+    body: "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\":
+      [\n        {\n          \"text\": \"Hello!\"\n        }\n      ]\n    }\n  ],\n
+      \ \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"maxOutputTokens\":
+      512\n  }\n}"
+    headers: {}
+    method: POST
+    uri: "googleapis.com"
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
+        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"Hello
+        there! How can I help you today?\\n\"\n          }\n        ]\n      },\n
+        \     \"finishReason\": 1,\n      \"avgLogprobs\": -0.0010216936299746687\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 2,\n    \"candidatesTokenCount\":
+        11,\n    \"totalTokenCount\": 13,\n    \"trafficType\": 1,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 2\n      }\n
+        \   ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
+        1,\n        \"tokenCount\": 11\n      }\n    ]\n  },\n  \"modelVersion\":
+        \"gemini-1.5-flash-002\",\n  \"createTime\": \"2025-07-22T16:05:15.184046Z\",\n
+        \ \"responseId\": \"id\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

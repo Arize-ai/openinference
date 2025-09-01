@@ -1,0 +1,221 @@
+[
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is the capital of France?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 2727
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The capital of France is Paris. \n\nParis has been the capital of France since 987 CE, when Hugh Capet, the first King of France, made the city his seat of power. However, the area has been inhabited since at least the 3rd century BCE, when a Celtic tribe called the Parisii settled there.\n\nSome interesting historical context about Paris as the capital:\n\n1. During the French Revolution (1789-1799), Paris was a"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 57,
+        "outputTokens": 100,
+        "totalTokens": 157
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 22 Jul 2025 20:54:50 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "602",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "5eb97805-580d-41b1-a814-2ddd2f7ee075"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "453",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "b184e635-31b3-4fbe-931f-8451fde75b43",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "1d6fd16a03e48fa827d8a78f1c9d1c3ef5d4cc0b969f5a8d93d38b4ecb05e3fa",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  },
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is the capital of Italy?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 3988
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The capital of Italy is Rome, also known as Roma in Italian. Rome is not only the capital city but also the largest city in Italy. It's located in the central-western portion of the Italian peninsula, along the shores of the Tiber River.\n\nRome has a rich and fascinating history spanning over 2,500 years, which has earned it the nickname \"The Eternal City.\" Some key historical points about Rome include:\n\n1. According to legend, Rome was founde"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 57,
+        "outputTokens": 100,
+        "totalTokens": 157
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 22 Jul 2025 20:54:54 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "638",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "6da10398-8f74-4914-8151-160358d97f25"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "452",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "820a12a4-5d2f-483b-860a-36f92148e20a",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "3d4107a03df26fcbd065aade3097758d1ef9cc57d3549ebf4cbfa4efd1c55208",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  },
+  {
+    "scope": "https://bedrock-runtime.us-east-1.amazonaws.com:443",
+    "method": "POST",
+    "path": "/model/anthropic.claude-3-5-sonnet-20240620-v1%3A0/converse",
+    "body": {
+      "inferenceConfig": {
+        "maxTokens": 100,
+        "temperature": 0.1
+      },
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "What is the capital of Germany?"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "system": [
+        {
+          "text": "You are an expert geography assistant. You have extensive knowledge about world capitals, countries, and their historical backgrounds. Please provide accurate and detailed information about geographical questions. Always include interesting historical context in your responses when relevant."
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "metrics": {
+        "latencyMs": 2847
+      },
+      "output": {
+        "message": {
+          "content": [
+            {
+              "text": "The capital of Germany is Berlin. \n\nBerlin has a rich and complex history as the capital city:\n\n1. It became the capital of Prussia in 1701 and later the German Empire in 1871.\n\n2. After World War I, it remained the capital of the Weimar Republic.\n\n3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of"
+            }
+          ],
+          "role": "assistant"
+        }
+      },
+      "stopReason": "max_tokens",
+      "usage": {
+        "inputTokens": 57,
+        "outputTokens": 100,
+        "totalTokens": 157
+      }
+    },
+    "rawHeaders": [
+      "Date",
+      "Tue, 22 Jul 2025 20:54:57 GMT",
+      "Content-Type",
+      "application/json",
+      "Content-Length",
+      "609",
+      "Connection",
+      "keep-alive",
+      "x-amzn-RequestId",
+      "db9693b7-fa65-47e0-a892-55dfca5df046"
+    ],
+    "reqheaders": {
+      "content-type": "application/json",
+      "content-length": "454",
+      "x-amz-user-agent": "aws-sdk-js/3.750.0",
+      "host": "bedrock-runtime.us-east-1.amazonaws.com",
+      "amz-sdk-invocation-id": "c64ce57c-5a1c-4aab-9e60-ef17c58ea0e5",
+      "amz-sdk-request": "attempt=1; max=3",
+      "x-amz-date": "20250626T120000Z",
+      "x-amz-security-token": "FAKE-SESSION-TOKEN-FOR-VCR-TESTING-ONLY",
+      "x-amz-content-sha256": "b8f84116f07d7068bca894cd44d80ca63deca45851de4a39bbe390a2e827297d",
+      "authorization": "AWS4-HMAC-SHA256 Credential=AKIATEST1234567890AB/20250626/us-east-1/bedrock/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date, Signature=fake-signature-for-vcr-testing"
+    },
+    "responseIsBinary": false
+  }
+]

@@ -316,30 +316,30 @@ class AttributeExtractor:
         if not trace_metadata:
             return metadata
         if client_request_id := trace_metadata.get("clientRequestId"):
-            metadata["client_request_id"] = client_request_id
+            metadata["clientRequestId"] = client_request_id
         if end_time := trace_metadata.get("endTime"):
-            metadata["end_time"] = end_time.timestamp() * 1_000_000_000
+            metadata["endTime"] = end_time.timestamp() * 1_000_000_000
         if start_time := trace_metadata.get("startTime"):
-            metadata["start_time"] = start_time.timestamp() * 1_000_000_000
+            metadata["startTime"] = start_time.timestamp() * 1_000_000_000
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
-            metadata["operation_total_time_ms"] = operation_total_time_ms
+            metadata["operationTotalTimeMs"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms :="] = total_time_ms
+            metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
     def get_observation_metadata_attributes(cls, trace_metadata: dict[str, Any]) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
         if client_request_id := trace_metadata.get("clientRequestId"):
-            metadata["client_request_id"] = client_request_id
+            metadata["clientRequestId"] = client_request_id
         if end_time := trace_metadata.get("endTime"):
-            metadata["end_time"] = int(end_time.timestamp() * 1_000_000_000)
+            metadata["endTime"] = int(end_time.timestamp() * 1_000_000_000)
         if start_time := trace_metadata.get("startTime"):
-            metadata["start_time"] = int(start_time.timestamp() * 1_000_000_000)
+            metadata["startTime"] = int(start_time.timestamp() * 1_000_000_000)
         if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
-            metadata["operation_total_time_ms"] = operation_total_time_ms
+            metadata["operationTotalTimeMs"] = operation_total_time_ms
         if total_time_ms := trace_metadata.get("totalTimeMs"):
-            metadata["total_time_ms :="] = total_time_ms
+            metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
@@ -539,6 +539,7 @@ class AttributeExtractor:
         trace_events = [
             "preProcessingTrace",
             "orchestrationTrace",
+            "guardrailTrace",
             "postProcessingTrace",
             "failureTrace",
         ]
@@ -863,6 +864,77 @@ class AttributeExtractor:
 
         # Generate a unique ID if none found
         return str(uuid.uuid4())
+
+    @classmethod
+    def get_attributes_from_guardrail_trace(cls, guardrail_trace: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract attributes from guardrail trace data.
+        """
+        guardrail_trace_data = {}
+
+        # Extract client_request_id from the guardrail metadata if present
+        metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
+        if client_request_id := metadata_attributes.get("clientRequestId"):
+            guardrail_trace_data["clientRequestId"] = client_request_id
+        if "startTime" in metadata_attributes:
+            guardrail_trace_data["startTime"] = metadata_attributes["startTime"]
+        if "endTime" in metadata_attributes:
+            guardrail_trace_data["endTime"] = metadata_attributes["endTime"]
+        if "totalTimeMs" in metadata_attributes:
+            guardrail_trace_data["totalTimeMs"] = metadata_attributes["totalTimeMs"]
+        if "action" in guardrail_trace:
+            guardrail_trace_data["action"] = guardrail_trace["action"]
+        if "inputAssessments" in guardrail_trace:
+            guardrail_trace_data["inputAssessments"] = guardrail_trace["inputAssessments"]
+        if "outputAssessments" in guardrail_trace:
+            guardrail_trace_data["outputAssessments"] = guardrail_trace["outputAssessments"]
+
+        return guardrail_trace_data
+
+    @classmethod
+    def is_blocked_guardrail(cls, guardrails: List[dict[str, Any]]) -> bool:
+        """
+        Determine whether an agent invocation was blocked by any intervening guardrails
+        """
+
+        for guardrail in guardrails:
+            assessments = guardrail.get("inputAssessments", []) + guardrail.get(
+                "outputAssessments", []
+            )
+            for assessment in assessments:
+                # Check each of the assessment policy types to see if the guardrail is blocked
+                if cls.is_assessment_blocked(assessment, "contentPolicy", ["filters"]):
+                    return True
+                if cls.is_assessment_blocked(
+                    assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"]
+                ):
+                    return True
+                if cls.is_assessment_blocked(assessment, "topicPolicy", ["topics"]):
+                    return True
+                if cls.is_assessment_blocked(
+                    assessment, "wordPolicy", ["customWords", "managedWordLists"]
+                ):
+                    return True
+        return False
+
+    @classmethod
+    def is_assessment_blocked(
+        cls, assessment: dict[str, Any], policy_type: str, policy_filters: List[str]
+    ) -> bool:
+        """
+        Parses through guardrail assessment to determine if the action is BLOCKED
+        """
+        blocked = "BLOCKED"
+        policy = assessment.get(policy_type, {})
+
+        filters = []
+        for filter_type in policy_filters:
+            filters += policy.get(filter_type, [])
+
+        for filter in filters:
+            if filter.get("action") == blocked:
+                return True
+        return False
 
     @classmethod
     def get_failure_trace_attributes(cls, trace_data: dict[str, Any]) -> dict[str, Any]:
