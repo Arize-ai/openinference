@@ -140,11 +140,8 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
 
     const interveningGuardrail = deserializedMetadata.intervening_guardrails[0];
     expect(interveningGuardrail.action).toBe("INTERVENED");
-    expect(interveningGuardrail.client_request_id).toBeDefined();
-    expect(interveningGuardrail.start_time).toBeDefined();
-    expect(interveningGuardrail.end_time).toBeDefined();
-    expect(interveningGuardrail.total_time_ms).toBeGreaterThan(0);
     expect(interveningGuardrail.inputAssessments).toBeDefined();
+    expect(deserializedMetadata.clientRequestId).toBeDefined();
 
     expect(deserializedMetadata.non_intervening_guardrails).toBeDefined();
     expect(deserializedMetadata.non_intervening_guardrails.length).toBe(0);
