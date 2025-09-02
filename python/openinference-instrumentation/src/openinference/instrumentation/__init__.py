@@ -22,7 +22,7 @@ from ._attributes import (
     get_user_id_attributes,
 )
 from ._capture import capture_span_context
-from ._project import dangerously_using_project
+from ._projects import dangerously_using_project
 from ._tracer_providers import TracerProvider
 from ._tracers import OITracer
 from ._types import (
