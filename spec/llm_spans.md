@@ -2,6 +2,10 @@
 
 LLM spans capture the API parameters sent to a LLM provider such as OpenAI or Cohere.
 
+## Span Name
+
+The span name MUST be `"ChatCompletion"` for chat completion operations.
+
 ## Required Attributes
 
 All LLM spans MUST include:

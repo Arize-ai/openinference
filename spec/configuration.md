@@ -8,17 +8,18 @@ The possible settings are:
 
 | Environment Variable Name                    | Effect                                                                                                                         | Type | Default |
 |----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------|---------|
-| OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS | Hides LLM invocation parameters (independent of input/output hiding)                                                           | bool | False   |
-| OPENINFERENCE_HIDE_INPUTS                    | Hides input.value and all input messages (input messages are hidden if either HIDE_INPUTS OR HIDE_INPUT_MESSAGES is true)      | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUTS                   | Hides output.value and all output messages (output messages are hidden if either HIDE_OUTPUTS OR HIDE_OUTPUT_MESSAGES is true) | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_MESSAGES            | Hides all input messages (independent of HIDE_INPUTS)                                                                          | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
-| OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
-| OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts                                                                                                              | bool | False   |
-| OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
-| OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Hides embedding vectors                                                                                                        | bool | False   |
-| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
+| OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS | Removes llm.invocation_parameters attribute entirely from spans                                                                | bool | False   |
+| OPENINFERENCE_HIDE_INPUTS                    | Replaces input.value with `"__REDACTED__"` and removes input.mime_type                                                         | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUTS                   | Replaces output.value with `"__REDACTED__"` and removes output.mime_type                                                       | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_MESSAGES            | Removes all llm.input_messages attributes entirely from spans                                                                  | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Removes all llm.output_messages attributes entirely from spans                                                                 | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_IMAGES              | Removes image URLs from llm.input_messages message content blocks                                                              | bool | False   |
+| OPENINFERENCE_HIDE_INPUT_TEXT                | Replaces text content in llm.input_messages with `"__REDACTED__"`                                                              | bool | False   |
+| OPENINFERENCE_HIDE_OUTPUT_TEXT               | Replaces text content in llm.output_messages with `"__REDACTED__"`                                                             | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
+| OPENINFERENCE_HIDE_PROMPTS                   | Replaces llm.prompts values with `"__REDACTED__"`                                                                              | bool | False   |
+| OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Truncates base64-encoded images to this length, replacing excess with `"__REDACTED__"`                                         | int  | 32,000  |
 
 ## Redacted Content
 
@@ -49,9 +50,10 @@ If you are working in Python, and want to set up a configuration different than 
         hide_input_images=...,
         hide_input_text=...,
         hide_output_text=...,
-        hide_embedding_vectors=...,
-        base64_image_max_length=...,
+        hide_embeddings_vectors=...,
+        hide_embeddings_text=...,
         hide_prompts=...,
+        base64_image_max_length=...,
     )
 
     from openinference.instrumentation.openai import OpenAIInstrumentor

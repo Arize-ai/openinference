@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 if TYPE_CHECKING:
     from beeai_framework.context import RunContextFinishEvent, RunContextStartEvent
@@ -18,7 +18,9 @@ from openinference.semconv.trace import (
 class Processor:
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.UNKNOWN
 
-    def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
+    def __init__(
+        self, event: "RunContextStartEvent", meta: "EventMeta", span_name: Optional[str] = None
+    ):
         from beeai_framework.context import RunContext
 
         assert isinstance(meta.creator, RunContext)
@@ -27,7 +29,7 @@ class Processor:
         assert meta.trace is not None
         self.run_id = meta.trace.run_id
 
-        self.span = SpanWrapper(name=target_cls.__name__, kind=type(self).kind)
+        self.span = SpanWrapper(name=span_name or target_cls.__name__, kind=type(self).kind)
         self.span.started_at = meta.created_at
         self.span.attributes.update(
             {

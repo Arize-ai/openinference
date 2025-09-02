@@ -84,6 +84,7 @@ class TestSpanAttributes:
             },
             "embedding": {
                 "embeddings": SpanAttributes.EMBEDDING_EMBEDDINGS,
+                "invocation_parameters": SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
                 "model_name": SpanAttributes.EMBEDDING_MODEL_NAME,
             },
             "graph": {

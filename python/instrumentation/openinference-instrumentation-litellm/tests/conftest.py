@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Generator, Iterator
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -20,6 +20,15 @@ def tracer_provider(
     tracer_provider = TracerProvider()
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     return tracer_provider
+
+
+@pytest.fixture
+def setup_litellm_instrumentation(
+    tracer_provider: TracerProvider,
+) -> Generator[None, None, None]:
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+    yield
+    LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.fixture(autouse=True)
