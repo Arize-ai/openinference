@@ -100,6 +100,11 @@ exclude = [
   "src/openinference/instrumentation/vertexai/*",
 ]
 
+[[tool.mypy.overrides]]
+module=["wrapt"]
+ignore_missing_imports = true
+
+
 [tool.ruff]
 exclude= [
   "src/openinference/instrumentation/*/*",
