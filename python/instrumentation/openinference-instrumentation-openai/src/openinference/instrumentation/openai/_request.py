@@ -161,8 +161,8 @@ class _WithOpenAI(ABC):
             config = getattr(getattr(self, "_tracer", None), "_self_config", None)
 
             # Apply image redaction if configured
-            hide_images = config and getattr(config, "hide_input_images", False)
-            max_length = getattr(config, "base64_image_max_length", 0) if config else 0
+            hide_images = bool(config and getattr(config, "hide_input_images", False))
+            max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
 
             if hide_images or (config and max_length > 0):
                 # Redact images if hide_input_images=True OR if base64_image_max_length is set
