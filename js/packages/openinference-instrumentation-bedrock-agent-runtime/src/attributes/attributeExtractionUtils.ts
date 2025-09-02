@@ -517,7 +517,7 @@ function getOutputMessages(
     }
     return messages;
   }
-  
+
   try {
     const contents = parsedContent.content;
     if (contents == null) {

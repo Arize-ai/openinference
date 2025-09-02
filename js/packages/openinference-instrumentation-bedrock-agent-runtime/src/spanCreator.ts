@@ -141,7 +141,7 @@ export class SpanCreator {
         ...inputParentAttributes,
       };
 
-      const rawMetadata = getRawMetadataFromTraceSpan(traceSpan);
+      const rawMetadata = getMetadataFromTraceSpan(traceSpan);
       metadata = {
         ...metadata,
         ...rawMetadata,
@@ -500,11 +500,66 @@ export class SpanCreator {
     }
 
     switch (type) {
-      case "AGENT_COLLABORATOR":
+      case "AGENT_COLLABORATOR": {
+        // NOTE: This logic should be reworked such that we can reliably access
+        // the agent name to construct the span name; rather than searching throughout
+        // all the spans and relying on the fact that the last span is one that contains
+        // the agent name.
+        const agentCollaboratorInvocationInput = getObjectDataFromUnknown({
+          data: eventData,
+          key: "agentCollaboratorInvocationInput",
+        });
+
+        if (agentCollaboratorInvocationInput) {
+          return {
+            spanKind: OpenInferenceSpanKind.AGENT,
+            name: `agent_collaborator[${agentCollaboratorInvocationInput?.agentCollaboratorName}]`,
+          };
+        }
+
+        const invocationInput = getObjectDataFromUnknown({
+          data: eventData,
+          key: "invocationInput",
+        });
+
+        if (invocationInput) {
+          const agentCollaboratorInvocationInput = getObjectDataFromUnknown({
+            data: invocationInput,
+            key: "agentCollaboratorInvocationInput",
+          });
+          if (agentCollaboratorInvocationInput) {
+            return {
+              spanKind: OpenInferenceSpanKind.AGENT,
+              name: `agent_collaborator[${agentCollaboratorInvocationInput?.agentCollaboratorName}]`,
+            };
+          } else {
+            return {
+              spanKind: OpenInferenceSpanKind.AGENT,
+              name: `agent_collaborator[${invocationInput?.agentCollaboratorName}]`,
+            };
+          }
+        }
+        const observation = getObjectDataFromUnknown({
+          data: eventData,
+          key: "observation",
+        });
+        if (observation) {
+          const agentCollaboratorInvocationOutput = getObjectDataFromUnknown({
+            data: observation,
+            key: "agentCollaboratorInvocationOutput",
+          });
+          if (agentCollaboratorInvocationOutput) {
+            return {
+              spanKind: OpenInferenceSpanKind.AGENT,
+              name: `agent_collaborator[${agentCollaboratorInvocationOutput?.agentCollaboratorName}]`,
+            };
+          }
+        }
         return {
           spanKind: OpenInferenceSpanKind.AGENT,
-          name: `agent_collaborator[${input?.agentCollaboratorName}]`,
+          name: "agent_collaborator",
         };
+      }
       case "ACTION_GROUP":
         return {
           spanKind: OpenInferenceSpanKind.TOOL,
@@ -526,16 +581,6 @@ export class SpanCreator {
           name: "TOOL",
         };
     }
-  }
-
-  private getSpanKindAndNameForGuardrailTrace(): {
-    spanKind: OpenInferenceSpanKind;
-    name: string;
-  } {
-    return {
-      spanKind: OpenInferenceSpanKind.GUARDRAIL,
-      name: "Guardrails",
-    };
   }
 
   private getSpanKindAndNameForFailureTrace(): {
@@ -671,9 +716,9 @@ export class SpanCreator {
       return { ...newAttributes };
     }
 
-    for (const span of traceNode.spans) {
+    for (const span of [...traceNode.spans].reverse()) {
       if (!span.chunks) continue;
-      for (const traceData of span.chunks) {
+      for (const traceData of [...span.chunks].reverse()) {
         const traceEventType = getEventType(traceData);
         if (traceEventType == null) {
           continue;
@@ -960,16 +1005,10 @@ export class SpanCreator {
     return span;
   }
 }
-function getRawMetadataFromTraceSpan(
+function getMetadataFromTraceSpan(
   traceSpan: AgentTraceNode,
 ): StringKeyedObject {
-  const rawMetadata: StringKeyedObject = {};
-
-  const mergeMetadata = (metadata: StringKeyedObject) => {
-    for (const [key, value] of Object.entries(metadata)) {
-      rawMetadata[key] = value;
-    }
-  };
+  let metadata: StringKeyedObject = {};
 
   for (const span of traceSpan.spans) {
     for (const chunk of span.chunks) {
@@ -987,10 +1026,13 @@ function getRawMetadataFromTraceSpan(
       switch (traceEventType) {
         case "guardrailTrace":
         case "failureTrace": {
-          const metadata =
+          const newMetadata =
             getObjectDataFromUnknown({ data: eventData, key: "metadata" }) ??
             {};
-          mergeMetadata(metadata);
+          metadata = {
+            ...metadata,
+            ...newMetadata,
+          };
           break;
         }
         case "routingClassifierTrace": {
@@ -1008,20 +1050,40 @@ function getRawMetadataFromTraceSpan(
                 data: observation,
                 key: "agentCollaboratorInvocationOutput",
               });
-              const metadata =
+              const newMetadata =
                 getObjectDataFromUnknown({
                   data: agentOutput,
                   key: "metadata",
                 }) ?? {};
-              mergeMetadata(metadata);
+              metadata = {
+                ...metadata,
+                ...newMetadata,
+              };
             } else {
-              const metadata =
+              const newMetadata =
                 getObjectDataFromUnknown({
                   data: finalResponse,
                   key: "metadata",
                 }) ?? {};
-              mergeMetadata(metadata);
+              metadata = {
+                ...metadata,
+                ...newMetadata,
+              };
             }
+          } else {
+            const modelInvocationOutput = getObjectDataFromUnknown({
+              data: eventData,
+              key: "modelInvocationOutput",
+            });
+            const newMetadata =
+              getObjectDataFromUnknown({
+                data: modelInvocationOutput,
+                key: "metadata",
+              }) ?? {};
+            metadata = {
+              ...metadata,
+              ...newMetadata,
+            };
           }
           break;
         }
@@ -1037,23 +1099,29 @@ function getRawMetadataFromTraceSpan(
               data: observation,
               key: "finalResponse",
             });
-            const metadata =
+            const newMetadata =
               getObjectDataFromUnknown({
                 data: finalResponse,
                 key: "metadata",
               }) ?? {};
-            mergeMetadata(metadata);
+            metadata = {
+              ...metadata,
+              ...newMetadata,
+            };
           } else {
             const modelOutput = getObjectDataFromUnknown({
               data: eventData,
               key: "modelInvocationOutput",
             });
-            const metadata =
+            const newMetadata =
               getObjectDataFromUnknown({
                 data: modelOutput,
                 key: "metadata",
               }) ?? {};
-            mergeMetadata(metadata);
+            metadata = {
+              ...metadata,
+              ...newMetadata,
+            };
           }
           break;
         }
@@ -1063,5 +1131,5 @@ function getRawMetadataFromTraceSpan(
       }
     }
   }
-  return rawMetadata;
+  return metadata;
 }
