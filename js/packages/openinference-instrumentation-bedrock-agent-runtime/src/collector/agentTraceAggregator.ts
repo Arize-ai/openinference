@@ -42,7 +42,6 @@ export class AgentTraceAggregator {
    */
   collect(raw: StringKeyedObject) {
     const traceData = this.unwrapTrace(raw);
-    console.log("traceData", JSON.stringify(traceData, null, 2));
     if (!traceData) {
       return;
     }
