@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.37...python-openinference-instrumentation-v0.1.38) (2025-09-02)
+
+
+### Features
+
+* **instrumentation:** add dangerously_using_project context manager ([#2134](https://github.com/Arize-ai/openinference/issues/2134)) ([aed9db0](https://github.com/Arize-ai/openinference/commit/aed9db05b93d1ae0cb7d8a49977de1926b038740))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.36...python-openinference-instrumentation-v0.1.37) (2025-08-06)
 
 
