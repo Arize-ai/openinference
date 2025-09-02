@@ -43,7 +43,7 @@ class dangerously_using_project:
 
     Examples::
 
-        with using_project('my_project'):
+        with dangerously_using_project('my_project'):
             # Spans created here will be associated with 'my_project'
     """
 
