@@ -94,3 +94,9 @@ export interface DocumentReference {
   location?: Record<string, unknown>;
   [key: string]: unknown;
 }
+
+export type InvocationType =
+  | "AGENT_COLLABORATOR"
+  | "ACTION_GROUP"
+  | "ACTION_GROUP_CODE_INTERPRETER"
+  | "KNOWLEDGE_BASE";
