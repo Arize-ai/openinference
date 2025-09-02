@@ -14,25 +14,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:ignore[attr-defined]
 from openinference.instrumentation.config import (
-    DEFAULT_BASE64_IMAGE_MAX_LENGTH,
-    DEFAULT_HIDE_INPUT_IMAGES,
-    DEFAULT_HIDE_INPUT_MESSAGES,
-    DEFAULT_HIDE_INPUT_TEXT,
-    DEFAULT_HIDE_INPUTS,
-    DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
-    DEFAULT_HIDE_OUTPUT_MESSAGES,
-    DEFAULT_HIDE_OUTPUT_TEXT,
-    DEFAULT_HIDE_OUTPUTS,
-    DEFAULT_HIDE_PROMPTS,
-    OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
-    OPENINFERENCE_HIDE_INPUT_IMAGES,
-    OPENINFERENCE_HIDE_INPUT_MESSAGES,
-    OPENINFERENCE_HIDE_INPUT_TEXT,
-    OPENINFERENCE_HIDE_INPUTS,
-    OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
-    OPENINFERENCE_HIDE_OUTPUT_TEXT,
-    OPENINFERENCE_HIDE_OUTPUTS,
-    OPENINFERENCE_HIDE_PROMPTS,
+    _TRACE_CONFIG_DEFAULTS,
     REDACTED_VALUE,
 )
 from openinference.semconv.trace import SpanAttributes
@@ -40,16 +22,19 @@ from openinference.semconv.trace import SpanAttributes
 
 def test_default_settings() -> None:
     config = TraceConfig()
-    assert config.hide_llm_invocation_parameters == DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS
-    assert config.hide_inputs == DEFAULT_HIDE_INPUTS
-    assert config.hide_outputs == DEFAULT_HIDE_OUTPUTS
-    assert config.hide_input_messages == DEFAULT_HIDE_INPUT_MESSAGES
-    assert config.hide_output_messages == DEFAULT_HIDE_OUTPUT_MESSAGES
-    assert config.hide_input_images == DEFAULT_HIDE_INPUT_IMAGES
-    assert config.hide_input_text == DEFAULT_HIDE_INPUT_TEXT
-    assert config.hide_output_text == DEFAULT_HIDE_OUTPUT_TEXT
-    assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
-    assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
+    assert (
+        config.hide_llm_invocation_parameters
+        == _TRACE_CONFIG_DEFAULTS["hide_llm_invocation_parameters"]
+    )
+    assert config.hide_inputs == _TRACE_CONFIG_DEFAULTS["hide_inputs"]
+    assert config.hide_outputs == _TRACE_CONFIG_DEFAULTS["hide_outputs"]
+    assert config.hide_input_messages == _TRACE_CONFIG_DEFAULTS["hide_input_messages"]
+    assert config.hide_output_messages == _TRACE_CONFIG_DEFAULTS["hide_output_messages"]
+    assert config.hide_input_images == _TRACE_CONFIG_DEFAULTS["hide_input_images"]
+    assert config.hide_input_text == _TRACE_CONFIG_DEFAULTS["hide_input_text"]
+    assert config.hide_output_text == _TRACE_CONFIG_DEFAULTS["hide_output_text"]
+    assert config.hide_prompts == _TRACE_CONFIG_DEFAULTS["hide_prompts"]
+    assert config.base64_image_max_length == _TRACE_CONFIG_DEFAULTS["base64_image_max_length"]
 
 
 def test_oi_tracer(
@@ -135,27 +120,27 @@ def test_settings_from_env_vars_and_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # First part of the test verifies that environment variables are read correctly
-    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUTS, str(hide_inputs))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUTS, str(hide_outputs))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_MESSAGES, str(hide_input_messages))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_MESSAGES, str(hide_output_messages))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_IMAGES, str(hide_input_images))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_PROMPTS, str(hide_prompts))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
-    monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
-    monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUTS", str(hide_inputs))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_OUTPUTS", str(hide_outputs))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUT_MESSAGES", str(hide_input_messages))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_OUTPUT_MESSAGES", str(hide_output_messages))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUT_IMAGES", str(hide_input_images))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_PROMPTS", str(hide_prompts))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUT_TEXT", str(hide_input_text))
+    monkeypatch.setenv("OPENINFERENCE_HIDE_OUTPUT_TEXT", str(hide_output_text))
+    monkeypatch.setenv("OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH", str(base64_image_max_length))
 
     config = TraceConfig()
-    assert config.hide_inputs is parse_bool_from_env(OPENINFERENCE_HIDE_INPUTS)
-    assert config.hide_outputs is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUTS)
-    assert config.hide_input_messages is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_MESSAGES)
-    assert config.hide_output_messages is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUT_MESSAGES)
-    assert config.hide_input_images is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_IMAGES)
-    assert config.hide_input_text is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_TEXT)
-    assert config.hide_output_text is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUT_TEXT)
-    assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
+    assert config.hide_inputs is parse_bool_from_env("OPENINFERENCE_HIDE_INPUTS")
+    assert config.hide_outputs is parse_bool_from_env("OPENINFERENCE_HIDE_OUTPUTS")
+    assert config.hide_input_messages is parse_bool_from_env("OPENINFERENCE_HIDE_INPUT_MESSAGES")
+    assert config.hide_output_messages is parse_bool_from_env("OPENINFERENCE_HIDE_OUTPUT_MESSAGES")
+    assert config.hide_input_images is parse_bool_from_env("OPENINFERENCE_HIDE_INPUT_IMAGES")
+    assert config.hide_input_text is parse_bool_from_env("OPENINFERENCE_HIDE_INPUT_TEXT")
+    assert config.hide_output_text is parse_bool_from_env("OPENINFERENCE_HIDE_OUTPUT_TEXT")
+    assert config.hide_prompts is parse_bool_from_env("OPENINFERENCE_HIDE_PROMPTS")
     assert config.base64_image_max_length == int(
-        os.getenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, default=-1)
+        os.getenv("OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH", default=-1)
     )
 
     # This next part of the text verifies that the code specified values overwrite

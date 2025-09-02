@@ -385,10 +385,11 @@ def test_completions(
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Prompts are recorded in request phase, so present regardless of status
+    assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
-        assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -445,7 +446,15 @@ def test_embeddings(
         "prompt_tokens": random.randint(10, 100),
         "total_tokens": random.randint(10, 100),
     }
-    output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)), ((2.0, 3.0), (2.0, 3.0))]
+    # Match output structure to input structure
+    num_inputs = len(input_text) if isinstance(input_text, list) else 1
+    # First element is for API response, second is for verification
+    output_embeddings: list[tuple[Any, tuple[float, ...]]]
+    if encoding_format == "base64":
+        output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)) for _ in range(num_inputs)]
+    else:
+        # API returns list, verification expects tuple
+        output_embeddings = [([1.0 + i, 2.0 + i], (1.0 + i, 2.0 + i)) for i in range(num_inputs)]
     url = urljoin(base_url, "embeddings")
     respx_mock.post(url).mock(
         return_value=Response(
@@ -503,19 +512,20 @@ def test_embeddings(
     )
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
-        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Text attributes are recorded in request phase, so they're present regardless of status
+    for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
+        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
         assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
         assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
         assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
-        for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
-            assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
         for i, embedding in enumerate(output_embeddings):
             assert (
                 attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
@@ -1752,6 +1762,7 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+EMBEDDING_INVOCATION_PARAMETERS = SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 SESSION_ID = SpanAttributes.SESSION_ID
