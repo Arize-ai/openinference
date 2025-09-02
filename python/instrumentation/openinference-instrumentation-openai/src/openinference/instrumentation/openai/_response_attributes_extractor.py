@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import base64
 import logging
-from importlib import import_module
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -10,8 +8,6 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
-    Optional,
-    Sequence,
     Tuple,
     Type,
 )
@@ -19,7 +15,7 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
-from openinference.instrumentation.openai._utils import _get_openai_version, _get_texts
+from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -36,11 +32,6 @@ __all__ = ("_ResponseAttributesExtractor",)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-try:
-    _NUMPY: Optional[ModuleType] = import_module("numpy")
-except ImportError:
-    _NUMPY = None
 
 
 class _ResponseAttributesExtractor:
@@ -79,12 +70,10 @@ class _ResponseAttributesExtractor:
         elif isinstance(response, self._create_embedding_response_type):
             yield from self._get_attributes_from_create_embedding_response(
                 response=response,
-                request_parameters=request_parameters,
             )
         elif isinstance(response, self._completion_type):
             yield from self._get_attributes_from_completion(
                 completion=response,
-                request_parameters=request_parameters,
             )
 
     def _get_attributes_from_responses_response(
@@ -116,26 +105,16 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_completion(
         self,
         completion: "Completion",
-        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion.py#L13  # noqa: E501
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
-        if model_prompt := request_parameters.get("prompt"):
-            # FIXME: this step should move to request attributes extractor if decoding is not necessary.# noqa: E501
-            # prompt: Required[Union[str, List[str], List[int], List[List[int]], None]]
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L38
-            # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
-            # names are not reliable (across OpenAI and Azure).
-            if prompts := list(_get_texts(model_prompt, model)):
-                yield SpanAttributes.LLM_PROMPTS, prompts
 
     def _get_attributes_from_create_embedding_response(
         self,
         response: "CreateEmbeddingResponse",
-        request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/create_embedding_response.py#L20  # noqa: E501
         if usage := getattr(response, "usage", None):
@@ -144,48 +123,37 @@ class _ResponseAttributesExtractor:
         if model := getattr(response, "model"):
             yield f"{SpanAttributes.EMBEDDING_MODEL_NAME}", model
         if (data := getattr(response, "data", None)) and isinstance(data, Iterable):
-            for embedding in data:
-                if (index := getattr(embedding, "index", None)) is None:
+            # Extract embedding vectors directly
+            for index, embedding_item in enumerate(data):
+                raw_vector = getattr(embedding_item, "embedding", None)
+                if not raw_vector:
                     continue
-                for key, value in self._get_attributes_from_embedding(embedding):
-                    yield f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{key}", value
 
-        embedding_input = request_parameters.get("input")
-        for index, text in enumerate(_get_texts(embedding_input, model)):
-            # FIXME: this step should move to request attributes extractor if decoding is not necessary.# noqa: E501
-            # input: Required[Union[str, List[str], List[int], List[List[int]]]]
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding_create_params.py#L12
-            # FIXME: tokens (List[int], List[List[int]]) can't be decoded reliably because model
-            # names are not reliable (across OpenAI and Azure).
-            yield (
-                (
-                    f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}."
-                    f"{EmbeddingAttributes.EMBEDDING_TEXT}"
-                ),
-                text,
-            )
+                vector = None
+                # Check if it's a list of floats
+                if isinstance(raw_vector, (list, tuple)) and raw_vector:
+                    if isinstance(raw_vector[0], (int, float)):
+                        vector = list(raw_vector)
+                elif isinstance(raw_vector, str) and raw_vector:
+                    # Base64-encoded vector (when encoding_format="base64")
+                    try:
+                        import base64
+                        import struct
 
-    def _get_attributes_from_embedding(
-        self,
-        embedding: object,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        # openai.types.Embedding
-        # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/embedding.py#L11  # noqa: E501
-        if not (_vector := getattr(embedding, "embedding", None)):
-            return
-        if isinstance(_vector, Sequence) and len(_vector) and isinstance(_vector[0], float):
-            vector = list(_vector)
-            yield f"{EmbeddingAttributes.EMBEDDING_VECTOR}", vector
-        elif isinstance(_vector, str) and _vector and _NUMPY:
-            # FIXME: this step should be removed if decoding is not necessary.
-            try:
-                # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/resources/embeddings.py#L100  # noqa: E501
-                vector = _NUMPY.frombuffer(base64.b64decode(_vector), dtype="float32").tolist()
-            except Exception:
-                logger.exception("Failed to decode embedding")
-                pass
-            else:
-                yield f"{EmbeddingAttributes.EMBEDDING_VECTOR}", vector
+                        # Decode base64 to float32 array
+                        decoded = base64.b64decode(raw_vector)
+                        # Unpack as float32 values
+                        num_floats = len(decoded) // 4
+                        vector = list(struct.unpack(f"{num_floats}f", decoded))
+                    except Exception:
+                        # If decoding fails, skip this vector
+                        continue
+
+                if vector:
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
+                        vector,
+                    )
 
     def _get_attributes_from_chat_completion_message(
         self,

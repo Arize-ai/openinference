@@ -24,6 +24,10 @@ class SpanAttributes:
     """
     The name of the embedding model.
     """
+    EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+    """
+    Invocation parameters passed to the embedding model or API, such as the model name, encoding format, etc.
+    """
 
     LLM_FUNCTION_CALL = "llm.function_call"
     """
