@@ -10,7 +10,7 @@ try:
     from agents.tracing.span_data import FunctionSpanData, GenerationSpanData, MCPListToolsSpanData
 except ImportError:
     # Handle compatibility issue with OpenAI SDK >=1.103.0 where WebSearchToolFilters was removed
-    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a (feat: realtime API updates)
+    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a
     # See: https://github.com/openai/openai-python/compare/v1.102.0...v1.103.0
     pytest.skip(
         "agents package incompatible with current OpenAI SDK version", allow_module_level=True
