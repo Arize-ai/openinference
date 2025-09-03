@@ -360,7 +360,6 @@ class TestModels:
 
 
 class TestRuns:
-    @pytest.mark.xfail
     def test_streaming_and_non_streaming_code_agent_runs(
         self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
@@ -501,7 +500,6 @@ final_answer("Test result from CodeAgent")
         assert main_span_non_stream.status.status_code == trace_api.StatusCode.OK
         assert main_span_stream.status.status_code == trace_api.StatusCode.OK
 
-    @pytest.mark.xfail
     def test_multiagents(self) -> None:
         class FakeModelMultiagentsManagerAgent:
             def __call__(
