@@ -166,3 +166,43 @@ async def test_hello(
     assert server_span.parent_span_id == root_span.span_id
     assert whoami_span.trace_id == root_span.trace_id
     assert whoami_span.parent_span_id == server_span.span_id
+
+
+async def test_stdio_validation_error(tracer: Tracer, otlp_collector: OTLPServer) -> None:
+    """Test that ValidationError in stdio transport doesn't crash the instrumentation."""
+    # Lazy import to get instrumented versions. Users will use opentelemetry-instrument or otherwise
+    # initialize instrumentation as early as possible and should not run into issues, but we control
+    # instrumentation through fixtures instead.
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+    from pydantic_core import ValidationError
+
+    validation_error_received = False
+
+    async def message_handler(
+        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
+    ) -> None:
+        nonlocal validation_error_received
+        if isinstance(message, ValidationError):
+            validation_error_received = True
+
+    server_script = str(Path(__file__).parent / "mcpserver_invalid.py")
+    pythonpath = str(Path(__file__).parent.parent)
+
+    async with stdio_client(
+        StdioServerParameters(
+            command=sys.executable,
+            args=[server_script],
+            env={
+                "MCP_TRANSPORT": "stdio",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": f"http://localhost:{otlp_collector.server_port}/",
+                "PYTHONPATH": pythonpath,
+            },
+        )
+    ) as (reader, writer), ClientSession(reader, writer, message_handler=message_handler):
+        # The server will send an invalid message that triggers ValidationError
+        # Without the fix, this causes AttributeError: ValidationError has no attribute 'message'
+        # With the fix, it checks isinstance(item, SessionMessage) first
+        await asyncio.sleep(0.5)
+
+    # Test passes if we didn't crash with AttributeError
+    assert validation_error_received

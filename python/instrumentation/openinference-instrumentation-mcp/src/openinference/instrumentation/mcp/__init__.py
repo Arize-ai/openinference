@@ -124,8 +124,13 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore
         from mcp.types import JSONRPCRequest
 
         async for item in self.__wrapped__:
-            session_message = cast(SessionMessage, item)
-            request = session_message.message.root
+            # Handle exceptions and other non-SessionMessage items
+            # MCP can pass ValidationError or other exceptions through the stream
+            if not isinstance(item, SessionMessage):
+                yield item
+                continue
+
+            request = item.message.root
 
             if not isinstance(request, JSONRPCRequest):
                 yield item
