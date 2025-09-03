@@ -80,6 +80,9 @@ class _ResponsesApiAttributes:
             elif item["type"] == "input_file":
                 # TODO: Handle input file
                 pass
+            elif item["type"] == "input_audio":
+                # TODO: Handle input audio
+                pass
             elif item["type"] == "refusal":
                 yield from cls._get_attributes_from_response_output_refusal_param(
                     item, inner_prefix

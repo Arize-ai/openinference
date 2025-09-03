@@ -1,4 +1,5 @@
 import json
+from typing import Callable, Iterator
 
 import openai
 import pytest
@@ -8,6 +9,24 @@ from opentelemetry.trace import TracerProvider
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig
 from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.trace import SpanAttributes
+
+
+@pytest.fixture
+def custom_instrumentation(
+    tracer_provider: TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> Iterator[Callable[[TraceConfig], None]]:
+    """Fixture for tests that need custom TraceConfig."""
+    # Uninstrument the default instrumentation
+    OpenAIInstrumentor().uninstrument()
+
+    def _instrument_with_config(config: TraceConfig) -> None:
+        OpenAIInstrumentor().instrument(config=config, tracer_provider=tracer_provider)
+
+    yield _instrument_with_config
+
+    # Always cleanup, even if test fails
+    OpenAIInstrumentor().uninstrument()
+    in_memory_span_exporter.clear()
 
 
 class TestInputValueImageHiding:
@@ -20,19 +39,17 @@ class TestInputValueImageHiding:
     )
     def test_input_value_hides_base64_images(
         self,
+        custom_instrumentation: Callable[[TraceConfig], None],
         in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: TracerProvider,
     ) -> None:
         """Test that input.value redacts base64 images when hide_input_images=True."""
 
-        # Uninstrument and re-instrument with hide_input_images=True
-        OpenAIInstrumentor().uninstrument()
         config = TraceConfig(
             hide_inputs=False,  # Keep inputs visible
             hide_input_images=True,  # But hide images
             base64_image_max_length=0,  # Redact all base64 images
         )
-        OpenAIInstrumentor().instrument(config=config, tracer_provider=tracer_provider)
+        custom_instrumentation(config)
 
         # Small 1x1 pixel base64 image for testing
         base64_image = (
@@ -78,10 +95,6 @@ class TestInputValueImageHiding:
         assert image_content is not None
         assert image_content["image_url"]["url"] == REDACTED_VALUE
 
-        # Clean up
-        OpenAIInstrumentor().uninstrument()
-        in_memory_span_exporter.clear()
-
     @pytest.mark.vcr(
         decode_compressed_response=True,
         before_record_request=lambda _: _.headers.clear() or _,
@@ -89,18 +102,16 @@ class TestInputValueImageHiding:
     )
     def test_input_value_preserves_images_when_disabled(
         self,
+        custom_instrumentation: Callable[[TraceConfig], None],
         in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: TracerProvider,
     ) -> None:
         """Test that input.value preserves images when hide_input_images=False."""
 
-        # Uninstrument and re-instrument with hide_input_images=False
-        OpenAIInstrumentor().uninstrument()
         config = TraceConfig(
             hide_inputs=False,
             hide_input_images=False,  # Don't hide images
         )
-        OpenAIInstrumentor().instrument(config=config, tracer_provider=tracer_provider)
+        custom_instrumentation(config)
 
         # Small 1x1 pixel base64 image for testing
         base64_image = (
@@ -144,12 +155,7 @@ class TestInputValueImageHiding:
         message_content = input_data["messages"][0]["content"]
         image_content = next((c for c in message_content if c.get("type") == "image_url"), None)
         assert image_content is not None
-        assert "data:image" in image_content["image_url"]["url"]
-        assert image_content["image_url"]["url"] != REDACTED_VALUE
-
-        # Clean up
-        OpenAIInstrumentor().uninstrument()
-        in_memory_span_exporter.clear()
+        assert image_content["image_url"]["url"] == base64_image
 
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -158,18 +164,16 @@ class TestInputValueImageHiding:
     )
     def test_input_value_hides_regular_url_images(
         self,
+        custom_instrumentation: Callable[[TraceConfig], None],
         in_memory_span_exporter: InMemorySpanExporter,
-        tracer_provider: TracerProvider,
     ) -> None:
         """Test that input.value redacts regular URL images when hide_input_images=True."""
 
-        # Uninstrument and re-instrument with hide_input_images=True
-        OpenAIInstrumentor().uninstrument()
         config = TraceConfig(
             hide_inputs=False,
             hide_input_images=True,  # Hide images
         )
-        OpenAIInstrumentor().instrument(config=config, tracer_provider=tracer_provider)
+        custom_instrumentation(config)
 
         client = openai.OpenAI(api_key="sk-fake-test-key-for-unit-tests")
 
@@ -214,7 +218,3 @@ class TestInputValueImageHiding:
         image_content = next((c for c in message_content if c.get("type") == "image_url"), None)
         assert image_content is not None
         assert image_content["image_url"]["url"] == REDACTED_VALUE
-
-        # Clean up
-        OpenAIInstrumentor().uninstrument()
-        in_memory_span_exporter.clear()
