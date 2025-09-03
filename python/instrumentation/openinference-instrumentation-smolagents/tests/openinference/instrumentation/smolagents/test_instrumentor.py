@@ -362,8 +362,7 @@ class TestModels:
 class TestRuns:
     @pytest.mark.xfail
     def test_streaming_and_non_streaming_code_agent_runs(
-        self,
-        in_memory_span_exporter: InMemorySpanExporter
+        self, in_memory_span_exporter: InMemorySpanExporter
     ) -> None:
         class FakeModel:
             def __init__(self, streaming: bool = False):
@@ -406,8 +405,7 @@ final_answer("Test result from CodeAgent")
             max_steps=5,
             additional_authorized_imports=["json", "os"],
         )
-        result_non_stream = code_agent_non_stream.run(
-            "Test question for non-streaming")
+        result_non_stream = code_agent_non_stream.run("Test question for non-streaming")
 
         assert result_non_stream == "Test result from CodeAgent"
 
@@ -415,19 +413,21 @@ final_answer("Test result from CodeAgent")
         assert len(non_stream_spans) > 0
 
         agent_spans_non_stream = [
-            span for span in non_stream_spans
-            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) ==
-            OpenInferenceSpanKindValues.AGENT.value
+            span
+            for span in non_stream_spans
+            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.AGENT.value
         ]
         assert len(agent_spans_non_stream) >= 1
 
         # Check attributes in main span
         main_span_non_stream = agent_spans_non_stream[0]
         assert main_span_non_stream.name == "CodeAgent.run"
-        assert main_span_non_stream.attributes.get(
-            SpanAttributes.INPUT_VALUE) is not None
-        assert main_span_non_stream.attributes.get(
-            SpanAttributes.OUTPUT_VALUE) == "Test result from CodeAgent"
+        assert main_span_non_stream.attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert (
+            main_span_non_stream.attributes.get(SpanAttributes.OUTPUT_VALUE)
+            == "Test result from CodeAgent"
+        )
         assert main_span_non_stream.attributes.get("smolagents.max_steps") == 5
 
         # Check token usage metadata
@@ -445,12 +445,11 @@ final_answer("Test result from CodeAgent")
             max_steps=3,
             additional_authorized_imports=["json"],
         )
-        result_stream = code_agent_stream.run(
-            "Test question for streaming", stream=True)
+        result_stream = code_agent_stream.run("Test question for streaming", stream=True)
 
         # Check that CodeAgent result is a generator
-        assert hasattr(result_stream, '__iter__')
-        assert hasattr(result_stream, '__next__')
+        assert hasattr(result_stream, "__iter__")
+        assert hasattr(result_stream, "__next__")
 
         # Collect chunks for final output
         output_chunks = []
@@ -463,21 +462,20 @@ final_answer("Test result from CodeAgent")
         assert len(stream_spans) > 0
 
         agent_spans_stream = [
-            span for span in stream_spans
-            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) ==
-            OpenInferenceSpanKindValues.AGENT.value
+            span
+            for span in stream_spans
+            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.AGENT.value
         ]
         assert len(agent_spans_stream) >= 1
 
         # Check attributes in main span
         main_span_stream = agent_spans_stream[0]
         assert main_span_stream.name == "CodeAgent.run"
-        assert main_span_stream.attributes.get(
-            SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_stream.attributes.get(SpanAttributes.INPUT_VALUE) is not None
         assert main_span_stream.attributes.get("smolagents.max_steps") == 3
 
-        output_value = main_span_stream.attributes.get(
-            SpanAttributes.OUTPUT_VALUE)
+        output_value = main_span_stream.attributes.get(SpanAttributes.OUTPUT_VALUE)
         assert output_value is not None
 
         # Check token usage metadata
@@ -490,7 +488,7 @@ final_answer("Test result from CodeAgent")
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             SpanAttributes.INPUT_VALUE,
             "smolagents.max_steps",
-            "smolagents.tools_names"
+            "smolagents.tools_names",
         ]
         for attr in common_attributes:
             assert attr in main_span_non_stream.attributes
