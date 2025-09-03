@@ -359,7 +359,146 @@ class TestModels:
         assert not attributes
 
 
-class TestRun:
+class TestRuns:
+    @pytest.mark.xfail
+    def test_streaming_and_non_streaming_code_agent_runs(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        class FakeModel:
+            def __init__(self, streaming: bool = False):
+                self.streaming = streaming
+                self.call_count = 0
+
+            def __call__(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                self.call_count += 1
+                return ChatMessage(
+                    role="assistant",
+                    content="""
+Thought: Let's return a simple answer.
+Code:
+```py
+final_answer("Test result from CodeAgent")
+```<end_code>
+""",
+                )
+
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
+
+        # Handle non-streaming (normal) run
+        non_streaming_model = FakeModel(streaming=False)
+        code_agent_non_stream = CodeAgent(
+            tools=[],
+            model=non_streaming_model,
+            max_steps=5,
+            additional_authorized_imports=["json", "os"],
+        )
+        result_non_stream = code_agent_non_stream.run(
+            "Test question for non-streaming")
+
+        assert result_non_stream == "Test result from CodeAgent"
+
+        non_stream_spans = in_memory_span_exporter.get_finished_spans()
+        assert len(non_stream_spans) > 0
+
+        agent_spans_non_stream = [
+            span for span in non_stream_spans
+            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) ==
+            OpenInferenceSpanKindValues.AGENT.value
+        ]
+        assert len(agent_spans_non_stream) >= 1
+
+        # Check attributes in main span
+        main_span_non_stream = agent_spans_non_stream[0]
+        assert main_span_non_stream.name == "CodeAgent.run"
+        assert main_span_non_stream.attributes.get(
+            SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_non_stream.attributes.get(
+            SpanAttributes.OUTPUT_VALUE) == "Test result from CodeAgent"
+        assert main_span_non_stream.attributes.get("smolagents.max_steps") == 5
+
+        # Check token usage metadata
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_non_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_non_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_non_stream.attributes
+
+        in_memory_span_exporter.clear()
+
+        # Handle streaming (generator) run
+        streaming_model = FakeModel(streaming=True)
+        code_agent_stream = CodeAgent(
+            tools=[],
+            model=streaming_model,
+            max_steps=3,
+            additional_authorized_imports=["json"],
+        )
+        result_stream = code_agent_stream.run(
+            "Test question for streaming", stream=True)
+
+        # Check that CodeAgent result is a generator
+        assert hasattr(result_stream, '__iter__')
+        assert hasattr(result_stream, '__next__')
+
+        # Collect chunks for final output
+        output_chunks = []
+        for chunk in result_stream:
+            output_chunks.append(str(chunk))
+        final_output = "".join(output_chunks)
+        assert "Test result from CodeAgent" in final_output
+
+        stream_spans = in_memory_span_exporter.get_finished_spans()
+        assert len(stream_spans) > 0
+
+        agent_spans_stream = [
+            span for span in stream_spans
+            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) ==
+            OpenInferenceSpanKindValues.AGENT.value
+        ]
+        assert len(agent_spans_stream) >= 1
+
+        # Check attributes in main span
+        main_span_stream = agent_spans_stream[0]
+        assert main_span_stream.name == "CodeAgent.run"
+        assert main_span_stream.attributes.get(
+            SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_stream.attributes.get("smolagents.max_steps") == 3
+
+        output_value = main_span_stream.attributes.get(
+            SpanAttributes.OUTPUT_VALUE)
+        assert output_value is not None
+
+        # Check token usage metadata
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_stream.attributes
+
+        # Check common attributes & status codes
+        common_attributes = [
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            SpanAttributes.INPUT_VALUE,
+            "smolagents.max_steps",
+            "smolagents.tools_names"
+        ]
+        for attr in common_attributes:
+            assert attr in main_span_non_stream.attributes
+            assert attr in main_span_stream.attributes
+
+        assert main_span_non_stream.status.status_code == trace_api.StatusCode.OK
+        assert main_span_stream.status.status_code == trace_api.StatusCode.OK
+
     @pytest.mark.xfail
     def test_multiagents(self) -> None:
         class FakeModelMultiagentsManagerAgent:
@@ -426,15 +565,37 @@ final_answer("Final report.")
 """,
                         )
 
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
+
+            def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
+                if not message.tool_calls:
+                    message.tool_calls = [
+                        ChatMessageToolCall(
+                            id="call_0",
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer", arguments="Final report."
+                            ),
+                        )
+                    ]
+                return message
+
         manager_model = FakeModelMultiagentsManagerAgent()
 
         class FakeModelMultiagentsManagedAgent:
             def __call__(
                 self,
                 messages: list[dict[str, Any]],
-                tools_to_call_from: Optional[list[Tool]] = None,
                 stop_sequences: Optional[list[str]] = None,
                 grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
             ) -> Any:
                 return ChatMessage(
                     role="assistant",
@@ -450,6 +611,15 @@ final_answer("Final report.")
                         )
                     ],
                 )
+
+            def generate(
+                self,
+                messages: list[dict[str, Any]],
+                stop_sequences: Optional[list[str]] = None,
+                grammar: Optional[Any] = None,
+                tools_to_call_from: Optional[list[Tool]] = None,
+            ) -> Any:
+                return self(messages, stop_sequences, grammar, tools_to_call_from)
 
         managed_model = FakeModelMultiagentsManagedAgent()
 
@@ -468,7 +638,6 @@ final_answer("Final report.")
             tools=[],
             model=manager_model,
             managed_agents=[web_agent],
-            additional_authorized_imports=["time", "numpy", "pandas"],
         )
 
         report = manager_code_agent.run("Fake question.")
