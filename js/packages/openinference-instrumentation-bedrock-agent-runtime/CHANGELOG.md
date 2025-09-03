@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.1.0
+
+### Minor Changes
+
+- 61485b5: Support guardrail traces in bedrock agent runtime as well as make an iterative clean up pass on the package
+
 ## 1.0.0
 
 ### Major Changes
