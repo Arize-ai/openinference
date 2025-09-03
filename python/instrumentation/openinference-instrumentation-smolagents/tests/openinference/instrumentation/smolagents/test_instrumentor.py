@@ -415,25 +415,27 @@ final_answer("Test result from CodeAgent")
         agent_spans_non_stream = [
             span
             for span in non_stream_spans
-            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.AGENT.value
         ]
         assert len(agent_spans_non_stream) >= 1
 
         # Check attributes in main span
         main_span_non_stream = agent_spans_non_stream[0]
+        main_span_non_stream_attributes = dict(main_span_non_stream.attributes or {})
         assert main_span_non_stream.name == "CodeAgent.run"
-        assert main_span_non_stream.attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_non_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
         assert (
-            main_span_non_stream.attributes.get(SpanAttributes.OUTPUT_VALUE)
+            main_span_non_stream_attributes.get(SpanAttributes.OUTPUT_VALUE)
             == "Test result from CodeAgent"
         )
-        assert main_span_non_stream.attributes.get("smolagents.max_steps") == 5
+        assert main_span_non_stream_attributes.get("smolagents.max_steps") == 5
 
         # Check token usage metadata
-        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_non_stream.attributes
-        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_non_stream.attributes
-        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_non_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_non_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_non_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_non_stream_attributes
 
         in_memory_span_exporter.clear()
 
@@ -464,24 +466,26 @@ final_answer("Test result from CodeAgent")
         agent_spans_stream = [
             span
             for span in stream_spans
-            if span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.AGENT.value
         ]
         assert len(agent_spans_stream) >= 1
 
         # Check attributes in main span
         main_span_stream = agent_spans_stream[0]
+        main_span_stream_attributes = dict(main_span_stream.attributes or {})
         assert main_span_stream.name == "CodeAgent.run"
-        assert main_span_stream.attributes.get(SpanAttributes.INPUT_VALUE) is not None
-        assert main_span_stream.attributes.get("smolagents.max_steps") == 3
+        assert main_span_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert main_span_stream_attributes.get("smolagents.max_steps") == 3
 
-        output_value = main_span_stream.attributes.get(SpanAttributes.OUTPUT_VALUE)
+        output_value = main_span_stream_attributes.get(SpanAttributes.OUTPUT_VALUE)
         assert output_value is not None
 
         # Check token usage metadata
-        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_stream.attributes
-        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_stream.attributes
-        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_stream.attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_stream_attributes
+        assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in main_span_stream_attributes
 
         # Check common attributes & status codes
         common_attributes = [
@@ -491,8 +495,8 @@ final_answer("Test result from CodeAgent")
             "smolagents.tools_names",
         ]
         for attr in common_attributes:
-            assert attr in main_span_non_stream.attributes
-            assert attr in main_span_stream.attributes
+            assert attr in main_span_non_stream_attributes
+            assert attr in main_span_stream_attributes
 
         assert main_span_non_stream.status.status_code == trace_api.StatusCode.OK
         assert main_span_stream.status.status_code == trace_api.StatusCode.OK
