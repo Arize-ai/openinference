@@ -174,7 +174,7 @@ def _record_step_error(span: trace_api.Span, error: Exception) -> None:
     if error_type in expected_error_types:
         error_attrs: dict[str, Any]
         if hasattr(error, "dict") and callable(getattr(error, "dict")):
-            error_attrs = error.dict()  # type: ignore[attr-defined]
+            error_attrs = error.dict()
         else:
             error_attrs = {"message": str(error)}
 
