@@ -53,7 +53,7 @@ def get_message_objects(message_list: List[Any]) -> List[Message]:
             if image_content := message_content.get("image"):
                 if content_bytes := image_content.get("source", {}).get("bytes"):
                     base64_img = base64.b64encode(content_bytes).decode("utf-8")
-                    image_url = f"data:{image_content.get('format')};base64, {base64_img}"
+                    image_url = f"data:{image_content.get('format')};base64,{base64_img}"
                     contents.append(ImageMessageContent(type="image", image=Image(url=image_url)))
             if tool_use_content := message_content.get("toolUse"):
                 tool_call_function = ToolCallFunction(
