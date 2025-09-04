@@ -1689,4 +1689,133 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: '{"q": "unique and creative greetings", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '49'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:22 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CqYBMDA2OWM3YTk4OGNkMzUyZDEwMTM3Yzc2NjQ4MzJiMDQzMGI1OTNhYzk4OThkZjQ5MmU4MzM4NjM2OTA3YjBhOTllMDU4OTIwMmJlNDdlOThjZDVlY2Q4OTkwZGQyZTc4N2Y5MzJiNDdlZTE2MTc5YmRmYmUwNmQ5NDExYjJjODM4MzNmNzNhMmMyNzE4NTA0N2M4NTVkMjFiYmM1YTg1Zjc4YTllOBDF4NSskTM;
+        expires=Sat, 04-Oct-2025 16:35:22 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 249cf4fab08a601e77bffa406418230e
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"q": "unique and creative greetings", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '49'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:23 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CqYBMDA2OWM3YTk4ODVjNzUzNTYzZTU2Yzk5NmQ2OTU0M2IxNzc2YmQxZTg2M2VjYmJmMDA4NjY1N2Q3OWYxYzlmM2RiNTY5OTI4MWY5ZTQzYzIzOTg1N2FlNmQyMDc4NzE5MTRhM2E5MDVhNWJiNDZlMmM2ZTY5NzUwZTQwNTJlYzFkNjNjMDlkMzU5MTU2NTc2ODJlNmViMTRlMmM4NjNiYWViYWEzMBDh4tSskTM;
+        expires=Sat, 04-Oct-2025 16:35:23 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 2eee51ac766d89bc9f0837abee407781
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"q": "unique and creative greetings", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '49'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:23 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CrABMDA2OWM3YTk4ODA3OGNhNTc3N2RjMmUyOTg4OTE3ZTNhZTUxNDdhNTZjYmUwNDRmOWZiNDk0ZTIwZmNjMGU0ZmUzYzMzZmQ4ZDVlN2M1NzRkZDRmMDMzODA4YjU5NWUyOGU4NDMyZDg3NTNjMjczZWFjNzJjN2MzNTlkNmE3OTE1NDFhN2Y2NGRjYmYyZjU3MGQ3NzFiN2ZkODg2MGZjNWUyNGE1YjVlZDkyMGU2ODcQueTUrJEz;
+        expires=Sat, 04-Oct-2025 16:35:23 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - a31610f91202254489b0831bc0aa8e13
+    status:
+      code: 403
+      message: Forbidden
 version: 1

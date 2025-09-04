@@ -1675,4 +1675,133 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: '{"q": "unique and creative greeting ideas", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '54'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:22 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CqQBMDA2OWM3YTk4ODM1YzUwN2E1NjNjNTY2ZDM3N2VkN2E1YzIzNmQ4YmJmNTc2ZDkwODI1MTVlNjZkMzQ2YzgxNDBlMDQxOWJlNWM0NDAwZWYwYzNiZWY1ZDVmOWU4NDRiYjM5ZTBhNGNhZTExY2YyNjQ1OTkyYzlhOWZjYmRhZGM2ZTQ2MzY4MjZkNzZkMTA3Nzg0ZTdjMjI5MTg2YmVkMGFlOTUQyODUrJEz;
+        expires=Sat, 04-Oct-2025 16:35:22 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 933a9828b553f8384909c79f67e947be
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"q": "unique and creative greeting ideas", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '54'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:23 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CqQBMDA2OWM3YTk4ODEyODgzYzIxOTZlMjc4MTk4YjgzY2QxZTk5ZmRjN2M4M2M2NDA3MTA3ZmE3M2JhZjNmMDU5MzcwOGE0ZDhiMTcxNGRmYjdjMDgwNzVjYTE4YWFkYTM2MWIxZmQzZWI3YzMwN2U2Y2RlZTgwMDVmNDEyNzAyOTg0Njc4OTMyZWQ0MTZiOWM5MjNkMGFmNjE2NWRhYmM3ZDNhMDgQo-LUrJEz;
+        expires=Sat, 04-Oct-2025 16:35:23 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 8e6c73a567f0846fa023ff66e874a883
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"q": "unique and creative greeting ideas", "num": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '54'
+      User-Agent:
+      - python-requests/2.32.5
+      content-type:
+      - application/json
+    method: POST
+    uri: https://google.serper.dev/search
+  response:
+    body:
+      string: '{"message":"Unauthorized.","statusCode":403}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '44'
+      access-control-allow-origin:
+      - '*'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Thu, 04 Sep 2025 16:35:23 GMT
+      server:
+      - Google Frontend
+      set-cookie:
+      - GAESA=CqQBMDA2OWM3YTk4ODJlYjY0YjlhNjY0YmI5NjAxODU5MThhNWFjZGRhMmQ1NzMwMWMwMGU3Y2FmNzM5ZWNlNjJkMWEwYjg0ODQ5ODU3MmFkYjU0ODk1NTAwY2I3MTA1Nzc5OWRiMzkxM2I4YjQ0MzgyYmM2ZmM1ZGMyZDRmOTViMjA5MzRmN2NiMDM2MDdiZmQzYmE1NmExODcyZjUwNGVkMzA1OTEQiuTUrJEz;
+        expires=Sat, 04-Oct-2025 16:35:23 GMT; path=/
+      via:
+      - 1.1 google
+      x-cloud-trace-context:
+      - 8f53a14ca12e197ce28423703044711f
+    status:
+      code: 403
+      message: Forbidden
 version: 1
