@@ -146,7 +146,9 @@ def _finalize_step_span(
 ) -> None:
     """Record step results & set final span status."""
     try:
-        span.set_attribute(OUTPUT_VALUE, getattr(step_log, "observations", None))
+        observations = getattr(step_log, "observations", None)
+        if observations is not None:
+            span.set_attribute(OUTPUT_VALUE, str(observations))
 
         if not span_status_already_set:
             error = getattr(step_log, "error", None)
@@ -170,9 +172,15 @@ def _record_step_error(span: trace_api.Span, error: Exception) -> None:
     expected_error_types = {"AgentToolCallError", "AgentToolExecutionError"}
 
     if error_type in expected_error_types:
+        error_attrs: dict[str, Any]
+        if hasattr(error, "dict") and callable(getattr(error, "dict")):
+            error_attrs = error.dict()  # type: ignore[attr-defined]
+        else:
+            error_attrs = {"message": str(error)}
+
         span.add_event(
             name="agent.step_recovery",
-            attributes={**error.dict(), "severity": "expected"},
+            attributes={**error_attrs, "severity": "expected"},
         )
         span.set_status(trace_api.StatusCode.OK)
     else:
