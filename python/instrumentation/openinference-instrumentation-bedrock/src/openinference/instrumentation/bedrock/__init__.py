@@ -42,6 +42,7 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_wrapper,
 )
 from openinference.instrumentation.bedrock._wrappers import (
+    _ConverseStream,
     _InvokeAgentWithResponseStream,
     _InvokeModelWithResponseStream,
     _RetrieveAndGenerateStream,
@@ -161,6 +162,7 @@ def _client_creation_wrapper(
             if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
                 client._unwrapped_converse = client.converse
                 client.converse = _model_converse_wrapper(tracer)(client)
+                client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
         return client
 
     return _client_wrapper  # type: ignore
