@@ -136,7 +136,8 @@ def test_crewai_instrumentation(
         elif span.name == "Task._execute_core":
             checked_spans += 1
             assert attributes.get("output.value")
-            assert attributes["openinference.span.kind"] == "AGENT"
+            # Fix: Use .get() instead of direct access to avoid TypeError
+            assert attributes.get("openinference.span.kind") == "AGENT"
             assert attributes.get("input.value")
             if agent_enum == 0:
                 assert attributes.get("graph.node.id") == "Senior Hello Sayer"
