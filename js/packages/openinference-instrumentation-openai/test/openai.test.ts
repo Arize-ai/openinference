@@ -1654,10 +1654,11 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
   describe("URL extraction", () => {
     it("should detect Azure provider correctly", () => {
       const azureClient = new OpenAI({
-        apiKey: "test-key", 
-        baseURL: "https://test-resource.openai.azure.com/openai/deployments/gpt-4",
+        apiKey: "test-key",
+        baseURL:
+          "https://test-resource.openai.azure.com/openai/deployments/gpt-4",
       });
-      
+
       // Just verify the client was created with Azure base URL
       expect(azureClient.baseURL).toContain("openai.azure.com");
     });
