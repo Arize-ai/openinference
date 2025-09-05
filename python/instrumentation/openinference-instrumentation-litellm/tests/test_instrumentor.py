@@ -826,9 +826,9 @@ def test_embedding(
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
     assert attributes.get(SpanAttributes.LLM_SYSTEM) == "litellm"
+    # TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
     assert (
-        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
-        == '{"model": "text-embedding-ada-002"}'
+        attributes.get("embedding.invocation_parameters") == '{"model": "text-embedding-ada-002"}'
     )
 
     assert (
@@ -941,9 +941,9 @@ async def test_aembedding(
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
     assert attributes.get(SpanAttributes.LLM_SYSTEM) == "litellm"
+    # TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
     assert (
-        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
-        == '{"model": "text-embedding-ada-002"}'
+        attributes.get("embedding.invocation_parameters") == '{"model": "text-embedding-ada-002"}'
     )
 
     assert (

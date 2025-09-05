@@ -20,6 +20,9 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+
 
 class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
@@ -59,7 +62,7 @@ class EmbeddingModelProcessor(Processor):
                 invocation_params = {k: v for k, v in input_dict.items() if k != "values"}
             if invocation_params:
                 self.span.set_attribute(
-                    SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
+                    _EMBEDDING_INVOCATION_PARAMETERS,
                     safe_json_dumps(invocation_params),
                 )
 
