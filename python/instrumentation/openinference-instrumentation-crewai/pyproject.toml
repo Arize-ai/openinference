@@ -34,11 +34,11 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "crewai >= 0.119.0",
+  "crewai >= 0.141.0",
 ]
 test = [
-  "crewai == 0.119.0",
-  "crewai-tools == 0.45.0",
+  "crewai == 0.141.0",
+  "crewai-tools == 0.51.1",
   "opentelemetry-sdk",
   "responses",
   "vcrpy",
