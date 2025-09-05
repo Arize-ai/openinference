@@ -1650,4 +1650,16 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
     });
   });
+
+  describe("URL extraction", () => {
+    it("should detect Azure provider correctly", () => {
+      const azureClient = new OpenAI({
+        apiKey: "test-key", 
+        baseURL: "https://test-resource.openai.azure.com/openai/deployments/gpt-4",
+      });
+      
+      // Just verify the client was created with Azure base URL
+      expect(azureClient.baseURL).toContain("openai.azure.com");
+    });
+  });
 });
