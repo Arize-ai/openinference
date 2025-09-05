@@ -88,13 +88,13 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _unpatch_trace_call_llm(self) -> None:
         """Restore the original LLM call tracing functionality."""
-        from google.adk.flows.llm_flows import base_llm_flow
+        from google.adk.flows.llm_flows.base_llm_flow import functions  # type: ignore[attr-defined]
 
         if callable(
             original := getattr(base_llm_flow.trace_call_llm, "__wrapped__"),  # type: ignore[attr-defined]
         ):
-            from google.adk.flows.llm_flows import (
-                base_llm_flow,
+            from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
+                functions,
             )
 
             setattr(base_llm_flow, "trace_call_llm", original)
@@ -118,12 +118,14 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _unpatch_trace_tool_call(self) -> None:
         """Restore the original tool call tracing functionality."""
-        from google.adk.flows.llm_flows import functions
+        from google.adk.flows.llm_flows.base_llm_flow import functions  # type: ignore[attr-defined]
 
         if callable(
             original := getattr(functions.trace_tool_call, "__wrapped__"),  # type: ignore[attr-defined]
         ):
-            from google.adk.flows.llm_flows import functions
+            from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
+                functions,
+            )
 
             setattr(functions, "trace_tool_call", original)
 
