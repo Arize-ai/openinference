@@ -84,6 +84,9 @@ class _ResponsesApiAttributes:
                 yield from cls._get_attributes_from_response_output_refusal_param(
                     item, inner_prefix
                 )
+            elif item["type"] == "input_audio":
+                # TODO: Handle input audio (OpenAI 1.105.0+)
+                pass
             elif TYPE_CHECKING:
                 assert_never(item["type"])
 

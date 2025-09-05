@@ -3,7 +3,7 @@ from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
-from typing import Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -13,6 +13,7 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
 from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -154,7 +155,26 @@ class _WithOpenAI(ABC):
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
         yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
-            yield from _as_input_attributes(_io_value_and_type(request_parameters))
+            # Get the configuration from the tracer to check image hiding settings
+            if TYPE_CHECKING:
+                assert hasattr(self, "_tracer")
+            config = getattr(getattr(self, "_tracer", None), "_self_config", None)
+
+            # Apply image redaction if configured
+            hide_images = bool(config and getattr(config, "hide_input_images", False))
+            max_length = int(getattr(config, "base64_image_max_length", 0) if config else 0)
+
+            if hide_images or (config and max_length > 0):
+                # Redact images if hide_input_images=True OR if base64_image_max_length is set
+                processed_params = redact_images_from_request_parameters(
+                    dict(request_parameters),
+                    hide_input_images=hide_images,
+                    base64_image_max_length=max_length,
+                )
+            else:
+                processed_params = dict(request_parameters)
+
+            yield from _as_input_attributes(_io_value_and_type(processed_params))
         except Exception:
             logger.exception(
                 f"Failed to get input attributes from request parameters of "
