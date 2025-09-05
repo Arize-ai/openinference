@@ -4,7 +4,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import pytest
 from mcp import ClientSession
@@ -206,3 +206,42 @@ async def test_stdio_validation_error(tracer: Tracer, otlp_collector: OTLPServer
 
     # Test passes if we didn't crash with AttributeError
     assert validation_error_received
+
+
+async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
+    """Test that InstrumentedStreamWriter correctly handles exceptions passed through the stream."""
+    # Lazy import to get instrumented versions
+    from anyio import create_memory_object_stream
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+    from pydantic_core import ValidationError
+
+    from openinference.instrumentation.mcp import InstrumentedStreamWriter
+
+    # Create a memory stream for testing
+    write_stream: MemoryObjectSendStream[Any]
+    read_stream: MemoryObjectReceiveStream[Any]
+    write_stream, read_stream = create_memory_object_stream(10)
+
+    # Wrap the write stream with instrumentation
+    instrumented_writer = InstrumentedStreamWriter(write_stream)
+
+    # Create a validation error to simulate what MCP does
+    validation_error = ValidationError.from_exception_data(
+        "Test validation error",
+        [
+            {
+                "type": "missing",
+                "loc": ("method",),
+                "input": {},
+            }
+        ],
+    )
+
+    # Without the fix, this would cause AttributeError when the instrumentation
+    # tries to cast the exception to SessionMessage and access .message.root
+    async with instrumented_writer, read_stream:
+        await instrumented_writer.send(validation_error)
+
+        # Verify the exception was passed through correctly
+        received = await read_stream.receive()
+        assert isinstance(received, ValidationError)
