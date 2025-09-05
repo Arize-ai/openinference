@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from types import TracebackType
 from typing import (
     Any,
@@ -64,44 +64,24 @@ class suppress_tracing:
         detach(self._token)
 
 
-OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS = "OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS"
-OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS"
-# Hides input value & messages
-OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS"
-# Hides output value & messages
-OPENINFERENCE_HIDE_INPUT_MESSAGES = "OPENINFERENCE_HIDE_INPUT_MESSAGES"
-# Hides all input messages
-OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES"
-# Hides all output messages
-OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES"
-# Hides images from input messages
-OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
-# Hides text from input messages
-OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
-# Hides text from output messages
-OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
-# Hides embedding vectors
-OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
-# Limits characters of a base64 encoding of an image
-OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
-# Hides LLM prompts
+# Replacement value for hidden/redacted sensitive data
 REDACTED_VALUE = "__REDACTED__"
-# When a value is hidden, it will be replaced by this redacted value
 
-DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
-DEFAULT_HIDE_PROMPTS = False
-DEFAULT_HIDE_INPUTS = False
-DEFAULT_HIDE_OUTPUTS = False
-
-DEFAULT_HIDE_INPUT_MESSAGES = False
-DEFAULT_HIDE_OUTPUT_MESSAGES = False
-
-DEFAULT_HIDE_INPUT_IMAGES = False
-DEFAULT_HIDE_INPUT_TEXT = False
-DEFAULT_HIDE_OUTPUT_TEXT = False
-
-DEFAULT_HIDE_EMBEDDING_VECTORS = False
-DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
+# Default values for trace configuration, keyed by field names in TraceConfig
+_TRACE_CONFIG_DEFAULTS = {
+    "hide_llm_invocation_parameters": False,
+    "hide_inputs": False,
+    "hide_outputs": False,
+    "hide_input_messages": False,
+    "hide_output_messages": False,
+    "hide_input_images": False,
+    "hide_input_text": False,
+    "hide_output_text": False,
+    "hide_embeddings_vectors": False,
+    "hide_embeddings_text": False,
+    "hide_prompts": False,
+    "base64_image_max_length": 32_000,  # 32KB
+}
 
 
 @dataclass(frozen=True)
@@ -113,108 +93,43 @@ class TraceConfig:
     encoded images to reduce payloads.
 
     For those attributes not passed, this object tries to read from designated
-    environment variables and, if not found, has default values that maximize
-    observability.
+    environment variables (computed as f"OPENINFERENCE_{field_name.upper()}") and,
+    if not found, falls back to default values that maximize observability.
     """
 
-    hide_llm_invocation_parameters: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_LLM_INVOCATION_PARAMETERS,
-            "default_value": DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS,
-        },
-    )
-    hide_inputs: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_INPUTS,
-            "default_value": DEFAULT_HIDE_INPUTS,
-        },
-    )
-    """Hides input value & messages"""
-    hide_outputs: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_OUTPUTS,
-            "default_value": DEFAULT_HIDE_OUTPUTS,
-        },
-    )
-    """Hides output value & messages"""
-    hide_input_messages: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_INPUT_MESSAGES,
-            "default_value": DEFAULT_HIDE_INPUT_MESSAGES,
-        },
-    )
-    """Hides all input messages"""
-    hide_output_messages: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_OUTPUT_MESSAGES,
-            "default_value": DEFAULT_HIDE_OUTPUT_MESSAGES,
-        },
-    )
-    """Hides all output messages"""
-    hide_input_images: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_INPUT_IMAGES,
-            "default_value": DEFAULT_HIDE_INPUT_IMAGES,
-        },
-    )
-    """Hides images from input messages"""
-    hide_input_text: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_INPUT_TEXT,
-            "default_value": DEFAULT_HIDE_INPUT_TEXT,
-        },
-    )
-    """Hides text from input messages"""
-    hide_output_text: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_OUTPUT_TEXT,
-            "default_value": DEFAULT_HIDE_OUTPUT_TEXT,
-        },
-    )
-    """Hides text from output messages"""
-    hide_embedding_vectors: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
-            "default_value": DEFAULT_HIDE_EMBEDDING_VECTORS,
-        },
-    )
-    """Hides embedding vectors"""
-    hide_prompts: Optional[bool] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_HIDE_PROMPTS,
-            "default_value": DEFAULT_HIDE_PROMPTS,
-        },
-    )
-    """Hides LLM prompts"""
-    base64_image_max_length: Optional[int] = field(
-        default=None,
-        metadata={
-            "env_var": OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
-            "default_value": DEFAULT_BASE64_IMAGE_MAX_LENGTH,
-        },
-    )
-    """Limits characters of a base64 encoding of an image"""
+    hide_llm_invocation_parameters: Optional[bool] = None
+    """Removes llm.invocation_parameters attribute entirely from spans"""
+    hide_inputs: Optional[bool] = None
+    """Replaces input.value with REDACTED_VALUE and removes input.mime_type"""
+    hide_outputs: Optional[bool] = None
+    """Replaces output.value with REDACTED_VALUE and removes output.mime_type"""
+    hide_input_messages: Optional[bool] = None
+    """Removes all llm.input_messages attributes entirely from spans"""
+    hide_output_messages: Optional[bool] = None
+    """Removes all llm.output_messages attributes entirely from spans"""
+    hide_input_images: Optional[bool] = None
+    """Removes image URLs from llm.input_messages message content blocks"""
+    hide_input_text: Optional[bool] = None
+    """Replaces text content in llm.input_messages with REDACTED_VALUE"""
+    hide_output_text: Optional[bool] = None
+    """Replaces text content in llm.output_messages with REDACTED_VALUE"""
+    hide_embeddings_vectors: Optional[bool] = None
+    """Replaces embedding.embeddings.*.embedding.vector values with REDACTED_VALUE"""
+    hide_embeddings_text: Optional[bool] = None
+    """Replaces embedding.embeddings.*.embedding.text values with REDACTED_VALUE"""
+    hide_prompts: Optional[bool] = None
+    """Replaces llm.prompts values with REDACTED_VALUE"""
+    base64_image_max_length: Optional[int] = None
+    """Truncates base64-encoded images to this length, replacing excess with REDACTED_VALUE"""
 
     def __post_init__(self) -> None:
         for f in fields(self):
             expected_type = get_args(f.type)[0]
-            # Optional is Union[T,NoneType]. get_args()returns (T, NoneType).
-            # We collect the first type
             self._parse_value(
                 f.name,
                 expected_type,
-                f.metadata["env_var"],
-                f.metadata["default_value"],
+                f"OPENINFERENCE_{f.name.upper()}",
+                _TRACE_CONFIG_DEFAULTS[f.name],
             )
 
     def mask(
@@ -283,11 +198,17 @@ class TraceConfig:
         ):
             value = REDACTED_VALUE
         elif (
-            self.hide_embedding_vectors
+            self.hide_embeddings_vectors
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
-            return None
+            value = REDACTED_VALUE
+        elif (
+            self.hide_embeddings_text
+            and SpanAttributes.EMBEDDING_EMBEDDINGS in key
+            and EmbeddingAttributes.EMBEDDING_TEXT in key
+        ):
+            value = REDACTED_VALUE
         return value() if callable(value) else value
 
     def _parse_value(
