@@ -4,27 +4,26 @@ import asyncio
 import json
 from unittest.mock import MagicMock
 
-import pytest
 from beeai_framework.backend import EmbeddingModel
 from beeai_framework.backend.events import (
     EmbeddingModelStartEvent,
     EmbeddingModelSuccessEvent,
 )
 from beeai_framework.context import RunContext
-from openinference.semconv.trace import EmbeddingAttributes, SpanAttributes
 
 from openinference.instrumentation.beeai.processors.embedding import (
-    EmbeddingModelProcessor,
     _EMBEDDING_INVOCATION_PARAMETERS,
+    EmbeddingModelProcessor,
 )
+from openinference.semconv.trace import EmbeddingAttributes, SpanAttributes
 
 
-def test_embedding_invocation_parameters_constant():
+def test_embedding_invocation_parameters_constant() -> None:
     """Test that the local EMBEDDING_INVOCATION_PARAMETERS constant is properly defined."""
     assert _EMBEDDING_INVOCATION_PARAMETERS == "embedding.invocation_parameters"
 
 
-def test_embedding_processor_sets_attributes():
+def test_embedding_processor_sets_attributes() -> None:
     """Test that EmbeddingModelProcessor sets the correct attributes."""
     # Create mock embedding model
     embedding_model = MagicMock(spec=EmbeddingModel)
