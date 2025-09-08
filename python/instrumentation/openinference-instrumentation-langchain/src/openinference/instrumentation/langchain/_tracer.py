@@ -895,7 +895,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
                 yield attribute_name, token_count
 
     # maps langchain_core.messages.ai.UsageMetadata object
-    for attribute_name, details_key, keys in [
+    for attribute_name, details_key_or_none, keys in [
         (LLM_TOKEN_COUNT_PROMPT, None, ("input_tokens",)),
         (LLM_TOKEN_COUNT_COMPLETION, None, ("output_tokens",)),
         (
@@ -924,7 +924,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             ("reasoning",),
         ),
     ]:
-        details = token_usage.get(details_key) if details_key else token_usage
+        details = token_usage.get(details_key_or_none) if details_key_or_none else token_usage
         if details is not None:
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
