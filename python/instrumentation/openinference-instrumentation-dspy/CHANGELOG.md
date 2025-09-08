@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.28...python-openinference-instrumentation-dspy-v0.1.29) (2025-09-08)
+
+
+### Bug Fixes
+
+* **dspy:** replace configure() with context() in async tests ([#2178](https://github.com/Arize-ai/openinference/issues/2178)) ([90c59e0](https://github.com/Arize-ai/openinference/commit/90c59e01c48a0d89a93172ed8e9d2436117b7cbc))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.27...python-openinference-instrumentation-dspy-v0.1.28) (2025-08-13)
 
 

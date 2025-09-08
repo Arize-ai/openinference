@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.2.0...python-openinference-instrumentation-openai-agents-v1.3.0) (2025-09-08)
+
+
+### Features
+
+* **openai:** implement image redaction for input values when hide_input_images=True ([#2146](https://github.com/Arize-ai/openinference/issues/2146)) ([fac0604](https://github.com/Arize-ai/openinference/commit/fac0604caeedf0b0332151dfde69f0b51b554652))
+
 ## [1.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.1.1...python-openinference-instrumentation-openai-agents-v1.2.0) (2025-08-18)
 
 
