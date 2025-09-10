@@ -62,7 +62,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
     openai_api_key = os.getenv("OPENAI_API_KEY", "sk-test")
     url = "http://quotes.toscrape.com/"
     llm = LLM(
-        model="gpt-4o-mini", api_key=openai_api_key, temperature=0
+        model="gpt-4.1-nano", api_key=openai_api_key, temperature=0
     )  # Use a smaller model for tests
     scraper_agent = Agent(
         role="Website Scraper",
