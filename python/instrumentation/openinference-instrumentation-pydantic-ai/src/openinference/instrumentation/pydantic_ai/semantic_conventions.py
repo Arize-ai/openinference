@@ -217,7 +217,7 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
     if PydanticFinalResult.FINAL_RESULT in gen_ai_attrs:
         yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticFinalResult.FINAL_RESULT]
 
-    # Check for pydantic_ai v2 format (pydantic_ai.all_messages)
+    # Extract input value from pydantic_ai.all_messages (v2 AGENT spans)
     if "pydantic_ai.all_messages" in gen_ai_attrs:
         all_messages_str = gen_ai_attrs["pydantic_ai.all_messages"]
         if isinstance(all_messages_str, str):
@@ -234,7 +234,7 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
                             break
             except json.JSONDecodeError:
                 pass
-    # Also check for v1 format (all_messages_events)
+    # Extract input value from all_messages_events (v1 AGENT spans)
     elif PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS])
         if events:
@@ -253,14 +253,14 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
 
     yield from _extract_tools_attributes(gen_ai_attrs)
 
-    # Check for pydantic_ai v2 format (gen_ai.input.messages and gen_ai.output.messages)
+    # Extract messages from gen_ai.input.messages/output.messages (v2 LLM spans)
     # v1 with event_mode="attributes" will have both gen_ai messages AND events
     # v2 will only have gen_ai messages
     if "gen_ai.input.messages" in gen_ai_attrs and OTELConventions.EVENTS not in gen_ai_attrs:
         yield from _extract_from_gen_ai_messages(gen_ai_attrs)
         return
 
-    # Then, check for standard OTEL events (v1 or other formats)
+    # Extract messages from OTEL events (v1 LLM spans with event_mode="events")
     if OTELConventions.EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[OTELConventions.EVENTS])
         if events:
