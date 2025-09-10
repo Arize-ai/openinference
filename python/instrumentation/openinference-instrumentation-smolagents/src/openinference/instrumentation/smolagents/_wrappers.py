@@ -142,15 +142,20 @@ class _RunWrapper:
 def _finalize_step_span(
     span: trace_api.Span,
     step_log: Any,
-    span_status_already_set: bool,
 ) -> None:
-    """Record step results & set final span status."""
+    """
+    Finalize the step span by recording output & setting status.
+
+    - Attaches observations as the output value.
+    - Sets status to OK if no error is present.
+    - Captures & logs any errors that occur.
+    """
     try:
         observations = getattr(step_log, "observations", None)
         if observations is not None:
             span.set_attribute(OUTPUT_VALUE, str(observations))
 
-        if not span_status_already_set:
+        if span.status.status_code != trace_api.StatusCode.ERROR:
             error = getattr(step_log, "error", None)
             if error is None:
                 span.set_status(trace_api.StatusCode.OK)
@@ -162,12 +167,18 @@ def _finalize_step_span(
             name="span_finalization_error",
             attributes={"error": str(finalization_error)},
         )
-        if not span_status_already_set:
+        if span.status.status_code != trace_api.StatusCode.ERROR:
             span.set_status(trace_api.StatusCode.ERROR)
 
 
 def _record_step_error(span: trace_api.Span, error: Exception) -> None:
-    """Record step error details in the span."""
+    """
+    Record error details for the step span.
+
+    - Marks expected tool errors as recoverable (status = OK).
+    - Adds structured error details as span events for expected tool errors.
+    - Marks unexpected errors as failures & records the exception.
+    """
     error_type = error.__class__.__name__
     expected_error_types = {"AgentToolCallError", "AgentToolExecutionError"}
 
@@ -189,6 +200,14 @@ def _record_step_error(span: trace_api.Span, error: Exception) -> None:
 
 
 class _StepWrapper:
+    """
+    Wrapper to instrument agent steps with OpenTelemetry spans.
+
+    - Creates a span per step with input/output attributes.
+    - Records errors & propagates exceptions.
+    - Finalizes span status & preserves context for each step.
+    """
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -213,18 +232,16 @@ class _StepWrapper:
                 **dict(get_attributes_from_context()),
             },
         ) as span:
-            span_status_already_set = False
             try:
                 yield from wrapped(*args, **kwargs)
             except Exception as execution_error:
                 span.record_exception(execution_error)
                 span.set_status(trace_api.StatusCode.ERROR)
-                span_status_already_set = True
                 raise
             finally:
                 step_log = args[0] if args else None
                 if step_log is not None:
-                    _finalize_step_span(span, step_log, span_status_already_set)
+                    _finalize_step_span(span, step_log)
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
