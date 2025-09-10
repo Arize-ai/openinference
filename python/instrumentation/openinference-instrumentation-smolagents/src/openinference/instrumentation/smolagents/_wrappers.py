@@ -155,7 +155,7 @@ def _finalize_step_span(
         if observations is not None:
             span.set_attribute(OUTPUT_VALUE, str(observations))
 
-        if span.status.status_code != trace_api.StatusCode.ERROR:
+        if span.status.status_code != trace_api.StatusCode.ERROR:  # type: ignore[attr-defined]
             error = getattr(step_log, "error", None)
             if error is None:
                 span.set_status(trace_api.StatusCode.OK)
@@ -167,7 +167,7 @@ def _finalize_step_span(
             name="span_finalization_error",
             attributes={"error": str(finalization_error)},
         )
-        if span.status.status_code != trace_api.StatusCode.ERROR:
+        if span.status.status_code != trace_api.StatusCode.ERROR:  # type: ignore[attr-defined]
             span.set_status(trace_api.StatusCode.ERROR)
 
 
