@@ -647,6 +647,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
             try:
                 input_messages = json.loads(input_messages_str)
                 if isinstance(input_messages, list):
+                    first_user_message_found = False
                     for index, msg in enumerate(input_messages):
                         if "role" in msg:
                             yield (
@@ -667,9 +668,10 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         part["content"],
                                     )
 
-                                    # Also set INPUT_VALUE for first user message
-                                    if index == 0 and msg.get("role") == "user":
+                                    # Set INPUT_VALUE for the first user message found
+                                    if not first_user_message_found and msg.get("role") == "user":
                                         yield SpanAttributes.INPUT_VALUE, part["content"]
+                                        first_user_message_found = True
                                     break
             except json.JSONDecodeError:
                 pass
