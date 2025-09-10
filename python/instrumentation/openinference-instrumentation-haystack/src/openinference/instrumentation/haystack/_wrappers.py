@@ -1,3 +1,5 @@
+import base64
+import struct
 from enum import Enum, auto
 from inspect import BoundArguments, Parameter, signature
 from typing import (
@@ -20,7 +22,10 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from typing_extensions import TypeGuard, assert_never
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -95,16 +100,17 @@ class _ComponentRunWrapper:
 
         component = instance
         component_class_name = _get_component_class_name(component)
+        component_type = _get_component_type(component)
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
         arguments = bound_arguments.arguments
 
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name)
+            name=_get_component_span_name(component_class_name, component_type)
         ) as span:
             span.set_attributes(
                 {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
             )
-            if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
+            if component_type is ComponentType.GENERATOR:
                 span.set_attributes(
                     {
                         **dict(_get_span_kind_attributes(LLM)),
@@ -112,12 +118,14 @@ class _ComponentRunWrapper:
                     }
                 )
             elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(
-                    {
-                        **dict(_get_span_kind_attributes(EMBEDDING)),
-                        **dict(_get_embedding_model_attributes(component)),
-                    }
-                )
+                embedding_attrs = {
+                    **dict(_get_span_kind_attributes(EMBEDDING)),
+                    **dict(_get_embedding_model_attributes(component)),
+                    **dict(_get_embedding_invocation_parameters(arguments)),
+                }
+                # Use the component class name as the LLM system
+                embedding_attrs[LLM_SYSTEM] = component_class_name
+                span.set_attributes(embedding_attrs)
             elif component_type is ComponentType.RANKER:
                 span.set_attributes(
                     {
@@ -243,10 +251,12 @@ def _get_component_class_name(component: "Component") -> str:
     return str(component.__class__.__name__)
 
 
-def _get_component_span_name(component_class_name: str) -> str:
+def _get_component_span_name(component_class_name: str, component_type: ComponentType) -> str:
     """
     Gets the name of the span for a component.
     """
+    if component_type is ComponentType.EMBEDDER:
+        return "CreateEmbeddings"
     return f"{component_class_name}.run"
 
 
@@ -309,27 +319,52 @@ def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a generator-like `run` method.
     """
+    from typing import get_args, get_origin
+
     from haystack.dataclasses.chat_message import ChatMessage
 
     if (output_types := _get_run_method_output_types(run_method)) is None or (
         replies := output_types.get("replies")
     ) is None:
         return False
-    return replies == List[ChatMessage] or replies == List[str]
+
+    # Check if it's List[ChatMessage] or List[str], handling both List and list
+    origin = get_origin(replies)
+    args = get_args(replies)
+    if origin is list and args:
+        return args[0] is ChatMessage or args[0] is str
+    return False
 
 
 def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a ranker-like `run` method.
     """
+    from typing import get_args, get_origin
+
     from haystack import Document
 
     if (input_types := _get_run_method_input_types(run_method)) is None or (
         output_types := _get_run_method_output_types(run_method)
     ) is None:
         return False
-    has_documents_parameter = input_types.get("documents") == List[Document]
-    outputs_list_of_documents = output_types.get("documents") == List[Document]
+
+    # Check input type
+    input_doc_type = input_types.get("documents")
+    has_documents_parameter = False
+    if input_doc_type is not None:
+        origin = get_origin(input_doc_type)
+        args = get_args(input_doc_type)
+        has_documents_parameter = (origin is list) and bool(args) and (args[0] is Document)
+
+    # Check output type
+    output_doc_type = output_types.get("documents")
+    outputs_list_of_documents = False
+    if output_doc_type is not None:
+        origin = get_origin(output_doc_type)
+        args = get_args(output_doc_type)
+        outputs_list_of_documents = bool(origin is list and args and args[0] is Document)
+
     return has_documents_parameter and outputs_list_of_documents
 
 
@@ -340,6 +375,8 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
     https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
     """
+    from typing import get_args, get_origin
+
     from haystack import Document
 
     if (input_types := _get_run_method_input_types(run_method)) is None or (
@@ -347,7 +384,13 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     ) is None:
         return False
     has_documents_parameter = "documents" in input_types
-    outputs_list_of_documents = output_types.get("documents") == List[Document]
+    doc_type = output_types.get("documents")
+    # Check if it's a list of Documents, handling both List[Document] and list[Document]
+    outputs_list_of_documents = False
+    if doc_type is not None:
+        origin = get_origin(doc_type)
+        args = get_args(doc_type)
+        outputs_list_of_documents = bool(origin is list and args and args[0] is Document)
     return not has_documents_parameter and outputs_list_of_documents
 
 
@@ -617,6 +660,47 @@ def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[st
         yield EMBEDDING_MODEL_NAME, model
 
 
+def _get_embedding_invocation_parameters(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extract invocation parameters from embedder arguments (excluding documents/text).
+    """
+    # Exclude input data from invocation parameters
+    params = (
+        {k: v for k, v in arguments.items() if k not in ("documents", "text", "texts")}
+        if arguments
+        else {}
+    )
+    # Always yield invocation parameters, even if empty
+    yield EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(params)
+
+
+def _decode_embedding_vector(raw_vector: Any) -> Optional[List[float]]:
+    """
+    Decodes an embedding vector which can be a list of floats or base64-encoded string.
+    Returns None if the vector cannot be decoded.
+    """
+    if not raw_vector:
+        return None
+
+    # Check if it's already a list/tuple of numbers
+    if isinstance(raw_vector, (list, tuple)) and raw_vector:
+        if isinstance(raw_vector[0], (int, float)):
+            return list(raw_vector)
+    elif isinstance(raw_vector, str) and raw_vector:
+        # Base64-encoded vector
+        try:
+            # Decode base64 to float32 array
+            decoded = base64.b64decode(raw_vector)
+            # Unpack as float32 values
+            num_floats = len(decoded) // 4
+            return list(struct.unpack(f"{num_floats}f", decoded))
+        except Exception:
+            # If decoding fails, return None
+            return None
+
+    return None
+
+
 def _get_embedding_attributes(
     arguments: Mapping[str, Any], response: Mapping[str, Any]
 ) -> Iterator[Tuple[str, Any]]:
@@ -628,18 +712,24 @@ def _get_embedding_attributes(
     ):
         for doc_index, doc in enumerate(documents):
             yield f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_TEXT}", doc.content
-            yield (
-                f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_VECTOR}",
-                list(doc.embedding),
-            )
-    elif _is_vector(embedding := response.get("embedding")) and isinstance(
+
+            vector = _decode_embedding_vector(doc.embedding)
+            if vector:
+                yield (
+                    f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_VECTOR}",
+                    vector,
+                )
+    elif (embedding := response.get("embedding")) is not None and isinstance(
         text := arguments.get("text"), str
     ):
         yield f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_TEXT}", text
-        yield (
-            f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}",
-            list(embedding),
-        )
+
+        vector = _decode_embedding_vector(embedding)
+        if vector:
+            yield (
+                f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}",
+                vector,
+            )
 
 
 def _is_embedding_doc(maybe_doc: Any) -> bool:
@@ -652,7 +742,7 @@ def _is_embedding_doc(maybe_doc: Any) -> bool:
     return (
         isinstance(maybe_doc, Document)
         and isinstance(maybe_doc.content, str)
-        and _is_vector(maybe_doc.embedding)
+        and maybe_doc.embedding is not None
     )
 
 
@@ -669,9 +759,16 @@ def _is_vector(
     value: Any,
 ) -> TypeGuard[Sequence[Union[int, float]]]:
     """
-    Checks for sequences of numbers.
+    Checks for sequences of numbers, including numpy arrays.
     """
+    # Check for numpy arrays
+    if hasattr(value, "__array__") and hasattr(value, "dtype"):
+        # It's likely a numpy array
+        import numpy as np
 
+        return isinstance(value, np.ndarray) and value.dtype.kind in ["f", "i"]
+
+    # Check for regular sequences
     is_sequence_of_numbers = isinstance(value, Sequence) and all(
         map(lambda x: isinstance(x, (int, float)), value)
     )
@@ -721,6 +818,8 @@ DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
@@ -732,6 +831,7 @@ LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROMPT_TEMPLATE_VARIABLES = SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES
 LLM_PROMPT_TEMPLATE_VERSION = SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

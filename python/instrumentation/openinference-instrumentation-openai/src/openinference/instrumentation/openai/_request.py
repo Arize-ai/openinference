@@ -302,8 +302,12 @@ class _Request(_WithTracer, _WithOpenAI):
             return wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
-            # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
-            span_name: str = cast_to.__name__.split(".")[-1]
+            # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
+            if cast_to is self._openai.types.CreateEmbeddingResponse:
+                span_name = "CreateEmbeddings"
+            else:
+                # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
+                span_name = cast_to.__name__.split(".")[-1]
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -359,8 +363,12 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
             return await wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
-            # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
-            span_name: str = cast_to.__name__.split(".")[-1]
+            # Use consistent span names: "CreateEmbeddings" for embeddings, class name for others
+            if cast_to is self._openai.types.CreateEmbeddingResponse:
+                span_name = "CreateEmbeddings"
+            else:
+                # E.g. cast_to = openai.types.chat.ChatCompletion => span_name = "ChatCompletion"
+                span_name = cast_to.__name__.split(".")[-1]
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)

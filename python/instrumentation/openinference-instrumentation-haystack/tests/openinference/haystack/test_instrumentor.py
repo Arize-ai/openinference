@@ -716,7 +716,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "OpenAIDocumentEmbedder.run"
+    assert span.name == "CreateEmbeddings"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -748,6 +748,8 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
         == "France won the World Cup in 2018."
     )
     assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}"))
+    assert attributes.pop(LLM_SYSTEM) == "OpenAIDocumentEmbedder"  # Component class name
+    assert isinstance(attributes.pop(EMBEDDING_INVOCATION_PARAMETERS), str)
     assert not attributes
 
 
@@ -898,6 +900,9 @@ DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE

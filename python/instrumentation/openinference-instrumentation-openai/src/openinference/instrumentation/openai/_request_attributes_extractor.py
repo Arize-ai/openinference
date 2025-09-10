@@ -22,12 +22,16 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
+
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
@@ -212,6 +216,16 @@ def _get_attributes_from_completion_create_param(
     invocation_params.pop("prompt", None)
     yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
+    model_prompt = params.get("prompt")
+    if isinstance(model_prompt, str):
+        yield SpanAttributes.LLM_PROMPTS, [model_prompt]
+    elif (
+        isinstance(model_prompt, list)
+        and model_prompt
+        and all(isinstance(item, str) for item in model_prompt)
+    ):
+        yield SpanAttributes.LLM_PROMPTS, model_prompt
+
 
 def _get_attributes_from_embedding_create_param(
     params: Mapping[str, Any],
@@ -222,7 +236,26 @@ def _get_attributes_from_embedding_create_param(
         return
     invocation_params = dict(params)
     invocation_params.pop("input", None)
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+    yield _EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
+    # Extract text from embedding input - only records text, not token IDs
+    embedding_input = params.get("input")
+    if embedding_input is not None:
+        if isinstance(embedding_input, str):
+            # Single string input
+            yield (
+                f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                embedding_input,
+            )
+        elif isinstance(embedding_input, list) and embedding_input:
+            # Check if it's a list of strings (not tokens)
+            if all(isinstance(item, str) for item in embedding_input):
+                # List of strings
+                for index, text in enumerate(embedding_input):
+                    yield (
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
 
 
 T = TypeVar("T", bound=type)

@@ -32,6 +32,7 @@ Here's a simple example that demonstrates how to use PydanticAI with OpenInferen
 import os
 from pydantic import BaseModel
 from pydantic_ai import Agent
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from opentelemetry import trace
@@ -59,9 +60,11 @@ class LocationModel(BaseModel):
     city: str
     country: str
 
+instrumentation = InstrumentationSettings(version=2)
+
 # Create and configure the agent
 model = OpenAIModel("gpt-4", provider=OpenAIProvider())
-agent = Agent(model, output_type=LocationModel, instrument=True)
+agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
 
 # Run the agent
 result = agent.run_sync("The windy city in the US of A.")
