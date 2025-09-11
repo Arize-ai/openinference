@@ -3,6 +3,13 @@ from enum import Enum
 from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Tuple, Union
 
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.util.types import AttributeValue
+
+import openinference.instrumentation as oi
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
@@ -11,13 +18,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.util.types import AttributeValue
-
-import openinference.instrumentation as oi
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 
 if TYPE_CHECKING:
     from smolagents.tools import Tool  # type: ignore[import-untyped]
