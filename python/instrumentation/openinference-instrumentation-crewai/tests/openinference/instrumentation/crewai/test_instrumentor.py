@@ -48,7 +48,7 @@ def setup_crewai_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")
+        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="crewai")  # type: ignore[no-untyped-call]
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, CrewAIInstrumentor)
 
