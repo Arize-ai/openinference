@@ -279,7 +279,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         yield from process_message(0, "user", prompt)
     elif isinstance(messages := arguments.get("messages"), list):
         oi_messages: list[oi.Message] = []
-        for i, message in enumerate(messages):
+        for message in messages:
             oi_message: oi.Message = {}
             oi_message_contents: list[oi.MessageContent] = []
             if (role := getattr(message, "role", None)) is not None:
