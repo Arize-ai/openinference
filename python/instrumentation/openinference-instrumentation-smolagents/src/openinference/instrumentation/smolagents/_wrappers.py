@@ -150,25 +150,16 @@ def _finalize_step_span(
     - Sets status to OK if no error is present.
     - Captures & logs any errors that occur.
     """
-    try:
-        observations = getattr(step_log, "observations", None)
-        if observations is not None:
-            span.set_attribute(OUTPUT_VALUE, str(observations))
+    observations = getattr(step_log, "observations", None)
+    if observations is not None:
+        span.set_attribute(OUTPUT_VALUE, str(observations))
 
-        if span.status.status_code != trace_api.StatusCode.ERROR:  # type: ignore[attr-defined]
-            error = getattr(step_log, "error", None)
-            if error is None:
-                span.set_status(trace_api.StatusCode.OK)
-            else:
-                _record_step_error(span, error)
-
-    except Exception as finalization_error:
-        span.add_event(
-            name="span_finalization_error",
-            attributes={"error": str(finalization_error)},
-        )
-        if span.status.status_code != trace_api.StatusCode.ERROR:  # type: ignore[attr-defined]
-            span.set_status(trace_api.StatusCode.ERROR)
+    if span.status.status_code != trace_api.StatusCode.ERROR:  # type: ignore[attr-defined]
+        error = getattr(step_log, "error", None)
+        if error is None:
+            span.set_status(trace_api.StatusCode.OK)
+        else:
+            _record_step_error(span, error)
 
 
 def _record_step_error(span: trace_api.Span, error: Exception) -> None:
