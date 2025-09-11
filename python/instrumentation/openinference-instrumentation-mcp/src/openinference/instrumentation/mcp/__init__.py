@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Callable, Collection, Tuple, cast
+from typing import Any, AsyncGenerator, Callable, Collection, Tuple
 
 from opentelemetry import context, propagate
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
@@ -124,8 +124,13 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore
         from mcp.types import JSONRPCRequest
 
         async for item in self.__wrapped__:
-            session_message = cast(SessionMessage, item)
-            request = session_message.message.root
+            # Handle exceptions and other non-SessionMessage items
+            # MCP can pass ValidationError or other exceptions through the stream
+            if not isinstance(item, SessionMessage):
+                yield item
+                continue
+
+            request = item.message.root
 
             if not isinstance(request, JSONRPCRequest):
                 yield item
@@ -156,8 +161,12 @@ class InstrumentedStreamWriter(ObjectProxy):  # type: ignore
         from mcp.shared.message import SessionMessage
         from mcp.types import JSONRPCRequest
 
-        session_message = cast(SessionMessage, item)
-        request = session_message.message.root
+        # Handle exceptions and other non-SessionMessage items
+        # MCP can pass ValidationError or other exceptions through the stream
+        if not isinstance(item, SessionMessage):
+            return await self.__wrapped__.send(item)
+
+        request = item.message.root
         if not isinstance(request, JSONRPCRequest):
             return await self.__wrapped__.send(item)
         meta = None
@@ -197,9 +206,13 @@ class ContextAttachingStreamReader(ObjectProxy):  # type: ignore
 
     async def __aiter__(self) -> AsyncGenerator[Any, None]:
         async for item in self.__wrapped__:
-            item_with_context = cast(ItemWithContext, item)
-            restore = context.attach(item_with_context.ctx)
+            # Handle items that are not ItemWithContext (e.g., exceptions)
+            if not isinstance(item, ItemWithContext):
+                yield item
+                continue
+
+            restore = context.attach(item.ctx)
             try:
-                yield item_with_context.item
+                yield item.item
             finally:
                 context.detach(restore)
