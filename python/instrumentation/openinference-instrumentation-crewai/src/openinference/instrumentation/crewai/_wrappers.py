@@ -9,6 +9,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import (
     get_attributes_from_context,
+    get_input_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
@@ -189,6 +190,9 @@ class _KickoffWrapper:
         ) as span:
             crew = instance
             inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
