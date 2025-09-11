@@ -414,20 +414,19 @@ async def test_rag_module(
 
             return dspy.Prediction(context=context, answer=prediction.answer)
 
-    dspy.settings.configure(
+    with dspy.context(
         lm=dspy.LM("openai/gpt-4", cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
-    )
+    ):
+        rag = RAG()
+        question = "What's the capital of the United States?"
 
-    rag = RAG()
-    question = "What's the capital of the United States?"
+        if is_async:
+            prediction = await rag.acall(question=question)
+        else:
+            prediction = rag(question=question)
 
-    if is_async:
-        prediction = await rag.acall(question=question)
-    else:
-        prediction = rag(question=question)
-
-    assert prediction.answer == "Washington, D.C."
+        assert prediction.answer == "Washington, D.C."
 
     spans = list(in_memory_span_exporter.get_finished_spans())
     spans.sort(key=lambda span: span.start_time or 0)
@@ -613,22 +612,20 @@ async def test_react(
     is_async: bool,
     openai_api_key: str,
 ) -> None:
-    dspy.settings.configure(
-        lm=dspy.LM("openai/gpt-4o-mini"),
-    )
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini")):
 
-    def add(x: int, y: int) -> int:
-        return x + y
+        def add(x: int, y: int) -> int:
+            return x + y
 
-    react = dspy.ReAct("question -> answer", tools=[add])
-    question = "What is 2 + 2?"
+        react = dspy.ReAct("question -> answer", tools=[add])
+        question = "What is 2 + 2?"
 
-    if is_async:
-        response = await react.acall(question=question)
-    else:
-        response = react(question=question)
+        if is_async:
+            response = await react.acall(question=question)
+        else:
+            response = react(question=question)
 
-    assert response.answer == "4"
+        assert response.answer == "4"
 
     spans = list(in_memory_span_exporter.get_finished_spans())
     spans.sort(key=lambda span: span.start_time or 0)

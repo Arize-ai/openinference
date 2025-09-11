@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.11...python-openinference-instrumentation-crewai-v0.1.12) (2025-09-11)
+
+
+### Bug Fixes
+
+* **crewai:** Not Getting Inputs For CrewAI Root Span ([#2193](https://github.com/Arize-ai/openinference/issues/2193)) ([9cf3b8f](https://github.com/Arize-ai/openinference/commit/9cf3b8fa0f432f6b6f783fc25a9d3d78f9164d4e))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.10...python-openinference-instrumentation-crewai-v0.1.11) (2025-07-16)
 
 

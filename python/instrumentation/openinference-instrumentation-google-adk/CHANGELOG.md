@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.3...python-openinference-instrumentation-google-adk-v0.1.4) (2025-09-08)
+
+
+### Bug Fixes
+
+* **google-adk:** fix test compatibility with v1.13.0 ([#2176](https://github.com/Arize-ai/openinference/issues/2176)) ([dbe0668](https://github.com/Arize-ai/openinference/commit/dbe066844397be079e90900ab3eff9a920dbf436))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.2...python-openinference-instrumentation-google-adk-v0.1.3) (2025-08-04)
 
 
