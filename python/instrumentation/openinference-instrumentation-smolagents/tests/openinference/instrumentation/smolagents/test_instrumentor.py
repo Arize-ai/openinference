@@ -431,6 +431,22 @@ final_answer("Test result from CodeAgent")
         )
         assert main_span_non_stream_attributes.get("smolagents.max_steps") == 5
 
+        step_spans_non_stream = [
+            span
+            for span in non_stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.CHAIN.value
+        ]
+        assert len(step_spans_non_stream) >= 1
+
+        # Check attributes in step span
+        step_span_non_stream = step_spans_non_stream[0]
+        step_span_non_stream_attributes = dict(step_span_non_stream.attributes or {})
+        assert step_span_non_stream.name == "Step 1"
+        assert step_span_non_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert step_span_non_stream_attributes.get(SpanAttributes.OUTPUT_VALUE) is not None
+
         # Check token usage metadata
         assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_non_stream_attributes
         assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in main_span_non_stream_attributes
@@ -480,6 +496,22 @@ final_answer("Test result from CodeAgent")
 
         output_value = main_span_stream_attributes.get(SpanAttributes.OUTPUT_VALUE)
         assert output_value is not None
+
+        step_spans_stream = [
+            span
+            for span in stream_spans
+            if span.attributes is not None
+            and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.CHAIN.value
+        ]
+        assert len(step_spans_stream) >= 1
+
+        # Check attributes in step span
+        step_span_stream = step_spans_stream[0]
+        step_span_stream_attributes = dict(step_span_stream.attributes or {})
+        assert step_span_stream.name == "Step 1"
+        assert step_span_stream_attributes.get(SpanAttributes.INPUT_VALUE) is not None
+        assert step_span_stream_attributes.get(SpanAttributes.OUTPUT_VALUE) is not None
 
         # Check token usage metadata
         assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in main_span_stream_attributes
