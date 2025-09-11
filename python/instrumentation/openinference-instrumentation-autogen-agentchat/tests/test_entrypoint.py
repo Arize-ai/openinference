@@ -6,7 +6,7 @@ from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInst
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
             group="opentelemetry_instrumentor", name="autogen_agentchat"
         )
         instrumentor = instrumentor_entrypoint.load()()

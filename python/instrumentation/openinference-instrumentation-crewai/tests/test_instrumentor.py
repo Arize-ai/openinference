@@ -23,7 +23,12 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
     """Test that the instrumentor is properly registered and implements OITracer."""
-    instrumentor_entrypoints = list(entry_points(group="opentelemetry_instrumentor", name="crewai"))  # type: ignore[no-untyped-call]
+    instrumentor_entrypoints = list(
+        entry_points(  # type: ignore[no-untyped-call]
+            group="opentelemetry_instrumentor",
+            name="crewai",
+        )
+    )
     assert len(instrumentor_entrypoints) == 1
     instrumentor = instrumentor_entrypoints[0].load()()
     assert isinstance(instrumentor, CrewAIInstrumentor)

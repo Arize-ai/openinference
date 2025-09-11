@@ -4,6 +4,9 @@ from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
-    (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="google_adk")
+    (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        group="opentelemetry_instrumentor",
+        name="google_adk",
+    )
     instrumentor = instrumentor_entrypoint.load()()
     assert isinstance(instrumentor, GoogleADKInstrumentor)
