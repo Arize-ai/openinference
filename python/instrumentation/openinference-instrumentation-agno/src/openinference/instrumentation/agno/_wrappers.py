@@ -265,7 +265,7 @@ class _RunWrapper:
 
             try:
                 yield from wrapped(*args, **kwargs)
-                # 使用 get_last_run_output 替代已移除的 agent.run_response
+                # Use get_last_run_output instead of removed agent.run_response
                 session_id = None
                 try:
                     session_id = arguments.get("session_id")
