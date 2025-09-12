@@ -1224,7 +1224,7 @@ def _(_: BaseTool) -> str:
 class _Encoder(json.JSONEncoder):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.pop("default", None)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def default(self, obj: Any) -> Any:
         return _encoder(obj)
