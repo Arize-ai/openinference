@@ -200,10 +200,10 @@ def _verify_agent_span(
         f"Expected span name to end with '._execute_core', got: {span.name}"
     )
     # Verify agent role is part of the span name
-    agent_role = attributes.get(SpanAttributes.GRAPH_NODE_ID)
-    if agent_role:
-        assert str(agent_role) in span.name, (
-            f"Expected agent role '{agent_role}' in span name '{span.name}'"
+    graph_node_id = attributes.get(SpanAttributes.GRAPH_NODE_ID)
+    if graph_node_id:
+        assert str(graph_node_id) in span.name, (
+            f"Expected graph node ID '{graph_node_id}' in span name '{span.name}'"
         )
     input_value = attributes.get(SpanAttributes.INPUT_VALUE)
     assert input_value is not None

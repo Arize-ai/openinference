@@ -164,7 +164,7 @@ class _ExecuteCoreWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         # task naming - include agent role and task context
-        agent = args[0] if args else None
+        agent = args[0] if args else kwargs.get("agent")
         span_name = _get_execute_core_span_name(instance, wrapped, agent)
         with self._tracer.start_as_current_span(
             span_name,
