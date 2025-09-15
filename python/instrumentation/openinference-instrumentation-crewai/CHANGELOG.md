@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.12...python-openinference-instrumentation-crewai-v0.1.13) (2025-09-15)
+
+
+### Features
+
+* **crewai:** enhance span naming to include crew, agent, and tool context ([#2202](https://github.com/Arize-ai/openinference/issues/2202)) ([af44991](https://github.com/Arize-ai/openinference/commit/af44991003f70fc21701b2f1ead8a19554cd37e2))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.11...python-openinference-instrumentation-crewai-v0.1.12) (2025-09-11)
 
 
