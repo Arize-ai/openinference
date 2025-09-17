@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.0...python-openinference-instrumentation-mcp-v1.3.1) (2025-09-11)
+
+
+### Bug Fixes
+
+* **mcp:** handle ValidationError in stdio stream instrumentation ([#2170](https://github.com/Arize-ai/openinference/issues/2170)) ([48aa236](https://github.com/Arize-ai/openinference/commit/48aa2362a97a7efb029bd1f1e339297e6c6feec0))
+
 ## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.2.1...python-openinference-instrumentation-mcp-v1.3.0) (2025-05-19)
 
 

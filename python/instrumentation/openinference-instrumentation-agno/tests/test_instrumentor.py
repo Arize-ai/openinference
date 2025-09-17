@@ -49,7 +49,10 @@ def setup_agno_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="agno")
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+            group="opentelemetry_instrumentor",
+            name="agno",
+        )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, AgnoInstrumentor)
 

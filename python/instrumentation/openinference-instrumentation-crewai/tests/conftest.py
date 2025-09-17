@@ -6,7 +6,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation.pydantic_ai.span_processor import OpenInferenceSpanProcessor
+from openinference.instrumentation.crewai import CrewAIInstrumentor
 
 
 @pytest.fixture(scope="session")
@@ -21,14 +21,16 @@ def tracer_provider(
     tracer_provider = trace_sdk.TracerProvider()
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
     tracer_provider.add_span_processor(span_processor=span_processor)
-    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
     return tracer_provider
 
 
 @pytest.fixture(autouse=True)
-def clear_spans(
+def instrument(
+    tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
+    CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
     in_memory_span_exporter.clear()
     yield
+    CrewAIInstrumentor().uninstrument()
     in_memory_span_exporter.clear()

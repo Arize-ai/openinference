@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.51...python-openinference-instrumentation-langchain-v0.1.52) (2025-09-11)
+
+
+### Bug Fixes
+
+* **Langchain:** map UsageMetadata object ([#2136](https://github.com/Arize-ai/openinference/issues/2136)) ([dab6cfd](https://github.com/Arize-ai/openinference/commit/dab6cfd72e6e537f0e8d0b5f78285f46182501fa))
+
 ## [0.1.51](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.50...python-openinference-instrumentation-langchain-v0.1.51) (2025-08-28)
 
 

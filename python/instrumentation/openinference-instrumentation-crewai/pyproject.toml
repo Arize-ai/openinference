@@ -41,7 +41,7 @@ test = [
   "crewai-tools == 0.45.0",
   "opentelemetry-sdk",
   "responses",
-  "vcrpy",
+  "pytest-vcr",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
