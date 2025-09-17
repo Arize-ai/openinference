@@ -123,8 +123,13 @@ class _ResponseAttributesExtractor:
         if model := getattr(response, "model"):
             yield f"{SpanAttributes.EMBEDDING_MODEL_NAME}", model
         if (data := getattr(response, "data", None)) and isinstance(data, Iterable):
-            # Extract embedding vectors directly
-            for index, embedding_item in enumerate(data):
+            # Extract embedding vectors using the explicit index from each embedding object
+            for embedding_item in data:
+                # Use the explicit index field from the API response
+                index = getattr(embedding_item, "index", None)
+                if index is None:
+                    continue
+
                 raw_vector = getattr(embedding_item, "embedding", None)
                 if not raw_vector:
                     continue

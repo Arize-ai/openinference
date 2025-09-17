@@ -537,6 +537,112 @@ def test_embeddings(
     assert attributes == {}  # test should account for all span attributes
 
 
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_raw", [False, True])
+@pytest.mark.parametrize("encoding_format", ["float", "base64"])
+def test_embeddings_out_of_order(
+    is_async: bool,
+    is_raw: bool,
+    encoding_format: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    model_name: str,
+) -> None:
+    """Test that embeddings are correctly indexed when returned out of order."""
+    invocation_parameters = {
+        "model": randstr(),
+        "encoding_format": encoding_format,
+    }
+    embedding_model_name = randstr()
+    embedding_usage = {
+        "prompt_tokens": random.randint(10, 100),
+        "total_tokens": random.randint(10, 100),
+    }
+
+    # Create embeddings with specific values that we can verify
+    # API format (for response) and verification format (tuple)
+    output_embeddings: List[Tuple[Any, Tuple[float, ...]]]
+    if encoding_format == "base64":
+        # Base64 encoded vectors with different values
+        output_embeddings = [
+            ("AACAPwAAAEA=", (1.0, 2.0)),  # index 0
+            ("AABAQAAAgEA=", (3.0, 4.0)),  # index 1
+            ("AACgQAAAwEA=", (5.0, 6.0)),  # index 2
+        ]
+    else:
+        # Float vectors with different values
+        output_embeddings = [
+            ([1.0, 2.0], (1.0, 2.0)),  # index 0
+            ([3.0, 4.0], (3.0, 4.0)),  # index 1
+            ([5.0, 6.0], (5.0, 6.0)),  # index 2
+        ]
+
+    # Input texts that correspond to the indices
+    input_texts = ["first", "second", "third"]
+
+    # Return embeddings OUT OF ORDER: indices 2, 0, 1
+    base_url = _OPENAI_BASE_URL
+    url = urljoin(base_url, "embeddings")
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "object": "list",
+                "data": [
+                    # Deliberately out of order to test index handling
+                    {"object": "embedding", "index": 2, "embedding": output_embeddings[2][0]},
+                    {"object": "embedding", "index": 0, "embedding": output_embeddings[0][0]},
+                    {"object": "embedding", "index": 1, "embedding": output_embeddings[1][0]},
+                ],
+                "model": embedding_model_name,
+                "usage": embedding_usage,
+            },
+        )
+    )
+
+    create_kwargs = {"input": input_texts, **invocation_parameters}
+    openai = import_module("openai")
+    completions = (
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).embeddings
+        if is_async
+        else openai.OpenAI(api_key="sk-", base_url=base_url).embeddings
+    )
+    create = completions.with_raw_response.create if is_raw else completions.create
+
+    if is_async:
+
+        async def task() -> None:
+            response = await create(**create_kwargs)
+            _ = response.parse() if is_raw else response
+
+        asyncio.run(task())
+    else:
+        response = create(**create_kwargs)
+        _ = response.parse() if is_raw else response
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    assert span.status.is_ok
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify that vectors are attributed to correct indices despite out-of-order response
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}") == output_embeddings[0][1]
+    ), "Index 0 should have the first embedding's vector"
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}") == output_embeddings[1][1]
+    ), "Index 1 should have the second embedding's vector"
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.2.{EMBEDDING_VECTOR}") == output_embeddings[2][1]
+    ), "Index 2 should have the third embedding's vector"
+
+    # Verify text attributes are correctly mapped
+    for i, text in enumerate(input_texts):
+        assert attributes.get(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}") == text
+
+
 def randstr() -> str:
     return str(random.random())
 
