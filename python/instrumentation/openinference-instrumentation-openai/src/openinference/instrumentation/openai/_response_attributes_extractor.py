@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import logging
+import struct
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -142,9 +144,6 @@ class _ResponseAttributesExtractor:
                 elif isinstance(raw_vector, str) and raw_vector:
                     # Base64-encoded vector (when encoding_format="base64")
                     try:
-                        import base64
-                        import struct
-
                         # Decode base64 to float32 array
                         decoded = base64.b64decode(raw_vector)
                         # Unpack as float32 values
