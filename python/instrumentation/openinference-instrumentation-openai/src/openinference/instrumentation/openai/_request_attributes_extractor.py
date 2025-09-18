@@ -13,6 +13,7 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -194,11 +195,19 @@ class _RequestAttributesExtractor:
 
     def _get_attributes_from_image(
         self,
-        image: Mapping[str, Any],
+        image: Union[Mapping[str, Any], str],
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        image = dict(image)
-        if url := image.pop("url"):
-            yield f"{ImageAttributes.IMAGE_URL}", url
+        # Handle both dict and string formats for image_url
+        if isinstance(image, str):
+            # Simplified format: image_url is directly a URL string
+            if image:  # Only yield if string is not empty
+                yield f"{ImageAttributes.IMAGE_URL}", image
+        elif isinstance(image, Mapping):
+            # Standard format: image_url is a dict with "url" key
+            image_dict = dict(image)
+            if url := image_dict.pop("url"):
+                yield f"{ImageAttributes.IMAGE_URL}", url
+        # For any other type, silently return empty (graceful handling)
 
 
 def _get_attributes_from_completion_create_param(
