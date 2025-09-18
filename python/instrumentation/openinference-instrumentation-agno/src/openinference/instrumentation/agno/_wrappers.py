@@ -86,6 +86,11 @@ def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Attribut
     user_id = arguments.get("user_id")
     session_id = arguments.get("session_id")
 
+    # For agno v2: session_id might be in the session object for internal _run method
+    session = arguments.get("session")
+    if session and hasattr(session, "session_id"):
+        session_id = session.session_id
+
     if session_id:
         yield SESSION_ID, session_id
 

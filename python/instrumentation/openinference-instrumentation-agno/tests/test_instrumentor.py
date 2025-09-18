@@ -75,9 +75,9 @@ def test_agno_instrumentation(
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
         )
-        agent.run("What's trending on Twitter?")
+        agent.run("What's trending on Twitter?", session_id="test_session")
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2
+    assert len(spans) == 4
     checked_spans = 0
     for span in spans:
         attributes = dict(span.attributes or dict())
@@ -85,7 +85,7 @@ def test_agno_instrumentation(
             checked_spans += 1
             assert attributes.get("openinference.span.kind") == "AGENT"
             assert attributes.get("output.value")
-            assert attributes.get("session.id")
+            assert attributes.get("session.id") == "test_session"
             # assert that there are no tokens on the kickoff chain so that we do not
             # double count token when a user is also instrumenting with another instrumentor
             # that provides token counts via the spans.
@@ -115,7 +115,7 @@ def test_agno_instrumentation(
             assert attributes.get("llm.model_name") == "gpt-4o-mini"
             assert attributes.get("llm.provider") == "OpenAI"
             assert span.status.is_ok
-    assert checked_spans == 2
+    assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
 
 
 def test_agno_team_coordinate_instrumentation(
@@ -144,24 +144,22 @@ def test_agno_team_coordinate_instrumentation(
             role="Get financial data",
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[
-                YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)
+                YFinanceTools()  # type: ignore
             ],
             instructions="Use tables to display data",
         )
 
         agent_team = Team(
             name="Team",
-            mode="coordinate",
             members=[web_agent, finance_agent],
             model=OpenAIChat(id="gpt-4o-mini"),
-            success_criteria=(
-                "A comprehensive financial news report with clear sections "
-                "and data-driven insights."
-            ),
             instructions=["Always include sources", "Use tables to display data"],
         )
 
-        agent_team.run("What's the market outlook and financial performance of NVIDIA?")
+        agent_team.run(
+            "What's the market outlook and financial performance of NVIDIA?",
+            session_id="test_session",
+        )
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) >= 2
