@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.17...python-openinference-instrumentation-smolagents-v0.1.18) (2025-09-18)
+
+
+### Bug Fixes
+
+* **smolagents:** Not Getting Step Spans From Latest Smolagents ([#2171](https://github.com/Arize-ai/openinference/issues/2171)) ([14f0a19](https://github.com/Arize-ai/openinference/commit/14f0a1994a43476f77b1e906912d4a572d194700))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.16...python-openinference-instrumentation-smolagents-v0.1.17) (2025-09-11)
 
 
