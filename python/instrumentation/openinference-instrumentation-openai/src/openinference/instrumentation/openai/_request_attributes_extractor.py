@@ -208,8 +208,16 @@ class _RequestAttributesExtractor:
 def _get_attributes_from_completion_create_param(
     params: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    # openai.types.completion_create_params.CompletionCreateParamsBase
-    # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/completion_create_params.py#L11  # noqa: E501
+    """
+    Extract attributes from parameters for the LEGACY completions API.
+
+    The legacy completions API supports:
+    - Single prompt: client.completions.create(prompt="text")
+    - Batch prompts: client.completions.create(prompt=["text1", "text2"])
+      where each prompt generates a separate completion
+
+    See: https://github.com/openai/openai-python/blob/7da727a4a3eb35306c328e2c3207a1618ed1809f/src/openai/types/completion_create_params.py#L18-L25
+    """
     if not isinstance(params, Mapping):
         return
     invocation_params = dict(params)

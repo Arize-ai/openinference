@@ -272,6 +272,13 @@ def test_chat_completions(
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize(
+    "prompt_input",
+    [
+        pytest.param("single_prompt", id="single-prompt"),
+        pytest.param(["batch_prompt_1", "batch_prompt_2"], id="batch-prompts"),
+    ],
+)
 def test_completions(
     base_url: str,
     is_async: bool,
@@ -279,6 +286,7 @@ def test_completions(
     is_stream: bool,
     status_code: int,
     use_context_attributes: bool,
+    prompt_input: Union[str, List[str]],
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -292,7 +300,8 @@ def test_completions(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    prompt: List[str] = get_texts()
+    # SpanAttributes.LLM_PROMPTS is always a list, so coerce the input accordingly.
+    prompt = prompt_input if isinstance(prompt_input, list) else [prompt_input]
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
     invocation_parameters = {
         "stream": is_stream,
@@ -318,7 +327,8 @@ def test_completions(
         ),
     }
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
-    create_kwargs = {"prompt": prompt, **invocation_parameters}
+    # Pass prompt_input as-is to test both single string and list of strings
+    create_kwargs = {"prompt": prompt_input, **invocation_parameters}
     openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-", base_url=base_url).completions
