@@ -86,6 +86,11 @@ def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Attribut
     user_id = arguments.get("user_id")
     session_id = arguments.get("session_id")
 
+    # For agno v2: session_id might be in the session object for internal _run method
+    session = arguments.get("session")
+    if session and hasattr(session, "session_id"):
+        session_id = session.session_id
+
     if session_id:
         yield SESSION_ID, session_id
 
@@ -265,10 +270,21 @@ class _RunWrapper:
 
             try:
                 yield from wrapped(*args, **kwargs)
-                run_response = agent.run_response
+                # Use get_last_run_output instead of removed agent.run_response
+                session_id = None
+                try:
+                    session_id = arguments.get("session_id")
+                except Exception:
+                    session_id = None
+
+                run_response = None
+                if hasattr(agent, "get_last_run_output"):
+                    run_response = agent.get_last_run_output(session_id=session_id)
+
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                if run_response is not None:
+                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -383,10 +399,23 @@ class _RunWrapper:
             try:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
-                run_response = agent.run_response
+
+                # Use get_last_run_output instead of removed agent.run_response
+                session_id = None
+                try:
+                    session_id = arguments.get("session_id")
+                except Exception:
+                    session_id = None
+
+                run_response = None
+                if hasattr(agent, "get_last_run_output"):
+                    run_response = agent.get_last_run_output(session_id=session_id)
+
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                if run_response is not None:
+                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
