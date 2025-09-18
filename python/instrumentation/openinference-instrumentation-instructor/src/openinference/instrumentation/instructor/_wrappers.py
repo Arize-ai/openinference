@@ -205,7 +205,8 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-                        span.set_status(trace_api.StatusCode.OK)
+
+                    span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
                     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
@@ -239,7 +240,8 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
-                        span.set_status(trace_api.StatusCode.OK)
+
+                    span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
                     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
