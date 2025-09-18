@@ -6,6 +6,7 @@ import instructor
 import openai
 import pytest
 import vcr  # type: ignore
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -97,6 +98,7 @@ async def test_async_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
 
 
 @pytest.mark.asyncio
@@ -135,6 +137,7 @@ async def test_streaming_instrumentation(
     for span in spans:
         attributes = dict(span.attributes or dict())
         assert attributes.get("openinference.span.kind") in ["TOOL"]
+        assert span.status.status_code == trace_api.StatusCode.OK
 
 
 def test_instructor_instrumentation(
@@ -160,3 +163,4 @@ def test_instructor_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
