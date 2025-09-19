@@ -1145,6 +1145,83 @@ def test_chat_completions_with_config_hiding_hiding_inputs(
     in_memory_span_exporter.clear()
 
 
+@pytest.mark.parametrize("image_url_format", ["string", "dict"])
+def test_chat_completions_with_image_url_formats_issue_2188(
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    completion_usage: Dict[str, Any],
+    model_name: str,
+    image_url_format: str,
+) -> None:
+    """
+    This test ensures that both string and dict formats for image_url are handled correctly:
+    - String format: "image_url": "https://example.com/image.png"
+    - Dict format: "image_url": {"url": "https://example.com/image.png"}
+    """
+    image_url_content: Union[str, Dict[str, str]]
+    if image_url_format == "string":
+        image_url_content = "https://example.com/test-image.png"
+    else:
+        image_url_content = {"url": "https://example.com/test-image.png"}
+
+    input_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": image_url_content},
+            ],
+        },
+    ]
+
+    output_messages = [{"role": "assistant", "content": "I can see an image."}]
+    invocation_parameters = {
+        "model": model_name,
+        "temperature": 0.7,
+        "n": 1,
+    }
+
+    url = "https://api.openai.com/v1/chat/completions"
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "choices": [{"index": 0, "message": output_messages[0], "finish_reason": "stop"}],
+                "model": model_name,
+                "usage": completion_usage,
+            },
+        )
+    )
+
+    # This should not raise a ValueError regardless of image_url format
+    openai = import_module("openai")
+    client = openai.OpenAI(api_key="sk-test")
+    client.chat.completions.create(messages=input_messages, **invocation_parameters)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # httpx instrumentor + openai instrumentor
+    span = spans[1]
+
+    assert span.status.is_ok
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify that image attributes are correctly extracted for both formats
+    image_url_key = "llm.input_messages.1.message.contents.1.message_content.image.image.url"
+    image_url_attr = attributes.get(image_url_key)
+    assert image_url_attr == "https://example.com/test-image.png"
+
+    # Verify message content type is correctly set to "image"
+    content_type_key = "llm.input_messages.1.message.contents.1.message_content.type"
+    content_type_attr = attributes.get(content_type_key)
+    assert content_type_attr == "image"
+
+    # Clean up for other tests
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
+    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
+
+
 @pytest.mark.parametrize("hide_outputs", [False, True])
 @pytest.mark.parametrize("hide_output_messages", [False, True])
 @pytest.mark.parametrize("hide_output_text", [False, True])
