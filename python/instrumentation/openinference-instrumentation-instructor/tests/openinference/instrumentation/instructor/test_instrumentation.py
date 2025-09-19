@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from typing import Any, Generator, Optional
 
@@ -152,6 +153,7 @@ def test_instructor_instrumentation(
             model="gpt-3.5-turbo",
             response_model=UserInfo,
             messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+            max_retries=object(),
         )
         assert user_info.name == "John Doe"
         assert user_info.age == 30
@@ -164,3 +166,11 @@ def test_instructor_instrumentation(
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
             assert span.status.status_code == trace_api.StatusCode.OK
+
+            # Validate invocation parameters handling
+            invocation_params = attributes.get("llm.invocation_parameters")
+            if invocation_params:
+                # Ensure max_retries key exists
+                assert "max_retries" in invocation_params
+                # Ensure max_retries is JSON-serializable
+                json.dumps(invocation_params)
