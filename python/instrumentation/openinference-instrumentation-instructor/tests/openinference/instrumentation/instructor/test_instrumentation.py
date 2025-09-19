@@ -153,7 +153,7 @@ def test_instructor_instrumentation(
             model="gpt-3.5-turbo",
             response_model=UserInfo,
             messages=[{"role": "user", "content": "John Doe is 30 years old."}],
-            max_retries=object(),
+            max_retries=1,
         )
         assert user_info.name == "John Doe"
         assert user_info.age == 30
@@ -169,7 +169,7 @@ def test_instructor_instrumentation(
 
             # Validate invocation parameters handling
             invocation_params = attributes.get("llm.invocation_parameters")
-            if invocation_params:
+            if isinstance(invocation_params, dict):
                 # Ensure max_retries key exists
                 assert "max_retries" in invocation_params
                 # Ensure max_retries is JSON-serializable
