@@ -272,6 +272,13 @@ def test_chat_completions(
 @pytest.mark.parametrize("is_stream", [False, True])
 @pytest.mark.parametrize("status_code", [200, 400])
 @pytest.mark.parametrize("use_context_attributes", [False, True])
+@pytest.mark.parametrize(
+    "prompt_input",
+    [
+        pytest.param("single_prompt", id="single-prompt"),
+        pytest.param(["batch_prompt_1", "batch_prompt_2"], id="batch-prompts"),
+    ],
+)
 def test_completions(
     base_url: str,
     is_async: bool,
@@ -279,6 +286,7 @@ def test_completions(
     is_stream: bool,
     status_code: int,
     use_context_attributes: bool,
+    prompt_input: Union[str, List[str]],
     respx_mock: MockRouter,
     in_memory_span_exporter: InMemorySpanExporter,
     completion_usage: Dict[str, Any],
@@ -292,7 +300,8 @@ def test_completions(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    prompt: List[str] = get_texts()
+    # SpanAttributes.LLM_PROMPTS is always a list, so coerce the input accordingly.
+    prompt = prompt_input if isinstance(prompt_input, list) else [prompt_input]
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
     invocation_parameters = {
         "stream": is_stream,
@@ -318,7 +327,8 @@ def test_completions(
         ),
     }
     respx_mock.post(url).mock(return_value=Response(status_code=status_code, **respx_kwargs))
-    create_kwargs = {"prompt": prompt, **invocation_parameters}
+    # Pass prompt_input as-is to test both single string and list of strings
+    create_kwargs = {"prompt": prompt_input, **invocation_parameters}
     openai = import_module("openai")
     completions = (
         openai.AsyncOpenAI(api_key="sk-", base_url=base_url).completions
@@ -388,10 +398,11 @@ def test_completions(
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Prompts are recorded in request phase, so present regardless of status
+    assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
-        assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -448,7 +459,15 @@ def test_embeddings(
         "prompt_tokens": random.randint(10, 100),
         "total_tokens": random.randint(10, 100),
     }
-    output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)), ((2.0, 3.0), (2.0, 3.0))]
+    # Match output structure to input structure
+    num_inputs = len(input_text) if isinstance(input_text, list) else 1
+    # First element is for API response, second is for verification
+    output_embeddings: list[tuple[Any, tuple[float, ...]]]
+    if encoding_format == "base64":
+        output_embeddings = [("AACAPwAAAEA=", (1.0, 2.0)) for _ in range(num_inputs)]
+    else:
+        # API returns list, verification expects tuple
+        output_embeddings = [([1.0 + i, 2.0 + i], (1.0 + i, 2.0 + i)) for i in range(num_inputs)]
     url = urljoin(base_url, "embeddings")
     respx_mock.post(url).mock(
         return_value=Response(
@@ -506,25 +525,132 @@ def test_embeddings(
     )
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
-        json.loads(cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
+        json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
     )
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    # Text attributes are recorded in request phase, so they're present regardless of status
+    for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
+        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
         assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
         assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
         assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
-        for i, text in enumerate(input_text if isinstance(input_text, list) else [input_text]):
-            assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}", None) == text
         for i, embedding in enumerate(output_embeddings):
             assert (
                 attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}", None)
                 == embedding[1]
             )
     assert attributes == {}  # test should account for all span attributes
+
+
+@pytest.mark.parametrize("is_async", [False, True])
+@pytest.mark.parametrize("is_raw", [False, True])
+@pytest.mark.parametrize("encoding_format", ["float", "base64"])
+def test_embeddings_out_of_order(
+    is_async: bool,
+    is_raw: bool,
+    encoding_format: str,
+    respx_mock: MockRouter,
+    in_memory_span_exporter: InMemorySpanExporter,
+    model_name: str,
+) -> None:
+    """Test that embeddings are correctly indexed when returned out of order."""
+    invocation_parameters = {
+        "model": randstr(),
+        "encoding_format": encoding_format,
+    }
+    embedding_model_name = randstr()
+    embedding_usage = {
+        "prompt_tokens": random.randint(10, 100),
+        "total_tokens": random.randint(10, 100),
+    }
+
+    # Create embeddings with specific values that we can verify
+    # API format (for response) and verification format (tuple)
+    output_embeddings: List[Tuple[Any, Tuple[float, ...]]]
+    if encoding_format == "base64":
+        # Base64 encoded vectors with different values
+        output_embeddings = [
+            ("AACAPwAAAEA=", (1.0, 2.0)),  # index 0
+            ("AABAQAAAgEA=", (3.0, 4.0)),  # index 1
+            ("AACgQAAAwEA=", (5.0, 6.0)),  # index 2
+        ]
+    else:
+        # Float vectors with different values
+        output_embeddings = [
+            ([1.0, 2.0], (1.0, 2.0)),  # index 0
+            ([3.0, 4.0], (3.0, 4.0)),  # index 1
+            ([5.0, 6.0], (5.0, 6.0)),  # index 2
+        ]
+
+    # Input texts that correspond to the indices
+    input_texts = ["first", "second", "third"]
+
+    # Return embeddings OUT OF ORDER: indices 2, 0, 1
+    base_url = _OPENAI_BASE_URL
+    url = urljoin(base_url, "embeddings")
+    respx_mock.post(url).mock(
+        return_value=Response(
+            status_code=200,
+            json={
+                "object": "list",
+                "data": [
+                    # Deliberately out of order to test index handling
+                    {"object": "embedding", "index": 2, "embedding": output_embeddings[2][0]},
+                    {"object": "embedding", "index": 0, "embedding": output_embeddings[0][0]},
+                    {"object": "embedding", "index": 1, "embedding": output_embeddings[1][0]},
+                ],
+                "model": embedding_model_name,
+                "usage": embedding_usage,
+            },
+        )
+    )
+
+    create_kwargs = {"input": input_texts, **invocation_parameters}
+    openai = import_module("openai")
+    completions = (
+        openai.AsyncOpenAI(api_key="sk-", base_url=base_url).embeddings
+        if is_async
+        else openai.OpenAI(api_key="sk-", base_url=base_url).embeddings
+    )
+    create = completions.with_raw_response.create if is_raw else completions.create
+
+    if is_async:
+
+        async def task() -> None:
+            response = await create(**create_kwargs)
+            _ = response.parse() if is_raw else response
+
+        asyncio.run(task())
+    else:
+        response = create(**create_kwargs)
+        _ = response.parse() if is_raw else response
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2  # first span should be from the httpx instrumentor
+    span: ReadableSpan = spans[1]
+    assert span.status.is_ok
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify that vectors are attributed to correct indices despite out-of-order response
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}") == output_embeddings[0][1]
+    ), "Index 0 should have the first embedding's vector"
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}") == output_embeddings[1][1]
+    ), "Index 1 should have the second embedding's vector"
+    assert (
+        attributes.get(f"{EMBEDDING_EMBEDDINGS}.2.{EMBEDDING_VECTOR}") == output_embeddings[2][1]
+    ), "Index 2 should have the third embedding's vector"
+
+    # Verify text attributes are correctly mapped
+    for i, text in enumerate(input_texts):
+        assert attributes.get(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}") == text
 
 
 def randstr() -> str:
@@ -1755,6 +1881,8 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 SESSION_ID = SpanAttributes.SESSION_ID
