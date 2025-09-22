@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.32...python-openinference-instrumentation-openai-v0.1.33) (2025-09-22)
+
+
+### Features
+
+* **openai:** align embedding instrumentation with pending spec ([#2210](https://github.com/Arize-ai/openinference/issues/2210)) ([df5b9d5](https://github.com/Arize-ai/openinference/commit/df5b9d5dc080eddc4c91b6cb413eadb59f6c9982))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.31...python-openinference-instrumentation-openai-v0.1.32) (2025-09-08)
 
 
