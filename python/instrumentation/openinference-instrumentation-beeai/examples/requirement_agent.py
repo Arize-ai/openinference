@@ -4,7 +4,6 @@ import traceback
 
 from beeai_framework.agents.experimental import RequirementAgent
 from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
-from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend import UserMessage
 from beeai_framework.backend.chat import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
@@ -43,13 +42,10 @@ async def main() -> None:
     prompt = "What's the current weather in Las Vegas?"
 
     response = await agent.run(
-        prompt=prompt,
-        execution=AgentExecutionConfig(
-            max_retries_per_step=3, total_max_retries=10, max_iterations=20
-        ),
+        prompt, max_retries_per_step=3, total_max_retries=10, max_iterations=20
     )
 
-    print("Agent 🤖 : ", response.result.text)
+    print("Agent 🤖 : ", response.last_message.text)
 
 
 if __name__ == "__main__":
