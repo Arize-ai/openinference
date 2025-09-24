@@ -99,7 +99,7 @@ class ChatModelProcessor(Processor):
 
             case ChatModelSuccessEvent():
                 if not self._messages:  # only when no streaming
-                    self._add_new_messages(event.value.messages)
+                    self._add_new_messages(event.value.output)
 
                 usage = event.value.usage
                 if usage:
@@ -126,7 +126,7 @@ class ChatModelProcessor(Processor):
                         SpanAttributes.OPENINFERENCE_SPAN_KIND: type(self).kind,
                         SpanAttributes.OUTPUT_VALUE: event.value.get_text_content(),
                         SpanAttributes.OUTPUT_MIME_TYPE: OpenInferenceMimeTypeValues.TEXT.value,
-                        f"{SpanAttributes.METADATA}.chunks_count": len(event.value.messages),
+                        f"{SpanAttributes.METADATA}.chunks_count": len(event.value.output),
                         **_unpack_object(
                             usage.model_dump(exclude_none=True) if usage else {},
                             prefix=f"{SpanAttributes.METADATA}.usage",

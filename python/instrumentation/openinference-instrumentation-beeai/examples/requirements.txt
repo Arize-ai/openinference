@@ -1,4 +1,4 @@
-beeai-framework[duckduckgo,wikipedia,mcp]==0.1.36
+beeai-framework[duckduckgo,wikipedia,mcp]==0.1.49
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation
