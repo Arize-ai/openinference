@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-beeai",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "license": "Apache-2.0",
   "author": "gallas.milan@gmail.com",
   "description": "OpenInference Instrumentation for BeeAI framework",
