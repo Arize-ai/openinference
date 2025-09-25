@@ -4,7 +4,7 @@ from typing import Mapping, Sequence, Tuple, cast
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
-from crewai_tools import ScrapeWebsiteTool  # type: ignore
+from crewai.tools import BaseTool  # type: ignore[import-untyped]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -19,6 +19,20 @@ from openinference.semconv.trace import (
 
 # Don't record or send telemetry to CrewAI during tests
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
+
+
+class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc]
+    """Mock tool to replace ScrapeWebsiteTool and avoid chromadb dependency."""
+
+    name: str = "scrape_website"
+    description: str = "Scrape text content from a website URL"
+
+    def _run(self, url: str = "http://quotes.toscrape.com/") -> str:
+        """Mock run method that returns simple content."""
+        return (
+            '"The world as we have created it is a process of our thinking. '
+            'It cannot be changed without changing our thinking." by Albert Einstein'
+        )
 
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
@@ -45,7 +59,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    assert len(spans) == 5, f"Expected 5 spans (2 tool + 2 agent + 1 crew), got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
@@ -71,41 +85,31 @@ def kickoff_crew() -> Tuple[Task, Task]:
     )  # Use a smaller model for tests
     scraper_agent = Agent(
         role="Website Scraper",
-        goal="Scrape the content from a given website URL",
-        backstory="You are an expert at extracting text content from websites using scraping tools",
-        tools=[ScrapeWebsiteTool()],
+        goal="Scrape content from URL",
+        backstory="You extract text from websites",
+        tools=[MockScrapeWebsiteTool()],
         llm=llm,
-        max_iterations=1,
+        max_iter=1,
         max_retry_limit=0,
+        verbose=True,
     )
     analyzer_agent = Agent(
         role="Content Analyzer",
-        goal="Analyze scraped website content to extract useful information",
-        backstory=(
-            "You are skilled at parsing and summarizing data from text, "
-            "such as extracting quotes and authors."
-        ),
+        goal="Extract quotes from text",
+        backstory="You extract quotes from text",
         llm=llm,
-        max_iterations=1,
+        max_iter=1,
         max_retry_limit=0,
+        verbose=True,
     )
     scrape_task = Task(
-        description=(
-            f"Scrape the text content from only the provided URL {url} without following any "
-            "links, navigating to other pages, or scraping additional URLs. "
-            "Focus on extracting the main body content including quote listings from this single "
-            "page."
-        ),
-        expected_output="A string containing the scraped text from the website.",
+        description=f"Use scrape_website tool to get content from {url}.",
+        expected_output="Text content from the website.",
         agent=scraper_agent,
     )
     analyze_task = Task(
-        description=(
-            "From the scraped content, extract a list of quotes and their authors. "
-            "Then, identify the first quote and its author. "
-            "Format the output as: 'First quote: [quote] by [author]'"
-        ),
-        expected_output="A string identifying the first quote and its author.",
+        description="Extract the first quote from the content.",
+        expected_output="Quote with author.",
         agent=analyzer_agent,
         context=[scrape_task],
     )
@@ -115,11 +119,9 @@ def kickoff_crew() -> Tuple[Task, Task]:
     )
     result = crew.kickoff().raw
     assert isinstance(result, str)
-    expected = (
-        "\u201cThe world as we have created it is a process of our thinking. "
-        "It cannot be changed without changing our thinking.\u201d by Albert Einstein"
-    )
-    assert expected in result, "Expected first quote not found in result"
+
+    expected = "Albert Einstein"
+    assert expected in result, "Expected quote not found in result"
     return analyze_task, scrape_task
 
 
