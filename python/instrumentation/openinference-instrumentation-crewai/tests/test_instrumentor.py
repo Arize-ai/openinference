@@ -1,10 +1,10 @@
 import json
 import os
-from typing import Mapping, Sequence, Tuple, cast
+from typing import Any, Mapping, Sequence, Tuple, cast
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
-from crewai_tools import ScrapeWebsiteTool  # type: ignore
+from crewai.tools import BaseTool  # type: ignore[import-untyped]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -19,6 +19,17 @@ from openinference.semconv.trace import (
 
 # Don't record or send telemetry to CrewAI during tests
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
+
+
+class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc]
+    """Mock tool to replace ScrapeWebsiteTool and avoid chromadb dependency."""
+
+    name: str = "scrape_website"
+    description: str = "Mock tool for scraping websites"
+
+    def _run(self, *args: Any, **kwargs: Any) -> str:
+        """Mock run method that returns dummy content."""
+        return "Mock scraped content from website"
 
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
@@ -45,7 +56,9 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 4
+    assert (
+        len(spans) == 3
+    )  # MockScrapeWebsiteTool generates fewer spans than real ScrapeWebsiteTool
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
@@ -73,7 +86,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
         role="Website Scraper",
         goal="Scrape the content from a given website URL",
         backstory="You are an expert at extracting text content from websites using scraping tools",
-        tools=[ScrapeWebsiteTool()],
+        tools=[MockScrapeWebsiteTool()],
         llm=llm,
         max_iterations=1,
         max_retry_limit=0,
