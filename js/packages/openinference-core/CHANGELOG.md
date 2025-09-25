@@ -1,5 +1,12 @@
 # @arizeai/openinference-core
 
+## 1.0.7
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+
 ## 1.0.6
 
 ### Patch Changes

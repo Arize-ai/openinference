@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-vercel",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
