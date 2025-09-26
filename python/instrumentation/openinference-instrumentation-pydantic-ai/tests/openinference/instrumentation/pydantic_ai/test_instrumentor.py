@@ -1,6 +1,7 @@
 import json
 import os
-from typing import Mapping, Sequence, cast
+from datetime import datetime
+from typing import List, Mapping, Sequence, Union, cast
 
 import pytest
 from opentelemetry import trace
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 
 # Import necessary Pydantic AI components
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -36,6 +38,12 @@ def test_openai_agent_and_llm_spans_v1(
         tracer_provider,
         InstrumentationSettings(version=1, event_mode="attributes"),
     )
+    in_memory_span_exporter.clear()
+    _test_openai_agent_and_llm_spans_message_history(
+        in_memory_span_exporter,
+        tracer_provider,
+        InstrumentationSettings(version=1, event_mode="attributes"),
+    )
 
 
 @pytest.mark.vcr(
@@ -49,6 +57,10 @@ def test_openai_agent_and_llm_spans_v2(
     # Version 2 stores messages as gen_ai.input.messages and gen_ai.output.messages
     # which our instrumentation converts to OpenInference attributes
     _test_openai_agent_and_llm_spans(
+        in_memory_span_exporter, tracer_provider, InstrumentationSettings(version=2)
+    )
+    in_memory_span_exporter.clear()
+    _test_openai_agent_and_llm_spans_message_history(
         in_memory_span_exporter, tracer_provider, InstrumentationSettings(version=2)
     )
 
@@ -178,3 +190,59 @@ def get_span_by_kind(spans: Sequence[ReadableSpan], kind: str) -> ReadableSpan:
     if len(matching_spans) != 1:
         pytest.fail(f"Expected exactly one span of kind '{kind}', but found {len(matching_spans)}")
     return matching_spans[0]
+
+
+def _test_openai_agent_and_llm_spans_message_history(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    instrumentation: InstrumentationSettings,
+) -> None:
+    """Test that INPUT_VALUE uses the last message from history, not the first."""
+
+    trace.set_tracer_provider(tracer_provider)
+
+    class LocationModel(BaseModel):
+        city: str
+        country: str
+
+    # Create the model and agent
+    model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key="sk-test"))
+    agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
+
+    # Create message history with multiple messages
+    message_history: List[Union[ModelRequest, ModelResponse]] = [
+        ModelRequest(
+            parts=[UserPromptPart(content="first message", timestamp=datetime.now())],
+            kind="request",
+        ),
+        ModelResponse(
+            parts=[TextPart(content="first response")], timestamp=datetime.now(), kind="response"
+        ),
+        ModelRequest(
+            parts=[UserPromptPart(content="second message", timestamp=datetime.now())],
+            kind="request",
+        ),
+        ModelResponse(
+            parts=[TextPart(content="second response")], timestamp=datetime.now(), kind="response"
+        ),
+    ]
+
+    # Run the agent with message history
+    result = agent.run_sync("third message", message_history=message_history)
+
+    # Verify we got a result
+    assert result is not None
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 2, f"Expected 2 spans (LLM and AGENT), got {len(spans)}"
+
+    agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+
+    # Verify the INPUT_VALUE is the last message ("third message"), not the first ("first message")
+    attributes = dict(cast(Mapping[str, AttributeValue], agent_span.attributes))
+    input_value = attributes.get(SpanAttributes.INPUT_VALUE)
+
+    assert input_value == "third message", (
+        f"Expected INPUT_VALUE to be 'third message', but got '{input_value}'"
+    )
