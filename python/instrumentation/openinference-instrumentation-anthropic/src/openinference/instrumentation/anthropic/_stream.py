@@ -249,6 +249,8 @@ class _MessageResponseAccumulator:
                     ),
                     stop_reason=_SimpleStringReplace(),
                     input_tokens=_SimpleStringReplace(),
+                    cache_creation_input_tokens=_SimpleStringReplace(),
+                    cache_read_input_tokens=_SimpleStringReplace(),
                     output_tokens=_SimpleStringReplace(),
                 ),
             ),
@@ -272,6 +274,13 @@ class _MessageResponseAccumulator:
                     "input_tokens": str(chunk.message.usage.input_tokens),
                 }
             }
+            # Capture Anthropic prompt cache usage details when present
+            cache_write = getattr(chunk.message.usage, "cache_creation_input_tokens", None)
+            cache_read = getattr(chunk.message.usage, "cache_read_input_tokens", None)
+            if cache_write is not None:
+                value["messages"]["cache_creation_input_tokens"] = str(cache_write)
+            if cache_read is not None:
+                value["messages"]["cache_read_input_tokens"] = str(cache_read)
             self._values += value
         elif isinstance(chunk, RawContentBlockStartEvent):
             self._current_content_block_type = chunk.content_block
@@ -341,6 +350,8 @@ class _MessageResponseExtractor:
         idx = 0
         total_completion_token_count = 0
         total_prompt_token_count = 0
+        total_cache_read_token_count = 0
+        total_cache_write_token_count = 0
         # TODO(harrison): figure out if we should always assume messages is 1.
         # The current non streaming implementation assumes the same
         for message in messages:
@@ -353,6 +364,10 @@ class _MessageResponseExtractor:
                 total_completion_token_count += int(output_tokens)
             if input_tokens := message.get("input_tokens"):
                 total_prompt_token_count += int(input_tokens)
+            if cache_read_tokens := message.get("cache_read_input_tokens"):
+                total_cache_read_token_count += int(cache_read_tokens)
+            if cache_write_tokens := message.get("cache_creation_input_tokens"):
+                total_cache_write_token_count += int(cache_write_tokens)
 
             # TODO(harrison): figure out if we should always assume the first message
             #  will always be a message output generally this block feels really
@@ -377,10 +392,23 @@ class _MessageResponseExtractor:
                     tool_idx += 1
             idx += 1
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, total_completion_token_count
-        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_token_count
+        total_prompt_with_cache = (
+            total_prompt_token_count + total_cache_read_token_count + total_cache_write_token_count
+        )
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, total_prompt_with_cache
+        if total_cache_read_token_count:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+                total_cache_read_token_count,
+            )
+        if total_cache_write_token_count:
+            yield (
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+                total_cache_write_token_count,
+            )
         yield (
             SpanAttributes.LLM_TOKEN_COUNT_TOTAL,
-            total_completion_token_count + total_prompt_token_count,
+            total_completion_token_count + total_prompt_with_cache,
         )
 
 
