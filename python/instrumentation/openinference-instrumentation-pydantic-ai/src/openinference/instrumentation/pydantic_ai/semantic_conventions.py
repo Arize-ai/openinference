@@ -224,14 +224,13 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
             try:
                 all_messages = json.loads(all_messages_str)
                 if isinstance(all_messages, list) and all_messages:
-                    # Find first user message for input value
-                    for msg in all_messages:
+                    # Find last user message for input value
+                    for msg in reversed(all_messages):
                         if msg.get("role") == "user" and "parts" in msg:
                             for part in msg["parts"]:
                                 if isinstance(part, dict) and part.get("type") == "text":
                                     yield SpanAttributes.INPUT_VALUE, part.get("content", "")
-                                    break
-                            break
+                                    return
             except json.JSONDecodeError:
                 pass
     # Extract input value from all_messages_events (v1 AGENT spans)
@@ -558,8 +557,8 @@ def _extract_llm_output_messages(events: List[Dict[str, Any]]) -> List[Dict[str,
 
 
 def _find_llm_input_value(input_messages: List[Dict[str, Any]]) -> Optional[str]:
-    """Find input value from first user message for LLM operations."""
-    for message in input_messages:
+    """Find input value from last user message for LLM operations."""
+    for message in reversed(input_messages):
         if (
             message.get(MessageAttributes.MESSAGE_ROLE) == PydanticMessageRoleUser.USER
             and MessageAttributes.MESSAGE_CONTENT in message
@@ -640,14 +639,14 @@ def _parse_json_value(json_value: Any) -> Any:
 def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract OpenInference attributes from pydantic_ai v2 gen_ai messages format."""
 
-    # Extract input messages
+    # Extract input messages and input value
+    input_value = None
     if "gen_ai.input.messages" in gen_ai_attrs:
         input_messages_str = gen_ai_attrs["gen_ai.input.messages"]
         if isinstance(input_messages_str, str):
             try:
                 input_messages = json.loads(input_messages_str)
                 if isinstance(input_messages, list):
-                    first_user_message_found = False
                     for index, msg in enumerate(input_messages):
                         if "role" in msg:
                             yield (
@@ -668,11 +667,12 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         part["content"],
                                     )
 
-                                    # Set INPUT_VALUE for the first user message found
-                                    if not first_user_message_found and msg.get("role") == "user":
-                                        yield SpanAttributes.INPUT_VALUE, part["content"]
-                                        first_user_message_found = True
+                                    # Set INPUT_VALUE for the last user message found
+                                    if msg.get("role") == "user":
+                                        input_value = part["content"]
                                     break
+                    if input_value is not None:
+                        yield SpanAttributes.INPUT_VALUE, input_value
             except json.JSONDecodeError:
                 pass
 
