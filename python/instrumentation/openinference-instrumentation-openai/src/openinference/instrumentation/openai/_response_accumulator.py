@@ -129,6 +129,7 @@ class _ChatCompletionAccumulator:
                         function_call=_ValuesAccumulator(arguments=_StringAccumulator()),
                         tool_calls=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
+                                id=_StringAccumulator(),
                                 function=_ValuesAccumulator(arguments=_StringAccumulator()),
                             )
                         ),
