@@ -56,7 +56,15 @@ class SpanAttributes:
     """
     LLM_PROMPTS = "llm.prompts"
     """
-    Prompts provided to a completions API.
+    Prompts provided to a completions API. Use indexed format with nested structure.
+    Maps to the 'prompt' field in the request (e.g., request.prompt or request.prompt[0]).
+    Use format: llm.prompts.N.prompt.text
+    """
+    LLM_CHOICES = "llm.choices"
+    """
+    Text choices returned from a completions API. Use indexed format with nested structure.
+    Maps to the 'choices' array in the response (e.g., response.choices[0].text).
+    Use format: llm.choices.N.completion.text
     """
     LLM_PROMPT_TEMPLATE = "llm.prompt_template.template"
     """
