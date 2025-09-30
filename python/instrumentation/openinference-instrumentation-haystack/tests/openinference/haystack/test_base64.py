@@ -11,25 +11,29 @@ from openinference.instrumentation.haystack._base64 import decode_base64_float32
 @pytest.mark.parametrize(
     "value, expected",
     [
-        ("", None),  # Empty
-        ("AAAA!", None),  # Invalid
-        ("AAA=", None),  # Wrong length
-        (
+        pytest.param("", None, id="empty"),
+        pytest.param("AAAA!", None, id="invalid"),
+        pytest.param("AAA=", None, id="wrong-length"),
+        pytest.param(
             base64.b64encode(struct.pack("4f", 1.0, 2.0, 3.0, 4.0)).decode("ascii"),
             [1.0, 2.0, 3.0, 4.0],
-        ),  # Valid
-        (
+            id="valid",
+        ),
+        pytest.param(
             base64.b64encode(struct.pack("2f", 1.0, -2.5)).decode("ascii"),
             [1.0, -2.5],
-        ),  # Two floats
-        (
+            id="two-floats",
+        ),
+        pytest.param(
             base64.b64encode(struct.pack("f", float("inf"))).decode("ascii"),
             [float("inf")],
-        ),  # inf
-        (
+            id="inf",
+        ),
+        pytest.param(
             base64.b64encode(struct.pack("f", math.nan)).decode("ascii"),
             "nan",
-        ),  # nan (special marker)
+            id="nan-special-marker",
+        ),
     ],
 )
 def test_decode_base64_float32(value: str, expected: Union[List[float], str, None]) -> None:

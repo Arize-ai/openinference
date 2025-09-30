@@ -15,19 +15,21 @@ def _make_base64_vector(floats: List[float]) -> str:
 @pytest.mark.parametrize(
     "value, expected",
     [
-        (None, None),  # None
-        ("", None),  # Empty string
-        ([], []),  # Empty list
-        ("AAAA!", None),  # Invalid base64
-        ("AAA=", None),  # Valid base64, wrong length
-        ([1, 2, 3], [1, 2, 3]),  # List of ints
-        ([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]),  # List of floats
-        ((1.0, 2.0), [1.0, 2.0]),  # Tuple converts to list
-        (["a", "b"], None),  # Non-numeric list
-        ([[1, 2]], None),  # Nested structure
-        ({"a": 1}, None),  # Dict
-        (42, None),  # Single number
-        (_make_base64_vector([1.0, 2.0, 3.0, 4.0]), [1.0, 2.0, 3.0, 4.0]),  # Base64-encoded
+        pytest.param(None, None, id="none"),
+        pytest.param("", None, id="empty-string"),
+        pytest.param([], [], id="empty-list"),
+        pytest.param("AAAA!", None, id="invalid-base64"),
+        pytest.param("AAA=", None, id="valid-base64-wrong-length"),
+        pytest.param([1, 2, 3], [1, 2, 3], id="list-of-ints"),
+        pytest.param([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], id="list-of-floats"),
+        pytest.param((1.0, 2.0), [1.0, 2.0], id="tuple-converts-to-list"),
+        pytest.param(["a", "b"], None, id="non-numeric-list"),
+        pytest.param([[1, 2]], None, id="nested-structure"),
+        pytest.param({"a": 1}, None, id="dict"),
+        pytest.param(42, None, id="single-number"),
+        pytest.param(
+            _make_base64_vector([1.0, 2.0, 3.0, 4.0]), [1.0, 2.0, 3.0, 4.0], id="base64-encoded"
+        ),
     ],
 )
 def test_decode_embedding_vector(value: Any, expected: Any) -> None:
