@@ -23,7 +23,6 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.events import Event
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.telemetry import _build_llm_request_for_trace
 from google.adk.tools import BaseTool
 from google.genai import types
 from opentelemetry import context as context_api
@@ -223,7 +222,7 @@ class _TraceCallLlm(_WithTracer):
             try:
                 span.set_attribute(
                     SpanAttributes.INPUT_VALUE,
-                    safe_json_dumps(_build_llm_request_for_trace(llm_request)),
+                    llm_request.model_dump_json(exclude_none=True, fallback=_default),
                 )
                 span.set_attribute(
                     SpanAttributes.INPUT_MIME_TYPE,
