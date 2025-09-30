@@ -13,6 +13,8 @@ from typing import (
     Tuple,
     Union,
     cast,
+    get_args,
+    get_origin,
     get_type_hints,
 )
 
@@ -21,6 +23,7 @@ from opentelemetry import trace as trace_api
 from typing_extensions import TypeGuard, assert_never
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.haystack._base64 import decode_base64_float32
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -318,18 +321,36 @@ def _has_generator_output_type(run_method: Callable[..., Any]) -> bool:
     return replies == List[ChatMessage] or replies == List[str]
 
 
+def _is_list_of_documents_type(type_hint: Any) -> bool:
+    """
+    Checks if a type hint represents List[Document] or list[Document].
+    Handles both typing.List and built-in list generic syntax.
+    """
+    from haystack import Document
+
+    # Use get_origin and get_args to properly compare generic types
+    # This handles both List[Document] and list[Document]
+    origin = get_origin(type_hint)
+    if origin is None:
+        return False
+    # Check if origin is list (handles both typing.List and built-in list)
+    if origin not in (list, List):
+        return False
+    # Check if the type argument is Document
+    args = get_args(type_hint)
+    return len(args) == 1 and args[0] == Document
+
+
 def _has_ranker_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a ranker-like `run` method.
     """
-    from haystack import Document
-
     if (input_types := _get_run_method_input_types(run_method)) is None or (
         output_types := _get_run_method_output_types(run_method)
     ) is None:
         return False
-    has_documents_parameter = input_types.get("documents") == List[Document]
-    outputs_list_of_documents = output_types.get("documents") == List[Document]
+    has_documents_parameter = _is_list_of_documents_type(input_types.get("documents"))
+    outputs_list_of_documents = _is_list_of_documents_type(output_types.get("documents"))
     return has_documents_parameter and outputs_list_of_documents
 
 
@@ -337,17 +358,18 @@ def _has_retriever_io_types(run_method: Callable[..., Any]) -> bool:
     """
     Uses heuristics to infer if a component has a retriever-like `run` method.
 
-    This is used to find unusual retrievers such as `SerperDevWebSearch`. See:
-    https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
-    """
-    from haystack import Document
+    A retriever is detected if it outputs List[Document] but does NOT have
+    any documents parameter as input. This catches unusual retrievers such as
+    `SerperDevWebSearch` that generate documents from other inputs like search queries.
 
+    See: https://github.com/deepset-ai/haystack/blob/21c507331c98c76aed88cd8046373dfa2a3590e7/haystack/components/websearch/serper_dev.py#L93
+    """
     if (input_types := _get_run_method_input_types(run_method)) is None or (
         output_types := _get_run_method_output_types(run_method)
     ) is None:
         return False
     has_documents_parameter = "documents" in input_types
-    outputs_list_of_documents = output_types.get("documents") == List[Document]
+    outputs_list_of_documents = _is_list_of_documents_type(output_types.get("documents"))
     return not has_documents_parameter and outputs_list_of_documents
 
 
@@ -628,17 +650,20 @@ def _get_embedding_attributes(
     ):
         for doc_index, doc in enumerate(documents):
             yield f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_TEXT}", doc.content
-            yield (
-                f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_VECTOR}",
-                list(doc.embedding),
-            )
-    elif _is_vector(embedding := response.get("embedding")) and isinstance(
-        text := arguments.get("text"), str
+            # Decode embedding vector (handles both list and base64 formats)
+            if (vector := _decode_embedding_vector(doc.embedding)) is not None:
+                yield (
+                    f"{EMBEDDING_EMBEDDINGS}.{doc_index}.{EMBEDDING_VECTOR}",
+                    vector,
+                )
+    elif (
+        isinstance(text := arguments.get("text"), str)
+        and (vector := _decode_embedding_vector(response.get("embedding"))) is not None
     ):
         yield f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_TEXT}", text
         yield (
             f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}",
-            list(embedding),
+            vector,
         )
 
 
@@ -652,7 +677,7 @@ def _is_embedding_doc(maybe_doc: Any) -> bool:
     return (
         isinstance(maybe_doc, Document)
         and isinstance(maybe_doc.content, str)
-        and _is_vector(maybe_doc.embedding)
+        and _decode_embedding_vector(maybe_doc.embedding) is not None
     )
 
 
@@ -660,22 +685,40 @@ def _mask_embedding_vectors(key: str, value: Any) -> Tuple[str, Any]:
     """
     Masks embeddings.
     """
-    if isinstance(key, str) and "embedding" in key and _is_vector(value):
-        return key, f"<{len(value)}-dimensional vector>"
+    if isinstance(key, str) and "embedding" in key:
+        if (vector := _decode_embedding_vector(value)) is not None:
+            return key, f"<{len(vector)}-dimensional vector>"
     return key, value
+
+
+def _decode_embedding_vector(value: Any) -> Optional[List[float]]:
+    """
+    Decodes an embedding vector, handling both list format and base64-encoded strings.
+    Returns a list of floats, or None if the value cannot be decoded.
+    """
+    # If it's already a list/tuple of numbers, return it as-is (including empty lists)
+    if isinstance(value, (list, tuple)):
+        if all(isinstance(x, (int, float)) for x in value):
+            return list(value)
+
+    # If it's a base64-encoded embedding string (when encoding_format="base64")
+    if isinstance(value, str):
+        return decode_base64_float32(value)
+
+    return None
 
 
 def _is_vector(
     value: Any,
 ) -> TypeGuard[Sequence[Union[int, float]]]:
     """
-    Checks for sequences of numbers.
+    Checks for sequences of numbers. Does not check base64-encoded embeddings.
     """
+    # Check if it's a list/tuple of numbers (including empty lists)
+    if isinstance(value, (list, tuple)):
+        return all(isinstance(x, (int, float)) for x in value)
 
-    is_sequence_of_numbers = isinstance(value, Sequence) and all(
-        map(lambda x: isinstance(x, (int, float)), value)
-    )
-    return is_sequence_of_numbers
+    return False
 
 
 def _is_list_of_documents(value: Any) -> TypeGuard[Sequence["Document"]]:
