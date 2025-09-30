@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.4...python-openinference-instrumentation-google-adk-v0.1.5) (2025-09-30)
+
+
+### Bug Fixes
+
+* **google-adk:** remove dependency on private telemetry API ([#2244](https://github.com/Arize-ai/openinference/issues/2244)) ([e07939d](https://github.com/Arize-ai/openinference/commit/e07939d2ae530212e81004ef466d01e34f798b2d))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.3...python-openinference-instrumentation-google-adk-v0.1.4) (2025-09-08)
 
 
