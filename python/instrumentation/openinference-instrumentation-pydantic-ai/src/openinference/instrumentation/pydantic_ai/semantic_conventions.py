@@ -502,10 +502,10 @@ def _process_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
     ):
         function = tool_call[GenAIToolCallFields.FUNCTION]
         if GenAIFunctionFields.NAME in function:
-            tc[MessageAttributes.MESSAGE_FUNCTION_CALL_NAME] = function[GenAIFunctionFields.NAME]
+            tc[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME] = function[GenAIFunctionFields.NAME]
 
         if GenAIFunctionFields.ARGUMENTS in function:
-            tc[MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON] = function[
+            tc[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON] = function[
                 GenAIFunctionFields.ARGUMENTS
             ]
 
@@ -585,12 +585,12 @@ def _find_llm_output_value(output_messages: List[Dict[str, Any]]) -> Optional[st
         ):
             for tool_call in message[MessageAttributes.MESSAGE_TOOL_CALLS]:
                 if (
-                    MessageAttributes.MESSAGE_FUNCTION_CALL_NAME in tool_call
-                    and tool_call[MessageAttributes.MESSAGE_FUNCTION_CALL_NAME]
+                    ToolCallAttributes.TOOL_CALL_FUNCTION_NAME in tool_call
+                    and tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME]
                     == PydanticMessageToolCallFunctionFinalResult.FINAL_RESULT
                 ):
-                    if MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON in tool_call:
-                        args = tool_call[MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]
+                    if ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON in tool_call:
+                        args = tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
                         if isinstance(args, str):
                             return args
                         return None
@@ -645,38 +645,71 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
         input_messages_str = gen_ai_attrs["gen_ai.input.messages"]
         if isinstance(input_messages_str, str):
             try:
+                msg_index = 0
+                # First try and get any system instructions. Those will be converted to system
+                # messages
+                if "gen_ai.system_instructions" in gen_ai_attrs:
+                    system_instructions = json.loads(gen_ai_attrs["gen_ai.system_instructions"])
+                    if isinstance(system_instructions, list):
+                        for system_instruction in system_instructions:
+                            if "type" in system_instruction and "content" in system_instruction:
+                                yield (
+                                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_ROLE}",
+                                    "system",
+                                )
+                                yield (
+                                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                    system_instruction["content"],
+                                )
+                                msg_index += 1
+
                 input_messages = json.loads(input_messages_str)
                 if isinstance(input_messages, list):
-                    for index, msg in enumerate(input_messages):
+                    for msg in input_messages:
                         if "role" in msg:
                             yield (
-                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_ROLE}",
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_ROLE}",
                                 msg["role"],
                             )
 
                         # Extract content from parts
                         if "parts" in msg and isinstance(msg["parts"], list):
                             for part in msg["parts"]:
-                                if (
-                                    isinstance(part, dict)
-                                    and part.get("type") == "text"
-                                    and "content" in part
-                                ):
-                                    yield (
-                                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}",
-                                        part["content"],
-                                    )
+                                if isinstance(part, dict):
+                                    if part.get("type") == "text" and "content" in part:
+                                        yield (
+                                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                            part["content"],
+                                        )
 
-                                    # Set INPUT_VALUE for the last user message found
-                                    if msg.get("role") == "user":
-                                        input_value = part["content"]
-                                    break
-                    if input_value is not None:
-                        yield SpanAttributes.INPUT_VALUE, input_value
+                                        # Set INPUT_VALUE for the last user message found
+                                        if msg.get("role") == "user":
+                                            input_value = part["content"]
+                                    elif part.get("type") == "tool_call":
+                                        # Extract tool call information
+                                        if "name" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                                part["name"],
+                                            )
+                                        if "arguments" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                                part["arguments"],
+                                            )
+                                        if "id" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
+                                                part["id"],
+                                            )
+                        msg_index += 1
             except json.JSONDecodeError:
                 pass
+    if input_value is not None:
+        yield SpanAttributes.INPUT_VALUE, input_value
 
     # Extract output messages
+    output_value = None
     if "gen_ai.output.messages" in gen_ai_attrs:
         output_messages_str = gen_ai_attrs["gen_ai.output.messages"]
         if isinstance(output_messages_str, str):
@@ -704,18 +737,22 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         # Extract tool call information
                                         if "name" in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}",
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                                                 part["name"],
                                             )
+                                            if part.get("name") == "final_result":
+                                                output_value = part["arguments"]
                                         if "arguments" in part:
                                             yield (
-                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}",
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                                 part["arguments"],
                                             )
-
-                                            # Also set OUTPUT_VALUE for final_result
-                                            if part.get("name") == "final_result":
-                                                yield SpanAttributes.OUTPUT_VALUE, part["arguments"]
-                                        break
+                                        if "id" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
+                                                part["id"],
+                                            )
             except json.JSONDecodeError:
                 pass
+    if output_value is not None:
+        yield SpanAttributes.OUTPUT_VALUE, output_value
