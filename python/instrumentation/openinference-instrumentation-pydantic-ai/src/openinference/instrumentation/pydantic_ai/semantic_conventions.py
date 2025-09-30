@@ -339,7 +339,7 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
         for event in events:
             if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.TOOL_MESSAGE:
                 if GenAIToolCallFields.ID in event:
-                    yield ToolCallAttributes.TOOL_CALL_ID, event[GenAIMessageFields.ID]
+                    yield ToolCallAttributes.TOOL_CALL_ID, event[GenAIToolCallFields.ID]
 
             if event.get(OTELConventions.EVENT_NAME) == GenAIEventNames.ASSISTANT_MESSAGE:
                 if GenAIMessageFields.TOOL_CALLS in event and isinstance(
