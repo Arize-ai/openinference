@@ -1,6 +1,10 @@
 interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "What''s the weather like?"}], "role":
+      "user"}, {"parts": [{"functionCall": {"args": {"location": "San Francisco"},
+      "name": "get_weather"}}], "role": "model"}, {"parts": [{"functionResponse":
+      {"name": "get_weather", "response": {"location": "San Francisco", "temperature":
+      65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}}}], "role":
       "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful assistant
       that can answer questions and help with tasks."}], "role": "user"}, "generationConfig":
       {}}'
@@ -8,16 +12,17 @@ interactions:
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
   response:
-    content: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
-      [\n          {\n            \"text\": \"To give you the most accurate weather
-      information, I need to know your location. Could you please tell me where you
-      are?\\n\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n
-      \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.012641517015603872\n
-      \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 21,\n    \"candidatesTokenCount\":
-      26,\n    \"totalTokenCount\": 47,\n    \"promptTokensDetails\": [\n      {\n
-      \       \"modality\": \"TEXT\",\n        \"tokenCount\": 21\n      }\n    ],\n
-      \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
-      \       \"tokenCount\": 26\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The weather in San Francisco is foggy
+        with 85% humidity. The temperature is 65 degrees Fahrenheit.\\n\"\n          }\n
+        \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.021388312180836994\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 45,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\":
+        69,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 45\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n}\n"
     headers: {}
     http_version: HTTP/1.1
     status_code: 200

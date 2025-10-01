@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator
 
 import pytest
 from google import genai
-from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
+from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool, FunctionCall, FunctionResponse
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -66,7 +66,23 @@ def test_generate_content(
     content = Content(
         role="user",
         parts=[Part.from_text(text="What's the weather like?")],
-    )
+        parts=[
+            Part.from_text(text="What's the weather like?"),        
+        ],
+    ),
+    Content(
+        role="model",
+        parts=[
+            Part.from_function_call(name="get_weather", args={"location": "San Francisco"}),
+        ],
+    ),
+    Content(
+        role="user",
+        parts=[
+            Part.from_function_response(name="get_weather", response={"location": "San Francisco", "temperature": 65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}),
+        ],
+    ),
+    ]
 
     # Create config
     config = GenerateContentConfig(
@@ -75,7 +91,7 @@ def test_generate_content(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-2.0-flash", contents=contents, config=config
     )
 
     # Get the spans
@@ -91,6 +107,11 @@ def test_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}": json.dumps({"location": "San Francisco"}),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps({"location": "San Francisco", "temperature": 65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}),
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
