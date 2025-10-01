@@ -3,7 +3,7 @@ import logging
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
 
-from google.genai.types import Content, Part, UserContent
+from google.genai.types import Content, FunctionCall, FunctionResponse, Part, UserContent
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -344,17 +344,38 @@ class _RequestAttributesExtractor:
         if parts := get_attribute(content, "parts"):
             yield from self._flatten_parts(parts)
 
+    def _get_attributes_from_function_call(
+        self, function_call: FunctionCall
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if name := get_attribute(function_call, "name"):
+            if isinstance(name, str):
+                yield (MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, name)
+        if args := get_attribute(function_call, "args"):
+            yield (MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(args))
+
+    def _get_attributes_from_function_response(
+        self, function_response: FunctionResponse
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if response := get_attribute(function_response, "response"):
+            yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
+
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
-        text_values = []
+        content_values = []
         for part in parts:
             for attr, value in self._get_attributes_from_part(part):
-                if isinstance(value, str):
-                    text_values.append(value)
-            else:
-                # TODO: Handle other types of parts
-                logger.debug(f"Non-text part encountered: {part}")
-        if text_values:
-            yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(text_values))
+                if attr in [
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_NAME,
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
+                ]:
+                    yield (attr, value)
+                elif isinstance(value, str):
+                    # Flatten all other string values into a single message content
+                    content_values.append(value)
+                else:
+                    # TODO: Handle other types of parts
+                    logger.debug(f"Non-text part encountered: {part}")
+        if content_values:
+            yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_values))
 
     def _get_attributes_from_part(self, part: Part) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
@@ -363,6 +384,10 @@ class _RequestAttributesExtractor:
                 MessageAttributes.MESSAGE_CONTENT,
                 text,
             )
+        elif function_call := get_attribute(part, "function_call"):
+            yield from self._get_attributes_from_function_call(function_call)
+        elif function_response := get_attribute(part, "function_response"):
+            yield from self._get_attributes_from_function_response(function_response)
         else:
             logger.exception("Other field types of parts are not supported yet")
 
