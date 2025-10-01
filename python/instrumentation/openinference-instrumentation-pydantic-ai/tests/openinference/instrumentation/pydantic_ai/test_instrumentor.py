@@ -21,6 +21,7 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
 
 
@@ -84,7 +85,13 @@ def _test_openai_agent_and_llm_spans(
 
     # Create the model and agent
     model = OpenAIModel("gpt-4o", provider=OpenAIProvider(api_key=api_key))
-    agent = Agent(model, output_type=LocationModel, instrument=instrumentation)
+    agent = Agent(
+        model,
+        instructions=["Use the weather tool", "Use the calculator tool"],
+        system_prompt="You are a weather assistant",
+        output_type=LocationModel,
+        instrument=instrumentation,
+    )
 
     # Run the agent
     result = agent.run_sync("The windy city in the US of A.")
@@ -117,10 +124,30 @@ def _verify_llm_span(span: ReadableSpan) -> None:
 
     assert (
         attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
+        == "system"
+    )
+    # System instructions get concatenated into a single message by pydantic
+    assert (
+        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "Use the weather tool\nUse the calculator tool"
+    )
+
+    assert (
+        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}")
+        == "system"
+    )
+    # System instructions get concatenated into a single message by pydantic
+    assert (
+        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}")
+        == "You are a weather assistant"
+    )
+
+    assert (
+        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}")
         == "user"
     )
     assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}")
         == "The windy city in the US of A."
     )
 
@@ -130,12 +157,12 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     )
 
     tool_call_name = attributes.get(
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}"
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
     )
     assert tool_call_name == "final_result"
 
     tool_call_arguments = attributes.get(
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}"
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
     assert isinstance(tool_call_arguments, str)
     arguments_dict = json.loads(tool_call_arguments)
