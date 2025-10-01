@@ -69,24 +69,34 @@ def test_generate_content(
     client = genai.Client(api_key=api_key)
 
     # Create content for the request
-    contents = [Content(
-        role="user",
-        parts=[
-            Part.from_text(text="What's the weather like?"),
-        ],
-    ),
-    Content(
-        role="model",
-        parts=[
-            Part.from_function_call(name="get_weather", args={"location": "San Francisco"}),
-        ],
-    ),
-    Content(
-        role="user",
-        parts=[
-            Part.from_function_response(name="get_weather", response={"location": "San Francisco", "temperature": 65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}),
-        ],
-    ),
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part.from_text(text="What's the weather like?"),
+            ],
+        ),
+        Content(
+            role="model",
+            parts=[
+                Part.from_function_call(name="get_weather", args={"location": "San Francisco"}),
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part.from_function_response(
+                    name="get_weather",
+                    response={
+                        "location": "San Francisco",
+                        "temperature": 65,
+                        "unit": "fahrenheit",
+                        "condition": "foggy",
+                        "humidity": "85%",
+                    },
+                ),
+            ],
+        ),
     ]
 
     # Create config
@@ -114,9 +124,19 @@ def test_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}": "get_weather",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}": json.dumps({"location": "San Francisco"}),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}": json.dumps(
+            {"location": "San Francisco"}
+        ),
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps({"location": "San Francisco", "temperature": 65, "unit": "fahrenheit", "condition": "foggy", "humidity": "85%"}),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {
+                "location": "San Francisco",
+                "temperature": 65,
+                "unit": "fahrenheit",
+                "condition": "foggy",
+                "humidity": "85%",
+            }
+        ),
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
