@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.33...python-openinference-instrumentation-openai-v0.1.34) (2025-10-01)
+
+
+### Bug Fixes
+
+* **openai:** handle complex output types in responses API for openai 2 compat ([#2253](https://github.com/Arize-ai/openinference/issues/2253)) ([a209e6a](https://github.com/Arize-ai/openinference/commit/a209e6a1a33b36a497de5cc44d7059a723a75020))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.32...python-openinference-instrumentation-openai-v0.1.33) (2025-09-22)
 
 

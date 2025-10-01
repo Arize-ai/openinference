@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.27...python-openinference-instrumentation-bedrock-v0.1.28) (2025-10-01)
+
+
+### Bug Fixes
+
+* **bedrock:** fix test compatibility with boto3-latest ([#2243](https://github.com/Arize-ai/openinference/issues/2243)) ([7cf5760](https://github.com/Arize-ai/openinference/commit/7cf576059859e370a3f83b60d0e2c9ff6d6971b7))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.26...python-openinference-instrumentation-bedrock-v0.1.27) (2025-08-22)
 
 
