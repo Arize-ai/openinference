@@ -12,8 +12,7 @@ interactions:
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
   response:
-    body:
-      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+    content: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"The weather in San Francisco is foggy
         with 85% humidity. The temperature is 65 degrees Fahrenheit.\\n\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
