@@ -22,7 +22,7 @@ interactions:
         69,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 45\n      }\n    ],\n    \"candidatesTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
-        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n}\n"
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
     headers: {}
     http_version: HTTP/1.1
     status_code: 200
