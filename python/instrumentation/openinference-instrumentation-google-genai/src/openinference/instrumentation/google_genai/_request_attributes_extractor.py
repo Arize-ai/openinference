@@ -344,14 +344,18 @@ class _RequestAttributesExtractor:
         if parts := get_attribute(content, "parts"):
             yield from self._flatten_parts(parts)
 
-    def _get_attributes_from_function_call(self, function_call: FunctionCall) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_attributes_from_function_call(
+        self, function_call: FunctionCall
+    ) -> Iterator[Tuple[str, AttributeValue]]:
         if name := get_attribute(function_call, "name"):
             if isinstance(name, str):
                 yield (MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, name)
         if args := get_attribute(function_call, "args"):
             yield (MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(args))
 
-    def _get_attributes_from_function_response(self, function_response: FunctionResponse) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_attributes_from_function_response(
+        self, function_response: FunctionResponse
+    ) -> Iterator[Tuple[str, AttributeValue]]:
         if response := get_attribute(function_response, "response"):
             yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
 
@@ -359,7 +363,10 @@ class _RequestAttributesExtractor:
         content_values = []
         for part in parts:
             for attr, value in self._get_attributes_from_part(part):
-                if attr in [MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]:
+                if attr in [
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_NAME,
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
+                ]:
                     yield (attr, value)
                 elif isinstance(value, str):
                     # Flatten all other string values into a single message content

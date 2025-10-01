@@ -5,7 +5,13 @@ from typing import Any, Dict, Iterator
 
 import pytest
 from google import genai
-from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool, FunctionCall, FunctionResponse
+from google.genai.types import (
+    Content,
+    FunctionDeclaration,
+    GenerateContentConfig,
+    Part,
+    Tool,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -63,11 +69,10 @@ def test_generate_content(
     client = genai.Client(api_key=api_key)
 
     # Create content for the request
-    content = Content(
+    contents = [Content(
         role="user",
-        parts=[Part.from_text(text="What's the weather like?")],
         parts=[
-            Part.from_text(text="What's the weather like?"),        
+            Part.from_text(text="What's the weather like?"),
         ],
     ),
     Content(
