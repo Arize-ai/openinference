@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from openai.types.responses import (
     ResponseFunctionToolCallParam,
@@ -5,6 +7,9 @@ from openai.types.responses import (
     ResponseReasoningItemParam,
 )
 from openai.types.responses.easy_input_message_param import EasyInputMessageParam
+from openai.types.responses.response_custom_tool_call_output_param import (
+    ResponseCustomToolCallOutputParam,
+)
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_param import (
     FunctionCallOutput,
@@ -236,6 +241,32 @@ class TestResponseInputItemParam:
                 },
                 id="function_call_output_with_empty_content",
             ),
+            pytest.param(
+                FunctionCallOutput(
+                    type="function_call_output",
+                    call_id="call_789",
+                    output={"temperature": 72, "condition": "sunny"},  # type: ignore[typeddict-item]
+                ),
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": "call_789",
+                    "message.content": json.dumps({"temperature": 72, "condition": "sunny"}),
+                },
+                id="function_call_output_with_dict",
+            ),
+            pytest.param(
+                FunctionCallOutput(
+                    type="function_call_output",
+                    call_id="call_999",
+                    output=["item1", "item2", "item3"],  # type: ignore[typeddict-item,list-item]
+                ),
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": "call_999",
+                    "message.content": json.dumps(["item1", "item2", "item3"]),
+                },
+                id="function_call_output_with_list",
+            ),
         ],
     )
     def test_FunctionCallOutput(
@@ -353,6 +384,58 @@ class TestResponseInputItemParam:
     def test_ResponseReasoningItemParam(
         self,
         obj: ResponseReasoningItemParam,
+        expected: dict[str, AttributeValue],
+    ) -> None:
+        actual = dict(_ResponsesApiAttributes._get_attributes_from_response_input_item_param(obj))
+        assert actual == expected
+
+    @pytest.mark.parametrize(
+        "obj,expected",
+        [
+            pytest.param(
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="call_123",
+                    output="Tool execution successful",
+                ),
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": "call_123",
+                    "message.content": "Tool execution successful",
+                },
+                id="custom_tool_call_output_with_string",
+            ),
+            pytest.param(
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="call_456",
+                    output={"status": "success", "data": {"count": 42}},  # type: ignore[typeddict-item,dict-item]
+                ),
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": "call_456",
+                    "message.content": json.dumps({"status": "success", "data": {"count": 42}}),
+                },
+                id="custom_tool_call_output_with_dict",
+            ),
+            pytest.param(
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="call_789",
+                    output=[1, 2, 3, 4, 5],  # type: ignore[typeddict-item,list-item]
+                ),
+                {
+                    "message.role": "tool",
+                    "message.tool_call_id": "call_789",
+                    "message.content": json.dumps([1, 2, 3, 4, 5]),
+                },
+                id="custom_tool_call_output_with_list",
+            ),
+        ],
+    )
+    def test_ResponseCustomToolCallOutputParam(
+        self,
+        obj: ResponseCustomToolCallOutputParam,
         expected: dict[str, AttributeValue],
     ) -> None:
         actual = dict(_ResponsesApiAttributes._get_attributes_from_response_input_item_param(obj))
