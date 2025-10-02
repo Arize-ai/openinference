@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.6...python-openinference-instrumentation-google-genai-v0.1.7) (2025-10-02)
+
+
+### Bug Fixes
+
+* **google-genai:** fix wrong tool attribute when setting llm input_message attribute ([#2260](https://github.com/Arize-ai/openinference/issues/2260)) ([8ee0569](https://github.com/Arize-ai/openinference/commit/8ee0569ae3e7bbf8c66f8bca2a34727d31cd007d))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.5...python-openinference-instrumentation-google-genai-v0.1.6) (2025-10-02)
 
 
