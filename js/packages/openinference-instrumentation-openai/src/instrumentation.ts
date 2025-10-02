@@ -41,6 +41,7 @@ import {
 } from "openai/resources";
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
+import { redactUrl } from "./httpUtils";
 
 import {
   OITracer,
@@ -71,12 +72,6 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 let _isOpenInferencePatched = false;
 
 /**
- * Map to store URL information for each request using trace context
- * Uses trace ID + span ID as the key to avoid concurrent request overwrites
- */
-const requestUrlMap = new Map<string, { url: string; baseUrl?: string }>();
-
-/**
  * function to check if instrumentation is enabled / disabled
  */
 export function isPatched() {
@@ -102,126 +97,71 @@ function getExecContext(span: Span) {
 }
 
 /**
- * Extracts URL attributes for debugging purposes (especially useful for Azure)
- * @param fullUrl The complete URL of the request
- * @param baseUrl The base URL of the client
- * @returns Object containing URL attributes for debugging
+ * Extracts the base URL from an OpenAI client instance
+ * @param instance The OpenAI client instance (may be nested)
+ * @returns The base URL string, or undefined if not found
  */
-function getUrlAttributes(
-  fullUrl: string,
-  baseUrl?: string,
-): Record<string, string> {
-  const attributes: Record<string, string> = {};
-
-  try {
-    const url = new URL(fullUrl);
-
-    // Always include the full URL for complete debugging context
-    attributes["url.full"] = fullUrl;
-
-    // Extract the path component
-    if (baseUrl) {
-      try {
-        const baseUrlObj = new URL(baseUrl);
-        const fullUrlObj = new URL(fullUrl);
-
-        // If the hosts match, calculate the path difference
-        if (baseUrlObj.hostname === fullUrlObj.hostname) {
-          // For Azure OpenAI, we want to reconstruct the deployment path
-          // baseUrl example: "https://example.openai.azure.com/openai/deployments/gpt-4"
-          // fullUrl example: "https://example.openai.azure.com/chat/completions"
-          // We want to extract the deployment info from baseUrl and combine with the endpoint
-
-          const basePath = baseUrlObj.pathname;
-          const fullPath = fullUrlObj.pathname;
-
-          // Extract deployment information from the base URL
-          if (basePath.includes("/deployments/")) {
-            // Extract the deployment part: "deployments/model-name"
-            const deploymentMatch = basePath.match(/\/deployments\/([^/]+)/);
-            if (deploymentMatch) {
-              const deploymentName = deploymentMatch[1];
-              const endpoint = fullPath.startsWith("/")
-                ? fullPath.substring(1)
-                : fullPath;
-              attributes["url.path"] =
-                `deployments/${deploymentName}/${endpoint}`;
-            } else {
-              // Fallback to just the endpoint
-              attributes["url.path"] = fullPath.startsWith("/")
-                ? fullPath.substring(1)
-                : fullPath;
-            }
-          } else {
-            // Not a deployment URL, use the full path
-            attributes["url.path"] = fullPath.startsWith("/")
-              ? fullPath.substring(1)
-              : fullPath;
-          }
-        } else {
-          // Different hosts, use pathname without leading slash
-          const pathname = url.pathname.startsWith("/")
-            ? url.pathname.substring(1)
-            : url.pathname;
-          attributes["url.path"] = pathname || "/";
-        }
-      } catch {
-        // If URL parsing fails, use the pathname
-        const pathname = url.pathname.startsWith("/")
-          ? url.pathname.substring(1)
-          : url.pathname;
-        attributes["url.path"] = pathname || "/";
-      }
-    } else {
-      const pathname = url.pathname.startsWith("/")
-        ? url.pathname.substring(1)
-        : url.pathname;
-      attributes["url.path"] = pathname || "/";
-    }
-
-    // Safely extract api_version query parameter for Azure
-    if (url.search) {
-      const queryParams = new URLSearchParams(url.search);
-      const apiVersion = queryParams.get("api-version");
-      if (apiVersion) {
-        attributes["url.query.api_version"] = apiVersion;
-      }
-    }
-  } catch (error) {
-    diag.debug("Failed to extract URL attributes", error);
-  }
-
-  return attributes;
+function getBaseUrl(instance: unknown): string | undefined {
+  const client = instance as {
+    baseURL?: string;
+    _client?: { baseURL?: string };
+  };
+  return client.baseURL || client._client?.baseURL;
 }
 
 /**
- * Gets URL attributes for a request from stored request information
- * @param span The span to get URL attributes for
- * @returns URL attributes object
+ * Extracts the relative path from a full URL given a base URL
+ * @param fullUrl The complete URL to extract the path from
+ * @param baseUrl The base URL to remove from the full URL
+ * @returns The relative path, or null if extraction fails
  */
-function getStoredUrlAttributes(span: Span): Record<string, string> {
+const extractRelativePath = (
+  fullUrl: string,
+  baseUrl: string,
+): string | null => {
   try {
-    const spanContext = span.spanContext();
-    const contextKey = `${spanContext.traceId}-${spanContext.spanId}`;
-    const urlInfo = requestUrlMap.get(contextKey);
-    if (urlInfo) {
-      diag.debug("Retrieved URL info from requestUrlMap", {
-        urlInfo,
-        contextKey,
-      });
-      // Clean up after use to prevent memory leaks
-      requestUrlMap.delete(contextKey);
-      return getUrlAttributes(urlInfo.url, urlInfo.baseUrl);
-    } else {
-      diag.debug("No URL info found in requestUrlMap for this span", {
-        contextKey,
-      });
-    }
-  } catch (error) {
-    diag.debug("Failed to get stored URL attributes", error);
+    const [basePath, fullPath] = [
+      new URL(baseUrl).pathname,
+      new URL(fullUrl).pathname,
+    ];
+    const path = fullPath.startsWith(basePath)
+      ? fullPath.slice(basePath.length)
+      : fullPath;
+    return path.startsWith("/") ? path : `/${path}`;
+  } catch {
+    return null;
   }
-  return {};
-}
+};
+
+/**
+ * Adds back non-sensitive query parameters to a redacted URL
+ * @param redactedUrl The URL that has been redacted
+ * @param originalUrl The original URL containing parameters
+ * @param paramsToRestore Array of parameter names to restore (defaults to ["api-version"])
+ * @returns The redacted URL with specified parameters restored
+ */
+const addBackNonSensitiveParams = (
+  redactedUrl: string,
+  originalUrl: string,
+  paramsToRestore: string[] = ["api-version"],
+): string => {
+  try {
+    const [original, redacted] = [new URL(originalUrl), new URL(redactedUrl)];
+    let hasChanges = false;
+
+    for (const param of paramsToRestore) {
+      const value = original.searchParams.get(param);
+      if (value) {
+        redacted.searchParams.set(param, value);
+        hasChanges = true;
+      }
+    }
+
+    return hasChanges ? redacted.toString() : redactedUrl;
+  } catch {
+    return redactedUrl;
+  }
+};
 
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
@@ -384,83 +324,29 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
 
-    // Patch the post method to capture URL information
+    // Patch the buildURL method to capture URL information
     this._wrap(
       module.OpenAI.prototype,
-      "post",
+      "buildURL",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original: any): any => {
-        return function patchedPost(
-          this: unknown,
-          path: string,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          body?: any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          options?: any,
-        ) {
-          // Store URL information for this specific request
-          try {
-            const clientInstance = this as {
-              baseURL?: string;
-              _client?: { baseURL?: string };
-            };
+        return function patchedBuildURL(this: unknown, ...args: unknown[]) {
+          const urlFull = original.apply(this, args) as string;
+          const activeSpan = trace.getActiveSpan();
 
-            let baseUrl: string | undefined;
-            if (
-              clientInstance.baseURL &&
-              typeof clientInstance.baseURL === "string"
-            ) {
-              baseUrl = clientInstance.baseURL;
-            } else if (
-              clientInstance._client?.baseURL &&
-              typeof clientInstance._client.baseURL === "string"
-            ) {
-              baseUrl = clientInstance._client.baseURL;
-            }
+          if (!activeSpan) return urlFull;
 
-            if (baseUrl) {
-              // Construct the full URL with query parameters if available
-              let fullUrl = new URL(path, baseUrl).toString();
+          const redactedUrl = redactUrl(urlFull);
+          const finalUrl = addBackNonSensitiveParams(redactedUrl, urlFull);
+          activeSpan.setAttribute("url.full", finalUrl);
 
-              // Add query parameters if they exist in options
-              if (options?.query && typeof options.query === "object") {
-                const url = new URL(fullUrl);
-                Object.entries(options.query).forEach(([key, value]) => {
-                  if (value !== undefined && value !== null) {
-                    url.searchParams.set(key, String(value));
-                  }
-                });
-                fullUrl = url.toString();
-              }
-
-              // Store URL info using the current active span context
-              const activeSpan = trace.getActiveSpan();
-              if (activeSpan) {
-                const spanContext = activeSpan.spanContext();
-                const contextKey = `${spanContext.traceId}-${spanContext.spanId}`;
-                requestUrlMap.set(contextKey, { url: fullUrl, baseUrl });
-                diag.debug("Stored URL info for request", {
-                  fullUrl,
-                  baseUrl,
-                  contextKey,
-                });
-                // Clean up old entries to prevent memory leaks
-                if (requestUrlMap.size > 1000) {
-                  const oldestKey = requestUrlMap.keys().next().value;
-                  if (oldestKey) {
-                    requestUrlMap.delete(oldestKey);
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            diag.debug(
-              "Failed to capture URL information in post method",
-              error,
-            );
+          const baseUrl = getBaseUrl(this);
+          const urlPath = baseUrl && extractRelativePath(urlFull, baseUrl);
+          if (urlPath) {
+            activeSpan.setAttribute("url.path", urlPath);
           }
 
-          return original.apply(this, [path, body, options]);
+          return urlFull;
         };
       },
     );
@@ -533,8 +419,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
                 ...getUsageAttributes(result),
-                // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(span),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -621,8 +505,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getCompletionOutputValueAndMimeType(result),
                 ...getUsageAttributes(result),
-                // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(span),
               });
               span.setStatus({ code: SpanStatusCode.OK });
               span.end();
@@ -694,8 +576,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               span.setAttributes({
                 // Do not record the output data as it can be large
                 ...getEmbeddingEmbeddingsAttributes(result),
-                // Add URL attributes now that the request has completed
-                ...getStoredUrlAttributes(span),
               });
             }
             span.setStatus({ code: SpanStatusCode.OK });
@@ -781,8 +661,6 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                   [SemanticConventions.LLM_MODEL_NAME]: result.model,
                   ...getResponsesOutputMessagesAttributes(result),
                   ...getResponsesUsageAttributes(result),
-                  // Add URL attributes now that the request has completed
-                  ...getStoredUrlAttributes(span),
                 });
                 span.setStatus({ code: SpanStatusCode.OK });
                 span.end();
@@ -831,7 +709,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    this._unwrap(moduleExports.OpenAI.prototype, "post");
+    this._unwrap(moduleExports.OpenAI.prototype, "buildURL");
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");

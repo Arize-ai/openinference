@@ -938,6 +938,12 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
 
+  it("should ensure buildURL method exists on OpenAI prototype", () => {
+    // This test will fail if OpenAI SDK removes buildURL method
+    // If this fails, update the instrumentation to use a different approach
+    expect(typeof OpenAI.prototype.buildURL).toBe("function");
+  });
+
   it("should capture context attributes and add them to spans", async () => {
     const response = {
       id: "cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9",
@@ -1002,6 +1008,7 @@ describe("OpenAIInstrumentation", () => {
 }
 `);
   });
+
   it("creates a span for chat completions parse", async () => {
     const response = {
       id: "chatcmpl-parseTest",
