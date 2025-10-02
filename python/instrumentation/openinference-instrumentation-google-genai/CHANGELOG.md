@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.5...python-openinference-instrumentation-google-genai-v0.1.6) (2025-10-02)
+
+
+### Bug Fixes
+
+* **google-genai:** Set input message attributes for function call and function response parts ([#2252](https://github.com/Arize-ai/openinference/issues/2252)) ([be4b9c1](https://github.com/Arize-ai/openinference/commit/be4b9c150f6a33a1ee394d19f7c8e7c7886fe307))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.4...python-openinference-instrumentation-google-genai-v0.1.5) (2025-07-14)
 
 
