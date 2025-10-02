@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { AnthropicInstrumentation } from '../src/instrumentation';
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { AnthropicInstrumentation } from "../src/instrumentation";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
 
-describe('AnthropicInstrumentation', () => {
+describe("AnthropicInstrumentation", () => {
   let instrumentation: AnthropicInstrumentation;
   let provider: NodeTracerProvider;
   let exporter: InMemorySpanExporter;
@@ -25,44 +28,44 @@ describe('AnthropicInstrumentation', () => {
     exporter.reset();
   });
 
-  it('should be enabled by default', () => {
+  it("should be enabled by default", () => {
     expect(instrumentation.isEnabled()).toBe(true);
   });
 
-  it('should be able to enable and disable', () => {
+  it("should be able to enable and disable", () => {
     expect(instrumentation.isEnabled()).toBe(true);
-    
+
     instrumentation.disable();
     expect(instrumentation.isEnabled()).toBe(false);
-    
+
     instrumentation.enable();
     expect(instrumentation.isEnabled()).toBe(true);
   });
 
-  it('should initialize without errors', () => {
+  it("should initialize without errors", () => {
     expect(() => {
       new AnthropicInstrumentation();
     }).not.toThrow();
   });
 
-  it('should accept custom tracer provider', () => {
+  it("should accept custom tracer provider", () => {
     const customProvider = new NodeTracerProvider();
     const customInstrumentation = new AnthropicInstrumentation({
       tracerProvider: customProvider,
     });
-    
+
     expect(customInstrumentation.isEnabled()).toBe(true);
     customInstrumentation.disable();
   });
 
-  it('should accept trace config options', () => {
+  it("should accept trace config options", () => {
     const customInstrumentation = new AnthropicInstrumentation({
       traceConfig: {
         hideInputs: true,
         hideOutputs: true,
       },
     });
-    
+
     expect(customInstrumentation.isEnabled()).toBe(true);
     customInstrumentation.disable();
   });

@@ -25,14 +25,14 @@ npm install @arizeai/openinference-instrumentation-anthropic @anthropic-ai/sdk @
 Set up instrumentation in your application:
 
 ```typescript
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { AnthropicInstrumentation } from '@arizeai/openinference-instrumentation-anthropic';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-otlp-http';
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-otlp-http";
 
 // Configure the SDK with Anthropic instrumentation
 const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
-    url: 'http://localhost:6006/v1/traces', // Phoenix endpoint
+    url: "http://localhost:6006/v1/traces", // Phoenix endpoint
   }),
   instrumentations: [
     new AnthropicInstrumentation({
@@ -40,7 +40,7 @@ const sdk = new NodeSDK({
       traceConfig: {
         // hideInputs: true,
         // hideOutputs: true,
-      }
+      },
     }),
   ],
 });
@@ -49,16 +49,16 @@ const sdk = new NodeSDK({
 sdk.start();
 
 // Now use Anthropic as normal
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const message = await anthropic.messages.create({
-  model: 'claude-3-sonnet-20240229',
+  model: "claude-3-sonnet-20240229",
   max_tokens: 1000,
-  messages: [{ role: 'user', content: 'Hello, Claude!' }],
+  messages: [{ role: "user", content: "Hello, Claude!" }],
 });
 
 console.log(message.content);

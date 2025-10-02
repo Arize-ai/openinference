@@ -73,11 +73,13 @@ function getExecContext(span: Span) {
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
  */
-export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthropic> {
+export class AnthropicInstrumentation extends InstrumentationBase<
+  typeof Anthropic
+> {
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
-  
+
   constructor({
     instrumentationConfig,
     traceConfig,
@@ -221,7 +223,11 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
             },
           );
 
-          const wrappedPromiseThen = (result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>) => {
+          const wrappedPromiseThen = (
+            result:
+              | Anthropic.Messages.Message
+              | Stream<Anthropic.Messages.RawMessageStreamEvent>,
+          ) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
               span.setAttributes({
@@ -245,7 +251,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
 
             return result;
           };
-          
+
           const wrappedPromise = execPromise.then(wrappedPromiseThen);
           return context.bind(execContext, wrappedPromise);
         };
@@ -286,14 +292,23 @@ export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthrop
 /**
  * type-guard that checks if the response is an Anthropic message response
  */
-function isAnthropicMessageResponse(response: unknown): response is Anthropic.Messages.Message {
-  return response != null && typeof response === "object" && "content" in response && "role" in response;
+function isAnthropicMessageResponse(
+  response: unknown,
+): response is Anthropic.Messages.Message {
+  return (
+    response != null &&
+    typeof response === "object" &&
+    "content" in response &&
+    "role" in response
+  );
 }
 
 /**
  * type-guard that checks if the response is an Anthropic stream
  */
-function isAnthropicStream(response: unknown): response is Stream<Anthropic.Messages.RawMessageStreamEvent> {
+function isAnthropicStream(
+  response: unknown,
+): response is Stream<Anthropic.Messages.RawMessageStreamEvent> {
   return response != null && typeof response === "object" && "tee" in response;
 }
 
@@ -341,7 +356,7 @@ function getAnthropicInputMessageAttributes(
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
   };
-  
+
   // Add the content based on type
   if (typeof message.content === "string") {
     attributes[SemanticConventions.MESSAGE_CONTENT] = message.content;
@@ -380,12 +395,15 @@ function getAnthropicInputMessageAttributes(
           `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
         ] = JSON.stringify(part.input);
       } else if (part.type === "tool_result") {
-        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
+        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
+          part.tool_use_id;
         if (typeof part.content === "string") {
           attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
         } else if (Array.isArray(part.content)) {
           // Handle complex tool result content
-          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
+          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(
+            part.content,
+          );
         }
       }
     });
@@ -402,21 +420,31 @@ function getAnthropicOutputMessagesAttributes(
 ): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
-  
-  attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = message.role;
-  
+
+  attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
+    message.role;
+
   // Handle content array
   message.content.forEach((content, contentIndex) => {
     const contentPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-    
+
     if (content.type === "text") {
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
-      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
+      attributes[
+        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+      ] = "text";
+      attributes[
+        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+      ] = content.text;
     } else if (content.type === "tool_use") {
       const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = JSON.stringify(content.input);
+      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
+        content.id;
+      attributes[
+        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+      ] = content.name;
+      attributes[
+        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ] = JSON.stringify(content.input);
     }
   });
 
@@ -431,9 +459,10 @@ function getAnthropicUsageAttributes(
 ): Attributes {
   if (message.usage) {
     return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: message.usage.output_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
+        message.usage.output_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: message.usage.input_tokens,
-      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: 
+      [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
         message.usage.input_tokens + message.usage.output_tokens,
     };
   }
@@ -449,40 +478,59 @@ async function consumeAnthropicStreamChunks(
 ) {
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
-  
+
   for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta.type === "text_delta"
+    ) {
       streamResponse += chunk.delta.text;
-    } else if (chunk.type === "content_block_start" && chunk.content_block.type === "tool_use") {
+    } else if (
+      chunk.type === "content_block_start" &&
+      chunk.content_block.type === "tool_use"
+    ) {
       const toolCall = chunk.content_block;
       const toolCallIndex = chunk.index;
       const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
-      
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = toolCall.name;
-    } else if (chunk.type === "content_block_delta" && chunk.delta.type === "input_json_delta") {
+
+      toolCallAttributes[
+        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`
+      ] = toolCall.id;
+      toolCallAttributes[
+        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+      ] = toolCall.name;
+    } else if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta.type === "input_json_delta"
+    ) {
       const toolCallIndex = chunk.index;
       const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
-      const existingArgs = toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] || "";
-      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] = existingArgs + chunk.delta.partial_json;
+      const existingArgs =
+        toolCallAttributes[
+          `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+        ] || "";
+      toolCallAttributes[
+        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+      ] = existingArgs + chunk.delta.partial_json;
     }
   }
-  
+
   const messageIndexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
   // Append the attributes to the span as a message
   const attributes: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]: streamResponse,
+    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]:
+      streamResponse,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
-  
+
   // Add the tool call attributes
   for (const [key, value] of Object.entries(toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
   }
-  
+
   span.setAttributes(attributes);
   span.setStatus({ code: SpanStatusCode.OK });
   span.end();
