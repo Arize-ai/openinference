@@ -151,6 +151,7 @@ async def test_google_adk_instrumentor(
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
         assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+    call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -265,4 +266,5 @@ async def test_google_adk_instrumentor(
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
         assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+    call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes1

@@ -117,9 +117,42 @@ class _PatchWrapper:
 
     @classmethod
     def _get_invocation_params(cls, request_params: Any) -> Dict[str, Any]:
+        """
+        Clean up invocation parameters for span attributes.
+        - Removes messages (can be large / sensitive).
+        - Handles tenacity.Retrying objects safely without a hard dependency.
+        - Ensures all values are JSON serializable.
+        """
         attributes = dict(request_params)
+
+        # Drop messages (too big / sensitive)
         if "messages" in request_params:
-            attributes.pop("messages")
+            attributes.pop("messages", None)
+
+        if "max_retries" in request_params:
+            max_retries = attributes.get("max_retries")
+
+            # Handle tenacity.Retrying safely
+            if max_retries is not None and max_retries.__class__.__name__ == "Retrying":
+                try:
+                    # Capture all key retry configs
+                    attributes["max_retries"] = {
+                        "stop": repr(getattr(max_retries, "stop", None)),
+                        "wait": repr(getattr(max_retries, "wait", None)),
+                        "sleep": repr(getattr(max_retries, "sleep", None)),
+                        "retry": repr(getattr(max_retries, "retry", None)),
+                        "before": repr(getattr(max_retries, "before", None)),
+                        "after": repr(getattr(max_retries, "after", None)),
+                    }
+                except Exception:
+                    attributes.pop("max_retries", None)
+            else:
+                # Ensure JSON-serializability for other types
+                try:
+                    json.dumps(max_retries)
+                except (TypeError, ValueError):
+                    attributes["max_retries"] = str(max_retries)
+
         return attributes
 
     def __call__(
@@ -172,6 +205,8 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+
+                    span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
                     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))
@@ -205,6 +240,8 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+
+                    span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
                     span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(e)))

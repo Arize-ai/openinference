@@ -1,5 +1,14 @@
 # @arizeai/openinference-mastra
 
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+  - @arizeai/openinference-vercel@2.3.4
+
 ## 2.2.0
 
 ### Minor Changes

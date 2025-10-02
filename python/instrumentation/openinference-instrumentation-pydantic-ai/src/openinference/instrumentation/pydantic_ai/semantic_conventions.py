@@ -216,7 +216,25 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
     """Extract attributes specific to agent operations."""
     if PydanticFinalResult.FINAL_RESULT in gen_ai_attrs:
         yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticFinalResult.FINAL_RESULT]
-    if PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS in gen_ai_attrs:
+
+    # Extract input value from pydantic_ai.all_messages (v2 AGENT spans)
+    if "pydantic_ai.all_messages" in gen_ai_attrs:
+        all_messages_str = gen_ai_attrs["pydantic_ai.all_messages"]
+        if isinstance(all_messages_str, str):
+            try:
+                all_messages = json.loads(all_messages_str)
+                if isinstance(all_messages, list) and all_messages:
+                    # Find last user message for input value
+                    for msg in reversed(all_messages):
+                        if msg.get("role") == "user" and "parts" in msg:
+                            for part in msg["parts"]:
+                                if isinstance(part, dict) and part.get("type") == "text":
+                                    yield SpanAttributes.INPUT_VALUE, part.get("content", "")
+                                    return
+            except json.JSONDecodeError:
+                pass
+    # Extract input value from all_messages_events (v1 AGENT spans)
+    elif PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[PydanticAllMessagesEvents.ALL_MESSAGES_EVENTS])
         if events:
             input_messages = _extract_llm_input_messages(events)
@@ -234,6 +252,14 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
 
     yield from _extract_tools_attributes(gen_ai_attrs)
 
+    # Extract messages from gen_ai.input.messages/output.messages (v2 LLM spans)
+    # v1 with event_mode="attributes" will have both gen_ai messages AND events
+    # v2 will only have gen_ai messages
+    if "gen_ai.input.messages" in gen_ai_attrs and OTELConventions.EVENTS not in gen_ai_attrs:
+        yield from _extract_from_gen_ai_messages(gen_ai_attrs)
+        return
+
+    # Extract messages from OTEL events (v1 LLM spans with event_mode="events")
     if OTELConventions.EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[OTELConventions.EVENTS])
         if events:
@@ -476,10 +502,10 @@ def _process_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
     ):
         function = tool_call[GenAIToolCallFields.FUNCTION]
         if GenAIFunctionFields.NAME in function:
-            tc[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME] = function[GenAIFunctionFields.NAME]
+            tc[MessageAttributes.MESSAGE_FUNCTION_CALL_NAME] = function[GenAIFunctionFields.NAME]
 
         if GenAIFunctionFields.ARGUMENTS in function:
-            tc[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON] = function[
+            tc[MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON] = function[
                 GenAIFunctionFields.ARGUMENTS
             ]
 
@@ -531,8 +557,8 @@ def _extract_llm_output_messages(events: List[Dict[str, Any]]) -> List[Dict[str,
 
 
 def _find_llm_input_value(input_messages: List[Dict[str, Any]]) -> Optional[str]:
-    """Find input value from first user message for LLM operations."""
-    for message in input_messages:
+    """Find input value from last user message for LLM operations."""
+    for message in reversed(input_messages):
         if (
             message.get(MessageAttributes.MESSAGE_ROLE) == PydanticMessageRoleUser.USER
             and MessageAttributes.MESSAGE_CONTENT in message
@@ -559,12 +585,12 @@ def _find_llm_output_value(output_messages: List[Dict[str, Any]]) -> Optional[st
         ):
             for tool_call in message[MessageAttributes.MESSAGE_TOOL_CALLS]:
                 if (
-                    ToolCallAttributes.TOOL_CALL_FUNCTION_NAME in tool_call
-                    and tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_NAME]
+                    MessageAttributes.MESSAGE_FUNCTION_CALL_NAME in tool_call
+                    and tool_call[MessageAttributes.MESSAGE_FUNCTION_CALL_NAME]
                     == PydanticMessageToolCallFunctionFinalResult.FINAL_RESULT
                 ):
-                    if ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON in tool_call:
-                        args = tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
+                    if MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON in tool_call:
+                        args = tool_call[MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON]
                         if isinstance(args, str):
                             return args
                         return None
@@ -608,3 +634,88 @@ def _parse_json_value(json_value: Any) -> Any:
         except json.JSONDecodeError:
             return None
     return json_value
+
+
+def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """Extract OpenInference attributes from pydantic_ai v2 gen_ai messages format."""
+
+    # Extract input messages and input value
+    input_value = None
+    if "gen_ai.input.messages" in gen_ai_attrs:
+        input_messages_str = gen_ai_attrs["gen_ai.input.messages"]
+        if isinstance(input_messages_str, str):
+            try:
+                input_messages = json.loads(input_messages_str)
+                if isinstance(input_messages, list):
+                    for index, msg in enumerate(input_messages):
+                        if "role" in msg:
+                            yield (
+                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_ROLE}",
+                                msg["role"],
+                            )
+
+                        # Extract content from parts
+                        if "parts" in msg and isinstance(msg["parts"], list):
+                            for part in msg["parts"]:
+                                if (
+                                    isinstance(part, dict)
+                                    and part.get("type") == "text"
+                                    and "content" in part
+                                ):
+                                    yield (
+                                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                        part["content"],
+                                    )
+
+                                    # Set INPUT_VALUE for the last user message found
+                                    if msg.get("role") == "user":
+                                        input_value = part["content"]
+                                    break
+                    if input_value is not None:
+                        yield SpanAttributes.INPUT_VALUE, input_value
+            except json.JSONDecodeError:
+                pass
+
+    # Extract output messages
+    if "gen_ai.output.messages" in gen_ai_attrs:
+        output_messages_str = gen_ai_attrs["gen_ai.output.messages"]
+        if isinstance(output_messages_str, str):
+            try:
+                output_messages = json.loads(output_messages_str)
+                if isinstance(output_messages, list):
+                    for index, msg in enumerate(output_messages):
+                        if "role" in msg:
+                            yield (
+                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_ROLE}",
+                                msg["role"],
+                            )
+
+                        # Extract content or tool calls from parts
+                        if "parts" in msg and isinstance(msg["parts"], list):
+                            for part in msg["parts"]:
+                                if isinstance(part, dict):
+                                    if part.get("type") == "text" and "content" in part:
+                                        yield (
+                                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                            part["content"],
+                                        )
+                                        break
+                                    elif part.get("type") == "tool_call":
+                                        # Extract tool call information
+                                        if "name" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}",
+                                                part["name"],
+                                            )
+                                        if "arguments" in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}",
+                                                part["arguments"],
+                                            )
+
+                                            # Also set OUTPUT_VALUE for final_result
+                                            if part.get("name") == "final_result":
+                                                yield SpanAttributes.OUTPUT_VALUE, part["arguments"]
+                                        break
+            except json.JSONDecodeError:
+                pass

@@ -111,9 +111,12 @@ def test_tool_calls_with_input_params(
     )
     assert llm_span_attributes.pop("llm.input_messages.3.message.role") == "user"
 
-    assert starts_with(
-        llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params["maximumLength"] == 2048
+    assert isinstance(invocation_params["stopSequences"], list)
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["topK"] == 250
+    assert invocation_params["topP"] == 1.0
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
     assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
@@ -233,9 +236,12 @@ def test_tool_calls_without_input_params(
     assert llm_span_attributes.pop("llm.input_messages.4.message.role") == "assistant"
     assert llm_span_attributes.pop("llm.input_messages.5.message.content") == "What is the time?"
     assert llm_span_attributes.pop("llm.input_messages.5.message.role") == "user"
-    assert starts_with(
-        llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048, "stopSe'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params["maximumLength"] == 2048
+    assert isinstance(invocation_params["stopSequences"], list)
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["topK"] == 250
+    assert invocation_params["topP"] == 1.0
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
     assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
@@ -323,11 +329,14 @@ def test_knowledge_base_results(
     assert len(spans) == 4
     llm_span = [span for span in spans if span.name == "LLM"][-1]
     llm_span_attributes = dict(llm_span.attributes or {})
-    assert llm_span_attributes.pop("llm.invocation_parameters") == (
-        '{"maximumLength": 2048, "stopSequences": '
-        '["\\n\\nHuman:"], "temperature": 0.0, "topK": 250,'
-        ' "topP": 1.0}'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params == {
+        "maximumLength": 2048,
+        "stopSequences": ["\n\nHuman:"],
+        "temperature": 0.0,
+        "topK": 250,
+        "topP": 1.0,
+    }
     assert llm_span_attributes.pop("llm.input_messages.0.message.role") == "assistant"
     content = "You are a question answering agent."
     assert starts_with(llm_span_attributes.pop("llm.input_messages.0.message.content"), content)
@@ -356,33 +365,38 @@ def test_knowledge_base_results(
     assert starts_with(
         data.pop("retrieval.documents.0.document.content"), "Fig. 1. Overview of a LLM-pow"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.0.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.0.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.1.document.content"), "They use few-shot examples to"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.1.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.1.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.2.document.content"), "The training dataset in their"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.2.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.2.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.3.document.content"), "The code should be fully func"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.3.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.3.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.4.document.content"), "LLM is presented with a list "
     )
-    assert starts_with(
-        data.pop("retrieval.documents.4.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.4.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert not data
 
 

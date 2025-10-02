@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.5...python-openinference-instrumentation-pydantic-ai-v0.1.6) (2025-09-30)
+
+
+### Bug Fixes
+
+* pydantic-ai use final user message as input value ([#2237](https://github.com/Arize-ai/openinference/issues/2237)) ([208232d](https://github.com/Arize-ai/openinference/commit/208232dfd6d47e8123beea41c47c8fc556012325))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.4...python-openinference-instrumentation-pydantic-ai-v0.1.5) (2025-09-11)
+
+
+### Features
+
+* update pydantic-ai to v2 tracing format ([#2186](https://github.com/Arize-ai/openinference/issues/2186)) ([5eecce5](https://github.com/Arize-ai/openinference/commit/5eecce5c648d710d3ad9397e23773096e5903352))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.3...python-openinference-instrumentation-pydantic-ai-v0.1.4) (2025-08-04)
 
 

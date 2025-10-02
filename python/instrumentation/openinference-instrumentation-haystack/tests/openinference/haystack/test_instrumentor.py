@@ -15,7 +15,7 @@ from haystack.core.errors import PipelineRuntimeError
 from haystack.core.pipeline.pipeline import Pipeline
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.document_stores.in_memory.document_store import InMemoryDocumentStore
-from haystack_integrations.components.rankers.cohere import (  # type: ignore[import-untyped]
+from haystack_integrations.components.rankers.cohere import (
     CohereRanker,
 )
 from opentelemetry.sdk.resources import Resource
@@ -96,7 +96,7 @@ def setup_haystack_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
             group="opentelemetry_instrumentor", name="haystack"
         )
         instrumentor = instrumentor_entrypoint.load()()

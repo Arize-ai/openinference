@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.4...python-openinference-instrumentation-llama-index-v4.3.5) (2025-09-12)
+
+
+### Bug Fixes
+
+* non-ascii characters in input.value ([#2199](https://github.com/Arize-ai/openinference/issues/2199)) ([8bfdd0d](https://github.com/Arize-ai/openinference/commit/8bfdd0d65aae74649a1087ec6796193485e0a73b))
+
 ## [4.3.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.3...python-openinference-instrumentation-llama-index-v4.3.4) (2025-08-01)
 
 

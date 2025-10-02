@@ -1,5 +1,19 @@
 # @arizeai/openinference-instrumentation-bedrock-agent-runtime
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+
+## 1.1.0
+
+### Minor Changes
+
+- 61485b5: Support guardrail traces in bedrock agent runtime as well as make an iterative clean up pass on the package
+
 ## 1.0.0
 
 ### Major Changes

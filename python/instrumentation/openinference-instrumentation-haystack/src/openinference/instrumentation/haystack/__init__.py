@@ -17,7 +17,7 @@ from openinference.instrumentation.haystack.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("haystack-ai >= 2.13.0",)
+_instruments = ("haystack-ai >= 2.18.0",)
 
 
 class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
