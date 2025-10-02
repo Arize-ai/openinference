@@ -364,11 +364,23 @@ class _RequestAttributesExtractor:
                 safe_json_dumps(args),
             )
 
+        if id := get_attribute(function_call, "id"):
+            yield (
+                MessageAttributes.MESSAGE_TOOL_CALLS
+                + f".{tool_call_index}."
+                + ToolCallAttributes.TOOL_CALL_ID,
+                id,
+            )
+
     def _get_attributes_from_function_response(
         self, function_response: FunctionResponse
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if response := get_attribute(function_response, "response"):
             yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
+        if id := get_attribute(function_response, "id"):
+            yield (
+                id,
+            )
 
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
         content_values = []
@@ -379,6 +391,8 @@ class _RequestAttributesExtractor:
                     # Increment tool call index if there happens to be multiple tool calls
                     # across parts
                     tool_call_index = self._extract_tool_call_index(attr) + 1
+                    yield (attr, value)
+                elif attr == MessageAttributes.MESSAGE_TOOL_CALL_ID:
                     yield (attr, value)
                 elif isinstance(value, str):
                     # Flatten all other string values into a single message content
