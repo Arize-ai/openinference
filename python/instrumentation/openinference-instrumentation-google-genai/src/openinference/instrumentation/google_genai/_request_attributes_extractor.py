@@ -390,9 +390,9 @@ class _RequestAttributesExtractor:
             yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_values))
 
     def _extract_tool_call_index(self, attr: str) -> int:
-        """Extract tool call index from tool call attribute name.
+        """Extract tool call index from message tool call attribute key.
 
-        Example: 'tool_calls.0.function_name' -> 0
+        Example: 'message.tool_calls.0.function_name' -> 0
         """
         parts = attr.split(".")
         if len(parts) >= 3 and parts[2].isdigit():
