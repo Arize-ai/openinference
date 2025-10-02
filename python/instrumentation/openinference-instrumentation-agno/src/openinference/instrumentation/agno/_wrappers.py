@@ -1,4 +1,5 @@
 import json
+import logging
 from enum import Enum
 from inspect import signature
 from secrets import token_hex
@@ -36,6 +37,8 @@ from openinference.semconv.trace import (
 )
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
+
+logger = logging.getLogger(__name__)
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -510,6 +513,29 @@ def _parse_model_output(output: Any) -> str:
         return str(output)
 
 
+def _set_token_usage_attributes(span: trace_api.Span, response: Any) -> None:
+    """Extract and set token usage attributes from response_usage if available."""
+    if hasattr(response, "response_usage") and response.response_usage:
+        metrics = response.response_usage
+
+        # Set token usage attributes
+        if hasattr(metrics, "input_tokens") and metrics.input_tokens:
+            span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+
+        if hasattr(metrics, "output_tokens") and metrics.output_tokens:
+            span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+
+        # Set cache-related tokens if available
+        if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
+            span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+
+        if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
+            span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+
+    else:
+        logger.info("No response_usage found in non-streaming response - setting default values")
+
+
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -546,6 +572,9 @@ class _ModelWrapper:
 
             response = wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
+
+            # Extract and set token usage from the response
+            _set_token_usage_attributes(span, response)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             return response
@@ -595,7 +624,7 @@ class _ModelWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
@@ -619,6 +648,9 @@ class _ModelWrapper:
 
             response = await wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
+
+            # Extract and set token usage from the response
+            _set_token_usage_attributes(span, response)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             return response
@@ -838,3 +870,5 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+
+
