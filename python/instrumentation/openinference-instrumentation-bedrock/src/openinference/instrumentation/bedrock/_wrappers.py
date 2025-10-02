@@ -9,6 +9,10 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Status, StatusCode, Tracer
 
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_request_data,
+)
+from openinference.instrumentation.bedrock._converse_stream_callback import _ConverseStreamCallback
 from openinference.instrumentation.bedrock._rag_wrappers import _RagEventStream
 from openinference.instrumentation.bedrock._response_accumulator import _ResponseAccumulator
 from openinference.instrumentation.bedrock.utils import _EventStream, _use_span
@@ -63,6 +67,48 @@ class _InvokeModelWithResponseStream(_WithTracer):
             span.set_attribute(LLM_INVOCATION_PARAMETERS, kwargs["body"])
             span.set_attribute(INPUT_MIME_TYPE, JSON)
             span.set_attribute(INPUT_VALUE, kwargs["body"])
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+            span.end()
+            return response
+
+
+class _ConverseStream(_WithTracer):
+    """
+    A decorator class for tracing Bedrock 'converse_stream' API calls with OpenTelemetry.
+
+    This class wraps the Bedrock converse_stream API, starting a tracing span for each invocation.
+    It attaches request attributes to the span, and if the response contains a streaming
+    EventStream, it wraps the stream to enable span-aware streaming instrumentation.
+    The span is ended when the stream is fully consumed or if the response is not a stream.
+    """
+
+    _name = "bedrock.converse_stream"
+
+    @wrapt.decorator  # type: ignore[misc]
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        with self._tracer.start_as_current_span(
+            self._name,
+            attributes=get_attributes_from_request_data(kwargs),
+            end_on_exit=False,
+        ) as span:
+            response = wrapped(*args, **kwargs)
+            from botocore.eventstream import EventStream
+
+            if isinstance(response["stream"], EventStream):
+                response["stream"] = _EventStream(
+                    response["stream"],
+                    _ConverseStreamCallback(span, kwargs),
+                    _use_span(span),
+                )
+                return response
             span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
             span.end()
             return response
