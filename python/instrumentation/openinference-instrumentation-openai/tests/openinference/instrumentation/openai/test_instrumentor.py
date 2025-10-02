@@ -237,15 +237,6 @@ def test_chat_completions(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        elif _openai_version() >= (1, 12, 0):
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
-                == "call_amGrubFmr2FSPHeC5OPgwcNs"
-            )
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.id")
-                == "call_6QTP4mLSYYzZwt3ZWj77vfZf"
-            )
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1135,15 +1126,6 @@ def test_chat_completions_with_multiple_message_contents(
             )
             # We left out model_name from our mock stream.
             assert attributes.pop(LLM_MODEL_NAME, None) == model_name
-        elif _openai_version() >= (1, 12, 0):
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id")
-                == "call_amGrubFmr2FSPHeC5OPgwcNs"
-            )
-            assert (
-                attributes.pop("llm.output_messages.0.message.tool_calls.1.tool_call.id")
-                == "call_6QTP4mLSYYzZwt3ZWj77vfZf"
-            )
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1445,6 +1427,7 @@ def _check_llm_message(
         ) == function_call.get("arguments")
     if _openai_version() >= (1, 1, 0) and (tool_calls := message.get("tool_calls")):
         for j, tool_call in enumerate(tool_calls):
+            assert attributes.pop(tool_call_id(prefix, i, j), None) == tool_call.get("id")
             if function := tool_call.get("function"):
                 assert attributes.pop(tool_call_function_name(prefix, i, j), None) == function.get(
                     "name"
@@ -1842,6 +1825,10 @@ def message_function_call_arguments(prefix: str, i: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}"
 
 
+def tool_call_id(prefix: str, i: int, j: int) -> str:
+    return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_ID}"
+
+
 def tool_call_function_name(prefix: str, i: int, j: int) -> str:
     return f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{TOOL_CALL_FUNCTION_NAME}"
 
@@ -1877,6 +1864,7 @@ IMAGE_URL = ImageAttributes.IMAGE_URL
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
