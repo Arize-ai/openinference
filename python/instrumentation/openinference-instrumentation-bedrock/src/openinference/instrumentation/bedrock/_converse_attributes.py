@@ -70,7 +70,12 @@ def get_message_objects(message_list: List[Any]) -> List[Message]:
                         message_obj["content"] = message_text
                     if json_text := tool_result_content.get("json"):
                         message_obj["content"] = safe_json_dumps(json_text)
-                    # TODO: has to handle other types - image, video, document
+                    if tool_result_content.get("image"):
+                        pass  # TODO: handle image tool result
+                    if tool_result_content.get("video"):
+                        pass  # TODO: handle video tool result
+                    if tool_result_content.get("document"):
+                        pass  # TODO: handle document tool result
         if contents:
             message_obj["contents"] = contents
         if tool_calls:
