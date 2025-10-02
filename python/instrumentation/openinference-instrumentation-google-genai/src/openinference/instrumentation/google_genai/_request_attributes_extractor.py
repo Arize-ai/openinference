@@ -379,6 +379,7 @@ class _RequestAttributesExtractor:
             yield (MessageAttributes.MESSAGE_CONTENT, safe_json_dumps(response))
         if id := get_attribute(function_response, "id"):
             yield (
+                MessageAttributes.MESSAGE_TOOL_CALL_ID,
                 id,
             )
 
