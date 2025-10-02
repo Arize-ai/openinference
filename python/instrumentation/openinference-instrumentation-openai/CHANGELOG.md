@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.34...python-openinference-instrumentation-openai-v0.1.35) (2025-10-02)
+
+
+### Bug Fixes
+
+* **openai:** add tool_id accumulator for resposne ([#2241](https://github.com/Arize-ai/openinference/issues/2241)) ([cb6e1a6](https://github.com/Arize-ai/openinference/commit/cb6e1a6f68a6262b0eb50d045eef002b086288c4))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.33...python-openinference-instrumentation-openai-v0.1.34) (2025-10-01)
 
 
