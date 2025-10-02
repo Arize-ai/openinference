@@ -7,7 +7,9 @@ import pytest
 from google import genai
 from google.genai.types import (
     Content,
+    FunctionCall,
     FunctionDeclaration,
+    FunctionResponse,
     GenerateContentConfig,
     Part,
     Tool,
@@ -79,21 +81,28 @@ def test_generate_content(
         Content(
             role="model",
             parts=[
-                Part.from_function_call(name="get_weather", args={"location": "San Francisco"}),
+                Part(
+                    function_call=FunctionCall(
+                        name="get_weather", args={"location": "San Francisco"}, id="call_abc123"
+                    )
+                ),
             ],
         ),
         Content(
             role="user",
             parts=[
-                Part.from_function_response(
-                    name="get_weather",
-                    response={
-                        "location": "San Francisco",
-                        "temperature": 65,
-                        "unit": "fahrenheit",
-                        "condition": "foggy",
-                        "humidity": "85%",
-                    },
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather",
+                        response={
+                            "location": "San Francisco",
+                            "temperature": 65,
+                            "unit": "fahrenheit",
+                            "condition": "foggy",
+                            "humidity": "85%",
+                        },
+                        id="call_abc123",
+                    )
                 ),
             ],
         ),
@@ -123,10 +132,12 @@ def test_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}": "get_weather",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}": json.dumps(
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
             {"location": "San Francisco"}
         ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
             {
