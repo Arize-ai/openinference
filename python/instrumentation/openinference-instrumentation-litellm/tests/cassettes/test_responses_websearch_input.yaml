@@ -1,0 +1,80 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","input":"What was a positive news story from today?","tools":[{"type":"web_search_preview"}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_68d1887be600819491682602512f07ef0680c4de162334d3\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1758562428,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"error\": null,\n  \"incomplete_details\": null,\n
+        \ \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\":
+        null,\n  \"model\": \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\":
+        \"ws_68d1887cbe048194b67654d37a44f2dc0680c4de162334d3\",\n      \"type\":
+        \"web_search_call\",\n      \"status\": \"completed\",\n      \"action\":
+        {\n        \"type\": \"search\",\n        \"query\": \"positive news story
+        today\"\n      }\n    },\n    {\n      \"id\": \"msg_68d1887e64c08194a5577d78eba9f4140680c4de162334d3\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [\n            {\n              \"type\": \"url_citation\",\n              \"end_index\":
+        561,\n              \"start_index\": 390,\n              \"title\": \"From
+        Green Innovation to Community Triumphs: Uplifting US Stories Lighting Up September
+        2025 | That's Great News\",\n              \"url\": \"https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 1023,\n              \"start_index\": 907,\n
+        \             \"title\": \"Today's Good News | OGN Daily\",\n              \"url\":
+        \"https://www.onlygoodnewsdaily.com/post/positive-news-today-11-sept-2025?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 1545,\n              \"start_index\": 1374,\n
+        \             \"title\": \"From Green Innovation to Community Triumphs: Uplifting
+        US Stories Lighting Up September 2025 | That's Great News\",\n              \"url\":
+        \"https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 1979,\n              \"start_index\": 1866,\n
+        \             \"title\": \"Good News This Week: September 20, 2025 - Forest,
+        Bees, & Green Roofs\",\n              \"url\": \"https://www.goodgoodgood.co/articles/good-news-this-week-september-20-2025?utm_source=openai\"\n
+        \           }\n          ],\n          \"logprobs\": [],\n          \"text\":
+        \"On September 22, 2025, several uplifting developments were reported:\\n\\n**California's
+        Kelp Forests Rebound**\\n\\nAlong the California coast, volunteers have successfully
+        removed millions of invasive sea urchins, leading to a significant revival
+        of kelp forests. This restoration enhances biodiversity and stabilizes marine
+        ecosystems, benefiting both fish populations and coastal environments. ([info.thatsgreatnews.com](https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai))\\n\\n**New
+        Mexico Introduces Universal Childcare**\\n\\nNew Mexico has enacted a groundbreaking
+        law providing no-cost childcare to all families, regardless of income. This
+        initiative aims to alleviate financial burdens and expand early education
+        opportunities statewide, potentially setting a new national standard for supporting
+        children and families. ([onlygoodnewsdaily.com](https://www.onlygoodnewsdaily.com/post/positive-news-today-11-sept-2025?utm_source=openai))\\n\\n**Portland
+        Expands Mental Health First Responder Program**\\n\\nPortland, Oregon, is
+        enhancing its mental health first responder program, known as Portland Street
+        Response. This specialized team is trained to de-escalate situations and provide
+        care, offering a compassionate alternative to traditional law enforcement
+        responses for residents in crisis. ([info.thatsgreatnews.com](https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai))\\n\\n**New
+        York City Converts Food Waste into Compost**\\n\\nNew York City is transforming
+        millions of pounds of food waste into nutrient-rich compost, often referred
+        to as \\\"black gold.\\\" This compost is distributed to residents, schools,
+        and community gardens, improving soil health and promoting sustainable urban
+        agriculture. ([goodgoodgood.co](https://www.goodgoodgood.co/articles/good-news-this-week-september-20-2025?utm_source=openai))\\n\\nThese
+        stories highlight positive strides in environmental conservation, social services,
+        and community well-being across the United States. \"\n        }\n      ],\n
+        \     \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n
+        \ \"previous_response_id\": null,\n  \"prompt_cache_key\": null,\n  \"reasoning\":
+        {\n    \"effort\": null,\n    \"summary\": null\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tools\":
+        [\n    {\n      \"type\": \"web_search_preview\",\n      \"search_context_size\":
+        \"medium\",\n      \"user_location\": {\n        \"type\": \"approximate\",\n
+        \       \"city\": null,\n        \"country\": \"US\",\n        \"region\":
+        null,\n        \"timezone\": null\n      }\n    }\n  ],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        310,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 437,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 747\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

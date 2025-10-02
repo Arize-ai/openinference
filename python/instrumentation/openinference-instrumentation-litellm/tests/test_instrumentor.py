@@ -1230,6 +1230,8 @@ def test_uninstrument(tracer_provider: TracerProvider) -> None:
         # "acompletion_with_retries",
         "embedding",
         "aembedding",
+        "responses",
+        "aresponses",
         "image_generation",
         "aimage_generation",
     ]

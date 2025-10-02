@@ -1,0 +1,71 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","input":"What was a positive news story from today?","tools":[{"type":"web_search_preview"}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_68d19031e79c8197ab3475c38bbb4c7303a265ab513cfd65\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1758564401,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"error\": null,\n  \"incomplete_details\": null,\n
+        \ \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\":
+        null,\n  \"model\": \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\":
+        \"ws_68d19032b27881978acb0a85db5cb30003a265ab513cfd65\",\n      \"type\":
+        \"web_search_call\",\n      \"status\": \"completed\",\n      \"action\":
+        {\n        \"type\": \"search\",\n        \"query\": \"positive news stories
+        June 28, 2024\"\n      }\n    },\n    {\n      \"id\": \"msg_68d19034487081979e8642bf3368d8f803a265ab513cfd65\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [\n            {\n              \"type\": \"url_citation\",\n              \"end_index\":
+        536,\n              \"start_index\": 365,\n              \"title\": \"From
+        Green Innovation to Community Triumphs: Uplifting US Stories Lighting Up September
+        2025 | That's Great News\",\n              \"url\": \"https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai\"\n
+        \           },\n            {\n              \"type\": \"url_citation\",\n
+        \             \"end_index\": 985,\n              \"start_index\": 814,\n              \"title\":
+        \"From Green Innovation to Community Triumphs: Uplifting US Stories Lighting
+        Up September 2025 | That's Great News\",\n              \"url\": \"https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai\"\n
+        \           }\n          ],\n          \"logprobs\": [],\n          \"text\":
+        \"On September 22, 2025, a significant positive development occurred in California's
+        environmental conservation efforts. Volunteers along the California coast
+        successfully removed millions of invasive sea urchins, leading to the revival
+        of kelp forests. This restoration has enhanced biodiversity, stabilized marine
+        health, and supported fish and coastal ecosystems. ([info.thatsgreatnews.com](https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai))\\n\\nAdditionally,
+        in New Mexico, the state announced a groundbreaking initiative to provide
+        free universal childcare for all families, regardless of income. Starting
+        in November, this program aims to alleviate financial burdens and expand early
+        education opportunities statewide. ([info.thatsgreatnews.com](https://info.thatsgreatnews.com/from-green-innovation-to-community-triumphs-uplifting-us-stories-lighting-up-september-2025/?utm_source=openai))\\n\\nThese
+        stories highlight the positive strides being made in environmental conservation
+        and social welfare within the United States. \"\n        }\n      ],\n      \"role\":
+        \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+        null,\n  \"prompt_cache_key\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"web_search_preview\",\n      \"search_context_size\": \"medium\",\n      \"user_location\":
+        {\n        \"type\": \"approximate\",\n        \"city\": null,\n        \"country\":
+        \"US\",\n        \"region\": null,\n        \"timezone\": null\n      }\n
+        \   }\n  ],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\":
+        \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 310,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 239,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 549\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"model":"gpt-4.1","input":"What was a positive news story from today?","tools":[{"type":"web_search_preview"}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: ''
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
