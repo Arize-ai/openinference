@@ -123,8 +123,8 @@ def test_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_NAME}": "get_weather",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON}": json.dumps(
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
             {"location": "San Francisco"}
         ),
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",

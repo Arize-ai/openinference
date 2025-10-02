@@ -17,6 +17,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
+    ToolCallAttributes,
 )
 
 __all__ = ("_RequestAttributesExtractor",)
@@ -322,7 +323,7 @@ class _RequestAttributesExtractor:
         elif isinstance(input_contents, Content) or isinstance(input_contents, UserContent):
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
-            yield from self._get_attributes_from_part(input_contents)
+            yield from self._get_attributes_from_part(input_contents, 0)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
@@ -345,13 +346,23 @@ class _RequestAttributesExtractor:
             yield from self._flatten_parts(parts)
 
     def _get_attributes_from_function_call(
-        self, function_call: FunctionCall
+        self, function_call: FunctionCall, tool_call_index: int
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if name := get_attribute(function_call, "name"):
             if isinstance(name, str):
-                yield (MessageAttributes.MESSAGE_FUNCTION_CALL_NAME, name)
+                yield (
+                    MessageAttributes.MESSAGE_TOOL_CALLS
+                    + f".{tool_call_index}."
+                    + ToolCallAttributes.TOOL_CALL_FUNCTION_NAME,
+                    name,
+                )
         if args := get_attribute(function_call, "args"):
-            yield (MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(args))
+            yield (
+                MessageAttributes.MESSAGE_TOOL_CALLS
+                + f".{tool_call_index}."
+                + ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                safe_json_dumps(args),
+            )
 
     def _get_attributes_from_function_response(
         self, function_response: FunctionResponse
@@ -361,12 +372,13 @@ class _RequestAttributesExtractor:
 
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
         content_values = []
+        tool_call_index = 0
         for part in parts:
-            for attr, value in self._get_attributes_from_part(part):
-                if attr in [
-                    MessageAttributes.MESSAGE_FUNCTION_CALL_NAME,
-                    MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON,
-                ]:
+            for attr, value in self._get_attributes_from_part(part, tool_call_index):
+                if attr.startswith(MessageAttributes.MESSAGE_TOOL_CALLS):
+                    # Increment tool call index if there happens to be multiple tool calls
+                    # across parts
+                    tool_call_index = self._extract_tool_call_index(attr) + 1
                     yield (attr, value)
                 elif isinstance(value, str):
                     # Flatten all other string values into a single message content
@@ -377,7 +389,19 @@ class _RequestAttributesExtractor:
         if content_values:
             yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_values))
 
-    def _get_attributes_from_part(self, part: Part) -> Iterator[Tuple[str, AttributeValue]]:
+    def _extract_tool_call_index(self, attr: str) -> int:
+        """Extract tool call index from tool call attribute name.
+
+        Example: 'tool_calls.0.function_name' -> 0
+        """
+        parts = attr.split(".")
+        if len(parts) >= 3 and parts[2].isdigit():
+            return int(parts[2])
+        return 0
+
+    def _get_attributes_from_part(
+        self, part: Part, tool_call_index: int
+    ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
         if text := get_attribute(part, "text"):
             yield (
@@ -385,7 +409,7 @@ class _RequestAttributesExtractor:
                 text,
             )
         elif function_call := get_attribute(part, "function_call"):
-            yield from self._get_attributes_from_function_call(function_call)
+            yield from self._get_attributes_from_function_call(function_call, tool_call_index)
         elif function_response := get_attribute(part, "function_response"):
             yield from self._get_attributes_from_function_response(function_response)
         else:
