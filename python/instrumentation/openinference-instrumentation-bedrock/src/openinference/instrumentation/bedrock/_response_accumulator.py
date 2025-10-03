@@ -448,7 +448,6 @@ class _ResponseAccumulator:
         self._span.record_exception(obj)
         self._span.set_status(Status(StatusCode.ERROR, str(obj)))
         self._span.end()
-        # span is already ended here, finish tracing is not required.
 
     @classmethod
     def _prepare_span_attributes(cls, trace_span_data: Union[TraceSpan, TraceNode]) -> _Attributes:
@@ -665,7 +664,7 @@ class _ResponseAccumulator:
         # Use span manager to finish tracing
         # These attributes are removed as these are input values of the request.
         # these are not required to be added to the span.
-        _finish(self._span, None, {})
+        _finish(span=self._span, result=None, request_attributes={})
         self._is_finished = True
 
 
