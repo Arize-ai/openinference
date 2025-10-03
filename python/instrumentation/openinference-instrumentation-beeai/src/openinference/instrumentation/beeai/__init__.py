@@ -24,7 +24,7 @@ from openinference.instrumentation.beeai.processors.locator import ProcessorLoca
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("beeai-framework >= 0.1.32",)
+_instruments = ("beeai-framework >= 0.1.51",)
 try:
     __version__ = version("beeai-framework")
 except PackageNotFoundError:

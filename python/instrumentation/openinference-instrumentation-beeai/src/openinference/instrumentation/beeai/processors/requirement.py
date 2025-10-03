@@ -1,9 +1,9 @@
 from typing import Any, ClassVar
 
-from beeai_framework.agents.experimental.requirements.ask_permission import AskPermissionRequirement
-from beeai_framework.agents.experimental.requirements.conditional import ConditionalRequirement
-from beeai_framework.agents.experimental.requirements.events import RequirementInitEvent
-from beeai_framework.agents.experimental.requirements.requirement import Requirement
+from beeai_framework.agents.requirement.requirements.ask_permission import AskPermissionRequirement
+from beeai_framework.agents.requirement.requirements.conditional import ConditionalRequirement
+from beeai_framework.agents.requirement.requirements.events import RequirementInitEvent
+from beeai_framework.agents.requirement.requirements.requirement import Requirement
 from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from typing_extensions import override

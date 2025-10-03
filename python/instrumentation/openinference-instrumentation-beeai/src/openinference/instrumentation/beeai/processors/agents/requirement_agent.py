@@ -1,10 +1,10 @@
 from typing import Any
 
-from beeai_framework.agents.experimental.events import (
+from beeai_framework.agents.requirement.events import (
     RequirementAgentStartEvent,
     RequirementAgentSuccessEvent,
 )
-from beeai_framework.agents.experimental.types import RequirementAgentRunStateStep
+from beeai_framework.agents.requirement.types import RequirementAgentRunStateStep
 from beeai_framework.context import RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from typing_extensions import override
