@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.29...python-openinference-instrumentation-bedrock-v0.1.30) (2025-10-03)
+
+
+### Features
+
+* **bedrock-agents:** Added Support for bedrock invoke inline agent ([#2256](https://github.com/Arize-ai/openinference/issues/2256)) ([2d4e27e](https://github.com/Arize-ai/openinference/commit/2d4e27eb29496154ef26754de36eb10a4312f4e5))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.28...python-openinference-instrumentation-bedrock-v0.1.29) (2025-10-02)
 
 
