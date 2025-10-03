@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.28...python-openinference-instrumentation-bedrock-v0.1.29) (2025-10-02)
+
+
+### Features
+
+* **bedrock:** Bedrock converse streaming support added ([#2172](https://github.com/Arize-ai/openinference/issues/2172)) ([5b9ba8f](https://github.com/Arize-ai/openinference/commit/5b9ba8f8739170cf1aa4e6ae359449382bcd9416))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.27...python-openinference-instrumentation-bedrock-v0.1.28) (2025-10-01)
 
 
