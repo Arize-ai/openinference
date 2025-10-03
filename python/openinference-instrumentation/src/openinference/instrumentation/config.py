@@ -235,10 +235,6 @@ class TraceConfig:
     ) -> Optional[AttributeValue]:
         if self.hide_llm_invocation_parameters and key == SpanAttributes.LLM_INVOCATION_PARAMETERS:
             return None
-        elif self.hide_prompts and key == SpanAttributes.LLM_PROMPTS:
-            value = REDACTED_VALUE
-        elif (self.hide_inputs or self.hide_prompts) and SpanAttributes.LLM_PROMPTS in key:
-            value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_VALUE:
             value = REDACTED_VALUE
         elif self.hide_inputs and key == SpanAttributes.INPUT_MIME_TYPE:
@@ -251,6 +247,8 @@ class TraceConfig:
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
             return None
+        elif (self.hide_inputs or self.hide_prompts) and SpanAttributes.LLM_PROMPTS in key:
+            value = REDACTED_VALUE
         elif (
             self.hide_outputs or self.hide_output_messages
         ) and SpanAttributes.LLM_OUTPUT_MESSAGES in key:
