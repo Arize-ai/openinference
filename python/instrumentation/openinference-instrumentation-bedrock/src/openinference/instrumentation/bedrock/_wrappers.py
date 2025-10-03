@@ -129,7 +129,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
             return wrapped(*args, **kwargs)
         # span = self._tracer.start_span(self._name)
         with self._tracer.start_as_current_span(
-            self._name,
+            f"bedrock_agent.{wrapped.__name__}",
             end_on_exit=False,
         ) as span:
             attributes = {

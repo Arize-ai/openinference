@@ -85,6 +85,9 @@ class InstrumentedClient(BaseClient):  # type: ignore
     invoke_agent: Callable[..., Any]
     _unwrapped_invoke_agent: Callable[..., Any]
 
+    invoke_inline_agent: Callable[..., Any]
+    _unwrapped_invoke_inline_agent: Callable[..., Any]
+
     retrieve: Callable[..., Any]
     _unwrapped_retrieve: Callable[..., Any]
 
@@ -138,6 +141,11 @@ def _client_creation_wrapper(
 
             client._unwrapped_invoke_agent = client.invoke_agent
             client.invoke_agent = _InvokeAgentWithResponseStream(tracer)(client.invoke_agent)
+
+            client._unwrapped_invoke_inline_agent = client.invoke_inline_agent
+            client.invoke_inline_agent = _InvokeAgentWithResponseStream(tracer)(
+                client.invoke_inline_agent
+            )
 
             client._unwrapped_retrieve = client.retrieve
             client.retrieve = _retrieve_wrapper(tracer)(client)
