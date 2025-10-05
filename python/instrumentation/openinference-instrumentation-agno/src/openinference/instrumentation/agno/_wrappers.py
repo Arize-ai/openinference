@@ -82,14 +82,22 @@ def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
-def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
-    user_id = arguments.get("user_id")
+def _extract_session_id(arguments: Mapping[str, Any]) -> Optional[str]:
+    """Extract session_id with proper fallback logic for Agno v2 compatibility."""
     session_id = arguments.get("session_id")
 
     # For agno v2: session_id might be in the session object for internal _run method
-    session = arguments.get("session")
-    if session and hasattr(session, "session_id"):
-        session_id = session.session_id
+    if not session_id:
+        session = arguments.get("session")
+        if session and hasattr(session, "session_id"):
+            session_id = session.session_id
+
+    return session_id
+
+
+def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    user_id = arguments.get("user_id")
+    session_id = _extract_session_id(arguments)
 
     if session_id:
         yield SESSION_ID, session_id
@@ -271,11 +279,7 @@ class _RunWrapper:
             try:
                 yield from wrapped(*args, **kwargs)
                 # Use get_last_run_output instead of removed agent.run_response
-                session_id = None
-                try:
-                    session_id = arguments.get("session_id")
-                except Exception:
-                    session_id = None
+                session_id = _extract_session_id(arguments)
 
                 run_response = None
                 if hasattr(agent, "get_last_run_output"):
@@ -401,11 +405,7 @@ class _RunWrapper:
                     yield response
 
                 # Use get_last_run_output instead of removed agent.run_response
-                session_id = None
-                try:
-                    session_id = arguments.get("session_id")
-                except Exception:
-                    session_id = None
+                session_id = _extract_session_id(arguments)
 
                 run_response = None
                 if hasattr(agent, "get_last_run_output"):

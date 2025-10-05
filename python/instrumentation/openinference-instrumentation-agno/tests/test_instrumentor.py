@@ -1,4 +1,4 @@
-from typing import Any, Generator
+from typing import Any, Generator, Iterator, Optional
 
 import pytest
 import vcr  # type: ignore
@@ -231,3 +231,65 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_session_id_streaming_regression(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Regression test: ensure session_id is properly extracted in streaming methods."""
+    from unittest.mock import Mock
+
+    from openinference.instrumentation.agno._wrappers import _RunWrapper
+
+    # Test the session_id extraction logic directly
+    mock_tracer = Mock()
+    mock_span = Mock()
+    mock_context_manager = Mock()
+    mock_context_manager.__enter__ = Mock(return_value=mock_span)
+    mock_context_manager.__exit__ = Mock(return_value=None)
+    mock_tracer.start_as_current_span.return_value = mock_context_manager
+
+    run_wrapper = _RunWrapper(tracer=mock_tracer)
+
+    # Mock agent with get_last_run_output method that raises exception when session_id is None
+    mock_agent = Mock()
+
+    def mock_get_last_run_output(session_id: str = None) -> Mock:
+        if session_id is None:
+            raise Exception("No session_id provided")
+        mock_output = Mock()
+        mock_output.to_json.return_value = '{"result": "test output"}'
+        return mock_output
+
+    mock_agent.get_last_run_output = mock_get_last_run_output
+    mock_agent.name = "Test Agent"
+
+    # Mock the internal _run_stream method with proper signature
+    def mock_run_stream(message: str, session_id: str = None, **kwargs: Any) -> Iterator[str]:
+        yield "chunk1"
+        yield "chunk2"
+
+    # Test arguments with session_id
+    test_args = ("test message",)
+    test_kwargs = {"session_id": "test_session_123"}
+
+    # This should not raise "No session_id provided" exception
+    try:
+        result = list(
+            run_wrapper.run_stream(
+                wrapped=mock_run_stream, instance=mock_agent, args=test_args, kwargs=test_kwargs
+            )
+        )
+        # If we reach here, the session_id was properly extracted
+        assert len(result) == 2
+        assert result == ["chunk1", "chunk2"]
+        test_passed = True
+    except Exception as e:
+        if "No session_id provided" in str(e):
+            test_passed = False  # The bug is still present
+        else:
+            raise  # Some other unexpected exception
+
+    assert test_passed, "The session_id extraction should work properly in streaming methods"
