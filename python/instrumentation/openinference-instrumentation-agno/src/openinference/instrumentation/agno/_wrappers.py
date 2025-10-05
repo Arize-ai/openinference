@@ -92,7 +92,7 @@ def _extract_session_id(arguments: Mapping[str, Any]) -> Optional[str]:
         if session and hasattr(session, "session_id"):
             session_id = session.session_id
 
-    return session_id
+    return str(session_id) if session_id is not None else None
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:

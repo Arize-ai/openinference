@@ -256,7 +256,7 @@ def test_session_id_streaming_regression(
     # Mock agent with get_last_run_output method that raises exception when session_id is None
     mock_agent = Mock()
 
-    def mock_get_last_run_output(session_id: str = None) -> Mock:
+    def mock_get_last_run_output(session_id: Optional[str] = None) -> Mock:
         if session_id is None:
             raise Exception("No session_id provided")
         mock_output = Mock()
@@ -267,7 +267,9 @@ def test_session_id_streaming_regression(
     mock_agent.name = "Test Agent"
 
     # Mock the internal _run_stream method with proper signature
-    def mock_run_stream(message: str, session_id: str = None, **kwargs: Any) -> Iterator[str]:
+    def mock_run_stream(
+        message: str, session_id: Optional[str] = None, **kwargs: Any
+    ) -> Iterator[str]:
         yield "chunk1"
         yield "chunk2"
 
