@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"model":"gpt-4.1","input":"Write a poem about a boy and his first pet
+      dog."}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_68d1810c5ac08194acf067abd3423ed300e7aca9bc57f82e\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1758560524,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"error\": null,\n  \"incomplete_details\": null,\n
+        \ \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\":
+        null,\n  \"model\": \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\":
+        \"msg_68d1810cdda48194bacd8da4d28b1c3c00e7aca9bc57f82e\",\n      \"type\":
+        \"message\",\n      \"status\": \"completed\",\n      \"content\": [\n        {\n
+        \         \"type\": \"output_text\",\n          \"annotations\": [],\n          \"logprobs\":
+        [],\n          \"text\": \"In a sunlit yard where daisies sway,  \\nA small
+        boy waited, toes in clay;  \\nHands behind his eager back,  \\nDreams of paws
+        upon his track.\\n\\nA basket lined with an old blue coat,  \\nA bundle of
+        fur with a button nose\\u2014  \\nThe moment soft and slow,  \\nHis heart,
+        it leapt as love arose.\\n\\nShy hello and lick of trust,  \\nTangled laughter,
+        leash and dust;  \\nTiny hands and velvet ears,  \\nPromises whispered for
+        coming years.\\n\\nFirst wobbly steps on wooden floors,  \\nPuppy yelps behind
+        closed doors;  \\nFetch that never quite returned,  \\nChasing lessons he
+        quickly learned.\\n\\nThrough muddy streams and tumbling leaves,  \\nUnderneath
+        the growing trees\\u2014  \\nA secret world, just they two,  \\nWhere every
+        day brought something new.\\n\\nAt night, beneath a woolen sheet,  \\nHe felt
+        a heartbeat at his feet;  \\nWarm and sure, his friend would stay  \\nAnd
+        chase the monsters far away.\\n\\nIn every bark and every grin,  \\nIn scraped
+        knees and tails that spin,  \\nA boy, a dog\\u2014first love begun,  \\nTwo
+        spirits learning how to run.\"\n        }\n      ],\n      \"role\": \"assistant\"\n
+        \   }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+        null,\n  \"prompt_cache_key\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        19,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 242,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 261\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
