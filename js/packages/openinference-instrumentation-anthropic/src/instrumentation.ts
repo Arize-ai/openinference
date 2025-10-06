@@ -121,7 +121,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
   protected init(): InstrumentationModuleDefinition<typeof Anthropic> {
     const module = new InstrumentationNodeModuleDefinition<typeof Anthropic>(
       "@anthropic-ai/sdk",
-      ["^0.41.0"],
+      ["*"], // Try accepting any version
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -164,17 +164,31 @@ export class AnthropicInstrumentation extends InstrumentationBase<
     moduleVersion?: string,
   ) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
+
     if (module?.openInferencePatched || _isOpenInferencePatched) {
       return module;
     }
+
+    // Handle ES module default export structure
+    const anthropicModule =
+      (module as typeof Anthropic & { default?: typeof Anthropic }).default ||
+      module;
+
+    if (!anthropicModule?.Messages?.prototype?.create) {
+      diag.warn(
+        `Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`,
+      );
+      return module;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: AnthropicInstrumentation = this;
 
     // Patch messages.create
-    type MessagesCreateType = typeof module.prototype.messages.create;
+    type MessagesCreateType = typeof anthropicModule.Messages.prototype.create;
 
     this._wrap(
-      module.prototype.messages,
+      anthropicModule.Messages.prototype,
       "create",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original: MessagesCreateType): any => {
@@ -182,7 +196,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
           this: unknown,
           ...args: Parameters<MessagesCreateType>
         ) {
-          const body = args[0];
+          const body = args[0] as Anthropic.Messages.MessageCreateParams;
           const { messages: _messages, ...invocationParameters } = body;
           const span = instrumentation.oiTracer.startSpan(
             `Anthropic Messages`,
@@ -210,7 +224,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
                 return original.apply(this, args);
               });
             },
-            (error) => {
+            (error: Error | undefined) => {
               // Push the error to the span
               if (error) {
                 span.recordException(error);
@@ -252,7 +266,17 @@ export class AnthropicInstrumentation extends InstrumentationBase<
             return result;
           };
 
-          const wrappedPromise = execPromise.then(wrappedPromiseThen);
+          const wrappedPromise = execPromise
+            .then(wrappedPromiseThen)
+            .catch((error: Error) => {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+              throw error;
+            });
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -277,7 +301,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
-    this._unwrap(moduleExports.prototype.messages, "create");
+    this._unwrap(moduleExports.Messages.prototype, "create");
 
     _isOpenInferencePatched = false;
     try {
