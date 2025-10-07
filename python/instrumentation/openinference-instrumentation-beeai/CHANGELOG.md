@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.11...python-openinference-instrumentation-beeai-v0.1.12) (2025-10-07)
+
+
+### Bug Fixes
+
+* **beeai:** update for RequirementAgent move from experimental to stable ([#2255](https://github.com/Arize-ai/openinference/issues/2255)) ([f511485](https://github.com/Arize-ai/openinference/commit/f51148592ac904b488fbe5c0d8a0815a09e34ad3))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.10...python-openinference-instrumentation-beeai-v0.1.11) (2025-09-25)
 
 
