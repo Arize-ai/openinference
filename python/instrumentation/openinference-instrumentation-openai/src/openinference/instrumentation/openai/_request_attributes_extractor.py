@@ -26,11 +26,12 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    PromptAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after https://github.com/Arize-ai/openinference/pull/2162 is merged
 _EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 if TYPE_CHECKING:
@@ -226,14 +227,14 @@ def _get_attributes_from_completion_create_param(
 
     model_prompt = params.get("prompt")
     if isinstance(model_prompt, str):
-        yield f"{SpanAttributes.LLM_PROMPTS}.0.prompt.text", model_prompt
+        yield f"{SpanAttributes.LLM_PROMPTS}.0.{PromptAttributes.PROMPT_TEXT}", model_prompt
     elif (
         isinstance(model_prompt, list)
         and model_prompt
         and all(isinstance(item, str) for item in model_prompt)
     ):
         for index, prompt in enumerate(model_prompt):
-            yield f"{SpanAttributes.LLM_PROMPTS}.{index}.prompt.text", prompt
+            yield f"{SpanAttributes.LLM_PROMPTS}.{index}.{PromptAttributes.PROMPT_TEXT}", prompt
 
 
 def _get_attributes_from_embedding_create_param(

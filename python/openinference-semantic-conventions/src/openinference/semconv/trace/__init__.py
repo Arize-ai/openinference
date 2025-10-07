@@ -439,6 +439,28 @@ class ToolCallAttributes:
     """
 
 
+class PromptAttributes:
+    """
+    Attributes for a prompt in the completions API
+    """
+
+    PROMPT_TEXT = "prompt.text"
+    """
+    The text of the prompt.
+    """
+
+
+class ChoiceAttributes:
+    """
+    Attributes for a choice in the completions API
+    """
+
+    COMPLETION_TEXT = "completion.text"
+    """
+    The text of the completion choice.
+    """
+
+
 class ToolAttributes:
     """
     Attributes for a tools
