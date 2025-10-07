@@ -98,6 +98,7 @@ class TestSpanAttributes:
                 "value": SpanAttributes.INPUT_VALUE,
             },
             "llm": {
+                "choices": SpanAttributes.LLM_CHOICES,
                 "cost": {
                     "completion": SpanAttributes.LLM_COST_COMPLETION,
                     "completion_details": {

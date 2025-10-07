@@ -47,14 +47,14 @@ class ProcessorLocator:
             ProcessorLocator.entries[ToolCallingAgent] = ToolCallingAgentProcessor
 
         with contextlib.suppress(ImportError):
-            from beeai_framework.agents.experimental.agent import RequirementAgent
+            from beeai_framework.agents.requirement import RequirementAgent
 
             from .agents.requirement_agent import RequirementAgentProcessor
 
             ProcessorLocator.entries[RequirementAgent] = RequirementAgentProcessor
 
         with contextlib.suppress(ImportError):
-            from beeai_framework.agents.experimental.requirements.requirement import Requirement
+            from beeai_framework.agents.requirement.requirements.requirement import Requirement
 
             from openinference.instrumentation.beeai.processors.requirement import (
                 RequirementProcessor,

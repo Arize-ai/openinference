@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.24...python-openinference-instrumentation-haystack-v0.1.25) (2025-09-30)
+
+
+### Bug Fixes
+
+* **haystack:** support base64-encoded embeddings and list[Document] hints ([#2245](https://github.com/Arize-ai/openinference/issues/2245)) ([75e5a1f](https://github.com/Arize-ai/openinference/commit/75e5a1fbf245109fec99c6fde90dffe499380797))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.23...python-openinference-instrumentation-haystack-v0.1.24) (2025-05-30)
 
 

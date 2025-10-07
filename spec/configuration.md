@@ -15,8 +15,9 @@ The possible settings are:
 | OPENINFERENCE_HIDE_OUTPUT_MESSAGES           | Hides all output messages (independent of HIDE_OUTPUTS)                                                                        | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_IMAGES              | Hides images from input messages (only applies when input messages are not already hidden)                                     | bool | False   |
 | OPENINFERENCE_HIDE_INPUT_TEXT                | Hides text from input messages (only applies when input messages are not already hidden)                                       | bool | False   |
-| OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts                                                                                                              | bool | False   |
+| OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
+| OPENINFERENCE_HIDE_CHOICES                   | Hides LLM choices (completions API outputs)                                                                                    | bool | False   |
 | OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Hides embedding vectors                                                                                                        | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
 
@@ -51,7 +52,8 @@ If you are working in Python, and want to set up a configuration different than 
         hide_output_text=...,
         hide_embedding_vectors=...,
         base64_image_max_length=...,
-        hide_prompts=...,
+        hide_prompts=...,  # Hides LLM prompts (completions API)
+        hide_choices=...,  # Hides LLM choices (completions API outputs)
     )
 
     from openinference.instrumentation.openai import OpenAIInstrumentor

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.22...python-openinference-semantic-conventions-v0.1.23) (2025-10-07)
+
+
+### Bug Fixes
+
+* **semconv:** refactor semconv ([#2281](https://github.com/Arize-ai/openinference/issues/2281)) ([090864b](https://github.com/Arize-ai/openinference/commit/090864b0549588830c38aaa1fcd9c9700f7caf14))
+
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.21...python-openinference-semantic-conventions-v0.1.22) (2025-10-07)
+
+
+### Features
+
+* **openai:** standardize completions to indexed attribute format ([#2242](https://github.com/Arize-ai/openinference/issues/2242)) ([478d17a](https://github.com/Arize-ai/openinference/commit/478d17a5433bd6119a8d501899a5eadbd2accccf))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.20...python-openinference-semantic-conventions-v0.1.21) (2025-06-13)
 
 

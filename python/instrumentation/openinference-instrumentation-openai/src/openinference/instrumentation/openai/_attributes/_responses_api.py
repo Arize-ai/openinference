@@ -482,9 +482,9 @@ class _ResponsesApiAttributes:
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
         if (output := obj.get("output")) is not None:
-            # Convert complex output types to string for AttributeValue compatibility
-            output_str = output if isinstance(output, str) else safe_json_dumps(output)
-            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_str
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
     @classmethod
     @stop_on_exception
@@ -497,9 +497,9 @@ class _ResponsesApiAttributes:
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
         if (output := obj.get("output")) is not None:
-            # Convert complex output types to string for AttributeValue compatibility
-            output_str = output if isinstance(output, str) else safe_json_dumps(output)
-            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_str
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
     @classmethod
     @stop_on_exception
