@@ -31,7 +31,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after https://github.com/Arize-ai/openinference/pull/2162 is merged
 _EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 if TYPE_CHECKING:
