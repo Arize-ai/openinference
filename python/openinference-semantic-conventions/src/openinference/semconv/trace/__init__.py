@@ -330,7 +330,7 @@ class ImageAttributes:
 
     IMAGE_URL = "image.url"
     """
-    An http or base64 image url
+    An http or base64 image url.
     """
 
 
