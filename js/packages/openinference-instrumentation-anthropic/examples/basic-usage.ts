@@ -1,11 +1,10 @@
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import Anthropic from "@anthropic-ai/sdk";
+import { AnthropicInstrumentation } from "../src/instrumentation";
+import * as Anthropic from "@anthropic-ai/sdk";
 
-// Configure the tracer provider
+// Configure the tracer provider FIRST
 const provider = new NodeTracerProvider();
 provider.addSpanProcessor(
   new SimpleSpanProcessor(
@@ -16,19 +15,19 @@ provider.addSpanProcessor(
 );
 provider.register();
 
-// Register the Anthropic instrumentation
-registerInstrumentations({
-  instrumentations: [new AnthropicInstrumentation()],
-});
+// Create and manually instrument Anthropic to avoid module loading order issues
+const anthropicInstrumentation = new AnthropicInstrumentation();
+anthropicInstrumentation.setTracerProvider(provider);
+anthropicInstrumentation.manuallyInstrument(Anthropic.default || Anthropic);
 
 async function main() {
-  const anthropic = new Anthropic({
+  const anthropic = new Anthropic.default({
     apiKey: process.env.ANTHROPIC_API_KEY,
   });
 
   // Simple message
   const message = await anthropic.messages.create({
-    model: "claude-3-sonnet-20240229",
+    model: "claude-3-5-sonnet-20241022", // Current model
     max_tokens: 1000,
     messages: [
       {

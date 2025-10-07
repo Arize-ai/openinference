@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import Anthropic from "@anthropic-ai/sdk";
@@ -18,9 +17,9 @@ provider.addSpanProcessor(
 provider.register();
 
 // Register the Anthropic instrumentation
-registerInstrumentations({
-  instrumentations: [new AnthropicInstrumentation()],
-});
+const anthropicInstrumentation = new AnthropicInstrumentation();
+anthropicInstrumentation.setTracerProvider(provider);
+anthropicInstrumentation.manuallyInstrument(Anthropic);
 
 async function toolUseExample() {
   const anthropic = new Anthropic({
@@ -46,7 +45,7 @@ async function toolUseExample() {
   ];
 
   const message = await anthropic.messages.create({
-    model: "claude-3-sonnet-20240229",
+    model: "claude-3-5-sonnet-latest",
     max_tokens: 1000,
     tools,
     messages: [
@@ -77,10 +76,9 @@ async function toolUseExample() {
           },
         ],
       };
-
       // Continue the conversation with the tool result
       const followUp = await anthropic.messages.create({
-        model: "claude-3-sonnet-20240229",
+        model: "claude-3-5-sonnet-latest",
         max_tokens: 1000,
         tools,
         messages: [
@@ -88,7 +86,10 @@ async function toolUseExample() {
             role: "user",
             content: "What is the weather like in San Francisco?",
           },
-          message,
+          {
+            role: "assistant",
+            content: message.content,
+          },
           toolResult,
         ],
       });

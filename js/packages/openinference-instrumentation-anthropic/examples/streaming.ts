@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import Anthropic from "@anthropic-ai/sdk";
@@ -18,23 +17,42 @@ provider.addSpanProcessor(
 provider.register();
 
 // Register the Anthropic instrumentation
-registerInstrumentations({
-  instrumentations: [new AnthropicInstrumentation()],
-});
+const anthropicInstrumentation = new AnthropicInstrumentation();
+anthropicInstrumentation.setTracerProvider(provider);
+anthropicInstrumentation.manuallyInstrument(Anthropic);
 
 async function streamingExample() {
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
   });
 
+  const tools = [
+    {
+      name: "get_weather",
+      description: "Get the current weather in a given location",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          location: {
+            type: "string" as const,
+            description: "The city and state, e.g. San Francisco, CA",
+          },
+        },
+        required: ["location"],
+      },
+    },
+  ];
+
   // Streaming message
   const stream = await anthropic.messages.create({
-    model: "claude-3-sonnet-20240229",
+    model: "claude-3-5-sonnet-latest",
     max_tokens: 1000,
+    tools,
     messages: [
       {
         role: "user",
-        content: "Tell me a short story about a robot.",
+        content:
+          "Tell me a short story about a robot using the current weather.",
       },
     ],
     stream: true,
