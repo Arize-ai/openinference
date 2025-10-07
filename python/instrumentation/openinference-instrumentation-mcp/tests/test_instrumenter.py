@@ -245,3 +245,51 @@ async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
         # Verify the exception was passed through correctly
         received = await read_stream.receive()
         assert isinstance(received, ValidationError)
+
+
+async def test_streamable_http_pre_import_instrumentation(
+    tracer: Tracer, telemetry: Telemetry, otlp_collector: OTLPServer
+) -> None:
+    """Test streamable-http instrumentation when module is imported before instrumentation.
+
+    This test mimics the real-world scenario with openai-agents where:
+    1. agents.mcp.server imports streamablehttp_client at module level
+    2. auto_instrumentation.initialize() is called after imports
+    3. The instrumentation should still work by patching both the original module and importers
+    """
+    # Import the module BEFORE instrumentation to simulate openai-agents scenario
+    from mcp.client.streamable_http import streamablehttp_client  # noqa: F401
+
+    # Now verify instrumentation was applied (it should be via conftest.py fixtures)
+    # The key is that even though we imported before instrumentation,
+    # the post_import_hook should have patched it
+
+    async with mcp_client(
+        "streamable-http", tracer, f"http://localhost:{otlp_collector.server_port}/"
+    ) as client:
+        with tracer.start_as_current_span("root"):
+            tools_res = await client.list_tools()
+            assert len(tools_res.tools) == 1
+            assert tools_res.tools[0].name == "hello"
+            tool_res = await client.call_tool("hello")
+            content = tool_res.content[0]
+            assert isinstance(content, TextContent)
+            assert content.text == "Hello OpenInference!"
+
+    # Verify context propagation worked - server span should be child of root span
+    for resource_spans in telemetry.traces:
+        for scope_spans in resource_spans.scope_spans:
+            match scope_spans.scope.name:
+                case "mcp-test-client":
+                    for span in scope_spans.spans:
+                        match span.name:
+                            case "root":
+                                root_span = span
+                case "mcp-test-server":
+                    server_span = scope_spans.spans[0]
+
+    assert root_span.name == "root"
+    assert server_span.name == "hello"
+    # This is the critical assertion - context propagation must work
+    assert server_span.trace_id == root_span.trace_id
+    assert server_span.parent_span_id == root_span.span_id

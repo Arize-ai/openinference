@@ -19,14 +19,37 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        register_post_import_hook(
-            lambda _: wrap_function_wrapper(
-                "mcp.client.streamable_http",
-                "streamablehttp_client",
-                self._wrap_transport_with_callback,
-            ),
-            "mcp.client.streamable_http",
-        )
+        def wrap_streamablehttp(module: Any) -> None:
+            # Store the original function
+            import sys
+            from contextlib import asynccontextmanager
+
+            original = module.streamablehttp_client
+
+            # Create a new wrapper that properly handles @asynccontextmanager
+            @asynccontextmanager
+            async def instrumented_streamablehttp_client(
+                *args: Any, **kwargs: Any
+            ) -> AsyncGenerator[Tuple[Any, Any, Any], None]:
+                async with original(*args, **kwargs) as (
+                    read_stream,
+                    write_stream,
+                    get_session_id_callback,
+                ):
+                    reader = InstrumentedStreamReader(read_stream)
+                    writer = InstrumentedStreamWriter(write_stream)
+                    yield (reader, writer, get_session_id_callback)
+
+            # Replace the function in the module
+            module.streamablehttp_client = instrumented_streamablehttp_client
+
+            # Also patch it in agents.mcp.server if it's already imported
+            if "agents.mcp.server" in sys.modules:
+                import agents.mcp.server  # type: ignore
+
+                agents.mcp.server.streamablehttp_client = instrumented_streamablehttp_client
+
+        register_post_import_hook(wrap_streamablehttp, "mcp.client.streamable_http")
 
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
@@ -85,11 +108,9 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter", Any], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream, get_session_id_callback):
-            yield (
-                InstrumentedStreamReader(read_stream),
-                InstrumentedStreamWriter(write_stream),
-                get_session_id_callback,
-            )
+            reader = InstrumentedStreamReader(read_stream)
+            writer = InstrumentedStreamWriter(write_stream)
+            yield (reader, writer, get_session_id_callback)
 
     @asynccontextmanager
     async def _wrap_plain_transport(
@@ -169,7 +190,6 @@ class InstrumentedStreamWriter(ObjectProxy):  # type: ignore
         request = item.message.root
         if not isinstance(request, JSONRPCRequest):
             return await self.__wrapped__.send(item)
-        meta = None
         if not request.params:
             request.params = {}
         meta = request.params.setdefault("_meta", {})
