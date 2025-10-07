@@ -1946,7 +1946,8 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after https://github.com/Arize-ai/openinference/pull/2162 is merged
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after
+# https://github.com/Arize-ai/openinference/pull/2162 is merged
 EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT

@@ -120,7 +120,10 @@ class _ResponseAttributesExtractor:
                 if (index := getattr(choice, "index", None)) is None:
                     continue
                 if text := getattr(choice, "text", None):
-                    yield f"{SpanAttributes.LLM_CHOICES}.{index}.{ChoiceAttributes.COMPLETION_TEXT}", text
+                    yield (
+                        f"{SpanAttributes.LLM_CHOICES}.{index}.{ChoiceAttributes.COMPLETION_TEXT}",
+                        text,
+                    )
 
     def _get_attributes_from_create_embedding_response(
         self,
