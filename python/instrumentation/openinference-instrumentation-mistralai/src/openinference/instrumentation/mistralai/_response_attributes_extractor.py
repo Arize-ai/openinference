@@ -11,18 +11,108 @@ from typing import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolCallAttributes,
 )
 
 if TYPE_CHECKING:
     from mistralai.models import ChatCompletionResponse
+    from mistralai.models.ocrresponse import OCRResponse
 
-__all__ = ("_ResponseAttributesExtractor",)
+__all__ = (
+    "_ResponseAttributesExtractor",
+    "_OCRResponseAttributesExtractor",
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+class _OCRResponseAttributesExtractor:
+    def get_attributes_from_response(
+        self,
+        response: Any,
+        request_parameters: Mapping[str, Any],
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield from _get_attributes_from_ocr_response(response)
+
+
+def _get_attributes_from_ocr_usage(
+    usage_info: object,
+) -> Iterator[Tuple[str, AttributeValue]]:
+    """Extract usage information from OCR usage info."""
+    if (pages_processed := _get_attribute_or_value(usage_info, "pages_processed")) is not None:
+        yield "ocr.pages_processed", pages_processed
+
+    if (doc_size_bytes := _get_attribute_or_value(usage_info, "doc_size_bytes")) is not None:
+        yield "ocr.document_size_bytes", doc_size_bytes
+
+
+def _get_attributes_from_ocr_response(
+    response: "OCRResponse",
+) -> Iterator[Tuple[str, AttributeValue]]:
+    # Extract model name
+    if model := getattr(response, "model", None):
+        yield SpanAttributes.LLM_MODEL_NAME, model
+
+    # Extract usage information
+    if usage_info := getattr(response, "usage_info", None):
+        yield from _get_attributes_from_ocr_usage(usage_info)
+
+    # Extract document annotation if present - this is the main output
+    if document_annotation := getattr(response, "document_annotation", None):
+        yield SpanAttributes.OUTPUT_VALUE, document_annotation
+
+    # Structure OCR output as LLM output messages - one message per page for Phoenix display
+    if (pages := getattr(response, "pages", None)) and isinstance(pages, Iterable):
+        for page_index, page in enumerate(pages):
+            message_index = page_index  # Each page gets its own message
+            content_index = 0
+
+            # Add role for this page's output message
+            yield (
+                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_ROLE}",
+                "assistant",
+            )
+
+            # Add markdown content for this page
+            if markdown := _get_attribute_or_value(page, "markdown"):
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                    "text",
+                )
+                yield (
+                    f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+                    markdown,
+                )
+                content_index += 1
+
+            # Add extracted images from this page - keep it simple and robust
+            if (images := _get_attribute_or_value(page, "images")) and isinstance(images, Iterable):
+                for image in images:
+                    if image_base64 := _get_attribute_or_value(image, "image_base64"):
+                        # Add image content
+                        yield (
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+                            "image",
+                        )
+                        yield (
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{message_index}.{MessageAttributes.MESSAGE_CONTENTS}.{content_index}.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                            image_base64,
+                        )
+                        content_index += 1
+
+        # Keep basic structured data for retrieval context
+        for page_index, page in enumerate(pages):
+            if markdown := _get_attribute_or_value(page, "markdown"):
+                yield f"retrieval.documents.{page_index}.document.content", markdown
+                yield (
+                    f"retrieval.documents.{page_index}.document.metadata",
+                    f'{{"type": "ocr_page", "page_index": {page_index}}}',
+                )
 
 
 class _ResponseAttributesExtractor:
