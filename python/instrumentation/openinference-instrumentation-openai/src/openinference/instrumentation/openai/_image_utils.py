@@ -24,7 +24,6 @@ def redact_images_from_request_parameters(
     if not hide_input_images and base64_image_max_length <= 0:
         return request_parameters
 
-    # Create a deep copy to avoid modifying the original
     modified_params = copy.deepcopy(request_parameters)
 
     # Process messages if they exist (Chat Completions API)
