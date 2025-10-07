@@ -1194,7 +1194,6 @@ def test_chat_completions_with_image_url_formats_issue_2188(
         )
     )
 
-    # This should not raise a ValueError regardless of image_url format
     openai = import_module("openai")
     client = openai.OpenAI(api_key="sk-test")
     client.chat.completions.create(messages=input_messages, **invocation_parameters)
@@ -1206,17 +1205,14 @@ def test_chat_completions_with_image_url_formats_issue_2188(
     assert span.status.is_ok
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-    # Verify that image attributes are correctly extracted for both formats
     image_url_key = "llm.input_messages.1.message.contents.1.message_content.image.image.url"
     image_url_attr = attributes.get(image_url_key)
     assert image_url_attr == "https://example.com/test-image.png"
 
-    # Verify message content type is correctly set to "image"
     content_type_key = "llm.input_messages.1.message.contents.1.message_content.type"
     content_type_attr = attributes.get(content_type_key)
     assert content_type_attr == "image"
 
-    # Clean up for other tests
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_PROVIDER, None) == LLM_PROVIDER_OPENAI
     assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
