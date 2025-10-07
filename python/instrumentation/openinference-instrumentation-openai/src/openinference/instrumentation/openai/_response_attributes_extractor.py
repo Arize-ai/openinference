@@ -19,6 +19,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation.openai._attributes._responses_api import _ResponsesApiAttributes
 from openinference.instrumentation.openai._utils import _get_openai_version
 from openinference.semconv.trace import (
+    ChoiceAttributes,
     EmbeddingAttributes,
     MessageAttributes,
     SpanAttributes,
@@ -119,7 +120,7 @@ class _ResponseAttributesExtractor:
                 if (index := getattr(choice, "index", None)) is None:
                     continue
                 if text := getattr(choice, "text", None):
-                    yield f"{SpanAttributes.LLM_CHOICES}.{index}.completion.text", text
+                    yield f"{SpanAttributes.LLM_CHOICES}.{index}.{ChoiceAttributes.COMPLETION_TEXT}", text
 
     def _get_attributes_from_create_embedding_response(
         self,
