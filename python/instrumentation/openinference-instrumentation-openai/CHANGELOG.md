@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.36...python-openinference-instrumentation-openai-v0.1.37) (2025-10-07)
+
+
+### Bug Fixes
+
+* **openai:** update lower bound on openinference-semantic-conventions ([#2279](https://github.com/Arize-ai/openinference/issues/2279)) ([45cfad1](https://github.com/Arize-ai/openinference/commit/45cfad1d27d247b1a58d08f10db6ed5896863c69))
+
 ## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.35...python-openinference-instrumentation-openai-v0.1.36) (2025-10-07)
 
 
