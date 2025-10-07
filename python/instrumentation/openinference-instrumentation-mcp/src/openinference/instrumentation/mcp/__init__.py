@@ -43,11 +43,20 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             # Replace the function in the module
             module.streamablehttp_client = instrumented_streamablehttp_client
 
-            # Also patch it in agents.mcp.server if it's already imported
-            if "agents.mcp.server" in sys.modules:
-                import agents.mcp.server  # type: ignore
-
-                agents.mcp.server.streamablehttp_client = instrumented_streamablehttp_client
+            # Handle import order issues: scan sys.modules for any module that has already
+            # imported streamablehttp_client and update their references to use the instrumented version.
+            # This is necessary because Python's import system creates local references - when a module
+            # does "from mcp.client.streamable_http import streamablehttp_client", it gets a reference
+            # to the function object. Even though we've replaced it in the original module, existing
+            # references in other modules still point to the uninstrumented version.
+            for mod in sys.modules.values():
+                if mod is None or mod is module:
+                    continue
+                # Check if this module has imported streamablehttp_client by comparing object identity
+                if hasattr(mod, "streamablehttp_client") and getattr(
+                    mod, "streamablehttp_client", None
+                ) is original:
+                    setattr(mod, "streamablehttp_client", instrumented_streamablehttp_client)
 
         register_post_import_hook(wrap_streamablehttp, "mcp.client.streamable_http")
 
