@@ -31,6 +31,8 @@ Note that while the examples below show attributes in a nested JSON format for r
 
 ## Examples
 
+### Chat Completions
+
 A span for a tool call with OpenAI (shown in logical JSON format for clarity)
 
 ```json
@@ -134,5 +136,41 @@ A synthesis call using a function call output
     },
     "events": [],
     "conversation": null
+}
+```
+
+### Completions
+
+A span for a simple completion (shown in logical JSON format for clarity)
+
+```json
+{
+    "name": "Completion",
+    "context": {
+        "trace_id": "12345678-1234-5678-1234-567812345678",
+        "span_id": "87654321-4321-8765-4321-876543218765"
+    },
+    "span_kind": "SPAN_KIND_INTERNAL",
+    "parent_id": null,
+    "start_time": "2025-09-29T03:42:49.000000Z",
+    "end_time": "2025-09-29T03:42:50.284841Z",
+    "status_code": "OK",
+    "status_message": "",
+    "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
+        "llm.model_name": "babbage:2023-07-21-v2",
+        "llm.invocation_parameters": "{\"model\": \"babbage-002\", \"temperature\": 0.4, \"top_p\": 0.9, \"max_tokens\": 25}",
+        "input.value": "{\"model\": \"babbage-002\", \"prompt\": \"def fib(n):\\n    if n <= 1:\\n        return n\\n    else:\\n        return fib(n-1) + fib(n-2)\", \"temperature\": 0.4, \"top_p\": 0.9, \"max_tokens\": 25}",
+        "input.mime_type": "application/json",
+        "llm.prompts.0.prompt.text": "def fib(n):\n    if n <= 1:\n        return n\n    else:\n        return fib(n-1) + fib(n-2)",
+        "output.value": "{\"id\": \"cmpl-CKz4klHa1MMqAa4hQn3yzIMlLMZHd\", \"object\": \"text_completion\", \"created\": 1759117370, \"model\": \"babbage:2023-07-21-v2\", \"choices\": [{\"text\": \" + fib(n-3) + fib(n-4)\\n\\ndef fib(n):\\n    if n <= 1:\\n        return\", \"index\": 0, \"finish_reason\": \"length\"}], \"usage\": {\"prompt_tokens\": 31, \"completion_tokens\": 25, \"total_tokens\": 56}}",
+        "output.mime_type": "application/json",
+        "llm.choices.0.completion.text": " + fib(n-3) + fib(n-4)\n\ndef fib(n):\n    if n <= 1:\n        return",
+        "llm.token_count.prompt": 31,
+        "llm.token_count.completion": 25,
+        "llm.token_count.total": 56
+    },
+    "events": []
 }
 ```

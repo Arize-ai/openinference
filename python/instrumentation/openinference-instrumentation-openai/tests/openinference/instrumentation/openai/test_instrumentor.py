@@ -16,7 +16,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Sequence,
     Tuple,
     Union,
     cast,
@@ -291,8 +290,8 @@ def test_completions(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    # SpanAttributes.LLM_PROMPTS is always a list, so coerce the input accordingly.
-    prompt = prompt_input if isinstance(prompt_input, list) else [prompt_input]
+    # Normalize prompt_input (string or list) to a list for iteration
+    prompts = prompt_input if isinstance(prompt_input, list) else [prompt_input]
     output_texts: List[str] = completion_mock_stream[1] if is_stream else get_texts()
     invocation_parameters = {
         "stream": is_stream,
@@ -390,10 +389,14 @@ def test_completions(
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
     # Prompts are recorded in request phase, so present regardless of status
-    assert list(cast(Sequence[str], attributes.pop(LLM_PROMPTS, None))) == prompt
+    for i, prompt_text in enumerate(prompts):
+        assert attributes.pop(f"{LLM_PROMPTS}.{i}.prompt.text", None) == prompt_text
     if status_code == 200:
         assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
         assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
+        # Check output completions
+        for i, text in enumerate(output_texts):
+            assert attributes.pop(f"{LLM_CHOICES}.{i}.completion.text", None) == text
         if not is_stream:
             # Usage is not available for streaming in general.
             assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == completion_usage["total_tokens"]
@@ -1854,6 +1857,7 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
+LLM_CHOICES = SpanAttributes.LLM_CHOICES
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

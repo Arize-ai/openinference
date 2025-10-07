@@ -226,13 +226,14 @@ def _get_attributes_from_completion_create_param(
 
     model_prompt = params.get("prompt")
     if isinstance(model_prompt, str):
-        yield SpanAttributes.LLM_PROMPTS, [model_prompt]
+        yield f"{SpanAttributes.LLM_PROMPTS}.0.prompt.text", model_prompt
     elif (
         isinstance(model_prompt, list)
         and model_prompt
         and all(isinstance(item, str) for item in model_prompt)
     ):
-        yield SpanAttributes.LLM_PROMPTS, model_prompt
+        for index, prompt in enumerate(model_prompt):
+            yield f"{SpanAttributes.LLM_PROMPTS}.{index}.prompt.text", prompt
 
 
 def _get_attributes_from_embedding_create_param(

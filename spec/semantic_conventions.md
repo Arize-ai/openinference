@@ -38,6 +38,8 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `image.url`                                    | String                      | `"https://sample-link-to-image.jpg"`                                       | The link to the image or its base64 encoding                                                                                         |
 | `input.mime_type`                              | String                      | `"text/plain"` or `"application/json"`                                     | MIME type representing the format of `input.value`                                                                                   |
 | `input.value`                                  | String                      | `"{'query': 'What is the weather today?'}"`                                | The input value to an operation                                                                                                      |
+| `llm.prompts`                                  | List of objects<sup>†</sup> | `[{"prompt.text": "def fib(n):..."}]`                                      | Prompts provided to a completions API                                                                                                |
+| `llm.choices`                                  | List of objects<sup>†</sup> | `[{"completion.text": " + fib(n-3)..."}]`                                  | Text choices returned from a completions API                                                                                         |
 | `llm.function_call`                            | JSON String                 | `"{function_name: 'add', args: [1, 2]}"`                                   | Object recording details of a function call in models or APIs                                                                        |
 | `llm.input_messages`                           | List of objects<sup>†</sup> | `[{"message.role": "user", "message.content": "hello"}]`                   | List of messages sent to the LLM in a chat API request. Uses flattened attributes with indexed prefixes (e.g., `llm.input_messages.0.message.role`)  |
 | `llm.invocation_parameters`                    | JSON string                 | `"{model_name: 'gpt-3', temperature: 0.7}"`                                | Parameters used during the invocation of an LLM or API                                                                               |
@@ -211,6 +213,13 @@ Where:
 - `llm.input_messages.<index>.message.content` - Text content of the message
 - `llm.output_messages.<index>.message.role` - Role of the output message
 - `llm.output_messages.<index>.message.content` - Text content of the output message
+
+#### Completions API (Legacy Text Completion)
+For the legacy completions API (non-chat):
+- `llm.prompts.<index>.prompt.text` - Input prompt(s) provided to the completions API (e.g., `llm.prompts.0.prompt.text`, `llm.prompts.1.prompt.text`)
+- `llm.choices.<index>.completion.text` - Text choice(s) returned from the completions API (e.g., `llm.choices.0.completion.text`, `llm.choices.1.completion.text`)
+
+These attributes use a nested indexed format with discriminated union structure, allowing for future expansion. The nested structure (`.prompt.text` and `.completion.text`) mirrors the pattern used for `llm.input_messages` and `llm.output_messages`.
 
 #### Message Content Arrays (Multimodal)
 For messages containing multiple content items (text, images, audio):
