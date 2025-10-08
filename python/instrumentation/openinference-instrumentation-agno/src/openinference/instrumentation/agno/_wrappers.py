@@ -576,16 +576,19 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
 
 
 def _parse_model_output(output: Any) -> str:
-    if hasattr(output, 'role') and hasattr(output, 'content') and hasattr(output, 'tool_calls'):
+    if hasattr(output, 'role') or hasattr(output, 'content') or hasattr(output, 'tool_calls'):
         try:
             result_dict = {
-                "role": getattr(output, 'role', None),
-                "content": getattr(output, 'content', None),
-                "tool_calls": getattr(output, 'tool_calls', []),
-                "event": getattr(output, 'event', None),
                 "created_at": getattr(output, 'created_at', None),
             }
             
+            if hasattr(output, 'role'):
+                result_dict["role"] = output.role
+            if hasattr(output, 'content'):
+                result_dict["content"] = output.content
+            if hasattr(output, 'tool_calls'):
+                result_dict["tool_calls"] = output.tool_calls
+
             # Add response_usage if available
             if hasattr(output, 'response_usage') and output.response_usage:
                 result_dict["response_usage"] = {
@@ -808,17 +811,17 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute(LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens)
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+                    span.set_attribute(LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             return response
@@ -1067,3 +1070,9 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+
+# token count attributes
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_COST_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_READ
+LLM_COST_PROMPT_DETAILS_CACHE_WRITE = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_WRITE
