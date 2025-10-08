@@ -11,8 +11,8 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
-    _ExecuteCoreWrapper,
     _CrewKickoffWrapper,
+    _ExecuteCoreWrapper,
     _FlowKickoffWrapper,
     _ToolUseWrapper,
 )
