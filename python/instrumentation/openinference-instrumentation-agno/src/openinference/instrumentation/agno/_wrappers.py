@@ -293,6 +293,7 @@ class _RunWrapper:
                             span.set_attribute(OUTPUT_VALUE, run.content)
                             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                             span.set_status(trace_api.StatusCode.OK)
+                            continue
 
                 else:
                     # Extract session_id from the session object
