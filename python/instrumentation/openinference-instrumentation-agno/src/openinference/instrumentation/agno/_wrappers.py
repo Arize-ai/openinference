@@ -251,7 +251,6 @@ class _RunWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        print("RUN STREAM ARGUMENTS", args, kwargs)
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
@@ -293,8 +292,8 @@ class _RunWrapper:
                         if run.content:
                             span.set_attribute(OUTPUT_VALUE, run.content)
                             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                        
-                    
+                            span.set_status(trace_api.StatusCode.OK)
+
                 else:
                     # Extract session_id from the session object
                     session_id = None
@@ -595,39 +594,8 @@ def _parse_model_output(output: Any) -> str:
                 }
             
             return json.dumps(result_dict)
-        except Exception as e:
-            print("OUTPUT TO DICT ERROR", e)
-            pass
-    
-    if hasattr(output, "to_dict"):
-        print("OUTPUT TO DICT")
-        try:
-            dict_result = output.to_dict()
-            return json.dumps(dict_result)
         except Exception:
             pass
-    
-    if hasattr(output, "model_dump_json"):
-        print("OUTPUT TO MODEL DUMP JSON")
-        try:
-            return output.model_dump_json()  # type: ignore[no-any-return]
-        except Exception:
-            pass
-    
-    if hasattr(output, "model_dump"):
-        print("OUTPUT TO MODEL DUMP")
-        try:
-            dict_result = output.model_dump()
-            return json.dumps(dict_result)
-        except Exception:
-            pass
-    
-    if isinstance(output, dict):
-        print("OUTPUT DICT")
-        return json.dumps(output)
-    
-    print("OUTPUT STR")
-    return str(output)
 
 
 def _parse_model_output_stream(output: Any) -> str:
