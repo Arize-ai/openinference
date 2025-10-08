@@ -233,7 +233,7 @@ class _RunWrapper:
                 run_response: RunOutput = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
 
             except Exception as e:
@@ -287,7 +287,7 @@ class _RunWrapper:
 
             try:
                 yield from wrapped(*args, **kwargs)
-                if len(arguments.get("session").runs) > 0:
+                if "session" in arguments and arguments.get("session") and len(arguments.get("session").runs) > 0:
                     for run in arguments.get("session").runs:
                         if run.content:
                             span.set_attribute(OUTPUT_VALUE, run.content)
@@ -540,7 +540,6 @@ def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[s
 
 def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, output
     
     # Try to parse the output and extract LLM_OUTPUT_MESSAGES
     try:
@@ -556,7 +555,7 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
             if content := output_data.get("content"):
                 message["content"] = content
                 
-            # # Only include tool_calls if they exist and are not empty
+            # Only include tool_calls if they exist and are not empty
             if tool_calls := output_data.get("tool_calls"):
                 if tool_calls:  # Only include if not empty list
                     message["tool_calls"] = tool_calls
@@ -571,7 +570,8 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
             yield OUTPUT_VALUE, safe_json_dumps({"messages": messages})
                 
     except (json.JSONDecodeError, TypeError):
-        pass
+        # Fall back to the original output if parsing fails
+        yield OUTPUT_VALUE, output
 
 
 def _parse_model_output(output: Any) -> str:
