@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+import importlib
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
@@ -23,7 +24,6 @@ test_vcr = vcr.VCR(
     record_mode="never",
     match_on=["uri", "method"],
 )
-
 
 @pytest.fixture()
 def in_memory_span_exporter() -> InMemorySpanExporter:
