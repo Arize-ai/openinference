@@ -620,12 +620,13 @@ def _parse_model_output_stream(output: Any) -> dict:
                 if tool_call.id:
                     tool_call_dict = {
                         "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
+                        "type": tool_call.type
+                    }
+                    if hasattr(tool_call, 'function'):
+                        tool_call_dict["function"] = {
                             "name": tool_call.function.name,
                             "arguments": tool_call.function.arguments,
-                        },
-                    }
+                        }
                     all_tool_calls.append(tool_call_dict)
 
     # Create single message with accumulated content and all tool calls
