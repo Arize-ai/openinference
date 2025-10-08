@@ -427,7 +427,7 @@ class _RunWrapper:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
 
-                if len(arguments.get("session").runs) > 0:
+                if arguments.get("session") and len(arguments.get("session").runs) > 0:
                     for run in arguments.get("session").runs:
                         if run.content:
                             span.set_attribute(OUTPUT_VALUE, run.content)
@@ -596,9 +596,12 @@ def _parse_model_output(output: Any) -> str:
             return json.dumps(result_dict)
         except Exception:
             pass
+    
+    return json.dumps(output) if isinstance(output, dict) else str(output)
 
 
-def _parse_model_output_stream(output: Any) -> str:
+
+def _parse_model_output_stream(output: Any) -> dict:
     
     # Accumulate all content and tool calls across chunks
     accumulated_content = ""
