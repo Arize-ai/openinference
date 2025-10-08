@@ -12,7 +12,8 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.crewai._wrappers import (
     _ExecuteCoreWrapper,
-    _KickoffWrapper,
+    _CrewKickoffWrapper,
+    _FlowKickoffWrapper,
     _ToolUseWrapper,
 )
 from openinference.instrumentation.crewai.version import __version__
@@ -25,7 +26,8 @@ logger = logging.getLogger(__name__)
 class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_execute_core",
-        "_original_kickoff",
+        "_original_crew_kickoff",
+        "_original_flow_kickoff",
         "_original_tool_use",
         "_tracer",
     )
@@ -53,12 +55,20 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=execute_core_wrapper,
         )
 
-        kickoff_wrapper = _KickoffWrapper(tracer=self._tracer)
-        self._original_kickoff = getattr(import_module("crewai").Crew, "kickoff", None)
+        crew_kickoff_wrapper = _CrewKickoffWrapper(tracer=self._tracer)
+        self._original_crew_kickoff = getattr(import_module("crewai").Crew, "kickoff", None)
         wrap_function_wrapper(
             module="crewai",
             name="Crew.kickoff",
-            wrapper=kickoff_wrapper,
+            wrapper=crew_kickoff_wrapper,
+        )
+
+        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)
+        self._original_flow_kickoff = getattr(import_module("crewai").Flow, "kickoff", None)
+        wrap_function_wrapper(
+            module="crewai",
+            name="Flow.kickoff",
+            wrapper=flow_kickoff_wrapper,
         )
 
         use_wrapper = _ToolUseWrapper(tracer=self._tracer)
@@ -77,10 +87,15 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             task_module.Task._execute_core = self._original_execute_core
             self._original_execute_core = None
 
-        if self._original_kickoff is not None:
+        if self._original_crew_kickoff is not None:
             crew_module = import_module("crewai")
-            crew_module.Crew.kickoff = self._original_kickoff
-            self._original_kickoff = None
+            crew_module.Crew.kickoff = self._original_crew_kickoff
+            self._original_crew_kickoff = None
+
+        if self._original_flow_kickoff is not None:
+            crew_module = import_module("crewai")
+            crew_module.Flow.kickoff = self._original_flow_kickoff
+            self._original_flow_kickoff = None
 
         if self._original_tool_use is not None:
             tool_usage_module = import_module("crewai.tools.tool_usage")
