@@ -1,5 +1,4 @@
 import json
-import logging
 from enum import Enum
 from inspect import signature
 from secrets import token_hex
@@ -26,6 +25,8 @@ from agno.models.base import Model
 from agno.team import Team
 from agno.tools.function import Function, FunctionCall
 from agno.tools.toolkit import Toolkit
+from agno.run.messages import RunMessages
+from agno.agent import RunOutput
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -37,8 +38,6 @@ from openinference.semconv.trace import (
 )
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
-
-logger = logging.getLogger(__name__)
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -60,11 +59,27 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             yield key, value
 
 
-def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
     arguments = _bind_arguments(method, *args, **kwargs)
     arguments = _strip_method_args(arguments)
-    return safe_json_dumps(arguments)
+    
+    # Try to get input from run_response.input.input_content
+    run_response: RunOutput = arguments.get("run_response")
+    if run_response and hasattr(run_response, 'input') and run_response.input:
+        if hasattr(run_response.input, 'input_content') and run_response.input.input_content:
+            return run_response.input.input_content
+    
+    # Fallback: try run_messages approach
+    run_messages: RunMessages = arguments.get("run_messages")
+    if run_messages and run_messages.user_message:
+        return run_messages.user_message.content
+    
+    return ""
 
+def _extract_run_response_output(run_response: RunOutput) -> str:
+    if run_response and run_response.content:
+        return run_response.content
+    return ""
 
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
@@ -192,7 +207,7 @@ class _RunWrapper:
         node_id = _generate_node_id()
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -200,7 +215,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -215,10 +230,10 @@ class _RunWrapper:
             team_token = _setup_team_context(agent, node_id)
 
             try:
-                run_response = wrapped(*args, **kwargs)
+                run_response: RunOutput = wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
                 return run_response
 
             except Exception as e:
@@ -236,6 +251,7 @@ class _RunWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
+        print("RUN STREAM ARGUMENTS", args, kwargs)
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
@@ -249,7 +265,6 @@ class _RunWrapper:
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
@@ -257,7 +272,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -273,21 +288,31 @@ class _RunWrapper:
 
             try:
                 yield from wrapped(*args, **kwargs)
-                # Use get_last_run_output instead of removed agent.run_response
-                session_id = None
-                try:
-                    session_id = arguments.get("session_id")
-                except Exception:
+                if len(arguments.get("session").runs) > 0:
+                    for run in arguments.get("session").runs:
+                        if run.content:
+                            span.set_attribute(OUTPUT_VALUE, run.content)
+                            span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                        
+                    
+                else:
+                    # Extract session_id from the session object
                     session_id = None
+                    try:
+                        session = arguments.get("session")
+                        if session and hasattr(session, 'session_id'):
+                            session_id = session.session_id
+                    except Exception:
+                        session_id = None
 
-                run_response = None
-                if hasattr(agent, "get_last_run_output"):
-                    run_response = agent.get_last_run_output(session_id=session_id)
+                    run_response = None
+                    if hasattr(agent, "get_last_run_output"):
+                        run_response = agent.get_last_run_output(session_id=session_id)
 
-                span.set_status(trace_api.StatusCode.OK)
-                if run_response is not None:
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                    span.set_status(trace_api.StatusCode.OK)
+                    if run_response is not None:
+                        span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                        span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -327,7 +352,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -344,7 +369,7 @@ class _RunWrapper:
             try:
                 run_response = await wrapped(*args, **kwargs)
                 span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
+                span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                 return run_response
             except Exception as e:
@@ -385,7 +410,7 @@ class _RunWrapper:
                     {
                         OPENINFERENCE_SPAN_KIND: AGENT,
                         GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_user_message_content(
                             wrapped,
                             *args,
                             **kwargs,
@@ -403,21 +428,31 @@ class _RunWrapper:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     yield response
 
-                # Use get_last_run_output instead of removed agent.run_response
-                session_id = None
-                try:
-                    session_id = arguments.get("session_id")
-                except Exception:
+                if len(arguments.get("session").runs) > 0:
+                    for run in arguments.get("session").runs:
+                        if run.content:
+                            span.set_attribute(OUTPUT_VALUE, run.content)
+                            span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                            span.set_status(trace_api.StatusCode.OK)
+
+                else:
+                    # Extract session_id from the session object
                     session_id = None
+                    try:
+                        session = arguments.get("session")
+                        if session and hasattr(session, 'session_id'):
+                            session_id = session.session_id
+                    except Exception:
+                        session_id = None
 
-                run_response = None
-                if hasattr(agent, "get_last_run_output"):
-                    run_response = agent.get_last_run_output(session_id=session_id)
+                    run_response = None
+                    if hasattr(agent, "get_last_run_output"):
+                        run_response = agent.get_last_run_output(session_id=session_id)
 
-                span.set_status(trace_api.StatusCode.OK)
-                if run_response is not None:
-                    span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                    span.set_status(trace_api.StatusCode.OK)
+                    if run_response is not None:
+                        span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
+                        span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -429,120 +464,28 @@ class _RunWrapper:
 
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    """Extract LLM input messages from arguments and format for OpenInference."""
+
+    def process_message(idx: int, role: str, content: str) -> Iterator[Tuple[str, Any]]:
+        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
+        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
+
+
     messages = arguments.get("messages", [])
     for i, message in enumerate(messages):
-        if hasattr(message, 'role') and hasattr(message, 'content'):
-            # Set message role and content
-            yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", message.role
-            
-            # Handle different content types
-            if hasattr(message, 'get_content_string'):
-                content = message.get_content_string()
-            elif isinstance(message.content, str):
-                content = message.content
-            else:
-                content = str(message.content) if message.content else ""
-                
-            if content:
-                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
-            
-            # Handle tool calls in messages - only include if they have actual data
-            if hasattr(message, 'tool_calls') and message.tool_calls:
-                for j, tool_call in enumerate(message.tool_calls):
-                    if isinstance(tool_call, dict):
-                        if tool_call.get('id'):
-                            yield f"{LLM_INPUT_MESSAGES}.{i}.tool_calls.{j}.tool_call.id", tool_call['id']
-                        if tool_call.get('function', {}).get('name'):
-                            yield f"{LLM_INPUT_MESSAGES}.{i}.tool_calls.{j}.tool_call.function.name", tool_call['function']['name']
-                        if tool_call.get('function', {}).get('arguments'):
-                            yield f"{LLM_INPUT_MESSAGES}.{i}.tool_calls.{j}.tool_call.function.arguments", tool_call['function']['arguments']
-
-    # Handle tools array - only include if tools exist
+        role, content = message.role, message.get_content_string()
+        if role in ["system", "user", "assistant"]:
+            yield from process_message(i, role, content)
     tools = arguments.get("tools", [])
-    if tools:
-        for tool_index, tool in enumerate(tools):
-            # Only include tools that have meaningful data
-            if tool and isinstance(tool, dict) and tool.get('function'):
-                yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
-
-
-def _llm_output_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    """Extract LLM output messages from arguments and format for OpenInference."""
-    # Check for assistant_message in arguments
-    assistant_message = arguments.get("assistant_message")
-    if assistant_message and hasattr(assistant_message, 'role'):
-        index = 0
-        
-        # Set role
-        yield f"{LLM_OUTPUT_MESSAGES}.{index}.{MESSAGE_ROLE}", assistant_message.role
-        
-        # Handle content - only include if not None/empty
-        content = None
-        if hasattr(assistant_message, 'get_content_string'):
-            content = assistant_message.get_content_string()
-        elif hasattr(assistant_message, 'content') and assistant_message.content:
-            content = assistant_message.content
-            
-        if content:
-            yield f"{LLM_OUTPUT_MESSAGES}.{index}.{MESSAGE_CONTENT}", content
-        
-        # Handle tool calls in assistant message - only include if they exist
-        if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
-            for j, tool_call in enumerate(assistant_message.tool_calls):
-                if isinstance(tool_call, dict):
-                    if tool_call.get('id'):
-                        yield f"{LLM_OUTPUT_MESSAGES}.{index}.tool_calls.{j}.tool_call.id", tool_call['id']
-                    if tool_call.get('function', {}).get('name'):
-                        yield f"{LLM_OUTPUT_MESSAGES}.{index}.tool_calls.{j}.tool_call.function.name", tool_call['function']['name']
-                    if tool_call.get('function', {}).get('arguments'):
-                        yield f"{LLM_OUTPUT_MESSAGES}.{index}.tool_calls.{j}.tool_call.function.arguments", tool_call['function']['arguments']
-                        
-                        # Also set the LLM function call attribute for compatibility
-                        function_call_data = {
-                            "name": tool_call['function']['name'],
-                            "arguments": tool_call['function']['arguments']
-                        }
-                        yield LLM_FUNCTION_CALL, safe_json_dumps(function_call_data)
-                        
-    # Also check for messages in arguments that have role='assistant'
-    messages = arguments.get("messages", [])
-    output_index = 0
-    for message in messages:
-        if hasattr(message, 'role') and message.role == 'assistant':
-            yield f"{LLM_OUTPUT_MESSAGES}.{output_index}.{MESSAGE_ROLE}", message.role
-            
-            # Handle content - only include if not None/empty
-            content = None
-            if hasattr(message, 'get_content_string'):
-                content = message.get_content_string()
-            elif hasattr(message, 'content') and message.content:
-                content = message.content
-                
-            if content:
-                yield f"{LLM_OUTPUT_MESSAGES}.{output_index}.{MESSAGE_CONTENT}", content
-                
-            # Handle tool calls - only include if they exist
-            if hasattr(message, 'tool_calls') and message.tool_calls:
-                for j, tool_call in enumerate(message.tool_calls):
-                    if isinstance(tool_call, dict):
-                        if tool_call.get('id'):
-                            yield f"{LLM_OUTPUT_MESSAGES}.{output_index}.tool_calls.{j}.tool_call.id", tool_call['id']
-                        if tool_call.get('function', {}).get('name'):
-                            yield f"{LLM_OUTPUT_MESSAGES}.{output_index}.tool_calls.{j}.tool_call.function.name", tool_call['function']['name']
-                        if tool_call.get('function', {}).get('arguments'):
-                            yield f"{LLM_OUTPUT_MESSAGES}.{output_index}.tool_calls.{j}.tool_call.function.arguments", tool_call['function']['arguments']
-            
-            output_index += 1
+    for tool_index, tool in enumerate(tools):
+        yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
 
 
 def _llm_invocation_parameters(
     model: Model, arguments: Optional[Mapping[str, Any]] = None
 ) -> Iterator[Tuple[str, Any]]:
-    """Extract model invocation parameters and format for OpenInference."""
     request_kwargs = {}
-    
-    # Extract request parameters from various model types
+    # TODO (v2.0.0): with the cleanup of the agno.models.base.Model class we will
+    # handle these attributes in a more consistent way.
     if getattr(model, "request_kwargs", None):
         request_kwargs = model.request_kwargs  # type: ignore[attr-defined]
     if getattr(model, "request_params", None):
@@ -556,15 +499,6 @@ def _llm_invocation_parameters(
             request_kwargs = model.get_request_params(messages=messages)  # type: ignore[attr-defined]
         else:
             request_kwargs = model.get_request_params()  # type: ignore[attr-defined]
-    
-    # Add model-specific parameters that are commonly available
-    common_params = ['temperature', 'max_tokens', 'max_completion_tokens', 'top_p', 'top_k', 
-                    'frequency_penalty', 'presence_penalty', 'stop', 'stream']
-    for param in common_params:
-        if hasattr(model, param):
-            value = getattr(model, param)
-            if value is not None:
-                request_kwargs[param] = value
 
     if request_kwargs:
         filtered_kwargs = _filter_sensitive_params(request_kwargs)
@@ -596,233 +530,146 @@ def _filter_sensitive_params(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _filter_none_values(data):
-    """Recursively filter out None/null values and empty collections from data structures."""
-    if isinstance(data, dict):
-        filtered = {}
-        for key, value in data.items():
-            if value is not None:
-                if isinstance(value, (dict, list)):
-                    filtered_value = _filter_none_values(value)
-                    if filtered_value:  # Only add if not empty after filtering
-                        filtered[key] = filtered_value
-                elif isinstance(value, (str, int, float, bool)):
-                    # Keep all meaningful values
-                    if isinstance(value, (int, float)) and value == 0:
-                        # Still keep zero values, they might be meaningful
-                        filtered[key] = value
-                    elif value != "" or key in ["content", "role"]:  # Keep empty content/role as they might be meaningful
-                        filtered[key] = value
-                elif hasattr(value, '__class__'):
-                    # Handle special object types
-                    class_name = str(value.__class__)
-                    if 'Timer' in class_name:
-                        # Skip Timer objects as they're not serializable and not useful for tracing
-                        continue
-                    elif 'RunStatus' in class_name:
-                        # Convert enum to string value
-                        filtered[key] = str(value.value) if hasattr(value, 'value') else str(value)
-                    else:
-                        # Keep other objects, convert to string if needed
-                        filtered[key] = str(value)
-                else:
-                    # Keep other non-None values
-                    filtered[key] = value
-        return filtered
-    elif isinstance(data, list):
-        filtered = []
-        for item in data:
-            if item is not None:
-                filtered_item = _filter_none_values(item)
-                if filtered_item or isinstance(item, (str, int, float, bool)):  # Keep primitive types
-                    filtered.append(filtered_item if isinstance(item, (dict, list)) else item)
-        return filtered
-    else:
-        return data
-
-
-def _extract_meaningful_fields(obj, obj_type="object"):
-    """Extract meaningful fields from Agno objects."""
-    if hasattr(obj, 'model_dump'):
-        try:
-            return obj.model_dump()
-        except Exception:
-            pass
-    elif hasattr(obj, 'dict'):
-        try:
-            return obj.dict()
-        except Exception:
-            pass
-    elif hasattr(obj, '__dict__'):
-        try:
-            return obj.__dict__
-        except Exception:
-            pass
-    
-    # Fallback to string representation but try to extract key info
-    obj_str = str(obj)
-    if 'RunOutput' in obj_str:
-        # Try to extract key fields from RunOutput string representation
-        extracted = {"_type": "RunOutput"}
-        if 'run_id=' in obj_str:
-            try:
-                run_id = obj_str.split("run_id='")[1].split("'")[0]
-                extracted["run_id"] = run_id
-            except:
-                pass
-        if 'agent_name=' in obj_str:
-            try:
-                agent_name = obj_str.split("agent_name='")[1].split("'")[0]
-                extracted["agent_name"] = agent_name
-            except:
-                pass
-        if 'model=' in obj_str:
-            try:
-                model = obj_str.split("model='")[1].split("'")[0]
-                extracted["model"] = model
-            except:
-                pass
-        return extracted
-    elif 'AgentSession' in obj_str:
-        # Try to extract key fields from AgentSession string representation  
-        extracted = {"_type": "AgentSession"}
-        if 'session_id=' in obj_str:
-            try:
-                session_id = obj_str.split("session_id='")[1].split("'")[0]
-                extracted["session_id"] = session_id
-            except:
-                pass
-        if 'agent_id=' in obj_str:
-            try:
-                agent_id = obj_str.split("agent_id='")[1].split("'")[0]
-                extracted["agent_id"] = agent_id
-            except:
-                pass
-        return extracted
-    
-    return {"_type": obj_type, "_string_repr": str(obj)}
-
-
 def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    """Format input arguments as JSON for OpenInference."""
     yield INPUT_MIME_TYPE, JSON
-    
-    # Create a clean input representation
-    clean_args = {}
-    for key, value in arguments.items():
-        if key not in ("self", "cls") and value is not None:
-            # Handle special Agno objects that need better serialization
-            if hasattr(value, '__class__'):
-                class_name = str(value.__class__)
-                if any(agno_type in class_name for agno_type in ['RunOutput', 'AgentSession', 'AgentOutput', 'Message', 'Metrics']):
-                    try:
-                        extracted = _extract_meaningful_fields(value, class_name)
-                        filtered_data = _filter_none_values(extracted)
-                        if filtered_data:
-                            clean_args[key] = filtered_data
-                    except Exception:
-                        # Fallback to string representation
-                        clean_args[key] = str(value)
-                    continue
-            
-            # Handle objects with model_dump or dict methods
-            if hasattr(value, 'model_dump') or hasattr(value, 'dict'):
-                try:
-                    if hasattr(value, 'model_dump'):
-                        serialized = value.model_dump()
-                    else:
-                        serialized = value.dict()
-                    # Filter out None values from the serialized data
-                    filtered_data = _filter_none_values(serialized)
-                    if filtered_data:  # Only add if not empty after filtering
-                        clean_args[key] = filtered_data
-                except Exception:
-                    clean_args[key] = str(value)
-            elif isinstance(value, list):
-                clean_list = []
-                for item in value:
-                    if item is not None:
-                        if hasattr(item, 'model_dump'):
-                            try:
-                                serialized = item.model_dump()
-                                filtered_data = _filter_none_values(serialized)
-                                if filtered_data:
-                                    clean_list.append(filtered_data)
-                            except Exception:
-                                clean_list.append(str(item))
-                        elif hasattr(item, 'dict'):
-                            try:
-                                serialized = item.dict()
-                                filtered_data = _filter_none_values(serialized)
-                                if filtered_data:
-                                    clean_list.append(filtered_data)
-                            except Exception:
-                                clean_list.append(str(item))
-                        else:
-                            clean_list.append(item)
-                if clean_list:  # Only add if list is not empty
-                    clean_args[key] = clean_list
-            else:
-                clean_args[key] = value
-                
-    yield INPUT_VALUE, safe_json_dumps(clean_args)
+   
+    cleaned_input = []
+    for message in arguments.get("messages", []):
+      cleaned_input.append(message.to_dict())    
+    yield INPUT_VALUE, safe_json_dumps({"messages": cleaned_input})
 
 
 def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
-    """Format output value as JSON for OpenInference."""
     yield OUTPUT_MIME_TYPE, JSON
     yield OUTPUT_VALUE, output
+    
+    # Try to parse the output and extract LLM_OUTPUT_MESSAGES
+    try:
+        output_data = json.loads(output)      
+        if isinstance(output_data, dict):
+            # Extract message information for LLM_OUTPUT_MESSAGES (only core message fields)
+            messages = []
+            message = {}
+            
+            if role := output_data.get("role"):
+                message["role"] = role
+                
+            if content := output_data.get("content"):
+                message["content"] = content
+                
+            # # Only include tool_calls if they exist and are not empty
+            if tool_calls := output_data.get("tool_calls"):
+                if tool_calls:  # Only include if not empty list
+                    message["tool_calls"] = tool_calls
+                
+            if message:
+                messages.append(message)
+                
+            if messages:
+                for message in messages:
+                    yield LLM_OUTPUT_MESSAGES, safe_json_dumps(message)
+                    
+            yield OUTPUT_VALUE, safe_json_dumps({"messages": messages})
+                
+    except (json.JSONDecodeError, TypeError):
+        pass
 
 
 def _parse_model_output(output: Any) -> str:
+    if hasattr(output, 'role') and hasattr(output, 'content') and hasattr(output, 'tool_calls'):
+        try:
+            result_dict = {
+                "role": getattr(output, 'role', None),
+                "content": getattr(output, 'content', None),
+                "tool_calls": getattr(output, 'tool_calls', []),
+                "event": getattr(output, 'event', None),
+                "created_at": getattr(output, 'created_at', None),
+            }
+            
+            # Add response_usage if available
+            if hasattr(output, 'response_usage') and output.response_usage:
+                result_dict["response_usage"] = {
+                    "input_tokens": getattr(output.response_usage, 'input_tokens', None),
+                    "output_tokens": getattr(output.response_usage, 'output_tokens', None),
+                    "total_tokens": getattr(output.response_usage, 'total_tokens', None),
+                }
+            
+            return json.dumps(result_dict)
+        except Exception as e:
+            print("OUTPUT TO DICT ERROR", e)
+            pass
+    
+    if hasattr(output, "to_dict"):
+        print("OUTPUT TO DICT")
+        try:
+            dict_result = output.to_dict()
+            return json.dumps(dict_result)
+        except Exception:
+            pass
+    
     if hasattr(output, "model_dump_json"):
-        return output.model_dump_json()  # type: ignore[no-any-return]
-    elif isinstance(output, dict):
+        print("OUTPUT TO MODEL DUMP JSON")
+        try:
+            return output.model_dump_json()  # type: ignore[no-any-return]
+        except Exception:
+            pass
+    
+    if hasattr(output, "model_dump"):
+        print("OUTPUT TO MODEL DUMP")
+        try:
+            dict_result = output.model_dump()
+            return json.dumps(dict_result)
+        except Exception:
+            pass
+    
+    if isinstance(output, dict):
+        print("OUTPUT DICT")
         return json.dumps(output)
-    else:
-        return str(output)
+    
+    print("OUTPUT STR")
+    return str(output)
 
 
-def _set_token_usage_attributes(span: trace_api.Span, response: Any) -> None:
-    """Extract and set token usage attributes from response_usage if available."""
-    if hasattr(response, "response_usage") and response.response_usage:
-        metrics = response.response_usage
+def _parse_model_output_stream(output: Any) -> str:
+    
+    # Accumulate all content and tool calls across chunks
+    accumulated_content = ""
+    all_tool_calls = []
 
-        # Set token usage attributes
-        if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-            span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
-
-        if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-            span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
+    for chunk in output:
+        
+        # Accumulate content from this chunk
+        if chunk.content:
+            accumulated_content += chunk.content
             
-        # Calculate total tokens
-        if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-            span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
-        elif hasattr(metrics, "input_tokens") and hasattr(metrics, "output_tokens"):
-            if metrics.input_tokens and metrics.output_tokens:
-                span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.input_tokens + metrics.output_tokens)
+        # Collect tool calls from this chunk
+        if chunk.tool_calls:
+            for tool_call in chunk.tool_calls:
+                if tool_call.id:
+                    tool_call_dict = {
+                        "id": tool_call.id,
+                        "type": tool_call.type,
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                    all_tool_calls.append(tool_call_dict)
 
-        # Set cache-related tokens if available
-        if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-            span.set_attribute("llm.token_count.prompt.details.cache_read", metrics.cache_read_tokens)
-
-        if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-            span.set_attribute("llm.token_count.prompt.details.cache_write", metrics.cache_write_tokens)
+    # Create single message with accumulated content and all tool calls
+    messages = []
+    if accumulated_content or all_tool_calls:
+        result_dict = {"role": "assistant"}
+        
+        if accumulated_content:
+            result_dict["content"] = accumulated_content
             
-        # Set reasoning tokens if available
-        if hasattr(metrics, "reasoning_tokens") and metrics.reasoning_tokens:
-            span.set_attribute("llm.token_count.completion.details.reasoning", metrics.reasoning_tokens)
+        if all_tool_calls:
+            result_dict["tool_calls"] = all_tool_calls
             
-        # Set audio tokens if available
-        if hasattr(metrics, "audio_input_tokens") and metrics.audio_input_tokens:
-            span.set_attribute("llm.token_count.prompt.details.audio", metrics.audio_input_tokens)
-            
-        if hasattr(metrics, "audio_output_tokens") and metrics.audio_output_tokens:
-            span.set_attribute("llm.token_count.completion.details.audio", metrics.audio_output_tokens)
+        messages.append(result_dict)
 
-    else:
-        logger.debug("No response_usage found in response")
-
+    return {"messages": messages}
 
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -843,17 +690,16 @@ class _ModelWrapper:
         model = instance
         model_name = model.name
         span_name = f"{model_name}.invoke"
-        attributes = {
-            OPENINFERENCE_SPAN_KIND: LLM,
-            **dict(_input_value_and_mime_type(arguments)),
-            **dict(_llm_invocation_parameters(model, arguments)),
-            **dict(_llm_input_messages(arguments)),
-            **dict(_llm_output_messages(arguments)),
-            **dict(get_attributes_from_context()),
-        }
+
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=attributes,
+            attributes={
+                OPENINFERENCE_SPAN_KIND: LLM,
+                **dict(_input_value_and_mime_type(arguments)),
+                **dict(_llm_input_messages(arguments)),
+                **dict(_llm_invocation_parameters(model, arguments)),
+                **dict(get_attributes_from_context()),
+            },
         ) as span:
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(LLM_MODEL_NAME, model.id)
@@ -861,11 +707,27 @@ class _ModelWrapper:
 
             response = wrapped(*args, **kwargs)
             output_message = _parse_model_output(response)
+            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
 
             # Extract and set token usage from the response
-            _set_token_usage_attributes(span, response)
+            if hasattr(response, "response_usage") and response.response_usage:
+                metrics = response.response_usage
 
-            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+                # Set token usage attributes
+                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
+                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+
+                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
+                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+
+                # Set cache-related tokens if available
+                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
+                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+
+                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
+                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+
+
             return response
 
     def run_stream(
@@ -879,7 +741,6 @@ class _ModelWrapper:
             return wrapped(*args, **kwargs)
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-
         model = instance
         model_name = model.name
         span_name = f"{model_name}.invoke_stream"
@@ -889,9 +750,8 @@ class _ModelWrapper:
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
-                **dict(_llm_invocation_parameters(model, arguments)),
+                **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
-                **dict(_llm_output_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
@@ -904,6 +764,12 @@ class _ModelWrapper:
             for chunk in wrapped(*args, **kwargs):
                 responses.append(chunk)
                 yield chunk
+
+
+            output_message = _parse_model_output_stream(responses)
+            output_message = json.dumps(output_message)
+            span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            span.set_attribute(OUTPUT_VALUE, output_message)
 
             # Find the final response with complete metrics (usually the last one with response_usage)
             final_response_with_metrics = None
@@ -918,30 +784,17 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-                    
-                # Calculate total tokens
-                if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
-                elif hasattr(metrics, "input_tokens") and hasattr(metrics, "output_tokens"):
-                    if metrics.input_tokens and metrics.output_tokens:
-                        span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.input_tokens + metrics.output_tokens)
+                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.prompt.details.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.prompt.details.cache_write", metrics.cache_write_tokens)
-
-            else:
-                logger.debug("No final response with metrics found in streaming response")
-
-            output_message = json.dumps([_parse_model_output(response) for response in responses])
-            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
 
     async def arun(
         self,
@@ -951,7 +804,7 @@ class _ModelWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
@@ -964,9 +817,8 @@ class _ModelWrapper:
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
-                **dict(_llm_invocation_parameters(model, arguments)),
+                **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
-                **dict(_llm_output_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
@@ -978,7 +830,22 @@ class _ModelWrapper:
             output_message = _parse_model_output(response)
 
             # Extract and set token usage from the response
-            _set_token_usage_attributes(span, response)
+            if hasattr(response, "response_usage") and response.response_usage:
+                metrics = response.response_usage
+
+                # Set token usage attributes
+                if hasattr(metrics, "input_tokens") and metrics.input_tokens:
+                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+
+                if hasattr(metrics, "output_tokens") and metrics.output_tokens:
+                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+
+                # Set cache-related tokens if available
+                if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
+                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+
+                if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
+                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
             return response
@@ -1006,9 +873,8 @@ class _ModelWrapper:
             attributes={
                 OPENINFERENCE_SPAN_KIND: LLM,
                 **dict(_input_value_and_mime_type(arguments)),
-                **dict(_llm_invocation_parameters(model, arguments)),
+                **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
-                **dict(_llm_output_messages(arguments)),
                 **dict(get_attributes_from_context()),
             },
         ) as span:
@@ -1021,6 +887,11 @@ class _ModelWrapper:
             async for chunk in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                 responses.append(chunk)
                 yield chunk
+            
+            output_message = _parse_model_output_stream(responses)
+            output_message = json.dumps(output_message)
+            span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            span.set_attribute(OUTPUT_VALUE, output_message)
 
             # Find the final response with complete metrics (usually the last one with response_usage)
             final_response_with_metrics = None
@@ -1035,30 +906,17 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
+                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
-                    
-                # Calculate total tokens
-                if hasattr(metrics, "total_tokens") and metrics.total_tokens:
-                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
-                elif hasattr(metrics, "input_tokens") and hasattr(metrics, "output_tokens"):
-                    if metrics.input_tokens and metrics.output_tokens:
-                        span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.input_tokens + metrics.output_tokens)
+                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.prompt.details.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.prompt.details.cache_write", metrics.cache_write_tokens)
-
-            else:
-                logger.debug("No final response with metrics found in streaming response")
-
-            output_message = json.dumps([_parse_model_output(response) for response in responses])
-            span.set_attributes(dict(_output_value_and_mime_type(output_message)))
+                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
 
 
 def _function_call_attributes(function_call: FunctionCall) -> Iterator[Tuple[str, Any]]:
@@ -1236,5 +1094,3 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
-
-
