@@ -565,8 +565,8 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
                 messages.append(message)
                 
             if messages:
-                for message in messages:
-                    yield LLM_OUTPUT_MESSAGES, safe_json_dumps(message)
+                for i,message in enumerate(messages):
+                    yield f"{LLM_OUTPUT_MESSAGES}.{i}", safe_json_dumps(message)
                     
             yield OUTPUT_VALUE, safe_json_dumps({"messages": messages})
                 
