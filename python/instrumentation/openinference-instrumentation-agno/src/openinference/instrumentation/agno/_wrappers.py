@@ -499,6 +499,7 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
                 )
 
 
+
     messages = arguments.get("messages", [])
     for i, message in enumerate(messages):
         if message.role in ["system", "user", "assistant", "tool"]:
