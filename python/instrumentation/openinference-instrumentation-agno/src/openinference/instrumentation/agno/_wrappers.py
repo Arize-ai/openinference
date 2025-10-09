@@ -288,6 +288,7 @@ class _RunWrapper:
             try:
                 yield from wrapped(*args, **kwargs)
                 if "session" in arguments and arguments.get("session") and len(arguments.get("session").runs) > 0:
+                    print("NUMBER OF RUNS", len(arguments.get("session").runs))
                     for run in arguments.get("session").runs:
                         if run.content:
                             span.set_attribute(OUTPUT_VALUE, run.content)
