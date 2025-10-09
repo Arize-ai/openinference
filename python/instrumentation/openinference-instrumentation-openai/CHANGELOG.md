@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.37...python-openinference-instrumentation-openai-v0.1.38) (2025-10-08)
+
+
+### Bug Fixes
+
+* **openai:** handle string format for image_url in chat completions ([#2213](https://github.com/Arize-ai/openinference/issues/2213)) ([4d09a7e](https://github.com/Arize-ai/openinference/commit/4d09a7ec101a849ca74e36820caaff519ebe610e))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.36...python-openinference-instrumentation-openai-v0.1.37) (2025-10-07)
 
 
