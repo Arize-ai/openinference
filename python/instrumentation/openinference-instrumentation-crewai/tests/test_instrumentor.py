@@ -4,6 +4,7 @@ from typing import Mapping, Sequence, Tuple, cast
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
+from crewai.flow.flow import Flow, listen, start
 from crewai.tools import BaseTool  # type: ignore[import-untyped]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -74,6 +75,19 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
 
+    in_memory_span_exporter.clear()
+
+    basic_flow = kickoff_flow_basic()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span (flow), got {len(spans)}"
+
+    flow_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    assert len(flow_spans) == 1
+    flow_span = flow_spans[0]
+
+    _verify_flow_span(flow_span)
+
 
 def kickoff_crew() -> Tuple[Task, Task]:
     # API key from environment - only used when re-recording the cassette
@@ -123,6 +137,27 @@ def kickoff_crew() -> Tuple[Task, Task]:
     expected = "Albert Einstein"
     assert expected in result, "Expected quote not found in result"
     return analyze_task, scrape_task
+
+
+def kickoff_flow_basic() -> Tuple[Task, Task]:
+    class BasicFlow(Flow):
+
+        @start()
+        def first_method(self):
+            return "Output From First Method"
+
+        @listen(first_method)
+        def second_method(self, first_output):
+            return f"Second Method Received: {first_output}"
+
+
+    flow = BasicFlow()
+    final_output = flow.kickoff().raw
+    assert isinstance(final_output, str)
+
+    expected = "Output From First Method"
+    assert expected in final_output, "Expected quote not found in result"
+    return flow
 
 
 @pytest.mark.vcr(
@@ -183,6 +218,19 @@ def _verify_crew_span(span: ReadableSpan) -> None:
         == OpenInferenceSpanKindValues.CHAIN.value
     )
     # Enhanced naming: expect crew name or fallback pattern
+    assert span.name.endswith(".kickoff"), (
+        f"Expected span name to end with '.kickoff', got: {span.name}"
+    )
+
+
+def _verify_flow_span(span: ReadableSpan) -> None:
+    """Verify the CHAIN span for Flow.kickoff has correct attributes."""
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )
+    # Enhanced naming: expect flow name or fallback pattern
     assert span.name.endswith(".kickoff"), (
         f"Expected span name to end with '.kickoff', got: {span.name}"
     )
