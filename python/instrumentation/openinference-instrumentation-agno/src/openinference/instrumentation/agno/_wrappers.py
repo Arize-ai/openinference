@@ -465,16 +465,30 @@ class _RunWrapper:
 
 def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
 
-    def process_message(idx: int, role: str, content: str) -> Iterator[Tuple[str, Any]]:
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
+    def process_message(idx: int, message: Any) -> Iterator[Tuple[str, Any]]:
+        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", message.role
+        if message.content:
+            yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", message.get_content_string()
+        if message.tool_calls:
+            for tool_call_index, tool_call in enumerate(message.tool_calls):
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
+                    tool_call.get("id"),
+                )
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                    tool_call.get("function", {}).get("name"),
+                )
+                yield (
+                    f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                    safe_json_dumps(tool_call.get("function", {}).get("arguments", {})),
+                )
 
 
     messages = arguments.get("messages", [])
     for i, message in enumerate(messages):
-        role, content = message.role, message.get_content_string()
-        if role in ["system", "user", "assistant"]:
-            yield from process_message(i, role, content)
+        if message.role in ["system", "user", "assistant", "tool"]:
+            yield from process_message(i, message)
     tools = arguments.get("tools", [])
     for tool_index, tool in enumerate(tools):
         yield f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}", safe_json_dumps(tool)
@@ -535,7 +549,9 @@ def _input_value_and_mime_type(arguments: Mapping[str, Any]) -> Iterator[Tuple[s
    
     cleaned_input = []
     for message in arguments.get("messages", []):
-      cleaned_input.append(message.to_dict())    
+        message_dict = message.to_dict()
+        message_dict = {k: v for k, v in message_dict.items() if v is not None}
+        cleaned_input.append(message_dict)    
     yield INPUT_VALUE, safe_json_dumps({"messages": cleaned_input})
 
 
@@ -560,15 +576,12 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
             if tool_calls := output_data.get("tool_calls"):
                 if tool_calls:  # Only include if not empty list
                     message["tool_calls"] = tool_calls
-                
-            if message:
-                messages.append(message)
-                
-            if messages:
-                for i,message in enumerate(messages):
-                    yield f"{LLM_OUTPUT_MESSAGES}.{i}", safe_json_dumps(message)
+
+            messages.append(message)            
+            for i,message in enumerate(messages):
+                yield f"{LLM_OUTPUT_MESSAGES}.{i}", safe_json_dumps(message)
                     
-            yield OUTPUT_VALUE, safe_json_dumps({"messages": messages})
+            yield OUTPUT_VALUE, safe_json_dumps(messages)
                 
     except (json.JSONDecodeError, TypeError):
         # Fall back to the original output if parsing fails
@@ -602,7 +615,6 @@ def _parse_model_output(output: Any) -> str:
             pass
     
     return json.dumps(output) if isinstance(output, dict) else str(output)
-
 
 
 def _parse_model_output_stream(output: Any) -> dict:
@@ -645,7 +657,7 @@ def _parse_model_output_stream(output: Any) -> dict:
             
         messages.append(result_dict)
 
-    return {"messages": messages}
+    return messages
 
 class _ModelWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
@@ -815,6 +827,10 @@ class _ModelWrapper:
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
                     span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
+                    
+                if hasattr(metrics, "total_tokens") and metrics.total_tokens:
+                    span.set_attribute(LLM_TOKEN_COUNT_TOTAL, metrics.total_tokens)
+
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
