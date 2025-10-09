@@ -111,7 +111,6 @@ def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Attribut
 
     if session_id:
         yield SESSION_ID, session_id
-
     if user_id:
         yield USER_ID, user_id
 
