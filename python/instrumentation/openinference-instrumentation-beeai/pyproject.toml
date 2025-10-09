@@ -10,7 +10,7 @@ license = "Apache-2.0"
 authors = [{ name = "IBM Corp." }]
 maintainers = [{name = "Tomas Dvorak", email = "toomas2d@gmail.com"}]
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
@@ -20,6 +20,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "beeai-framework (>=0.1.51,<0.2.0)",
