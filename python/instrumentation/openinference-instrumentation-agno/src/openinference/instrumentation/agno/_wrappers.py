@@ -286,15 +286,21 @@ class _RunWrapper:
             team_token = _setup_team_context(agent, node_id)
 
             try:
-                yield from wrapped(*args, **kwargs)
+                current_run_id = None
+                for response in wrapped(*args, **kwargs):
+                    if hasattr(response, "run_id"):
+                        current_run_id = response.run_id
+                    yield response
                 if "session" in arguments and arguments.get("session") and len(arguments.get("session").runs) > 0:
-                    print("NUMBER OF RUNS", len(arguments.get("session").runs))
                     for run in arguments.get("session").runs:
-                        if run.content:
-                            span.set_attribute(OUTPUT_VALUE, run.content)
+                        if run.run_id == current_run_id and run.content:
+                            if isinstance(run.content, str):
+                                span.set_attribute(OUTPUT_VALUE, run.content)
+                            else:
+                                span.set_attribute(OUTPUT_VALUE, run.content.model_dump_json())
                             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                             span.set_status(trace_api.StatusCode.OK)
-                            continue
+                            break
 
                 else:
                     # Extract session_id from the session object
@@ -426,15 +432,22 @@ class _RunWrapper:
             team_token = _setup_team_context(agent, node_id)
 
             try:
+                current_run_id = None
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
+                    if hasattr(response, "run_id"):
+                        current_run_id = response.run_id
                     yield response
 
                 if arguments.get("session") and len(arguments.get("session").runs) > 0:
                     for run in arguments.get("session").runs:
-                        if run.content:
-                            span.set_attribute(OUTPUT_VALUE, run.content)
+                        if run.run_id == current_run_id and run.content:
+                            if isinstance(run.content, str):
+                                span.set_attribute(OUTPUT_VALUE, run.content)
+                            else:
+                                span.set_attribute(OUTPUT_VALUE, run.content.model_dump_json())
                             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
                             span.set_status(trace_api.StatusCode.OK)
+                            break
 
                 else:
                     # Extract session_id from the session object
