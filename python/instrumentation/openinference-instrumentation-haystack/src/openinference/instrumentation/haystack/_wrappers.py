@@ -82,6 +82,32 @@ class _PipelineRunComponentWrapper:
         return wrapped(*args, **kwargs)
 
 
+class _AsyncPipelineRunComponentWrapper:
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        wrap_component_run_method: Callable[[type[Any], Callable[..., Any]], None],
+    ) -> None:
+        self._tracer = tracer
+        self._wrap_component_run_method = wrap_component_run_method
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        if (component := arguments.get("component")) is not None and (
+            component_instance := component.get("instance")
+        ) is not None:
+            component_cls = component_instance.__class__
+            self._wrap_component_run_method(component_cls, component_instance.run)
+        return await wrapped(*args, **kwargs)
+
+
 class _ComponentRunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -104,77 +130,51 @@ class _ComponentRunWrapper:
         with self._tracer.start_as_current_span(
             name=_get_component_span_name(component_class_name)
         ) as span:
-            span.set_attributes(
-                {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
-            )
-            if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
-                span.set_attributes(
-                    {
-                        **dict(_get_span_kind_attributes(LLM)),
-                        **dict(_get_llm_input_message_attributes(arguments)),
-                    }
-                )
-            elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(
-                    {
-                        **dict(_get_span_kind_attributes(EMBEDDING)),
-                        **dict(_get_embedding_model_attributes(component)),
-                    }
-                )
-            elif component_type is ComponentType.RANKER:
-                span.set_attributes(
-                    {
-                        **dict(_get_span_kind_attributes(RERANKER)),
-                        **dict(_get_reranker_model_attributes(component)),
-                        **dict(_get_reranker_request_attributes(arguments)),
-                    }
-                )
-            elif component_type is ComponentType.RETRIEVER:
-                span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
-            elif component_type is ComponentType.PROMPT_BUILDER:
-                span.set_attributes(
-                    {
-                        **dict(_get_span_kind_attributes(LLM)),
-                        **dict(
-                            _get_llm_prompt_template_attributes_from_prompt_builder(
-                                component, bound_arguments
-                            )
-                        ),
-                    }
-                )
-            elif component_type is ComponentType.UNKNOWN:
-                span.set_attributes(dict(_get_span_kind_attributes(CHAIN)))
-            else:
-                assert_never(component_type)
-
+            component_type = _get_component_type(component)
+            _set_component_runner_request_attributes(span, wrapped, instance, args, kwargs)
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 raise
-            span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
-            span.set_status(trace_api.StatusCode.OK)
-            if component_type is ComponentType.GENERATOR:
-                span.set_attributes(
-                    {
-                        **dict(_get_llm_model_attributes(response)),
-                        **dict(_get_llm_output_message_attributes(response)),
-                        **dict(_get_llm_token_count_attributes(response)),
-                    }
-                )
-            elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
-            elif component_type is ComponentType.RANKER:
-                span.set_attributes(dict(_get_reranker_response_attributes(response)))
-            elif component_type is ComponentType.RETRIEVER:
-                span.set_attributes(dict(_get_retriever_response_attributes(response)))
-            elif component_type is ComponentType.PROMPT_BUILDER:
-                pass
-            elif component_type is ComponentType.UNKNOWN:
-                pass
-            else:
-                assert_never(component_type)
+            _set_component_runner_response_attributes(span, arguments, component_type, response)
+        return response
 
+
+class _AsyncComponentRunWrapper:
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        component = instance
+        component_class_name = _get_component_class_name(component)
+        bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
+        arguments = bound_arguments.arguments
+
+        with self._tracer.start_as_current_span(
+            name=_get_component_span_name(component_class_name)
+        ) as span:
+            component_type = _get_component_type(component)
+            _set_component_runner_request_attributes(span, wrapped, instance, args, kwargs)
+            try:
+                if getattr(instance, "__haystack_supports_async__", False):
+                    response = await wrapped(*args, **kwargs)
+                else:
+                    response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                raise
+            _set_component_runner_response_attributes(span, arguments, component_type, response)
         return response
 
 
@@ -216,6 +216,38 @@ class _PipelineWrapper:
             span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
 
+        return response
+
+class _AsyncPipelineWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: Tuple[Any, ...],
+            kwargs: Mapping[str, Any]
+    ):
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        span_name = "AsyncPipeline.run_async"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes={
+                **dict(get_attributes_from_context()),
+                **dict(_get_span_kind_attributes(CHAIN)),
+                **dict(_get_input_attributes(arguments)),
+            },
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                raise
+            span.set_attributes(dict(_get_output_attributes(response)))
+            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
@@ -745,6 +777,89 @@ def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any
         if accepts_arbitrary_kwargs or key in sig.parameters
     }
     return sig.bind(*args, **valid_kwargs)
+
+def _set_component_runner_request_attributes(
+    span,
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: Tuple[Any, ...],
+    kwargs: Mapping[str, Any]
+):
+    component = instance
+    bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
+    arguments = bound_arguments.arguments
+    span.set_attributes(
+        {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
+    )
+    if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
+        span.set_attributes(
+            {
+                **dict(_get_span_kind_attributes(LLM)),
+                **dict(_get_llm_input_message_attributes(arguments)),
+            }
+        )
+    elif component_type is ComponentType.EMBEDDER:
+        span.set_attributes(
+            {
+                **dict(_get_span_kind_attributes(EMBEDDING)),
+                **dict(_get_embedding_model_attributes(component)),
+            }
+        )
+    elif component_type is ComponentType.RANKER:
+        span.set_attributes(
+            {
+                **dict(_get_span_kind_attributes(RERANKER)),
+                **dict(_get_reranker_model_attributes(component)),
+                **dict(_get_reranker_request_attributes(arguments)),
+            }
+        )
+    elif component_type is ComponentType.RETRIEVER:
+        span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
+    elif component_type is ComponentType.PROMPT_BUILDER:
+        span.set_attributes(
+            {
+                **dict(_get_span_kind_attributes(LLM)),
+                **dict(
+                    _get_llm_prompt_template_attributes_from_prompt_builder(
+                        component, bound_arguments
+                    )
+                ),
+            }
+        )
+    elif component_type is ComponentType.UNKNOWN:
+        span.set_attributes(dict(_get_span_kind_attributes(CHAIN)))
+    else:
+        assert_never(component_type)
+
+
+def _set_component_runner_response_attributes(
+    span,
+    arguments,
+    component_type,
+    response
+):
+    span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
+    span.set_status(trace_api.StatusCode.OK)
+    if component_type is ComponentType.GENERATOR:
+        span.set_attributes(
+            {
+                **dict(_get_llm_model_attributes(response)),
+                **dict(_get_llm_output_message_attributes(response)),
+                **dict(_get_llm_token_count_attributes(response)),
+            }
+        )
+    elif component_type is ComponentType.EMBEDDER:
+        span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
+    elif component_type is ComponentType.RANKER:
+        span.set_attributes(dict(_get_reranker_response_attributes(response)))
+    elif component_type is ComponentType.RETRIEVER:
+        span.set_attributes(dict(_get_retriever_response_attributes(response)))
+    elif component_type is ComponentType.PROMPT_BUILDER:
+        pass
+    elif component_type is ComponentType.UNKNOWN:
+        pass
+    else:
+        assert_never(component_type)
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
