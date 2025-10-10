@@ -77,7 +77,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
     in_memory_span_exporter.clear()
 
-    basic_flow = kickoff_flow_basic()
+    kickoff_flow_basic()
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1, f"Expected 1 span (flow), got {len(spans)}"
@@ -139,7 +139,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
     return analyze_task, scrape_task
 
 
-def kickoff_flow_basic() -> Tuple[Task, Task]:
+def kickoff_flow_basic() -> Flow:
     class BasicFlow(Flow):
         @start()
         def first_method(self):
