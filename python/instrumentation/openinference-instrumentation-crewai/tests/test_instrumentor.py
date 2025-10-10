@@ -141,7 +141,6 @@ def kickoff_crew() -> Tuple[Task, Task]:
 
 def kickoff_flow_basic() -> Tuple[Task, Task]:
     class BasicFlow(Flow):
-
         @start()
         def first_method(self):
             return "Output From First Method"
@@ -149,7 +148,6 @@ def kickoff_flow_basic() -> Tuple[Task, Task]:
         @listen(first_method)
         def second_method(self, first_output):
             return f"Second Method Received: {first_output}"
-
 
     flow = BasicFlow()
     final_output = flow.kickoff().raw

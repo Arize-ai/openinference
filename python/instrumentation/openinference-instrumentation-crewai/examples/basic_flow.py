@@ -29,7 +29,6 @@ os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
 
 
 class BasicFlow(Flow):
-
     @start()
     def first_method(self):
         return "Output From First Method"
