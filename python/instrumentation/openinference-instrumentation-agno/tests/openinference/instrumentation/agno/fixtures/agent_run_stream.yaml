@@ -1,0 +1,106 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"What is 2+2?"}],"model":"gpt-4o-mini","stream":true}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '82'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"2"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"+"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"2"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":" equals"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":" 4"},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"."},"logprobs":null,"finish_reason":null}]}
+
+
+        data: {"id":"chatcmpl-test123","object":"chat.completion.chunk","created":1699999999,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}
+
+
+        data: [DONE]
+
+        '
+    headers:
+      cache-control:
+      - no-cache, must-revalidate
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - 8c123456789abcdef-SJC
+      content-type:
+      - text/plain; charset=utf-8
+      date:
+      - Fri, 10 Oct 2025 10:00:00 GMT
+      openai-model:
+      - gpt-4o-mini-2024-07-18
+      openai-organization:
+      - org-test123
+      openai-processing-ms:
+      - '500'
+      openai-version:
+      - '2020-10-01'
+      server:
+      - cloudflare
+      strict-transport-security:
+      - max-age=15724800; includeSubDomains
+      transfer-encoding:
+      - chunked
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '199950'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 15ms
+      x-request-id:
+      - req_test123456789abcdef
+    status:
+      code: 200
+      message: OK
+version: 1
