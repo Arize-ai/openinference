@@ -92,6 +92,10 @@ async def test_google_adk_instrumentor(
     assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
     assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
     assert agent_run_attributes.pop("output.value", None)
+    assert agent_run_attributes.pop("gen_ai.agent.description", None)
+    assert agent_run_attributes.pop("gen_ai.agent.name", None)
+    assert agent_run_attributes.pop("gen_ai.conversation.id", None)
+    assert agent_run_attributes.pop("gen_ai.operation.name", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
@@ -181,13 +185,13 @@ async def test_google_adk_instrumentor(
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
     assert tool_attributes.pop("gen_ai.operation.name", None) == "execute_tool"
-    assert tool_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
     assert tool_attributes.pop("gen_ai.tool.call.id", None)
     assert (
         tool_attributes.pop("gen_ai.tool.description", None)
         == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
     )
     assert tool_attributes.pop("gen_ai.tool.name", None) == "get_weather"
+    assert tool_attributes.pop("gen_ai.tool.type", None)
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
