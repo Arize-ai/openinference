@@ -8,15 +8,15 @@ import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
-from crewai_tools import SerperDevTool
 from crewai import Agent, Crew, Task
-from crewai.flow.flow import Flow, start, listen
+from crewai.flow.flow import Flow, listen, start
+from crewai_tools import SerperDevTool
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,  # type: ignore[import-not-found]
-)
+    OTLPSpanExporter,
+)  # type: ignore[import-not-found]
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from pydantic import BaseModel, Field
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 
@@ -66,7 +66,8 @@ class MarketResearchFlow(Flow[MarketResearchState]):
         analyst = Agent(
             role="Market Research Analyst",
             goal=f"Research and analyze the market for {product}",
-            backstory="You are an experienced analyst skilled in identifying trends and competitors.",
+            backstory="""You are an experienced analyst skilled.
+            You help in identifying trends and competitors.""",
             tools=[SerperDevTool()],
             verbose=True,
         )
