@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.7...python-openinference-instrumentation-pydantic-ai-v0.1.8) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.6...python-openinference-instrumentation-pydantic-ai-v0.1.7) (2025-10-02)
 
 
