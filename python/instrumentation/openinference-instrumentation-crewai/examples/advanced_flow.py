@@ -138,10 +138,10 @@ class AdvancedFlow(Flow[MarketResearchState]):
                 key_trends=[
                     "Increased adoption of conversational AI in enterprises",
                     "Integration of AI chatbots with CRM platforms",
-                    "Growing use of voice-based assistants"
+                    "Growing use of voice-based assistants",
                 ],
                 market_size="Estimated at $3.5B in 2025, growing 25% annually",
-                competitors=["Drift", "Intercom", "Ada", "Kore.ai"]
+                competitors=["Drift", "Intercom", "Ada", "Kore.ai"],
             )
 
         return {"analysis": analysis_result}
