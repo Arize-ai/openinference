@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.52...python-openinference-instrumentation-langchain-v0.1.53) (2025-10-10)
+
+
+### Bug Fixes
+
+* langchain auto instrumentor supports Python 3.14 ([#2292](https://github.com/Arize-ai/openinference/issues/2292)) ([53b438a](https://github.com/Arize-ai/openinference/commit/53b438acc181b1b482debbf9e9de263951d8c476))
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
 ## [0.1.52](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.51...python-openinference-instrumentation-langchain-v0.1.52) (2025-09-11)
 
 

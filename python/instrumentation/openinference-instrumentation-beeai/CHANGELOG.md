@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.12...python-openinference-instrumentation-beeai-v0.1.13) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.11...python-openinference-instrumentation-beeai-v0.1.12) (2025-10-07)
 
 
