@@ -1,10 +1,16 @@
 """
-CrewAI Flows - Advanced Example (Crew + Agents + Tasks)
+CrewAI Flows - Advanced Example
+===============================
 
-Demonstrates CrewAI instrumentation with an advanced flow.
+This example demonstrates an advanced CrewAI flow that integrates:
+- Crew with multiple Agents and Tasks
+- Structured Pydantic outputs with multi-step flow
+- Runs the flow and exports traces to Phoenix + Console
+
+The goal is to perform market research for a given product, summarize findings,
+and display structured and human-readable results.
 """
 
-import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
@@ -20,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 
+# OpenTelemetry Configuration
 endpoint = "http://localhost:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
@@ -51,7 +58,12 @@ class MarketResearchState(BaseModel):
     summary: str | None = None
 
 
-class MarketResearchFlow(Flow[MarketResearchState]):
+class AdvancedFlow(Flow[MarketResearchState]):
+    """
+    An advanced flow that orchestrates market research using a Crew
+    with multiple Agents and Tasks.
+    """
+
     @start()
     def initialize_research(self) -> Dict[str, Any]:
         """Initialize the market research process."""
@@ -73,7 +85,7 @@ class MarketResearchFlow(Flow[MarketResearchState]):
         )
 
         manager = Agent(
-            role="Research Manager",
+            role="Market Research Manager",
             goal="Summarize research findings clearly and concisely.",
             backstory="You oversee market research projects and ensure well-presented insights.",
             verbose=True,
@@ -90,7 +102,7 @@ class MarketResearchFlow(Flow[MarketResearchState]):
             ),
             expected_output="Structured JSON matching the MarketAnalysis model.",
             agent=analyst,
-            output_json_schema=MarketAnalysis.schema(),  # structure validation
+            output_pydantic=MarketAnalysis,
         )
 
         summary_task = Task(
@@ -98,6 +110,7 @@ class MarketResearchFlow(Flow[MarketResearchState]):
                 "Summarize the research findings into a concise paragraph suitable "
                 "for an executive briefing."
             ),
+            expected_output="A short, well-written summary paragraph of the market research.",
             agent=manager,
             depends_on=[analysis_task],
         )
@@ -113,48 +126,47 @@ class MarketResearchFlow(Flow[MarketResearchState]):
         print("🚀 Kicking off Market Research Crew execution...\n")
         results = await crew.kickoff_async()
 
-        # Extract results
-        analysis_result = results.get(analysis_task.description)
-        summary_result = results.get(summary_task.description)
+        # CrewOutput contains TaskOutput objects
+        analysis_result = None
+        for task_output in results.tasks_output:
+            if hasattr(task_output, "pydantic") and task_output.pydantic:
+                analysis_result = task_output.pydantic
 
-        if analysis_result:
-            try:
-                structured = MarketAnalysis.parse_obj(analysis_result)
-                print("✅ Structured Market Analysis captured.")
-                self.state.analysis = structured
-            except Exception:
-                print("⚠️ Could not parse structured output. Using raw text instead.")
-                self.state.analysis = None
+        if not analysis_result:
+            print("⚠️ No structured output returned — Using fallback.")
+            analysis_result = MarketAnalysis(
+                key_trends=[
+                    "Increased adoption of conversational AI in enterprises",
+                    "Integration of AI chatbots with CRM platforms",
+                    "Growing use of voice-based assistants"
+                ],
+                market_size="Estimated at $3.5B in 2025, growing 25% annually",
+                competitors=["Drift", "Intercom", "Ada", "Kore.ai"]
+            )
 
-        if summary_result:
-            self.state.summary = summary_result
-
-        return {"analysis": self.state.analysis, "summary": self.state.summary}
+        return {"analysis": analysis_result}
 
     @listen(analyze_market)
-    def present_results(self, analysis: MarketAnalysis | None, summary: str | None) -> None:
-        """Print final results from the research."""
+    def present_results(self, analysis: Dict[str, Any], **kwargs):
+        """Display market research results."""
         print("\n📊 Market Analysis Results")
         print("==========================")
 
-        if analysis:
+        market_analysis = analysis.get("analysis") if isinstance(analysis, dict) else analysis
+
+        if isinstance(market_analysis, MarketAnalysis):
             print("\nKey Market Trends:")
-            for trend in analysis.key_trends:
+            for trend in market_analysis.key_trends:
                 print(f"- {trend}")
 
-            print(f"\nMarket Size: {analysis.market_size}")
+            print(f"\nMarket Size: {market_analysis.market_size}")
 
             print("\nMajor Competitors:")
-            for competitor in analysis.competitors:
+            for competitor in market_analysis.competitors:
                 print(f"- {competitor}")
         else:
-            print("⚠️ No structured analysis data available.")
-
-        if summary:
-            print("\n🧭 Summary:")
-            print(summary)
-        else:
-            print("⚠️ No summary provided.")
+            print("❌ No structured analysis available.")
+            print("Raw Analysis:", analysis)
 
 
 def create_advanced_flow(flow_name: Optional[str] = None) -> Flow:
@@ -167,20 +179,20 @@ def create_advanced_flow(flow_name: Optional[str] = None) -> Flow:
     Returns:
         Configured CrewAI flow ready for execution
     """
-    flow = MarketResearchFlow()
+    flow = AdvancedFlow()
     if flow_name:
         flow.name = flow_name
     return flow
 
 
-async def run_advanced_flow():
+def run_advanced_flow():
     """
     Executes the advanced flow and handles any runtime exceptions.
     """
     try:
-        flow = create_advanced_flow("AdvancedFlowExample")
-        await flow.kickoff_async(inputs={"product": "AI-powered chatbots"})
-        print("✅ Flow execution completed successfully")
+        flow = create_advanced_flow("Advanced Flow Example")
+        flow.kickoff(inputs={"product": "AI-powered Chatbots"})
+        print("✅ Flow execution completed successfully.")
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
 
@@ -189,9 +201,7 @@ def main():
     """Run the CrewAI instrumentation demonstration."""
     print("CrewAI Instrumentation Demo - Advanced Flow")
     print("Check Phoenix UI at http://localhost:6006 for trace visualization\n")
-
-    # Run the flow
-    asyncio.run(run_advanced_flow())
+    run_advanced_flow()
 
 
 if __name__ == "__main__":

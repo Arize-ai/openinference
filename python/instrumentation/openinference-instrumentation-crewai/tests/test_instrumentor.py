@@ -1,10 +1,10 @@
 import json
 import os
-from typing import Mapping, Sequence, Tuple, cast
+from typing import Any, Mapping, Sequence, Tuple, cast
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
-from crewai.flow.flow import Flow, listen, start
+from crewai.flow.flow import Flow, listen, start  # type: ignore[import-untyped]
 from crewai.tools import BaseTool  # type: ignore[import-untyped]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -139,14 +139,14 @@ def kickoff_crew() -> Tuple[Task, Task]:
     return analyze_task, scrape_task
 
 
-def kickoff_flow_basic() -> Flow:
-    class BasicFlow(Flow):
+def kickoff_flow_basic() -> Flow[Any]:
+    class BasicFlow(Flow[Any]):
         @start()
-        def first_method(self):
+        def first_method(self) -> str:
             return "Output From First Method"
 
         @listen(first_method)
-        def second_method(self, first_output):
+        def second_method(self, first_output: str) -> str:
             return f"Second Method Received: {first_output}"
 
     flow = BasicFlow()

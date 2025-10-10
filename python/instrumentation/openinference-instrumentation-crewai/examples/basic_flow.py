@@ -1,7 +1,14 @@
 """
 CrewAI Flows - Basic Example
+============================
 
-Demonstrates CrewAI instrumentation with a basic flow.
+A minimal example demonstrating how to define and run
+a simple CrewAI Flow with OpenInference instrumentation.
+
+This script:
+- Initializes an OpenTelemetry tracer
+- Defines a 2-step flow using @start and @listen
+- Runs the flow and exports traces to Phoenix + Console
 """
 
 import os
@@ -16,6 +23,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 
+# OpenTelemetry Configuration
 endpoint = "http://localhost:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
@@ -24,17 +32,19 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 # Disable CrewAI's built-in telemetry
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
-# Make sure to set the OPENAI_API_KEY environment variable
-os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
-
 
 class BasicFlow(Flow):
+    """
+    A simple flow with two sequential steps.
+    Demonstrates data passing between @start and @listen methods.
+    """
+
     @start()
-    def first_method(self):
+    def first_method(self) -> str:
         return "Output From First Method"
 
     @listen(first_method)
-    def second_method(self, first_output):
+    def second_method(self, first_output: str) -> str:
         return f"Second Method Received: {first_output}"
 
 
@@ -59,9 +69,10 @@ def run_basic_flow():
     Executes the basic flow and handles any runtime exceptions.
     """
     try:
-        flow = create_basic_flow("BasicFlowExample")
-        flow.kickoff()
-        print("✅ Flow execution completed successfully")
+        flow = create_basic_flow("Basic Flow Example")
+        inputs = {"topic": "Machine Learning"}
+        flow.kickoff(inputs=inputs)
+        print("✅ Flow execution completed successfully.")
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
 
@@ -70,8 +81,6 @@ def main():
     """Run the CrewAI instrumentation demonstration."""
     print("CrewAI Instrumentation Demo - Basic Flow")
     print("Check Phoenix UI at http://localhost:6006 for trace visualization\n")
-
-    # Run the flow
     run_basic_flow()
 
 
