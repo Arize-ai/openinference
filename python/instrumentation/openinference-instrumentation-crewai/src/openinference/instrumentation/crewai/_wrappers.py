@@ -101,6 +101,23 @@ def _get_crew_name(crew: Any) -> str:
     return "Crew"
 
 
+def _get_flow_name(flow: Any) -> str:
+    """Generate a meaningful flow name for span naming."""
+    # First try to use flow.name attribute (user-friendly name)
+    if hasattr(flow, "name") and flow.name and flow.name.strip():
+        flow_name = str(flow.name).strip()
+        # If it's not just the default "flow", use it
+        if flow_name.lower() != "flow":
+            return flow_name
+
+    # Fallback to Flow with ID
+    if hasattr(flow, "flow_id") and flow.flow_id is not None:
+        return f"Flow_{str(flow.flow_id)}"
+
+    # Final fallback
+    return "Flow"
+
+
 def _get_tool_span_name(
     instance: Any, wrapped: Callable[..., Any], kwargs: Mapping[str, Any]
 ) -> str:
@@ -218,7 +235,7 @@ class _ExecuteCoreWrapper:
         return response
 
 
-class _KickoffWrapper:
+class _CrewKickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -308,6 +325,56 @@ class _KickoffWrapper:
             span.set_attributes(dict(get_output_attributes(crew_output)))
             span.set_attributes(dict(get_attributes_from_context()))
         return crew_output
+
+
+class _FlowKickoffWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            try:
+                flow_output = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
 
 
 class _ToolUseWrapper:
