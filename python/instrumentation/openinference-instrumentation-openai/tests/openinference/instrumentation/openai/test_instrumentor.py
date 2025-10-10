@@ -1818,7 +1818,12 @@ def get_messages() -> List[Dict[str, Any]]:
                 {
                     "role": randstr(),
                     "tool_calls": [
-                        {"function": {"arguments": randstr(), "name": randstr()}} for _ in range(2)
+                        {
+                            "id": randstr(),
+                            "type": "function",
+                            "function": {"arguments": randstr(), "name": randstr()},
+                        }
+                        for _ in range(2)
                     ],
                 }
                 for _ in range(2)
