@@ -140,12 +140,12 @@ def kickoff_crew() -> Tuple[Task, Task]:
 
 
 def kickoff_flow_basic() -> Flow[Any]:
-    class BasicFlow(Flow[Any]):
-        @start()
+    class BasicFlow(Flow[Any]):  # type: ignore[misc]
+        @start()  # type: ignore[misc]
         def first_method(self) -> str:
             return "Output From First Method"
 
-        @listen(first_method)
+        @listen(first_method)  # type: ignore[misc]
         def second_method(self, first_output: str) -> str:
             return f"Second Method Received: {first_output}"
 
