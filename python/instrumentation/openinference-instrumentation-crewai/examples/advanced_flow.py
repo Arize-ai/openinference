@@ -37,6 +37,7 @@ os.environ["SERPER_API_KEY"] = "YOUR_API_KEY"
 
 class MarketAnalysis(BaseModel):
     """Structured schema for market research results."""
+
     key_trends: List[str] = Field(description="List of identified market trends")
     market_size: str = Field(description="Estimated market size")
     competitors: List[str] = Field(description="Major competitors in the market")
@@ -44,6 +45,7 @@ class MarketAnalysis(BaseModel):
 
 class MarketResearchState(BaseModel):
     """Shared state across flow steps."""
+
     product: str = ""
     analysis: MarketAnalysis | None = None
     summary: str | None = None
