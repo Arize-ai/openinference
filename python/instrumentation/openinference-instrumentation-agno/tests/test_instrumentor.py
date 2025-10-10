@@ -143,9 +143,7 @@ def test_agno_team_coordinate_instrumentation(
             name="Finance Agent",
             role="Get financial data",
             model=OpenAIChat(id="gpt-4o-mini"),
-            tools=[
-                YFinanceTools()  # type: ignore
-            ],
+            tools=[YFinanceTools()],
             instructions="Use tables to display data",
         )
 
@@ -230,4 +228,47 @@ def test_agno_team_coordinate_instrumentation(
     # At least one agent span should be present to validate parent-child relationship
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
+    )
+
+
+def test_session_id_streaming_regression(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Regression test: ensure session_id is properly extracted in streaming methods."""
+    with test_vcr.use_cassette(
+        "agent_run_stream.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="Stream Agent",
+            model=OpenAIChat(id="gpt-4o-mini"),
+        )
+
+        # Test streaming with session_id - this should not raise an exception
+        session_id = "test_session_stream"
+        # Use the public run method with stream=True instead of _run_stream
+        stream_result = agent.run("What is 2+2?", session_id=session_id, stream=True)
+
+        # Consume the stream to trigger the instrumentation
+        if hasattr(stream_result, "__iter__"):
+            list(stream_result)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) >= 1
+
+    # Find the streaming span and verify session_id is captured
+    stream_span = None
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        if span.name == "Stream_Agent.run":
+            stream_span = attributes
+            break
+
+    assert stream_span is not None, "Stream agent span should be found"
+    assert stream_span.get("session.id") == session_id, (
+        "Session ID should be properly extracted in streaming methods"
     )
