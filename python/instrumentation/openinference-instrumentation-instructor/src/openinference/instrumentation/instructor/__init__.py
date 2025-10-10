@@ -1,3 +1,4 @@
+import logging
 from importlib import import_module
 from typing import Any, Collection
 
@@ -14,12 +15,15 @@ from openinference.instrumentation.instructor.version import __version__
 
 _instruments = ("instructor >= 0.0.1",)
 
+logger = logging.getLogger(__name__)
+
 
 class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_tracer",
         "_original_handle_response_model",
         "_original_patch",
+        "_patch_module",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -40,12 +44,27 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_patch = getattr(import_module("instructor"), "patch", None)
         patch_wrapper = _PatchWrapper(tracer=self._tracer)
         wrap_function_wrapper("instructor", "patch", patch_wrapper)
-
-        self._original_handle_response_model = getattr(
-            import_module("instructor.patch"), "handle_response_model", None
-        )
+        self._patch_module = "instructor.core.patch"
+        try:
+            self._original_handle_response_model = getattr(
+                import_module(self._patch_module), "handle_response_model", None
+            )
+        except (ModuleNotFoundError, AttributeError):
+            logger.warning("Falling back to instructor.patch for handle_response_model")
+            self._patch_module = "instructor.patch"
+            try:
+                self._original_handle_response_model = getattr(
+                    import_module(self._patch_module), "handle_response_model", None
+                )
+            except (ModuleNotFoundError, AttributeError):
+                # Added this fallback in case the structure of instructor changes again
+                logger.warning(
+                    "Could not find handle_response_model in instructor.patch"
+                    " or instructor.core.patch"
+                )
+                self._original_handle_response_model = None
         process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)
-        wrap_function_wrapper("instructor.patch", "handle_response_model", process_resp_wrapper)
+        wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_patch is not None:
@@ -54,6 +73,6 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_patch = None
 
         if self._original_handle_response_model is not None:
-            patch_module = import_module("instructor.patch")
+            patch_module = import_module(self._patch_module)
             patch_module.handle_response_model = self._original_handle_response_model  # type: ignore[attr-defined]
             self._original_handle_response_model = None
