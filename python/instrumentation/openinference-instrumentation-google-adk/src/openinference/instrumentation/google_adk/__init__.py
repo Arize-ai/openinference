@@ -144,7 +144,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(runners, "tracer", _PassthroughTracer(tracer))
 
-        from google.adk.agents.base_agent import (  # type: ignore[attr-defined]
+        from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
             tracer,  # pyright: ignore[reportPrivateImportUsage]
         )
 
@@ -164,7 +164,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(runners, "tracer", original)
 
-        from google.adk.agents.base_agent import (  # type: ignore[attr-defined]
+        from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
             tracer,  # pyright: ignore[reportPrivateImportUsage]
         )
 
