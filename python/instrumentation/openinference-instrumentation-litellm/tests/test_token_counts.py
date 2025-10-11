@@ -10,6 +10,14 @@ from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import SpanAttributes
 
 
+@pytest.fixture(autouse=True)
+def instrument(
+    tracer_provider: TracerProvider,
+) -> Iterator[None]:
+    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
+    yield
+
+
 class TestTokenCounts:
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -105,16 +113,6 @@ class TestTokenCounts:
             assert (
                 attr.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == usage.cache_read_input_tokens
             )
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Iterator[None]:
-    LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    LiteLLMInstrumentor().uninstrument()
 
 
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

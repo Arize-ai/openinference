@@ -52,7 +52,6 @@ def setup_litellm_instrumentation(
 ) -> Generator[None, None, None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    LiteLLMInstrumentor().uninstrument()
 
 
 class TestInstrumentor:
