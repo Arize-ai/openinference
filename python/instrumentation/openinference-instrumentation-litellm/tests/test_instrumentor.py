@@ -27,6 +27,9 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
 
@@ -821,12 +824,21 @@ def test_embedding(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.name == "embedding"
+    assert span.name == "CreateEmbeddings"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
 
-    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+    assert attributes.get(
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+    ) == (0.1, 0.2, 0.3)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
@@ -858,8 +870,16 @@ def test_embedding_with_invalid_model_triggers_exception_event(
     assert len(spans) == 1, "Expected one span to be recorded"
 
     span = spans[0]
-    assert span.name == "embedding"
+    assert span.name == "CreateEmbeddings"
     assert span.status.status_code == StatusCode.ERROR
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
 
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
@@ -914,12 +934,21 @@ async def test_aembedding(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
-    assert span.name == "aembedding"
+    assert span.name == "CreateEmbeddings"
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
+    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
 
-    assert attributes.get(EmbeddingAttributes.EMBEDDING_VECTOR) == str([0.1, 0.2, 0.3])
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
+    assert attributes.get(
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+    ) == (0.1, 0.2, 0.3)
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 6
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 1
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 6
@@ -951,8 +980,16 @@ async def test_aembedding_with_invalid_model_triggers_exception_event(
     assert len(spans) == 1, "Expected one span to be recorded"
 
     span = spans[0]
-    assert span.name == "aembedding"
+    assert span.name == "CreateEmbeddings"
     assert span.status.status_code == StatusCode.ERROR
+
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "good morning from litellm"
+    )
 
     exception_events = [e for e in span.events if e.name == "exception"]
     assert len(exception_events) == 1, "Expected one exception event to be recorded"
