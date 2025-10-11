@@ -350,7 +350,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 vector = None
                 # Check if it's a list of floats
                 if isinstance(raw_vector, (list, tuple)) and raw_vector:
-                    if isinstance(raw_vector[0], (int, float)):
+                    if all(isinstance(x, (int, float)) for x in raw_vector):
                         vector = tuple(raw_vector)
 
                 if vector:
