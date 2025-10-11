@@ -50,8 +50,8 @@ test_vcr = vcr.VCR(
 
 
 class UserInfo(BaseModel):
-    name: str
-    age: int
+    name: Optional[str] = None
+    age: Optional[int] = None
 
 
 async def extract() -> UserInfo:
