@@ -18,7 +18,9 @@ The possible settings are:
 | OPENINFERENCE_HIDE_PROMPTS                   | Hides LLM prompts (completions API)                                                                                            | bool | False   |
 | OPENINFERENCE_HIDE_OUTPUT_TEXT               | Hides text from output messages (only applies when output messages are not already hidden)                                     | bool | False   |
 | OPENINFERENCE_HIDE_CHOICES                   | Hides LLM choices (completions API outputs)                                                                                    | bool | False   |
-| OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Hides embedding vectors                                                                                                        | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDING_VECTORS         | Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS                                                                          | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS        | Replaces embedding.embeddings.*.embedding.vector values with `"__REDACTED__"`                                                  | bool | False   |
+| OPENINFERENCE_HIDE_EMBEDDINGS_TEXT           | Replaces embedding.embeddings.*.embedding.text values with `"__REDACTED__"`                                                    | bool | False   |
 | OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH        | Limits characters of a base64 encoding of an image                                                                             | int  | 32,000  |
 
 ## Redacted Content
@@ -50,7 +52,8 @@ If you are working in Python, and want to set up a configuration different than 
         hide_input_images=...,
         hide_input_text=...,
         hide_output_text=...,
-        hide_embedding_vectors=...,
+        hide_embeddings_vectors=...,
+        hide_embeddings_text=...,
         base64_image_max_length=...,
         hide_prompts=...,  # Hides LLM prompts (completions API)
         hide_choices=...,  # Hides LLM choices (completions API outputs)

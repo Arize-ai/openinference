@@ -133,7 +133,12 @@ class _WithOpenAI(ABC):
             else OpenInferenceSpanKindValues.LLM.value
         )
 
-    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_attributes_from_instance(
+        self, instance: Any, cast_to: type
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        # Skip provider attribute for embedding spans
+        if cast_to is self._openai.types.CreateEmbeddingResponse:
+            return
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
@@ -153,7 +158,9 @@ class _WithOpenAI(ABC):
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        # Skip system attribute for embedding spans
+        if cast_to is not self._openai.types.CreateEmbeddingResponse:
+            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
@@ -314,7 +321,7 @@ class _Request(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
@@ -375,7 +382,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance),
+                self._get_attributes_from_instance(instance, cast_to=cast_to),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
