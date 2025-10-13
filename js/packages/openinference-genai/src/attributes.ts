@@ -95,7 +95,9 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
 };
 
 // Provider/system
-const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => {
+export const mapProviderAndSystem = (
+  spanAttributes: Attributes,
+): Attributes => {
   const attrs: Attributes = {};
   const provider = getString(spanAttributes[ATTR_GEN_AI_PROVIDER_NAME]);
   if (provider) {
@@ -106,7 +108,7 @@ const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => {
 };
 
 // Model name
-const mapModels = (spanAttributes: Attributes): Attributes => {
+export const mapModels = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const requestModel = getString(spanAttributes[ATTR_GEN_AI_REQUEST_MODEL]);
   const responseModel = getString(spanAttributes[ATTR_GEN_AI_RESPONSE_MODEL]);
@@ -118,7 +120,7 @@ const mapModels = (spanAttributes: Attributes): Attributes => {
 };
 
 // Span kind
-const mapSpanKind = (_spanAttributes: Attributes): Attributes => {
+export const mapSpanKind = (_spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   set(
     attrs,
@@ -129,7 +131,7 @@ const mapSpanKind = (_spanAttributes: Attributes): Attributes => {
 };
 
 // Invocation parameters
-const mapInvocationParameters = (
+export const mapInvocationParameters = (
   spanAttributes: Attributes,
   prefix: string = SemanticConventions.LLM_INVOCATION_PARAMETERS,
 ): Attributes => {
@@ -173,7 +175,7 @@ const mapInvocationParameters = (
 };
 
 // Input messages + input.value
-const mapInputMessagesAndInputValue = (
+export const mapInputMessagesAndInputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
@@ -296,7 +298,7 @@ const mapInputMessagesAndInputValue = (
 };
 
 // Output messages + output.value
-const mapOutputMessagesAndOutputValue = (
+export const mapOutputMessagesAndOutputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
@@ -349,7 +351,7 @@ const mapOutputMessagesAndOutputValue = (
 };
 
 // Token counts
-const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
+export const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const inputTokens = getNumber(spanAttributes[ATTR_GEN_AI_USAGE_INPUT_TOKENS]);
   const outputTokens = getNumber(

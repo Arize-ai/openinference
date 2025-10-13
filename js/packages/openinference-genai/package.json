@@ -16,8 +16,14 @@
     ".": {
       "import": "./dist/esm/index.js"
     },
+    "./attributes": {
+      "import": "./dist/esm/attributes.js"
+    },
     "./utils": {
       "import": "./dist/esm/utils.js"
+    },
+    "./types": {
+      "types": "./dist/esm/types.d.ts"
     }
   },
   "files": [
