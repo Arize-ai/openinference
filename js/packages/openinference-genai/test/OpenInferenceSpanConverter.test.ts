@@ -3,7 +3,7 @@ import openinferenceClientSpanToolCalls from "./__fixtures__/openinference_clien
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "../src/attributes.js";
 
 describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
-  it("should convert OpenAI client span attributes to OpenInference span attributes", () => {
+  it("should convert GenAI OpenAI client span attributes to OpenInference span attributes", () => {
     const convertedAttributes =
       convertGenAISpanAttributesToOpenInferenceSpanAttributes(
         otelGenaiClientSpanToolCalls,
