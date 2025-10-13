@@ -12,6 +12,11 @@ import {
   ATTR_GEN_AI_REQUEST_MAX_TOKENS,
   ATTR_GEN_AI_REQUEST_TEMPERATURE,
   ATTR_GEN_AI_REQUEST_TOP_P,
+  ATTR_GEN_AI_REQUEST_TOP_K,
+  ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY,
+  ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY,
+  ATTR_GEN_AI_REQUEST_STOP_SEQUENCES,
+  ATTR_GEN_AI_REQUEST_SEED,
   ATTR_GEN_AI_INPUT_MESSAGES,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
   ATTR_GEN_AI_RESPONSE_ID,
@@ -46,6 +51,13 @@ const getNumber = (value: unknown): number | undefined => {
 
 const getString = (value: unknown): string | undefined => {
   if (typeof value === "string" && value.length > 0) return value;
+  return undefined;
+};
+
+const getStringArray = (value: unknown): string[] | undefined => {
+  if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+    return value as string[];
+  }
   return undefined;
 };
 
@@ -128,11 +140,30 @@ const mapInvocationParameters = (
     spanAttributes[ATTR_GEN_AI_REQUEST_TEMPERATURE],
   );
   const topP = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_TOP_P]);
+  const topK = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_TOP_K]);
+  const presencePenalty = getNumber(
+    spanAttributes[ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY],
+  );
+  const frequencyPenalty = getNumber(
+    spanAttributes[ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY],
+  );
+  const seed = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_SEED]);
+  const stopSequences = getStringArray(
+    spanAttributes[ATTR_GEN_AI_REQUEST_STOP_SEQUENCES],
+  );
   const invocationParameters: Record<string, unknown> = {};
   if (requestModel) invocationParameters.model = requestModel;
   if (typeof temperature === "number")
     invocationParameters.temperature = temperature;
   if (typeof topP === "number") invocationParameters.top_p = topP;
+  if (typeof topK === "number") invocationParameters.top_k = topK;
+  if (typeof presencePenalty === "number")
+    invocationParameters.presence_penalty = presencePenalty;
+  if (typeof frequencyPenalty === "number")
+    invocationParameters.frequency_penalty = frequencyPenalty;
+  if (typeof seed === "number") invocationParameters.seed = seed;
+  if (stopSequences && stopSequences.length > 0)
+    invocationParameters.stop_sequences = stopSequences;
   if (typeof maxTokens === "number")
     invocationParameters.max_completion_tokens = maxTokens;
   if (Object.keys(invocationParameters).length > 0) {
