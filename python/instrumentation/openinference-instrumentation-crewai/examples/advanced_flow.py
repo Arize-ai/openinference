@@ -132,6 +132,7 @@ class AdvancedFlow(Flow[MarketResearchState]):
             if hasattr(task_output, "pydantic") and task_output.pydantic:
                 analysis_result = task_output.pydantic
 
+        # Fallback if structured output is missing
         if not analysis_result:
             print("⚠️ No structured output returned — Using fallback.")
             analysis_result = MarketAnalysis(
@@ -191,7 +192,12 @@ def run_advanced_flow():
     """
     try:
         flow = create_advanced_flow("Advanced Flow Example")
-        flow.kickoff(inputs={"product": "AI-powered Chatbots"})
+        flow.plot("AdvancedFlowPlot")
+
+        # Inputs are passed here and injected into the @start() method
+        inputs = {"product": "AI-powered Chatbots"}
+
+        flow.kickoff(inputs=inputs)
         print("✅ Flow execution completed successfully.")
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
@@ -205,5 +211,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # Instrument CrewAI with OpenTelemetry before running the flow
     CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
     main()

@@ -56,7 +56,7 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     before_record_response=lambda response: dict(response, headers={}),
 )
 def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -> None:
-    """Test that CrewAI agents and tasks are properly traced."""
+    """Verify spans are generated correctly for CrewAI Crews, Agents, Tasks & Flows."""
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -75,10 +75,10 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
 
+    # Clear spans exporter
     in_memory_span_exporter.clear()
 
-    kickoff_flow_basic()
-
+    kickoff_flow()
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1, f"Expected 1 span (flow), got {len(spans)}"
 
@@ -90,6 +90,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
 
 def kickoff_crew() -> Tuple[Task, Task]:
+    """Initialize a CrewAI setup with a Crew, Agents & Tasks."""
     # API key from environment - only used when re-recording the cassette
     # When using the cassette, the key is not needed
     openai_api_key = os.getenv("OPENAI_API_KEY", "sk-test")
@@ -97,6 +98,8 @@ def kickoff_crew() -> Tuple[Task, Task]:
     llm = LLM(
         model="gpt-4.1-nano", api_key=openai_api_key, temperature=0
     )  # Use a smaller model for tests
+
+    # Define Agents
     scraper_agent = Agent(
         role="Website Scraper",
         goal="Scrape content from URL",
@@ -116,6 +119,8 @@ def kickoff_crew() -> Tuple[Task, Task]:
         max_retry_limit=0,
         verbose=True,
     )
+
+    # Define Tasks
     scrape_task = Task(
         description=f"Use scrape_website tool to get content from {url}.",
         expected_output="Text content from the website.",
@@ -127,6 +132,8 @@ def kickoff_crew() -> Tuple[Task, Task]:
         agent=analyzer_agent,
         context=[scrape_task],
     )
+
+    # Create Crew
     crew = Crew(
         agents=[scraper_agent, analyzer_agent],
         tasks=[scrape_task, analyze_task],
@@ -139,22 +146,25 @@ def kickoff_crew() -> Tuple[Task, Task]:
     return analyze_task, scrape_task
 
 
-def kickoff_flow_basic() -> Flow[Any]:
-    class BasicFlow(Flow[Any]):  # type: ignore[misc]
+def kickoff_flow() -> Flow[Any]:
+    """Initialize a CrewAI setup with a minimal Flow."""
+    class SimpleFlow(Flow[Any]):  # type: ignore[misc]
         @start()  # type: ignore[misc]
-        def first_method(self) -> str:
-            return "Output From First Method"
+        def step_one(self) -> str:
+            """First step that produces an output."""
+            return "Step One Output"
 
-        @listen(first_method)  # type: ignore[misc]
-        def second_method(self, first_output: str) -> str:
-            return f"Second Method Received: {first_output}"
+        @listen(step_one)  # type: ignore[misc]
+        def step_two(self, step_one_output: str) -> str:
+            """Second step that consumes the output from first step."""
+            return f"Step Two Received: {step_one_output}"
 
-    flow = BasicFlow()
-    final_output = flow.kickoff().raw
-    assert isinstance(final_output, str)
+    flow = SimpleFlow()
+    result = flow.kickoff()
+    assert isinstance(result, str)
 
-    expected = "Output From First Method"
-    assert expected in final_output, "Expected quote not found in result"
+    expected = "Step Two Received: Step One Output"
+    assert expected in result, "Expected value not found in result"
     return flow
 
 

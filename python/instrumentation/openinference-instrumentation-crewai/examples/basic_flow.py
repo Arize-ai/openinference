@@ -40,12 +40,18 @@ class BasicFlow(Flow):
     """
 
     @start()
-    def first_method(self) -> str:
-        return "Output From First Method"
+    def fetch_topic(self) -> str:
+        """Initial step to simulate fetching a topic."""
+        topic = self.state.get("topic", "Topic Not Found")
+        print(f"Starting BasicFlow for topic: {topic}")
+        return topic
 
-    @listen(first_method)
-    def second_method(self, first_output: str) -> str:
-        return f"Second Method Received: {first_output}"
+    @listen(fetch_topic)
+    def summarize_topic(self, topic: str) -> str:
+        """Next step to receive the topic and processes it."""
+        summary = f"{topic} is a key domain in modern AI research."
+        print(f"Summary Generated: {summary}")
+        return summary
 
 
 def create_basic_flow(flow_name: Optional[str] = None) -> Flow:
@@ -70,7 +76,11 @@ def run_basic_flow():
     """
     try:
         flow = create_basic_flow("Basic Flow Example")
+        flow.plot("BasicFlowPlot")
+
+        # Inputs are passed here and injected into the @start() method
         inputs = {"topic": "Machine Learning"}
+
         flow.kickoff(inputs=inputs)
         print("✅ Flow execution completed successfully.")
     except Exception as e:
@@ -85,5 +95,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # Instrument CrewAI with OpenTelemetry before running the flow
     CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
     main()
