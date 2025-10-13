@@ -63,22 +63,22 @@ def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: 
     arguments = _strip_method_args(arguments)
 
     # Try to get input from run_response.input.input_content
-    run_response: RunOutput = arguments.get("run_response")
+    run_response: Optional[RunOutput] = arguments.get("run_response")
     if run_response and hasattr(run_response, "input") and run_response.input:
         if hasattr(run_response.input, "input_content") and run_response.input.input_content:
-            return run_response.input.input_content
+            return str(run_response.input.input_content)
 
     # Fallback: try run_messages approach
-    run_messages: RunMessages = arguments.get("run_messages")
+    run_messages: Optional[RunMessages] = arguments.get("run_messages")
     if run_messages and run_messages.user_message:
-        return run_messages.user_message.content
+        return str(run_messages.user_message.content)
 
     return ""
 
 
 def _extract_run_response_output(run_response: RunOutput) -> str:
     if run_response and run_response.content:
-        return run_response.content
+        return str(run_response.content)
     return ""
 
 
@@ -293,10 +293,11 @@ class _RunWrapper:
                     yield response
                 if (
                     "session" in arguments
-                    and arguments.get("session")
-                    and len(arguments.get("session").runs) > 0
+                    and (session := arguments.get("session")) is not None
+                    and hasattr(session, "runs")
+                    and len(session.runs) > 0
                 ):
-                    for run in arguments.get("session").runs:
+                    for run in session.runs:
                         if run.run_id == current_run_id and run.content:
                             if isinstance(run.content, str):
                                 span.set_attribute(OUTPUT_VALUE, run.content)
@@ -442,8 +443,12 @@ class _RunWrapper:
                         current_run_id = response.run_id
                     yield response
 
-                if arguments.get("session") and len(arguments.get("session").runs) > 0:
-                    for run in arguments.get("session").runs:
+                if (
+                    (session := arguments.get("session")) is not None
+                    and hasattr(session, "runs")
+                    and len(session.runs) > 0
+                ):
+                    for run in session.runs:
                         if run.run_id == current_run_id and run.content:
                             if isinstance(run.content, str):
                                 span.set_attribute(OUTPUT_VALUE, run.content)
@@ -633,10 +638,10 @@ def _parse_model_output(output: Any) -> str:
     return json.dumps(output) if isinstance(output, dict) else str(output)
 
 
-def _parse_model_output_stream(output: Any) -> dict:
+def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
     # Accumulate all content and tool calls across chunks
     accumulated_content = ""
-    all_tool_calls = []
+    all_tool_calls: list[Dict[str, Any]] = []
 
     for chunk in output:
         # Accumulate content from this chunk
@@ -656,7 +661,7 @@ def _parse_model_output_stream(output: Any) -> dict:
                     all_tool_calls.append(tool_call_dict)
 
     # Create single message with accumulated content and all tool calls
-    messages = []
+    messages: list[Dict[str, Any]] = []
     if accumulated_content or all_tool_calls:
         result_dict = {"role": "assistant"}
 
@@ -668,7 +673,7 @@ def _parse_model_output_stream(output: Any) -> dict:
 
         messages.append(result_dict)
 
-    return messages
+    return {"messages": messages}
 
 
 class _ModelWrapper:
@@ -764,8 +769,8 @@ class _ModelWrapper:
                 responses.append(chunk)
                 yield chunk
 
-            output_message = _parse_model_output_stream(responses)
-            output_message = json.dumps(output_message)
+            output_message_dict = _parse_model_output_stream(responses)
+            output_message = json.dumps(output_message_dict)
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
 
@@ -893,8 +898,8 @@ class _ModelWrapper:
                 responses.append(chunk)
                 yield chunk
 
-            output_message = _parse_model_output_stream(responses)
-            output_message = json.dumps(output_message)
+            output_message_dict = _parse_model_output_stream(responses)
+            output_message = json.dumps(output_message_dict)
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
 
