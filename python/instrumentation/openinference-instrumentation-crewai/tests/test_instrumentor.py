@@ -148,6 +148,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
 
 def kickoff_flow() -> Flow[Any]:
     """Initialize a CrewAI setup with a minimal Flow."""
+
     class SimpleFlow(Flow[Any]):  # type: ignore[misc]
         @start()  # type: ignore[misc]
         def step_one(self) -> str:
