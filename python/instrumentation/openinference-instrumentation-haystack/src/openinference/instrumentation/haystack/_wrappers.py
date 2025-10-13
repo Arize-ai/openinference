@@ -83,6 +83,10 @@ class _PipelineRunComponentWrapper:
 
 
 class _AsyncPipelineRunComponentWrapper:
+    """
+    Asynchronous wrapper for pipeline component execution.
+    Ensures that both async and sync run methods of a component are wrapped for tracing.
+    """
 
     def __init__(
         self,
@@ -104,7 +108,10 @@ class _AsyncPipelineRunComponentWrapper:
             component_instance := component.get("instance")
         ) is not None:
             component_cls = component_instance.__class__
-            self._wrap_component_run_method(component_cls, component_instance.run)
+            if run_method := getattr(component_instance, "run_async", None):
+                self._wrap_component_run_method(component_cls, run_method)
+            if run_method := getattr(component_instance, "run", None):
+                self._wrap_component_run_method(component_cls, run_method)
         return await wrapped(*args, **kwargs)
 
 
@@ -142,6 +149,10 @@ class _ComponentRunWrapper:
 
 
 class _AsyncComponentRunWrapper:
+    """
+    Asynchronous wrapper for individual component execution.
+    Creates a tracing span for the component run and sets request/response attributes.
+    """
 
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -154,7 +165,7 @@ class _AsyncComponentRunWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
 
         component = instance
         component_class_name = _get_component_class_name(component)
@@ -167,15 +178,12 @@ class _AsyncComponentRunWrapper:
             component_type = _get_component_type(component)
             _set_component_runner_request_attributes(span, wrapped, instance, args, kwargs)
             try:
-                if getattr(instance, "__haystack_supports_async__", False):
-                    response = await wrapped(*args, **kwargs)
-                else:
-                    response = wrapped(*args, **kwargs)
+                result = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 raise
-            _set_component_runner_response_attributes(span, arguments, component_type, response)
-        return response
+            _set_component_runner_response_attributes(span, arguments, component_type, result)
+        return result
 
 
 class _PipelineWrapper:
@@ -198,8 +206,7 @@ class _PipelineWrapper:
             return wrapped(*args, **kwargs)
 
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
-
-        span_name = "Pipeline.run"
+        span_name = f"{str(instance.__class__.__name__)}.run"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -218,19 +225,27 @@ class _PipelineWrapper:
 
         return response
 
+
 class _AsyncPipelineWrapper:
+    """
+    Asynchronous wrapper for pipeline execution.
+    Captures all async calls to the pipeline and records tracing information, including
+    input/output attributes.
+    """
+
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
     async def __call__(
-            self,
-            wrapped: Callable[..., Any],
-            instance: Any,
-            args: Tuple[Any, ...],
-            kwargs: Mapping[str, Any]
-    ):
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
+
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
         span_name = "AsyncPipeline.run_async"
         with self._tracer.start_as_current_span(
@@ -248,7 +263,56 @@ class _AsyncPipelineWrapper:
                 raise
             span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
+
         return response
+
+
+class _AsyncPipelineRunAsyncGeneratorWrapper:
+    """
+    Asynchronous wrapper for pipeline run methods that return async generators.
+    Traces the generator execution and records the last yielded output as the span output.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            async for item in wrapped(*args, **kwargs):
+                yield item
+            return
+
+        arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
+        span_name = f"{str(instance.__class__.__name__)}.run_async_generator"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes={
+                **dict(get_attributes_from_context()),
+                **dict(_get_span_kind_attributes(CHAIN)),
+                **dict(_get_input_attributes(arguments)),
+            },
+        ) as span:
+            try:
+                # Generator object yields from AsyncPipeline.
+                output = None
+                async for item in wrapped(*args, **kwargs):
+                    output = item
+                    yield item
+                # TODO: Yet to decide what needs to be set as output for this span.
+                # as of now, setting the last item yielded by the generator.
+                if output:
+                    span.set_attributes(dict(_get_output_attributes(output)))
+                span.set_status(trace_api.StatusCode.OK)
+
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                raise
 
 
 class ComponentType(Enum):
@@ -778,13 +842,18 @@ def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any
     }
     return sig.bind(*args, **valid_kwargs)
 
+
 def _set_component_runner_request_attributes(
-    span,
+    span: trace_api.Span,
     wrapped: Callable[..., Any],
     instance: Any,
     args: Tuple[Any, ...],
-    kwargs: Mapping[str, Any]
-):
+    kwargs: Mapping[str, Any],
+) -> None:
+    """
+    Sets tracing span attributes for a component runner's request.
+    Attributes are set based on the component type and input arguments.
+    """
     component = instance
     bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
     arguments = bound_arguments.arguments
@@ -833,11 +902,15 @@ def _set_component_runner_request_attributes(
 
 
 def _set_component_runner_response_attributes(
-    span,
-    arguments,
-    component_type,
-    response
-):
+    span: trace_api.Span,
+    arguments: Mapping[str, Any],
+    component_type: ComponentType,
+    response: Mapping[str, Any],
+) -> None:
+    """
+    Sets tracing span attributes for a component runner's response.
+    Attributes are set based on the component type and the response object.
+    """
     span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
     span.set_status(trace_api.StatusCode.OK)
     if component_type is ComponentType.GENERATOR:

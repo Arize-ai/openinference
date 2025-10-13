@@ -1,6 +1,4 @@
-import asyncio
-
-from haystack import AsyncPipeline, Document
+from haystack import Document, Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
@@ -50,13 +48,14 @@ retriever = InMemoryBM25Retriever(document_store=document_store)
 prompt_builder = ChatPromptBuilder(template=prompt_template)
 llm = OpenAIChatGenerator()
 
-rag_pipeline = AsyncPipeline()
+rag_pipeline = Pipeline()
 rag_pipeline.add_component("retriever", retriever)
 rag_pipeline.add_component("prompt_builder", prompt_builder)
 rag_pipeline.add_component("llm", llm)
 rag_pipeline.connect("retriever", "prompt_builder.documents")
 rag_pipeline.connect("prompt_builder", "llm")
 
+# Prepare input data
 question = "Who lives in Paris?"
 data = {
     "retriever": {"query": question},
@@ -64,32 +63,11 @@ data = {
 }
 
 
-async def pipeline_run_async_generator():
-    async for partial_output in rag_pipeline.run_async_generator(
-        data=data, include_outputs_from={"retriever", "llm"}
-    ):
-        if "retriever" in partial_output:
-            print("Retrieved documents:", len(partial_output["retriever"]["documents"]))
-        if "llm" in partial_output:
-            print("Generated answer:", partial_output["llm"]["replies"][0])
-
-
-async def pipeline_run_async():
-    response = await rag_pipeline.run_async(data=data, include_outputs_from={"retriever", "llm"})
-    print(response)
-
-
-def async_pipeline_run():
-    results = rag_pipeline.run(
-        {
-            "retriever": {"query": question},
-            "prompt_builder": {"question": question},
-        }
-    )
-    print(results)
+# Process results as they become available
+def process_results():
+    resp = rag_pipeline.run(data=data, include_outputs_from={"retriever", "llm"})
+    print(resp)
 
 
 if __name__ == "__main__":
-    async_pipeline_run()
-    asyncio.run(pipeline_run_async())
-    asyncio.run(pipeline_run_async_generator())
+    process_results()
