@@ -663,7 +663,7 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
     # Create single message with accumulated content and all tool calls
     messages: list[Dict[str, Any]] = []
     if accumulated_content or all_tool_calls:
-        result_dict = {"role": "assistant"}
+        result_dict: Dict[str, Any] = {"role": "assistant"}
 
         if accumulated_content:
             result_dict["content"] = accumulated_content
