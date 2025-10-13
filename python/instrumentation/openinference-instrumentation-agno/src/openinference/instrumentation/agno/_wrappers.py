@@ -769,7 +769,7 @@ class _ModelWrapper:
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
 
-            # Find the final response with complete metrics (usually the last one with response_usage)
+            # Find the final response with complete metrics (last one with response_usage)
             final_response_with_metrics = None
             for response in reversed(responses):  # Check from last to first
                 if hasattr(response, "response_usage") and response.response_usage:
@@ -898,7 +898,7 @@ class _ModelWrapper:
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_attribute(OUTPUT_VALUE, output_message)
 
-            # Find the final response with complete metrics (usually the last one with response_usage)
+            # Find the final response with complete metrics (last one with response_usage)
             final_response_with_metrics = None
             for response in reversed(responses):  # Check from last to first
                 if hasattr(response, "response_usage") and response.response_usage:
