@@ -10,7 +10,6 @@ This package provides a set of utilities to convert [OpenTelemetry GenAI](https:
 npm install --save @arizeai/openinference-genai
 ```
 
-
 ## Usage
 
 todo

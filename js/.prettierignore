@@ -1,5 +1,6 @@
 pnpm-lock.yaml
 dist
+.mastra
 .next
 __snapshots__
 __fixtures__
