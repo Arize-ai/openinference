@@ -92,7 +92,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         def wrap_component_run_method(
             component_cls: type[Any], run_method: Callable[..., Any]
         ) -> None:
-            # To avoid double wrapping, we only wrap the "run" method here.
+            # To avoid double wrapping, we only wrap the class bound "run" method here.
             class_method = getattr(component_cls, "run")
             if component_cls not in self._original_component_run_methods:
                 self._original_component_run_methods[component_cls] = class_method
@@ -177,8 +177,5 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 staticmethod(self._original_async_pipeline_run_component_async),
             )
 
-        for (
-            component_cls,
-            original_run_method,
-        ) in self._original_component_run_async_methods.items():
-            setattr(component_cls, original_run_method.__name__, original_run_method)
+        for component_cls, original_run_mt in self._original_component_run_async_methods.items():
+            setattr(component_cls, "run_async", original_run_mt)

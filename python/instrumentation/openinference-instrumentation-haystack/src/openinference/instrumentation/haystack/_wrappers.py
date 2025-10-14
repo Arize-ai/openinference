@@ -247,7 +247,7 @@ class _AsyncPipelineWrapper:
             return await wrapped(*args, **kwargs)
 
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
-        span_name = "AsyncPipeline.run_async"
+        span_name = f"{str(instance.__class__.__name__)}.run_async"
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
