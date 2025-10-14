@@ -1070,7 +1070,7 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
         if arguments := getattr(function, "arguments", None):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
-            elif isinstance(arguments, dict):
+            else:
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 

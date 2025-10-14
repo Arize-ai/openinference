@@ -54,32 +54,5 @@ async def run_async():
     print(resp)
 
 
-async def run():
-    print("Started RUN Method....")
-    llm = Ollama(
-        model="gpt-oss:20b",
-        request_timeout=360,
-        thinking=True,
-        temperature=1.0,
-        # Supports up to 130K tokens, lowering to save memory
-        context_window=8000,
-    )
-
-    resp_gen = await llm.astream_complete("What is 1234 * 5678?")
-
-    still_thinking = True
-    print("====== THINKING ======")
-    async for chunk in resp_gen:
-        if still_thinking and chunk.additional_kwargs.get("thinking_delta"):
-            print(chunk.additional_kwargs["thinking_delta"], end="", flush=True)
-        elif still_thinking:
-            still_thinking = False
-            print("\n====== ANSWER ======")
-
-        if not still_thinking:
-            print(chunk.delta, end="", flush=True)
-
-
 if __name__ == "__main__":
-    # asyncio.run(run())
     asyncio.run(run_async())
