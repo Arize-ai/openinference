@@ -357,6 +357,7 @@ export const mapOutputMessagesAndOutputValue = (
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
     const first = genAIOutputMessages[0];
+    if (!first) return attrs;
     const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, first.role);
     const content = first.parts?.find((p) => p.type === "text")?.content;
