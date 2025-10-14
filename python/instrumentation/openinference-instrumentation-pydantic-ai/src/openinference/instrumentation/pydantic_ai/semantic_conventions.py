@@ -74,11 +74,13 @@ class GenAIMessageRoles:
 class GenAIMessagePartFields:
     TYPE = "type"
     CONTENT = "content"
+    RESULT = "result"
 
 
 class GenAIMessagePartTypes:
     TEXT = "text"
     TOOL_CALL = "tool_call"
+    TOOL_CALL_RESPONSE = "tool_call_response"
 
 
 class GenAIToolCallFields:
@@ -725,6 +727,20 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         if GenAIToolCallFields.ID in part:
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}",
+                                                part[GenAIToolCallFields.ID],
+                                            )
+                                    elif (
+                                        part.get(GenAIMessagePartFields.TYPE)
+                                        == GenAIMessagePartTypes.TOOL_CALL_RESPONSE
+                                    ):
+                                        if GenAIMessagePartFields.RESULT in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
+                                                part[GenAIMessagePartFields.RESULT],
+                                            )
+                                        if GenAIToolCallFields.ID in part:
+                                            yield (
+                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}",
                                                 part[GenAIToolCallFields.ID],
                                             )
                         msg_index += 1
