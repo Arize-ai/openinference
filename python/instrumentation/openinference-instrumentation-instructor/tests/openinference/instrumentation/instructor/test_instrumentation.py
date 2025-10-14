@@ -50,19 +50,20 @@ test_vcr = vcr.VCR(
 
 
 class UserInfo(BaseModel):
-    name: str
-    age: int
+    name: Optional[str] = None
+    age: Optional[int] = None
 
 
 async def extract() -> UserInfo:
     client = instructor.from_openai(openai.AsyncOpenAI())
-    return await client.chat.completions.create(
+    user_info: UserInfo = await client.chat.completions.create(
         model="gpt-4-turbo-preview",
         messages=[
             {"role": "user", "content": "Create a user"},
         ],
         response_model=UserInfo,
     )
+    return user_info
 
 
 class TestInstrumentor:
