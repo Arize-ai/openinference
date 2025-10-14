@@ -651,12 +651,13 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
         # Collect tool calls from this chunk
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
-                if tool_call.id:
-                    tool_call_dict = {"id": tool_call.id, "type": tool_call.type}
-                    if hasattr(tool_call, "function"):
+                if tool_call.get("id"):
+                    tool_call_dict = {"id": tool_call.get("id"), "type": tool_call.get("type")}
+                    if tool_call.get("function"):
+                        function_data = tool_call.get("function", {})
                         tool_call_dict["function"] = {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments,
+                            "name": function_data.get("name"),
+                            "arguments": function_data.get("arguments"),
                         }
                     all_tool_calls.append(tool_call_dict)
 
@@ -720,17 +721,21 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                    )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                    )
 
             return response
 
@@ -787,17 +792,21 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                    )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                    )
 
     async def arun(
         self,
@@ -849,12 +858,12 @@ class _ModelWrapper:
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
                     )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -916,17 +925,21 @@ class _ModelWrapper:
 
                 # Set token usage attributes
                 if hasattr(metrics, "input_tokens") and metrics.input_tokens:
-                    span.set_attribute("llm.token_count.prompt", metrics.input_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_PROMPT, metrics.input_tokens)
 
                 if hasattr(metrics, "output_tokens") and metrics.output_tokens:
-                    span.set_attribute("llm.token_count.completion", metrics.output_tokens)
+                    span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, metrics.output_tokens)
 
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
-                    span.set_attribute("llm.token_count.cache_read", metrics.cache_read_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                    )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
-                    span.set_attribute("llm.token_count.cache_write", metrics.cache_write_tokens)
+                    span.set_attribute(
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                    )
 
 
 def _function_call_attributes(function_call: FunctionCall) -> Iterator[Tuple[str, Any]]:
@@ -1105,8 +1118,7 @@ TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUME
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 
-# token count attributes
-LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_COST_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_READ
-LLM_COST_PROMPT_DETAILS_CACHE_WRITE = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_WRITE
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
