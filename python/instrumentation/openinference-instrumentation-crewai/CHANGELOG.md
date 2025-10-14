@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.13...python-openinference-instrumentation-crewai-v0.1.14) (2025-10-14)
+
+
+### Features
+
+* **crewai:** Enable Tracing Support For CrewAI Flows ([#2286](https://github.com/Arize-ai/openinference/issues/2286)) ([4930cb1](https://github.com/Arize-ai/openinference/commit/4930cb11f86845b10b02ed2cab03c63880419915))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.12...python-openinference-instrumentation-crewai-v0.1.13) (2025-09-15)
 
 
