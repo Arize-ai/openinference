@@ -64,7 +64,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)
-        self._original_flow_kickoff_async = getattr(import_module("crewai").Flow, "kickoff_async", None)
+        self._original_flow_kickoff_async = getattr(
+            import_module("crewai").Flow, "kickoff_async", None
+        )
         wrap_function_wrapper(
             module="crewai",
             name="Flow.kickoff_async",
