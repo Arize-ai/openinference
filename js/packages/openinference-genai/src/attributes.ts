@@ -212,6 +212,7 @@ export const mapInputMessagesAndInputValue = (
     genAIInputMessages.forEach((msg, msgIndex) => {
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
+      if (!msg.parts || !Array.isArray(msg.parts)) return;
       if (msg.role === "user") {
         const textPart = msg.parts.find((p) => p.type === "text") as
           | Extract<GenAIInputMessagePart, { type: "text" }>
