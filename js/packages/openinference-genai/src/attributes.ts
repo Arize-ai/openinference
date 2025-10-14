@@ -25,6 +25,9 @@ import {
   ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
   ATTR_GEN_AI_PROMPT,
   ATTR_GEN_AI_COMPLETION,
+  ATTR_GEN_AI_AGENT_ID,
+  ATTR_GEN_AI_AGENT_NAME,
+  ATTR_GEN_AI_AGENT_DESCRIPTION,
 } from "@opentelemetry/semantic-conventions/incubating";
 import { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
 import { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
@@ -36,6 +39,12 @@ export type GenAIOutputMessage = OutputMessage & {
   text?: string;
 };
 export type GenAIOutputMessagePart = OutputMessage["parts"][number];
+
+const AGENT_KIND_PREFIXES = [
+  ATTR_GEN_AI_AGENT_ID,
+  ATTR_GEN_AI_AGENT_NAME,
+  ATTR_GEN_AI_AGENT_DESCRIPTION,
+] as const;
 
 const getNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -115,11 +124,15 @@ export const mapModels = (spanAttributes: Attributes): Attributes => {
 // Span kind
 export const mapSpanKind = (_spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  set(
-    attrs,
-    SemanticConventions.OPENINFERENCE_SPAN_KIND,
-    OpenInferenceSpanKind.LLM,
-  );
+  // default to LLM for now
+  let spanKind = OpenInferenceSpanKind.LLM;
+  // detect agent kind
+  if (AGENT_KIND_PREFIXES.some((prefix) => _spanAttributes[prefix])) {
+    spanKind = OpenInferenceSpanKind.AGENT;
+  }
+
+  set(attrs, SemanticConventions.OPENINFERENCE_SPAN_KIND, spanKind);
+
   return attrs;
 };
 
