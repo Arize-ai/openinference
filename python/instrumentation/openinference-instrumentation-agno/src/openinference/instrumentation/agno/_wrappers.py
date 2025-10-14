@@ -728,12 +728,12 @@ class _ModelWrapper:
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
                     )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
             return response
@@ -799,12 +799,12 @@ class _ModelWrapper:
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
                     )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
     async def arun(
@@ -857,12 +857,12 @@ class _ModelWrapper:
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
                     )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -932,12 +932,12 @@ class _ModelWrapper:
                 # Set cache-related tokens if available
                 if hasattr(metrics, "cache_read_tokens") and metrics.cache_read_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, metrics.cache_read_tokens
                     )
 
                 if hasattr(metrics, "cache_write_tokens") and metrics.cache_write_tokens:
                     span.set_attribute(
-                        LLM_COST_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
+                        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, metrics.cache_write_tokens
                     )
 
 
@@ -1117,5 +1117,9 @@ TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUME
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 
-LLM_COST_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_READ
-LLM_COST_PROMPT_DETAILS_CACHE_WRITE = SpanAttributes.LLM_COST_PROMPT_DETAILS_CACHE_WRITE
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+)
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
+    SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
+)
