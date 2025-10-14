@@ -292,6 +292,14 @@ export const mapInputMessagesAndInputValue = (
       safelyJSONStringify(inputValue),
     );
     set(attrs, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
+  } else {
+    // we could not parse out input messages, just jsonify the input value
+    set(
+      attrs,
+      SemanticConventions.INPUT_VALUE,
+      safelyJSONStringify(genAIInputMessages),
+    );
+    set(attrs, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
   }
   return attrs;
 };
@@ -357,6 +365,14 @@ export const mapOutputMessagesAndOutputValue = (
       attrs,
       SemanticConventions.OUTPUT_VALUE,
       safelyJSONStringify(outputValue),
+    );
+    set(attrs, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
+  } else {
+    // we could not parse out output messages, just jsonify the output value
+    set(
+      attrs,
+      SemanticConventions.OUTPUT_VALUE,
+      safelyJSONStringify(genAIOutputMessages),
     );
     set(attrs, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
   }
