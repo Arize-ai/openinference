@@ -681,12 +681,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                 input_messages = json.loads(input_messages_str)
                 if isinstance(input_messages, list):
                     for msg in input_messages:
-                        if GenAIMessageFields.ROLE in msg:
-                            yield (
-                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_ROLE}",
-                                msg[GenAIMessageFields.ROLE],
-                            )
-
+                        message_role = None
                         # Extract content from parts
                         if GenAIMessageFields.PARTS in msg and isinstance(
                             msg[GenAIMessageFields.PARTS], list
@@ -733,6 +728,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         part.get(GenAIMessagePartFields.TYPE)
                                         == GenAIMessagePartTypes.TOOL_CALL_RESPONSE
                                     ):
+                                        message_role = GenAIMessageRoles.TOOL
                                         if GenAIMessagePartFields.RESULT in part:
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENT}",
@@ -743,6 +739,19 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}",
                                                 part[GenAIToolCallFields.ID],
                                             )
+                        if GenAIMessageFields.ROLE in msg:
+                            # Special case as tool results seem to come in as user roles when
+                            # they should be tool roles
+                            if message_role is not None:
+                                yield (
+                                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_ROLE}",
+                                    message_role,
+                                )
+                            else:
+                                yield (
+                                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_ROLE}",
+                                    msg[GenAIMessageFields.ROLE],
+                                )
                         msg_index += 1
             except json.JSONDecodeError:
                 pass
