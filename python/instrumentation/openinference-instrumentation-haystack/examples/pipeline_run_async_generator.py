@@ -18,10 +18,8 @@ tracer_provider = trace_sdk.TracerProvider()
 trace_api.set_tracer_provider(tracer_provider)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 
-# Instrument the Haystack application
 HaystackInstrumentor().instrument()
 
-# Write documents to InMemoryDocumentStore
 document_store = InMemoryDocumentStore()
 document_store.write_documents(
     [

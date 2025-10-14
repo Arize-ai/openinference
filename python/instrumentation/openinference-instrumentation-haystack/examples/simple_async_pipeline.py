@@ -37,5 +37,5 @@ async def run_async():
 
 
 if __name__ == "__main__":
-    # run()
+    run()
     asyncio.run(run_async())
