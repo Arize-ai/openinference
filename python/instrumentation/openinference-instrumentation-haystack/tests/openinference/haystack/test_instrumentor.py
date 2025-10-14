@@ -669,7 +669,6 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
 
 
 @pytest.mark.vcr(
-    record_mode="new_episodes",
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
