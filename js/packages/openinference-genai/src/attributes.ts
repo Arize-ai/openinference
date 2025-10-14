@@ -26,28 +26,16 @@ import {
   ATTR_GEN_AI_PROMPT,
   ATTR_GEN_AI_COMPLETION,
 } from "@opentelemetry/semantic-conventions/incubating";
+import { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
+import { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
 
-type GenAIMessagePart =
-  | { type: "text"; content: string }
-  | {
-      type: "tool_call";
-      id?: string;
-      name: string;
-      arguments: unknown;
-    }
-  | {
-      type: "tool_call_response";
-      id?: string;
-      response: string;
-    };
-
-type GenAIMessage = {
-  role: "user" | "assistant" | "tool";
-  parts: GenAIMessagePart[];
-  finish_reason?: string;
+export type GenAIInputMessage = ChatMessage;
+export type GenAIInputMessagePart = ChatMessage["parts"][number];
+export type GenAIOutputMessage = OutputMessage & {
   /** @deprecated use parts instead */
   text?: string;
 };
+export type GenAIOutputMessagePart = OutputMessage["parts"][number];
 
 const getNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -184,12 +172,12 @@ export const mapInputMessagesAndInputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
-  let genAIInputMessages = parseJSON<GenAIMessage[]>(
+  let genAIInputMessages = parseJSON<GenAIInputMessage[]>(
     spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES],
   );
   if (!genAIInputMessages) {
     // fallback to deprecated prompt attribute if input messages are not present
-    genAIInputMessages = parseJSON<GenAIMessage[]>(
+    genAIInputMessages = parseJSON<GenAIInputMessage[]>(
       spanAttributes[ATTR_GEN_AI_PROMPT],
     );
   }
@@ -213,7 +201,7 @@ export const mapInputMessagesAndInputValue = (
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       if (msg.role === "user") {
         const textPart = msg.parts.find((p) => p.type === "text") as
-          | Extract<GenAIMessagePart, { type: "text" }>
+          | Extract<GenAIInputMessagePart, { type: "text" }>
           | undefined;
         if (textPart) {
           set(
@@ -264,7 +252,7 @@ export const mapInputMessagesAndInputValue = (
         const responsePart = msg.parts.find(
           (p) => p.type === "tool_call_response",
         ) as
-          | Extract<GenAIMessagePart, { type: "tool_call_response" }>
+          | Extract<GenAIInputMessagePart, { type: "tool_call_response" }>
           | undefined;
         if (responsePart) {
           set(
@@ -313,12 +301,12 @@ export const mapOutputMessagesAndOutputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
-  let genAIOutputMessages = parseJSON<GenAIMessage[] | GenAIMessage>(
-    spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES],
-  );
+  let genAIOutputMessages = parseJSON<
+    GenAIOutputMessage[] | GenAIOutputMessage
+  >(spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
   if (!genAIOutputMessages) {
     // fallback to deprecated completion attribute if output messages are not present
-    genAIOutputMessages = parseJSON<GenAIMessage>(
+    genAIOutputMessages = parseJSON<GenAIOutputMessage>(
       spanAttributes[ATTR_GEN_AI_COMPLETION],
     );
   }
@@ -338,10 +326,10 @@ export const mapOutputMessagesAndOutputValue = (
   // handle the deprecated completion attribute
   // if we have a single output completion message, simulate an array of messages
   if (!Array.isArray(genAIOutputMessages) && genAIOutputMessages) {
-    const outputValue: GenAIMessage = {
+    const outputValue: GenAIOutputMessage = {
       role: "assistant",
       parts: [{ type: "text", content: genAIOutputMessages.text ?? "" }],
-      finish_reason: finishReason,
+      finish_reason: finishReason ?? "",
     };
     genAIOutputMessages = [outputValue];
   }
