@@ -23,6 +23,8 @@ import {
   ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
   ATTR_GEN_AI_USAGE_INPUT_TOKENS,
   ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+  ATTR_GEN_AI_PROMPT,
+  ATTR_GEN_AI_COMPLETION,
 } from "@opentelemetry/semantic-conventions/incubating";
 
 type GenAIMessagePart =
@@ -42,6 +44,9 @@ type GenAIMessagePart =
 type GenAIMessage = {
   role: "user" | "assistant" | "tool";
   parts: GenAIMessagePart[];
+  finish_reason?: string;
+  /** @deprecated use parts instead */
+  text?: string;
 };
 
 const getNumber = (value: unknown): number | undefined => {
@@ -179,9 +184,15 @@ export const mapInputMessagesAndInputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
-  const genAIInputMessages = parseJSON<GenAIMessage[]>(
+  let genAIInputMessages = parseJSON<GenAIMessage[]>(
     spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES],
   );
+  if (!genAIInputMessages) {
+    // fallback to deprecated prompt attribute if input messages are not present
+    genAIInputMessages = parseJSON<GenAIMessage[]>(
+      spanAttributes[ATTR_GEN_AI_PROMPT],
+    );
+  }
   // input value includes invocation parameters
   let invocationParameters = mapInvocationParameters(
     spanAttributes,
@@ -302,13 +313,16 @@ export const mapOutputMessagesAndOutputValue = (
   spanAttributes: Attributes,
 ): Attributes => {
   const attrs: Attributes = {};
-  const genAIOutputMessages = parseJSON<
-    {
-      role: string;
-      parts?: { type: string; content?: string }[];
-      finish_reason?: string;
-    }[]
-  >(spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
+  let genAIOutputMessages = parseJSON<GenAIMessage[] | GenAIMessage>(
+    spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES],
+  );
+  if (!genAIOutputMessages) {
+    // fallback to deprecated completion attribute if output messages are not present
+    genAIOutputMessages = parseJSON<GenAIMessage>(
+      spanAttributes[ATTR_GEN_AI_COMPLETION],
+    );
+  }
+
   const responseId = getString(spanAttributes[ATTR_GEN_AI_RESPONSE_ID]);
   const responseModel = getString(spanAttributes[ATTR_GEN_AI_RESPONSE_MODEL]);
   const requestModel = getString(spanAttributes[ATTR_GEN_AI_REQUEST_MODEL]);
@@ -320,6 +334,17 @@ export const mapOutputMessagesAndOutputValue = (
     Array.isArray(finishReasons) && finishReasons.length > 0
       ? finishReasons[0]
       : undefined;
+
+  // handle the deprecated completion attribute
+  // if we have a single output completion message, simulate an array of messages
+  if (!Array.isArray(genAIOutputMessages) && genAIOutputMessages) {
+    const outputValue: GenAIMessage = {
+      role: "assistant",
+      parts: [{ type: "text", content: genAIOutputMessages.text ?? "" }],
+      finish_reason: finishReason,
+    };
+    genAIOutputMessages = [outputValue];
+  }
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
     const first = genAIOutputMessages[0];
