@@ -651,12 +651,12 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
         # Collect tool calls from this chunk
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
-                if tool_call.id:
-                    tool_call_dict = {"id": tool_call.id, "type": tool_call.type}
-                    if hasattr(tool_call, "function"):
+                if tool_call["id"]:
+                    tool_call_dict = {"id": tool_call["id"], "type": tool_call["type"]}
+                    if "function" in tool_call:
                         tool_call_dict["function"] = {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments,
+                            "name": tool_call["function"]["name"],
+                            "arguments": tool_call["function"]["arguments"],
                         }
                     all_tool_calls.append(tool_call_dict)
 
