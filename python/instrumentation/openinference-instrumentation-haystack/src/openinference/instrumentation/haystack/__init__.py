@@ -92,8 +92,10 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         def wrap_component_run_method(
             component_cls: type[Any], run_method: Callable[..., Any]
         ) -> None:
+            # To avoid double wrapping, we only wrap the "run" method here.
+            class_method = getattr(component_cls, "run")
             if component_cls not in self._original_component_run_methods:
-                self._original_component_run_methods[component_cls] = run_method
+                self._original_component_run_methods[component_cls] = class_method
                 wrap_function_wrapper(
                     module=component_cls.__module__,
                     name=f"{component_cls.__name__}.run",
@@ -115,23 +117,21 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         def wrap_component_run_async_method(
             component_cls: type[Any], run_method: Callable[..., Any]
         ) -> None:
-            method_name = run_method.__name__
+            # Component may have both run and run_async methods, so we check for the method name.
+            method_name = getattr(run_method, "__name__", None)
+            if method_name is None and hasattr(run_method, "__func__"):
+                method_name = getattr(run_method.__func__, "__name__", None)
             if method_name == "run_async":
+                class_method = getattr(component_cls, "run_async")
                 if component_cls not in self._original_component_run_async_methods:
-                    self._original_component_run_async_methods[component_cls] = run_method
+                    self._original_component_run_async_methods[component_cls] = class_method
                     wrap_function_wrapper(
                         module=component_cls.__module__,
                         name=f"{component_cls.__name__}.{method_name}",
                         wrapper=_AsyncComponentRunWrapper(tracer=self._tracer),
                     )
             elif method_name == "run":
-                if component_cls not in self._original_component_run_methods:
-                    self._original_component_run_methods[component_cls] = run_method
-                    wrap_function_wrapper(
-                        module=component_cls.__module__,
-                        name=f"{component_cls.__name__}.{method_name}",
-                        wrapper=_ComponentRunWrapper(tracer=self._tracer),
-                    )
+                wrap_component_run_method(component_cls, run_method)
 
         wrap_function_wrapper(
             AsyncPipeline,
