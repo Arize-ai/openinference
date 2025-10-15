@@ -306,7 +306,7 @@ export const mapInputMessagesAndInputValue = (
       safelyJSONStringify(inputValue),
     );
     set(attrs, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
-  } else {
+  } else if (genAIInputMessages) {
     // we could not parse out input messages, just jsonify the input value
     set(
       attrs,
@@ -382,7 +382,7 @@ export const mapOutputMessagesAndOutputValue = (
       safelyJSONStringify(outputValue),
     );
     set(attrs, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
-  } else {
+  } else if (genAIOutputMessages) {
     // we could not parse out output messages, just jsonify the output value
     set(
       attrs,
