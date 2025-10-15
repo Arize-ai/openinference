@@ -131,6 +131,10 @@ describe("attributes helpers", () => {
             role: "assistant",
             parts: [
               {
+                type: "text",
+                content: "Absolutely! Let me check the weather for you.",
+              },
+              {
                 type: "tool_call",
                 id: "call_VSPygqK",
                 name: "get_weather",
@@ -157,14 +161,20 @@ describe("attributes helpers", () => {
 
       // llm.input_messages.* extracted
       expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
-      expect(attrs["llm.input_messages.0.message.content"]).toBe(
-        "You are a helpful assistant.",
-      );
+      expect(
+        attrs["llm.input_messages.0.message.contents.0.message_content.text"],
+      ).toBe("You are a helpful assistant.");
       expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
-      expect(attrs["llm.input_messages.1.message.content"]).toBe(
-        "Weather in Paris?",
-      );
+      expect(
+        attrs["llm.input_messages.1.message.contents.0.message_content.text"],
+      ).toBe("Weather in Paris?");
       expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
+      expect(
+        attrs["llm.input_messages.2.message.contents.0.message_content.type"],
+      ).toBe("text");
+      expect(
+        attrs["llm.input_messages.2.message.contents.0.message_content.text"],
+      ).toBe("Absolutely! Let me check the weather for you.");
       expect(
         attrs[
           "llm.input_messages.2.message.tool_calls.0.tool_call.function.name"
@@ -230,9 +240,9 @@ describe("attributes helpers", () => {
         "gen_ai.response.finish_reasons": ["stop"],
       });
       expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(attrs["llm.output_messages.0.message.content"]).toBe(
-        "The weather is rainy.",
-      );
+      expect(
+        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
+      ).toBe("The weather is rainy.");
       const outJson = attrs["output.value"] as string;
       const parsed = JSON.parse(outJson);
       expect(parsed).toMatchObject({
@@ -255,7 +265,9 @@ describe("attributes helpers", () => {
         "gen_ai.response.finish_reasons": ["stop"],
       });
       expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(attrs["llm.output_messages.0.message.content"]).toBe("Answer");
+      expect(
+        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
+      ).toBe("Answer");
     });
 
     it("stringifies unparseable output messages (malformed)", () => {

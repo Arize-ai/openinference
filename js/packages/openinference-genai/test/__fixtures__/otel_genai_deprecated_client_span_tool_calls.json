@@ -10,6 +10,6 @@
   "gen_ai.usage.output_tokens": 52,
   "gen_ai.usage.input_tokens": 97,
   "gen_ai.response.finish_reasons": ["stop"],
-  "gen_ai.prompt": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"1234\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"1234\",\"response\":\"rainy, 57°F\"}]}]",
+  "gen_ai.prompt": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Absolutely! Let me check the weather for you.\"},{\"type\":\"tool_call\",\"id\":\"1234\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"1234\",\"response\":\"rainy, 57°F\"}]}]",
   "gen_ai.completion": "{\"text\":\"The weather in Paris is currently rainy with a temperature of 57°F.\",\"finish_reason\":\"stop\"}"
 }

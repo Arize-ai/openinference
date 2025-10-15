@@ -111,6 +111,8 @@ interface ProcessedParts {
   toolCallResponse?: { id?: string; texts: string[] };
 }
 
+// TODO: solve duplicate content issues
+// I should not persist content and contents in the same message
 const processMessageParts = (
   attrs: Attributes,
   msgPrefix: string,
@@ -125,6 +127,17 @@ const processMessageParts = (
   let contentIndex = 0;
   let toolIndex = 0;
 
+  // early return if there is only one text part
+  // just use the content attribute instead of the contents array
+  // if (parts.length === 1 && parts[0]?.type === "text") {
+  //   const text = toStringContent(parts[0].content);
+  //   if (text !== undefined) {
+  //     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, text);
+  //     result.textContents.push(text);
+  //     return result;
+  //   }
+  // }
+
   for (const part of parts) {
     if (!part || typeof part !== "object") continue;
     const p = part as Record<string, unknown>;
@@ -132,7 +145,7 @@ const processMessageParts = (
     if (!type) continue;
 
     if (type === "text") {
-      const text = toStringContent((p as { content?: unknown }).content);
+      const text = toStringContent(p.content);
       if (text !== undefined) {
         // MESSAGE_CONTENTS entries
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
@@ -146,14 +159,6 @@ const processMessageParts = (
           `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
           text,
         );
-        // First text also maps to MESSAGE_CONTENT for backward compatibility
-        if (result.textContents.length === 0) {
-          set(
-            attrs,
-            `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-            text,
-          );
-        }
         result.textContents.push(text);
         contentIndex += 1;
       }
@@ -211,14 +216,6 @@ const processMessageParts = (
         result.toolCallResponse = { id, texts: [response] };
       } else {
         result.toolCallResponse.texts.push(response);
-      }
-      // First text also maps to MESSAGE_CONTENT for backward compatibility
-      if (result.textContents.length === 0) {
-        set(
-          attrs,
-          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-          response,
-        );
       }
       result.textContents.push(response);
       contentIndex += 1;
