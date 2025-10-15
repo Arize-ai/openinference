@@ -41,6 +41,8 @@ _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
     """Helper function to get attribute from either dict or object."""
+    if obj is None:
+        return default
     if isinstance(obj, dict):  # It's a dict
         return obj.get(key, default)
     else:  # It's an object with attributes
