@@ -291,6 +291,21 @@ export const mapInputMessagesAndInputValue = (
             content: [{ type: "text", text: responsePart.response }],
           });
         }
+      } else if (msg.role === "system") {
+        const textPart = msg.parts.find((p) => p.type === "text") as
+          | Extract<GenAIInputMessagePart, { type: "text" }>
+          | undefined;
+        if (textPart) {
+          set(
+            attrs,
+            `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+            textPart.content,
+          );
+          canonicalInputMessages.push({
+            role: "system",
+            content: textPart.content,
+          });
+        }
       }
     });
   }

@@ -119,6 +119,10 @@ describe("attributes helpers", () => {
       const spanAttrs = {
         "gen_ai.input.messages": JSON.stringify([
           {
+            role: "system",
+            parts: [{ type: "text", content: "You are a helpful assistant." }],
+          },
+          {
             role: "user",
             parts: [{ type: "text", content: "Weather in Paris?" }],
           },
@@ -151,18 +155,22 @@ describe("attributes helpers", () => {
       const attrs = mapInputMessagesAndInputValue(spanAttrs);
 
       // llm.input_messages.* extracted
-      expect(attrs["llm.input_messages.0.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
       expect(attrs["llm.input_messages.0.message.content"]).toBe(
+        "You are a helpful assistant.",
+      );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.content"]).toBe(
         "Weather in Paris?",
       );
-      expect(attrs["llm.input_messages.1.message.role"]).toBe("assistant");
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
       expect(
         attrs[
-          "llm.input_messages.1.message.tool_calls.0.tool_call.function.name"
+          "llm.input_messages.2.message.tool_calls.0.tool_call.function.name"
         ],
       ).toBe("get_weather");
-      expect(attrs["llm.input_messages.2.message.role"]).toBe("tool");
-      expect(attrs["llm.input_messages.2.message.tool_call_id"]).toBe(
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe(
         "call_VSPygqK",
       );
 
