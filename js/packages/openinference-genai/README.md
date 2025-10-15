@@ -17,7 +17,7 @@ npm install --save @arizeai/openinference-genai
 
 ## Usage
 
-`@arizeai/openinference-geni` can be used as a standalone set of helper functions,
+`@arizeai/openinference-genai` can be used as a standalone set of helper functions,
 or in conjunction with a SpanProcessor in order to automatically convert OpenTelemetry GenAI spans to OpenInference spans.
 
 ### Standalone
@@ -124,5 +124,5 @@ To execute an example, run the following commands:
 cd js/packages/openinference-genai
 pnpm install
 pnpm -r build
-pnpx -y tsx examples/export-spans.ts
+pnpx tsx examples/export-spans.ts
 ```
