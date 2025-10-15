@@ -34,7 +34,10 @@ import {
 } from "@opentelemetry/semantic-conventions/incubating";
 
 import { safelyJSONStringify } from "./utils.js";
-import type { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
+import type {
+  ChatMessage,
+  GenericPart,
+} from "./schemas/opentelemetryInputMessages.js";
 import type { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
 
 export type GenAIInputMessage = ChatMessage;
@@ -111,8 +114,6 @@ interface ProcessedParts {
   toolCallResponse?: { id?: string; texts: string[] };
 }
 
-// TODO: solve duplicate content issues
-// I should not persist content and contents in the same message
 const processMessageParts = (
   attrs: Attributes,
   msgPrefix: string,
@@ -127,25 +128,12 @@ const processMessageParts = (
   let contentIndex = 0;
   let toolIndex = 0;
 
-  // early return if there is only one text part
-  // just use the content attribute instead of the contents array
-  // if (parts.length === 1 && parts[0]?.type === "text") {
-  //   const text = toStringContent(parts[0].content);
-  //   if (text !== undefined) {
-  //     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, text);
-  //     result.textContents.push(text);
-  //     return result;
-  //   }
-  // }
-
   for (const part of parts) {
     if (!part || typeof part !== "object") continue;
-    const p = part as Record<string, unknown>;
-    const type = p["type"] as string | undefined;
-    if (!type) continue;
+    if (!part.type) continue;
 
-    if (type === "text") {
-      const text = toStringContent(p.content);
+    if (part.type === "text") {
+      const text = toStringContent(part.content);
       if (text !== undefined) {
         // MESSAGE_CONTENTS entries
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
@@ -165,10 +153,10 @@ const processMessageParts = (
       continue;
     }
 
-    if (type === "tool_call") {
-      const id = (p["id"] as string | null) ?? undefined;
-      const name = p["name"] as string | undefined;
-      const args = (p["arguments"] ?? {}) as Record<string, unknown>;
+    if (part.type === "tool_call") {
+      const id = part.id ?? undefined;
+      const name = part.name;
+      const args = part.arguments ?? {};
       const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
       if (id)
         set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
@@ -192,9 +180,9 @@ const processMessageParts = (
       continue;
     }
 
-    if (type === "tool_call_response") {
-      const id = (p["id"] as string | null) ?? undefined;
-      const response = toStringContent((p as { response?: unknown }).response);
+    if (part.type === "tool_call_response") {
+      const id = part.id ?? undefined;
+      const response = toStringContent(part.response);
       if (id)
         set(
           attrs,
@@ -223,12 +211,13 @@ const processMessageParts = (
     }
 
     // Generic / unknown part type: capture as JSON text content
-    const genericText = toStringContent(part);
+    const genericPart = part as GenericPart;
+    const genericText = toStringContent(genericPart);
     const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
     set(
       attrs,
       `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-      type,
+      genericPart.type,
     );
     set(
       attrs,
@@ -488,11 +477,7 @@ export const mapOutputMessagesAndOutputValue = (
     if (!first) return attrs;
     const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, first.role);
-    const processed = processMessageParts(
-      attrs,
-      msgPrefix,
-      first.parts as AnyPart[],
-    );
+    const processed = processMessageParts(attrs, msgPrefix, first.parts);
     const content =
       processed.textContents.length > 0
         ? processed.textContents.join("\n")

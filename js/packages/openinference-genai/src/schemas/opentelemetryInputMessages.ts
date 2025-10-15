@@ -44,12 +44,7 @@ export type Type3 = string;
 /**
  * List of message parts that make up the message content.
  */
-export type Parts = (
-  | TextPart
-  | ToolCallRequestPart
-  | ToolCallResponsePart
-  | GenericPart
-)[];
+export type Parts = (TextPart | ToolCallRequestPart | ToolCallResponsePart)[];
 /**
  * Represents the list of input messages sent to the model.
  */
