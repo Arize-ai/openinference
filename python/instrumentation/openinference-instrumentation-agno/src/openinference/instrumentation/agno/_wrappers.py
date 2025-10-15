@@ -39,6 +39,16 @@ from openinference.semconv.trace import (
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 
+def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
+    """Helper function to get attribute from either dict or object."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):  # It's a dict
+        return obj.get(key, default)
+    else:  # It's an object with attributes
+        return getattr(obj, key, default)
+
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
@@ -495,15 +505,16 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
             for tool_call_index, tool_call in enumerate(message.tool_calls):
                 yield (
                     f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
-                    tool_call.get("id"),
+                    _get_attr(tool_call, "id"),
                 )
+                function_obj = _get_attr(tool_call, "function", {})
                 yield (
                     f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
-                    tool_call.get("function", {}).get("name"),
+                    _get_attr(function_obj, "name"),
                 )
                 yield (
                     f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                    safe_json_dumps(tool_call.get("function", {}).get("arguments", {})),
+                    safe_json_dumps(_get_attr(function_obj, "arguments", {})),
                 )
 
     messages = arguments.get("messages", [])
@@ -651,13 +662,16 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
         # Collect tool calls from this chunk
         if chunk.tool_calls:
             for tool_call in chunk.tool_calls:
-                if tool_call.get("id"):
-                    tool_call_dict = {"id": tool_call.get("id"), "type": tool_call.get("type")}
-                    if tool_call.get("function"):
-                        function_data = tool_call.get("function", {})
+                if _get_attr(tool_call, "id"):
+                    tool_call_dict = {
+                        "id": _get_attr(tool_call, "id"),
+                        "type": _get_attr(tool_call, "type"),
+                    }
+                    function_obj = _get_attr(tool_call, "function")
+                    if function_obj:
                         tool_call_dict["function"] = {
-                            "name": function_data.get("name"),
-                            "arguments": function_data.get("arguments"),
+                            "name": _get_attr(function_obj, "name"),
+                            "arguments": _get_attr(function_obj, "arguments"),
                         }
                     all_tool_calls.append(tool_call_dict)
 
