@@ -659,9 +659,12 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
 
         # Collect tool calls from this chunk
         if chunk.tool_calls:
-            for tool_call in chunk.tool_calls:               
+            for tool_call in chunk.tool_calls:
                 if _get_attr(tool_call, "id"):
-                    tool_call_dict = {"id": _get_attr(tool_call, "id"), "type": _get_attr(tool_call, "type")}
+                    tool_call_dict = {
+                        "id": _get_attr(tool_call, "id"),
+                        "type": _get_attr(tool_call, "type"),
+                    }
                     function_obj = _get_attr(tool_call, "function")
                     if function_obj:
                         tool_call_dict["function"] = {
