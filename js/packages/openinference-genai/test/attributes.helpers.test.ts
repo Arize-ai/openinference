@@ -7,6 +7,7 @@ import {
   mapOutputMessagesAndOutputValue,
   mapTokenCounts,
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
+  mapToolExecution,
 } from "../src/attributes.js";
 
 /**
@@ -285,6 +286,32 @@ describe("attributes helpers", () => {
         "gen_ai.usage.output_tokens": null,
       });
       expect(attrs).toEqual({});
+    });
+  });
+
+  describe("mapToolExecution", () => {
+    it("maps tool execution details", () => {
+      const attrs = mapToolExecution({
+        "gen_ai.tool.name": "get_weather",
+        "gen_ai.tool.description":
+          "Retrieves the current weather report for a specified city.",
+        "gen_ai.tool.call.id": "1234",
+        "gen_ai.tool.type": "function",
+        input: '{"city": "New York"}',
+        output:
+          '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}',
+      });
+      expect(attrs["tool.name"]).toBe("get_weather");
+      expect(attrs["tool.description"]).toBe(
+        "Retrieves the current weather report for a specified city.",
+      );
+      expect(attrs["tool_call.id"]).toBe("1234");
+      expect(attrs["input.value"]).toBe('{"city": "New York"}');
+      expect(attrs["input.mime_type"]).toBe("application/json");
+      expect(attrs["output.value"]).toBe(
+        '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}',
+      );
+      expect(attrs["output.mime_type"]).toBe("application/json");
     });
   });
 

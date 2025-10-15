@@ -28,6 +28,10 @@ import {
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_AGENT_DESCRIPTION,
+  ATTR_GEN_AI_TOOL_NAME,
+  ATTR_GEN_AI_TOOL_DESCRIPTION,
+  ATTR_GEN_AI_TOOL_CALL_ID,
+  ATTR_GEN_AI_TOOL_TYPE,
 } from "@opentelemetry/semantic-conventions/incubating";
 import { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
 import { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
@@ -44,6 +48,13 @@ const AGENT_KIND_PREFIXES = [
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
   ATTR_GEN_AI_AGENT_DESCRIPTION,
+] as const;
+
+const TOOL_EXECUTION_PREFIXES = [
+  ATTR_GEN_AI_TOOL_NAME,
+  ATTR_GEN_AI_TOOL_DESCRIPTION,
+  ATTR_GEN_AI_TOOL_CALL_ID,
+  ATTR_GEN_AI_TOOL_TYPE,
 ] as const;
 
 const getNumber = (value: unknown): number | undefined => {
@@ -73,6 +84,11 @@ const parseJSON = <T = unknown>(value: unknown): T | undefined => {
   }
 };
 
+const getMimeType = (value: unknown): string | undefined => {
+  if (parseJSON(value)) return MimeType.JSON;
+  return MimeType.TEXT;
+};
+
 const set = (attrs: Attributes, key: string, value: unknown) => {
   if (value === undefined || value === null) return;
   attrs[key] = value as never;
@@ -92,6 +108,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
     mapInputMessagesAndInputValue(spanAttributes),
     mapOutputMessagesAndOutputValue(spanAttributes),
     mapTokenCounts(spanAttributes),
+    mapToolExecution(spanAttributes),
   );
   return mapped;
 };
@@ -129,6 +146,10 @@ export const mapSpanKind = (_spanAttributes: Attributes): Attributes => {
   // detect agent kind
   if (AGENT_KIND_PREFIXES.some((prefix) => _spanAttributes[prefix])) {
     spanKind = OpenInferenceSpanKind.AGENT;
+  }
+  // detect tool execution kind
+  if (TOOL_EXECUTION_PREFIXES.some((prefix) => _spanAttributes[prefix])) {
+    spanKind = OpenInferenceSpanKind.TOOL;
   }
 
   set(attrs, SemanticConventions.OPENINFERENCE_SPAN_KIND, spanKind);
@@ -429,5 +450,40 @@ export const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
       inputTokens + outputTokens,
     );
   }
+  return attrs;
+};
+
+// Tool execution
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/#execute-tool-span
+export const mapToolExecution = (spanAttributes: Attributes): Attributes => {
+  const attrs: Attributes = {};
+  const toolName = getString(spanAttributes[ATTR_GEN_AI_TOOL_NAME]);
+  const toolDescription = getString(
+    spanAttributes[ATTR_GEN_AI_TOOL_DESCRIPTION],
+  );
+  const toolCallId = getString(spanAttributes[ATTR_GEN_AI_TOOL_CALL_ID]);
+  // parse supported tool details
+  // note: while openinference can track parameters, gen_ai does not provide this information
+  if (toolName) {
+    set(attrs, SemanticConventions.TOOL_NAME, toolName);
+  }
+  if (toolDescription) {
+    set(attrs, SemanticConventions.TOOL_DESCRIPTION, toolDescription);
+  }
+  if (toolCallId) {
+    set(attrs, SemanticConventions.TOOL_CALL_ID, toolCallId);
+  }
+  // parse input and output with mime type
+  const input = getString(spanAttributes["input"]);
+  const output = getString(spanAttributes["output"]);
+  if (input) {
+    set(attrs, SemanticConventions.INPUT_VALUE, input);
+    set(attrs, SemanticConventions.INPUT_MIME_TYPE, getMimeType(input));
+  }
+  if (output) {
+    set(attrs, SemanticConventions.OUTPUT_VALUE, output);
+    set(attrs, SemanticConventions.OUTPUT_MIME_TYPE, getMimeType(output));
+  }
+
   return attrs;
 };
