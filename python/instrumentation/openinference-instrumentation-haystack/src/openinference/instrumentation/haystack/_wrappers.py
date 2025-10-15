@@ -132,19 +132,21 @@ class _ComponentRunWrapper:
         component = instance
         component_class_name = _get_component_class_name(component)
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
-        arguments = bound_arguments.arguments
 
         with self._tracer.start_as_current_span(
             name=_get_component_span_name(component_class_name)
         ) as span:
             component_type = _get_component_type(component)
-            _set_component_runner_request_attributes(span, wrapped, instance, args, kwargs)
+            span.set_attributes(_set_component_runner_request_attributes(bound_arguments, instance))
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 raise
-            _set_component_runner_response_attributes(span, arguments, component_type, response)
+            span.set_attributes(
+                _set_component_runner_response_attributes(bound_arguments, component_type, response)
+            )
+            span.set_status(trace_api.StatusCode.OK)
         return response
 
 
@@ -164,25 +166,18 @@ class _AsyncComponentRunWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        component = instance
-        component_class_name = _get_component_class_name(component)
+        component_class_name = _get_component_class_name(instance)
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
-        arguments = bound_arguments.arguments
-
+        component_type = _get_component_type(instance)
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name)
+            name=_get_component_span_name(component_class_name),
+            attributes=_set_component_runner_request_attributes(bound_arguments, instance),
         ) as span:
-            component_type = _get_component_type(component)
-            _set_component_runner_request_attributes(span, wrapped, instance, args, kwargs)
-            try:
-                result = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                raise
-            _set_component_runner_response_attributes(span, arguments, component_type, result)
+            result = await wrapped(*args, **kwargs)
+            span.set_attributes(
+                _set_component_runner_response_attributes(bound_arguments, component_type, result)
+            )
+            span.set_status(trace_api.StatusCode.OK)
         return result
 
 
@@ -243,9 +238,6 @@ class _AsyncPipelineWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
         span_name = f"{str(instance.__class__.__name__)}.run_async"
         with self._tracer.start_as_current_span(
@@ -256,11 +248,7 @@ class _AsyncPipelineWrapper:
                 **dict(_get_input_attributes(arguments)),
             },
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                raise
+            response = await wrapped(*args, **kwargs)
             span.set_attributes(dict(_get_output_attributes(response)))
             span.set_status(trace_api.StatusCode.OK)
 
@@ -283,11 +271,6 @@ class _AsyncPipelineRunAsyncGeneratorWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            async for item in wrapped(*args, **kwargs):
-                yield item
-            return
-
         arguments = _get_bound_arguments(wrapped, *args, **kwargs).arguments
         span_name = f"{str(instance.__class__.__name__)}.run_async_generator"
         with self._tracer.start_as_current_span(
@@ -844,48 +827,46 @@ def _get_bound_arguments(function: Callable[..., Any], *args: Any, **kwargs: Any
 
 
 def _set_component_runner_request_attributes(
-    span: trace_api.Span,
-    wrapped: Callable[..., Any],
-    instance: Any,
-    args: Tuple[Any, ...],
-    kwargs: Mapping[str, Any],
-) -> None:
+    bound_arguments: BoundArguments, instance: Any
+) -> Dict[str, Any]:
     """
     Sets tracing span attributes for a component runner's request.
     Attributes are set based on the component type and input arguments.
     """
+    attributes = {}
     component = instance
-    bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
-    arguments = bound_arguments.arguments
-    span.set_attributes(
-        {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
+    attributes.update(
+        {
+            **dict(get_attributes_from_context()),
+            **dict(_get_input_attributes(bound_arguments.arguments)),
+        }
     )
     if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
-        span.set_attributes(
+        attributes.update(
             {
                 **dict(_get_span_kind_attributes(LLM)),
-                **dict(_get_llm_input_message_attributes(arguments)),
+                **dict(_get_llm_input_message_attributes(bound_arguments.arguments)),
             }
         )
     elif component_type is ComponentType.EMBEDDER:
-        span.set_attributes(
+        attributes.update(
             {
                 **dict(_get_span_kind_attributes(EMBEDDING)),
                 **dict(_get_embedding_model_attributes(component)),
             }
         )
     elif component_type is ComponentType.RANKER:
-        span.set_attributes(
+        attributes.update(
             {
                 **dict(_get_span_kind_attributes(RERANKER)),
                 **dict(_get_reranker_model_attributes(component)),
-                **dict(_get_reranker_request_attributes(arguments)),
+                **dict(_get_reranker_request_attributes(bound_arguments.arguments)),
             }
         )
     elif component_type is ComponentType.RETRIEVER:
-        span.set_attributes(dict(_get_span_kind_attributes(RETRIEVER)))
+        attributes.update(dict(_get_span_kind_attributes(RETRIEVER)))
     elif component_type is ComponentType.PROMPT_BUILDER:
-        span.set_attributes(
+        attributes.update(
             {
                 **dict(_get_span_kind_attributes(LLM)),
                 **dict(
@@ -896,25 +877,24 @@ def _set_component_runner_request_attributes(
             }
         )
     elif component_type is ComponentType.UNKNOWN:
-        span.set_attributes(dict(_get_span_kind_attributes(CHAIN)))
+        attributes.update(dict(_get_span_kind_attributes(CHAIN)))
     else:
         assert_never(component_type)
+    return attributes
 
 
 def _set_component_runner_response_attributes(
-    span: trace_api.Span,
-    arguments: Mapping[str, Any],
+    bound_arguments: BoundArguments,
     component_type: ComponentType,
     response: Mapping[str, Any],
-) -> None:
+) -> Dict[str, Any]:
     """
     Sets tracing span attributes for a component runner's response.
     Attributes are set based on the component type and the response object.
     """
-    span.set_attributes(dict(_get_component_output_attributes(response, component_type)))
-    span.set_status(trace_api.StatusCode.OK)
+    attributes = dict(_get_component_output_attributes(response, component_type))
     if component_type is ComponentType.GENERATOR:
-        span.set_attributes(
+        attributes.update(
             {
                 **dict(_get_llm_model_attributes(response)),
                 **dict(_get_llm_output_message_attributes(response)),
@@ -922,17 +902,18 @@ def _set_component_runner_response_attributes(
             }
         )
     elif component_type is ComponentType.EMBEDDER:
-        span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
+        attributes.update(dict(_get_embedding_attributes(bound_arguments.arguments, response)))
     elif component_type is ComponentType.RANKER:
-        span.set_attributes(dict(_get_reranker_response_attributes(response)))
+        attributes.update(dict(_get_reranker_response_attributes(response)))
     elif component_type is ComponentType.RETRIEVER:
-        span.set_attributes(dict(_get_retriever_response_attributes(response)))
+        attributes.update(dict(_get_retriever_response_attributes(response)))
     elif component_type is ComponentType.PROMPT_BUILDER:
         pass
     elif component_type is ComponentType.UNKNOWN:
         pass
     else:
         assert_never(component_type)
+    return attributes
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
