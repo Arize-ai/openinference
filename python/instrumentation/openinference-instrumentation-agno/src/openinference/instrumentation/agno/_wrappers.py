@@ -650,13 +650,21 @@ def _parse_model_output_stream(output: Any) -> Dict[str, Any]:
 
         # Collect tool calls from this chunk
         if chunk.tool_calls:
-            for tool_call in chunk.tool_calls:
-                if tool_call.id:
-                    tool_call_dict = {"id": tool_call.id, "type": tool_call.type}
-                    if hasattr(tool_call, "function"):
+            for tool_call in chunk.tool_calls:               
+                # Helper function to get attribute from either dict or object
+                def get_attr(obj, key, default=None):
+                    if hasattr(obj, 'get'):  # It's a dict-like object
+                        return obj.get(key, default)
+                    else:  # It's an object with attributes
+                        return getattr(obj, key, default)
+
+                if get_attr(tool_call, "id"):
+                    tool_call_dict = {"id": get_attr(tool_call, "id"), "type": get_attr(tool_call, "type")}
+                    function_obj = get_attr(tool_call, "function")
+                    if function_obj:
                         tool_call_dict["function"] = {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments,
+                            "name": get_attr(function_obj, "name"),
+                            "arguments": get_attr(function_obj, "arguments"),
                         }
                     all_tool_calls.append(tool_call_dict)
 
