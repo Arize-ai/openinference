@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.8...python-openinference-instrumentation-pydantic-ai-v0.1.9) (2025-10-15)
+
+
+### Bug Fixes
+
+* pydantic-ai add tool call result ([#2305](https://github.com/Arize-ai/openinference/issues/2305)) ([ede428c](https://github.com/Arize-ai/openinference/commit/ede428cc5653b1c8d89c6ba68753a1a57fb2bacd))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.7...python-openinference-instrumentation-pydantic-ai-v0.1.8) (2025-10-10)
 
 

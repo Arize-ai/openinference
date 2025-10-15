@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.17...python-openinference-instrumentation-agno-v0.1.18) (2025-10-15)
+
+
+### Features
+
+* **agno:** remove duplicate constants and resolve tool call issue ([#2304](https://github.com/Arize-ai/openinference/issues/2304)) ([2f15069](https://github.com/Arize-ai/openinference/commit/2f15069dbda1e0a030f6d095f5156fdd3ae6d2c6))
+
+
+### Bug Fixes
+
+* Agno streaming tool call handling ([#2309](https://github.com/Arize-ai/openinference/issues/2309)) ([4b7da83](https://github.com/Arize-ai/openinference/commit/4b7da833ae9a91989d09ea78c38ca2e0bd44c0b1))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.16...python-openinference-instrumentation-agno-v0.1.17) (2025-10-13)
 
 
