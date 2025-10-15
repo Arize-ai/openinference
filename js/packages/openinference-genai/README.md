@@ -15,8 +15,6 @@ npm install --save @arizeai/openinference-genai
 `@arizeai/openinference-geni` can be used as a standalone set of helper functions,
 or in conjunction with a SpanProcessor in order to automatically convert OpenTelemetry GenAI spans to OpenInference spans.
 
-## Examples
-
 ### Standalone
 
 You can mutate the span attributes in place by using the standalone helper functions.
@@ -42,10 +40,12 @@ span.attributes = {...span.attributes, ...openinferenceAttributes}
 
 You can use the a custom TraceExporter to automatically convert OpenTelemetry GenAI spans to OpenInference spans.
 
+See [examples/export-spans.ts](./examples/export-spans.ts) for a runnable version of the following sample code.
+
 Start by installing packages
 
 ```shell
-pnpm add @opentelemetry/core @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/resources @arizeai/openinference-genai
+pnpm add @opentelemetry/api @opentelemetry/core @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-base @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/resources @arizeai/openinference-genai
 ```
 
 Create a custom TraceExporter that converts the OpenTelemetry GenAI attributes to OpenInference attributes.
@@ -56,7 +56,8 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 
-import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from `@arizeai/openinference-genai`
+import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
+import type { Mutable } from "@arizeai/openinference-genai/types";
 
 class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
   export(
@@ -67,7 +68,7 @@ class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
       const processedAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(span.attributes);
       // optionally you can replace the entire attributes object with the 
       // processed attributes if you want _only_ the OpenInference attributes
-      span.attributes = { ...span.attributes, ...processedAttributes };
+      (span as Mutable<ReadableSpan>).attributes = { ...span.attributes, ...processedAttributes };
       return span;
     });
 
@@ -80,7 +81,6 @@ And then use it in the SpanProcessor of your choice.
 
 ```ts
 // instrumentation.ts
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -98,13 +98,26 @@ export const provider = new NodeTracerProvider({
     [SEMRESATTRS_PROJECT_NAME]: SERVICE_NAME,
   }),
   spanProcessors: [
-    new BatchSpanProcessor({
-      exporter: new OpenInferenceOTLPTraceExporter({
+    new BatchSpanProcessor(
+      new OpenInferenceOTLPTraceExporter({
         url: `${COLLECTOR_ENDPOINT}/v1/traces`,
       }),
-    }),
+    ),
   ],
 });
 
 provider.register();
+```
+
+## Examples
+
+See the [examples](./examples) directory in this package for more executable examples.
+
+To execute an example, run the following commands:
+
+```shell
+cd js/packages/openinference-genai
+pnpm install
+pnpm -r build
+pnpx -y tsx examples/export-spans.ts
 ```

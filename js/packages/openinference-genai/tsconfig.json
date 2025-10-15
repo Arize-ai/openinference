@@ -12,7 +12,12 @@
     "noUncheckedIndexedAccess": true
   },
   "files": [],
-  "include": ["src/**/*.ts", "test/**/*.ts", "test/__fixtures__/**/*.json"],
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "test/__fixtures__/**/*.json",
+    "examples/**/*.ts"
+  ],
   "exclude": ["test/__snapshots__/**/*.ts"],
   "references": []
 }
