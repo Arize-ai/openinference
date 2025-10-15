@@ -4,6 +4,11 @@
 
 This package provides a set of utilities to convert [OpenTelemetry GenAI](https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation/opentelemetry-instrumentation-genai) span attributes to OpenInference span attributes.
 
+> [!WARNING]
+> The OpenTelemetry GenAI conventions are still incubating, and may include breaking changes at any time.
+> This package will attempt best effort conversions of a subset of the OpenTelemetry GenAI attributes to OpenInference attributes.
+> Currently, attributes reflect their definition as of October 2025.
+
 ## Installation
 
 ```shell
