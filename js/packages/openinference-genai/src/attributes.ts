@@ -95,6 +95,163 @@ const set = (attrs: Attributes, key: string, value: unknown) => {
   attrs[key] = value as never;
 };
 
+// Shared part parsing
+type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
+
+const toStringContent = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  const json = safelyJSONStringify(value);
+  if (typeof json === "string") return json;
+  return String(value);
+};
+
+interface ProcessedParts {
+  textContents: string[];
+  toolCallsForCanonical: unknown[];
+  toolCallResponse?: { id?: string; texts: string[] };
+}
+
+const processMessageParts = (
+  attrs: Attributes,
+  msgPrefix: string,
+  parts: AnyPart[] | undefined,
+): ProcessedParts => {
+  const result: ProcessedParts = {
+    textContents: [],
+    toolCallsForCanonical: [],
+  };
+  if (!Array.isArray(parts) || parts.length === 0) return result;
+
+  let contentIndex = 0;
+  let toolIndex = 0;
+
+  for (const part of parts) {
+    if (!part || typeof part !== "object") continue;
+    const p = part as Record<string, unknown>;
+    const type = p["type"] as string | undefined;
+    if (!type) continue;
+
+    if (type === "text") {
+      const text = toStringContent((p as { content?: unknown }).content);
+      if (text !== undefined) {
+        // MESSAGE_CONTENTS entries
+        const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+        set(
+          attrs,
+          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          "text",
+        );
+        set(
+          attrs,
+          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+          text,
+        );
+        // First text also maps to MESSAGE_CONTENT for backward compatibility
+        if (result.textContents.length === 0) {
+          set(
+            attrs,
+            `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+            text,
+          );
+        }
+        result.textContents.push(text);
+        contentIndex += 1;
+      }
+      continue;
+    }
+
+    if (type === "tool_call") {
+      const id = (p["id"] as string | null) ?? undefined;
+      const name = p["name"] as string | undefined;
+      const args = (p["arguments"] ?? {}) as Record<string, unknown>;
+      const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
+      if (id)
+        set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
+      if (name)
+        set(
+          attrs,
+          toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME,
+          name,
+        );
+      set(
+        attrs,
+        toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+        safelyJSONStringify(args),
+      );
+      result.toolCallsForCanonical.push({
+        id,
+        type: "function",
+        function: { name: name ?? "", arguments: safelyJSONStringify(args) },
+      });
+      toolIndex += 1;
+      continue;
+    }
+
+    if (type === "tool_call_response") {
+      const id = (p["id"] as string | null) ?? undefined;
+      const response = toStringContent((p as { response?: unknown }).response);
+      if (id)
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
+          id,
+        );
+      const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+      set(
+        attrs,
+        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+        "text",
+      );
+      set(
+        attrs,
+        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+        response,
+      );
+      if (!result.toolCallResponse) {
+        result.toolCallResponse = { id, texts: [response] };
+      } else {
+        result.toolCallResponse.texts.push(response);
+      }
+      // First text also maps to MESSAGE_CONTENT for backward compatibility
+      if (result.textContents.length === 0) {
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          response,
+        );
+      }
+      result.textContents.push(response);
+      contentIndex += 1;
+      continue;
+    }
+
+    // Generic / unknown part type: capture as JSON text content
+    const genericText = toStringContent(part);
+    const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+    set(
+      attrs,
+      `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+      type,
+    );
+    set(
+      attrs,
+      `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+      genericText,
+    );
+    if (result.textContents.length === 0) {
+      set(
+        attrs,
+        `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+        genericText,
+      );
+    }
+    result.textContents.push(genericText);
+    contentIndex += 1;
+  }
+
+  return result;
+};
+
 export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
   spanAttributes: Attributes,
 ): Attributes => {
@@ -235,99 +392,35 @@ export const mapInputMessagesAndInputValue = (
       if (!msg.parts || !Array.isArray(msg.parts)) return;
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
-      if (msg.role === "user") {
-        const textPart = msg.parts.find((p) => p.type === "text") as
-          | Extract<GenAIInputMessagePart, { type: "text" }>
-          | undefined;
-        if (textPart) {
-          set(
-            attrs,
-            `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-            textPart.content,
-          );
-          canonicalInputMessages.push({
-            role: "user",
-            content: textPart.content,
-          });
+      const processed = processMessageParts(
+        attrs,
+        msgPrefix,
+        msg.parts as AnyPart[],
+      );
+
+      // Build canonical message for inputValue
+      const base: Record<string, unknown> = { role: msg.role };
+      if (msg.role === "tool" && processed.toolCallResponse?.id) {
+        base["tool_call_id"] = processed.toolCallResponse.id;
+      }
+      if (processed.textContents.length > 0) {
+        if (msg.role === "tool") {
+          base["content"] = processed.textContents.map((t) => ({
+            type: "text",
+            text: t,
+          }));
+        } else {
+          base["content"] = processed.textContents.join("\n");
         }
-      } else if (msg.role === "assistant") {
-        const toolCalls: unknown[] = [];
-        msg.parts.forEach((p, toolIndex) => {
-          if (p.type !== "tool_call") return;
-          const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-          if (p.id)
-            set(
-              attrs,
-              `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`,
-              p.id,
-            );
-          set(
-            attrs,
-            toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME,
-            p.name,
-          );
-          set(
-            attrs,
-            toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
-            safelyJSONStringify(p.arguments),
-          );
-          toolCalls.push({
-            id: p.id,
-            type: "function",
-            function: {
-              name: p.name,
-              arguments: safelyJSONStringify(p.arguments),
-            },
-          });
-        });
-        canonicalInputMessages.push({
-          role: "assistant",
-          tool_calls: toolCalls,
-        });
-      } else if (msg.role === "tool") {
-        const responsePart = msg.parts.find(
-          (p) => p.type === "tool_call_response",
-        ) as
-          | Extract<GenAIInputMessagePart, { type: "tool_call_response" }>
-          | undefined;
-        if (responsePart) {
-          set(
-            attrs,
-            `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
-            responsePart.id,
-          );
-          const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.0.`;
-          set(
-            attrs,
-            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-            "text",
-          );
-          set(
-            attrs,
-            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-            responsePart.response,
-          );
-          canonicalInputMessages.push({
-            role: "tool",
-            tool_call_id: responsePart.id,
-            content: [{ type: "text", text: responsePart.response }],
-          });
-        }
-      } else if (msg.role === "system") {
-        const textPart = msg.parts.find((p) => p.type === "text") as
-          | Extract<GenAIInputMessagePart, { type: "text" }>
-          | undefined;
-        if (textPart) {
-          set(
-            attrs,
-            `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-            textPart.content,
-          );
-          canonicalInputMessages.push({
-            role: "system",
-            content: textPart.content,
-          });
-        }
+      }
+      if (
+        processed.toolCallsForCanonical.length > 0 &&
+        msg.role === "assistant"
+      ) {
+        base["tool_calls"] = processed.toolCallsForCanonical;
+      }
+      if (Object.keys(base).length > 1) {
+        canonicalInputMessages.push(base);
       }
     });
   }
@@ -398,10 +491,15 @@ export const mapOutputMessagesAndOutputValue = (
     if (!first) return attrs;
     const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
     set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, first.role);
-    const content = first.parts?.find((p) => p.type === "text")?.content;
-    if (content) {
-      set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, content);
-    }
+    const processed = processMessageParts(
+      attrs,
+      msgPrefix,
+      first.parts as AnyPart[],
+    );
+    const content =
+      processed.textContents.length > 0
+        ? processed.textContents.join("\n")
+        : undefined;
     const outputValue: Record<string, unknown> = {
       id: responseId,
       model: modelName,

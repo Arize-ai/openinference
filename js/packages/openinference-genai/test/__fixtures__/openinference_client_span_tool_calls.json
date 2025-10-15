@@ -22,5 +22,10 @@
   "llm.output_messages.0.message.content": "The weather in Paris is currently rainy with a temperature of 57°F.",
   "llm.token_count.completion": 52,
   "llm.token_count.prompt": 97,
-  "llm.token_count.total": 149
+  "llm.token_count.total": 149,
+  "llm.input_messages.0.message.contents.0.message_content.type": "text",
+  "llm.input_messages.0.message.contents.0.message_content.text": "Weather in Paris?",
+  "llm.input_messages.2.message.content": "rainy, 57°F",
+  "llm.output_messages.0.message.contents.0.message_content.type": "text",
+  "llm.output_messages.0.message.contents.0.message_content.text": "The weather in Paris is currently rainy with a temperature of 57°F."
 }
