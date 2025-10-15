@@ -1,10 +1,9 @@
-import { Attributes } from "@opentelemetry/api";
+import type { Attributes } from "@opentelemetry/api";
 import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   ATTR_GEN_AI_PROVIDER_NAME,
   ATTR_GEN_AI_REQUEST_MODEL,
@@ -33,8 +32,10 @@ import {
   ATTR_GEN_AI_TOOL_CALL_ID,
   ATTR_GEN_AI_TOOL_TYPE,
 } from "@opentelemetry/semantic-conventions/incubating";
-import { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
-import { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
+
+import { safelyJSONStringify } from "./utils.js";
+import type { ChatMessage } from "./schemas/opentelemetryInputMessages.js";
+import type { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
 
 export type GenAIInputMessage = ChatMessage;
 export type GenAIInputMessagePart = ChatMessage["parts"][number];
