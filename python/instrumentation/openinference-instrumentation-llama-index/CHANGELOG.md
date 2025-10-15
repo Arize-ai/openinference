@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.6...python-openinference-instrumentation-llama-index-v4.3.7) (2025-10-15)
+
+
+### Bug Fixes
+
+* **llama-index:** Fixing output messages attributes types ([#2291](https://github.com/Arize-ai/openinference/issues/2291)) ([45d9332](https://github.com/Arize-ai/openinference/commit/45d9332fb9571361ea397e82a6b3a1582c20f804))
+
 ## [4.3.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.5...python-openinference-instrumentation-llama-index-v4.3.6) (2025-10-10)
 
 
