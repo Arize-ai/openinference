@@ -59,9 +59,23 @@ describe("attributes helpers", () => {
   });
 
   describe("mapSpanKind", () => {
-    it("defaults to LLM when no agent markers are present", () => {
+    it("defaults to LLM when no agent or tool execution markers are present", () => {
       const attrs = mapSpanKind({});
       expect(attrs["openinference.span.kind"]).toBe("LLM");
+    });
+
+    it("maps agent markers to AGENT", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.agent.name": "my_agent",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("AGENT");
+    });
+
+    it("maps tool execution markers to TOOL", () => {
+      const attrs = mapSpanKind({
+        "gen_ai.tool.name": "my_tool",
+      });
+      expect(attrs["openinference.span.kind"]).toBe("TOOL");
     });
 
     it("remains LLM for unrelated attributes (malformed)", () => {
