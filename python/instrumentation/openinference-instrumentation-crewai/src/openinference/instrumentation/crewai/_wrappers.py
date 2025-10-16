@@ -167,6 +167,58 @@ def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
     return None
 
 
+class _AgentActionWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        span_name = "AgentAction"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
+                    }
+                )
+            ),
+        ) as span:
+            print("--- wrapped ---")
+            print(wrapped)
+            print(type(wrapped))
+            print("--- instance ---")
+            print(instance)
+            print(type(instance))
+            print("--- args ---")
+            print(args)
+            print(type(args))
+            print("--- kwargs ---")
+            print(kwargs)
+            print(type(kwargs))
+
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+
+            span.set_attributes(dict(get_output_attributes(response)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
+
+
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer

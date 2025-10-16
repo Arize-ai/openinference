@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
+    _AgentActionWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffWrapper,
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
+        "_original_agent_action",
         "_original_execute_core",
         "_original_crew_kickoff",
         "_original_flow_kickoff",
@@ -45,6 +47,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         self._tracer = OITracer(
             trace_api.get_tracer(__name__, __version__, tracer_provider),
             config=config,
+        )
+
+        agent_action_wrapper = _AgentActionWrapper(tracer=self._tracer)
+        self._original_agent_action = getattr(
+            import_module("crewai.agents.crew_agent_executor").CrewAgentExecutor, "_handle_agent_action", None
+        )
+        wrap_function_wrapper(
+            module="crewai.agents.crew_agent_executor",
+            name="CrewAgentExecutor._handle_agent_action",
+            wrapper=agent_action_wrapper,
         )
 
         execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)
@@ -82,6 +94,11 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        if self._original_agent_action is not None:
+            crew_agent_executor_module = import_module("crewai.agents.crew_agent_executor")
+            crew_agent_executor_module.CrewAgentExecutor._handle_agent_action = self._original_agent_action
+            self._original_agent_action = None
+
         if self._original_execute_core is not None:
             task_module = import_module("crewai")
             task_module.Task._execute_core = self._original_execute_core
