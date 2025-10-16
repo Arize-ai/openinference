@@ -321,14 +321,20 @@ class _RunWrapper:
                     # Extract session_id from the session object
                     session_id = None
                     try:
-                        session = arguments.get("session")
-                        if session and hasattr(session, "session_id"):
-                            session_id = session.session_id
+                        if "session" in arguments:
+                            session = arguments.get("session")
+                            if session and hasattr(session, "session_id"):
+                                session_id = session.session_id
+                        elif "session_id" in arguments:
+                            session_id = arguments.get("session_id")
                     except Exception:
                         session_id = None
+                    
+                    if session_id is None:
+                        session_id = agent.session_id
 
                     run_response = None
-                    if hasattr(agent, "get_last_run_output"):
+                    if hasattr(agent, "get_last_run_output") and session_id is not None:
                         run_response = agent.get_last_run_output(session_id=session_id)
 
                     span.set_status(trace_api.StatusCode.OK)
@@ -472,14 +478,22 @@ class _RunWrapper:
                     # Extract session_id from the session object
                     session_id = None
                     try:
-                        session = arguments.get("session")
-                        if session and hasattr(session, "session_id"):
-                            session_id = session.session_id
+                        if "session" in arguments:
+                            session = arguments.get("session")
+                            if session and hasattr(session, "session_id"):
+                                session_id = session.session_id
+                        elif "session_id" in arguments:
+                            session_id = arguments.get("session_id")
+                        
                     except Exception:
                         session_id = None
+                        
+                    if session_id is None:
+                        session_id = agent.session_id
+                    
 
                     run_response = None
-                    if hasattr(agent, "get_last_run_output"):
+                    if hasattr(agent, "get_last_run_output") and session_id is not None:
                         run_response = agent.get_last_run_output(session_id=session_id)
 
                     span.set_status(trace_api.StatusCode.OK)
