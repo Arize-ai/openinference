@@ -215,20 +215,32 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         from agno.tools.function import FunctionCall
 
         if self._original_run_method is not None:
-            Agent.run = self._original_run_method  # type: ignore[method-assign]
+            Agent._run = self._original_run_method  # type: ignore[method-assign]
             self._original_run_method = None
+        if self._original_run_stream_method is not None:
+            Agent._run_stream = self._original_run_stream_method  # type: ignore[method-assign]
+            self._original_run_stream_method = None
 
         if self._original_arun_method is not None:
-            Agent.arun = self._original_arun_method  # type: ignore[method-assign]
+            Agent._arun = self._original_arun_method  # type: ignore[method-assign]
             self._original_arun_method = None
+        if self._original_arun_stream_method is not None:
+            Agent._arun_stream = self._original_arun_stream_method  # type: ignore[method-assign]
+            self._original_arun_stream_method = None
 
         if self._original_team_run_method is not None:
-            Team.run = self._original_team_run_method  # type: ignore[method-assign]
+            Team._run = self._original_team_run_method  # type: ignore[method-assign]
             self._original_team_run_method = None
+        if self._original_team_run_stream_method is not None:
+            Team._run_stream = self._original_team_run_stream_method  # type: ignore[method-assign]
+            self._original_team_run_stream_method = None
 
         if self._original_team_arun_method is not None:
-            Team.arun = self._original_team_arun_method  # type: ignore[method-assign]
+            Team._arun = self._original_team_arun_method  # type: ignore[method-assign]
             self._original_team_arun_method = None
+        if self._original_team_arun_stream_method is not None:
+            Team._arun_stream = self._original_team_arun_stream_method  # type: ignore[method-assign]
+            self._original_team_arun_stream_method = None
 
         if self._original_model_call_methods is not None:
             for (
