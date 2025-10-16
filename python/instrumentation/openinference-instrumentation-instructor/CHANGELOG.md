@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.10...python-openinference-instrumentation-instructor-v0.1.11) (2025-10-14)
+
+
+### Bug Fixes
+
+* **instructor:** Added compatibility with the latest instructor versi… ([#2287](https://github.com/Arize-ai/openinference/issues/2287)) ([5c5a02b](https://github.com/Arize-ai/openinference/commit/5c5a02b84ee07106c3f50c193fa803460baa3c32))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.9...python-openinference-instrumentation-instructor-v0.1.10) (2025-09-22)
+
+
+### Bug Fixes
+
+* **instructor:** JSON Serialization Error for max_retries in Span Attributes ([#2212](https://github.com/Arize-ai/openinference/issues/2212)) ([c6d1d40](https://github.com/Arize-ai/openinference/commit/c6d1d40e98a123bb1029d0b7e4120de45f81d100))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.8...python-openinference-instrumentation-instructor-v0.1.9) (2025-04-28)
 
 

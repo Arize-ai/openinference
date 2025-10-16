@@ -84,6 +84,9 @@ class _ResponsesApiAttributes:
                 yield from cls._get_attributes_from_response_output_refusal_param(
                     item, inner_prefix
                 )
+            elif item["type"] == "input_audio":
+                # TODO: Handle input audio (OpenAI 1.105.0+)
+                pass
             elif TYPE_CHECKING:
                 assert_never(item["type"])
 
@@ -479,7 +482,9 @@ class _ResponsesApiAttributes:
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
         if (output := obj.get("output")) is not None:
-            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
     @classmethod
     @stop_on_exception
@@ -492,7 +497,9 @@ class _ResponsesApiAttributes:
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
         if (output := obj.get("output")) is not None:
-            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
     @classmethod
     @stop_on_exception

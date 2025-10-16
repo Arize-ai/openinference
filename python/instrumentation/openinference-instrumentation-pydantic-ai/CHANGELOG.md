@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.8...python-openinference-instrumentation-pydantic-ai-v0.1.9) (2025-10-15)
+
+
+### Bug Fixes
+
+* pydantic-ai add tool call result ([#2305](https://github.com/Arize-ai/openinference/issues/2305)) ([ede428c](https://github.com/Arize-ai/openinference/commit/ede428cc5653b1c8d89c6ba68753a1a57fb2bacd))
+
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.7...python-openinference-instrumentation-pydantic-ai-v0.1.8) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.6...python-openinference-instrumentation-pydantic-ai-v0.1.7) (2025-10-02)
+
+
+### Bug Fixes
+
+* pydantic-ai properly instrument tools and instructions ([#2250](https://github.com/Arize-ai/openinference/issues/2250)) ([6458835](https://github.com/Arize-ai/openinference/commit/64588357d31137dafcd855c9c610ce241dcd0519))
+
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.5...python-openinference-instrumentation-pydantic-ai-v0.1.6) (2025-09-30)
+
+
+### Bug Fixes
+
+* pydantic-ai use final user message as input value ([#2237](https://github.com/Arize-ai/openinference/issues/2237)) ([208232d](https://github.com/Arize-ai/openinference/commit/208232dfd6d47e8123beea41c47c8fc556012325))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.4...python-openinference-instrumentation-pydantic-ai-v0.1.5) (2025-09-11)
+
+
+### Features
+
+* update pydantic-ai to v2 tracing format ([#2186](https://github.com/Arize-ai/openinference/issues/2186)) ([5eecce5](https://github.com/Arize-ai/openinference/commit/5eecce5c648d710d3ad9397e23773096e5903352))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.3...python-openinference-instrumentation-pydantic-ai-v0.1.4) (2025-08-04)
 
 

@@ -15,7 +15,7 @@ prompt = "Hello, How are you?"
 
 async def main() -> None:
     llm = OllamaChatModel("llama3.1")
-    response = await llm.create(messages=[UserMessage(prompt)], stream=True, max_tokens=10)
+    response = await llm.run([UserMessage(prompt)], stream=True, max_tokens=10)
 
     print("LLM 🤖 : ", response.get_text_content())
 

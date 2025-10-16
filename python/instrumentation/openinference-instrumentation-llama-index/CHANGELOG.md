@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.3.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.6...python-openinference-instrumentation-llama-index-v4.3.7) (2025-10-15)
+
+
+### Bug Fixes
+
+* **llama-index:** Fixing output messages attributes types ([#2291](https://github.com/Arize-ai/openinference/issues/2291)) ([45d9332](https://github.com/Arize-ai/openinference/commit/45d9332fb9571361ea397e82a6b3a1582c20f804))
+
+## [4.3.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.5...python-openinference-instrumentation-llama-index-v4.3.6) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [4.3.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.4...python-openinference-instrumentation-llama-index-v4.3.5) (2025-09-12)
+
+
+### Bug Fixes
+
+* non-ascii characters in input.value ([#2199](https://github.com/Arize-ai/openinference/issues/2199)) ([8bfdd0d](https://github.com/Arize-ai/openinference/commit/8bfdd0d65aae74649a1087ec6796193485e0a73b))
+
 ## [4.3.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.3...python-openinference-instrumentation-llama-index-v4.3.4) (2025-08-01)
 
 

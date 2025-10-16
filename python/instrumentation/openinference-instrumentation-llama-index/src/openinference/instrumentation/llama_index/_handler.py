@@ -832,7 +832,10 @@ def _get_attributes_from_text_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
-    yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    if isinstance(obj.text, str):
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    else:
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", safe_json_dumps(obj.text)
 
 
 def _get_attributes_from_image_block(
@@ -1050,7 +1053,10 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             yield TOOL_CALL_FUNCTION_NAME, name
         if function := tool_call.get("function"):
             yield TOOL_CALL_FUNCTION_NAME, function.get("name")
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
+            if isinstance(function.get("arguments"), str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(function.get("arguments"))
         if arguments := tool_call.get("input"):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
@@ -1062,7 +1068,10 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
         if name := getattr(function, "name", None):
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := getattr(function, "arguments", None):
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 
 def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
@@ -1224,7 +1233,7 @@ def _(_: BaseTool) -> str:
 class _Encoder(json.JSONEncoder):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.pop("default", None)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def default(self, obj: Any) -> Any:
         return _encoder(obj)

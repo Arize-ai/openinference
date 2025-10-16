@@ -54,7 +54,7 @@ def setup_litellm_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
             group="opentelemetry_instrumentor", name="litellm"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -1230,6 +1230,8 @@ def test_uninstrument(tracer_provider: TracerProvider) -> None:
         # "acompletion_with_retries",
         "embedding",
         "aembedding",
+        "responses",
+        "aresponses",
         "image_generation",
         "aimage_generation",
     ]

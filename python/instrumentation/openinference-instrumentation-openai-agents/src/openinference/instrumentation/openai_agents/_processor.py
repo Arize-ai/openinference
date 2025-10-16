@@ -542,6 +542,9 @@ def _get_attributes_from_message_content_list(
         elif item["type"] == "refusal":
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item["refusal"]
+        elif item["type"] == "input_audio":
+            # TODO: Handle input audio (OpenAI 1.105.0+)
+            ...
         elif TYPE_CHECKING:
             assert_never(item["type"])
 

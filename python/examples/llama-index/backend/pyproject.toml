@@ -8,15 +8,17 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11,<3.12"
-fastapi = "^0.115.11"
+fastapi = "^0.116.0"
 python-dotenv = "^1.0.0"
-llama-index = "0.10.44"
-llama-index-core = "0.10.44"
-llama-index-agent-openai = "0.2.7"
+llama-index = "^0.13.0"
+llama-index-core = "^0.13.0"
 openinference-semantic-conventions = "*"
-openinference-instrumentation-llama-index = "^2.0.0"
+openinference-instrumentation-llama-index = "^4.3.0"
 opentelemetry-exporter-otlp = "^1.25.0"
 h11 = ">0.14.0"
+starlette = ">=0.47.2"
+aiohttp = ">=3.12.14"
+pypdf = ">=6.0.0"
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]

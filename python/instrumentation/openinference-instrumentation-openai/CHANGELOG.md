@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.38...python-openinference-instrumentation-openai-v0.1.39) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.37...python-openinference-instrumentation-openai-v0.1.38) (2025-10-08)
+
+
+### Bug Fixes
+
+* **openai:** handle string format for image_url in chat completions ([#2213](https://github.com/Arize-ai/openinference/issues/2213)) ([4d09a7e](https://github.com/Arize-ai/openinference/commit/4d09a7ec101a849ca74e36820caaff519ebe610e))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.36...python-openinference-instrumentation-openai-v0.1.37) (2025-10-07)
+
+
+### Bug Fixes
+
+* **openai:** update lower bound on openinference-semantic-conventions ([#2279](https://github.com/Arize-ai/openinference/issues/2279)) ([45cfad1](https://github.com/Arize-ai/openinference/commit/45cfad1d27d247b1a58d08f10db6ed5896863c69))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.35...python-openinference-instrumentation-openai-v0.1.36) (2025-10-07)
+
+
+### Features
+
+* **openai:** standardize completions to indexed attribute format ([#2242](https://github.com/Arize-ai/openinference/issues/2242)) ([478d17a](https://github.com/Arize-ai/openinference/commit/478d17a5433bd6119a8d501899a5eadbd2accccf))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.34...python-openinference-instrumentation-openai-v0.1.35) (2025-10-02)
+
+
+### Bug Fixes
+
+* **openai:** add tool_id accumulator for resposne ([#2241](https://github.com/Arize-ai/openinference/issues/2241)) ([cb6e1a6](https://github.com/Arize-ai/openinference/commit/cb6e1a6f68a6262b0eb50d045eef002b086288c4))
+
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.33...python-openinference-instrumentation-openai-v0.1.34) (2025-10-01)
+
+
+### Bug Fixes
+
+* **openai:** handle complex output types in responses API for openai 2 compat ([#2253](https://github.com/Arize-ai/openinference/issues/2253)) ([a209e6a](https://github.com/Arize-ai/openinference/commit/a209e6a1a33b36a497de5cc44d7059a723a75020))
+
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.32...python-openinference-instrumentation-openai-v0.1.33) (2025-09-22)
+
+
+### Features
+
+* **openai:** align embedding instrumentation with pending spec ([#2210](https://github.com/Arize-ai/openinference/issues/2210)) ([df5b9d5](https://github.com/Arize-ai/openinference/commit/df5b9d5dc080eddc4c91b6cb413eadb59f6c9982))
+
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.31...python-openinference-instrumentation-openai-v0.1.32) (2025-09-08)
+
+
+### Features
+
+* **openai:** implement image redaction for input values when hide_input_images=True ([#2146](https://github.com/Arize-ai/openinference/issues/2146)) ([fac0604](https://github.com/Arize-ai/openinference/commit/fac0604caeedf0b0332151dfde69f0b51b554652))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.30...python-openinference-instrumentation-openai-v0.1.31) (2025-08-18)
 
 

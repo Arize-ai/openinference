@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.39...python-openinference-instrumentation-v0.1.40) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.38...python-openinference-instrumentation-v0.1.39) (2025-10-07)
+
+
+### Features
+
+* **openai:** standardize completions to indexed attribute format ([#2242](https://github.com/Arize-ai/openinference/issues/2242)) ([478d17a](https://github.com/Arize-ai/openinference/commit/478d17a5433bd6119a8d501899a5eadbd2accccf))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.37...python-openinference-instrumentation-v0.1.38) (2025-09-02)
+
+
+### Features
+
+* **instrumentation:** add dangerously_using_project context manager ([#2134](https://github.com/Arize-ai/openinference/issues/2134)) ([aed9db0](https://github.com/Arize-ai/openinference/commit/aed9db05b93d1ae0cb7d8a49977de1926b038740))
+
 ## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.36...python-openinference-instrumentation-v0.1.37) (2025-08-06)
 
 

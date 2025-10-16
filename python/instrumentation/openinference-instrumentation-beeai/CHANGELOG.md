@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.12...python-openinference-instrumentation-beeai-v0.1.13) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.11...python-openinference-instrumentation-beeai-v0.1.12) (2025-10-07)
+
+
+### Bug Fixes
+
+* **beeai:** update for RequirementAgent move from experimental to stable ([#2255](https://github.com/Arize-ai/openinference/issues/2255)) ([f511485](https://github.com/Arize-ai/openinference/commit/f51148592ac904b488fbe5c0d8a0815a09e34ad3))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.10...python-openinference-instrumentation-beeai-v0.1.11) (2025-09-25)
+
+
+### Features
+
+* update beeai-framework ([#2227](https://github.com/Arize-ai/openinference/issues/2227)) ([8f8204d](https://github.com/Arize-ai/openinference/commit/8f8204dfb5e2de4ad172f4af2cba056435bf5762))
+
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.9...python-openinference-instrumentation-beeai-v0.1.10) (2025-08-30)
+
+
+### Bug Fixes
+
+* **beeaI:** dedupe traces/spans ([#2148](https://github.com/Arize-ai/openinference/issues/2148)) ([c528758](https://github.com/Arize-ai/openinference/commit/c5287584878089c4ea891b6768c5f2e4d86cbdb9))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.8...python-openinference-instrumentation-beeai-v0.1.9) (2025-08-21)
 
 

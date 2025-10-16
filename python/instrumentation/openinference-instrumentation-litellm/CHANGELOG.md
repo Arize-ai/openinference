@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.26...python-openinference-instrumentation-litellm-v0.1.27) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.25...python-openinference-instrumentation-litellm-v0.1.26) (2025-10-07)
+
+
+### Features
+
+* **litellm:** Added Support for responses API in litellm instrumentor ([#2209](https://github.com/Arize-ai/openinference/issues/2209)) ([1abc662](https://github.com/Arize-ai/openinference/commit/1abc6624fc82381a2017f7871f1041391cea0eab))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.24...python-openinference-instrumentation-litellm-v0.1.25) (2025-08-18)
 
 

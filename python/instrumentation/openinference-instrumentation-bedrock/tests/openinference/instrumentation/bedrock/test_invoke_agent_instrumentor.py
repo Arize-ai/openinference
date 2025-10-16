@@ -111,9 +111,12 @@ def test_tool_calls_with_input_params(
     )
     assert llm_span_attributes.pop("llm.input_messages.3.message.role") == "user"
 
-    assert starts_with(
-        llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params["maximumLength"] == 2048
+    assert isinstance(invocation_params["stopSequences"], list)
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["topK"] == 250
+    assert invocation_params["topP"] == 1.0
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
     assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
@@ -233,9 +236,12 @@ def test_tool_calls_without_input_params(
     assert llm_span_attributes.pop("llm.input_messages.4.message.role") == "assistant"
     assert llm_span_attributes.pop("llm.input_messages.5.message.content") == "What is the time?"
     assert llm_span_attributes.pop("llm.input_messages.5.message.role") == "user"
-    assert starts_with(
-        llm_span_attributes.pop("llm.invocation_parameters"), '{"maximumLength": 2048, "stopSe'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params["maximumLength"] == 2048
+    assert isinstance(invocation_params["stopSequences"], list)
+    assert invocation_params["temperature"] == 0.0
+    assert invocation_params["topK"] == 250
+    assert invocation_params["topP"] == 1.0
     assert llm_span_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
     assert llm_span_attributes.pop("llm.provider") == "aws"
     assert starts_with(
@@ -323,11 +329,14 @@ def test_knowledge_base_results(
     assert len(spans) == 4
     llm_span = [span for span in spans if span.name == "LLM"][-1]
     llm_span_attributes = dict(llm_span.attributes or {})
-    assert llm_span_attributes.pop("llm.invocation_parameters") == (
-        '{"maximumLength": 2048, "stopSequences": '
-        '["\\n\\nHuman:"], "temperature": 0.0, "topK": 250,'
-        ' "topP": 1.0}'
-    )
+    invocation_params = json.loads(str(llm_span_attributes.pop("llm.invocation_parameters")))
+    assert invocation_params == {
+        "maximumLength": 2048,
+        "stopSequences": ["\n\nHuman:"],
+        "temperature": 0.0,
+        "topK": 250,
+        "topP": 1.0,
+    }
     assert llm_span_attributes.pop("llm.input_messages.0.message.role") == "assistant"
     content = "You are a question answering agent."
     assert starts_with(llm_span_attributes.pop("llm.input_messages.0.message.content"), content)
@@ -356,33 +365,38 @@ def test_knowledge_base_results(
     assert starts_with(
         data.pop("retrieval.documents.0.document.content"), "Fig. 1. Overview of a LLM-pow"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.0.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.0.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.1.document.content"), "They use few-shot examples to"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.1.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.1.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.2.document.content"), "The training dataset in their"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.2.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.2.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.3.document.content"), "The code should be fully func"
     )
-    assert starts_with(
-        data.pop("retrieval.documents.3.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.3.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert starts_with(
         data.pop("retrieval.documents.4.document.content"), "LLM is presented with a list "
     )
-    assert starts_with(
-        data.pop("retrieval.documents.4.document.metadata"), '{"location": {"customDocume'
-    )
+    metadata = json.loads(str(data.pop("retrieval.documents.4.document.metadata")))
+    assert "location" in metadata and "type" in metadata
+    assert isinstance(metadata["location"], dict)
+    assert "customDocumentLocation" in metadata["location"]
     assert not data
 
 
@@ -436,18 +450,13 @@ def test_preprocessing_trace(
 
     initial_span = [span for span in spans if span.name == "bedrock_agent.invoke_agent"][-1]
     initial_span_attributes = dict(initial_span.attributes or {})
-    assert initial_span_attributes.pop("agentAliasId") == "EXL0UP4ON9"
-    assert initial_span_attributes.pop("agentId") == "DJJ1HRFGOM"
-    assert initial_span_attributes.pop("enableTrace") is True
-    assert initial_span_attributes.pop("input.value") == "What is best time to visit the Taj Mahal?"
-    assert initial_span_attributes.pop("inputText") == "What is best time to visit the Taj Mahal?"
     assert initial_span_attributes.pop("llm.provider") == "aws"
     assert initial_span_attributes.pop("openinference.span.kind") == "AGENT"
     assert initial_span_attributes.pop("output.mime_type") == "text/plain"
     assert starts_with(
         initial_span_attributes.pop("output.value"), "The best time to visit the Taj Ma"
     )
-    assert initial_span_attributes.pop("sessionId") == "default_session_id2"
+    assert starts_with(initial_span_attributes.pop("input.value"), "What is best time to visit")
     assert not initial_span_attributes
 
 
@@ -526,18 +535,13 @@ def test_agent_call_without_traces(
     assert len(events) == 1
     assert len(spans) == 1
     attributes = dict(spans[0].attributes or {})
-    assert attributes.pop("agentAliasId") == "K0P4LV9GPO"
-    assert attributes.pop("agentId") == "XNW1LGJJZT"
-    assert attributes.pop("enableTrace") is False
     assert attributes.pop("input.value") == "What is task decomposition?"
-    assert attributes.pop("inputText") == "What is task decomposition?"
     assert attributes.pop("llm.provider") == "aws"
     assert attributes.pop("openinference.span.kind") == "AGENT"
     assert attributes.pop("output.mime_type") == "text/plain"
     assert (
         attributes.pop("output.value") == "Sorry, I don't have enough information to answer that."
     )
-    assert attributes.pop("sessionId") == "default_session_id"
     assert spans[0].name == "bedrock_agent.invoke_agent"
     assert not attributes
 
@@ -744,3 +748,69 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     assert len(guardrails) == 1
     assert guardrail_span.status.status_code == StatusCode.ERROR
     assert not guardrail_span_attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_invoke_inline_agent(
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    attributes = dict(
+        foundationModel="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        instruction="You are a helpful assistant and need to help the user with your knowledge.",
+        inputText="who is US President in 2001?",
+        sessionId="default_session_id2",
+        enableTrace=True,
+    )
+    response = client.invoke_inline_agent(**attributes)
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(events) == 5
+    assert len(spans) == 3
+    span_names = [span.name for span in spans]
+    assert span_names == ["LLM", "orchestrationTrace", "bedrock_agent.invoke_inline_agent"]
+    initial_span = [span for span in spans if span.name == "bedrock_agent.invoke_inline_agent"][0]
+    span_attributes = dict(initial_span.attributes or {})
+    assert span_attributes.pop("llm.provider") == "aws"
+    assert span_attributes.pop("openinference.span.kind") == "AGENT"
+    assert span_attributes.pop("output.mime_type") == "text/plain"
+    assert span_attributes.pop("output.value") == (
+        "The President of the United States in 2001 was George W. Bush."
+    )
+    assert span_attributes.pop("input.value") == "who is US President in 2001?"
+    assert not span_attributes
+    llm_span = [span for span in spans if span.name == "LLM"][0]
+    llm_attributes = dict(llm_span.attributes or {})
+    assert llm_attributes.pop("llm.provider") == "aws"
+    assert llm_attributes.pop("input.mime_type") == "text/plain"
+    assert llm_attributes.pop("llm.model_name") == "claude-3-5-sonnet-20240620"
+    assert llm_attributes.pop("input.value") is not None
+
+    assert llm_attributes.pop("llm.input_messages.0.message.role") == "system"
+    assert llm_attributes.pop("llm.input_messages.0.message.content") is not None
+    assert llm_attributes.pop("llm.input_messages.1.message.role") == "user"
+    assert (
+        llm_attributes.pop("llm.input_messages.1.message.content") == "who is US President in 2001?"
+    )
+
+    assert llm_attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert llm_attributes.pop("llm.output_messages.0.message.content") is not None
+    assert llm_attributes.pop("output.value") is not None
+    assert llm_attributes.pop("llm.token_count.prompt") == 255
+    assert llm_attributes.pop("llm.token_count.completion") == 136
+    assert llm_attributes.pop("llm.token_count.total") == 391
+    assert llm_attributes.pop("output.mime_type") == "text/plain"
+    assert llm_attributes.pop("openinference.span.kind") == "LLM"
+    assert llm_attributes.pop("metadata") is not None
+    assert not llm_attributes

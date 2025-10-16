@@ -3,7 +3,6 @@ import sys
 import traceback
 
 from beeai_framework.agents.react import ReActAgent
-from beeai_framework.agents.types import AgentExecutionConfig
 from beeai_framework.backend.chat import ChatModel
 from beeai_framework.backend.types import ChatModelParameters
 from beeai_framework.errors import FrameworkError
@@ -33,13 +32,10 @@ prompt = "What's the current weather in Las Vegas?"
 
 async def main() -> None:
     response = await agent.run(
-        prompt=prompt,
-        execution=AgentExecutionConfig(
-            max_retries_per_step=3, total_max_retries=10, max_iterations=20
-        ),
+        prompt, max_retries_per_step=3, total_max_retries=10, max_iterations=20
     )
 
-    print("Agent 🤖 : ", response.result.text)
+    print("Agent 🤖 : ", response.last_message.text)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import { addTracerToHandlers } from "../src/instrumentationUtils";
 import { LangChainTracer } from "../src/tracer";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { OITracer } from "@arizeai/openinference-core";
+import { describe, it, expect } from "vitest";
 
 describe("addTracerToHandlers", () => {
   it("should add a tracer if there are no handlers", () => {

@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "OpenInference instrumentation for AWS Bedrock",
   "private": false,
   "main": "dist/src/index.js",

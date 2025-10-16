@@ -27,7 +27,7 @@ from typing import (  # type: ignore[attr-defined]
     get_origin,
 )
 
-import wrapt  # type: ignore[import-untyped]
+import wrapt
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
