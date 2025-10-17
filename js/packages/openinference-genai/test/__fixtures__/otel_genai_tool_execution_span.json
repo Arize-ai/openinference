@@ -1,0 +1,9 @@
+{
+  "gen_ai.operation.name": "execute_tool",
+  "gen_ai.tool.name": "get_weather",
+  "gen_ai.tool.description": "Retrieves the current weather report for a specified city.",
+  "gen_ai.tool.call.id": "1234",
+  "gen_ai.tool.type": "function",
+  "input": "{\"city\": \"New York\"}",
+  "output": "{\"status\": \"success\", \"report\": \"The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\"}"
+}

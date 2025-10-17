@@ -15,6 +15,7 @@ sdist
 # Generated files
 .python-version
 .safety-project.ini
+.mastra
 
 # Data files
 *.csv
