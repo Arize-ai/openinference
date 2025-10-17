@@ -62,5 +62,9 @@
   },
   "optionalDependencies": {
     "ollama": "^0.5.12"
+  },
+  "overrides": {
+    "form-data@<4.0.4": ">=4.0.4",
+    "axios@<1.8.2": ">=1.8.2"
   }
 }
