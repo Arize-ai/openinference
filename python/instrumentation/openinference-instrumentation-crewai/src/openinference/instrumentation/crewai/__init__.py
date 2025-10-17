@@ -12,6 +12,7 @@ from openinference.instrumentation import (
 )
 from openinference.instrumentation.crewai._wrappers import (
     _AgentActionWrapper,
+    _ProcessLLMResponseWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffWrapper,
@@ -30,6 +31,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_execute_core",
         "_original_crew_kickoff",
         "_original_flow_kickoff",
+        "_original_process_llm_response",
         "_original_tool_use",
         "_tracer",
     )
@@ -49,14 +51,24 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             config=config,
         )
 
-        agent_action_wrapper = _AgentActionWrapper(tracer=self._tracer)
-        self._original_agent_action = getattr(
-            import_module("crewai.agents.crew_agent_executor").CrewAgentExecutor, "_handle_agent_action", None
+        # agent_action_wrapper = _AgentActionWrapper(tracer=self._tracer)
+        # self._original_agent_action = getattr(
+        #     import_module("crewai.agents.crew_agent_executor").CrewAgentExecutor, "_handle_agent_action", None
+        # )
+        # wrap_function_wrapper(
+        #     module="crewai.agents.crew_agent_executor",
+        #     name="CrewAgentExecutor._handle_agent_action",
+        #     wrapper=agent_action_wrapper,
+        # )
+
+        process_llm_response_wrapper = _AgentActionWrapper(tracer=self._tracer)
+        self._original_process_llm_response = getattr(
+            import_module("crewai.utilities.agent_utils"), "process_llm_response", None
         )
         wrap_function_wrapper(
-            module="crewai.agents.crew_agent_executor",
-            name="CrewAgentExecutor._handle_agent_action",
-            wrapper=agent_action_wrapper,
+            module="crewai.utilities.agent_utils",
+            name="process_llm_response",
+            wrapper=process_llm_response_wrapper,
         )
 
         execute_core_wrapper = _ExecuteCoreWrapper(tracer=self._tracer)
@@ -94,10 +106,15 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        if self._original_agent_action is not None:
-            crew_agent_executor_module = import_module("crewai.agents.crew_agent_executor")
-            crew_agent_executor_module.CrewAgentExecutor._handle_agent_action = self._original_agent_action
-            self._original_agent_action = None
+        # if self._original_agent_action is not None:
+        #     crew_agent_executor_module = import_module("crewai.agents.crew_agent_executor")
+        #     crew_agent_executor_module.CrewAgentExecutor._handle_agent_action = self._original_agent_action
+        #     self._original_agent_action = None
+
+        if self._original_process_llm_response is not None:
+            agent_utils_module = import_module("crewai.utilities.agent_utils")
+            agent_utils_module.process_llm_response = self._original_process_llm_response
+            self._original_process_llm_response = None
 
         if self._original_execute_core is not None:
             task_module = import_module("crewai")
