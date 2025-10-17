@@ -638,6 +638,11 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             return self.original_litellm_funcs["completion"](*args, **kwargs)  # type:ignore
 
         if kwargs.get("stream", False):
+            if "stream_options" not in kwargs or kwargs["stream_options"] is None:
+                kwargs["stream_options"] = {"include_usage": True}
+            elif isinstance(kwargs["stream_options"], dict) and "include_usage" not in kwargs["stream_options"]:
+                kwargs["stream_options"]["include_usage"] = True
+
             span = self._tracer.start_span(
                 name="completion", attributes=dict(get_attributes_from_context())
             )
@@ -668,6 +673,11 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
             return await self.original_litellm_funcs["acompletion"](*args, **kwargs)  # type:ignore
 
         if kwargs.get("stream", False):
+            if "stream_options" not in kwargs or kwargs["stream_options"] is None:
+                kwargs["stream_options"] = {"include_usage": True}
+            elif isinstance(kwargs["stream_options"], dict) and "include_usage" not in kwargs["stream_options"]:
+                kwargs["stream_options"]["include_usage"] = True
+
             span = self._tracer.start_span(
                 name="acompletion", attributes=dict(get_attributes_from_context())
             )
