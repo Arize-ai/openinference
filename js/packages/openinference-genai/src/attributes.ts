@@ -33,7 +33,16 @@ import {
   ATTR_GEN_AI_TOOL_TYPE,
 } from "@opentelemetry/semantic-conventions/incubating";
 
-import { safelyJSONStringify } from "./utils.js";
+import {
+  getMimeType,
+  getNumber,
+  getString,
+  getStringArray,
+  parseJSON,
+  safelyJSONStringify,
+  set,
+  toStringContent,
+} from "./utils.js";
 import type {
   ChatMessage,
   GenericPart,
@@ -61,56 +70,12 @@ const TOOL_EXECUTION_PREFIXES = [
   ATTR_GEN_AI_TOOL_TYPE,
 ] as const;
 
-const getNumber = (value: unknown): number | undefined => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  return undefined;
-};
-
-const getString = (value: unknown): string | undefined => {
-  if (typeof value === "string" && value.length > 0) return value;
-  return undefined;
-};
-
-const getStringArray = (value: unknown): string[] | undefined => {
-  if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
-    return value as string[];
-  }
-  return undefined;
-};
-
-const parseJSON = <T = unknown>(value: unknown): T | undefined => {
-  const s = getString(value);
-  if (!s) return undefined;
-  try {
-    return JSON.parse(s) as T;
-  } catch {
-    return undefined;
-  }
-};
-
-const getMimeType = (value: unknown): string | undefined => {
-  if (parseJSON(value)) return MimeType.JSON;
-  return MimeType.TEXT;
-};
-
-const set = (attrs: Attributes, key: string, value: unknown) => {
-  if (value === undefined || value === null) return;
-  attrs[key] = value as never;
-};
-
 // Shared part parsing
 type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
 
-const toStringContent = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  const json = safelyJSONStringify(value);
-  if (typeof json === "string") return json;
-  return String(value);
-};
-
 interface ProcessedParts {
   textContents: string[];
-  toolCallsForCanonical: unknown[];
+  toolCalls: unknown[];
   toolCallResponse?: { id?: string; texts: string[] };
 }
 
@@ -121,7 +86,7 @@ const processMessageParts = (
 ): ProcessedParts => {
   const result: ProcessedParts = {
     textContents: [],
-    toolCallsForCanonical: [],
+    toolCalls: [],
   };
   if (!Array.isArray(parts) || parts.length === 0) return result;
 
@@ -171,7 +136,7 @@ const processMessageParts = (
         toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
         safelyJSONStringify(args),
       );
-      result.toolCallsForCanonical.push({
+      result.toolCalls.push({
         id,
         type: "function",
         function: { name: name ?? "", arguments: safelyJSONStringify(args) },
@@ -399,11 +364,8 @@ export const mapInputMessagesAndInputValue = (
           base["content"] = processed.textContents.join("\n");
         }
       }
-      if (
-        processed.toolCallsForCanonical.length > 0 &&
-        msg.role === "assistant"
-      ) {
-        base["tool_calls"] = processed.toolCallsForCanonical;
+      if (processed.toolCalls.length > 0 && msg.role === "assistant") {
+        base["tool_calls"] = processed.toolCalls;
       }
       if (Object.keys(base).length > 1) {
         canonicalInputMessages.push(base);
