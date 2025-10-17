@@ -61,7 +61,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         #     wrapper=agent_action_wrapper,
         # )
 
-        process_llm_response_wrapper = _AgentActionWrapper(tracer=self._tracer)
+        process_llm_response_wrapper = _ProcessLLMResponseWrapper(tracer=self._tracer)
         self._original_process_llm_response = getattr(
             import_module("crewai.utilities.agent_utils"), "process_llm_response", None
         )
