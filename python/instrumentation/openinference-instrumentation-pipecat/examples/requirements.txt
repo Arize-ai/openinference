@@ -1,0 +1,11 @@
+# Core dependencies
+pipecat-ai
+openai>=1.0.0
+grpcio>=1.60.0
+
+# OpenTelemetry and Observability
+opentelemetry-sdk>=1.22.0
+opentelemetry-exporter-otlp-proto-grpc>=1.22.0
+
+# Phoenix
+arize-phoenix>=10.14.0
