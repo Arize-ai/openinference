@@ -540,12 +540,11 @@ def _get_embedding_token_count_attributes(response: Mapping[str, Any]) -> Iterat
         token_usage = usage
 
     if token_usage is not None:
-        if (completion_tokens := token_usage.get("completion_tokens")) is not None:
-            yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
         if (prompt_tokens := token_usage.get("prompt_tokens")) is not None:
             yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (total_tokens := token_usage.get("total_tokens")) is not None:
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        # Note: completion_tokens not tracked for embeddings (no text generation)
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
