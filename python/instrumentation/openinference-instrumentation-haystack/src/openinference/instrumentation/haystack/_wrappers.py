@@ -163,7 +163,12 @@ class _ComponentRunWrapper:
                     }
                 )
             elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
+                span.set_attributes(
+                    {
+                        **dict(_get_embedding_attributes(arguments, response)),
+                        **dict(_get_embedding_token_count_attributes(response)),
+                    }
+                )
             elif component_type is ComponentType.RANKER:
                 span.set_attributes(dict(_get_reranker_response_attributes(response)))
             elif component_type is ComponentType.RETRIEVER:
@@ -517,6 +522,29 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (total_tokens := token_usage.get("total_tokens")) is not None:
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+
+def _get_embedding_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts token counts from embedder response.
+    Supports both standard usage format and custom components that put usage in meta.
+    """
+    token_usage = None
+    # Try to get usage from response root (standard format for embedding APIs)
+    if isinstance(usage := response.get("usage"), dict):
+        token_usage = usage
+    # Also check in meta for custom components that put usage there
+    elif isinstance(meta := response.get("meta"), dict) and isinstance(
+        usage := meta.get("usage"), dict
+    ):
+        token_usage = usage
+
+    if token_usage is not None:
+        if (prompt_tokens := token_usage.get("prompt_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        if (total_tokens := token_usage.get("total_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        # Note: completion_tokens not tracked for embeddings (no text generation)
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
