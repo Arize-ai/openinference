@@ -748,6 +748,10 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
         == "France won the World Cup in 2018."
     )
     assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}"))
+    assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert prompt_tokens == 20
+    assert isinstance(total_tokens := attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+    assert total_tokens == 20
     assert not attributes
 
 
