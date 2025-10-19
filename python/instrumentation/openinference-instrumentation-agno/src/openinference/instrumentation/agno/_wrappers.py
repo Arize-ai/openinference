@@ -2,12 +2,15 @@ import json
 from enum import Enum
 from inspect import signature
 from secrets import token_hex
+from types import AsyncGeneratorType, GeneratorType
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Dict,
     Iterator,
+    List,
     Mapping,
     Optional,
     OrderedDict,
@@ -26,6 +29,9 @@ from agno.run.messages import RunMessages
 from agno.team import Team
 from agno.tools.function import Function, FunctionCall
 from agno.tools.toolkit import Toolkit
+from agno.tools.function import ToolResult
+from agno.run.agent import RunContentEvent, RunOutput, RunOutputEvent
+from agno.run.team import RunContentEvent as TeamRunContentEvent, TeamRunOutputEvent
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -210,7 +216,10 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            agent_name = "Agent"
+            if hasattr("agent", "members"):
+                agent_name = "Team"
+            else:
+                agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
         # Generate unique node ID for this execution
@@ -268,7 +277,10 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            agent_name = "Agent"
+            if hasattr("agent", "members"):
+                agent_name = "Team"
+            else:
+                agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
         # Generate unique node ID for this execution
@@ -365,8 +377,11 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+            if hasattr("agent", "members"):
+                agent_name = "Team"
+            else:
+                agent_name = "Agent"
+        span_name = f"{agent_name}.arun"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -423,8 +438,11 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            agent_name = "Agent"
-        span_name = f"{agent_name}.run"
+            if hasattr("agent", "members"):
+                agent_name = "Team"
+            else:
+                agent_name = "Agent"
+        span_name = f"{agent_name}.arun"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -1027,7 +1045,20 @@ class _FunctionCallWrapper:
             response = wrapped(*args, **kwargs)
 
             if response.status == "success":
-                function_result = function_call.result
+                function_result = ""
+                if isinstance(function_call.result, (GeneratorType, Iterator)):
+                    events = []
+                    for item in function_call.result:
+                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                            function_result += self._parse_content(item.content)
+                        else:
+                            function_result += str(item)
+                        events.append(item)
+                    function_call.result = self._async_generator_wrapper(events)
+                elif isinstance(function_call.result, ToolResult):
+                    function_result = function_call.result.content
+                else:
+                    function_result = function_call.result
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attributes(
                     dict(
@@ -1073,9 +1104,32 @@ class _FunctionCallWrapper:
             },
         ) as span:
             response = await wrapped(*args, **kwargs)
-
+            
             if response.status == "success":
-                function_result = function_call.result
+                function_result = ""
+                if isinstance(function_call.result, (AsyncGeneratorType, AsyncIterator)):
+                    events = []
+                    async for item in function_call.result:
+                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                            function_result += self._parse_content(item.content)
+                        else:
+                            function_result += str(item)
+                        events.append(item)
+                    function_call.result = self._async_generator_wrapper(events)
+                elif isinstance(function_call.result, (GeneratorType, Iterator)):
+                    events = []
+                    for item in function_call.result:
+                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                            function_result += self._parse_content(item.content)
+                        else:
+                            function_result += str(item)
+                        events.append(item)
+                    function_call.result = self._async_generator_wrapper(events)
+                elif isinstance(function_call.result, ToolResult):
+                    function_result = function_call.result.content
+                else:
+                    function_result = function_call.result
+                    
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attributes(
                     dict(
@@ -1093,6 +1147,21 @@ class _FunctionCallWrapper:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
 
         return response
+    
+    async def _async_generator_wrapper(
+        self, events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
+    ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
+        for event in events:
+            yield event
+
+    def _parse_content(self, content: Any) -> str:
+        from pydantic import BaseModel
+
+        if content is not None and isinstance(content, BaseModel):
+            return content.model_dump_json()
+        else:
+            # Capture output
+            return content or ""
 
 
 # span attributes
