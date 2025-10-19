@@ -526,18 +526,21 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
 
 def _get_embedding_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """
-    Extracts token counts from embedder response.
+    Extracts token counts and model from embedder response.
     Supports both standard usage format and custom components that put usage in meta.
     """
     token_usage = None
-    # Try to get usage from response root (standard format for embedding APIs)
+    # Try to get usage from response root
     if isinstance(usage := response.get("usage"), dict):
         token_usage = usage
     # Also check in meta for custom components that put usage there
-    elif isinstance(meta := response.get("meta"), dict) and isinstance(
-        usage := meta.get("usage"), dict
-    ):
-        token_usage = usage
+    elif isinstance(meta := response.get("meta"), dict):
+        if isinstance(usage := meta.get("usage"), dict):
+            token_usage = usage
+        # Also extract model from meta for cost calculation
+        if isinstance(model := meta.get("model"), str):
+            yield LLM_MODEL_NAME, model
+            yield EMBEDDING_MODEL_NAME, model
 
     if token_usage is not None:
         if (prompt_tokens := token_usage.get("prompt_tokens")) is not None:

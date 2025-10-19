@@ -738,6 +738,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert "Argentina won the World Cup in 2022." in output_documents[0]
     assert "France won the World Cup in 2018." in output_documents[1]
     assert attributes.pop(EMBEDDING_MODEL_NAME) == "text-embedding-3-small"
+    assert attributes.pop(LLM_MODEL_NAME) == "text-embedding-3-small"
     assert (
         attributes.pop(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_TEXT}")
         == "Argentina won the World Cup in 2022."
