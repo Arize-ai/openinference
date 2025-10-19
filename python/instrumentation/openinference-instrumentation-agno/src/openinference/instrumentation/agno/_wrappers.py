@@ -31,7 +31,7 @@ from agno.tools.function import Function, FunctionCall
 from agno.tools.toolkit import Toolkit
 from agno.tools.function import ToolResult
 from agno.run.agent import RunContentEvent, RunOutput, RunOutputEvent
-from agno.run.team import RunContentEvent as TeamRunContentEvent, TeamRunOutputEvent
+from agno.run.team import RunContentEvent as TeamRunContentEvent, TeamRunOutputEvent, TeamRunOutput
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -216,7 +216,7 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            if hasattr("agent", "members"):
+            if isinstance(agent, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -277,7 +277,7 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            if hasattr("agent", "members"):
+            if isinstance(agent, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -313,6 +313,7 @@ class _RunWrapper:
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                     yield response
+                
                 if (
                     "session" in arguments
                     and (session := arguments.get("session")) is not None
@@ -377,7 +378,7 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            if hasattr("agent", "members"):
+            if isinstance(agent, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -438,7 +439,7 @@ class _RunWrapper:
         if hasattr(agent, "name") and agent.name:
             agent_name = agent.name.replace(" ", "_").replace("-", "_")
         else:
-            if hasattr("agent", "members"):
+            if isinstance(agent, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -476,7 +477,7 @@ class _RunWrapper:
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                     yield response
-
+                
                 if (
                     (session := arguments.get("session")) is not None
                     and hasattr(session, "runs")
@@ -1054,7 +1055,10 @@ class _FunctionCallWrapper:
                         else:
                             function_result += str(item)
                         events.append(item)
-                    function_call.result = self._async_generator_wrapper(events)
+                    
+                    # Convert back to iterator for downstream use
+                    function_call.result = self._generator_wrapper(events)
+                    response.result = function_call.result
                 elif isinstance(function_call.result, ToolResult):
                     function_result = function_call.result.content
                 else:
@@ -1115,7 +1119,9 @@ class _FunctionCallWrapper:
                         else:
                             function_result += str(item)
                         events.append(item)
+                    # Convert back to iterator for downstream use
                     function_call.result = self._async_generator_wrapper(events)
+                    response.result = function_call.result
                 elif isinstance(function_call.result, (GeneratorType, Iterator)):
                     events = []
                     for item in function_call.result:
@@ -1124,7 +1130,9 @@ class _FunctionCallWrapper:
                         else:
                             function_result += str(item)
                         events.append(item)
-                    function_call.result = self._async_generator_wrapper(events)
+                    # Convert back to iterator for downstream use
+                    function_call.result = self._generator_wrapper(events)
+                    response.result = function_call.result
                 elif isinstance(function_call.result, ToolResult):
                     function_result = function_call.result.content
                 else:
@@ -1147,6 +1155,12 @@ class _FunctionCallWrapper:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
 
         return response
+    
+    def _generator_wrapper(
+        self, events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
+    ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
+        for event in events:
+            yield event
     
     async def _async_generator_wrapper(
         self, events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
