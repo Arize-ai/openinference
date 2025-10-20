@@ -169,10 +169,10 @@ def _get_agent_action(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
         # Detect class name without importing CrewAI directly
         if obj.__class__.__name__ == "AgentAction":
             # Handle both dataclass & normal class versions
-            data = asdict(obj) if is_dataclass(obj) else vars(obj)
+            data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
             return safe_json_dumps(data, cls=SafeJSONEncoder), data
     except Exception as e:
-        return f"SerializationError: {str(e)} | Raw: {str(obj)}"
+        return f"SerializationError: {str(e)} | Raw: {str(obj)}", None
     return None, None
 
 
