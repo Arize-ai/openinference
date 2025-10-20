@@ -51,7 +51,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         agent_action_wrapper = _AgentActionWrapper(tracer=self._tracer)
         self._original_agent_action = getattr(
-            import_module("crewai.agents.crew_agent_executor").CrewAgentExecutor, "_handle_agent_action", None
+            import_module("crewai.agents.crew_agent_executor").CrewAgentExecutor,
+            "_handle_agent_action",
+            None,
         )
         wrap_function_wrapper(
             module="crewai.agents.crew_agent_executor",
@@ -96,7 +98,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_agent_action is not None:
             crew_agent_executor_module = import_module("crewai.agents.crew_agent_executor")
-            crew_agent_executor_module.CrewAgentExecutor._handle_agent_action = self._original_agent_action
+            crew_agent_executor_module.CrewAgentExecutor._handle_agent_action = (
+                self._original_agent_action
+            )
             self._original_agent_action = None
 
         if self._original_execute_core is not None:

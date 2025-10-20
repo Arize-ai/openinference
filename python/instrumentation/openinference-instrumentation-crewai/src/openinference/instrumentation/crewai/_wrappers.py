@@ -14,7 +14,11 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -207,19 +211,6 @@ class _AgentActionWrapper:
                 )
             ),
         ) as span:
-            print("--- wrapped ---")
-            print(wrapped)
-            print(type(wrapped))
-            print("--- instance ---")
-            print(instance)
-            print(type(instance))
-            print("--- args ---")
-            print(args)
-            print(type(args))
-            print("--- kwargs ---")
-            print(kwargs)
-            print(type(kwargs))
-
             # Get AgentAction object from args
             agent_action_obj = args[0] if args else None
             agent_action_json, agent_action_dict = _get_agent_action(agent_action_obj)
@@ -236,7 +227,13 @@ class _AgentActionWrapper:
             span.set_status(trace_api.StatusCode.OK)
 
             if agent_action_json:
-                span.set_attributes(dict(get_output_attributes(agent_action_json, mime_type=OpenInferenceMimeTypeValues.JSON)))
+                span.set_attributes(
+                    dict(
+                        get_output_attributes(
+                            agent_action_json, mime_type=OpenInferenceMimeTypeValues.JSON
+                        )
+                    )
+                )
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
