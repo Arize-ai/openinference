@@ -1,5 +1,6 @@
 import { MimeType } from "@arizeai/openinference-semantic-conventions";
 import type { Attributes, AttributeValue } from "@opentelemetry/api";
+import { GenericFunction, SafeFunction } from "./types.js";
 
 export const safelyJSONStringify = (value: unknown) => {
   try {
@@ -70,3 +71,27 @@ export const toStringContent = (value: unknown): string => {
   if (typeof json === "string") return json;
   return String(value);
 };
+
+/**
+ * Wraps a function with a try-catch block to catch and log any errors.
+ * @param fn - A function to wrap with a try-catch block.
+ * @returns A function that returns null if an error is thrown.
+ */
+export function withSafety<T extends GenericFunction>({
+  fn,
+  onError,
+}: {
+  fn: T;
+  onError?: (error: unknown) => void;
+}): SafeFunction<T> {
+  return (...args) => {
+    try {
+      return fn(...args);
+    } catch (error) {
+      if (onError) {
+        onError(error);
+      }
+      return null;
+    }
+  };
+}
