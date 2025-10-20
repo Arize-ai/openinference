@@ -1,4 +1,4 @@
-from langchain.chains import LLMChain
+from langchain_classic.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import OpenAI
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter

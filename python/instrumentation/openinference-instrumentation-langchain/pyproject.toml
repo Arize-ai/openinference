@@ -36,14 +36,15 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "langchain_core >= 0.2.43",
+  "langchain_core >= 1.0.0",
 ]
 test = [
-  "langchain_core == 0.3.50",
-  "langchain == 0.3.15",
-  "langchain_openai == 0.2.14",
-  "langchain-community == 0.3.15",
-  "langchain-google-vertexai == 2.0.12",
+  "langchain_core >= 1.0.0",
+  "langchain >= 1.0.0",
+  "langchain-classic >= 1.0.0",
+  "langchain_openai",
+  "langchain-community",
+  "langchain-google-vertexai",
   "opentelemetry-sdk",
   "respx",
   "pytest-recording",
@@ -55,7 +56,7 @@ test = [
   "vcrpy>=6.0.1",
 ]
 type-check = [
-  "langchain_core == 0.2.43",
+  "langchain_core == 1.0.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
