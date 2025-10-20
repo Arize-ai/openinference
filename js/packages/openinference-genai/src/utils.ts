@@ -27,7 +27,7 @@ export const getStringArray = (value: unknown): string[] | undefined => {
   return undefined;
 };
 
-export const parseJSON = (value: unknown): unknown => {
+export const safelyParseJSON = (value: unknown): unknown => {
   const s = getString(value);
   if (!s) return undefined;
   try {
@@ -38,7 +38,7 @@ export const parseJSON = (value: unknown): unknown => {
 };
 
 export const getMimeType = (value: unknown): MimeType => {
-  if (parseJSON(value)) return MimeType.JSON;
+  if (safelyParseJSON(value)) return MimeType.JSON;
   return MimeType.TEXT;
 };
 
@@ -57,6 +57,15 @@ export const set = (
   if (value === undefined || value === null) return;
   attrs[key] = value;
 };
+
+/**
+ * Merge multiple attributes objects into a single attributes object
+ * This mutates the first attributes object
+ * @param groups - The groups of attributes to merge
+ * @returns The merged attributes
+ */
+export const merge = (...groups: Attributes[]): Attributes =>
+  groups.reduce((acc, g) => Object.assign(acc, g), {} as Attributes);
 
 /**
  * Convert a value to a string. If the value is already a string, return it.

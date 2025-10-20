@@ -1,3 +1,4 @@
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import {
   mapProviderAndSystem,
   mapModels,
@@ -115,15 +116,14 @@ describe("attributes helpers", () => {
     });
 
     it("omits invalid types and supports custom prefix", () => {
-      const attrs = mapInvocationParameters(
-        {
-          // invalid temp should be omitted
-          "gen_ai.request.temperature": "hot",
-          "gen_ai.request.max_tokens": 150,
-        },
-        "inputValue",
-      );
-      const json = attrs["inputValue"] as string;
+      const attrs = mapInvocationParameters({
+        // invalid temp should be omitted
+        "gen_ai.request.temperature": "hot",
+        "gen_ai.request.max_tokens": 150,
+      });
+      const json = attrs[
+        SemanticConventions.LLM_INVOCATION_PARAMETERS
+      ] as string;
       expect(typeof json).toBe("string");
       const parsed = JSON.parse(json);
       expect(parsed).toEqual({ max_completion_tokens: 150 });

@@ -35,7 +35,8 @@ import {
   getNumber,
   getString,
   getStringArray,
-  parseJSON,
+  merge,
+  safelyParseJSON,
   safelyJSONStringify,
   set,
   toStringContent,
@@ -71,17 +72,36 @@ const TOOL_EXECUTION_PREFIXES = [
 type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
 
 /**
- * Process genai message parts into openinference attributes
- * @param attrs - The attributes to add to
- * @param msgPrefix - The prefix to add to the attributes
- * @param parts - The parts to process
- * @returns The processed parts
+ * Type guard for a GenAI chat message
+ * @param value - The value to check
+ * @returns True if the value is a chat message, false otherwise
  */
-const processMessageParts = (
-  attrs: Attributes,
-  msgPrefix: string,
-  parts: AnyPart[] | undefined,
-): void => {
+const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("role" in value) || !("parts" in value)) return false;
+  if (typeof value.role !== "string" || !Array.isArray(value.parts))
+    return false;
+  if (!value.parts || !Array.isArray(value.parts)) return false;
+  return true;
+};
+
+/**
+ * Process genai message parts into openinference attributes
+ *
+ * @param params - The parameters to process the message parts
+ */
+const processMessageParts = ({
+  attrs,
+  msgPrefix,
+  parts,
+}: {
+  /** The attributes to mutate with new message attributes */
+  attrs: Attributes;
+  /** The prefix to add to the attributes */
+  msgPrefix: string;
+  /** The parts to process */
+  parts: AnyPart[] | undefined;
+}): void => {
   if (!Array.isArray(parts) || parts.length === 0) return;
 
   // track the index of the content and tool calls outside the loop
@@ -93,10 +113,54 @@ const processMessageParts = (
     if (!part || typeof part !== "object") continue;
     if (!part.type) continue;
 
-    if (part.type === "text") {
-      const text = toStringContent(part.content);
-      if (text !== undefined) {
-        // MESSAGE_CONTENTS entries
+    switch (part.type) {
+      case "text": {
+        const text = toStringContent(part.content);
+        if (text !== undefined) {
+          // MESSAGE_CONTENTS entries
+          const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+          set(
+            attrs,
+            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+            "text",
+          );
+          set(
+            attrs,
+            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+            text,
+          );
+          contentIndex += 1;
+        }
+        continue;
+      }
+      case "tool_call": {
+        const id = part.id ?? undefined;
+        const name = part.name;
+        const args = part.arguments ?? {};
+        const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
+        set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
+        set(
+          attrs,
+          toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME,
+          name,
+        );
+        set(
+          attrs,
+          toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+          safelyJSONStringify(args),
+        );
+        toolIndex += 1;
+        continue;
+      }
+      case "tool_call_response": {
+        const id = part.id ?? undefined;
+        const response = toStringContent(part.response);
+
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
+          id,
+        );
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
         set(
           attrs,
@@ -106,73 +170,34 @@ const processMessageParts = (
         set(
           attrs,
           `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-          text,
+          response,
+        );
+        contentIndex += 1;
+        continue;
+      }
+      default: {
+        // Generic / unknown part type: capture as JSON text content
+        const genericPart = part as GenericPart;
+        const genericText = toStringContent(genericPart);
+        const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
+        set(
+          attrs,
+          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
+          genericPart.type,
+        );
+        set(
+          attrs,
+          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
+          genericText,
+        );
+        set(
+          attrs,
+          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
+          genericText,
         );
         contentIndex += 1;
       }
-      continue;
     }
-
-    if (part.type === "tool_call") {
-      const id = part.id ?? undefined;
-      const name = part.name;
-      const args = part.arguments ?? {};
-      const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
-      set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
-      set(
-        attrs,
-        toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME,
-        name,
-      );
-      set(
-        attrs,
-        toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
-        safelyJSONStringify(args),
-      );
-      toolIndex += 1;
-      continue;
-    }
-
-    if (part.type === "tool_call_response") {
-      const id = part.id ?? undefined;
-      const response = toStringContent(part.response);
-
-      set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`, id);
-      const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-      set(
-        attrs,
-        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-        "text",
-      );
-      set(
-        attrs,
-        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-        response,
-      );
-      contentIndex += 1;
-      continue;
-    }
-
-    // Generic / unknown part type: capture as JSON text content
-    const genericPart = part as GenericPart;
-    const genericText = toStringContent(genericPart);
-    const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-    set(
-      attrs,
-      `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-      genericPart.type,
-    );
-    set(
-      attrs,
-      `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-      genericText,
-    );
-    set(
-      attrs,
-      `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-      genericText,
-    );
-    contentIndex += 1;
   }
 };
 
@@ -184,10 +209,7 @@ const processMessageParts = (
 export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
   spanAttributes: Attributes,
 ): Attributes => {
-  const merge = (...groups: Attributes[]): Attributes =>
-    groups.reduce((acc, g) => Object.assign(acc, g), {} as Attributes);
-
-  const mapped = merge(
+  return merge(
     mapProviderAndSystem(spanAttributes),
     mapModels(spanAttributes),
     mapSpanKind(spanAttributes),
@@ -199,7 +221,6 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
     mapInputValue(spanAttributes),
     mapOutputValue(spanAttributes),
   );
-  return mapped;
 };
 
 /**
@@ -257,12 +278,10 @@ export const mapSpanKind = (spanAttributes: Attributes): Attributes => {
 /**
  * Map invocation parameters to openinference attributes
  * @param spanAttributes - The span attributes containing invocation parameters to map
- * @param prefix - The prefix to add to the attributes
  * @returns The mapped invocation parameters attributes
  */
 export const mapInvocationParameters = (
   spanAttributes: Attributes,
-  prefix: string = SemanticConventions.LLM_INVOCATION_PARAMETERS,
 ): Attributes => {
   const attrs: Attributes = {};
   const requestModel = getString(spanAttributes[ATTR_GEN_AI_REQUEST_MODEL]);
@@ -298,7 +317,11 @@ export const mapInvocationParameters = (
   if (typeof maxTokens === "number")
     invocationParameters.max_completion_tokens = maxTokens;
   if (Object.keys(invocationParameters).length > 0) {
-    set(attrs, prefix, safelyJSONStringify(invocationParameters));
+    set(
+      attrs,
+      SemanticConventions.LLM_INVOCATION_PARAMETERS,
+      safelyJSONStringify(invocationParameters),
+    );
   }
   return attrs;
 };
@@ -350,21 +373,18 @@ export const mapOutputValue = (spanAttributes: Attributes): Attributes => {
  */
 export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIInputMessages = parseJSON(
+  const genAIInputMessages = safelyParseJSON(
     spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES],
   );
 
   if (Array.isArray(genAIInputMessages)) {
     (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (typeof msg !== "object" || msg === null) return;
-      if (!("role" in msg) || !("parts" in msg)) return;
-      if (typeof msg.role !== "string" || !Array.isArray(msg.parts)) return;
-      if (!msg.parts || !Array.isArray(msg.parts)) return;
+      if (!isGenAIChatMessage(msg)) return;
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
-      processMessageParts(attrs, msgPrefix, msg.parts as AnyPart[]);
+      processMessageParts({ attrs, msgPrefix, parts: msg.parts });
     });
   }
 
@@ -378,22 +398,19 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
  */
 export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIOutputMessages = parseJSON(
+  const genAIOutputMessages = safelyParseJSON(
     spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES],
   );
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
     // recast as unknown[] for safety, as Array.isArray() retypes to any[]
     (genAIOutputMessages as unknown[]).forEach((msg, msgIndex) => {
-      if (typeof msg !== "object" || msg === null) return;
-      if (!("role" in msg) || !("parts" in msg)) return;
-      if (typeof msg.role !== "string" || !Array.isArray(msg.parts)) return;
-      if (!msg.parts || !Array.isArray(msg.parts)) return;
+      if (!isGenAIChatMessage(msg)) return;
       const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
       set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
       // process and set the rest of the message parts
-      processMessageParts(attrs, msgPrefix, msg.parts);
+      processMessageParts({ attrs, msgPrefix, parts: msg.parts });
     });
   }
 
