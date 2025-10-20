@@ -60,11 +60,14 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5, f"Expected 5 spans (2 tool + 2 agent + 1 crew), got {len(spans)}"
+    assert len(spans) == 7, f"Expected 7 spans (2 AgentAction + 2 tool + 2 agent + 1 crew), got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
     crew_span = crew_spans[0]
+
+    agent_action_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.UNKNOWN.value)
+    assert len(agent_action_spans) == 2
 
     agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
     assert len(agent_spans) == 2
