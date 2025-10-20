@@ -3,11 +3,13 @@ import {
   mapModels,
   mapSpanKind,
   mapInvocationParameters,
-  mapInputMessagesAndInputValue,
-  mapOutputMessagesAndOutputValue,
+  mapInputMessages,
+  mapOutputMessages,
   mapTokenCounts,
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
   mapToolExecution,
+  mapInputValue,
+  mapOutputValue,
 } from "../src/attributes.js";
 
 /**
@@ -22,7 +24,6 @@ describe("attributes helpers", () => {
       const attrs = mapProviderAndSystem({
         "gen_ai.provider.name": "openai",
       });
-      expect(attrs["llm.system"]).toBe("openai");
       expect(attrs["llm.provider"]).toBe("openai");
     });
 
@@ -129,49 +130,116 @@ describe("attributes helpers", () => {
     });
   });
 
+  describe("mapInputValue", () => {
+    it("maps input value and mime type", () => {
+      const attrs = mapInputValue({
+        input: JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      });
+      expect(attrs["input.value"]).toBe(
+        JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      );
+      expect(attrs["input.mime_type"]).toBe("application/json");
+    });
+    it("falls back to deprecated prompt when input is missing", () => {
+      const attrs = mapInputValue({
+        "gen_ai.prompt": JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      });
+      expect(attrs["input.value"]).toBe(
+        JSON.stringify([
+          { role: "user", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      );
+      expect(attrs["input.mime_type"]).toBe("application/json");
+    });
+  });
+
+  describe("mapOutputValue", () => {
+    it("maps output value and mime type", () => {
+      const attrs = mapOutputValue({
+        output: JSON.stringify([
+          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      });
+      expect(attrs["output.value"]).toBe(
+        JSON.stringify([
+          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      );
+      expect(attrs["output.mime_type"]).toBe("application/json");
+    });
+    it("falls back to deprecated completion when output is missing", () => {
+      const attrs = mapOutputValue({
+        "gen_ai.completion": JSON.stringify([
+          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      });
+      expect(attrs["output.value"]).toBe(
+        JSON.stringify([
+          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
+        ]),
+      );
+      expect(attrs["output.mime_type"]).toBe("application/json");
+    });
+  });
+
   describe("mapInputMessagesAndInputValue", () => {
-    it("maps structured input messages and sets input.value (with invocation params)", () => {
+    it("maps structured input messages and forwards input.value", () => {
+      const input = [
+        {
+          role: "system",
+          parts: [{ type: "text", content: "You are a helpful assistant." }],
+        },
+        {
+          role: "user",
+          parts: [{ type: "text", content: "Weather in Paris?" }],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content: "Absolutely! Let me check the weather for you.",
+            },
+            {
+              type: "tool_call",
+              id: "call_VSPygqK",
+              name: "get_weather",
+              arguments: { location: "Paris" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "call_VSPygqK",
+              response: "rainy, 57°F",
+            },
+          ],
+        },
+      ];
+
       const spanAttrs = {
-        "gen_ai.input.messages": JSON.stringify([
-          {
-            role: "system",
-            parts: [{ type: "text", content: "You are a helpful assistant." }],
-          },
+        "gen_ai.input.messages": JSON.stringify(input),
+        // include some invocation params to verify merging into input.value
+        "gen_ai.request.model": "gpt-4",
+        "gen_ai.request.temperature": 0.5,
+        // pass input to ensure that it is simply forwarded to input.value
+        input: JSON.stringify([
           {
             role: "user",
             parts: [{ type: "text", content: "Weather in Paris?" }],
           },
-          {
-            role: "assistant",
-            parts: [
-              {
-                type: "text",
-                content: "Absolutely! Let me check the weather for you.",
-              },
-              {
-                type: "tool_call",
-                id: "call_VSPygqK",
-                name: "get_weather",
-                arguments: { location: "Paris" },
-              },
-            ],
-          },
-          {
-            role: "tool",
-            parts: [
-              {
-                type: "tool_call_response",
-                id: "call_VSPygqK",
-                response: "rainy, 57°F",
-              },
-            ],
-          },
         ]),
-        // include some invocation params to verify merging into input.value
-        "gen_ai.request.model": "gpt-4",
-        "gen_ai.request.temperature": 0.5,
       } as const;
-      const attrs = mapInputMessagesAndInputValue(spanAttrs);
+      const attrs = mapInputMessages(spanAttrs);
 
       // llm.input_messages.* extracted
       expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
@@ -199,33 +267,35 @@ describe("attributes helpers", () => {
         "call_VSPygqK",
       );
 
-      // input.value is JSON, includes invocation params and messages
-      const inputValueJson = attrs["input.value"] as string;
-      expect(typeof inputValueJson).toBe("string");
-      const inputValue = JSON.parse(inputValueJson);
-      expect(inputValue).toMatchObject({
-        model: "gpt-4",
-        temperature: 0.5,
-      });
-      expect(Array.isArray(inputValue.messages)).toBe(true);
-      expect(attrs["input.mime_type"]).toBe("application/json");
+      const inOutAttrs = {
+        ...mapInputValue(spanAttrs),
+        ...mapOutputValue(spanAttrs),
+      };
+
+      expect(inOutAttrs["input.value"]).toBe(spanAttrs["input"]);
+      expect(inOutAttrs["input.mime_type"]).toBe("application/json");
     });
 
     it("falls back to deprecated prompt when input messages missing", () => {
-      const attrs = mapInputMessagesAndInputValue({
+      const spanAttrs = {
         "gen_ai.prompt": JSON.stringify([
           { role: "user", parts: [{ type: "text", content: "Hi" }] },
         ]),
-      });
-      const inputValueJson = attrs["input.value"] as string;
-      expect(JSON.parse(inputValueJson).messages[0]).toMatchObject({
-        role: "user",
-        content: "Hi",
-      });
+      };
+      const attrs = mapInputMessages(spanAttrs);
+      expect(attrs["input.value"]).toBe(undefined);
+      expect(attrs["input.mime_type"]).toBe(undefined);
+
+      const inOutAttrs = {
+        ...mapInputValue(spanAttrs),
+        ...mapOutputValue(spanAttrs),
+      };
+      expect(inOutAttrs["input.value"]).toBe(spanAttrs["gen_ai.prompt"]);
+      expect(inOutAttrs["input.mime_type"]).toBe("application/json");
     });
 
     it("stringifies unparseable input messages (malformed)", () => {
-      const attrs = mapInputMessagesAndInputValue({
+      const attrs = mapInputMessages({
         // not JSON
         "gen_ai.input.messages": "not-json",
       });
@@ -240,7 +310,7 @@ describe("attributes helpers", () => {
 
   describe("mapOutputMessagesAndOutputValue", () => {
     it("maps structured output messages and sets output.value", () => {
-      const attrs = mapOutputMessagesAndOutputValue({
+      const spanAttrs = {
         "gen_ai.output.messages": JSON.stringify([
           {
             role: "assistant",
@@ -252,40 +322,45 @@ describe("attributes helpers", () => {
         "gen_ai.response.model": "gpt-4-0613",
         "gen_ai.request.model": "gpt-4",
         "gen_ai.response.finish_reasons": ["stop"],
-      });
+        output: JSON.stringify([
+          {
+            role: "assistant",
+            parts: [{ type: "text", content: "The weather is rainy." }],
+            finish_reason: "stop",
+          },
+        ]),
+      };
+      const attrs = mapOutputMessages(spanAttrs);
       expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
       expect(
         attrs["llm.output_messages.0.message.contents.0.message_content.text"],
       ).toBe("The weather is rainy.");
-      const outJson = attrs["output.value"] as string;
-      const parsed = JSON.parse(outJson);
-      expect(parsed).toMatchObject({
-        id: "chatcmpl-123",
-        model: "gpt-4-0613",
-        choices: [
-          {
-            index: 0,
-            message: { role: "assistant", content: "The weather is rainy." },
-            finish_reason: "stop",
-          },
-        ],
-      });
-      expect(attrs["output.mime_type"]).toBe("application/json");
+      const inOutAttrs = {
+        ...mapInputValue(spanAttrs),
+        ...mapOutputValue(spanAttrs),
+      };
+      expect(inOutAttrs["output.value"]).toBe(spanAttrs["output"]);
+      expect(inOutAttrs["output.mime_type"]).toBe("application/json");
     });
 
     it("falls back to deprecated completion text when output messages missing", () => {
-      const attrs = mapOutputMessagesAndOutputValue({
+      const spanAttrs = {
         "gen_ai.completion": JSON.stringify({ text: "Answer" }),
         "gen_ai.response.finish_reasons": ["stop"],
-      });
-      expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(
-        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
-      ).toBe("Answer");
+      };
+      const attrs = mapOutputMessages(spanAttrs);
+      expect(attrs["output.value"]).toBe(undefined);
+      expect(attrs["output.mime_type"]).toBe(undefined);
+      const inOutAttrs = {
+        ...mapInputValue(spanAttrs),
+        ...mapOutputValue(spanAttrs),
+      };
+      expect(inOutAttrs["output.value"]).toBe(spanAttrs["gen_ai.completion"]);
+      expect(inOutAttrs["output.mime_type"]).toBe("application/json");
     });
 
     it("stringifies unparseable output messages (malformed)", () => {
-      const attrs = mapOutputMessagesAndOutputValue({
+      const attrs = mapOutputMessages({
         // not JSON
         "gen_ai.output.messages": "[malformed]",
       });
@@ -317,7 +392,7 @@ describe("attributes helpers", () => {
 
   describe("mapToolExecution", () => {
     it("maps tool execution details", () => {
-      const attrs = mapToolExecution({
+      const spanAttrs = {
         "gen_ai.tool.name": "get_weather",
         "gen_ai.tool.description":
           "Retrieves the current weather report for a specified city.",
@@ -326,18 +401,24 @@ describe("attributes helpers", () => {
         input: '{"city": "New York"}',
         output:
           '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}',
-      });
+      };
+      const attrs = mapToolExecution(spanAttrs);
       expect(attrs["tool.name"]).toBe("get_weather");
       expect(attrs["tool.description"]).toBe(
         "Retrieves the current weather report for a specified city.",
       );
       expect(attrs["tool_call.id"]).toBe("1234");
-      expect(attrs["input.value"]).toBe('{"city": "New York"}');
-      expect(attrs["input.mime_type"]).toBe("application/json");
-      expect(attrs["output.value"]).toBe(
+      // input and output are mapped separately
+      const inOutAttrs = {
+        ...mapInputValue(spanAttrs),
+        ...mapOutputValue(spanAttrs),
+      };
+      expect(inOutAttrs["input.value"]).toBe('{"city": "New York"}');
+      expect(inOutAttrs["input.mime_type"]).toBe("application/json");
+      expect(inOutAttrs["output.value"]).toBe(
         '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}',
       );
-      expect(attrs["output.mime_type"]).toBe("application/json");
+      expect(inOutAttrs["output.mime_type"]).toBe("application/json");
     });
   });
 

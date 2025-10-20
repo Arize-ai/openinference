@@ -41,6 +41,13 @@ export const getMimeType = (value: unknown): MimeType => {
   return MimeType.TEXT;
 };
 
+/**
+ * Assign attribute value to attributes object if value is not undefined or null
+ * This mutates the attrs object
+ * @param attrs - The attributes object to assign the value to
+ * @param key - The key to assign the value to
+ * @param value - The value to assign to the key
+ */
 export const set = (
   attrs: Attributes,
   key: string,
@@ -50,6 +57,13 @@ export const set = (
   attrs[key] = value;
 };
 
+/**
+ * Convert a value to a string. If the value is already a string, return it.
+ * If the value can be jsonified, jsonify it.
+ * Otherwise, return the string representation of the value.
+ * @param value - The value to convert to a string
+ * @returns The string representation of the value
+ */
 export const toStringContent = (value: unknown): string => {
   if (typeof value === "string") return value;
   const json = safelyJSONStringify(value);
