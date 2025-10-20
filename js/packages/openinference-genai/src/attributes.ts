@@ -350,12 +350,15 @@ export const mapOutputValue = (spanAttributes: Attributes): Attributes => {
  */
 export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIInputMessages = parseJSON<GenAIInputMessage[]>(
+  const genAIInputMessages = parseJSON(
     spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES],
   );
 
   if (Array.isArray(genAIInputMessages)) {
-    genAIInputMessages.forEach((msg, msgIndex) => {
+    (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
+      if (typeof msg !== "object" || msg === null) return;
+      if (!("role" in msg) || !("parts" in msg)) return;
+      if (typeof msg.role !== "string" || !Array.isArray(msg.parts)) return;
       if (!msg.parts || !Array.isArray(msg.parts)) return;
       const msgPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${msgIndex}.`;
       // set the message role
@@ -375,16 +378,23 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
  */
 export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIOutputMessages = parseJSON<GenAIOutputMessage[]>(
+  const genAIOutputMessages = parseJSON(
     spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES],
   );
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
-    const first = genAIOutputMessages[0];
-    if (!first) return attrs;
-    const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
-    set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, first.role);
-    processMessageParts(attrs, msgPrefix, first.parts);
+    // recast as unknown[] for safety, as Array.isArray() retypes to any[]
+    (genAIOutputMessages as unknown[]).forEach((msg, msgIndex) => {
+      if (typeof msg !== "object" || msg === null) return;
+      if (!("role" in msg) || !("parts" in msg)) return;
+      if (typeof msg.role !== "string" || !Array.isArray(msg.parts)) return;
+      if (!msg.parts || !Array.isArray(msg.parts)) return;
+      const msgPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.${msgIndex}.`;
+      // set the message role
+      set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_ROLE}`, msg.role);
+      // process and set the rest of the message parts
+      processMessageParts(attrs, msgPrefix, msg.parts);
+    });
   }
 
   return attrs;

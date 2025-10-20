@@ -26,11 +26,11 @@ export const getStringArray = (value: unknown): string[] | undefined => {
   return undefined;
 };
 
-export const parseJSON = <T = unknown>(value: unknown): T | undefined => {
+export const parseJSON = (value: unknown): unknown => {
   const s = getString(value);
   if (!s) return undefined;
   try {
-    return JSON.parse(s) as T;
+    return JSON.parse(s);
   } catch {
     return undefined;
   }
