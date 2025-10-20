@@ -46,8 +46,8 @@ import {
 import type {
   ChatMessage,
   GenericPart,
-} from "./schemas/opentelemetryInputMessages.js";
-import type { OutputMessage } from "./schemas/opentelemetryOutputMessages.js";
+} from "./__generated__/opentelemetryInputMessages.js";
+import type { OutputMessage } from "./__generated__/opentelemetryOutputMessages.js";
 
 export type GenAIInputMessage = ChatMessage;
 export type GenAIInputMessagePart = ChatMessage["parts"][number];
