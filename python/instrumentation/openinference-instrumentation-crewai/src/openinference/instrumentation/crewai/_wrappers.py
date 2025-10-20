@@ -1,5 +1,5 @@
 import json
-from dataclasses import is_dataclass, asdict
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, cast
