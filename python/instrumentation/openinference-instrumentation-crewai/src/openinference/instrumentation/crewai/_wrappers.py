@@ -206,7 +206,7 @@ class _AgentActionWrapper:
             attributes=dict(
                 _flatten(
                     {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
                     }
                 )
             ),
