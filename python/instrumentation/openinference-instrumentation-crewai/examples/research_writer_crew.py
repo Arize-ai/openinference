@@ -26,7 +26,8 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 # Make sure to set the OPENAI_API_KEY environment variable
-os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
+# os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
+os.environ["OPENAI_API_KEY"] = "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"
 
 
 def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:

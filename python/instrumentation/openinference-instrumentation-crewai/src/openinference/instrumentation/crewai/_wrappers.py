@@ -176,6 +176,19 @@ def _get_agent_action(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
     return None, None
 
 
+def _get_agent_finish(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
+    """Generate a JSON string & Python dict from AgentFinish object."""
+    try:
+        # Detect class name without importing CrewAI directly
+        if obj.__class__.__name__ == "AgentFinish":
+            # Handle both dataclass & normal class versions
+            data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
+            return safe_json_dumps(data, cls=SafeJSONEncoder), data
+    except Exception as e:
+        return f"SerializationError: {str(e)}", None
+    return None, None
+
+
 def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
     for i, a in enumerate(agents):
         if a.role == current_role and i != 0:
@@ -234,6 +247,18 @@ class _AgentActionWrapper:
                 raise
 
             span.set_status(trace_api.StatusCode.OK)
+
+            # Get AgentFinish object from response
+            agent_finish_json, _ = _get_agent_finish(response)
+
+            if agent_finish_json:
+                span.set_attributes(
+                    dict(
+                        get_output_attributes(
+                            agent_finish_json, mime_type=OpenInferenceMimeTypeValues.JSON
+                        )
+                    )
+                )
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
