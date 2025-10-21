@@ -412,11 +412,11 @@ class _CrewKickoffWrapper:
         return crew_output
 
 
-class _FlowKickoffWrapper:
+class _FlowKickoffAsyncWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
-    def __call__(
+    async def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -424,7 +424,7 @@ class _FlowKickoffWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.kickoff"
@@ -450,7 +450,7 @@ class _FlowKickoffWrapper:
             span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
 
             try:
-                flow_output = wrapped(*args, **kwargs)
+                flow_output = await wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
