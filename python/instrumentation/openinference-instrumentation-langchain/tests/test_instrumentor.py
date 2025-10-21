@@ -611,8 +611,8 @@ def test_gemini_token_counts_streaming(
         with vcr.use_cassette(path=f"tests/cassettes/test_instrumentor/{cassette_name}.yaml"):
             llm = VertexAI(
                 api_transport="rest",
-                project="test-project",
-                model_name="gemini-pro",
+                project="langchain-gemini-455417",
+                model_name="gemini-2.5-flash-lite",
                 streaming=streaming,
             )
             llm.invoke("Tell me a funny joke, a one-liner.")
