@@ -163,29 +163,16 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
         return str(base_method)
 
 
-def _get_agent_action(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
-    """Generate a JSON string & Python dict from AgentAction object."""
+def _serialize_agent_object(obj: Any, class_name: str) -> Tuple[str | None, dict[str, Any] | None]:
+    """Serialize CrewAI objects (AgentAction, AgentFinish) into JSON & dict formats."""
     try:
         # Detect class name without importing CrewAI directly
-        if obj.__class__.__name__ == "AgentAction":
-            # Handle both dataclass & normal class versions
+        if getattr(obj, "__class__", None) and obj.__class__.__name__ == class_name:
+            # Handle both dataclass & legacy class versions
             data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
             return safe_json_dumps(data, cls=SafeJSONEncoder), data
     except Exception as e:
-        return f"SerializationError: {str(e)}", None
-    return None, None
-
-
-def _get_agent_finish(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
-    """Generate a JSON string & Python dict from AgentFinish object."""
-    try:
-        # Detect class name without importing CrewAI directly
-        if obj.__class__.__name__ == "AgentFinish":
-            # Handle both dataclass & normal class versions
-            data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
-            return safe_json_dumps(data, cls=SafeJSONEncoder), data
-    except Exception as e:
-        return f"SerializationError: {str(e)}", None
+        return f"SerializationError: {e}", None
     return None, None
 
 
@@ -226,7 +213,9 @@ class _AgentActionWrapper:
         ) as span:
             # Get AgentAction object from args
             agent_action_obj = args[0] if args else None
-            agent_action_json, agent_action_dict = _get_agent_action(agent_action_obj)
+            agent_action_json, agent_action_dict = _serialize_agent_object(
+                agent_action_obj, "AgentAction"
+            )
 
             if agent_action_json:
                 span.set_attributes(
@@ -249,7 +238,7 @@ class _AgentActionWrapper:
             span.set_status(trace_api.StatusCode.OK)
 
             # Get AgentFinish object from response
-            agent_finish_json, _ = _get_agent_finish(response)
+            agent_finish_json, _ = _serialize_agent_object(response, "AgentFinish")
 
             if agent_finish_json:
                 span.set_attributes(
