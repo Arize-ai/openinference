@@ -25,7 +25,18 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GenAiOperationNameValues,
 )
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation._attributes import (
+    get_input_attributes,
+    get_llm_invocation_parameter_attributes,
+    get_llm_model_name_attributes,
+    get_llm_system_attributes,
+    get_llm_token_count_attributes,
+    get_output_attributes,
+    get_session_attributes,
+    get_span_kind_attributes,
+    get_tool_attributes,
+)
+from openinference.instrumentation._types import TokenCount
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceSpanKindValues,
@@ -175,61 +186,55 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
 def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes common to all operation types."""
 
-    # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
-    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
+    # Handle span kind using helper function
     if GEN_AI_OPERATION_NAME in gen_ai_attrs:
         try:
             operation = gen_ai_attrs[GEN_AI_OPERATION_NAME]
             span_kind = _map_operation_to_span_kind(operation)
-            yield SpanAttributes.OPENINFERENCE_SPAN_KIND, span_kind.value
+            yield from get_span_kind_attributes(span_kind).items()
         except ValueError:
-            yield (
-                SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                OpenInferenceSpanKindValues.UNKNOWN.value,
-            )
+            yield from get_span_kind_attributes(OpenInferenceSpanKindValues.UNKNOWN).items()
     elif GEN_AI_TOOL_NAME in gen_ai_attrs:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.TOOL.value
+        yield from get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL).items()
     elif PydanticAgentName.AGENT in gen_ai_attrs:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.AGENT.value
+        yield from get_span_kind_attributes(OpenInferenceSpanKindValues.AGENT).items()
     elif PydanticTools.TOOLS in gen_ai_attrs:
-        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
+        yield from get_span_kind_attributes(OpenInferenceSpanKindValues.CHAIN).items()
 
+    # Handle LLM system using helper function
     if GEN_AI_SYSTEM in gen_ai_attrs:
-        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
+        yield from get_llm_system_attributes(gen_ai_attrs[GEN_AI_SYSTEM]).items()
 
+    # Handle model name using helper function
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
-        yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
+        yield from get_llm_model_name_attributes(gen_ai_attrs[GEN_AI_REQUEST_MODEL]).items()
 
-    if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_PROMPT,
-            gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS],
-        )
-
-    if GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
-        yield (
-            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-            gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS],
-        )
-
-    if (
-        GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs
-        and GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs
-        and not ignore_token_counts
+    # Handle token counts using helper function
+    # We want to ignore token counts on non LLM spans. Pydantic adds token counts to agents
+    ignore_token_counts = PydanticAgentName.AGENT in gen_ai_attrs
+    if not ignore_token_counts and (
+        GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs or GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs
     ):
-        total_tokens = (
-            gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS] + gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS]
-        )
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_tokens
+        token_count: TokenCount = {}
+        if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs:
+            token_count["prompt"] = gen_ai_attrs[GEN_AI_USAGE_INPUT_TOKENS]
+        if GEN_AI_USAGE_OUTPUT_TOKENS in gen_ai_attrs:
+            token_count["completion"] = gen_ai_attrs[GEN_AI_USAGE_OUTPUT_TOKENS]
+        if "prompt" in token_count and "completion" in token_count:
+            token_count["total"] = token_count["prompt"] + token_count["completion"]
+        yield from get_llm_token_count_attributes(token_count).items()
 
+    # Handle session ID using helper function
     if GenAIConversationID.CONVERSATION_ID in gen_ai_attrs:
-        yield SpanAttributes.SESSION_ID, gen_ai_attrs[GenAIConversationID.CONVERSATION_ID]
+        yield from get_session_attributes(
+            session_id=gen_ai_attrs[GenAIConversationID.CONVERSATION_ID]
+        ).items()
 
 
 def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes specific to agent operations."""
     if PydanticFinalResult.FINAL_RESULT in gen_ai_attrs:
-        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticFinalResult.FINAL_RESULT]
+        yield from get_output_attributes(gen_ai_attrs[PydanticFinalResult.FINAL_RESULT]).items()
 
     # Extract input value from pydantic_ai.all_messages (v2 AGENT spans)
     if PydanticAllMessages.ALL_MESSAGES in gen_ai_attrs:
@@ -250,10 +255,8 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
                                     and part.get(GenAIMessagePartFields.TYPE)
                                     == GenAIMessagePartTypes.TEXT
                                 ):
-                                    yield (
-                                        SpanAttributes.INPUT_VALUE,
-                                        part.get(GenAIMessagePartFields.CONTENT, ""),
-                                    )
+                                    input_value = part.get(GenAIMessagePartFields.CONTENT, "")
+                                    yield from get_input_attributes(input_value).items()
                                     return
             except json.JSONDecodeError:
                 pass
@@ -264,7 +267,7 @@ def _extract_agent_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
             input_messages = _extract_llm_input_messages(events)
             input_value = _find_llm_input_value(input_messages)
             if input_value is not None:
-                yield SpanAttributes.INPUT_VALUE, input_value
+                yield from get_input_attributes(input_value).items()
 
 
 def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -272,7 +275,7 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
 
     invocation_params = _extract_invocation_parameters(gen_ai_attrs)
     if invocation_params:
-        yield SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+        yield from get_llm_invocation_parameter_attributes(invocation_params).items()
 
     yield from _extract_tools_attributes(gen_ai_attrs)
 
@@ -294,7 +297,7 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
 
             input_value = _find_llm_input_value(input_messages)
             if input_value is not None:
-                yield SpanAttributes.INPUT_VALUE, input_value
+                yield from get_input_attributes(input_value).items()
 
             output_messages = _extract_llm_output_messages(events)
             for index, message in enumerate(output_messages):
@@ -303,7 +306,7 @@ def _extract_llm_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[s
 
             output_value = _find_llm_output_value(output_messages)
             if output_value is not None:
-                yield SpanAttributes.OUTPUT_VALUE, output_value
+                yield from get_output_attributes(output_value).items()
 
 
 def _flatten_message(message: Dict[str, Any]) -> Dict[str, Any]:
@@ -326,11 +329,17 @@ def _flatten_message(message: Dict[str, Any]) -> Dict[str, Any]:
 def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract attributes specific to tool operations."""
 
+    # Use helper function for basic tool attributes
     if GEN_AI_TOOL_NAME in gen_ai_attrs:
-        yield SpanAttributes.TOOL_NAME, gen_ai_attrs[GEN_AI_TOOL_NAME]
-
-    if GEN_AI_TOOL_DESCRIPTION in gen_ai_attrs:
-        yield SpanAttributes.TOOL_DESCRIPTION, gen_ai_attrs[GEN_AI_TOOL_DESCRIPTION]
+        tool_attrs = get_tool_attributes(
+            name=gen_ai_attrs[GEN_AI_TOOL_NAME],
+            description=gen_ai_attrs.get(GEN_AI_TOOL_DESCRIPTION),
+            parameters={},  # Tool parameters are not available in this context
+        )
+        # Only yield name and description, skip parameters since we don't have them
+        for key, value in tool_attrs.items():
+            if key in [SpanAttributes.TOOL_NAME, SpanAttributes.TOOL_DESCRIPTION]:
+                yield key, value
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
@@ -380,36 +389,39 @@ def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
         if not params or not isinstance(params, dict):
             return
 
-        tools = []
+        # Extract tool definitions manually since the helper function doesn't handle
+        # the name and description fields that are separate from json_schema
         if PydanticModelRequestParameters.TOOLS in params and isinstance(
             params[PydanticModelRequestParameters.TOOLS], list
         ):
-            for tool in params[PydanticModelRequestParameters.TOOLS]:
+            for idx, tool in enumerate(params[PydanticModelRequestParameters.TOOLS]):
                 if not isinstance(tool, dict):
                     continue
 
-                tool_info: Dict[str, Any] = {}
+                # Extract tool name
                 if PydanticModelRequestParametersTool.NAME in tool:
-                    tool_info[SpanAttributes.TOOL_NAME] = tool[
-                        PydanticModelRequestParametersTool.NAME
-                    ]
+                    yield (
+                        f"{SpanAttributes.LLM_TOOLS}.{idx}.{SpanAttributes.TOOL_NAME}",
+                        tool[PydanticModelRequestParametersTool.NAME],
+                    )
+
+                # Extract tool description
                 if PydanticModelRequestParametersTool.DESCRIPTION in tool:
-                    tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
-                        PydanticModelRequestParametersTool.DESCRIPTION
-                    ]
+                    yield (
+                        f"{SpanAttributes.LLM_TOOLS}.{idx}.{SpanAttributes.TOOL_DESCRIPTION}",
+                        tool[PydanticModelRequestParametersTool.DESCRIPTION],
+                    )
+
+                # Extract tool parameters/json_schema
                 if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
                     tool[PydanticModelRequestParametersTool.PARAMETERS], dict
                 ):
-                    tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
-                        tool[PydanticModelRequestParametersTool.PARAMETERS]
+                    from openinference.instrumentation._attributes import _json_serialize
+
+                    yield (
+                        f"{SpanAttributes.LLM_TOOLS}.{idx}.{ToolAttributes.TOOL_JSON_SCHEMA}",
+                        _json_serialize(tool[PydanticModelRequestParametersTool.PARAMETERS]),
                     )
-
-                if tool_info:
-                    tools.append(tool_info)
-
-        for idx, tool in enumerate(tools):
-            for key, value in tool.items():
-                yield f"{SpanAttributes.LLM_TOOLS}.{idx}.{key}", value
     except Exception as e:
         logger.debug(f"Error parsing model request parameters: {e}")
 
@@ -756,7 +768,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
             except json.JSONDecodeError:
                 pass
     if input_value is not None:
-        yield SpanAttributes.INPUT_VALUE, input_value
+        yield from get_input_attributes(input_value).items()
 
     # Extract output messages
     output_value = None
@@ -817,4 +829,4 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
             except json.JSONDecodeError:
                 pass
     if output_value is not None:
-        yield SpanAttributes.OUTPUT_VALUE, output_value
+        yield from get_output_attributes(output_value).items()
