@@ -4,8 +4,8 @@ from typing import Any, Mapping, Sequence, Tuple, cast
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
-from crewai.flow.flow import Flow, listen, start
-from crewai.tools import BaseTool
+from crewai.flow.flow import Flow, listen, start  # type: ignore[import-untyped]
+from crewai.tools import BaseTool  # type: ignore[import-untyped]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -22,7 +22,7 @@ from openinference.semconv.trace import (
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 
-class MockScrapeWebsiteTool(BaseTool):
+class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc]
     """Mock tool to replace ScrapeWebsiteTool and avoid chromadb dependency."""
 
     name: str = "scrape_website"
@@ -60,7 +60,9 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5, f"Expected 5 spans (2 tool + 2 agent + 1 crew), got {len(spans)}"
+    assert len(spans) == 7, (
+        f"Expected 7 spans (1 crew + 2 agents + 2 tools + 2 agent_actions), got {len(spans)}"
+    )
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
@@ -74,6 +76,12 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     # Enhanced naming: spans now include agent roles
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    assert len(tool_spans) == 2
+
+    agent_action_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.UNKNOWN.value)
+    assert len(agent_action_spans) == 2
 
     # Clear spans exporter
     in_memory_span_exporter.clear()
@@ -149,13 +157,13 @@ def kickoff_crew() -> Tuple[Task, Task]:
 def kickoff_flow() -> Flow[Any]:
     """Initialize a CrewAI setup with a minimal Flow."""
 
-    class SimpleFlow(Flow[Any]):
-        @start()
+    class SimpleFlow(Flow[Any]):  # type: ignore[misc]
+        @start()  # type: ignore[misc]
         def step_one(self) -> str:
             """First step that produces an output."""
             return "Step One Output"
 
-        @listen(step_one)
+        @listen(step_one)  # type: ignore[misc]
         def step_two(self, step_one_output: str) -> str:
             """Second step that consumes the output from first step."""
             return f"Step Two Received: {step_one_output}"

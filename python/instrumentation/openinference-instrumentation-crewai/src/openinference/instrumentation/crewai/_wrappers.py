@@ -169,10 +169,10 @@ def _get_agent_action(obj: Any) -> Tuple[str | None, dict[str, Any] | None]:
         # Detect class name without importing CrewAI directly
         if obj.__class__.__name__ == "AgentAction":
             # Handle both dataclass & normal class versions
-            data = asdict(obj) if is_dataclass(obj) else vars(obj)
+            data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
             return safe_json_dumps(data, cls=SafeJSONEncoder), data
     except Exception as e:
-        return f"SerializationError: {str(e)} | Raw: {str(obj)}", None
+        return f"SerializationError: {str(e)}", None
     return None, None
 
 
@@ -215,6 +215,14 @@ class _AgentActionWrapper:
             agent_action_obj = args[0] if args else None
             agent_action_json, agent_action_dict = _get_agent_action(agent_action_obj)
 
+            if agent_action_json:
+                span.set_attributes(
+                    dict(
+                        get_input_attributes(
+                            agent_action_json, mime_type=OpenInferenceMimeTypeValues.JSON
+                        )
+                    )
+                )
             if agent_action_dict:
                 span.set_attributes(dict(_flatten(agent_action_dict)))
 
@@ -224,16 +232,8 @@ class _AgentActionWrapper:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            span.set_status(trace_api.StatusCode.OK)
 
-            if agent_action_json:
-                span.set_attributes(
-                    dict(
-                        get_output_attributes(
-                            agent_action_json, mime_type=OpenInferenceMimeTypeValues.JSON
-                        )
-                    )
-                )
+            span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
