@@ -94,6 +94,13 @@ exclude = [
   "sdist",
 ]
 
+[[tool.mypy.overrides]]
+module = [
+  "langchain.*",
+  "langchain_classic.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py38"
@@ -106,3 +113,4 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
+
