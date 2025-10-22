@@ -12,7 +12,9 @@ from openinference.instrumentation.google_genai._utils import (
     _io_value_and_type,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -383,6 +385,49 @@ class _RequestAttributesExtractor:
                 id,
             )
 
+    def _get_attributes_from_inline_data(
+        self, inline_data: Any
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Handle inline data (base64 encoded content) from Part.from_bytes()"""
+        mime_type = get_attribute(inline_data, "mime_type", "unknown")
+        data = get_attribute(inline_data, "data")
+
+        if mime_type.startswith("image/"):
+            # Use proper semantic conventions for images
+            if data:
+                import base64
+
+                base64_data = base64.b64encode(data).decode() if isinstance(data, bytes) else data
+                data_url = f"data:{mime_type};base64,{base64_data}"
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                    data_url,
+                )
+            else:
+                # Fallback for images without data
+                yield (MessageAttributes.MESSAGE_CONTENT, f"[Image: {mime_type}]")
+        else:
+            # For non-image files, use descriptive text (no specific semantic convention available)
+            data_size = len(data) if data else 0
+            yield (MessageAttributes.MESSAGE_CONTENT, f"[File: {mime_type}, {data_size} bytes]")
+
+    def _get_attributes_from_file_data(
+        self, file_data: Any
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Handle file data (URI references) from Part.from_uri()"""
+        file_uri = get_attribute(file_data, "file_uri", "unknown")
+        mime_type = get_attribute(file_data, "mime_type", "unknown")
+
+        if mime_type.startswith("image/"):
+            # Use proper semantic conventions for images
+            yield (
+                f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                file_uri,
+            )
+        else:
+            # For non-image files, use descriptive text (no specific semantic convention available)
+            yield (MessageAttributes.MESSAGE_CONTENT, f"[File: {mime_type} from {file_uri}]")
+
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
         content_values = []
         tool_call_index = 0
@@ -427,8 +472,15 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_function_call(function_call, tool_call_index)
         elif function_response := get_attribute(part, "function_response"):
             yield from self._get_attributes_from_function_response(function_response)
+        elif inline_data := get_attribute(part, "inline_data"):
+            # Handle base64 encoded content (Part.from_bytes())
+            yield from self._get_attributes_from_inline_data(inline_data)
+        elif file_data := get_attribute(part, "file_data"):
+            # Handle URI-referenced files (Part.from_uri())
+            yield from self._get_attributes_from_file_data(file_data)
         else:
-            logger.exception("Other field types of parts are not supported yet")
+            # Change from exception to debug log for unknown part types
+            logger.debug(f"Unsupported part type encountered, skipping: {type(part)}")
 
 
 T = TypeVar("T", bound=type)

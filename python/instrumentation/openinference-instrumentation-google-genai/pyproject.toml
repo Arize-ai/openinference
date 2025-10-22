@@ -32,6 +32,9 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions",
   "wrapt",
+  "opentelemetry-exporter-otlp>=1.38.0",
+  "opentelemetry-sdk>=1.38.0",
+  "google-genai>=1.46.0",
 ]
 
 [project.optional-dependencies]
