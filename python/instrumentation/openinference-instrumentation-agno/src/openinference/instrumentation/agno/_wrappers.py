@@ -23,7 +23,6 @@ from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
-from agno.agent import Agent, RunOutput
 from agno.agent import Agent
 from agno.models.base import Model
 from agno.run.agent import RunContentEvent, RunOutput, RunOutputEvent
