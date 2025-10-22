@@ -1,10 +1,7 @@
-# This example runs only on the latest version of LangChain (V1.0.0+)
-
-from typing import TypedDict
-
-from langchain.agents import create_agent
-from langchain.agents.middleware import ModelRequest, dynamic_prompt
+import requests
+from langchain import agents
 from langchain.tools import tool
+from langchain_openai import ChatOpenAI
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -19,38 +16,32 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
-class Context(TypedDict):
-    user_role: str
+@tool
+def get_exchange_rate(
+    currency_from: str = "USD",
+    currency_to: str = "EUR",
+    currency_date: str = "latest",
+):
+    """Retrieves the exchange rate between two currencies on a specified date."""
+    return requests.get(
+        f"https://api.frankfurter.app/{currency_date}",
+        params={"from": currency_from, "to": currency_to},
+    ).json()
 
 
-@dynamic_prompt
-def user_role_prompt(request: ModelRequest) -> str:
-    """Generate system prompt based on user role."""
-    user_role = request.runtime.context.get("user_role", "user")
-    base_prompt = "You are a helpful assistant."
-
-    if user_role == "expert":
-        return f"{base_prompt} Provide detailed technical responses."
-    elif user_role == "beginner":
-        return f"{base_prompt} Explain concepts simply and avoid jargon."
-
-    return base_prompt
-
-
-@tool("web_search")  # Custom name
-def search(query: str) -> str:
-    """Search the web for information."""
-    return f"Results for: {query}"
-
-
-agent = create_agent(
-    model="openai:gpt-4o", tools=[search], middleware=[user_role_prompt], context_schema=Context
-)
+tools = [get_exchange_rate]
+llm = ChatOpenAI()
+agent = agents.create_agent(llm, tools)
 
 if __name__ == "__main__":
-    # The system prompt will be set dynamically based on context
-    result = agent.invoke(
-        {"messages": [{"role": "user", "content": "Explain machine learning"}]},
-        context={"user_role": "expert"},
+    agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "What is the exchange rate from US dollars to Swedish "
+                    "currency today?",
+                }
+            ]
+        }
     )
-    print(result)
