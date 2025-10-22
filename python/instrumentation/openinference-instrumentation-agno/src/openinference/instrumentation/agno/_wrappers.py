@@ -1179,7 +1179,7 @@ class _FunctionCallWrapper:
         from pydantic import BaseModel
 
         if content is not None and isinstance(content, BaseModel):
-            return content.model_dump_json()
+            return str(content.model_dump_json())
         else:
             # Capture output
             return content or ""
