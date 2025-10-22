@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.40...python-openinference-instrumentation-v0.1.41) (2025-10-20)
+
+
+### Bug Fixes
+
+* version upper bound on wrapt &lt;2.0 ([#2325](https://github.com/Arize-ai/openinference/issues/2325)) ([57a4fa3](https://github.com/Arize-ai/openinference/commit/57a4fa3329327bea41d6498c992d32ad87fd334c))
+
 ## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.39...python-openinference-instrumentation-v0.1.40) (2025-10-10)
 
 

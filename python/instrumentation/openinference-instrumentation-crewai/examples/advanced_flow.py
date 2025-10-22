@@ -11,6 +11,7 @@ The goal is to perform market research for a given product, summarize findings,
 and display structured and human-readable results.
 """
 
+import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
@@ -186,7 +187,7 @@ def create_advanced_flow(flow_name: Optional[str] = None) -> Flow:
     return flow
 
 
-def run_advanced_flow():
+async def run_advanced_flow():
     """
     Executes the advanced flow and handles any runtime exceptions.
     """
@@ -197,7 +198,7 @@ def run_advanced_flow():
         # Inputs are passed here and injected into the @start() method
         inputs = {"product": "AI-powered Chatbots"}
 
-        flow.kickoff(inputs=inputs)
+        await flow.kickoff_async(inputs=inputs)
         print("✅ Flow execution completed successfully.")
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
@@ -207,7 +208,7 @@ def main():
     """Run the CrewAI instrumentation demonstration."""
     print("CrewAI Instrumentation Demo - Advanced Flow")
     print("Check Phoenix UI at http://localhost:6006 for trace visualization\n")
-    run_advanced_flow()
+    asyncio.run(run_advanced_flow())
 
 
 if __name__ == "__main__":
