@@ -24,14 +24,15 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent, RunOutput
+from agno.agent import Agent
 from agno.models.base import Model
-from agno.run.messages import RunMessages
-from agno.team import Team
-from agno.tools.function import Function, FunctionCall
-from agno.tools.toolkit import Toolkit
-from agno.tools.function import ToolResult
 from agno.run.agent import RunContentEvent, RunOutput, RunOutputEvent
-from agno.run.team import RunContentEvent as TeamRunContentEvent, TeamRunOutputEvent, TeamRunOutput
+from agno.run.messages import RunMessages
+from agno.run.team import RunContentEvent as TeamRunContentEvent
+from agno.run.team import TeamRunOutputEvent
+from agno.team import Team
+from agno.tools.function import Function, FunctionCall, ToolResult
+from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -313,7 +314,7 @@ class _RunWrapper:
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                     yield response
-                
+
                 if (
                     "session" in arguments
                     and (session := arguments.get("session")) is not None
@@ -342,7 +343,7 @@ class _RunWrapper:
                             session_id = arguments.get("session_id")
                     except Exception:
                         session_id = None
-                    
+
                     if session_id is None:
                         session_id = agent.session_id
 
@@ -477,7 +478,7 @@ class _RunWrapper:
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                     yield response
-                
+
                 if (
                     (session := arguments.get("session")) is not None
                     and hasattr(session, "runs")
@@ -503,13 +504,12 @@ class _RunWrapper:
                                 session_id = session.session_id
                         elif "session_id" in arguments:
                             session_id = arguments.get("session_id")
-                        
+
                     except Exception:
                         session_id = None
-                        
+
                     if session_id is None:
                         session_id = agent.session_id
-                    
 
                     run_response = None
                     if hasattr(agent, "get_last_run_output") and session_id is not None:
@@ -1050,12 +1050,14 @@ class _FunctionCallWrapper:
                 if isinstance(function_call.result, (GeneratorType, Iterator)):
                     events = []
                     for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                        if isinstance(item, RunContentEvent) or isinstance(
+                            item, TeamRunContentEvent
+                        ):
                             function_result += self._parse_content(item.content)
                         else:
                             function_result += str(item)
                         events.append(item)
-                    
+
                     # Convert back to iterator for downstream use
                     function_call.result = self._generator_wrapper(events)
                     response.result = function_call.result
@@ -1108,13 +1110,15 @@ class _FunctionCallWrapper:
             },
         ) as span:
             response = await wrapped(*args, **kwargs)
-            
+
             if response.status == "success":
                 function_result = ""
                 if isinstance(function_call.result, (AsyncGeneratorType, AsyncIterator)):
                     events = []
                     async for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                        if isinstance(item, RunContentEvent) or isinstance(
+                            item, TeamRunContentEvent
+                        ):
                             function_result += self._parse_content(item.content)
                         else:
                             function_result += str(item)
@@ -1125,7 +1129,9 @@ class _FunctionCallWrapper:
                 elif isinstance(function_call.result, (GeneratorType, Iterator)):
                     events = []
                     for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                        if isinstance(item, RunContentEvent) or isinstance(
+                            item, TeamRunContentEvent
+                        ):
                             function_result += self._parse_content(item.content)
                         else:
                             function_result += str(item)
@@ -1137,7 +1143,7 @@ class _FunctionCallWrapper:
                     function_result = function_call.result.content
                 else:
                     function_result = function_call.result
-                    
+
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attributes(
                     dict(
@@ -1155,15 +1161,17 @@ class _FunctionCallWrapper:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
 
         return response
-    
+
     def _generator_wrapper(
-        self, events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
+        self,
+        events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
     ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         for event in events:
             yield event
-    
+
     async def _async_generator_wrapper(
-        self, events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
+        self,
+        events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
     ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
         for event in events:
             yield event
