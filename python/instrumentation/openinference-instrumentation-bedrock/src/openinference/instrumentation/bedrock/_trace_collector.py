@@ -21,6 +21,11 @@ def generate_unique_trace_id(event_type: str, trace_id: str) -> str:
     Returns:
         A unique trace ID string
     """
+    if "guardrail" in trace_id:
+        # if guardrail, use the first 7 parts of the trace id in order to differentiate
+        # between pre and post guardrail; it will look something like this:
+        # 4ce64021-13b2-23c5-9d70-aaefe8881138-guardrail-pre-0
+        return f"{event_type}_{'-'.join(trace_id.split('-')[:7])}"
     return f"{event_type}_{'-'.join(trace_id.split('-')[:5])}"
 
 

@@ -671,34 +671,60 @@ def test_streaming_with_guardrails(in_memory_span_exporter: InMemorySpanExporter
     events = [event for event in response["completion"]]
     assert len(events) == 15
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5
+    assert len(spans) == 7
     span_names = [span.name for span in spans]
     assert span_names == [
         "Guardrails",
-        "guardrailTrace",
+        "preGuardrailTrace",
         "LLM",
         "orchestrationTrace",
+        "Guardrails",
+        "postGuardrailTrace",
         "bedrock_agent.invoke_agent",
     ]
-    guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
-    guardrail_span_attributes = dict(guardrail_span.attributes or {})
-    assert guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
-    guardrail_metadata = guardrail_span_attributes.pop("metadata")
-    assert isinstance(guardrail_metadata, str)
-    guardrail_metadata = json.loads(guardrail_metadata)
-    assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.pop("non_intervening_guardrails", [])
-    assert isinstance(guardrails, list)
-    assert len(guardrails) == 6
-    assert guardrails[0].pop("action") == "NONE"
-    assert guardrails[0].pop("clientRequestId") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
-    assert guardrails[0].pop("startTime") == 1.755127229666712e18
-    assert guardrails[0].pop("endTime") == 1.755127229981549e18
-    assert guardrails[0].pop("totalTimeMs") == 315
-    assert guardrails[0].pop("inputAssessments") == [{}]
-    assert not guardrails[0]
-    assert guardrail_span.status.status_code == StatusCode.OK
-    assert not guardrail_span_attributes
+    # Check pre-guardrail span (first Guardrails span)
+    guardrail_spans = [span for span in spans if span.name == "Guardrails"]
+    assert len(guardrail_spans) == 2
+    pre_guardrail_span = guardrail_spans[0]
+    pre_guardrail_span_attributes = dict(pre_guardrail_span.attributes or {})
+    assert pre_guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
+    pre_guardrail_metadata = pre_guardrail_span_attributes.pop("metadata")
+    assert isinstance(pre_guardrail_metadata, str)
+    pre_guardrail_metadata = json.loads(pre_guardrail_metadata)
+    assert isinstance(pre_guardrail_metadata, dict)
+    pre_guardrails = pre_guardrail_metadata.pop("non_intervening_guardrails", [])
+    assert isinstance(pre_guardrails, list)
+    assert len(pre_guardrails) == 1
+    assert pre_guardrails[0].pop("action") == "NONE"
+    assert pre_guardrails[0].pop("clientRequestId") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
+    assert pre_guardrails[0].pop("startTime") == 1.755127229666712e18
+    assert pre_guardrails[0].pop("endTime") == 1.755127229981549e18
+    assert pre_guardrails[0].pop("totalTimeMs") == 315
+    assert pre_guardrails[0].pop("inputAssessments") == [{}]
+    assert not pre_guardrails[0]
+    assert pre_guardrail_span.status.status_code == StatusCode.OK
+    assert not pre_guardrail_span_attributes
+
+    # Check post-guardrail span (last Guardrails span)
+    post_guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
+    post_guardrail_span_attributes = dict(post_guardrail_span.attributes or {})
+    assert post_guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
+    post_guardrail_metadata = post_guardrail_span_attributes.pop("metadata")
+    assert isinstance(post_guardrail_metadata, str)
+    post_guardrail_metadata = json.loads(post_guardrail_metadata)
+    assert isinstance(post_guardrail_metadata, dict)
+    post_guardrails = post_guardrail_metadata.pop("non_intervening_guardrails", [])
+    assert isinstance(post_guardrails, list)
+    assert len(post_guardrails) == 5
+    assert post_guardrails[0].pop("action") == "NONE"
+    assert post_guardrails[0].pop("clientRequestId") == "1ba128ca-af9b-4503-acef-a47864c98f01"
+    assert post_guardrails[0].pop("startTime") == 1.755127232193671e18
+    assert post_guardrails[0].pop("endTime") == 1.75512723246755e18
+    assert post_guardrails[0].pop("totalTimeMs") == 274
+    assert post_guardrails[0].pop("outputAssessments") == [{}]
+    assert not post_guardrails[0]
+    assert post_guardrail_span.status.status_code == StatusCode.OK
+    assert not post_guardrail_span_attributes
 
 
 @pytest.mark.vcr(
@@ -733,7 +759,7 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     span_names = [span.name for span in spans]
     assert span_names == [
         "Guardrails",
-        "guardrailTrace",
+        "preGuardrailTrace",
         "bedrock_agent.invoke_agent",
     ]
     guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
@@ -748,6 +774,74 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     assert len(guardrails) == 1
     assert guardrail_span.status.status_code == StatusCode.ERROR
     assert not guardrail_span_attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_routing_classifier_trace(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    agent_id = "U8REJ2SB9J"  # Collaborator
+    agent_alias_id = "HLEKFY36LK"  # Routing collaborator
+    session_id = "12345680"
+
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+
+    attributes = dict(
+        inputText="What is 1 + 1?",
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        enableTrace=True,
+    )
+
+    response = client.invoke_agent(**attributes)
+
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    assert len(events) == 7
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 5
+    span_names = [span.name for span in spans]
+    assert span_names == [
+        "LLM",
+        "routingClassifierTrace",
+        "LLM",
+        "orchestrationTrace",
+        "bedrock_agent.invoke_agent",
+    ]
+
+    # Check routingClassifierTrace span
+    routing_classifier_span = [span for span in spans if span.name == "routingClassifierTrace"][0]
+    routing_classifier_attributes = dict(routing_classifier_span.attributes or {})
+
+    assert routing_classifier_attributes.pop("input.mime_type") == "text/plain"
+    assert starts_with(
+        routing_classifier_attributes.pop("input.value"),
+        "[{text=Here is a list of agents for handling user's requests:",
+    )
+    assert routing_classifier_attributes.pop("openinference.span.kind") == "CHAIN"
+    assert routing_classifier_attributes.pop("output.mime_type") == "application/json"
+    assert starts_with(
+        routing_classifier_attributes.pop("output.value"), '[{"text": "<a>undecidable</a>"'
+    )
+    assert not routing_classifier_attributes
+
+    # Check the final response
+    initial_span = [span for span in spans if span.name == "bedrock_agent.invoke_agent"][-1]
+    initial_span_attributes = dict(initial_span.attributes or {})
+    assert initial_span_attributes.pop("llm.provider") == "aws"
+    assert initial_span_attributes.pop("openinference.span.kind") == "AGENT"
+    assert initial_span_attributes.pop("output.mime_type") == "text/plain"
+    assert initial_span_attributes.pop("output.value") == "The answer is 2."
+    assert initial_span_attributes.pop("input.value") == "What is 1 + 1?"
+    assert not initial_span_attributes
 
 
 @pytest.mark.vcr(

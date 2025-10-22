@@ -542,6 +542,7 @@ class AttributeExtractor:
             "guardrailTrace",
             "postProcessingTrace",
             "failureTrace",
+            "routingClassifierTrace",
         ]
         for trace_event in trace_events:
             if trace_event in trace_data:

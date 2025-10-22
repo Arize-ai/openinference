@@ -382,6 +382,27 @@ class _ResponseAccumulator:
                         return attributes.request_attributes.update(
                             get_output_attributes(output_text)
                         )
+                    # For Routing classifier events, the output is in rawResponse.content
+                    if parsed_response == {}:
+                        raw_response = model_invocation_output.get("rawResponse", {})
+                        if raw_response_content := raw_response.get("content"):
+                            try:
+                                raw_response_content = json.loads(raw_response_content)
+                                if (
+                                    output_content := raw_response_content.get("output", {})
+                                    .get("message", {})
+                                    .get("content")
+                                ):
+                                    return attributes.request_attributes.update(
+                                        get_output_attributes(output_content)
+                                    )
+                            except Exception:
+                                pass
+                            # Fallback to raw response if output structure is not as expected
+                            # or if content was not valid JSON
+                            return attributes.request_attributes.update(
+                                get_output_attributes(raw_response_content)
+                            )
 
                 # Extract from invocation input
                 if "observation" in event_data:
@@ -468,7 +489,11 @@ class _ResponseAccumulator:
 
         # Set name from node type if it's a TraceNode
         if isinstance(trace_span_data, TraceNode):
-            _attributes.name = trace_span_data.node_type
+            if trace_span_data.node_type == "guardrailTrace":
+                pre_or_post = trace_span_data.node_trace_id.split("-")[-1]
+                _attributes.name = pre_or_post + "GuardrailTrace"
+            else:
+                _attributes.name = trace_span_data.node_type
 
         # Process each chunk in the trace span
         for trace_data in trace_span_data.chunks:
