@@ -32,9 +32,6 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions",
   "wrapt",
-  "opentelemetry-exporter-otlp>=1.38.0",
-  "opentelemetry-sdk>=1.38.0",
-  "google-genai>=1.46.0",
 ]
 
 [project.optional-dependencies]
@@ -43,7 +40,8 @@ instruments = [
 ]
 test = [
   "google-genai >= 1.8.0",
-  "opentelemetry-sdk",
+  "opentelemetry-sdk>=1.38.0",
+  "opentelemetry-exporter-otlp>=1.38.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
