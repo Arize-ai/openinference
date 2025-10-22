@@ -11,7 +11,6 @@ from functools import partial
 from importlib.metadata import version
 from secrets import token_hex
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncIterator,
     DefaultDict,
@@ -32,13 +31,11 @@ import vcr  # type: ignore
 from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
 
-if TYPE_CHECKING:
+try:
     from langchain.chains import LLMChain, RetrievalQA
-else:
-    try:
-        from langchain_classic.chains import LLMChain, RetrievalQA
-    except ImportError:
-        from langchain.chains import LLMChain, RetrievalQA
+except ImportError:
+    from langchain_classic.chains import LLMChain, RetrievalQA
+
 
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
