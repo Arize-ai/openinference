@@ -31,9 +31,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 def create_test_image_data() -> bytes:
     """Create a simple 1x1 pixel PNG for testing."""
-    base64_png = (
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-    )
+    base64_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="  # noqa: E501
     return base64.b64decode(base64_png)
 
 
