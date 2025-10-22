@@ -1182,7 +1182,7 @@ class _FunctionCallWrapper:
             return str(content.model_dump_json())
         else:
             # Capture output
-            return content or ""
+            return str(content) if content else ""
 
 
 # span attributes
