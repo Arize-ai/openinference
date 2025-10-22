@@ -782,8 +782,8 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     before_record_response=remove_all_vcr_response_headers,
 )
 def test_routing_classifier_trace(in_memory_span_exporter: InMemorySpanExporter) -> None:
-    agent_id = "U8REJ2SB9J"  # Collaborator
-    agent_alias_id = "HLEKFY36LK"  # Routing collaborator
+    agent_id = "U8REJ2SB9J"
+    agent_alias_id = "HLEKFY36LK"
     session_id = "12345680"
 
     client = boto3.client(
