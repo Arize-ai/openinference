@@ -34,6 +34,7 @@ from httpx import AsyncByteStream, Response, SyncByteStream
 try:
     from langchain.chains import LLMChain, RetrievalQA
 except ImportError:
+    # Fallback import for LangChain v1.0 changes (moved to langchain_classic)
     from langchain_classic.chains import LLMChain, RetrievalQA
 
 
