@@ -215,6 +215,8 @@ class TraceCollector:
             trace_data: The trace data to add to the node or span
         """
         if chunk_type not in ["invocationInput", "modelInvocationInput"]:
+            # Add chunk to trace node as well, useful for propogating metadata to the parent node
+            node.add_chunk(trace_data)
             if node.current_span:
                 node.current_span.add_chunk(trace_data)
             else:
@@ -252,11 +254,13 @@ class TraceCollector:
             trace_node.chunks.append(trace_data)
         elif event_type == "guardrailTrace":
             trace_node = TraceNode(node_trace_id, event_type)
+            trace_node.add_chunk(trace_data)
             trace_span = TraceSpan(chunk_type)
             trace_span.add_chunk(trace_data)
             trace_node.add_span(trace_span)
         else:
             trace_node = TraceNode(node_trace_id, event_type)
+            trace_node.add_chunk(trace_data)
             trace_span = TraceSpan(chunk_type)
             trace_span.add_chunk(trace_data)
             trace_span.parent_node = parent_node  # This is child for the Agent Span
