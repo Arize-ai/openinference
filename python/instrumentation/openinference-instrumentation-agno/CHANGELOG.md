@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.18...python-openinference-instrumentation-agno-v0.1.19) (2025-10-22)
+
+
+### Bug Fixes
+
+* Agno Session ID issues ([#2313](https://github.com/Arize-ai/openinference/issues/2313)) ([34402a0](https://github.com/Arize-ai/openinference/commit/34402a0a8478e1b047a76c6a885c5256cec015bc))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.17...python-openinference-instrumentation-agno-v0.1.18) (2025-10-15)
 
 
