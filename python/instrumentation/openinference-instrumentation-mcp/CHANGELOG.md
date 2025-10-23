@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.2...python-openinference-instrumentation-mcp-v1.3.3) (2025-10-23)
+
+
+### Bug Fixes
+
+* update dependancies for security ([#2320](https://github.com/Arize-ai/openinference/issues/2320)) ([c7eab4f](https://github.com/Arize-ai/openinference/commit/c7eab4fbcac5b7d7407d9ed9c28706d4919421fb))
+
 ## [1.3.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.1...python-openinference-instrumentation-mcp-v1.3.2) (2025-10-10)
 
 
