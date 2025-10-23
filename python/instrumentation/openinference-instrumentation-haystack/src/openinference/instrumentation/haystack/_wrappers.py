@@ -105,7 +105,10 @@ class _ComponentRunWrapper:
             name=_get_component_span_name(component_class_name)
         ) as span:
             span.set_attributes(
-                {**dict(get_attributes_from_context()), **dict(_get_input_attributes(arguments))}
+                {
+                    **dict(get_attributes_from_context()),
+                    **dict(_get_input_attributes(arguments)),
+                }
             )
             if (component_type := _get_component_type(component)) is ComponentType.GENERATOR:
                 span.set_attributes(
@@ -163,7 +166,12 @@ class _ComponentRunWrapper:
                     }
                 )
             elif component_type is ComponentType.EMBEDDER:
-                span.set_attributes(dict(_get_embedding_attributes(arguments, response)))
+                span.set_attributes(
+                    {
+                        **dict(_get_embedding_attributes(arguments, response)),
+                        **dict(_get_embedding_token_count_attributes(response)),
+                    }
+                )
             elif component_type is ComponentType.RANKER:
                 span.set_attributes(dict(_get_reranker_response_attributes(response)))
             elif component_type is ComponentType.RETRIEVER:
@@ -288,7 +296,9 @@ def _get_component_run_method(component: "Component") -> Optional[Callable[..., 
     return None
 
 
-def _get_run_method_output_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+def _get_run_method_output_types(
+    run_method: Callable[..., Any],
+) -> Optional[Dict[str, type]]:
     """
     Haystack components are decorated with an `output_type` decorator that is
     useful for inferring the component type.
@@ -301,7 +311,9 @@ def _get_run_method_output_types(run_method: Callable[..., Any]) -> Optional[Dic
     return None
 
 
-def _get_run_method_input_types(run_method: Callable[..., Any]) -> Optional[Dict[str, type]]:
+def _get_run_method_input_types(
+    run_method: Callable[..., Any],
+) -> Optional[Dict[str, type]]:
     """
     Gets input types of parameters to the `run` method.
     """
@@ -410,7 +422,9 @@ def _get_output_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, A
     yield OUTPUT_VALUE, safe_json_dumps(masked_response)
 
 
-def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_input_message_attributes(
+    arguments: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts input messages.
     """
@@ -431,7 +445,9 @@ def _get_llm_input_message_attributes(arguments: Mapping[str, Any]) -> Iterator[
         yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", USER
 
 
-def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_output_message_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts output messages.
     """
@@ -489,7 +505,9 @@ def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str
         yield LLM_MODEL_NAME, model
 
 
-def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_token_count_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts token counts from response.
     """
@@ -517,6 +535,36 @@ def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tup
             yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
         if (total_tokens := token_usage.get("total_tokens")) is not None:
             yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+
+def _get_embedding_token_count_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
+    """
+    Extracts token counts and model from embedder response.
+    Supports both standard usage format and custom components that put usage in meta.
+    """
+    token_usage = None
+    # Try to get usage from response root
+    if isinstance(usage := response.get("usage"), dict):
+        token_usage = usage
+    # Also check in meta for custom components that put usage there
+    elif isinstance(meta := response.get("meta"), dict):
+        if isinstance(usage := meta.get("usage"), dict):
+            token_usage = usage
+
+    # Extract model from meta for cost calculation
+    if isinstance(meta := response.get("meta"), dict):
+        if isinstance(model := meta.get("model"), str):
+            yield LLM_MODEL_NAME, model
+            yield EMBEDDING_MODEL_NAME, model
+
+    if token_usage is not None:
+        if (prompt_tokens := token_usage.get("prompt_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+        if (total_tokens := token_usage.get("total_tokens")) is not None:
+            yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+        # Note: completion_tokens not tracked for embeddings (no text generation)
 
 
 def _get_llm_prompt_template_attributes_from_prompt_builder(
@@ -572,7 +620,9 @@ def _get_reranker_model_attributes(component: "Component") -> Iterator[Tuple[str
         yield RERANKER_MODEL_NAME, model_name
 
 
-def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_reranker_request_attributes(
+    arguments: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts re-ranker attributes from arguments.
     """
@@ -588,7 +638,9 @@ def _get_reranker_request_attributes(arguments: Mapping[str, Any]) -> Iterator[T
                 yield f"{RERANKER_INPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_CONTENT}", content
 
 
-def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_reranker_response_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts re-ranker attributes from response.
     """
@@ -602,7 +654,9 @@ def _get_reranker_response_attributes(response: Mapping[str, Any]) -> Iterator[T
                 yield f"{RERANKER_OUTPUT_DOCUMENTS}.{doc_index}.{DOCUMENT_SCORE}", score
 
 
-def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_retriever_response_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
     Extracts retriever-related attributes from the response.
     """
@@ -628,7 +682,9 @@ def _get_retriever_response_attributes(response: Mapping[str, Any]) -> Iterator[
             )
 
 
-def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[str, Any]]:
+def _get_embedding_model_attributes(
+    component: "Component",
+) -> Iterator[Tuple[str, Any]]:
     """
     Yields attributes for embedding model.
     """
