@@ -416,7 +416,11 @@ class _RequestAttributesExtractor:
                 yield (MessageAttributes.MESSAGE_CONTENT, f"[Image: {mime_type}]")
         else:
             # For non-image files, use descriptive text (no specific semantic convention available)
-            data_size = len(data) if data else 0
+            try:
+                data_size = len(data) if data else 0
+            except (TypeError, AttributeError):
+                # data doesn't support len() (e.g., int, object, etc.)
+                data_size = "unknown"
             yield (MessageAttributes.MESSAGE_CONTENT, f"[File: {mime_type}, {data_size} bytes]")
 
     def _get_attributes_from_file_data(
