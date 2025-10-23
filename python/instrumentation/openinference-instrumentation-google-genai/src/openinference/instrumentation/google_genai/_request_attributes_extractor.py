@@ -389,7 +389,7 @@ class _RequestAttributesExtractor:
         self, inline_data: Any
     ) -> Iterator[Tuple[str, AttributeValue]]:
         """Handle inline data (base64 encoded content) from Part.from_bytes()"""
-        mime_type = get_attribute(inline_data, "mime_type", "unknown")
+        mime_type = get_attribute(inline_data, "mime_type", "unknown") or "unknown"
         data = get_attribute(inline_data, "data")
 
         if mime_type.startswith("image/"):
@@ -397,7 +397,15 @@ class _RequestAttributesExtractor:
             if data:
                 import base64
 
-                base64_data = base64.b64encode(data).decode() if isinstance(data, bytes) else data
+                # Handle both bytes and string data properly
+                if isinstance(data, bytes):
+                    base64_data = base64.b64encode(data).decode()
+                elif isinstance(data, str):
+                    # Assume it's already base64 encoded
+                    base64_data = data
+                else:
+                    # Convert other types to string and base64 encode
+                    base64_data = base64.b64encode(str(data).encode()).decode()
                 data_url = f"data:{mime_type};base64,{base64_data}"
                 yield (
                     f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
@@ -415,8 +423,8 @@ class _RequestAttributesExtractor:
         self, file_data: Any
     ) -> Iterator[Tuple[str, AttributeValue]]:
         """Handle file data (URI references) from Part.from_uri()"""
-        file_uri = get_attribute(file_data, "file_uri", "unknown")
-        mime_type = get_attribute(file_data, "mime_type", "unknown")
+        file_uri = get_attribute(file_data, "file_uri", "unknown") or "unknown"
+        mime_type = get_attribute(file_data, "mime_type", "unknown") or "unknown"
 
         if mime_type.startswith("image/"):
             # Use proper semantic conventions for images
