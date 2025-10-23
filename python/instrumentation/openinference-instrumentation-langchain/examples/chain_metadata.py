@@ -1,4 +1,8 @@
-# This example runs only on the latest version of LangChain (V1.0.0+)
+# /// script
+# dependencies = [
+#   "langchain>=1.0.0"
+# ]
+# ///
 from langchain_classic.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import OpenAI

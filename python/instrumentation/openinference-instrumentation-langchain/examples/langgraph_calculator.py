@@ -1,4 +1,8 @@
-# This example runs only on the latest version of LangChain (V1.0.0+)
+# /// script
+# dependencies = [
+#   "langchain>=1.0.0"
+# ]
+# ///
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langgraph_supervisor import create_supervisor

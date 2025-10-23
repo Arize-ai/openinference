@@ -1,3 +1,8 @@
+# /// script
+# dependencies = [
+#   "langchain>=1.0.0"
+# ]
+# ///
 import requests
 from langchain import agents
 from langchain.tools import tool
