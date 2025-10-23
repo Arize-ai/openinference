@@ -440,6 +440,9 @@ class _RequestAttributesExtractor:
                     yield (attr, value)
                 elif attr == MessageAttributes.MESSAGE_TOOL_CALL_ID:
                     yield (attr, value)
+                elif attr.startswith(MessageContentAttributes.MESSAGE_CONTENT_IMAGE):
+                    # Preserve image attributes (don't flatten)
+                    yield (attr, value)
                 elif isinstance(value, str):
                     # Flatten all other string values into a single message content
                     content_values.append(value)
