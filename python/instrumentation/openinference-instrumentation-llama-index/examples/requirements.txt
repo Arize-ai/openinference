@@ -1,6 +1,6 @@
 chromadb
-llama-index >= 0.11.0
-llama-index-core >= 0.11.0
+llama-index >= 0.13.0
+llama-index-core >= 0.13.0
 llama-index-agent-openai >= 0.2.9
 llama-index-embeddings-ollama >= 0.1.3
 llama-index-embeddings-openai >= 0.1.11
@@ -14,7 +14,8 @@ opentelemetry-exporter-otlp
 opentelemetry-proto >= 1.12.0
 opentelemetry-sdk
 pydantic
-requests
+requests>=2.32.4
+urllib3>=2.5.0
 sentence-transformers >= 3.0.1
 sqlalchemy
 wikipedia
