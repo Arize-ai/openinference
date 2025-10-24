@@ -26,6 +26,13 @@ jobs:
               with:
                   filters: |
                       diff:
+                        - ".github/workflows/typescript-CI.yaml"
+                        - "js/package.json"
+                        - "js/pnpm-lock.json"
+                        - "js/pnpm-workspace.yaml"
+                        - "js/tsconfig.*.json"
+                        - "js/eslint.config.mts"
+                        - "js/.prettierrc"
                         - "js/packages/**/*.js"
                         - "js/packages/**/*.ts"
                         - "js/packages/**/package.json"
