@@ -21,12 +21,16 @@ const provider = new NodeTracerProvider({
 provider.register();
 
 class Agent {
+  name: string;
+  constructor(name: string) {
+    this.name = name;
+  }
   @chain()
-  do_something(_input?: string) {
-    return "bar";
+  say_hello(_input?: string) {
+    return `Hi I'm ${this.name}`;
   }
 }
 
-const agent = new Agent();
+const agent = new Agent("bob");
 
-agent.do_something();
+agent.say_hello();

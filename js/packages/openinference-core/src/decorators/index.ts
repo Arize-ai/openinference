@@ -74,8 +74,8 @@ export function chain<
   const processInput = _processInput ?? defaultProcessInput;
   const processOutput = _processOutput ?? defaultProcessOutput;
   // TODO: infer the name from the target
-  return function (originalMethod: Fn, ctx: ClassMethodDecoratorContext) {
-    return function (...args: unknown[]) {
+  return function (originalMethod: Fn, _ctx: ClassMethodDecoratorContext) {
+    const wrappedFn = function (this: unknown, ...args: unknown[]) {
       const input = processInput(args);
       return tracer.startActiveSpan(
         name,
@@ -86,7 +86,7 @@ export function chain<
           },
         },
         (span) => {
-          const result = originalMethod.apply(ctx, args);
+          const result = originalMethod.apply(this, args);
           span.setAttributes({
             ...toOutputAttributes(processOutput(result)),
           });
@@ -96,6 +96,7 @@ export function chain<
         },
       );
     };
+    return wrappedFn;
   };
 }
 
