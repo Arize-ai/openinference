@@ -66,7 +66,7 @@ export function chain<
 >(options: TraceDecoratorOptions = {}) {
   const {
     tracer: _tracer,
-    name = "chain",
+    name: optionsName,
     processInput: _processInput,
     processOutput: _processOutput,
   } = options;
@@ -74,11 +74,13 @@ export function chain<
   const processInput = _processInput ?? defaultProcessInput;
   const processOutput = _processOutput ?? defaultProcessOutput;
   // TODO: infer the name from the target
-  return function (originalMethod: Fn, _ctx: ClassMethodDecoratorContext) {
+  return function (originalMethod: Fn, ctx: ClassMethodDecoratorContext) {
+    const methodName = String(ctx.name);
+    const spanName = optionsName || methodName || "chain";
     const wrappedFn = function (this: unknown, ...args: unknown[]) {
       const input = processInput(args);
       return tracer.startActiveSpan(
-        name,
+        spanName,
         {
           attributes: {
             [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.CHAIN,
