@@ -42,9 +42,10 @@ export function isObjectWithStringKeys(
  */
 export function isPromise<T = unknown>(value: unknown): value is Promise<T> {
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     !!value &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (value as any)?.then === "function" &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (value as any)?.catch === "function"
   );
 }
