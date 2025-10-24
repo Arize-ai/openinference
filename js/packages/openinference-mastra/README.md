@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-mastra.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-mastra)
 
 > **⚠️ DEPRECATION NOTICE**: This package relies on Mastra's legacy OpenTelemetry-based telemetry system, which is being deprecated. Mastra will remove the old telemetry system on **November 4th, 2025**. Please refer to [Mastra Issue #8577](https://github.com/mastra-ai/mastra/issues/8577) for details about the deprecation and migration to the new AI Tracing system.
-> 
+>
 > **🔄 MIGRATION PATH**: Migrate to the new `@mastra/arize` package which provides native Arize integration with Mastra's new AI Tracing system. See the [Arize Exporter documentation](https://mastra.ai/en/docs/observability/ai-tracing/exporters/arize) for setup instructions.
 
 This package provides a set of utilities to ingest [Mastra](https://github.com/mastra-ai/mastra) spans into platforms like [Arize](https://arize.com/) and [Arize Phoenix](https://phoenix.arize.com/).
