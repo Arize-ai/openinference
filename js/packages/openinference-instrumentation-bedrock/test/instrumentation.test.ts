@@ -74,7 +74,8 @@ describe("BedrockInstrumentation", () => {
     instrumentation.setTracerProvider(provider);
 
     // Manually set module exports for testing
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const BedrockRuntime = require("@aws-sdk/client-bedrock-runtime");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (instrumentation as any)._modules[0].moduleExports = BedrockRuntime;
@@ -3918,6 +3919,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
@@ -3987,6 +3989,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
@@ -4059,6 +4062,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
