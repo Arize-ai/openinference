@@ -4,7 +4,7 @@
   "private": false,
   "type": "module",
   "types": "dist/esm/index.d.ts",
-  "description": "OpenInference utilities for ingesting Mastra spans",
+  "description": "[DEPRECATED] OpenInference utilities for ingesting Mastra spans - Use @mastra/arize instead",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
@@ -29,7 +29,8 @@
     "llm",
     "opentelemetry",
     "mastra",
-    "agent"
+    "agent",
+    "deprecated"
   ],
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
