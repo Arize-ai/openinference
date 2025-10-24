@@ -41,6 +41,7 @@ import {
 } from "openai/resources";
 import { assertUnreachable, isString } from "./typeUtils";
 import { isTracingSuppressed } from "@opentelemetry/core";
+import { redactUrl } from "./httpUtils";
 
 import {
   OITracer,
@@ -94,6 +95,73 @@ function getExecContext(span: Span) {
   }
   return execContext;
 }
+
+/**
+ * Extracts the base URL from an OpenAI client instance
+ * @param instance The OpenAI client instance (may be nested)
+ * @returns The base URL string, or undefined if not found
+ */
+function getBaseUrl(instance: unknown): string | undefined {
+  const client = instance as {
+    baseURL?: string;
+    _client?: { baseURL?: string };
+  };
+  return client.baseURL || client._client?.baseURL;
+}
+
+/**
+ * Extracts the relative path from a full URL given a base URL
+ * @param fullUrl The complete URL to extract the path from
+ * @param baseUrl The base URL to remove from the full URL
+ * @returns The relative path, or null if extraction fails
+ */
+const extractRelativePath = (
+  fullUrl: string,
+  baseUrl: string,
+): string | null => {
+  try {
+    const [basePath, fullPath] = [
+      new URL(baseUrl).pathname,
+      new URL(fullUrl).pathname,
+    ];
+    const path = fullPath.startsWith(basePath)
+      ? fullPath.slice(basePath.length)
+      : fullPath;
+    return path.startsWith("/") ? path : `/${path}`;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Adds back non-sensitive query parameters to a redacted URL
+ * @param redactedUrl The URL that has been redacted
+ * @param originalUrl The original URL containing parameters
+ * @param paramsToRestore Array of parameter names to restore (defaults to ["api-version"])
+ * @returns The redacted URL with specified parameters restored
+ */
+const addBackNonSensitiveParams = (
+  redactedUrl: string,
+  originalUrl: string,
+  paramsToRestore: string[] = ["api-version"],
+): string => {
+  try {
+    const [original, redacted] = [new URL(originalUrl), new URL(redactedUrl)];
+    let hasChanges = false;
+
+    for (const param of paramsToRestore) {
+      const value = original.searchParams.get(param);
+      if (value) {
+        redacted.searchParams.set(param, value);
+        hasChanges = true;
+      }
+    }
+
+    return hasChanges ? redacted.toString() : redactedUrl;
+  } catch {
+    return redactedUrl;
+  }
+};
 
 /**
  * Gets the appropriate LLM provider based on the OpenAI client instance
@@ -255,6 +323,33 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     }
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const instrumentation: OpenAIInstrumentation = this;
+
+    // Patch the buildURL method to capture URL information
+    this._wrap(
+      module.OpenAI.prototype,
+      "buildURL",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (original: any): any => {
+        return function patchedBuildURL(this: unknown, ...args: unknown[]) {
+          const urlFull = original.apply(this, args) as string;
+          const activeSpan = trace.getActiveSpan();
+
+          if (!activeSpan) return urlFull;
+
+          const redactedUrl = redactUrl(urlFull);
+          const finalUrl = addBackNonSensitiveParams(redactedUrl, urlFull);
+          activeSpan.setAttribute("url.full", finalUrl);
+
+          const baseUrl = getBaseUrl(this);
+          const urlPath = baseUrl && extractRelativePath(urlFull, baseUrl);
+          if (urlPath) {
+            activeSpan.setAttribute("url.path", urlPath);
+          }
+
+          return urlFull;
+        };
+      },
+    );
 
     // Patch create chat completions
     type ChatCompletionCreateType =
@@ -614,6 +709,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
     moduleVersion?: string,
   ) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+    this._unwrap(moduleExports.OpenAI.prototype, "buildURL");
     this._unwrap(moduleExports.OpenAI.Chat.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Completions.prototype, "create");
     this._unwrap(moduleExports.OpenAI.Embeddings.prototype, "create");
