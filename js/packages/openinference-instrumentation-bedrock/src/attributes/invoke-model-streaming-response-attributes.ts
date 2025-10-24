@@ -594,7 +594,7 @@ export const consumeBedrockStreamChunks = withSafety({
               } else if (modelType === LLMSystem.META) {
                 processMetaStreamChunk(data, state);
               }
-            } catch (parseError) {
+            } catch {
               // Skip malformed JSON lines silently
               continue;
             }
