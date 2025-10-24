@@ -58,7 +58,6 @@ const {
 } = SemanticConventions;
 
 vi.mock("@langchain/openaiV0.2", async () => {
-   
   const originalModule = (await vi.importActual(
     "@langchain/openaiV0.2",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
