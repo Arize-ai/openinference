@@ -51,7 +51,7 @@
   "author": "oss-devs@arize.com",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.693.0",
+    "@aws-sdk/client-bedrock-runtime": "3.693.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
