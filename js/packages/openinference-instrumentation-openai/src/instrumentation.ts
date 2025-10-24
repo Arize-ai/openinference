@@ -208,7 +208,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
   protected init(): InstrumentationModuleDefinition<typeof openai> {
     const module = new InstrumentationNodeModuleDefinition<typeof openai>(
       "openai",
-      ["^5.0.0"],
+      ["^6.0.0"],
       this.patch.bind(this),
       this.unpatch.bind(this),
     );
@@ -754,6 +754,9 @@ function getChatCompletionInputMessageAttributes(
             attributes[
               `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
             ] = toolCall.function.arguments;
+          } else {
+            // TODO: add exhaustive checks
+            diag.warn(`Unsupported tool type: ${toolCall.type}`);
           }
         });
       }
@@ -874,8 +877,6 @@ function getChatCompletionOutputMessageAttributes(
           `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`
         ] = toolCall.id;
       }
-      // Double check that the tool call has a function
-      // NB: OpenAI only supports tool calls with functions right now but this may change
       if (toolCall.type === "function") {
         attributes[
           toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
@@ -884,6 +885,9 @@ function getChatCompletionOutputMessageAttributes(
           toolCallIndexPrefix +
             SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
         ] = toolCall.function.arguments;
+      } else {
+        // TODO: switch to exhaustive checks
+        diag.warn(`Unsupported tool type: ${toolCall.type}`);
       }
     });
   }

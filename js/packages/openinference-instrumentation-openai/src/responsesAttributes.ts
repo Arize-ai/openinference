@@ -1,6 +1,6 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes } from "@opentelemetry/api";
+import { Attributes, diag } from "@opentelemetry/api";
 
 import {
   Response as ResponseType,
@@ -44,8 +44,12 @@ function getResponseItemAttributes(
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
       attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
         item.call_id;
-      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-        item.output;
+      if (typeof item.output === "string") {
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          item.output;
+      } else {
+        diag.warn("Failed to serialize non-string typed tool output");
+      }
       break;
     }
     case "reasoning": {
