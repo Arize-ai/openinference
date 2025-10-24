@@ -144,7 +144,9 @@ function formatIO({
   if (values.length === 1 && typeof values[0] === "string") {
     return {
       [valueAttribute]: values[0],
-      [mimeTypeAttribute]: MimeType.TEXT,
+      [mimeTypeAttribute]: isJSONString(values[0])
+        ? MimeType.JSON
+        : MimeType.TEXT,
     };
   }
 
@@ -494,6 +496,20 @@ function formatPromptTemplate(run: Run): PromptTemplateAttributes | null {
 
 function getTokenCount(maybeCount: unknown) {
   return isNumber(maybeCount) ? maybeCount : undefined;
+}
+
+/**
+ * A function that determines if a string is JSON like
+ * @param str - The string to check
+ * @returns true if the string is JSON
+ */
+function isJSONString(str: string) {
+  try {
+    JSON.parse(str);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

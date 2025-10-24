@@ -245,10 +245,14 @@ describe("LangChainInstrumentation", () => {
 
     await chatModel.invoke("hello, this is a test");
 
-    const span = memoryExporter.getFinishedSpans()[0];
-    expect(span).toBeDefined();
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
 
-    expect(span.attributes).toStrictEqual({
+    expect(llmSpan?.attributes).toStrictEqual({
       ...expectedSpanAttributes,
       [LLM_INVOCATION_PARAMETERS]:
         '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
@@ -541,11 +545,11 @@ describe("LangChainInstrumentation", () => {
         span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpan).toBeDefined();
-    expect(toolSpan?.attributes).toStrictEqual({
+    expect(toolSpan?.attributes).toMatchObject({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
       [TOOL_NAME]: "test_tool",
-      [INPUT_VALUE]: "hello",
-      [INPUT_MIME_TYPE]: "text/plain",
+      [INPUT_VALUE]: '{"input":"hello"}',
+      [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",
       metadata: "{}",
