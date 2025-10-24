@@ -5,8 +5,8 @@ import {
   OUTPUT_MIME_TYPE,
 } from "@arizeai/openinference-semantic-conventions";
 import { Attributes, type Tracer, trace } from "@opentelemetry/api";
-import { OITracer } from "trace";
-import { safelyJSONStringify } from "utils";
+import { OITracer } from "../trace";
+import { safelyJSONStringify } from "../utils";
 
 const DEFAULT_TRACER_NAME = "openinference-core";
 
@@ -58,8 +58,12 @@ export type SpanOutput = {
 
 /**
  * A decorator factory for tracing chain operations in an LLM application.
+ * @experimental
  */
-export function chain<Target>(options: TraceDecoratorOptions) {
+export function chain<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Fn extends (...args: any[]) => any,
+>(options: TraceDecoratorOptions = {}) {
   const {
     tracer: _tracer,
     name = "chain",
@@ -70,14 +74,8 @@ export function chain<Target>(options: TraceDecoratorOptions) {
   const processInput = _processInput ?? defaultProcessInput;
   const processOutput = _processOutput ?? defaultProcessOutput;
   // TODO: infer the name from the target
-  return function (
-    target: Target,
-    propertyKey: string,
-    descriptor: TypedPropertyDescriptor<(...args: unknown[]) => unknown>,
-  ) {
-    const originalFn = descriptor.value!;
-    // override the value to  wrap the original function in a span
-    descriptor.value = function (...args: unknown[]) {
+  return function (originalMethod: Fn, ctx: ClassMethodDecoratorContext) {
+    return function (...args: unknown[]) {
       const input = processInput(args);
       return tracer.startActiveSpan(
         name,
@@ -88,7 +86,7 @@ export function chain<Target>(options: TraceDecoratorOptions) {
           },
         },
         (span) => {
-          const result = originalFn.apply(this, args);
+          const result = originalMethod.apply(ctx, args);
           span.setAttributes({
             ...toOutputAttributes(processOutput(result)),
           });
@@ -98,8 +96,6 @@ export function chain<Target>(options: TraceDecoratorOptions) {
         },
       );
     };
-
-    return descriptor;
   };
 }
 
