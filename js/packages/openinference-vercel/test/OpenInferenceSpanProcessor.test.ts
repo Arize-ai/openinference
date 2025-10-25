@@ -1,3 +1,4 @@
+import { describe, it, test, expect, beforeEach, afterEach } from "vitest";
 import { Attributes, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,

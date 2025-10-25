@@ -17,7 +17,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "NODE_OPTIONS=\"--experimental-vm-modules\" jest ."
+    "test": "vitest --typecheck"
   },
   "exports": {
     ".": {
@@ -48,7 +48,7 @@
     "@opentelemetry/sdk-trace-node": "^1.30.1",
     "@opentelemetry/semantic-conventions": "^1.30.1",
     "@types/express": "^5.0.1",
-    "jest": "^29.7.0",
+    "vitest": "^4.0.3",
     "tsx": "^4.19.3",
     "zod": "^3.24.3"
   }

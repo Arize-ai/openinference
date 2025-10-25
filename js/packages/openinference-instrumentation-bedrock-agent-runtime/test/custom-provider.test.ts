@@ -14,6 +14,7 @@ import { BedrockAgentInstrumentation } from "../src";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
 import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { vi } from "vitest";
 
 describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
   const cassettePrefix = "bedrock-agent-custom-trace-provider";
@@ -54,8 +55,8 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(async () => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
       await polly.stop();
     });
 
@@ -124,8 +125,8 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(async () => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
       await polly.stop();
     });
 
@@ -198,8 +199,8 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
     });
 
     afterEach(async () => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
       await polly.stop();
     });
 
