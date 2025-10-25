@@ -24,7 +24,6 @@
   "devDependencies": {
     "@changesets/cli": "^2.28.1",
     "@eslint/js": "^9.38.0",
-    "@types/jest": "^29.5.12",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^9.38.0",
@@ -32,7 +31,6 @@
     "jiti": "^2.6.1",
     "prettier": "^3.6.2",
     "rimraf": "^5.0.9",
-    "ts-jest": "^29.2.2",
     "tsc-alias": "^1.8.10",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.46.2",
