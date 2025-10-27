@@ -1,7 +1,7 @@
-import otelGenaiClientSpanToolCalls from "./__fixtures__/otel_genai_client_span_tool_calls.json";
-import openinferenceClientSpanToolCalls from "./__fixtures__/openinference_client_span_tool_calls.json";
-import openinferenceClientSpanInputOutputOnly from "./__fixtures__/openinference_client_span_input_output_only.json";
-import otelGenaiDeprecatedClientSpanToolCalls from "./__fixtures__/otel_genai_deprecated_client_span_tool_calls.json";
+import otelGenaiClientSpanToolCalls from "./__fixtures__/otel_genai_client_span_tool_calls.json" with { type: "json" };
+import openinferenceClientSpanToolCalls from "./__fixtures__/openinference_client_span_tool_calls.json" with { type: "json" };
+import openinferenceClientSpanInputOutputOnly from "./__fixtures__/openinference_client_span_input_output_only.json" with { type: "json" };
+import otelGenaiDeprecatedClientSpanToolCalls from "./__fixtures__/otel_genai_deprecated_client_span_tool_calls.json" with { type: "json" };
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "../src/attributes.js";
 
 describe("convertGenAISpanAttributesToOpenInferenceSpanAttributes", () => {
