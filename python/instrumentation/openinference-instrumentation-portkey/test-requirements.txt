@@ -2,4 +2,5 @@ portkey-ai===1.11.2
 opentelemetry-sdk
 pytest-vcr>=1.0.2
 vcrpy>=7.0.0
-urllib3>=2.5.0
+urllib3>=2.5.0; python_version >= "3.10"
+urllib3<2.0; python_version < "3.10"
