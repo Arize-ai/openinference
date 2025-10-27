@@ -52,7 +52,7 @@ async function run() {
 async function main() {
   try {
     await run();
-  } catch (error) {
+  } catch {
     process.exit(1);
   }
 }

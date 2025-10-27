@@ -30,7 +30,14 @@ import pytest
 import vcr  # type: ignore
 from google.auth.credentials import AnonymousCredentials
 from httpx import AsyncByteStream, Response, SyncByteStream
-from langchain.chains import LLMChain, RetrievalQA
+
+try:
+    from langchain.chains import LLMChain, RetrievalQA
+except ImportError:
+    # Fallback import for LangChain v1.0 changes (moved to langchain_classic)
+    from langchain_classic.chains import LLMChain, RetrievalQA
+
+
 from langchain_community.embeddings import FakeEmbeddings
 from langchain_community.retrievers import KNNRetriever
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage

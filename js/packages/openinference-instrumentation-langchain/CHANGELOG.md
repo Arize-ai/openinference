@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.4.4
+
+### Patch Changes
+
+- 6066704: roughly check json strings for mime type
+
 ## 3.4.3
 
 ### Patch Changes

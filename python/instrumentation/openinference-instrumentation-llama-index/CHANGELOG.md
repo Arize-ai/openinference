@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.7...python-openinference-instrumentation-llama-index-v4.3.8) (2025-10-23)
+
+
+### Bug Fixes
+
+* update dependancies for security ([#2320](https://github.com/Arize-ai/openinference/issues/2320)) ([c7eab4f](https://github.com/Arize-ai/openinference/commit/c7eab4fbcac5b7d7407d9ed9c28706d4919421fb))
+
 ## [4.3.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.6...python-openinference-instrumentation-llama-index-v4.3.7) (2025-10-15)
 
 

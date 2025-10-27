@@ -9,6 +9,7 @@ import {
 } from "../../src/trace/trace-config/types";
 import { assertUnreachable } from "../../src/utils";
 import { AttributeValue } from "@opentelemetry/api";
+import { describe, expect, test } from "vitest";
 
 type Name = string;
 type ExpectedValue = AttributeValue | undefined;

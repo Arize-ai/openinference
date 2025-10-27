@@ -746,7 +746,7 @@ function getChatCompletionInputMessageAttributes(
             ] = toolCall.id;
           }
           // Make sure the tool call has a function
-          if (toolCall.function) {
+          if (toolCall.type === "function") {
             attributes[
               `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
             ] = toolCall.function.name;
@@ -875,7 +875,7 @@ function getChatCompletionOutputMessageAttributes(
       }
       // Double check that the tool call has a function
       // NB: OpenAI only supports tool calls with functions right now but this may change
-      if (toolCall.function) {
+      if (toolCall.type === "function") {
         attributes[
           toolCallIndexPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME
         ] = toolCall.function.name;

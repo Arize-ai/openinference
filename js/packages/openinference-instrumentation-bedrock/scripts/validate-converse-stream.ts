@@ -28,6 +28,7 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
   ConsoleSpanExporter,
+  SpanExporter,
 } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -107,7 +108,7 @@ class ConverseStreamPhoenixValidator {
     });
 
     // Setup exporters
-    const exporters = [new ConsoleSpanExporter()];
+    const exporters: SpanExporter[] = [new ConsoleSpanExporter()];
 
     if (this.options.phoenixEndpoint !== "console") {
       // Use OTEL_EXPORTER_OTLP_HEADERS or PHOENIX_CLIENT_HEADERS for API key
@@ -282,7 +283,7 @@ class ConverseStreamPhoenixValidator {
         if (toolCall.partialInput) {
           try {
             toolCall.input = JSON.parse(toolCall.partialInput);
-          } catch (e) {
+          } catch {
             // Keep partial input if JSON parsing fails
             toolCall.input = { partial: toolCall.partialInput };
           }
