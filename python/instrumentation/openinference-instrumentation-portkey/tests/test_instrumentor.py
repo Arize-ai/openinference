@@ -36,7 +36,7 @@ def test_chat_completion(
         messages=[{"role": "user", "content": "What's the weather like?"}], model="gpt-4o-mini"
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) > 0
+    assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
 
