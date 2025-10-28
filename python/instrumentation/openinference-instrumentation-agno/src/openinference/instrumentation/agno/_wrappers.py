@@ -84,6 +84,12 @@ def _agent_run_attributes(
     elif isinstance(agent, Agent):
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
+        
+        if hasattr(agent, 'id') and agent.id:
+            yield f"agno{key_suffix}.agent.id", agent.id
+        
+        if hasattr(agent, 'user_id') and agent.user_id:
+            yield f"agno{key_suffix}.user.id", agent.user_id
 
         if agent.session_id:
             yield SESSION_ID, agent.session_id
@@ -147,6 +153,10 @@ class _RunWrapper:
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
+                if hasattr(run_response, 'run_id') and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+
                 return run_response
 
             except Exception as e:
@@ -194,6 +204,9 @@ class _RunWrapper:
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
+                if hasattr(run_response, 'run_id') and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
@@ -238,6 +251,10 @@ class _RunWrapper:
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
+                if hasattr(run_response, 'run_id') and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+
                 return run_response
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -285,6 +302,10 @@ class _RunWrapper:
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
+                if hasattr(run_response, 'run_id') and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+                    
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
                 raise
