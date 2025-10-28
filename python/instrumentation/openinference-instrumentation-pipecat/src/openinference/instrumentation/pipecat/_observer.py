@@ -41,6 +41,14 @@ class OpenInferenceObserver(BaseObserver):
         # Track the last frame seen from each service to detect completion
         self._last_frames = {}
 
+        # Turn tracking state
+        self._turn_active = False
+        self._turn_span = None
+        self._turn_number = 0
+        self._turn_user_text = []
+        self._turn_bot_text = []
+        self._bot_speaking = False
+
     async def on_push_frame(self, data):
         """
         Called when a frame is pushed between processors.
@@ -49,6 +57,37 @@ class OpenInferenceObserver(BaseObserver):
             data: FramePushed event data with source, destination, frame, direction
         """
         try:
+            from pipecat.frames.frames import (
+                BotStartedSpeakingFrame,
+                BotStoppedSpeakingFrame,
+                TextFrame,
+                TranscriptionFrame,
+                UserStartedSpeakingFrame,
+                UserStoppedSpeakingFrame,
+            )
+
+            frame = data.frame
+
+            # Handle turn tracking frames
+            if isinstance(frame, UserStartedSpeakingFrame):
+                # If bot is speaking, this is an interruption
+                if self._bot_speaking and self._turn_active:
+                    await self._finish_turn(interrupted=True)
+                await self._start_turn()
+            elif isinstance(frame, TranscriptionFrame):
+                # Collect user input during turn
+                if self._turn_active and frame.text:
+                    self._turn_user_text.append(frame.text)
+            elif isinstance(frame, BotStartedSpeakingFrame):
+                self._bot_speaking = True
+            elif isinstance(frame, TextFrame):
+                # Collect bot output during turn
+                if self._turn_active and self._bot_speaking and frame.text:
+                    self._turn_bot_text.append(frame.text)
+            elif isinstance(frame, BotStoppedSpeakingFrame):
+                self._bot_speaking = False
+                await self._finish_turn(interrupted=False)
+
             # Detect if source is a service we care about
             service_type = self._detector.detect_service_type(data.source)
 
@@ -176,3 +215,64 @@ class OpenInferenceObserver(BaseObserver):
 
         # Clean up last frame tracking
         self._last_frames.pop(service_id, None)
+
+    async def _start_turn(self):
+        """Start a new conversation turn."""
+        # Increment turn number
+        self._turn_number += 1
+
+        # Create turn span
+        span_name = "pipecat.conversation.turn"
+        attributes = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            "conversation.turn_number": self._turn_number,
+        }
+
+        self._turn_span = self._tracer.start_span(
+            name=span_name,
+            attributes=attributes,
+        )
+
+        # Reset turn state
+        self._turn_active = True
+        self._turn_user_text = []
+        self._turn_bot_text = []
+
+        logger.debug(f"Started turn {self._turn_number}")
+
+    async def _finish_turn(self, interrupted: bool = False):
+        """
+        Finish the current conversation turn.
+
+        Args:
+            interrupted: Whether the turn was interrupted
+        """
+        if not self._turn_active or not self._turn_span:
+            return
+
+        # Set input/output attributes
+        if self._turn_user_text:
+            user_input = " ".join(self._turn_user_text)
+            self._turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+
+        if self._turn_bot_text:
+            bot_output = " ".join(self._turn_bot_text)
+            self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
+
+        # Set end reason
+        end_reason = "interrupted" if interrupted else "completed"
+        self._turn_span.set_attribute("conversation.end_reason", end_reason)
+
+        # Finish span
+        self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+        self._turn_span.end()
+
+        logger.debug(
+            f"Finished turn {self._turn_number} ({end_reason}) - "
+            f"input: {len(self._turn_user_text)} chunks, "
+            f"output: {len(self._turn_bot_text)} chunks"
+        )
+
+        # Reset turn state
+        self._turn_active = False
+        self._turn_span = None
