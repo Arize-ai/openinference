@@ -19,7 +19,7 @@ npm install @arizeai/openinference-instrumentation-anthropic
 Install required packages:
 
 ```shell
-npm install @arizeai/openinference-instrumentation-anthropic @arizeai/openinference-semantic-conventions @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions 
+npm install @arizeai/openinference-instrumentation-anthropic @arizeai/openinference-semantic-conventions @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions
 ```
 
 Set up instrumentation in your application:
@@ -49,7 +49,7 @@ const sdk = new NodeSDK({
     new SimpleSpanProcessor(
       new OTLPTraceExporter({
         url: "http://localhost:6006/v1/traces",
-      })
+      }),
     ),
   ],
   resource: resources.resourceFromAttributes({
