@@ -158,10 +158,10 @@ def _agent_run_attributes(
             yield GRAPH_NODE_NAME, agent.name
 
         if hasattr(agent, "id") and agent.id:
-            yield f"agno{key_suffix}.agent.id", agent.id
+            yield "agno.agent.id", agent.id
 
         if hasattr(agent, "user_id") and agent.user_id:
-            yield f"agno{key_suffix}.user.id", agent.user_id
+            yield USER_ID, agent.user_id
 
         # Use context parent instead of structural parent
         if context_parent_id:
