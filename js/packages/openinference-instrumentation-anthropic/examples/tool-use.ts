@@ -1,25 +1,6 @@
 /* eslint-disable no-console */
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import "./instrumentation";
 import Anthropic from "@anthropic-ai/sdk";
-
-// Configure the tracer provider
-const provider = new NodeTracerProvider();
-provider.addSpanProcessor(
-  new SimpleSpanProcessor(
-    new OTLPTraceExporter({
-      url: "http://localhost:6006/v1/traces",
-    }),
-  ),
-);
-provider.register();
-
-// Register the Anthropic instrumentation
-const anthropicInstrumentation = new AnthropicInstrumentation();
-anthropicInstrumentation.setTracerProvider(provider);
-anthropicInstrumentation.manuallyInstrument(Anthropic);
 
 async function toolUseExample() {
   const anthropic = new Anthropic({

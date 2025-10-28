@@ -19,7 +19,7 @@ npm install @arizeai/openinference-instrumentation-anthropic
 Install required packages:
 
 ```shell
-npm install @arizeai/openinference-instrumentation-anthropic @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-otlp-http
+npm install @arizeai/openinference-instrumentation-anthropic @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-otlp-proto
 ```
 
 Set up instrumentation in your application:
@@ -27,12 +27,13 @@ Set up instrumentation in your application:
 ```typescript
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-otlp-proto";
 
 // Configure the SDK with Anthropic instrumentation
 const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
-    url: "http://localhost:6006/v1/traces", // Phoenix endpoint
+    // OpenInference compatible trace collector endpoint, like Phoenix
+    url: "http://localhost:6006/v1/traces",
   }),
   instrumentations: [
     new AnthropicInstrumentation({
@@ -91,6 +92,15 @@ This instrumentation follows the [OpenInference semantic conventions](https://gi
 - Invocation parameters
 
 ## Examples
+
+To run an example, run the following commands:
+
+```shell
+cd js/packages/openinference-instrumentation-anthropic
+pnpm install
+pnpm -r build
+pnpx tsx examples/basic-usage.ts # or streaming.ts, tool-use.ts, etc
+```
 
 See the [examples](./examples) directory for more detailed usage examples.
 
