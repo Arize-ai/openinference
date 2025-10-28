@@ -155,12 +155,12 @@ def _agent_run_attributes(
     elif isinstance(agent, Agent):
         # Set graph attributes for agent
         if agent.name:
-          yield GRAPH_NODE_NAME, agent.name
-        
-        if hasattr(agent, 'id') and agent.id:
+            yield GRAPH_NODE_NAME, agent.name
+
+        if hasattr(agent, "id") and agent.id:
             yield f"agno{key_suffix}.agent.id", agent.id
-        
-        if hasattr(agent, 'user_id') and agent.user_id:
+
+        if hasattr(agent, "user_id") and agent.user_id:
             yield f"agno{key_suffix}.user.id", agent.user_id
 
         # Use context parent instead of structural parent
@@ -260,7 +260,7 @@ class _RunWrapper:
                 span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
-                if hasattr(run_response, 'run_id') and run_response.run_id:
+                if hasattr(run_response, "run_id") and run_response.run_id:
                     span.set_attribute("agno.run.id", run_response.run_id)
 
                 return run_response
@@ -324,7 +324,7 @@ class _RunWrapper:
                         current_run_id = response.run_id
                         span.set_attribute("agno.run.id", current_run_id)
                     yield response
-                
+
                 if (
                     "session" in arguments
                     and (session := arguments.get("session")) is not None
@@ -427,7 +427,7 @@ class _RunWrapper:
                 span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
-                if hasattr(run_response, 'run_id') and run_response.run_id:
+                if hasattr(run_response, "run_id") and run_response.run_id:
                     span.set_attribute("agno.run.id", run_response.run_id)
 
                 return run_response
