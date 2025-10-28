@@ -8,8 +8,6 @@ import os
 
 from dotenv import load_dotenv
 from loguru import logger
-from turn_detector_observer import TurnDetectorObserver
-import tracing_setup
 
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
@@ -31,8 +29,18 @@ from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
+from arize.otel import register
+from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)
+
+tracer_provider = register(
+    space_id=os.getenv("ARIZE_SPACE_ID"),
+    api_key=os.getenv("ARIZE_API_KEY"),
+    project_name=os.getenv("ARIZE_PROJECT_NAME"),
+)
+PipecatInstrumentor().instrument(tracer_provider=tracer_provider)
+
 
 # We store functions so objects (e.g. SileroVADAnalyzer) don't get
 # instantiated. The function will be called when the desired transport gets
@@ -61,14 +69,6 @@ transport_params = {
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     logger.info(f"Starting bot")
-
-    # Initialize Arize tracing
-    tracing_setup.setup_arize_tracing()
-
-    # Set session ID for tracing (use room URL or generate unique ID)
-    session_id = "session-local-001"
-    tracing_setup.set_session_id(session_id)
-    logger.info(f"Tracing initialized with session ID: {session_id}")
 
     ### STT ###
     stt = OpenAISTTService(
@@ -126,7 +126,6 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     )
 
     ### TASK ###
-    turn_detector = TurnDetectorObserver()
 
     task = PipelineTask(
         pipeline,
@@ -135,10 +134,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
             enable_usage_metrics=True,
         ),
         idle_timeout_secs=runner_args.pipeline_idle_timeout_secs,
-        observers=[turn_detector],
     )
-
-    turn_detector.set_turn_observer_event_handlers(task.turn_tracking_observer)
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):

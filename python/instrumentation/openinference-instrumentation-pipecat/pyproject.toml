@@ -33,6 +33,7 @@ dependencies = [
   "openinference-semantic-conventions>=0.1.21",
   "typing-extensions",
   "wrapt",
+  "fastapi>=0.115.6,<0.117.0",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,19 @@ test = [
   "pytest-recording",
   "pytest>=7.0.0",
   "pytest-asyncio>=0.21.0",
+]
+examples = [
+  "arize-otel>=0.0.1",
+  "daily-python~=0.20.0",
+  "transformers",
+  "onnxruntime>=1.20.1,<2",
+  "websockets>=13.1,<16.0",
+  "python-dotenv>=1.0.0,<2.0.0",
+  "uvicorn>=0.32.0,<1.0.0",
+  "fastapi>=0.115.6,<0.117.0",
+  "pipecat-ai-small-webrtc-prebuilt>=1.0.0",
+  "aiortc>=1.13.0,<2",
+  "opencv-python>=4.11.0.86,<5",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
