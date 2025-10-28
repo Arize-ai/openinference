@@ -322,7 +322,8 @@ class _RunWrapper:
                 for response in wrapped(*args, **kwargs):
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
-                        span.set_attribute("agno.run.id", current_run_id)
+                        if current_run_id:
+                            span.set_attribute("agno.run.id", current_run_id)
                     yield response
 
                 if (
@@ -491,7 +492,8 @@ class _RunWrapper:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
-                        span.set_attribute("agno.run.id", current_run_id)
+                        if current_run_id:
+                            span.set_attribute("agno.run.id", current_run_id)
                     yield response
 
                 if (
