@@ -1,10 +1,7 @@
-# Changelog
+---
+"@arizeai/openinference-instrumentation-anthropic": minor
+---
 
-## [0.0.0] - 2024-10-02
-
-### Added
-
-- Initial release of OpenInference Anthropic instrumentation
 - Support for `anthropic.messages.create()` method
 - Support for streaming responses
 - Tool use/function calling instrumentation

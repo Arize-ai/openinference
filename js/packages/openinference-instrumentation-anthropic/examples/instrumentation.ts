@@ -35,9 +35,6 @@ registerInstrumentations({
   instrumentations: [instrumentation],
 });
 
-// import Anthropic from "@anthropic-ai/sdk";
-// instrumentation.manuallyInstrument(Anthropic);
-
 provider.register();
 
 // eslint-disable-next-line no-console
