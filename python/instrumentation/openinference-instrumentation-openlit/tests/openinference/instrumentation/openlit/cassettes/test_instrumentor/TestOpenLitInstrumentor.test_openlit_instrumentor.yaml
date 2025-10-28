@@ -1,0 +1,26 @@
+interactions:
+- request:
+    body: null
+    headers: {}
+    method: GET
+    uri: https://raw.githubusercontent.com/openlit/openlit/main/assets/pricing.json
+  response:
+    body:
+      string: "{\n    \"embeddings\": {\n        \"text-embedding-ada-002\": 0.0001,\n        \"text-embedding-3-small\": 0.00002,\n        \"text-embedding-3-large\": 0.00013,\n        \"ada\": 0.0001,\n        \"ada-v2\": 0.00010,\n        \"text-ada-001\": 0.0001,\n        \"azure_text-embedding-ada-002\": 0.0001,\n        \"azure_text-embedding-3-small\": 0.00002,\n        \"azure_text-embedding-3-large\": 0.00013,\n        \"azure_ada\": 0.0001,\n        \"azure_ada-v2\": 0.00010,\n        \"azure_text-ada-001\": 0.0001,\n        \"embed-english-v3.0\": 0.0001,\n        \"embed-multilingual-v3.0\": 0.0001,\n        \"embed-english-light-v3.0\": 0.0001,\n        \"embed-multilingual-light-v3.0\": 0.0001,\n        \"embed-english-v2.0\": 0.0001,\n        \"embed-english-light-v2.0\": 0.0001,\n        \"embed-multilingual-v2.0\": 0.0001,\n        \"mistral-embed\": 0.0001,\n        \"amazon.titan-embed-text-v1\": 0.0001,\n        \"amazon.titan-embed-text-v2\": 0.00002,\n        \"textembedding-gecko\": 0.0001,\n        \"textembedding-gecko@001\": 0.0001,\n        \"textembedding-gecko@002\": 0.0001,\n        \"textembedding-gecko@003\": 0.0001\n    },\n    \"images\": {\n        \"dall-e-3\": {\n            \"standard\": {\n                \"1024x1024\": 0.040,\n                \"1024x1792\": 0.020,\n                \"1792x1024\": 0.080\n            },\n            \"hd\": {\n                \"1024x1024\": 0.080,\n                \"1024x1792\": 0.120,\n                \"1792x1024\": 0.120\n            }\n        },\n        \"azure_dall-e-3\": {\n            \"standard\": {\n                \"1024x1024\": 0.040,\n                \"1024x1792\": 0.020,\n                \"1792x1024\": 0.080\n            },\n            \"hd\": {\n                \"1024x1024\": 0.080,\n                \"1024x1792\": 0.120,\n                \"1792x1024\": 0.120\n            }\n        },\n        \"dall-e-2\": {\n            \"standard\": {\n                \"1024x1024\": 0.020,\n                \"512x512\": 0.018,\n                \"256x256\": 0.016\n            }\n        }\n    },\n    \"chat\": {\n        \"gpt-4o-mini\": {\n            \"promptPrice\": 0.00015,\n            \"completionPrice\": 0.0006\n        }\n    }\n}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Tell me a short joke about programming"}],"model":"gpt-4o-mini","stream":false}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-1234567890abcdef","object":"chat.completion","created":1703123456,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"Why do programmers prefer dark mode? Because light attracts bugs!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":12,"total_tokens":22}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1 

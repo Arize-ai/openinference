@@ -9,6 +9,7 @@ import {
 } from "../../src/trace/trace-config/types";
 import { assertUnreachable } from "../../src/utils";
 import { AttributeValue } from "@opentelemetry/api";
+import { describe, expect, test } from "vitest";
 
 type Name = string;
 type ExpectedValue = AttributeValue | undefined;
@@ -110,6 +111,15 @@ const generateMaskTestCases = (): MaskTestCases[] => {
           REDACTED_VALUE,
           "llm.input_messages.0.message.contents.0.message_content.image.url",
           "data:image/base64,verylongbase64string",
+        ]);
+        break;
+      case "hidePrompts":
+        testCases.push([
+          `should return ${REDACTED_VALUE} for "llm.prompts" when hidePrompts is set to true`,
+          { ...DefaultTraceConfig, hidePrompts: true },
+          REDACTED_VALUE,
+          "llm.prompts",
+          "some prompt",
         ]);
         break;
       default:

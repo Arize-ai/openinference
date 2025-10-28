@@ -1,5 +1,40 @@
 # @arizeai/openinference-vercel
 
+## 2.3.4
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+
+## 2.3.3
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 2.3.2
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 2.3.1
+
+### Patch Changes
+
+- fc7f97b: do not override existing span kind on a span
+
+## 2.3.0
+
+### Minor Changes
+
+- aaed014: fix: Increase opentelemetry/api peer dependency ranges for compatibility with vercel ai
+
 ## 2.2.2
 
 ### Patch Changes

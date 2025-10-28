@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.arize'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // upgrade openinference-instrumentation
+    api project(':openinference-instrumentation')
+
+    // Spring AI
+    implementation 'io.micrometer:micrometer-observation:1.15.1'
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave:1.5.1'
+    implementation 'org.springframework.ai:spring-ai-model:1.0.1'
+
+    // OpenTelemetry
+    api "io.opentelemetry:opentelemetry-api"
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api"
+    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:${openTelemetryInstrumentationAlphaVersion}"
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}

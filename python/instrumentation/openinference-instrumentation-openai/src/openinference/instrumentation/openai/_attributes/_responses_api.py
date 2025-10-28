@@ -84,6 +84,9 @@ class _ResponsesApiAttributes:
                 yield from cls._get_attributes_from_response_output_refusal_param(
                     item, inner_prefix
                 )
+            elif item["type"] == "input_audio":
+                # TODO: Handle input audio (OpenAI 1.105.0+)
+                pass
             elif TYPE_CHECKING:
                 assert_never(item["type"])
 
@@ -267,6 +270,23 @@ class _ResponsesApiAttributes:
 
     @classmethod
     @stop_on_exception
+    def _get_attributes_from_response_custom_tool_call(
+        cls,
+        obj: responses.response_custom_tool_call.ResponseCustomToolCall,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if (call_id := obj.call_id) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", call_id
+        if (name := obj.name) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
+        if (input_data := obj.input) is not None:
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                safe_json_dumps({"input": input_data}),
+            )
+
+    @classmethod
+    @stop_on_exception
     def _get_attributes_from_response_function_tool_call_param(
         cls,
         obj: responses.response_function_tool_call_param.ResponseFunctionToolCallParam,
@@ -282,6 +302,23 @@ class _ResponsesApiAttributes:
                     f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                     arguments,
                 )
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_custom_tool_call_param(
+        cls,
+        obj: responses.response_custom_tool_call_param.ResponseCustomToolCallParam,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        if (call_id := obj.get("call_id")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_ID}", call_id
+        if (name := obj.get("name")) is not None:
+            yield f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}", name
+        if (input_data := obj.get("input")) is not None:
+            yield (
+                f"{prefix}{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                safe_json_dumps({"input": input_data}),
+            )
 
     @classmethod
     @stop_on_exception
@@ -377,6 +414,14 @@ class _ResponsesApiAttributes:
                 obj,
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )
+        elif obj["type"] == "custom_tool_call":
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_custom_tool_call_param(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
+        elif obj["type"] == "custom_tool_call_output":
+            yield from cls._get_attributes_from_response_custom_tool_call_output_param(obj, prefix)
         elif obj["type"] == "image_generation_call":
             # TODO: Handle image generation call
             pass
@@ -437,7 +482,24 @@ class _ResponsesApiAttributes:
         if (call_id := obj.get("call_id")) is not None:
             yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
         if (output := obj.get("output")) is not None:
-            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
+
+    @classmethod
+    @stop_on_exception
+    def _get_attributes_from_response_custom_tool_call_output_param(
+        cls,
+        obj: responses.response_custom_tool_call_output_param.ResponseCustomToolCallOutputParam,
+        prefix: str = "",
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
+        if (call_id := obj.get("call_id")) is not None:
+            yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
+        if (output := obj.get("output")) is not None:
+            # output can be str or complex type - serialize complex types to JSON
+            output_value = output if isinstance(output, str) else safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
     @classmethod
     @stop_on_exception
@@ -483,6 +545,12 @@ class _ResponsesApiAttributes:
         elif obj.type == "web_search_call":
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
             yield from cls._get_attributes_from_response_function_web_search(
+                obj,
+                f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
+            )
+        elif obj.type == "custom_tool_call":
+            yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "assistant"
+            yield from cls._get_attributes_from_response_custom_tool_call(
                 obj,
                 f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALLS}.0.",
             )

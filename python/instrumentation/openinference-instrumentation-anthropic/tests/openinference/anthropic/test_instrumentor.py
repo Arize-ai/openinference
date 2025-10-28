@@ -12,6 +12,7 @@ from anthropic.resources.messages import (
     Messages,
 )
 from anthropic.types import (
+    ImageBlockParam,
     Message,
     MessageParam,
     TextBlock,
@@ -33,7 +34,9 @@ from openinference.instrumentation.anthropic import AnthropicInstrumentor
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -107,7 +110,7 @@ def setup_anthropic_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
             group="opentelemetry_instrumentor", name="anthropic"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -821,6 +824,149 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
 
 
 @pytest.mark.vcr(
+    record_mode="once",  # allow first recording
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_image_input_messages_with_stream(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="fake")
+    base64_image = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wC="
+    image_block = ImageBlockParam(
+        type="image",
+        source={
+            "type": "base64",
+            "media_type": "image/png",
+            "data": base64_image,
+        },
+    )
+    text_block = TextBlockParam(
+        type="text", text="What do you see in this image? Describe it in detail."
+    )
+    input_messages = [
+        MessageParam(
+            content=[
+                text_block,
+                image_block,
+            ],
+            role="user",
+        )
+    ]
+    stream = client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1024,
+        messages=input_messages,
+        stream=True,
+    )
+    events = [event for event in stream]
+    assert len(events) > 0
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans[0].name == "Messages"
+    attributes: Dict[str, Any] = dict(spans[0].attributes or dict())
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert attributes.pop(
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    ).startswith("data:image/png;base64")
+    assert '{"model": "claude-3-5-sonnet-20240620"' in attributes.pop(
+        f"{LLM_INVOCATION_PARAMETERS}"
+    )
+    assert attributes.pop(f"{INPUT_MIME_TYPE}") == "application/json"
+    assert attributes.pop(f"{OUTPUT_MIME_TYPE}") == "application/json"
+    assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
+    assert isinstance(attributes.pop(f"{OUTPUT_VALUE}"), str)
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
+        "This image shows the iconic Taj Mahal"
+    )
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_COMPLETION}") == 296
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_TOTAL}") == 374
+    assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    record_mode="once",  # allow first recording
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_image_input_messages(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = anthropic.Anthropic(api_key="fake")
+    base64_image = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wC="
+    image_block = ImageBlockParam(
+        type="image",
+        source={
+            "type": "base64",
+            "media_type": "image/png",
+            "data": base64_image,
+        },
+    )
+    text_block = TextBlockParam(
+        type="text", text="What do you see in this image? Describe it in detail."
+    )
+    input_messages = [
+        MessageParam(
+            content=[
+                text_block,
+                image_block,
+            ],
+            role="user",
+        )
+    ]
+    response = client.messages.create(
+        model="claude-3-5-sonnet-20240620", max_tokens=1024, messages=input_messages
+    )
+    assert response is not None
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert spans[0].name == "Messages"
+    attributes: Dict[str, Any] = dict(spans[0].attributes or {})
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert (
+        attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_TYPE}")
+        == "image"
+    )
+    assert attributes.pop(
+        f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    ).startswith("data:image/png;base64")
+    assert '{"model": "claude-3-5-sonnet-20240620"' in attributes.pop(
+        f"{LLM_INVOCATION_PARAMETERS}"
+    )
+    assert attributes.pop(f"{INPUT_MIME_TYPE}") == "application/json"
+    assert attributes.pop(f"{OUTPUT_MIME_TYPE}") == "application/json"
+    assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
+    assert isinstance(attributes.pop(f"{OUTPUT_VALUE}"), str)
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
+        "This image shows the iconic Taj Mahal"
+    )
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_COMPLETION}") == 263
+    assert attributes.pop(f"{LLM_TOKEN_COUNT_PROMPT}") == 78
+    assert attributes.pop(f"{OPENINFERENCE_SPAN_KIND}") == "LLM"
+    assert not attributes
+
+
+@pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
@@ -1139,10 +1285,14 @@ LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
 METADATA = SpanAttributes.METADATA
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

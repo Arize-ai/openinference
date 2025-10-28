@@ -1,0 +1,13 @@
+{
+  "openinference.span.kind": "LLM",
+  "llm.model_name": "gpt-4-0613",
+  "llm.invocation_parameters": "{\"model\":\"gpt-4\",\"temperature\":0.5,\"top_p\":0.9,\"max_completion_tokens\":200}",
+  "llm.provider": "openai",
+  "input.value": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Absolutely! Let me check the weather for you.\"},{\"type\":\"tool_call\",\"id\":\"1234\",\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"1234\",\"response\":\"rainy, 57°F\"}]}]",
+  "input.mime_type": "application/json",
+  "output.value": "{\"text\":\"The weather in Paris is currently rainy with a temperature of 57°F.\",\"finish_reason\":\"stop\"}",
+  "output.mime_type": "application/json",
+  "llm.token_count.completion": 52,
+  "llm.token_count.prompt": 97,
+  "llm.token_count.total": 149
+}

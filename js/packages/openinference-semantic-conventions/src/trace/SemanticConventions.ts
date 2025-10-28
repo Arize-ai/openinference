@@ -225,6 +225,10 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE =
 export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_read` as const;
 
+/** Token count for the input tokens in the prompt that were cached (in tokens) */
+export const LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.cache_input` as const;
+
 /** Token count for audio input presented in the prompt (in tokens) */
 export const LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.prompt_details.audio` as const;
@@ -642,6 +646,7 @@ export const SemanticConventions = {
   LLM_TOKEN_COUNT_PROMPT_DETAILS,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+  LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_INPUT,
   LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
   LLM_TOKEN_COUNT_TOTAL,
   LLM_SYSTEM,
@@ -736,6 +741,9 @@ export enum LLMSystem {
   MISTRALAI = "mistralai",
   COHERE = "cohere",
   VERTEXAI = "vertexai",
+  AI21 = "ai21",
+  META = "meta",
+  AMAZON = "amazon",
 }
 
 export enum LLMProvider {

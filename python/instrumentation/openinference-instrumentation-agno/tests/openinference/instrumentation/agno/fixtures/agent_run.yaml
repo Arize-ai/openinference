@@ -1,24 +1,29 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": "Whats trending on Twitter?"}],
-      "model": "gpt-4o-mini"}'
+    body: '{"messages":[{"role":"user","content":"What''s trending on Twitter?"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
+      this function to search DDGS for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
+      this function to get the latest news from DDGS.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}}]}'
     headers:
       accept:
       - application/json
       accept-encoding:
-      - gzip, deflate, zstd
+      - gzip, deflate, br
       connection:
       - keep-alive
       content-length:
-      - '1795'
+      - '966'
       content-type:
       - application/json
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.69.0
+      - OpenAI/Python 1.108.0
       x-stainless-arch:
-      - x64
+      - arm64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -26,51 +31,51 @@ interactions:
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.69.0
-      x-stainless-raw-response:
-      - 'true'
+      - 1.108.0
       x-stainless-read-timeout:
-      - '600.0'
+      - '600'
       x-stainless-retry-count:
       - '0'
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.12.9
+      - 3.13.5
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAAwAAAP//jFPBbtswDL3nKwidkyJN2jrxrcPQodhpCLYBmwtDlhhbqyyqEt2mCPLv
-        g5ymdrcO2EUHPj6S75HaTwCE0SIHoRrJqvV29uHTerHzmr61arPKbpYfb+h7/Tl+/WG+XJOYJgZV
-        v1DxiXWmqPUW2ZA7wiqgZExVz7OL5fkqyxbLHmhJo0202vPsgmatcWa2mC8uZvNsdr56YTdkFEaR
-        w88JAMC+f9OcTuNO5DCfniItxihrFPlrEoAIZFNEyBhNZOlYTAdQkWN0/ei3EBvqrAZujLsHWVHH
-        0NATMMFRAUgHuFPokzRpQToNLbYUZGUR6oDIxtVnULjCXauUlMMGZVANcINgHGNwyPBkuIENBo8B
-        4JQKt853nMO+ELHnlA8dhudC5FCIzpmHDvuG/SjmcegXC3EAGIsKuO2iTMa6ztoRIJ0jlqlbb+fd
-        C3J4NdBS7QNV8Q+q2BpnYlMGlJFcMisyedGjhwnAXb+o7o33wgdqPZdM99i3W16uj/XEcB8jNHsB
-        mVjaUXx9NX2nXqmRpbFxtGqhpGpQD9ThLmSnDY2AyUj139O8V/uo3Lj6f8oPgErHgrr0AbVRbxUP
-        aQHT9/lX2qvL/cAiYng0Cks2GNImNG5lZ49HLeJzZGzLrXE1Bh/M8bK3vqyW2ZXeVpW+FJPD5DcA
-        AAD//wMABqiMZecDAAA=
+        YwBAIwBA/Jqa36updl4t+UKmcwo/ZXkYBCsdpwAfkJ3//tTzOEY0Yn9R5gAbnecZ610sFu/E1HrV
+        Ma1XLWiNi13tSoS/mB4nv+rmu68ZEayBIOi9Srr3XXF6+fTxxKRjf7b/eXH86aOvP9yEu7vnVVx8
+        TcgzIrjqwDpRSkclBoF1Awr9cvkzNhA026y2s9VmNVsAP+2d4Q6C0PhULF3R28EW8+l8WUw3xWzL
+        4eneWc0Rgv5lRESvVz0irIF/BEHT/C6tyLAhEN8hQnAdQxBUjDYmNeiNTwAt7AYFDWPXAfcl5zqp
+        VdcJxxt8Hacc9lPVdVL3t7fHevjsHk9+rZ+ubz9WJwe+1X9lYvb6s1eKVWPk4jBYmxA4R4RB9fSX
+        zKhbM+q2cbJ4pzVHZ0H/PwjCa4n/I4fnEqJECjwYOzT0/dGmxIGS81bHEnmJXj3JqdLujiXE6h0m
+        w3cHpMbw3qmp9fzzqC6VzegQ77lJ7wE5DJ1rfHBVJJfQIA/Iych2IcIjZYohNboYM+AofHC9TzK5
+        lgXrs2XqodDTLE1hmPPVnvqpBCnYotl6m/OUZE8/GCM1BK30ng15Kju31WisA8LM/gKNCvljH/Tt
+        0HAqJyIFTGjNPrGRXSGzVqdQhQU+sJYyT3PvrJVhKJPlkI8x12rsXgest8MRWduh4eCDfb5eQO3l
+        amaq7VLVqkL2nhkD
     headers:
       CF-RAY:
-      - 92794da8fdadfd60-GRU
+      - 980cef04cf2dfef1-PDX
       Connection:
       - keep-alive
       Content-Encoding:
-      - gzip
+      - br
       Content-Type:
       - application/json
       Date:
-      - Fri, 28 Mar 2025 18:48:45 GMT
+      - Thu, 18 Sep 2025 01:05:13 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=pyXRwWW0EZ.MBiNjEhiGsZQiBSvyA0JGiO7VmKJvxmQ-1743187725-1.0.1.1-QArMazupZLVhgCTABbQ0oPO57r.IB9m1f.O9Ja1btlzmFmJ4VRslaXhWmQrzOSd.w7U4IlWgiH6n_uFnrO9YziG4L2gQZSRPICxrSGNpOlk;
-        path=/; expires=Fri, 28-Mar-25 19:18:45 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=ZjechqXsdsni_9dnaY8_LAWit1WUHf9Z0h179IP4TL4-1758157513-1.0.1.1-eW46DXZYAfk4vXNZfZHx7CXsaxI9GD5ep6d2W2EMG8Dc8bXQNck5tkVOH3JK8O0gZ1XhlsStPogR4oHjlIoZaTnK8Lu42ZZApBdxnS6HwsA;
+        path=/; expires=Thu, 18-Sep-25 01:35:13 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=5Od97M5WTBv7k9v6_N6QGhQO4.BJeG0eSyUVUiEO9wg-1743187725235-0.0.1.1-604800000;
+      - _cfuvid=3X0efS4AnTmP0kBhwLOb2s.rBuYVybIGp7KA10V.3PQ-1758157513846-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
       Transfer-Encoding:
       - chunked
       X-Content-Type-Options:
@@ -82,13 +87,17 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       openai-organization:
-      - arize-zi
+      - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1381'
+      - '882'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
-      strict-transport-security:
-      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '1001'
+      x-openai-proxy-wasm:
+      - v0.1
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -96,68 +105,342 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999589'
+      - '149999990'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_f7837fb1131d98f5349a90f2a557b073
+      - req_d6eb956b705440b19ae9c56c874055f0
     status:
       code: 200
       message: OK
 - request:
-    body: '{"run":{"session_id":"3fdf1d89-821d-4fa7-b7bb-a15fbe91563e","run_id":"5c4b7665-bc37-495a-afa6-894a51d03f8a","run_data":{"functions":{"duckduckgo_search":{"name":"duckduckgo_search","description":"Use
-      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}},"duckduckgo_news":{"name":"duckduckgo_news","description":"Use
-      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}}},"metrics":{"input_tokens":[359],"output_tokens":[37],"total_tokens":[396],"audio_tokens":[0],"input_audio_tokens":[0],"output_audio_tokens":[0],"cached_tokens":[0],"reasoning_tokens":[0],"prompt_tokens":[359],"completion_tokens":[37],"prompt_tokens_details":[{"audio_tokens":0,"cached_tokens":0}],"completion_tokens_details":[{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0}],"time":[0.05340808304026723]}},"agent_data":{"model":{"name":"OpenAIChat","id":"gpt-4o-mini","provider":"OpenAI","functions":{"duckduckgo_search":{"name":"duckduckgo_search","description":"Use
-      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}},"duckduckgo_news":{"name":"duckduckgo_news","description":"Use
-      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}}},"response_format":"None","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
-      this function to search DuckDuckGo for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
-      this function to get the latest news from DuckDuckGo.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
-      The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]}}}],"tool_choice":"auto"},"created_at":1746989318,"updated_at":null}}}'
+    body: q=trending+Twitter+topics&b=&l=us-en
     headers:
       accept:
       - '*/*'
       accept-encoding:
-      - gzip, deflate, zstd
+      - gzip, deflate, br
       connection:
       - keep-alive
       content-length:
-      - '3029'
+      - '36'
+      content-type:
+      - application/x-www-form-urlencoded
+      host:
+      - html.duckduckgo.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://html.duckduckgo.com/html/
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      cache-control:
+      - max-age=1
+      content-encoding:
+      - br
+      content-security-policy:
+      - 'default-src ''none'' ; connect-src  https://duckduckgo.com https://*.duckduckgo.com
+        https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ https://spreadprivacy.com
+        ; manifest-src  https://duckduckgo.com https://*.duckduckgo.com https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/
+        https://spreadprivacy.com ; media-src  https://duckduckgo.com https://*.duckduckgo.com
+        https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ https://spreadprivacy.com
+        ; script-src blob:  https://duckduckgo.com https://*.duckduckgo.com https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/
+        https://spreadprivacy.com ; font-src data:  https://duckduckgo.com https://*.duckduckgo.com
+        https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ https://spreadprivacy.com
+        ; img-src data:  https://duckduckgo.com https://*.duckduckgo.com https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/
+        https://spreadprivacy.com ; style-src  https://duckduckgo.com https://*.duckduckgo.com
+        https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ https://spreadprivacy.com
+        ; object-src ''none'' ; worker-src blob: ; child-src blob:  https://duckduckgo.com
+        https://*.duckduckgo.com https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/
+        https://spreadprivacy.com ; frame-src blob:  https://duckduckgo.com https://*.duckduckgo.com
+        https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/ https://spreadprivacy.com
+        ; frame-ancestors ''self'' ; base-uri ''self'' ; block-all-mixed-content ;'
+      content-type:
+      - text/html; charset=UTF-8
+      date:
+      - Thu, 18 Sep 2025 01:05:14 GMT
+      expect-ct:
+      - max-age=0
+      expires:
+      - Thu, 18 Sep 2025 01:05:15 GMT
+      permissions-policy:
+      - interest-cohort=()
+      referrer-policy:
+      - origin
+      server:
+      - nginx
+      server-timing:
+      - total;dur=676;desc="Backend Total [n]"
+      strict-transport-security:
+      - max-age=31536000
+      vary:
+      - Accept-Encoding
+      - Origin
+      x-content-type-options:
+      - nosniff
+      x-duckduckgo-locale:
+      - en_US
+      x-frame-options:
+      - SAMEORIGIN
+      x-robots-tag:
+      - noindex
+      x-xss-protection:
+      - 1;mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"What''s trending on Twitter?"},{"role":"assistant","tool_calls":[{"id":"call_cmKKAcnPowBW6xIKNbBjeKcZ","function":{"arguments":"{\"query\":\"trending
+      Twitter topics\",\"max_results\":5}","name":"duckduckgo_search"},"type":"function"}],"content":""},{"role":"tool","content":"[\n  {\n    \"title\":
+      \"Twitter. It''s what''s happening / Twitter\",\n    \"href\": \"https://twitter.com/explore/tabs/trending/\",\n    \"body\":
+      \"Explore trending topics , hashtags, and conversations on Twitter .\"\n  },\n  {\n    \"title\":
+      \"United States \\u2014 X (Twitter) trending topics and hashtags today ...\",\n    \"href\":
+      \"https://trends24.in/united-states/\",\n    \"body\": \"Today''s top X ( Twitter
+      ) trends and hashtags in United States: Clemson, Tennessee, Office Depot, UCLA,
+      #UFCNoche. Explore more locations and trending topics on trends24.in\"\n  },\n  {\n    \"title\":
+      \"United States ~ X (Twitter) Trending Today ~ Now\",\n    \"href\": \"https://whatstrends.com/united-states/\",\n    \"body\":
+      \"The most recent trending topics and hashtags on X ( Twitter ) in United States:
+      Office Depot, UCLA, #WorldsCollide, Erika Kirk, Avery Johnson and more. To explore
+      more locations and trending topics visit here.\"\n  },\n  {\n    \"title\":
+      \"United States | X (Twitter) trending topics and hashtags for 24 hours\",\n    \"href\":
+      \"https://twittertrending.net/united-states/\",\n    \"body\": \"United States
+      X ( Twitter ) trends for last 24 hours | X ( Twitter ) trending hashtags and
+      topics today United States.\"\n  },\n  {\n    \"title\": \"Worldwide Trending
+      Topics And Hashtags On X (Twitter)\",\n    \"href\": \"https://xtrending.info/\",\n    \"body\":
+      \"Stay updated with XTrending.info, your go-to platform for real-time trending
+      topics on X (formerly Twitter ). Discover viral hashtags, breaking news, and
+      social media trends worldwide.\"\n  }\n]","tool_call_id":"call_cmKKAcnPowBW6xIKNbBjeKcZ"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
+      this function to search DDGS for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
+      this function to get the latest news from DDGS.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
+      The query to search for."},"max_results":{"type":"number","description":"(optional,
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '2843'
       content-type:
       - application/json
       host:
-      - api.agno.com
+      - api.openai.com
       user-agent:
-      - agno/1.4.6
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.5
     method: POST
-    uri: https://api.agno.com/v1/telemetry/agent/run/create
+    uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: '{"status":"success","message":"AgentTelemetryRun creation acknowledged"}'
+      string: !!binary |
+        MSwYACBmNa0/n1ffXKYMNj57A78LIbPlGoMMsztI1Egb0v9c8/kBD8AmFtEWlX9RtrMlNeC900UF
+        4ICHw4lunbXtBgdJjP3ohxO28N7rDHChczVcO3hrxykWz19ffHrxKr6s3r75dHq2f9KfHy4u9tLV
+        +He3OHazDHCyPabWKLnlFgN1EEah/nP5POpcjWp/fVCt99fVGvjsKB1FV8P1kxUrKcbAoVgulqti
+        sV9UBxzmDhJaUlfjfwYA15/KAHcGfrursZh9S92RIXM14o8AlySSq+G8alDzbG6GAErYra/h3lAi
+        +ERQGQn18/4Olog7hTB+nAczSnjEco7Wx0gd/jyuG264KpHnzyONKpznKPAjEXeBexzb4Q5tT1WD
+        sJYNL0vk+Q9iJlUiAtlT7u+Uh5J+a2AyhbZs+EmJPG/U1ZPwgiYx9gmvfeDAPXzbt2x4VSLPfz7/
+        8HQChucyjj200qJladnwukSe3/356vknaQfZZAXHBu4xeB3M9+ha9UXqYIKfr56DzohNy4YbfiUJ
+        oyRCKBciar6d4VJO0XrGWdBgdyVwksQo54F7xMAnWjdc4L8dD3h5MUVJdPRoMJu0ns8NCC5egLoX
+        yW9ufqvzaYrnj5mQXFK+XKGT2dKf3wcFvrwMPD/lYNQVat5I6a2/B2/KJO1jPR+86SBNJe2LqgPN
+        x7iXK7yR06TaUM3bvGQydtw/fHrKwDuxBurCYKL5YweMIorYJSKYVG30gg2kZF4NdpLMDo9A+cHp
+        VJgUnTdyMSmqUHon+MG9C2D76GrwaYxZAVYdUtpxjsh4t4mGK0o/JdkqOdcVMizYNI0b6Wo4NZmc
+        VMttBhwldPFpjvZ1U5Jxso3JCYlUr1d77wK3jgAMQnW4BPd+AIDN9p8czJiyN/HKU5lYgGt9O1BH
+        DhaQXn/aBQGSpFFUTzOltPzJ6jccuB8AmNC2NBl1m8KdyWoDVOISHVPLzUyN3NKqTcZvLFByNdzv
+        Ixlh0aUajZtd4J7SlMISOHs3bdZVtz1Y+Z3fuuw2MwAD
+    headers:
+      CF-RAY:
+      - 980cef137fcdc146-PDX
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Sep 2025 01:05:19 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=b4yYVDCu9RADMfwXTnbG30RXB5_R393Qb4jnPKBzyvk-1758157519-1.0.1.1-ChX3P_l8OaOzfTygVKekR1ommE9NfkZmJEEYlFplpDcXZt4vC4wQr6sqbFa5HMsEueIkg4sBVi89I2DCRrQggvWuS_XNtZk9Lu3nLdfsfn4;
+        path=/; expires=Thu, 18-Sep-25 01:35:19 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=mGSKdOgpHmkc1sAyuAwE.GyuF9XihLadJOvHXAL6d3Q-1758157519090-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '3843'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '3875'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999615'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_5d5599e7cd014819b1a94a1d8009dcf1
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"b1e9fed2-7df8-44cc-b447-071d4f3819ca","data":{"agent_id":"news-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":true,"has_reasoning":true,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":false},"sdk_version":"2.0.5","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '425'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.0.5
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: b1e9fed2-7df8-44cc-b447-071d4f3819ca","status":"success"}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '72'
+      - '96'
       Content-Type:
       - application/json
       Date:
-      - Sun, 11 May 2025 18:48:39 GMT
+      - Thu, 18 Sep 2025 01:05:19 GMT
       server:
       - uvicorn
     status:
-      code: 200
-      message: OK
+      code: 201
+      message: Created
 version: 1

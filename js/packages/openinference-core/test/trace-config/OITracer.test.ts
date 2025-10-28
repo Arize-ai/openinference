@@ -15,13 +15,22 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import {
+  type Mocked,
+  describe,
+  it,
+  beforeEach,
+  afterEach,
+  expect,
+  vi,
+} from "vitest";
 
 const tracerProvider = new NodeTracerProvider();
 tracerProvider.register();
 
 describe("OITracer", () => {
-  let mockTracer: jest.Mocked<Tracer>;
-  let mockSpan: jest.Mocked<Span>;
+  let mockTracer: Mocked<Tracer>;
+  let mockSpan: Mocked<Span>;
   let contextManager: ContextManager;
   const memoryExporter = new InMemorySpanExporter();
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
@@ -30,16 +39,26 @@ describe("OITracer", () => {
     contextManager = new AsyncHooksContextManager().enable();
     context.setGlobalContextManager(contextManager);
     mockSpan = {
-      setAttribute: jest.fn(),
-      setAttributes: jest.fn(),
-    } as unknown as jest.Mocked<Span>;
-
+      setAttribute: vi.fn().mockReturnThis(),
+      setAttributes: vi.fn().mockReturnThis(),
+      spanContext: vi.fn(),
+      addEvent: vi.fn().mockReturnThis(),
+      addLink: vi.fn().mockReturnThis(),
+      addLinks: vi.fn().mockReturnThis(),
+      end: vi.fn().mockReturnThis(),
+      isRecording: vi.fn().mockReturnThis(),
+      recordException: vi.fn().mockReturnThis(),
+      updateName: vi.fn().mockReturnThis(),
+      setStatus: vi.fn().mockReturnThis(),
+    };
     mockTracer = {
-      startSpan: jest.fn(() => mockSpan),
-      startActiveSpan: jest.fn((name, options, context, fn) => {
-        return fn(mockSpan);
-      }),
-    } as unknown as jest.Mocked<Tracer>;
+      startSpan: vi.fn().mockReturnValue(mockSpan),
+      startActiveSpan: vi
+        .fn()
+        .mockImplementation((name, options, context, fn) => {
+          return fn(mockSpan);
+        }),
+    };
   });
   beforeEach(() => {
     memoryExporter.reset();
@@ -150,7 +169,7 @@ describe("OITracer", () => {
         },
       });
       const name = "test-span";
-      const mockFn = jest.fn();
+      const mockFn = vi.fn();
 
       oiTracer.startActiveSpan(name, mockFn);
       expect(mockTracer.startActiveSpan).toHaveBeenCalledWith(

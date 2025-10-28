@@ -1,9 +1,10 @@
 import asyncio
+import socket
 import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import pytest
 from mcp import ClientSession
@@ -12,7 +13,7 @@ from mcp.types import ClientResult, ServerNotification, ServerRequest, TextConte
 from opentelemetry.trace import Tracer
 
 from tests.collector import OTLPServer, Telemetry
-from tests.whoami import TestClientResult, TestServerRequest, WhoamiResult
+from tests.whoami import WhoamiClientResult, WhoamiResult, WhoamiServerRequest
 
 
 # The way MCP SDK creates async tasks means we need this to be called inline with the test,
@@ -34,10 +35,29 @@ async def mcp_client(
         if not isinstance(message, RequestResponder) or message.request.root.method != "whoami":
             return
         with message as responder, tracer.start_as_current_span("whoami"):
-            await responder.respond(TestClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
+            await responder.respond(WhoamiClientResult(WhoamiResult(name="OpenInference")))  # type: ignore
 
     server_script = str(Path(__file__).parent / "mcpserver.py")
     pythonpath = str(Path(__file__).parent.parent)
+
+    def _choose_free_port() -> int:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]  # type: ignore
+
+    async def _wait_for_port(
+        host: str, port: int, attempts: int = 100, delay: float = 0.05
+    ) -> None:
+        for _ in range(attempts):
+            try:
+                reader, writer = await asyncio.open_connection(host, port)
+                writer.close()
+                await writer.wait_closed()
+                return
+            except Exception:
+                await asyncio.sleep(delay)
+        raise RuntimeError(f"Timed out waiting for server on {host}:{port}")
+
     match transport:
         case "stdio":
             async with stdio_client(
@@ -53,15 +73,17 @@ async def mcp_client(
             ) as (reader, writer), ClientSession(
                 reader, writer, message_handler=message_handler
             ) as client:
-                client._receive_request_type = TestServerRequest
+                client._receive_request_type = WhoamiServerRequest
                 await client.initialize()
                 yield client
         case "sse":
+            port = _choose_free_port()
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 server_script,
                 env={
                     "MCP_TRANSPORT": "sse",
+                    "MCP_PORT": str(port),
                     "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
                     "PYTHONPATH": pythonpath,
                 },
@@ -69,30 +91,25 @@ async def mcp_client(
                 stderr=subprocess.PIPE,
             )
             try:
-                stderr = proc.stderr
-                assert stderr is not None
-                for i in range(100):
-                    line = str(await stderr.readline())
-                    if "Uvicorn running on http://0.0.0.0:" in line:
-                        _, rest = line.split("http://0.0.0.0:", 1)
-                        port, _ = rest.split(" ", 1)
-                        async with sse_client(f"http://localhost:{port}/sse") as (
-                            reader,
-                            writer,
-                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                            client._receive_request_type = TestServerRequest
-                            await client.initialize()
-                            yield client
-                        break
+                await _wait_for_port("127.0.0.1", port)
+                async with sse_client(f"http://localhost:{port}/sse") as (
+                    reader,
+                    writer,
+                ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                    client._receive_request_type = WhoamiServerRequest
+                    await client.initialize()
+                    yield client
             finally:
                 proc.kill()
                 await proc.wait()
         case "streamable-http":
+            port = _choose_free_port()
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
                 server_script,
                 env={
                     "MCP_TRANSPORT": "streamable-http",
+                    "MCP_PORT": str(port),
                     "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint,
                     "PYTHONPATH": pythonpath,
                 },
@@ -100,22 +117,15 @@ async def mcp_client(
                 stderr=subprocess.PIPE,
             )
             try:
-                stderr = proc.stderr
-                assert stderr is not None
-                for i in range(100):
-                    line = str(await stderr.readline())
-                    if "Uvicorn running on http://0.0.0.0:" in line:
-                        _, rest = line.split("http://0.0.0.0:", 1)
-                        port, _ = rest.split(" ", 1)
-                        async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
-                            reader,
-                            writer,
-                            _,
-                        ), ClientSession(reader, writer, message_handler=message_handler) as client:
-                            client._receive_request_type = TestServerRequest
-                            await client.initialize()
-                            yield client
-                        break
+                await _wait_for_port("127.0.0.1", port)
+                async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
+                    reader,
+                    writer,
+                    _,
+                ), ClientSession(reader, writer, message_handler=message_handler) as client:
+                    client._receive_request_type = WhoamiServerRequest
+                    await client.initialize()
+                    yield client
             finally:
                 proc.kill()
                 await proc.wait()
@@ -156,3 +166,82 @@ async def test_hello(
     assert server_span.parent_span_id == root_span.span_id
     assert whoami_span.trace_id == root_span.trace_id
     assert whoami_span.parent_span_id == server_span.span_id
+
+
+async def test_stdio_validation_error(tracer: Tracer, otlp_collector: OTLPServer) -> None:
+    """Test that ValidationError in stdio transport doesn't crash the instrumentation."""
+    # Lazy import to get instrumented versions. Users will use opentelemetry-instrument or otherwise
+    # initialize instrumentation as early as possible and should not run into issues, but we control
+    # instrumentation through fixtures instead.
+    from mcp.client.stdio import StdioServerParameters, stdio_client
+    from pydantic_core import ValidationError
+
+    validation_error_received = False
+
+    async def message_handler(
+        message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
+    ) -> None:
+        nonlocal validation_error_received
+        if isinstance(message, ValidationError):
+            validation_error_received = True
+
+    server_script = str(Path(__file__).parent / "mcpserver_invalid.py")
+    pythonpath = str(Path(__file__).parent.parent)
+
+    async with stdio_client(
+        StdioServerParameters(
+            command=sys.executable,
+            args=[server_script],
+            env={
+                "MCP_TRANSPORT": "stdio",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": f"http://localhost:{otlp_collector.server_port}/",
+                "PYTHONPATH": pythonpath,
+            },
+        )
+    ) as (reader, writer), ClientSession(reader, writer, message_handler=message_handler):
+        # The server will send an invalid message that triggers ValidationError
+        # Without the fix, this causes AttributeError: ValidationError has no attribute 'message'
+        # With the fix, it checks isinstance(item, SessionMessage) first
+        await asyncio.sleep(0.5)
+
+    # Test passes if we didn't crash with AttributeError
+    assert validation_error_received
+
+
+async def test_stream_writer_exception_handling(tracer: Tracer) -> None:
+    """Test that InstrumentedStreamWriter correctly handles exceptions passed through the stream."""
+    # Lazy import to get instrumented versions
+    from anyio import create_memory_object_stream
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+    from pydantic_core import ValidationError
+
+    from openinference.instrumentation.mcp import InstrumentedStreamWriter
+
+    # Create a memory stream for testing
+    write_stream: MemoryObjectSendStream[Any]
+    read_stream: MemoryObjectReceiveStream[Any]
+    write_stream, read_stream = create_memory_object_stream(10)
+
+    # Wrap the write stream with instrumentation
+    instrumented_writer = InstrumentedStreamWriter(write_stream)
+
+    # Create a validation error to simulate what MCP does
+    validation_error = ValidationError.from_exception_data(
+        "Test validation error",
+        [
+            {
+                "type": "missing",
+                "loc": ("method",),
+                "input": {},
+            }
+        ],
+    )
+
+    # Without the fix, this would cause AttributeError when the instrumentation
+    # tries to cast the exception to SessionMessage and access .message.root
+    async with instrumented_writer, read_stream:
+        await instrumented_writer.send(validation_error)
+
+        # Verify the exception was passed through correctly
+        received = await read_stream.receive()
+        assert isinstance(received, ValidationError)

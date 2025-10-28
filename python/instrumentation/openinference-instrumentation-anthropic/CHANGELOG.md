@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.19...python-openinference-instrumentation-anthropic-v0.1.20) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.18...python-openinference-instrumentation-anthropic-v0.1.19) (2025-08-18)
+
+
+### Features
+
+* **anthropic:** Added support for anthropic sdk input images rendering  ([#2091](https://github.com/Arize-ai/openinference/issues/2091)) ([d2684b4](https://github.com/Arize-ai/openinference/commit/d2684b4b20e3b0199051c553580a8b27b673727f))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.17...python-openinference-instrumentation-anthropic-v0.1.18) (2025-05-19)
 
 

@@ -83,6 +83,7 @@ class _ResponseAccumulator:
             idx: Index for the accumulator, useful when handling multiple responses
         """
         self._span = span
+        self._final_response: str = ""
         self._request_parameters = request
         self.tracer = tracer
         self._is_finished: bool = False
@@ -116,7 +117,8 @@ class _ResponseAccumulator:
                 if "chunk" in obj:
                     if "bytes" in obj["chunk"]:
                         output_text = obj["chunk"]["bytes"].decode("utf-8")
-                        self._span.set_attributes(get_output_attributes(output_text))
+                        self._final_response += output_text
+                        self._span.set_attributes(get_output_attributes(self._final_response))
                 elif "trace" in obj:
                     self.trace_collector.collect(obj)
             elif isinstance(obj, (StopIteration, StopAsyncIteration)):
@@ -168,7 +170,7 @@ class _ResponseAccumulator:
         """
         # Extract start time from attributes metadata if available
         start_time = (
-            attributes.metadata.get("start_time", None) if attributes.metadata else start_time
+            attributes.metadata.get("startTime", None) if attributes.metadata else start_time
         )
 
         # Create the span with appropriate context
@@ -217,7 +219,7 @@ class _ResponseAccumulator:
         Args:
             attributes: The attributes object that may contain timing metadata
             trace_span: The trace span to extract time from
-            time_key: The key to look for ('start_time' or 'end_time')
+            time_key: The key to look for ('startTime' or 'endTime')
             reverse: Whether to traverse spans and chunks in reverse order
                      (useful for finding end times which are typically at the end)
 
@@ -256,6 +258,14 @@ class _ResponseAccumulator:
                     if time_value := metadata.get(time_key):
                         return int(time_value)
 
+                # Check guardrail trace
+                if "metadata" in event_data:
+                    metadata = AttributeExtractor.get_metadata_attributes(
+                        event_data.get("metadata")
+                    )
+                    if time_value := metadata.get(time_key):
+                        return int(time_value)
+
             # Recursively check nested nodes
             if isinstance(span, TraceNode):
                 if time_value := self._fetch_span_time(attributes, span, time_key, reverse):
@@ -276,7 +286,7 @@ class _ResponseAccumulator:
         Returns:
             The start timestamp in nanoseconds if found, None otherwise
         """
-        return self._fetch_span_time(attributes, trace_span, "start_time", reverse=False)
+        return self._fetch_span_time(attributes, trace_span, "startTime", reverse=False)
 
     def _fetch_span_end_time(
         self, attributes: _Attributes, trace_span: Union[TraceSpan, TraceNode]
@@ -291,7 +301,7 @@ class _ResponseAccumulator:
         Returns:
             The end timestamp in nanoseconds if found, None otherwise
         """
-        return self._fetch_span_time(attributes, trace_span, "end_time", reverse=True)
+        return self._fetch_span_time(attributes, trace_span, "endTime", reverse=True)
 
     def _set_parent_span_input_attributes(
         self, attributes: _Attributes, trace_span: Union[TraceSpan, TraceNode]
@@ -411,8 +421,14 @@ class _ResponseAccumulator:
 
             # Create span with appropriate timing
             start_time = self._fetch_span_start_time(attributes, trace_span)
+
             span = self._create_chain_span(parent_span, attributes, start_time)
-            span.set_status(Status(StatusCode.OK))
+            status_code = StatusCode.OK
+            if attributes.span_kind == OpenInferenceSpanKindValues.GUARDRAIL:
+                intervening_guardrails = attributes.metadata.get("intervening_guardrails", [])
+                if AttributeExtractor.is_blocked_guardrail(intervening_guardrails):
+                    status_code = StatusCode.ERROR
+            span.set_status(Status(status_code))
 
             # Process child spans recursively
             if isinstance(trace_span, TraceNode):
@@ -432,7 +448,6 @@ class _ResponseAccumulator:
         self._span.record_exception(obj)
         self._span.set_status(Status(StatusCode.ERROR, str(obj)))
         self._span.end()
-        self._finish_tracing()
 
     @classmethod
     def _prepare_span_attributes(cls, trace_span_data: Union[TraceSpan, TraceNode]) -> _Attributes:
@@ -479,6 +494,10 @@ class _ResponseAccumulator:
             # Process rationale
             if "rationale" in event_data:
                 cls._process_rationale(event_data, _attributes)
+
+            if trace_event == "guardrailTrace":
+                cls._process_guardrail_trace(event_data, _attributes)
+
             if trace_event == "failureTrace":
                 cls._process_failure_trace(event_data, _attributes)
         return _attributes
@@ -577,6 +596,27 @@ class _ResponseAccumulator:
         attributes.metadata.update(AttributeExtractor.get_metadata_from_observation(observation))
 
     @classmethod
+    def _process_guardrail_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:
+        """
+        Process guardrail trace data.
+        """
+        attributes.span_kind = OpenInferenceSpanKindValues.GUARDRAIL
+        attributes.name = "Guardrails"
+
+        guardrail_attributes = AttributeExtractor.get_attributes_from_guardrail_trace(event_data)
+
+        if "intervening_guardrails" not in attributes.metadata:
+            attributes.metadata["intervening_guardrails"] = []
+
+        if "non_intervening_guardrails" not in attributes.metadata:
+            attributes.metadata["non_intervening_guardrails"] = []
+
+        if guardrail_attributes.get("action") == "INTERVENED":
+            attributes.metadata["intervening_guardrails"].append(guardrail_attributes)
+        else:
+            attributes.metadata["non_intervening_guardrails"].append(guardrail_attributes)
+
+    @classmethod
     def _process_failure_trace(cls, event_data: Dict[str, Any], attributes: _Attributes) -> None:
         """
         Process failure trace data.
@@ -620,8 +660,11 @@ class _ResponseAccumulator:
         """
         if self._is_finished:
             return
+
         # Use span manager to finish tracing
-        _finish(self._span, None, self._request_parameters)
+        # These attributes are removed as these are input values of the request.
+        # these are not required to be added to the span.
+        _finish(span=self._span, result=None, request_attributes={})
         self._is_finished = True
 
 

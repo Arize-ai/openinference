@@ -1,5 +1,40 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 3.4.4
+
+### Patch Changes
+
+- 6066704: roughly check json strings for mime type
+
+## 3.4.3
+
+### Patch Changes
+
+- Updated dependencies [c50ffb0]
+  - @arizeai/openinference-semantic-conventions@2.1.2
+  - @arizeai/openinference-core@1.0.7
+
+## 3.4.2
+
+### Patch Changes
+
+- Updated dependencies [9d3bdb4]
+  - @arizeai/openinference-core@1.0.6
+
+## 3.4.1
+
+### Patch Changes
+
+- Updated dependencies [59be946]
+  - @arizeai/openinference-semantic-conventions@2.1.1
+  - @arizeai/openinference-core@1.0.5
+
+## 3.4.0
+
+### Minor Changes
+
+- e211094: add ability to use a non-global trace provider
+
 ## 3.3.2
 
 ### Patch Changes

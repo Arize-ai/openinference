@@ -1,3 +1,4 @@
+import base64
 import inspect
 import json
 import logging
@@ -22,7 +23,6 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.events import Event
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.telemetry import _build_llm_request_for_trace
 from google.adk.tools import BaseTool
 from google.genai import types
 from opentelemetry import context as context_api
@@ -222,7 +222,7 @@ class _TraceCallLlm(_WithTracer):
             try:
                 span.set_attribute(
                     SpanAttributes.INPUT_VALUE,
-                    safe_json_dumps(_build_llm_request_for_trace(llm_request)),
+                    llm_request.model_dump_json(exclude_none=True, fallback=_default),
                 )
                 span.set_attribute(
                     SpanAttributes.INPUT_MIME_TYPE,
@@ -356,7 +356,10 @@ def stop_on_exception(
 def _get_attributes_from_generate_content_config(
     obj: types.GenerateContentConfig,
 ) -> Iterator[tuple[str, AttributeValue]]:
-    yield SpanAttributes.LLM_INVOCATION_PARAMETERS, obj.model_dump_json(exclude_none=True)
+    yield (
+        SpanAttributes.LLM_INVOCATION_PARAMETERS,
+        obj.model_dump_json(exclude_none=True, fallback=_default),
+    )
 
 
 @stop_on_exception
@@ -530,14 +533,13 @@ def bind_args_kwargs(func: Any, *args: Any, **kwargs: Any) -> OrderedDict[str, A
     return bound.arguments
 
 
-def _default(obj: Any) -> str:
+def _default(obj: Any) -> Any:
     from pydantic import BaseModel
 
     if isinstance(obj, BaseModel):
-        return json.dumps(
-            obj.model_dump(exclude=None),
-            ensure_ascii=False,
-            default=str,
-        )
-    else:
-        return str(obj)
+        return obj.model_dump(exclude_none=True)
+    if inspect.isclass(obj) and issubclass(obj, BaseModel):
+        return obj.model_json_schema()
+    if isinstance(obj, bytes):
+        return base64.b64encode(obj).decode()
+    return str(obj)

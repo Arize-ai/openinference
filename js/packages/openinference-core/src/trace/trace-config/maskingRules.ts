@@ -141,6 +141,21 @@ const maskEmbeddingVectorsRule: MaskingRule = {
 };
 
 /**
+ * Masks (redacts) llm.prompts if hidePrompts is true.
+ * @example
+ * ```typescript
+ *  maskPromptsRule.condition({
+ *      config: {hidePrompts: true},
+ *      key: "llm.prompts"
+ *  }) // returns true so the rule applies and the value will be redacted
+ */
+const maskPromptsRule: MaskingRule = {
+  condition: ({ config, key }) =>
+    config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
+  action: () => REDACTED_VALUE,
+};
+
+/**
  * A list of {@link MaskingRule}s that are applied to span attributes to either redact or remove sensitive information.
  * The order of these rules is important as it can ensure appropriate masking of information
  * Rules should go from more specific to more general so that things like `llm.input_messages.[i].message.content` are masked with {@link REDACTED_VALUE} before the more generic masking of `llm.input_messages` might happen with `undefined` might happen.
@@ -185,6 +200,7 @@ const maskingRules: MaskingRule[] = [
   maskInputImagesRule,
   maskLongBase64ImageRule,
   maskEmbeddingVectorsRule,
+  maskPromptsRule,
 ];
 
 /**

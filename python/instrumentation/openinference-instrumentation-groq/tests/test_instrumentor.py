@@ -153,7 +153,10 @@ def _check_context_attributes(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="groq")
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+            group="opentelemetry_instrumentor",
+            name="groq",
+        )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, GroqInstrumentor)
 

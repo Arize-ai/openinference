@@ -1,4 +1,4 @@
-mistralai == 1.0.2
+mistralai>=1.9.0
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx

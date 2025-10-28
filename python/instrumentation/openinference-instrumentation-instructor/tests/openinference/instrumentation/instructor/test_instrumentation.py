@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from typing import Any, Generator, Optional
 
@@ -6,6 +7,7 @@ import instructor
 import openai
 import pytest
 import vcr  # type: ignore
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -48,24 +50,25 @@ test_vcr = vcr.VCR(
 
 
 class UserInfo(BaseModel):
-    name: str
-    age: int
+    name: Optional[str] = None
+    age: Optional[int] = None
 
 
 async def extract() -> UserInfo:
     client = instructor.from_openai(openai.AsyncOpenAI())
-    return await client.chat.completions.create(
+    user_info: UserInfo = await client.chat.completions.create(
         model="gpt-4-turbo-preview",
         messages=[
             {"role": "user", "content": "Create a user"},
         ],
         response_model=UserInfo,
     )
+    return user_info
 
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
             group="opentelemetry_instrumentor", name="instructor"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -97,6 +100,7 @@ async def test_async_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
 
 
 @pytest.mark.asyncio
@@ -135,6 +139,7 @@ async def test_streaming_instrumentation(
     for span in spans:
         attributes = dict(span.attributes or dict())
         assert attributes.get("openinference.span.kind") in ["TOOL"]
+        assert span.status.status_code == trace_api.StatusCode.OK
 
 
 def test_instructor_instrumentation(
@@ -149,6 +154,7 @@ def test_instructor_instrumentation(
             model="gpt-3.5-turbo",
             response_model=UserInfo,
             messages=[{"role": "user", "content": "John Doe is 30 years old."}],
+            max_retries=1,
         )
         assert user_info.name == "John Doe"
         assert user_info.age == 30
@@ -160,3 +166,12 @@ def test_instructor_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert span.status.status_code == trace_api.StatusCode.OK
+
+            # Validate invocation parameters handling
+            invocation_params = attributes.get("llm.invocation_parameters")
+            if isinstance(invocation_params, dict):
+                # Ensure max_retries key exists
+                assert "max_retries" in invocation_params
+                # Ensure max_retries is JSON-serializable
+                json.dumps(invocation_params)

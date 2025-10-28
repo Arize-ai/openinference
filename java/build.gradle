@@ -1,0 +1,201 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+    id 'org.jreleaser' version '1.19.0'
+    id "com.diffplug.spotless" version "6.8.0" apply false
+}
+
+// Root project version for JReleaser
+version = '0.1.1'
+
+allprojects {
+    group = 'com.arize'
+    // Subproject versions are set in each module's gradle.properties
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'com.diffplug.spotless'
+
+    // Only apply publishing to non-examples
+    if (!project.path.startsWith(':examples')) {
+        apply plugin: 'maven-publish'
+        apply plugin: 'signing'
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+
+        // Only add these for published libraries
+        if (!project.path.startsWith(':examples')) {
+            withJavadocJar()
+            withSourcesJar()
+        }
+    }
+
+    ext {
+        // OpenTelemetry versions
+        openTelemetryVersion = '1.49.0'
+        openTelemetryInstrumentationVersion = '2.14.0'
+        openTelemetryInstrumentationAlphaVersion = '2.14.0-alpha'
+        
+        // LangChain4j version
+        langchain4jVersion = '1.0.0'
+        
+        // Testing dependencies
+        junitVersion = '5.10.2'
+        mockitoVersion = '5.11.0'
+        assertjVersion = '3.25.3'
+        
+        // Other dependencies
+        jacksonVersion = '2.17.0'
+        slf4jVersion = '2.0.12'
+        autoServiceVersion = '1.1.1'
+        lombokVersion = '1.18.30'
+    }
+
+    dependencies {
+        // Lombok
+        compileOnly "org.projectlombok:lombok:${lombokVersion}"
+        annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+        testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+        testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+        
+        // Common test dependencies
+        testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+        testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+        testImplementation "org.assertj:assertj-core:${assertjVersion}"
+        testImplementation "org.slf4j:slf4j-simple:${slf4jVersion}"
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+    }
+
+    // Configure javadoc
+    javadoc {
+        options.encoding = 'UTF-8'
+        options.addStringOption('Xdoclint:none', '-quiet')
+        
+        if (JavaVersion.current().isJava9Compatible()) {
+            options.addBooleanOption('html5', true)
+        }
+    }
+
+    spotless {
+        java {
+            target 'src/**/*.java'
+            toggleOffOn()
+            palantirJavaFormat()
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+
+    // Publishing configuration
+    if (!project.path.startsWith(':examples')) {
+    publishing {
+        publications {
+            maven(MavenPublication) {
+                from components.java
+                
+                // Ensure dependency versions are resolved in POM
+                versionMapping {
+                    usage('java-api') {
+                        fromResolutionOf('runtimeClasspath')
+                    }
+                    usage('java-runtime') {
+                        fromResolutionResult()
+                    }
+                }
+                
+                pom {
+                    name = project.name
+                    description = project.description ?: 'OpenInference Java Library'
+                    url = 'https://github.com/Arize-ai/openinference'
+                    
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+                    
+                    developers {
+                        developer {
+                            id = 'arize'
+                            name = 'Arize AI'
+                            email = 'support@arize.com'
+                            organization = 'Arize AI'
+                            organizationUrl = 'https://arize.com'
+                        }
+                    }
+                    
+                    scm {
+                        connection = 'scm:git:git://github.com/Arize-ai/openinference.git'
+                        developerConnection = 'scm:git:ssh://github.com:Arize-ai/openinference.git'
+                        url = 'https://github.com/Arize-ai/openinference'
+                    }
+                }
+            }
+        }
+        
+        repositories {
+            maven {
+                url = layout.buildDirectory.dir('staging-deploy')
+            }
+        }
+    }
+        // Signing configuration
+        signing {
+            required { !version.endsWith('SNAPSHOT') && gradle.taskGraph.hasTask('publish') }
+            sign publishing.publications.maven
+        }
+    }
+    
+
+}
+
+// JReleaser configuration for Maven Central
+jreleaser {
+    signing {
+        active = 'ALWAYS'
+        armored = true
+
+        // Always use MEMORY mode for GitHub Actions
+        mode = 'MEMORY'
+
+        // JReleaser will automatically read GPG keys from environment variables:
+        // JRELEASER_GPG_PUBLICKEY, JRELEASER_GPG_SECRETKEY, and JRELEASER_GPG_PASSPHRASE
+    }
+
+    deploy {
+        maven {
+            mavenCentral {
+                sonatype {
+                    active = 'ALWAYS'
+                    url = 'https://central.sonatype.com/api/v1/publisher'
+                    // Configure staging repositories dynamically
+                    stagingRepositories = providers.gradleProperty('jreleaserStagingRepository').orNull
+                        ? [providers.gradleProperty('jreleaserStagingRepository').get()]
+                        : []
+                }
+            }
+        }
+    }
+}
+

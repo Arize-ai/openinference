@@ -10,6 +10,7 @@ import { Stream } from "openai/streaming";
 import { Response as ResponseType } from "openai/resources/responses/responses";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { vi } from "vitest";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -67,7 +68,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("creates a span for responses", async () => {
@@ -93,7 +94,7 @@ describe("OpenAIInstrumentation - Responses", () => {
       output_text: "This is a test.",
     } satisfies ResponseType;
     // Mock out the responses endpoint
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
         new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
@@ -163,7 +164,7 @@ describe("OpenAIInstrumentation - Responses", () => {
       output_text: "This is a test.",
     } satisfies ResponseType;
     // Mock out the responses endpoint
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
         new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {
@@ -228,7 +229,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -314,7 +315,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("should capture tool calls with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -461,7 +462,7 @@ describe("OpenAIInstrumentation - Responses", () => {
 
   it("should capture tool calls, instructions, and multiple messages with streaming responses", async () => {
     // Mock out the post endpoint to return a stream with tool calls
-    jest.spyOn(openai, "post").mockImplementation(
+    vi.spyOn(openai, "post").mockImplementation(
       // @ts-expect-error the response type is not correct - this is just for testing
       (): Promise<unknown> => {
         const iterator = () =>
@@ -634,7 +635,7 @@ describe("OpenAIInstrumentation - Responses", () => {
         },
       ],
     };
-    jest.spyOn(openai, "post").mockImplementation(() => {
+    vi.spyOn(openai, "post").mockImplementation(() => {
       return new APIPromise(
         new OpenAI({ apiKey: "fake-api-key" }),
         new Promise((resolve) => {

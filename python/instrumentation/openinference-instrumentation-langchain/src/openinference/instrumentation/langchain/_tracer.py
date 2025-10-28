@@ -1,13 +1,15 @@
+import dataclasses
+import datetime
 import json
 import logging
-import math
 import re
 import time
 import traceback
 from copy import deepcopy
-from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from itertools import chain
+from pathlib import PurePath
 from threading import RLock
 from typing import (
     TYPE_CHECKING,
@@ -24,7 +26,10 @@ from typing import (
     Sequence,
     Tuple,
     TypeVar,
+    Union,
     cast,
+    get_args,
+    get_origin,
 )
 from uuid import UUID
 
@@ -356,23 +361,124 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
 
 
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
+    """
+    Convert input/output data to appropriate string representation for OpenInference spans.
+
+    This function handles different cases with increasing complexity:
+    1. Empty/None objects: return nothing
+    2. Single string values: return the string directly (performance optimization, no MIME type)
+    3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
+       - Conditional MIME type: only for structured data (objects/arrays), not primitives
+    4. Multiple keys or other cases: use _json_dumps for consistent formatting
+       - Always includes JSON MIME type since these are always structured objects
+
+    Args:
+        obj: The input/output data mapping to convert
+
+    Yields:
+        str: The converted string representation
+        str: JSON MIME type (when applicable - see cases above)
+    """
     if not obj:
         return
     assert isinstance(obj, dict), f"expected dict, found {type(obj)}"
-    if len(obj) == 1 and isinstance(value := next(iter(obj.values())), str):
-        yield value
-    else:
-        obj = dict(_replace_nan(obj))
-        yield safe_json_dumps(obj)
-        yield OpenInferenceMimeTypeValues.JSON.value
+
+    # Handle single-key dictionaries (most common case)
+    if len(obj) == 1:
+        value = next(iter(obj.values()))
+
+        # Optimization: Single string values are returned as-is without processing
+        # This is the most common case in LangChain runs (e.g., {"input": "user message"})
+        if isinstance(value, str):
+            yield value
+            return
+
+        key = next(iter(obj.keys()))
+
+        # Special handling for input/output keys: use custom JSON formatting
+        # that preserves readability and handles edge cases like NaN values
+        if key in ("input", "output"):
+            json_value = _json_dumps(value)
+            yield json_value
+
+            # Conditional MIME type for input/output keys: only structured data gets MIME type
+            # This avoids cluttering simple primitive values with unnecessary MIME type metadata
+            if (
+                json_value.startswith("{")
+                and json_value.endswith("}")
+                or json_value.startswith("[")
+                and json_value.endswith("]")
+            ):
+                yield OpenInferenceMimeTypeValues.JSON.value
+            return
+
+    # Default case: multiple keys or non-input/output keys
+    # These are always complex structured objects, so always include JSON MIME type
+    # Use _json_dumps for consistent formatting across all paths
+    json_value = _json_dumps(obj)
+    yield json_value
+    yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
-def _replace_nan(obj: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    for k, v in obj.items():
-        if isinstance(v, float) and not math.isfinite(v):
-            yield k, None
-        else:
-            yield k, v
+class _OpenInferenceJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for OpenInference with comprehensive type support."""
+
+    def default(self, obj: Any) -> Any:
+        # Handle Pydantic models
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump()
+
+        # Handle dataclasses
+        if dataclasses.is_dataclass(obj):
+            # Filter out None optional fields
+            result = {}
+            for field in dataclasses.fields(obj):
+                value = getattr(obj, field.name)
+                if not (
+                    value is None
+                    and get_origin(field.type) is Union
+                    and type(None) in get_args(field.type)
+                ):
+                    result[field.name] = value
+            return result
+
+        # Handle date/time objects
+        if isinstance(obj, (datetime.date, datetime.datetime, datetime.time)):
+            return obj.isoformat()
+
+        # Handle timedeltas as total seconds
+        if isinstance(obj, datetime.timedelta):
+            return obj.total_seconds()
+
+        # Handle UUID, Decimal, Path, complex as strings
+        if isinstance(obj, (UUID, Decimal, PurePath, complex)):
+            return str(obj)
+
+        # Handle Enums by their value
+        if isinstance(obj, Enum):
+            return obj.value
+
+        # Handle sets as lists
+        if isinstance(obj, set):
+            return list(obj)
+
+        # Let the base class handle everything else (will raise TypeError for unsupported types)
+        return super().default(obj)
+
+
+def _json_dumps(obj: Any) -> str:
+    """
+    Simple JSON serialization using standard library with custom encoder.
+
+    This approach is much simpler and more robust than manual recursive processing.
+    It handles most common types while falling back to safe_json_dumps for edge cases.
+    """
+    try:
+        # Use standard json.dumps with our custom encoder
+        return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
+    except (TypeError, ValueError, OverflowError):
+        # Fallback to safe_json_dumps for any unsupported types or circular references
+        return safe_json_dumps(obj)
 
 
 @stop_on_exception
@@ -460,8 +566,7 @@ def _output_messages(
 
 
 @stop_on_exception
-def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
-    """Parses message data to grab message role, content, etc."""
+def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
     if not message_data:
         return
     assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
@@ -483,6 +588,13 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
     yield MESSAGE_ROLE, role
+
+
+@stop_on_exception
+def _extract_message_kwargs(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
     if kwargs := message_data.get("kwargs"):
         assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if content := kwargs.get("content"):
@@ -502,6 +614,17 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
         if name := kwargs.get("name"):
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield MESSAGE_NAME, name
+
+
+@stop_on_exception
+def _extract_message_additional_kwargs(
+    message_data: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
+    if kwargs := message_data.get("kwargs"):
+        assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
         if additional_kwargs := kwargs.get("additional_kwargs"):
             assert hasattr(additional_kwargs, "get"), (
                 f"expected Mapping, found {type(additional_kwargs)}"
@@ -514,18 +637,60 @@ def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[T
                     assert isinstance(name, str), f"expected str, found {type(name)}"
                     yield MESSAGE_FUNCTION_CALL_NAME, name
                 if arguments := function_call.get("arguments"):
-                    assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
-                    yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
+                    if isinstance(arguments, str):
+                        yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, arguments
+                    else:
+                        yield MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON, safe_json_dumps(arguments)
+
+
+def _process_tool_calls(tool_calls: Any) -> List[Dict[str, Any]]:
+    """Helper function to process tool calls from any source."""
+    if not tool_calls:
+        return []
+    assert isinstance(tool_calls, Iterable), f"expected Iterable, found {type(tool_calls)}"
+    message_tool_calls = []
+    for tool_call in tool_calls:
+        if message_tool_call := dict(_get_tool_call(tool_call)):
+            message_tool_calls.append(message_tool_call)
+    return message_tool_calls
+
+
+@stop_on_exception
+def _extract_message_tool_calls(
+    message_data: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, Any]]:
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
+    if tool_calls := message_data.get("tool_calls"):
+        # https://github.com/langchain-ai/langgraph/blob/86017c010c7901f7971d1ac499c392a0652f63cc/libs/langgraph/langgraph/graph/message.py#L266# noqa: E501
+        message_tool_calls = _process_tool_calls(tool_calls)
+        if message_tool_calls:
+            yield MESSAGE_TOOL_CALLS, message_tool_calls
+    if kwargs := message_data.get("kwargs"):
+        assert hasattr(kwargs, "get"), f"expected Mapping, found {type(kwargs)}"
+        if tool_calls := kwargs.get("tool_calls"):
+            # https://github.com/langchain-ai/langchain/blob/a7d0e42f3fa5b147fea9109f60e799229f30a68b/libs/core/langchain_core/messages/ai.py#L167  # noqa: E501
+            message_tool_calls = _process_tool_calls(tool_calls)
+            if message_tool_calls:
+                yield MESSAGE_TOOL_CALLS, message_tool_calls
+        if additional_kwargs := kwargs.get("additional_kwargs"):
+            assert hasattr(additional_kwargs, "get"), (
+                f"expected Mapping, found {type(additional_kwargs)}"
+            )
             if tool_calls := additional_kwargs.get("tool_calls"):
-                assert isinstance(tool_calls, Iterable), (
-                    f"expected Iterable, found {type(tool_calls)}"
-                )
-                message_tool_calls = []
-                for tool_call in tool_calls:
-                    if message_tool_call := dict(_get_tool_call(tool_call)):
-                        message_tool_calls.append(message_tool_call)
+                message_tool_calls = _process_tool_calls(tool_calls)
                 if message_tool_calls:
                     yield MESSAGE_TOOL_CALLS, message_tool_calls
+
+
+@stop_on_exception
+def _parse_message_data(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    """Parses message data to grab message role, content, etc."""
+    yield from _extract_message_role(message_data)
+    yield from _extract_message_kwargs(message_data)
+    yield from _extract_message_additional_kwargs(message_data)
+    yield from _extract_message_tool_calls(message_data)
 
 
 @stop_on_exception
@@ -533,14 +698,28 @@ def _get_tool_call(tool_call: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str
     if not tool_call:
         return
     assert hasattr(tool_call, "get"), f"expected Mapping, found {type(tool_call)}"
+    if (id_ := tool_call.get("id")) is not None:
+        yield TOOL_CALL_ID, id_
     if function := tool_call.get("function"):
         assert hasattr(function, "get"), f"expected Mapping, found {type(function)}"
         if name := function.get("name"):
             assert isinstance(name, str), f"expected str, found {type(name)}"
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := function.get("arguments"):
-            assert isinstance(arguments, str), f"expected str, found {type(arguments)}"
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    else:
+        # https://github.com/langchain-ai/langchain/blob/a7d0e42f3fa5b147fea9109f60e799229f30a68b/libs/core/langchain_core/messages/tool.py#L179  # noqa: E501
+        if name := tool_call.get("name"):
+            assert isinstance(name, str), f"expected str, found {type(name)}"
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if arguments := tool_call.get("args"):
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 
 @stop_on_exception
@@ -715,6 +894,41 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
 
+    # maps langchain_core.messages.ai.UsageMetadata object
+    for attribute_name, details_key_or_none, keys in [
+        (LLM_TOKEN_COUNT_PROMPT, None, ("input_tokens",)),
+        (LLM_TOKEN_COUNT_COMPLETION, None, ("output_tokens",)),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+            "input_token_details",
+            ("audio",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+            "input_token_details",
+            ("cache_creation",),
+        ),
+        (
+            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            "input_token_details",
+            ("cache_read",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+            "output_token_details",
+            ("audio",),
+        ),
+        (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            "output_token_details",
+            ("reasoning",),
+        ),
+    ]:
+        details = token_usage.get(details_key_or_none) if details_key_or_none else token_usage
+        if details is not None:
+            if (token_count := _get_first_value(details, keys)) is not None:
+                yield attribute_name, token_count
+
 
 def _parse_token_usage_for_vertexai(
     outputs: Optional[Mapping[str, Any]],
@@ -873,8 +1087,8 @@ def _as_document(document: Any) -> Iterator[Tuple[str, Any]]:
         yield DOCUMENT_METADATA, safe_json_dumps(metadata)
 
 
-def _as_utc_nano(dt: datetime) -> int:
-    return int(dt.astimezone(timezone.utc).timestamp() * 1_000_000_000)
+def _as_utc_nano(dt: datetime.datetime) -> int:
+    return int(dt.astimezone(datetime.timezone.utc).timestamp() * 1_000_000_000)
 
 
 def _get_cls_name(serialized: Optional[Mapping[str, Any]]) -> str:
@@ -994,6 +1208,7 @@ RETRIEVAL_DOCUMENTS = SpanAttributes.RETRIEVAL_DOCUMENTS
 SESSION_ID = SpanAttributes.SESSION_ID
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS

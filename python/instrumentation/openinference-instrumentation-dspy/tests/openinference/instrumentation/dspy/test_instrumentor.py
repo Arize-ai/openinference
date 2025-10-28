@@ -92,7 +92,10 @@ def instrument(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(group="opentelemetry_instrumentor", name="dspy")
+        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+            group="opentelemetry_instrumentor",
+            name="dspy",
+        )
         instrumentor = instrumentor_entrypoint.load()()
         assert isinstance(instrumentor, DSPyInstrumentor)
 
@@ -117,6 +120,7 @@ class TestLM:
             cache=False,
             temperature=0.1,  # non-default
             top_p=0.1,
+            api_key=openai_api_key,  # explicitly set api key as an argument to ensure it is masked
         )
         prompt = "Who won the World Cup in 2018?"
         responses = lm(
@@ -413,20 +417,19 @@ async def test_rag_module(
 
             return dspy.Prediction(context=context, answer=prediction.answer)
 
-    dspy.settings.configure(
+    with dspy.context(
         lm=dspy.LM("openai/gpt-4", cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
-    )
+    ):
+        rag = RAG()
+        question = "What's the capital of the United States?"
 
-    rag = RAG()
-    question = "What's the capital of the United States?"
+        if is_async:
+            prediction = await rag.acall(question=question)
+        else:
+            prediction = rag(question=question)
 
-    if is_async:
-        prediction = await rag.acall(question=question)
-    else:
-        prediction = rag(question=question)
-
-    assert prediction.answer == "Washington, D.C."
+        assert prediction.answer == "Washington, D.C."
 
     spans = list(in_memory_span_exporter.get_finished_spans())
     spans.sort(key=lambda span: span.start_time or 0)
@@ -612,22 +615,20 @@ async def test_react(
     is_async: bool,
     openai_api_key: str,
 ) -> None:
-    dspy.settings.configure(
-        lm=dspy.LM("openai/gpt-4o-mini"),
-    )
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini")):
 
-    def add(x: int, y: int) -> int:
-        return x + y
+        def add(x: int, y: int) -> int:
+            return x + y
 
-    react = dspy.ReAct("question -> answer", tools=[add])
-    question = "What is 2 + 2?"
+        react = dspy.ReAct("question -> answer", tools=[add])
+        question = "What is 2 + 2?"
 
-    if is_async:
-        response = await react.acall(question=question)
-    else:
-        response = react(question=question)
+        if is_async:
+            response = await react.acall(question=question)
+        else:
+            response = react(question=question)
 
-    assert response.answer == "4"
+        assert response.answer == "4"
 
     spans = list(in_memory_span_exporter.get_finished_spans())
     spans.sort(key=lambda span: span.start_time or 0)
@@ -1206,6 +1207,96 @@ def test_context_attributes_are_instrumented(
         assert attributes.get(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES) == json.dumps(
             prompt_template_variables
         )
+
+
+def test_dummy_lm_instrumentation(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    lm = dspy.utils.DummyLM(answers=[{"answer": "dummy answer"}])
+    dspy.settings.configure(lm=lm)
+
+    predict = dspy.Predict("question -> answer")
+
+    question = "What is the capital of France?"
+    prediction = predict(question=question)
+
+    assert prediction.answer == "dummy answer"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 4
+
+    it = iter(spans)
+
+    span = next(it)
+    assert span.name == "DummyLM.__call__"
+    attributes = dict(span.attributes or {})
+    assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+    assert question in input_value
+    assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+    assert "dummy answer" in output_value
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    )
+
+    span = next(it)
+
+    assert span.name == "ChatAdapter.__call__"
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value)["inputs"] == {"question": question}
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == [
+        {
+            "answer": "dummy answer",
+        }
+    ]
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )
+
+    span = next(it)
+    assert span.name == "Predict(StringSignature).forward"
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value) == {
+        "question": question,
+    }
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == {
+        "answer": "dummy answer",
+    }
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )
+
+    span = next(it)
+    assert span.name == "Predict.forward"
+    attributes = dict(span.attributes or {})
+    assert attributes is not None
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert attributes.get(SpanAttributes.OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(input_value := attributes.pop(SpanAttributes.INPUT_VALUE), str)
+    assert json.loads(input_value) == {
+        "question": question,
+    }
+    assert isinstance(output_value := attributes.pop(SpanAttributes.OUTPUT_VALUE), str)
+    assert json.loads(output_value) == {
+        "answer": "dummy answer",
+    }
+
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.CHAIN.value
+    )
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value

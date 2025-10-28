@@ -22,7 +22,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "opentelemetry-api",
@@ -37,14 +36,15 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "haystack-ai >= 2.13.0",
+    "haystack-ai >= 2.18.0",
 ]
 test = [
-    "haystack-ai==2.13.0",
+    "haystack-ai==2.18.0",
     "cohere-haystack",
     "opentelemetry-sdk",
     "vcrpy>=7.0.0",
     "pytest-recording",
+    "pytest-asyncio"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

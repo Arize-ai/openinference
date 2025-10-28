@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.5...python-openinference-instrumentation-google-adk-v0.1.6) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.4...python-openinference-instrumentation-google-adk-v0.1.5) (2025-09-30)
+
+
+### Bug Fixes
+
+* **google-adk:** remove dependency on private telemetry API ([#2244](https://github.com/Arize-ai/openinference/issues/2244)) ([e07939d](https://github.com/Arize-ai/openinference/commit/e07939d2ae530212e81004ef466d01e34f798b2d))
+
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.3...python-openinference-instrumentation-google-adk-v0.1.4) (2025-09-08)
+
+
+### Bug Fixes
+
+* **google-adk:** fix test compatibility with v1.13.0 ([#2176](https://github.com/Arize-ai/openinference/issues/2176)) ([dbe0668](https://github.com/Arize-ai/openinference/commit/dbe066844397be079e90900ab3eff9a920dbf436))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.2...python-openinference-instrumentation-google-adk-v0.1.3) (2025-08-04)
+
+
+### Bug Fixes
+
+* serialization of response schema in invocation parameters for google-adk ([#2033](https://github.com/Arize-ai/openinference/issues/2033)) ([586689f](https://github.com/Arize-ai/openinference/commit/586689f4ec6a37a6f3961740ebff4734f92ec3e5))
+
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.1...python-openinference-instrumentation-google-adk-v0.1.2) (2025-08-04)
+
+
+### Bug Fixes
+
+* pydantic model serialization for input value and image bytes for google-adk ([#2031](https://github.com/Arize-ai/openinference/issues/2031)) ([46ef152](https://github.com/Arize-ai/openinference/commit/46ef1522f73cf98f8c2b318b7afc7444160033b3))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.0...python-openinference-instrumentation-google-adk-v0.1.1) (2025-06-27)
 
 

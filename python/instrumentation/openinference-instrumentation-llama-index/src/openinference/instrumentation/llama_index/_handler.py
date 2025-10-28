@@ -41,7 +41,20 @@ from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
 
 from llama_index.core import QueryBundle
-from llama_index.core.base.agent.types import BaseAgent, BaseAgentWorker
+
+# Conditionally import agent base classes (they may not exist in all versions)
+try:
+    from llama_index.core.agent import BaseAgent, BaseAgentWorker  # type: ignore[attr-defined]
+except ImportError:
+    # Fallback for older versions
+    try:
+        from llama_index.core.base.agent.types import (  # type: ignore[import-not-found]
+            BaseAgent,
+            BaseAgentWorker,
+        )
+    except ImportError:
+        BaseAgent = None  # type: ignore[misc,assignment]
+        BaseAgentWorker = None  # type: ignore[misc,assignment]
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -682,6 +695,20 @@ class _Span(BaseSpan):
             ):
                 for k, v in _get_token_counts(usage):
                     self[k] = v
+
+            # Check for VertexAI usage_metadata
+            # VertexAI stores usage_metadata inside _raw_response
+            if isinstance(raw, Mapping) and (raw_response := raw.get("_raw_response")):
+                usage_metadata = (
+                    raw_response.get("usage_metadata")
+                    if isinstance(raw_response, Mapping)
+                    else getattr(raw_response, "usage_metadata", None)
+                )
+            else:
+                usage_metadata = getattr(raw, "usage_metadata", None)
+            if usage_metadata:
+                for k, v in _get_token_counts(usage_metadata):
+                    self[k] = v
         # Look for token counts in additional_kwargs of the completion payload
         # This is needed for non-OpenAI models
         if additional_kwargs := getattr(response, "additional_kwargs", None):
@@ -805,7 +832,10 @@ def _get_attributes_from_text_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "text"
-    yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    if isinstance(obj.text, str):
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", obj.text
+    else:
+        yield f"{prefix}{MESSAGE_CONTENT_TEXT}", safe_json_dumps(obj.text)
 
 
 def _get_attributes_from_image_block(
@@ -1023,7 +1053,10 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             yield TOOL_CALL_FUNCTION_NAME, name
         if function := tool_call.get("function"):
             yield TOOL_CALL_FUNCTION_NAME, function.get("name")
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
+            if isinstance(function.get("arguments"), str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, function.get("arguments")
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(function.get("arguments"))
         if arguments := tool_call.get("input"):
             if isinstance(arguments, str):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
@@ -1035,7 +1068,10 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
         if name := getattr(function, "name", None):
             yield TOOL_CALL_FUNCTION_NAME, name
         if arguments := getattr(function, "arguments", None):
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            if isinstance(arguments, str):
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
+            else:
+                yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
 
 
 def _get_token_counts(usage: Union[object, Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
@@ -1136,20 +1172,42 @@ def _get_token_counts_impl(
         except BaseException:
             pass
 
+    # VertexAI
+    if (prompt_token_count := get_value(usage, "prompt_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
+        except BaseException:
+            pass
+    if (candidates_token_count := get_value(usage, "candidates_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
+        except BaseException:
+            pass
+    if (total_token_count := get_value(usage, "total_token_count")) is not None:
+        try:
+            yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
+        except BaseException:
+            pass
+
 
 @singledispatch
 def _init_span_kind(_: Any) -> Optional[str]:
     return None
 
 
-@_init_span_kind.register
-def _(_: BaseAgent) -> str:
-    return AGENT
+# Only register agent handlers if the classes exist
+if BaseAgent is not None:
+
+    @_init_span_kind.register
+    def _agent_span_kind(_: BaseAgent) -> str:  # type: ignore[misc]
+        return AGENT
 
 
-@_init_span_kind.register
-def _(_: BaseAgentWorker) -> str:
-    return AGENT
+if BaseAgentWorker is not None:
+
+    @_init_span_kind.register
+    def _agent_worker_span_kind(_: BaseAgentWorker) -> str:  # type: ignore[misc]
+        return AGENT
 
 
 @_init_span_kind.register
@@ -1175,7 +1233,7 @@ def _(_: BaseTool) -> str:
 class _Encoder(json.JSONEncoder):
     def __init__(self, **kwargs: Any) -> None:
         kwargs.pop("default", None)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def default(self, obj: Any) -> Any:
         return _encoder(obj)

@@ -1,0 +1,18 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"type": "text", "text": "What''s
+      in this image?"}, {"type": "image_url", "image_url": {"url": "https://example.com/test-image.jpg"}}]}],
+      "model": "gpt-4o-mini"}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"error\": {\n    \"message\": \"Error while downloading https://example.com/test-image.jpg.\",\n
+        \   \"type\": \"invalid_request_error\",\n    \"param\": null,\n    \"code\":
+        \"invalid_image_url\"\n  }\n}"
+    headers: {}
+    status:
+      code: 400
+      message: Bad Request
+version: 1

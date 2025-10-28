@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.29...python-openinference-instrumentation-dspy-v0.1.30) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.28...python-openinference-instrumentation-dspy-v0.1.29) (2025-09-08)
+
+
+### Bug Fixes
+
+* **dspy:** replace configure() with context() in async tests ([#2178](https://github.com/Arize-ai/openinference/issues/2178)) ([90c59e0](https://github.com/Arize-ai/openinference/commit/90c59e01c48a0d89a93172ed8e9d2436117b7cbc))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.27...python-openinference-instrumentation-dspy-v0.1.28) (2025-08-13)
+
+
+### Features
+
+* **dspy:** Instrument DSPy DummyLM ([#2067](https://github.com/Arize-ai/openinference/issues/2067)) ([0b0349d](https://github.com/Arize-ai/openinference/commit/0b0349d14f227ac6b51fdf461c4e614e8b80582a))
+
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.26...python-openinference-instrumentation-dspy-v0.1.27) (2025-07-30)
+
+
+### Bug Fixes
+
+* **instrumentation-dspy:** pin urllib3&lt;2.0 for pytest-recording compatibility ([#2007](https://github.com/Arize-ai/openinference/issues/2007)) ([51f5040](https://github.com/Arize-ai/openinference/commit/51f5040af8bef8f7407dde7451ea1f2fb6ca7950))
+
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.25...python-openinference-instrumentation-dspy-v0.1.26) (2025-07-23)
+
+
+### Bug Fixes
+
+* **dspy:** mask api keys passed as arguments ([#1990](https://github.com/Arize-ai/openinference/issues/1990)) ([98218a1](https://github.com/Arize-ai/openinference/commit/98218a1bf710f860a93eb941194e2abcc2eec63f))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.24...python-openinference-instrumentation-dspy-v0.1.25) (2025-06-09)
 
 

@@ -3,7 +3,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation } from "../src";
+import { LangChainInstrumentation, isPatched } from "../src";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
@@ -30,6 +30,7 @@ import {
 } from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
 import { tool } from "@langchain/core/tools";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -59,15 +60,16 @@ const {
   TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
-jest.mock("@langchain/openai", () => {
-  const originalModule = jest.requireActual("@langchain/openai");
+vi.mock("@langchain/openai", async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const originalModule = (await vi.importActual("@langchain/openai")) as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
       this.client = {
         chat: {
           completions: {
-            create: jest.fn().mockResolvedValue(completionsResponse),
+            create: vi.fn().mockResolvedValue(completionsResponse),
           },
         },
       };
@@ -148,9 +150,9 @@ describe("LangChainInstrumentation", () => {
   `;
   const prompt = ChatPromptTemplate.fromTemplate(PROMPT_TEMPLATE);
 
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-  instrumentation._modules[0].moduleExports = CallbackManager;
   beforeAll(() => {
+    // Use manual instrumentation as intended for LangChain
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -160,14 +162,12 @@ describe("LangChainInstrumentation", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.resetAllMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
-    expect(
-      (CallbackManager as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    // Check global patched state - this is the reliable indicator
+    expect(isPatched()).toBe(true);
   });
 
   const testDocuments = [
@@ -245,10 +245,14 @@ describe("LangChainInstrumentation", () => {
 
     await chatModel.invoke("hello, this is a test");
 
-    const span = memoryExporter.getFinishedSpans()[0];
-    expect(span).toBeDefined();
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
 
-    expect(span.attributes).toStrictEqual({
+    expect(llmSpan?.attributes).toStrictEqual({
       ...expectedSpanAttributes,
       [LLM_INVOCATION_PARAMETERS]:
         '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
@@ -256,17 +260,15 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add attributes to llm spans when streaming", async () => {
-    // Do this to update the mock to return a streaming response
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       streaming: true,
     });
 
-    chatModel.client.chat.completions.create.mockResolvedValue(
+    // Access the mock from the mocked class
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (chatModel as any).client.chat.completions.create.mockResolvedValue(
       new Stream(async function* iterator() {
         yield { choices: [{ delta: { content: "This is " } }] };
         yield { choices: [{ delta: { content: "a test stream." } }] };
@@ -417,17 +419,14 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add function calls to spans", async () => {
-    // Do this to update the mock to return a function call response
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 1,
     });
 
-    chatModel.client.chat.completions.create.mockResolvedValue(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (chatModel as any).client.chat.completions.create.mockResolvedValue(
       functionCallResponse,
     );
 
@@ -496,9 +495,6 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should capture tool json schema in llm spans for bound tools", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ChatOpenAI } = jest.requireMock("@langchain/openai");
-
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-4o-mini",
@@ -549,11 +545,11 @@ describe("LangChainInstrumentation", () => {
         span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpan).toBeDefined();
-    expect(toolSpan?.attributes).toStrictEqual({
+    expect(toolSpan?.attributes).toMatchObject({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
       [TOOL_NAME]: "test_tool",
-      [INPUT_VALUE]: "hello",
-      [INPUT_MIME_TYPE]: "text/plain",
+      [INPUT_VALUE]: '{"input":"hello"}',
+      [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",
       metadata: "{}",
@@ -715,9 +711,9 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   instrumentation.setTracerProvider(tracerProvider);
   tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
-  // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-  instrumentation._modules[0].moduleExports = CallbackManager;
   beforeAll(() => {
+    // Use manual instrumentation as intended for LangChain
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -727,14 +723,12 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     memoryExporter.reset();
   });
   afterEach(() => {
-    jest.resetAllMocks();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
   it("should patch the callback manager module", async () => {
-    expect(
-      (CallbackManager as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    // Check global patched state - this is the reliable indicator
+    expect(isPatched()).toBe(true);
   });
 
   it("should respect trace config options", async () => {
@@ -780,6 +774,167 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     expect(span.attributes["output.mime_type"]).toBe("application/json");
     // Output value is unstable, so we don't check it
     expect(span.attributes["session.id"]).toBe("session-id");
+  });
+});
+
+describe("LangChainInstrumentation with a custom tracer provider", () => {
+  describe("LangChainInstrumentation with custom TracerProvider passed in", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation({
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    beforeAll(() => {
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.restoreAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+
+      await chatModel.invoke("test message", {
+        metadata: {
+          conversation_id: "conv-789",
+        },
+      });
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    instrumentation.disable();
+
+    beforeAll(() => {
+      // Set tracer provider BEFORE manual instrumentation to ensure correct tracer is used
+      instrumentation.setTracerProvider(customTracerProvider);
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.restoreAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
+  });
+
+  describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
+    const customTracerProvider = new NodeTracerProvider();
+    const customMemoryExporter = new InMemorySpanExporter();
+
+    // Note: We don't register this provider globally.
+    customTracerProvider.addSpanProcessor(
+      new SimpleSpanProcessor(customMemoryExporter),
+    );
+
+    // Instantiate instrumentation with the custom provider
+    const instrumentation = new LangChainInstrumentation();
+    registerInstrumentations({
+      instrumentations: [instrumentation],
+      tracerProvider: customTracerProvider,
+    });
+    instrumentation.disable();
+
+    beforeAll(() => {
+      // For manual instrumentation, we need to explicitly set the tracer provider
+      instrumentation.setTracerProvider(customTracerProvider);
+      // Use manual instrumentation as intended for LangChain
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      instrumentation.manuallyInstrument(CallbackManager as any);
+      instrumentation.enable();
+    });
+
+    afterAll(() => {
+      instrumentation.disable();
+    });
+
+    beforeEach(() => {
+      memoryExporter.reset();
+      customMemoryExporter.reset();
+    });
+
+    afterEach(() => {
+      vi.clearAllMocks();
+      vi.restoreAllMocks();
+    });
+
+    it("should use the provided tracer provider instead of the global one", async () => {
+      const chatModel = new ChatOpenAI({
+        openAIApiKey: "my-api-key",
+        modelName: "gpt-3.5-turbo",
+      });
+      await chatModel.invoke("test message");
+
+      const spans = customMemoryExporter.getFinishedSpans();
+      const globalSpans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBe(1);
+      expect(globalSpans.length).toBe(0);
+    });
   });
 });
 

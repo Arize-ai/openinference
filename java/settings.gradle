@@ -1,0 +1,8 @@
+rootProject.name = 'openinference-java'
+
+include 'openinference-semantic-conventions'
+include 'openinference-instrumentation'
+include 'instrumentation:openinference-instrumentation-langchain4j'
+include 'examples:langchain4j-example'
+include 'examples:spring-ai-example'
+include 'instrumentation:openinference-instrumentation-springAI'

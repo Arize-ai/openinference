@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Autogen-Agentchat Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -22,13 +22,14 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
+  "openinference-semantic-conventions>=0.1.21",
   "autogen-agentchat>=0.5.0",
   "autogen-core>=0.5.0",
 ]

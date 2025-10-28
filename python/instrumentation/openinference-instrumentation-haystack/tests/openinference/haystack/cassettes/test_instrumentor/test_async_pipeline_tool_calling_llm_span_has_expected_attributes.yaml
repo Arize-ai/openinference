@@ -1,0 +1,54 @@
+interactions:
+- request:
+    body: '{"batch": [{"properties": {"libraries.haystack": "2.18.0", "os.containerized":
+      false, "os.version": "22.6.0", "os.family": "Darwin", "os.machine": "x86_64",
+      "python.version": "3.12.6", "hardware.cpus": 8, "libraries.pytest": "8.4.2",
+      "libraries.ipython": false, "libraries.colab": false, "hardware.gpus": 0, "libraries.transformers":
+      false, "libraries.torch": false, "libraries.cuda": false, "pipeline_id": "4777426432",
+      "pipeline_type": "haystack.core.pipeline.async_pipeline.AsyncPipeline", "runs":
+      1, "components": {"haystack.components.generators.chat.openai.OpenAIChatGenerator":
+      [{"name": "llm", "model": "gpt-4o"}]}, "$python_runtime": "CPython", "$python_version":
+      "3.12.6", "$os": "Mac OS X", "$os_version": "13.7.8", "$lib": "posthog-python",
+      "$lib_version": "6.7.6", "$geoip_disable": true}, "timestamp": "2025-10-14T03:47:42.499212+00:00",
+      "distinct_id": "0fbae5f1-414c-4dde-a02e-459ab7e75ae0", "event": "Pipeline run
+      (2.x)", "uuid": "a5390072-7c96-48eb-9f69-735d6e49a1fa"}], "historical_migration":
+      false, "sentAt": "2025-10-14T03:47:42.996442+00:00", "api_key": "phc_C44vUK9R1J6HYVdfJarTEPqVAoRPJzMXzFcj8PIrJgP"}'
+    headers: {}
+    method: POST
+    uri: https://eu.i.posthog.com/batch/
+  response:
+    body:
+      string: '{"status":"Ok"}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"What is the weather in Berlin"}],"model":"gpt-4o","n":1,"response_format":null,"stream":false,"tools":[{"type":"function","function":{"name":"get_current_weather","description":"Get
+      the current weather","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+      city and state, e.g. San Francisco, CA"}},"required":["location"]}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CQQIhUuWTKFQcpJvXflDfzI3Fq7fC\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1760413663,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_Cy1DEB8QMcpGcCxKICYA0VDX\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"get_current_weather\",\n
+        \             \"arguments\": \"{\\\"location\\\":\\\"Berlin, Germany\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 63,\n    \"completion_tokens\":
+        17,\n    \"total_tokens\": 80,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_cbf1785567\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

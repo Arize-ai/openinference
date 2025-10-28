@@ -19,15 +19,43 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
 
+  separate-release-please:
+    name: Separate package releases
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
+    outputs:
+      python_paths_released: ${{ steps.separate.outputs.python_paths }}
+      java_paths_released: ${{ steps.separate.outputs.java_paths }}
+    steps:
+      - name: Separate Python and Java paths
+        id: separate
+        run: |
+          # Get all released paths
+          ALL_PATHS='${{ needs.release.outputs.paths_released }}'
+          
+          # Filter Python paths (everything staring with 'python/')
+          PYTHON_PATHS=$(echo "$ALL_PATHS" | jq -c '[.[] | select(startswith("python/"))]')
+          echo "python_paths=$PYTHON_PATHS" >> $GITHUB_OUTPUT
+          
+          # Filter Java paths (everything starting with 'java/')
+          JAVA_PATHS=$(echo "$ALL_PATHS" | jq -c '[.[] | select(startswith("java/"))]')
+          echo "java_paths=$JAVA_PATHS" >> $GITHUB_OUTPUT
+          
+          # Log the results
+          echo "All paths: $ALL_PATHS"
+          echo "Python paths: $PYTHON_PATHS"
+          echo "Java paths: $JAVA_PATHS"
+
   publish:
     name: Publish Python distribution
     runs-on: ubuntu-latest
-    needs: release
+    needs: [release, separate-release-please]
     if: ${{ needs.release.outputs.releases_created == 'true' }}
     strategy:
       fail-fast: false
       matrix:
-        path: ${{ fromJSON(needs.release.outputs.paths_released) }}
+        path: ${{ fromJSON(needs.separate-release-please.outputs.python_paths_released) }}
     defaults:
       run:
         working-directory: ${{ matrix.path }}
@@ -60,6 +88,85 @@ jobs:
           name: ${{ env.NAME }}
           path: ${{ runner.temp }}/${{ env.NAME }}
           retention-days: 1
+
+  java-publish:
+    name: Publish Java packages
+    runs-on: ubuntu-latest
+    needs: [release, separate-release-please]
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        path: ${{ fromJSON(needs.separate-release-please.outputs.java_paths_released) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Set versions from release-please manifest
+        working-directory: ./java
+        run: |
+          echo "Setting versions for all Java packages to ensure dependency resolution..."
+
+          # Update ALL Java package versions from manifest to prevent $VERSION placeholders
+          # The <<< (here-string) feeds jq output line-by-line to the while loop
+          # Each line becomes the value of java_path variable via the read command
+          while IFS= read -r java_path; do
+            if [ -n "$java_path" ]; then
+              PACKAGE_VERSION=$(jq -r ".\"$java_path\"" ../.release-please-manifest.json)
+              RELATIVE_PATH="${java_path#java/}"
+              GRADLE_PROPS_FILE="${RELATIVE_PATH}/gradle.properties"
+              if [ -f "$GRADLE_PROPS_FILE" ] && [ "$PACKAGE_VERSION" != "null" ]; then
+                echo "Updating ${GRADLE_PROPS_FILE} with version: $PACKAGE_VERSION"
+                if grep -q "version=\$VERSION" "$GRADLE_PROPS_FILE"; then
+                  sed -i "s/version=\$VERSION/version=$PACKAGE_VERSION/" "$GRADLE_PROPS_FILE"
+                else
+                  sed -i "s/^version=.*/version=$PACKAGE_VERSION/" "$GRADLE_PROPS_FILE"
+                fi
+                echo "Updated version: $(grep version= "$GRADLE_PROPS_FILE")"
+              fi
+            fi
+          done <<< "$(jq -r 'keys[] | select(startswith("java/"))' ../.release-please-manifest.json)"
+          echo "All Java package versions have been updated for proper dependency resolution"
+
+      - name: Stage artifacts locally
+        working-directory: ./java
+        run: |
+          # Determine the relative path from java/ directory
+          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="${RELATIVE_PATH#java/}"
+          # Convert path to Gradle project path format
+          GRADLE_PROJECT=$(echo ":${RELATIVE_PATH}" | sed 's|/|:|g')
+          # Build and publish only the specific project
+          ./gradlew clean "${GRADLE_PROJECT}:publish"
+
+      - name: Deploy to Maven Central with JReleaser
+        working-directory: ./java
+        env:
+          JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+          JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+          JRELEASER_GPG_SECRET_KEY: ${{ secrets.JRELEASER_GPG_SECRETKEY }}
+          JRELEASER_GPG_PUBLIC_KEY: ${{ secrets.JRELEASER_GPG_PUBLICKEY }}
+        run: |
+          # Determine the relative path from java/ directory
+          RELATIVE_PATH="${{ matrix.path }}"
+          RELATIVE_PATH="${RELATIVE_PATH#java/}"
+          
+          # Configure JReleaser to only deploy this specific artifact
+          ./gradlew -PjreleaserStagingRepository=${RELATIVE_PATH}/build/staging-deploy jreleaserDeploy
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -rf ./java/build/staging-deploy
 
   slack:
     name: Slack notification on failure

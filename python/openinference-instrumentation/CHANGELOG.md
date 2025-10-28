@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.40...python-openinference-instrumentation-v0.1.41) (2025-10-20)
+
+
+### Bug Fixes
+
+* version upper bound on wrapt &lt;2.0 ([#2325](https://github.com/Arize-ai/openinference/issues/2325)) ([57a4fa3](https://github.com/Arize-ai/openinference/commit/57a4fa3329327bea41d6498c992d32ad87fd334c))
+
+## [0.1.40](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.39...python-openinference-instrumentation-v0.1.40) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.39](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.38...python-openinference-instrumentation-v0.1.39) (2025-10-07)
+
+
+### Features
+
+* **openai:** standardize completions to indexed attribute format ([#2242](https://github.com/Arize-ai/openinference/issues/2242)) ([478d17a](https://github.com/Arize-ai/openinference/commit/478d17a5433bd6119a8d501899a5eadbd2accccf))
+
+## [0.1.38](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.37...python-openinference-instrumentation-v0.1.38) (2025-09-02)
+
+
+### Features
+
+* **instrumentation:** add dangerously_using_project context manager ([#2134](https://github.com/Arize-ai/openinference/issues/2134)) ([aed9db0](https://github.com/Arize-ai/openinference/commit/aed9db05b93d1ae0cb7d8a49977de1926b038740))
+
+## [0.1.37](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.36...python-openinference-instrumentation-v0.1.37) (2025-08-06)
+
+
+### Features
+
+* increase default span attribute count limit to 10,000 ([#2042](https://github.com/Arize-ai/openinference/issues/2042)) ([0e90576](https://github.com/Arize-ai/openinference/commit/0e90576cd841c73f561ffbb98d9a39cfe035509d))
+
+## [0.1.36](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.35...python-openinference-instrumentation-v0.1.36) (2025-07-29)
+
+
+### Features
+
+* **python:** get_first_span_id via a context manager ([#2013](https://github.com/Arize-ai/openinference/issues/2013)) ([b0b080c](https://github.com/Arize-ai/openinference/commit/b0b080c564a2fb72b8f6796cad603f0166bcc767))
+
+## [0.1.35](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.34...python-openinference-instrumentation-v0.1.35) (2025-07-16)
+
+
+### Features
+
+* Allow to hide llm.prompts span from trace config ([#1863](https://github.com/Arize-ai/openinference/issues/1863)) ([7d633d8](https://github.com/Arize-ai/openinference/commit/7d633d8fcf6ab5dbd8596a5900f3982db8e88d89))
+
 ## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.33...python-openinference-instrumentation-v0.1.34) (2025-06-17)
 
 

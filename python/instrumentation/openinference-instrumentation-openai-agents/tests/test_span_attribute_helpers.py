@@ -5,7 +5,16 @@ from secrets import token_hex
 from typing import Any, Iterable, Mapping, Sequence, Union
 
 import pytest
-from agents.tracing.span_data import FunctionSpanData, GenerationSpanData, MCPListToolsSpanData
+
+try:
+    from agents.tracing.span_data import FunctionSpanData, GenerationSpanData, MCPListToolsSpanData
+except ImportError:
+    # Handle compatibility issue with OpenAI SDK >=1.103.0 where WebSearchToolFilters was removed
+    # Introduced in: https://github.com/openai/openai-python/commit/3d3d16a
+    # See: https://github.com/openai/openai-python/compare/v1.102.0...v1.103.0
+    pytest.skip(
+        "agents package incompatible with current OpenAI SDK version", allow_module_level=True
+    )
 from openai.types.responses import (
     EasyInputMessageParam,
     FunctionTool,
@@ -1028,6 +1037,21 @@ def test_get_attributes_from_chat_completions_usage(
                 "output.mime_type": "application/json",
             },
             id="complex_json_data",
+        ),
+        pytest.param(
+            FunctionSpanData(
+                name="test_func",
+                input=json.dumps({"k": "v"}),
+                output="",
+                mcp_data=None,
+            ),
+            {
+                "tool.name": "test_func",
+                "input.value": '{"k": "v"}',
+                "input.mime_type": "application/json",
+                "output.value": "",
+            },
+            id="empty_string_output",
         ),
     ],
 )

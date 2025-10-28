@@ -83,10 +83,16 @@ OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
 # Hides embedding vectors
 OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 # Limits characters of a base64 encoding of an image
+OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
+# Hides LLM prompts (completions API)
+OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
+# Hides LLM choices (completions API outputs)
 REDACTED_VALUE = "__REDACTED__"
 # When a value is hidden, it will be replaced by this redacted value
 
 DEFAULT_HIDE_LLM_INVOCATION_PARAMETERS = False
+DEFAULT_HIDE_PROMPTS = False
+DEFAULT_HIDE_CHOICES = False
 DEFAULT_HIDE_INPUTS = False
 DEFAULT_HIDE_OUTPUTS = False
 
@@ -185,6 +191,22 @@ class TraceConfig:
         },
     )
     """Hides embedding vectors"""
+    hide_prompts: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_PROMPTS,
+            "default_value": DEFAULT_HIDE_PROMPTS,
+        },
+    )
+    """Hides LLM prompts (completions API)"""
+    hide_choices: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_CHOICES,
+            "default_value": DEFAULT_HIDE_CHOICES,
+        },
+    )
+    """Hides LLM choices (completions API outputs)"""
     base64_image_max_length: Optional[int] = field(
         default=None,
         metadata={
@@ -225,10 +247,14 @@ class TraceConfig:
             self.hide_inputs or self.hide_input_messages
         ) and SpanAttributes.LLM_INPUT_MESSAGES in key:
             return None
+        elif (self.hide_inputs or self.hide_prompts) and SpanAttributes.LLM_PROMPTS in key:
+            value = REDACTED_VALUE
         elif (
             self.hide_outputs or self.hide_output_messages
         ) and SpanAttributes.LLM_OUTPUT_MESSAGES in key:
             return None
+        elif (self.hide_outputs or self.hide_choices) and SpanAttributes.LLM_CHOICES in key:
+            value = REDACTED_VALUE
         elif (
             self.hide_input_text
             and SpanAttributes.LLM_INPUT_MESSAGES in key

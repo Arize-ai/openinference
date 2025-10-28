@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import http from "http";
 import { AddressInfo } from "net";
 import path from "path";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";

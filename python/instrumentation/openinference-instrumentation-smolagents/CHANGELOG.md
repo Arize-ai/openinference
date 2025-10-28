@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.18...python-openinference-instrumentation-smolagents-v0.1.19) (2025-10-10)
+
+
+### Bug Fixes
+
+* Update build flies and CI env to include Python3.14  ([#2294](https://github.com/Arize-ai/openinference/issues/2294)) ([48b7a51](https://github.com/Arize-ai/openinference/commit/48b7a515cde2180f590a5a370a73d5ce1c73501d))
+
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.17...python-openinference-instrumentation-smolagents-v0.1.18) (2025-09-18)
+
+
+### Bug Fixes
+
+* **smolagents:** Not Getting Step Spans From Latest Smolagents ([#2171](https://github.com/Arize-ai/openinference/issues/2171)) ([14f0a19](https://github.com/Arize-ai/openinference/commit/14f0a1994a43476f77b1e906912d4a572d194700))
+
+## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.16...python-openinference-instrumentation-smolagents-v0.1.17) (2025-09-11)
+
+
+### Bug Fixes
+
+* **smolagents:** Getting Multiple Traces While Streaming Code Agent ([#1872](https://github.com/Arize-ai/openinference/issues/1872)) ([420ea79](https://github.com/Arize-ai/openinference/commit/420ea79a5fd2ce572cb7bdcb38b6585107cce465))
+
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.15...python-openinference-instrumentation-smolagents-v0.1.16) (2025-08-22)
+
+
+### Bug Fixes
+
+* **smolagents:** prevent duplicate llm spans ([#2118](https://github.com/Arize-ai/openinference/issues/2118)) ([f1a2946](https://github.com/Arize-ai/openinference/commit/f1a29460344d37e7e431d2bd76bc6f724bcbb931))
+
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.14...python-openinference-instrumentation-smolagents-v0.1.15) (2025-08-19)
+
+
+### Bug Fixes
+
+* **smolagents:** use new token_usage structure ([#2087](https://github.com/Arize-ai/openinference/issues/2087)) ([c691712](https://github.com/Arize-ai/openinference/commit/c6917124a236eb6deff1e1faf214075662ebfc58))
+
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.13...python-openinference-instrumentation-smolagents-v0.1.14) (2025-07-10)
+
+
+### Features
+
+* **smolagents:** Improve Display Of Handled Errors ([#1845](https://github.com/Arize-ai/openinference/issues/1845)) ([fb7eb1f](https://github.com/Arize-ai/openinference/commit/fb7eb1fa36adb7bb5ff001dce196c32ceb244a18))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.12...python-openinference-instrumentation-smolagents-v0.1.13) (2025-06-09)
 
 

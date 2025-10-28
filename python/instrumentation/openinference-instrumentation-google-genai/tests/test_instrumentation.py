@@ -5,7 +5,15 @@ from typing import Any, Dict, Iterator
 
 import pytest
 from google import genai
-from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
+from google.genai.types import (
+    Content,
+    FunctionCall,
+    FunctionDeclaration,
+    FunctionResponse,
+    GenerateContentConfig,
+    Part,
+    Tool,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -63,10 +71,42 @@ def test_generate_content(
     client = genai.Client(api_key=api_key)
 
     # Create content for the request
-    content = Content(
-        role="user",
-        parts=[Part.from_text(text="What's the weather like?")],
-    )
+    contents = [
+        Content(
+            role="user",
+            parts=[
+                Part.from_text(text="What's the weather like?"),
+            ],
+        ),
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        name="get_weather", args={"location": "San Francisco"}, id="call_abc123"
+                    )
+                ),
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    function_response=FunctionResponse(
+                        name="get_weather",
+                        response={
+                            "location": "San Francisco",
+                            "temperature": 65,
+                            "unit": "fahrenheit",
+                            "condition": "foggy",
+                            "humidity": "85%",
+                        },
+                        id="call_abc123",
+                    )
+                ),
+            ],
+        ),
+    ]
 
     # Create config
     config = GenerateContentConfig(
@@ -75,7 +115,7 @@ def test_generate_content(
 
     # Make the API call
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
+        model="gemini-2.0-flash", contents=contents, config=config
     )
 
     # Get the spans
@@ -91,6 +131,23 @@ def test_generate_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
+            {"location": "San Francisco"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {
+                "location": "San Francisco",
+                "temperature": 65,
+                "unit": "fahrenheit",
+                "condition": "foggy",
+                "humidity": "85%",
+            }
+        ),
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
@@ -106,6 +163,93 @@ def test_generate_content(
                 SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
                 SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_generate_content_with_config_as_dict(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = "REDACTED"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Create content for the request
+    content = Content(
+        role="user",
+        parts=[Part.from_text(text="Repeat: this is a test")],
+    )
+
+    # Create config
+    config = {
+        "temperature": 0.5,
+        "top_p": 0.95,
+        "top_k": 40,
+        "candidate_count": 1,
+        "thinking_config": {"thinking_budget": 100},
+    }
+
+    # # Make the API call
+    response = client.models.generate_content(
+        model="gemini-2.5-flash", contents=content, config=config
+    )
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Repeat: this is a test",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
+            {
+                "temperature": 0.5,
+                "top_p": 0.95,
+                "top_k": 40,
+                "candidate_count": 1,
+                "thinking_config": {"thinking_budget": 100},
+            }
+        ),
+    }
+
+    # Check if token counts are available in the response
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        completion_token_count = 0
+        if candidates := response.usage_metadata.candidates_token_count:
+            completion_token_count += candidates
+        if thoughts := response.usage_metadata.thoughts_token_count:
+            completion_token_count += thoughts
+
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: completion_token_count,
             }
         )
 
