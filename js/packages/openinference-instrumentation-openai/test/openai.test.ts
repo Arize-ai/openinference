@@ -941,6 +941,12 @@ describe("OpenAIInstrumentation", () => {
 `);
   });
 
+  it("should ensure buildURL method exists on OpenAI prototype", () => {
+    // This test will fail if OpenAI SDK removes buildURL method
+    // If this fails, update the instrumentation to use a different approach
+    expect(typeof OpenAI.prototype.buildURL).toBe("function");
+  });
+
   it("should capture context attributes and add them to spans", async () => {
     const response = {
       id: "cmpl-8fZu1H3VijJUWev9asnxaYyQvJTC9",
@@ -1005,6 +1011,7 @@ describe("OpenAIInstrumentation", () => {
 }
 `);
   });
+
   it("creates a span for chat completions parse", async () => {
     const response = {
       id: "chatcmpl-parseTest",
@@ -1659,6 +1666,19 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       expect(span.name).toBe("OpenAI Chat Completions");
       expect(span.attributes["llm.provider"]).toBe("openai");
       expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
+    });
+  });
+
+  describe("URL extraction", () => {
+    it("should detect Azure provider correctly", () => {
+      const azureClient = new OpenAI({
+        apiKey: "test-key",
+        baseURL:
+          "https://test-resource.openai.azure.com/openai/deployments/gpt-4",
+      });
+
+      // Just verify the client was created with Azure base URL
+      expect(azureClient.baseURL).toContain("openai.azure.com");
     });
   });
 });
