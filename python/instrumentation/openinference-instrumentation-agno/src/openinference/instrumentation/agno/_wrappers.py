@@ -322,8 +322,9 @@ class _RunWrapper:
                 for response in wrapped(*args, **kwargs):
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
+                        span.set_attribute("agno.run.id", current_run_id)
                     yield response
-
+                
                 if (
                     "session" in arguments
                     and (session := arguments.get("session")) is not None
@@ -364,9 +365,6 @@ class _RunWrapper:
                     if run_response is not None:
                         span.set_attribute(OUTPUT_VALUE, run_response.to_json())
                         span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-
-                if hasattr(run_response, 'run_id') and run_response.run_id:
-                    span.set_attribute("agno.run.id", run_response.run_id)
 
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -493,15 +491,9 @@ class _RunWrapper:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
+                        span.set_attribute("agno.run.id", current_run_id)
                     yield response
-                run_response = agent.run_response
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(OUTPUT_VALUE, run_response.to_json())
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
 
-                if hasattr(run_response, 'run_id') and run_response.run_id:
-                    span.set_attribute("agno.run.id", run_response.run_id)
-                    
                 if (
                     (session := arguments.get("session")) is not None
                     and hasattr(session, "runs")
