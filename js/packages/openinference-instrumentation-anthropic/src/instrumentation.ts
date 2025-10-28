@@ -18,6 +18,7 @@ import {
   TracerProvider,
   Tracer,
 } from "@opentelemetry/api";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - No version file until build
 import { VERSION } from "./version";
 import {
