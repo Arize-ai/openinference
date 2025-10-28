@@ -14,6 +14,8 @@ from openinference.instrumentation.crewai._wrappers import (
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffAsyncWrapper,
+    _ShortTermMemorySaveWrapper,
+    _ShortTermMemorySearchWrapper,
     _ToolUseWrapper,
 )
 from openinference.instrumentation.crewai.version import __version__
@@ -28,6 +30,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_execute_core",
         "_original_crew_kickoff",
         "_original_flow_kickoff_async",
+        "_original_short_term_memory_save",
+        "_original_short_term_memory_search",
         "_original_tool_use",
         "_tracer",
     )
@@ -73,6 +77,26 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=flow_kickoff_async_wrapper,
         )
 
+        short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
+        self._original_short_term_memory_save = getattr(
+            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory, "save", None
+        )
+        wrap_function_wrapper(
+            module="crewai.memory.short_term.short_term_memory",
+            name="ShortTermMemory.save",
+            wrapper=short_term_memory_save_wrapper,
+        )
+
+        short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)
+        self._original_short_term_memory_search = getattr(
+            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory, "search", None
+        )
+        wrap_function_wrapper(
+            module="crewai.memory.short_term.short_term_memory",
+            name="ShortTermMemory.search",
+            wrapper=short_term_memory_search_wrapper,
+        )
+
         use_wrapper = _ToolUseWrapper(tracer=self._tracer)
         self._original_tool_use = getattr(
             import_module("crewai.tools.tool_usage").ToolUsage, "_use", None
@@ -98,6 +122,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Flow.kickoff_async = self._original_flow_kickoff_async
             self._original_flow_kickoff_async = None
+
+        if self._original_short_term_memory_save is not None:
+            short_term_memory_module = import_module("crewai.memory.short_term.short_term_memory")
+            short_term_memory_module.ShortTermMemory.save = self._original_short_term_memory_save
+            self._original_short_term_memory_save = None
+
+        if self._original_short_term_memory_search is not None:
+            short_term_memory_module = import_module("crewai.memory.short_term.short_term_memory")
+            short_term_memory_module.ShortTermMemory.search = self._original_short_term_memory_search
+            self._original_short_term_memory_search = None
 
         if self._original_tool_use is not None:
             tool_usage_module = import_module("crewai.tools.tool_usage")

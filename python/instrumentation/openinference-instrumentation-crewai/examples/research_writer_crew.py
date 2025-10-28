@@ -107,6 +107,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
         tasks=[research_task, analysis_task, writing_task],
         verbose=False,
         process=Process.sequential,
+        memory=True,
     )
 
     # Note: crew.key is auto-generated and read-only
