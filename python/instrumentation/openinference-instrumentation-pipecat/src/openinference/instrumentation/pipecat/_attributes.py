@@ -1,5 +1,6 @@
 """Attribute extraction from Pipecat frames."""
 
+import base64
 import logging
 import json
 from typing import Any, Dict, List, Optional
@@ -12,18 +13,20 @@ from pipecat.frames.frames import (
     InterimTranscriptionFrame,
     LLMMessagesFrame,
     LLMMessagesAppendFrame,
-    LLMMessagesUpdateFrame,
     LLMFullResponseStartFrame,
     LLMFullResponseEndFrame,
-    TTSAudioRawFrame,
     AudioRawFrame,
-    InputAudioRawFrame,
-    OutputAudioRawFrame,
-    UserAudioRawFrame,
     FunctionCallFromLLM,
     FunctionCallResultFrame,
     FunctionCallInProgressFrame,
     ErrorFrame,
+    MetricsFrame,
+)
+from pipecat.metrics.metrics import (
+    LLMUsageMetricsData,
+    TTSUsageMetricsData,
+    TTFBMetricsData,
+    ProcessingMetricsData,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,11 +65,11 @@ class _FrameAttributeExtractor:
 
         # Pattern 1: Text content (TextFrame, TranscriptionFrame, etc.)
         try:
-            if hasattr(frame, "text") and frame.text:
+            if isinstance(frame, TextFrame):
                 # For transcription, this is output from STT
+                attributes["text.skip_tts"] = frame.skip_tts
                 if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
                     attributes[SpanAttributes.OUTPUT_VALUE] = frame.text
-                # For text frames going to TTS/LLM, this is input
                 else:
                     attributes[SpanAttributes.INPUT_VALUE] = frame.text
         except (TypeError, ValueError):
@@ -75,13 +78,12 @@ class _FrameAttributeExtractor:
 
         # Pattern 2: Audio metadata (AudioRawFrame variants)
         try:
-            if hasattr(frame, "sample_rate") and frame.sample_rate:
+            if isinstance(frame, AudioRawFrame):
+                attributes["audio"] = base64.b64encode(frame.audio).decode("utf-8")
                 attributes["audio.sample_rate"] = frame.sample_rate
-            if hasattr(frame, "num_channels") and frame.num_channels:
                 attributes["audio.num_channels"] = frame.num_channels
-            if hasattr(frame, "audio") and frame.audio:
-                # Don't store actual audio data, just indicate presence and size
                 attributes["audio.size_bytes"] = len(frame.audio)
+                attributes["audio.frame_count"] = frame.num_frames
         except (TypeError, ValueError):
             logger.error(f"Error extracting audio metadata from frame: {frame}")
             pass
@@ -127,6 +129,9 @@ class _FrameAttributeExtractor:
                 except (TypeError, ValueError):
                     pass
 
+        # Pattern 9: Metrics data (usage, TTFB, processing time)
+        attributes.update(self._extract_metrics_attributes(frame))
+
         return attributes
 
     def _extract_llm_attributes(self, frame: Frame) -> Dict[str, Any]:
@@ -144,11 +149,8 @@ class _FrameAttributeExtractor:
                     attributes["llm.messages_count"] = len(frame.messages)
 
                     # Extract text content for input.value
-                    user_messages = [msg.get("content", "") for msg in frame.messages]
-                    if user_messages:
-                        attributes[SpanAttributes.INPUT_VALUE] = json.dumps(
-                            user_messages
-                        )
+                    user_messages = json.dumps(frame.messages)
+                    attributes[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
             # LLMMessagesAppendFrame adds messages to context
             elif isinstance(frame, LLMMessagesAppendFrame):
                 if hasattr(frame, "messages") and frame.messages:
@@ -157,8 +159,16 @@ class _FrameAttributeExtractor:
             # LLM response boundaries
             elif isinstance(frame, LLMFullResponseStartFrame):
                 attributes["llm.response_phase"] = "start"
+                if hasattr(frame, "messages") and frame.messages:
+                    attributes["llm.messages_count"] = len(frame.messages)
+                    user_messages = json.dumps(frame.messages)
+                    attributes[SpanAttributes.LLM_OUTPUT_MESSAGES] = user_messages
             elif isinstance(frame, LLMFullResponseEndFrame):
                 attributes["llm.response_phase"] = "end"
+                if hasattr(frame, "messages") and frame.messages:
+                    attributes["llm.messages_count"] = len(frame.messages)
+                    user_messages = json.dumps(frame.messages)
+                    attributes[SpanAttributes.LLM_OUTPUT_MESSAGES] = user_messages
         except (TypeError, ValueError):
             logger.error(f"Error extracting LLM attributes from frame: {frame}")
             pass
@@ -211,3 +221,78 @@ class _FrameAttributeExtractor:
             pass
         finally:
             return attributes
+
+    def _extract_metrics_attributes(self, frame: Frame) -> Dict[str, Any]:
+        """
+        Extract metrics attributes from MetricsFrame.
+
+        Handles: LLMUsageMetricsData, TTSUsageMetricsData, TTFBMetricsData, ProcessingMetricsData
+        """
+        attributes = {}
+
+        try:
+            if isinstance(frame, MetricsFrame):
+                # MetricsFrame contains a list of MetricsData objects
+                if hasattr(frame, "data") and frame.data:
+                    for metrics_data in frame.data:
+                        # LLM token usage metrics
+                        if isinstance(metrics_data, LLMUsageMetricsData):
+                            if hasattr(metrics_data, "value") and metrics_data.value:
+                                token_usage = metrics_data.value
+                                if hasattr(token_usage, "prompt_tokens"):
+                                    attributes[
+                                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+                                    ] = token_usage.prompt_tokens
+                                if hasattr(token_usage, "completion_tokens"):
+                                    attributes[
+                                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+                                    ] = token_usage.completion_tokens
+                                if hasattr(token_usage, "total_tokens"):
+                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = (
+                                        token_usage.total_tokens
+                                    )
+
+                                # Optional token fields
+                                if (
+                                    hasattr(token_usage, "cache_read_input_tokens")
+                                    and token_usage.cache_read_input_tokens
+                                ):
+                                    attributes["llm.token_count.cache_read"] = (
+                                        token_usage.cache_read_input_tokens
+                                    )
+                                if (
+                                    hasattr(token_usage, "cache_creation_input_tokens")
+                                    and token_usage.cache_creation_input_tokens
+                                ):
+                                    attributes["llm.token_count.cache_creation"] = (
+                                        token_usage.cache_creation_input_tokens
+                                    )
+                                if (
+                                    hasattr(token_usage, "reasoning_tokens")
+                                    and token_usage.reasoning_tokens
+                                ):
+                                    attributes["llm.token_count.reasoning"] = (
+                                        token_usage.reasoning_tokens
+                                    )
+
+                        # TTS character usage metrics
+                        elif isinstance(metrics_data, TTSUsageMetricsData):
+                            if hasattr(metrics_data, "value"):
+                                attributes["tts.character_count"] = metrics_data.value
+
+                        # Time to first byte metrics
+                        elif isinstance(metrics_data, TTFBMetricsData):
+                            if hasattr(metrics_data, "value"):
+                                attributes["service.ttfb_seconds"] = metrics_data.value
+
+                        # Processing time metrics
+                        elif isinstance(metrics_data, ProcessingMetricsData):
+                            if hasattr(metrics_data, "value"):
+                                attributes["service.processing_time_seconds"] = (
+                                    metrics_data.value
+                                )
+
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug(f"Error extracting metrics from frame: {e}")
+
+        return attributes

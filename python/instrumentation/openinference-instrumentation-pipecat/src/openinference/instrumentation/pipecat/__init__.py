@@ -7,9 +7,12 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from wrapt import wrap_function_wrapper
 
+from pipecat.pipeline.task import PipelineTask
+
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.pipecat.package import _instruments
 from openinference.instrumentation.pipecat.version import __version__
+from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -44,8 +47,6 @@ class PipecatInstrumentor(BaseInstrumentor):
                 "Call .instrument() first."
             )
 
-        from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
-
         return OpenInferenceObserver(tracer=self._tracer, config=self._config)
 
     def _instrument(self, **kwargs: Any) -> None:
@@ -71,9 +72,6 @@ class PipecatInstrumentor(BaseInstrumentor):
         self._config = config
 
         try:
-            # Import Pipecat classes
-            from pipecat.pipeline.task import PipelineTask
-
             # Store original __init__
             self._original_task_init = PipelineTask.__init__
 
@@ -94,8 +92,6 @@ class PipecatInstrumentor(BaseInstrumentor):
         Uninstrument Pipecat by restoring original PipelineTask.__init__.
         """
         try:
-            from pipecat.pipeline.task import PipelineTask
-
             if hasattr(self, "_original_task_init"):
                 PipelineTask.__init__ = self._original_task_init
                 logger.info("Pipecat instrumentation disabled")
@@ -120,10 +116,8 @@ class _TaskInitWrapper:
         wrapped(*args, **kwargs)
 
         # Extract conversation_id from PipelineTask if available
-        conversation_id = getattr(instance, "conversation_id", None)
-
-        # Create observer for this task
-        from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
+        # PipelineTask stores it as _conversation_id (private attribute)
+        conversation_id = getattr(instance, "_conversation_id", None)
 
         observer = OpenInferenceObserver(
             tracer=self._tracer, config=self._config, conversation_id=conversation_id
@@ -132,7 +126,7 @@ class _TaskInitWrapper:
         # Inject observer into task
         instance.add_observer(observer)
 
-        logger.debug(
+        logger.info(
             f"Injected OpenInferenceObserver into PipelineTask {id(instance)} "
             f"(conversation_id: {conversation_id})"
         )
