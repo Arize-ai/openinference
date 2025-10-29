@@ -119,12 +119,20 @@ class _TaskInitWrapper:
         # Call original __init__
         wrapped(*args, **kwargs)
 
+        # Extract conversation_id from PipelineTask if available
+        conversation_id = getattr(instance, "conversation_id", None)
+
         # Create observer for this task
         from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
 
-        observer = OpenInferenceObserver(tracer=self._tracer, config=self._config)
+        observer = OpenInferenceObserver(
+            tracer=self._tracer, config=self._config, conversation_id=conversation_id
+        )
 
         # Inject observer into task
         instance.add_observer(observer)
 
-        logger.debug(f"Injected OpenInferenceObserver into PipelineTask {id(instance)}")
+        logger.debug(
+            f"Injected OpenInferenceObserver into PipelineTask {id(instance)} "
+            f"(conversation_id: {conversation_id})"
+        )

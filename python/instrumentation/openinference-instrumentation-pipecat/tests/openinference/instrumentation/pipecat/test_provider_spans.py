@@ -37,9 +37,10 @@ class TestOpenAISpans:
         llm_span = llm_spans[0]
 
         expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "openai",
-            "model": "gpt-4",
+            SpanAttributes.LLM_MODEL_NAME: "gpt-4",
+            SpanAttributes.LLM_PROVIDER: "openai",
         }
         assert_span_has_attributes(llm_span, expected_attrs)
 
@@ -150,8 +151,10 @@ class TestAnthropicSpans:
         llm_span = llm_spans[0]
 
         expected_attrs = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "anthropic",
-            "model": "claude-3-5-sonnet-20241022",
+            SpanAttributes.LLM_MODEL_NAME: "claude-3-5-sonnet-20241022",
+            SpanAttributes.LLM_PROVIDER: "anthropic",
         }
         assert_span_has_attributes(llm_span, expected_attrs)
 
@@ -390,8 +393,8 @@ class TestProviderSpecificAttributes:
 
         if llm_spans:
             attrs = dict(llm_spans[0].attributes)
-            assert "model" in attrs
-            assert attrs["model"] == "gpt-4"
+            assert SpanAttributes.LLM_MODEL_NAME in attrs
+            assert attrs[SpanAttributes.LLM_MODEL_NAME] == "gpt-4"
 
         instrumentor.uninstrument()
 
@@ -413,8 +416,8 @@ class TestProviderSpecificAttributes:
 
         if llm_spans:
             attrs = dict(llm_spans[0].attributes)
-            assert "model" in attrs
-            assert "claude" in attrs["model"].lower()
+            assert SpanAttributes.LLM_MODEL_NAME in attrs
+            assert "claude" in attrs[SpanAttributes.LLM_MODEL_NAME].lower()
 
         instrumentor.uninstrument()
 
