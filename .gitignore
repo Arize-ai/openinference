@@ -17,6 +17,9 @@ sdist
 .safety-project.ini
 .mastra
 
+# Generated docs
+./js/**/docs
+
 # Data files
 *.csv
 *.parquet
