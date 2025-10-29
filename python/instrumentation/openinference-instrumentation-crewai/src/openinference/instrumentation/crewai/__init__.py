@@ -14,6 +14,8 @@ from openinference.instrumentation.crewai._wrappers import (
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffAsyncWrapper,
+    _LongTermMemorySaveWrapper,
+    _LongTermMemorySearchWrapper,
     _ShortTermMemorySaveWrapper,
     _ShortTermMemorySearchWrapper,
     _ToolUseWrapper,
@@ -30,6 +32,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_execute_core",
         "_original_crew_kickoff",
         "_original_flow_kickoff_async",
+        "_original_long_term_memory_save",
+        "_original_long_term_memory_search",
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
         "_original_tool_use",
@@ -77,6 +81,26 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=flow_kickoff_async_wrapper,
         )
 
+        long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)
+        self._original_long_term_memory_save = getattr(
+            import_module("crewai.memory.long_term.long_term_memory").LongTermMemory, "save", None
+        )
+        wrap_function_wrapper(
+            module="crewai.memory.long_term.long_term_memory",
+            name="LongTermMemory.save",
+            wrapper=long_term_memory_save_wrapper,
+        )
+
+        long_term_memory_search_wrapper = _LongTermMemorySearchWrapper(tracer=self._tracer)
+        self._original_long_term_memory_search = getattr(
+            import_module("crewai.memory.long_term.long_term_memory").LongTermMemory, "search", None
+        )
+        wrap_function_wrapper(
+            module="crewai.memory.long_term.long_term_memory",
+            name="LongTermMemory.search",
+            wrapper=long_term_memory_search_wrapper,
+        )
+
         short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
         self._original_short_term_memory_save = getattr(
             import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory, "save", None
@@ -122,6 +146,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Flow.kickoff_async = self._original_flow_kickoff_async
             self._original_flow_kickoff_async = None
+
+        if self._original_long_term_memory_save is not None:
+            long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")
+            long_term_memory_module.LongTermMemory.save = self._original_long_term_memory_save
+            self._original_long_term_memory_save = None
+
+        if self._original_long_term_memory_search is not None:
+            long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")
+            long_term_memory_module.LongTermMemory.search = self._original_long_term_memory_search
+            self._original_long_term_memory_search = None
 
         if self._original_short_term_memory_save is not None:
             short_term_memory_module = import_module("crewai.memory.short_term.short_term_memory")

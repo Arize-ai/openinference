@@ -6,9 +6,12 @@ Features 5 specialized agents collaborating on research, analysis, and content c
 """
 
 import os
+from pathlib import Path
 from typing import Optional
 
 from crewai import Agent, Crew, Process, Task
+from crewai.memory import LongTermMemory
+from crewai.memory.storage.ltm_sqlite_storage import LTMSQLiteStorage
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -27,6 +30,10 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 # Make sure to set the OPENAI_API_KEY environment variable
 os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
+
+# Store in project directory
+project_root = Path(__file__).parent
+storage_dir = project_root / "crewai_storage"
 
 
 def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
@@ -108,6 +115,11 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
         verbose=False,
         process=Process.sequential,
         memory=True,
+        long_term_memory=LongTermMemory(
+            storage=LTMSQLiteStorage(
+                db_path=f"{storage_dir}/memory.db"
+            )
+        ),
     )
 
     # Note: crew.key is auto-generated and read-only
