@@ -51,7 +51,7 @@ const getVercelFunctionNameFromOperationName = (
 
 /**
  * Gets the OpenInference span kind that corresponds to the Vercel operation name
- * @param attributes the attributes of the span
+ * @param attributes - The attributes of the span
  * @returns the OpenInference span kind associated with the attributes or null if not found
  */
 const getOISpanKindFromAttributes = (
@@ -411,9 +411,7 @@ const safelyGetMetadataAttributes = withSafety({
 
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
- * @param attributesWithSpanKind the initial attributes of the span and the OpenInference span kind
- * @param attributesWithSpanKind.attributes the initial attributes of the span
- * @param attributesWithSpanKind.spanKind the OpenInference span kind
+ * @param attributes - The initial attributes of the span
  * @returns The OpenInference attributes associated with the span
  */
 const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
@@ -567,8 +565,9 @@ export const isOpenInferenceSpan = (span: ReadableSpan) => {
 
 /**
  * Determines whether a span should be exported based on configuration and the spans attributes.
- * @param span the spn to check for export eligibility.
- * @param spanFilter a filter to apply to a span before exporting. If it returns true for a given span, the span will be exported.
+ * @param params - The parameters object
+ * @param params.span - The span to check for export eligibility
+ * @param params.spanFilter - A filter to apply to a span before exporting. If it returns true for a given span, the span will be exported
  * @returns true if the span should be exported, false otherwise.
  */
 export const shouldExportSpan = ({

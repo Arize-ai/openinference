@@ -13,7 +13,9 @@
     "type:check": "pnpm run -r type:check",
     "lint": "eslint .",
     "ci:version": "pnpm changeset version",
-    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --access public --provenance"
+    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --access public --provenance",
+    "docs:generate": "typedoc",
+    "docs:preview": "rimraf docs && pnpm docs:generate && pnpx http-server ./docs -p 8080 -o"
   },
   "keywords": [
     "telemetry",
@@ -32,6 +34,7 @@
     "prettier": "^3.6.2",
     "rimraf": "^5.0.9",
     "tsc-alias": "^1.8.10",
+    "typedoc": "^0.28.14",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.46.2",
     "vitest": "^4.0.3"
