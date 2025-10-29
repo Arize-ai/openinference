@@ -38,6 +38,7 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from haystack import Document, Pipeline
     from haystack.core.component import Component
+    from openinference.instrumentation import OITracer
 
 
 class _PipelineRunComponentWrapper:
@@ -60,7 +61,7 @@ class _PipelineRunComponentWrapper:
 
     def __init__(
         self,
-        tracer: trace_api.Tracer,
+        tracer: "trace_api.Tracer | OITracer",
         wrap_component_run_method: Callable[[type[Any], Callable[..., Any]], None],
     ) -> None:
         self._tracer = tracer
@@ -83,7 +84,7 @@ class _PipelineRunComponentWrapper:
 
 
 class _ComponentRunWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: "trace_api.Tracer | OITracer") -> None:
         self._tracer = tracer
 
     def __call__(
@@ -192,7 +193,7 @@ class _PipelineWrapper:
     Captures all calls to the pipeline
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
+    def __init__(self, tracer: "trace_api.Tracer | OITracer") -> None:
         self._tracer = tracer
 
     def __call__(

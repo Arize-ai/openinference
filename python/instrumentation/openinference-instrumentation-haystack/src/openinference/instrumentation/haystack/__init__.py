@@ -48,9 +48,9 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_pipeline_run = haystack.Pipeline.run
         wrap_function_wrapper(
-            module="haystack.core.pipeline.pipeline",
-            name="Pipeline.run",
-            wrapper=_PipelineWrapper(tracer=self._tracer),
+            "haystack.core.pipeline.pipeline",
+            "Pipeline.run",
+            _PipelineWrapper(tracer=self._tracer),
         )
         from haystack.core.pipeline.pipeline import Pipeline
 
@@ -64,9 +64,9 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             if component_cls not in self._original_component_run_methods:
                 self._original_component_run_methods[component_cls] = run_method
                 wrap_function_wrapper(
-                    module=component_cls.__module__,
-                    name=f"{component_cls.__name__}.run",
-                    wrapper=_ComponentRunWrapper(tracer=self._tracer),
+                    component_cls.__module__,
+                    f"{component_cls.__name__}.run",
+                    _ComponentRunWrapper(tracer=self._tracer),
                 )
 
         wrap_function_wrapper(
