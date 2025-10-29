@@ -18,7 +18,7 @@ sdist
 .mastra
 
 # Generated docs
-./js/**/docs
+./js/**/docs/
 
 # Data files
 *.csv

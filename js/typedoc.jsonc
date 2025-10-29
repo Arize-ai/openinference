@@ -4,15 +4,19 @@
     "packages/openinference-genai",
     "packages/openinference-vercel",
     "packages/openinference-semantic-conventions",
-    "packages/openinference-instrumentation-openai",
-    "packages/openinference-instrumentation-anthropic",
   ],
   "entryPointStrategy": "packages",
   "name": "OpenInference JS",
   "exclude": ["packages/**/examples/**"],
   "packageOptions": {
     "entryPoints": ["src/**/*.ts"],
-    "exclude": ["examples/**"],
+    "exclude": [
+      "examples/**",
+      "test/**",
+      "tests/**",
+      "**/*.test.ts",
+      "**/*.spec.ts",
+    ],
   },
   "includeVersion": false,
   "excludeExternals": true,
@@ -22,6 +26,9 @@
   "categorizeByGroup": false,
   "defaultCategory": "Other",
   "categoryOrder": ["*"],
+  "navigationLinks": {
+    "GitHub": "https://github.com/Arize-ai/openinference",
+  },
   "sort": ["source-order"],
   "kindSortOrder": [
     "Reference",
