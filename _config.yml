@@ -10,7 +10,6 @@ exclude:
   - .github
   - Gemfile
   - Gemfile.lock
-  - README.md
   - LICENSE
   - .gitignore
   - .nojekyll
