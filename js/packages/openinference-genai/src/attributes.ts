@@ -225,7 +225,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
 
 /**
  * Map provider and system to openinference attributes
- * @todo add some heuristics that can map incoming provider names to the correct OpenInference provider name
+ * @remarks TODO: add some heuristics that can map incoming provider names to the correct OpenInference provider name
  * @param spanAttributes - The span attributes containing provider and system to map
  * @returns The mapped provider and system attributes
  */

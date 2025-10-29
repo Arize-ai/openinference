@@ -66,4 +66,19 @@
   "compilerOptions": {
     "skipLibCheck": true,
   },
+  "externalSymbolLinkMappings": {
+    "@opentelemetry/api": {
+      "Span": "https://opentelemetry.io/docs/specs/otel/trace/api/#span",
+      "Tracer": "https://opentelemetry.io/docs/specs/otel/trace/api/#tracer",
+      "SpanContext": "https://opentelemetry.io/docs/specs/otel/trace/api/#spancontext",
+      "TracerProvider": "https://opentelemetry.io/docs/specs/otel/trace/api/#tracerprovider",
+      "SpanStatusCode": "https://opentelemetry.io/docs/specs/otel/trace/api/#set-status",
+    },
+    "@opentelemetry/sdk-trace-base": {
+      "BatchSpanProcessor": "https://opentelemetry.io/docs/instrumentation/js/manual/#batch-span-processor",
+      "SimpleSpanProcessor": "https://opentelemetry.io/docs/instrumentation/js/manual/#simple-span-processor",
+      "ReadableSpan": "https://opentelemetry.io/docs/specs/otel/trace/sdk/#additional-span-interfaces",
+      "Span": "https://opentelemetry.io/docs/specs/otel/trace/api/#span",
+    },
+  },
 }

@@ -4,7 +4,7 @@ This is the JavaScript version of OpenInference, a framework for collecting trac
 
 ## Installation
 
-OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible backend (e.x. [arize-phoenix](<[https://git](https://github.com/Arize-ai/phoenix)>)). To use OpenInference, you will need to install the OpenTelemetry SDK and the OpenInference instrumentation for the LLM framework you are using.
+OpenInference uses OpenTelemetry Protocol (OTLP) to send traces to a compatible backend (e.x. [arize-phoenix](https://github.com/Arize-ai/phoenix)). To use OpenInference, you will need to install the OpenTelemetry SDK and the OpenInference instrumentation for the LLM framework you are using.
 
 Install the OpenTelemetry SDK:
 
