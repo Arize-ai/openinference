@@ -409,7 +409,6 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "output": "",
             },
             {
-                "message.content": "",
                 "message.role": "tool",
                 "message.tool_call_id": "123",
             },
@@ -421,7 +420,6 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "output": None,
             },
             {
-                "message.content": None,
                 "message.role": "tool",
                 "message.tool_call_id": "123",
             },
