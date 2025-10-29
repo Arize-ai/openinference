@@ -27,13 +27,52 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Install dependencies
+        run: |
+          cd js
+          pnpm install --frozen-lockfile
+
+      - name: Prebuild packages
+        run: |
+          cd js
+          pnpm run -r prebuild
+
+      - name: Build packages
+        run: |
+          cd js
+          pnpm run -r build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./
           destination: ./_site
+
+      - name: Build TypeDoc documentation
+        run: |
+          cd js
+          pnpm run docs:generate
+
+      - name: Copy TypeDoc to js subpath
+        run: |
+          sudo chown -R $USER:$USER _site
+          mkdir -p _site/js
+          cp -r js/docs/* _site/js/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
 
