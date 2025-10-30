@@ -22,5 +22,5 @@ export default defineConfig([
     },
   },
   tseslint.configs.recommended,
-  globalIgnores(["**/dist/", "./examples/"]),
+  globalIgnores(["**/dist/", "./examples/", "./docs/"]),
 ]);
