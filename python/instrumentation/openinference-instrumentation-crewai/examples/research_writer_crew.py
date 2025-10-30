@@ -116,9 +116,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
         process=Process.sequential,
         memory=True,
         long_term_memory=LongTermMemory(
-            storage=LTMSQLiteStorage(
-                db_path=f"{storage_dir}/memory.db"
-            )
+            storage=LTMSQLiteStorage(db_path=f"{storage_dir}/memory.db")
         ),
     )
 

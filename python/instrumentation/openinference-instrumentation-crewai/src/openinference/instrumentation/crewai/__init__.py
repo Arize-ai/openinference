@@ -103,7 +103,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
         self._original_short_term_memory_save = getattr(
-            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory, "save", None
+            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory,
+            "save",
+            None,
         )
         wrap_function_wrapper(
             module="crewai.memory.short_term.short_term_memory",
@@ -113,7 +115,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)
         self._original_short_term_memory_search = getattr(
-            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory, "search", None
+            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory,
+            "search",
+            None,
         )
         wrap_function_wrapper(
             module="crewai.memory.short_term.short_term_memory",
@@ -164,7 +168,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_short_term_memory_search is not None:
             short_term_memory_module = import_module("crewai.memory.short_term.short_term_memory")
-            short_term_memory_module.ShortTermMemory.search = self._original_short_term_memory_search
+            short_term_memory_module.ShortTermMemory.search = (
+                self._original_short_term_memory_search
+            )
             self._original_short_term_memory_search = None
 
         if self._original_tool_use is not None:

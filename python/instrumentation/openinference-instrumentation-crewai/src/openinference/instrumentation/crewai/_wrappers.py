@@ -1,8 +1,10 @@
 import json
+import time
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, cast
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, cast
 
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -13,7 +15,6 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -43,6 +44,8 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             for index, sub_mapping in enumerate(value):
                 for sub_key, sub_value in _flatten(sub_mapping):
                     yield f"{key}.{index}.{sub_key}", sub_value
+        elif isinstance(value, List) and any(isinstance(item, str) for item in value):
+            value = ", ".join(map(str, value))
         else:
             if isinstance(value, Enum):
                 value = value.value
@@ -165,6 +168,21 @@ def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
             if parent_agent.role:
                 return cast(str, parent_agent.role)
     return None
+
+
+def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
+    """Add a structured event with flattened attributes to the current active span."""
+    span = trace_api.get_current_span()
+    if not (span and span.is_recording()):
+        return
+
+    flattened_attributes = dict(_flatten(attributes))
+    span.add_event(event_name, flattened_attributes)
+
+    prefixed_attributes = {
+        f"{event_name}.{key}": value for key, value in flattened_attributes.items()
+    }
+    span.set_attributes(prefixed_attributes)
 
 
 class _ExecuteCoreWrapper:
@@ -390,58 +408,40 @@ class _LongTermMemorySaveWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span_name = "LongTermMemorySave"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
-                    }
-                )
-            ),
-        ) as span:
-            print("LongTermMemorySave")
-            print("--- wrapped ---")
-            print(wrapped)
-            print(type(wrapped))
-            print("--- instance ---")
-            print(instance)
-            print(type(instance))
-            print("--- args ---")
-            print(args)
-            print(type(args))
-            print("--- kwargs ---")
-            print(kwargs)
-            print(type(kwargs))
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            save_time_ms = (time.time() - start_time) * 1000
 
             if args is not None:
-                try:
-                    item = args[0]
-                except IndexError:
-                    item = {}
-                input_attributes = {
-                    "agent": getattr(item, "agent", None),
-                    "task": getattr(item, "task", None),
-                    "expected_output": getattr(item, "expected_output", None),
-                    "datetime": getattr(item, "datetime", None),
-                    "quality": getattr(item, "quality", None),
+                item = args[0]
+                attributes.update(
+                    {
+                        "agent_role": getattr(item, "agent", None),
+                        "value": getattr(item, "task", None),
+                        "expected_output": getattr(item, "expected_output", None),
+                        "datetime": getattr(item, "datetime", None),
+                        "quality": getattr(item, "quality", None),
+                        "metadata": getattr(item, "metadata", None),
+                        "source_type": "long_term_memory",
+                        "save_time_ms": save_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    "agent_role": getattr(item, "agent", None),
+                    "value": getattr(item, "task", None),
                     "metadata": getattr(item, "metadata", None),
+                    "error": str(exception),
+                    "source_type": "long_term_memory",
                 }
-                span.set_attributes(dict(get_input_attributes(input_attributes)))
+            )
+            raise
 
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
+        _log_span_event("long_term_memory.save", attributes)
         return response
 
 
@@ -458,54 +458,37 @@ class _LongTermMemorySearchWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span_name = "LongTermMemorySearch"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
-                    }
-                )
-            ),
-        ) as span:
-            print("LongTermMemorySearch")
-            print("--- wrapped ---")
-            print(wrapped)
-            print(type(wrapped))
-            print("--- instance ---")
-            print(instance)
-            print(type(instance))
-            print("--- args ---")
-            print(args)
-            print(type(args))
-            print("--- kwargs ---")
-            print(kwargs)
-            print(type(kwargs))
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            query_time_ms = (time.time() - start_time) * 1000
 
             if args is not None:
-                try:
-                    task = args[0]
-                except IndexError:
-                    task = ""
-                input_attributes = {
-                    "task": task,
-                    "latest_n": kwargs.get("latest_n", 3),
+                query = args[0]
+                limit = kwargs.get("latest_n", 3)
+                attributes.update(
+                    {
+                        "task": query,
+                        "latest_n": limit,
+                        "results": response,
+                        "source_type": "long_term_memory",
+                        "query_time_ms": query_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    "task": query,
+                    "latest_n": limit,
+                    "error": str(exception),
+                    "source_type": "long_term_memory",
                 }
-                span.set_attributes(dict(get_input_attributes(input_attributes)))
+            )
+            raise
 
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
+        _log_span_event("long_term_memory.search", attributes)
         return response
 
 
@@ -522,46 +505,32 @@ class _ShortTermMemorySaveWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span_name = "ShortTermMemorySave"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
-                    }
-                )
-            ),
-        ) as span:
-            print("ShortTermMemorySave")
-            print("--- wrapped ---")
-            print(wrapped)
-            print(type(wrapped))
-            print("--- instance ---")
-            print(instance)
-            print(type(instance))
-            print("--- args ---")
-            print(args)
-            print(type(args))
-            print("--- kwargs ---")
-            print(kwargs)
-            print(type(kwargs))
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            save_time_ms = (time.time() - start_time) * 1000
 
             if kwargs is not None:
-                span.set_attributes(dict(get_input_attributes(kwargs)))
+                attributes.update(
+                    {
+                        **kwargs,
+                        "source_type": "short_term_memory",
+                        "save_time_ms": save_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
+                    **kwargs,
+                    "error": str(exception),
+                    "source_type": "short_term_memory",
+                }
+            )
+            raise
 
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
+        _log_span_event("short_term_memory.save", attributes)
         return response
 
 
@@ -578,32 +547,12 @@ class _ShortTermMemorySearchWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        span_name = "ShortTermMemorySearch"
-        with self._tracer.start_as_current_span(
-            span_name,
-            record_exception=False,
-            set_status_on_exception=False,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
-                    }
-                )
-            ),
-        ) as span:
-            print("ShortTermMemorySearch")
-            print("--- wrapped ---")
-            print(wrapped)
-            print(type(wrapped))
-            print("--- instance ---")
-            print(instance)
-            print(type(instance))
-            print("--- args ---")
-            print(args)
-            print(type(args))
-            print("--- kwargs ---")
-            print(kwargs)
-            print(type(kwargs))
+
+        attributes: Dict[str, Any] = {}
+        try:
+            start_time = time.time()
+            response = wrapped(*args, **kwargs)
+            query_time_ms = (time.time() - start_time) * 1000
 
             if args is not None:
                 try:
@@ -618,23 +567,29 @@ class _ShortTermMemorySearchWrapper:
                     score_threshold = args[2]
                 except IndexError:
                     score_threshold = 0.6
-                input_attributes = {
+                attributes.update(
+                    {
+                        "query": query,
+                        "limit": limit,
+                        "score_threshold": score_threshold,
+                        "results": response,
+                        "source_type": "short_term_memory",
+                        "query_time_ms": query_time_ms,
+                    }
+                )
+        except Exception as exception:
+            attributes.update(
+                {
                     "query": query,
                     "limit": limit,
                     "score_threshold": score_threshold,
+                    "error": str(exception),
+                    "source_type": "short_term_memory",
                 }
-                span.set_attributes(dict(get_input_attributes(input_attributes)))
+            )
+            raise
 
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
+        _log_span_event("short_term_memory.search", attributes)
         return response
 
 
