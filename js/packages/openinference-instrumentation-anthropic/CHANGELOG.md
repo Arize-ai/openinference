@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-anthropic
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [5161c9f]
+  - @arizeai/openinference-core@1.0.8
+
 ## 0.1.0
 
 ### Minor Changes

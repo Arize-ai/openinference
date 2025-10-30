@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 1.0.8
+
+### Patch Changes
+
+- 5161c9f: add documentation for context attributes
+
 ## 1.0.7
 
 ### Patch Changes
