@@ -1,25 +1,28 @@
 import { withSafety } from "@arizeai/openinference-core";
-import {
-  InvokeModelCommand,
-  InvokeModelResponse,
-} from "@aws-sdk/client-bedrock-runtime";
+import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
+
 import { diag } from "@opentelemetry/api";
+
 import {
   BedrockMessage,
+  ConversationRole,
+  ExtendedConversationRole,
+  ImageContent,
+  ImageSource,
   InvokeModelRequestBody,
   isTextContent,
   isToolResultContent,
   MessageContent,
   TextContent,
-  ToolUseContent,
-  ImageSource,
   ToolResultContent,
-  ImageContent,
-  ConversationRole,
-  ExtendedConversationRole,
+  ToolUseContent,
   UsageAttributes,
 } from "../types/bedrock-types";
-import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
+
+import {
+  InvokeModelCommand,
+  InvokeModelResponse,
+} from "@aws-sdk/client-bedrock-runtime";
 
 /**
  * Type guard to check if message contains a simple single text content

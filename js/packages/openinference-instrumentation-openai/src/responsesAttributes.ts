@@ -1,11 +1,13 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes } from "@opentelemetry/api";
+
 import {
+  Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseInputItem,
   ResponseOutputItem,
   ResponseStreamEvent,
-  Response as ResponseType,
 } from "openai/resources/responses/responses";
 import { Stream } from "openai/streaming";
 

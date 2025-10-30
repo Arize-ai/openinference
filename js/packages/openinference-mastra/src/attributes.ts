@@ -1,21 +1,23 @@
 import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { diag } from "@opentelemetry/api";
-import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
-import {
   safelyJSONParse,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
-import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+
+import { diag } from "@opentelemetry/api";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
 import {
   MASTRA_AGENT_SPAN_NAME_PREFIXES,
   MASTRA_INTERNAL_SPAN_NAME_PREFIX,
   MastraSpanAttributes,
   MastraSpanNames,
 } from "./constants.js";
+import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
 
 /**
  * Add the OpenInference span kind to the given Mastra span.

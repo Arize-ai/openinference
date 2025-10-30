@@ -1,8 +1,9 @@
 import "./instrumentation";
 import "dotenv/config";
-import { ChatOpenAI } from "@langchain/openai";
+
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
+import { ChatOpenAI } from "@langchain/openai";
 
 const multiply = tool(
   ({ a, b }: { a: number; b: number }): number => {

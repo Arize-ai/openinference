@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-import { Serializable } from "beeai-framework/internals/serializable";
-import { getProp } from "beeai-framework/internals/helpers/object";
-import { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
-import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
-import { ChatModel, ChatModelEvents } from "beeai-framework/backend/chat";
-import { BaseAgent } from "beeai-framework/agents/base";
-import { Message, MessageContentPart } from "beeai-framework/backend/message";
+import {
+  LLMAttributePostfixes,
+  MessageAttributePostfixes,
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticAttributePrefixes,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { diag } from "@opentelemetry/api";
+
 import {
   errorEventName,
   errorLLMEventName,
@@ -42,16 +46,15 @@ import {
   toolSuccessEventName,
   updateEventName,
 } from "../config";
-import {
-  LLMAttributePostfixes,
-  MessageAttributePostfixes,
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticAttributePrefixes,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+
+import { BaseAgent } from "beeai-framework/agents/base";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
+import { ChatModel, ChatModelEvents } from "beeai-framework/backend/chat";
+import { Message, MessageContentPart } from "beeai-framework/backend/message";
+import { EventMeta, InferCallbackValue } from "beeai-framework/emitter/types";
+import { getProp } from "beeai-framework/internals/helpers/object";
+import { Serializable } from "beeai-framework/internals/serializable";
 import { Tool, ToolEvents } from "beeai-framework/tools/base";
-import { diag } from "@opentelemetry/api";
 
 function parserLLMInputMessages(
   messages: readonly Message<MessageContentPart, string>[],

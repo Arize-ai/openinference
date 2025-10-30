@@ -1,39 +1,41 @@
-import {
-  getAttributesFromModelInvocationInput,
-  getAttributesFromModelInvocationOutput,
-  getAttributesFromInvocationInput,
-  getAttributesFromObservation,
-  getFailureTraceAttributes,
-  getMetadataAttributes,
-  getParentInputAttributesFromInvocationInput,
-  extractMetadataAttributesFromObservation,
-  // getStartAndEndTimeFromMetadata,
-  getStringAttributeValueFromUnknown,
-  getInputMessagesObject,
-  isBlockedGuardrail,
-  getEventType,
-} from "./attributes/attributeExtractionUtils";
-import { AgentChunkSpan } from "./collector/agentChunkSpan";
-import { AgentTraceNode } from "./collector/agentTraceNode";
 import { OITracer } from "@arizeai/openinference-core";
-import { Attributes, SpanStatusCode } from "@opentelemetry/api";
-import { trace, context, Span } from "@opentelemetry/api";
+import {
+  assertUnreachable,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+
+import { Attributes, SpanStatusCode } from "@opentelemetry/api";
+import { context, Span,trace } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import {
-  safelyJSONStringify,
-  assertUnreachable,
-} from "@arizeai/openinference-core";
-import { GuardrailTraceMetadata, StringKeyedObject } from "./types";
-import { getObjectDataFromUnknown } from "./utils/jsonUtils";
+  extractMetadataAttributesFromObservation,
+  getAttributesFromInvocationInput,
+  getAttributesFromModelInvocationInput,
+  getAttributesFromModelInvocationOutput,
+  getAttributesFromObservation,
+  getEventType,
+  getFailureTraceAttributes,
+  getInputMessagesObject,
+  getMetadataAttributes,
+  getParentInputAttributesFromInvocationInput,
+  // getStartAndEndTimeFromMetadata,
+  getStringAttributeValueFromUnknown,
+  isBlockedGuardrail,
+} from "./attributes/attributeExtractionUtils";
 import {
   getInputAttributes,
   getOutputAttributes,
 } from "./attributes/attributeUtils";
-import { InvocationType } from "./attributes/types";
 import { TraceEventType } from "./attributes/constants";
+import { InvocationType } from "./attributes/types";
+import { AgentChunkSpan } from "./collector/agentChunkSpan";
+import { AgentTraceNode } from "./collector/agentTraceNode";
+import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 import { isArrayOfObjectWithStringKeys } from "./utils/typeUtils";
-import { isAttributeValue } from "@opentelemetry/core";
+import { GuardrailTraceMetadata, StringKeyedObject } from "./types";
 
 /**
  * SpanCreator creates and manages OpenTelemetry spans from agent trace nodes.

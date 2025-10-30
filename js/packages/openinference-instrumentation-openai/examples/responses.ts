@@ -1,10 +1,12 @@
 /* eslint-disable no-console */
 import "./instrumentation";
+
 import { isPatched } from "../src";
+
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { z } from "zod";
 import { Response as ResponseType } from "openai/resources/responses/responses";
+import { z } from "zod";
 // Check if OpenAI has been patched
 if (!isPatched()) {
   throw new Error("OpenAI instrumentation failed");

@@ -1,7 +1,9 @@
-import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
-import { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
-import { getObjectDataFromUnknown } from "./utils/jsonUtils";
 import { diag } from "@opentelemetry/api";
+
+import { getObjectDataFromUnknown } from "./utils/jsonUtils";
+import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
+
+import { RetrieveAndGenerateStreamResponseOutput } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export function interceptAgentResponse<
   T extends { chunk?: { bytes?: Uint8Array }; trace?: object },

@@ -1,12 +1,13 @@
-import nock from "nock";
-import * as fs from "fs";
-import * as path from "path";
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import {
+  MOCK_AUTH_HEADERS,
   MOCK_AWS_CREDENTIALS,
   VALID_AWS_CREDENTIALS,
-  MOCK_AUTH_HEADERS,
 } from "../config/constants";
+
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import * as fs from "fs";
+import nock from "nock";
+import * as path from "path";
 
 // Helper function to create nock mock for Bedrock API
 export const createNockMock = (

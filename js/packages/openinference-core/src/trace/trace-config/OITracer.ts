@@ -1,18 +1,20 @@
 import {
-  context as apiContext,
   Context,
+  context as apiContext,
   Span,
   SpanOptions,
   Tracer,
 } from "@opentelemetry/api";
+
+import { getAttributesFromContext } from "../contextAttributes";
+
+import { OISpan } from "./OISpan";
+import { generateTraceConfig } from "./traceConfig";
 import {
   OpenInferenceActiveSpanCallback,
   TraceConfig,
   TraceConfigOptions,
 } from "./types";
-import { OISpan } from "./OISpan";
-import { generateTraceConfig } from "./traceConfig";
-import { getAttributesFromContext } from "../contextAttributes";
 
 /**
  * Formats the params for the startActiveSpan method

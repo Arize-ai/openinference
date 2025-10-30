@@ -1,17 +1,26 @@
 import {
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
+import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, AttributeValue, diag } from "@opentelemetry/api";
-import {
-  VercelSDKFunctionNameToSpanKindMap,
-  AISemConvToOISemConvMap,
-} from "./constants";
+import { isAttributeValue } from "@opentelemetry/core";
+import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
 import {
   AISemanticConventions,
   AISemanticConventionsList,
 } from "./AISemanticConventions";
+import {
+  AISemConvToOISemConvMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "./constants";
 import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
@@ -22,13 +31,6 @@ import {
   isArrayOfObjects,
   isStringArray,
 } from "./typeUtils";
-import { isAttributeValue } from "@opentelemetry/core";
-import {
-  safelyJSONParse,
-  safelyJSONStringify,
-  withSafety,
-} from "@arizeai/openinference-core";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(

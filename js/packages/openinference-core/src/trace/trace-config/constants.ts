@@ -1,4 +1,4 @@
-import { TraceConfigKey, TraceConfig, TraceConfigFlag } from "./types";
+import { TraceConfig, TraceConfigFlag,TraceConfigKey } from "./types";
 
 /** Hides input value & messages */
 export const OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS";

@@ -1,35 +1,40 @@
 import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation, isPatched } from "../src";
-import * as CallbackManager from "@langchain/coreV0.2/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/coreV0.2/prompts";
-import { MemoryVectorStore } from "langchainV0.2/vectorstores/memory";
-import { createStuffDocumentsChain } from "langchainV0.2/chains/combine_documents";
-import { createRetrievalChain } from "langchainV0.2/chains/retrieval";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.2";
-import { Stream } from "openai/streaming";
-import { RecursiveCharacterTextSplitter } from "langchainV0.2/text_splitter";
-import "dotenv/config";
+  OITracer,
+  setAttributes,
+  setSession,
+} from "@arizeai/openinference-core";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
   METADATA,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { LangChainTracer } from "../src/tracer";
+
 import { trace } from "@opentelemetry/api";
-import { completionsResponse, functionCallResponse } from "./fixtures";
-import { DynamicTool } from "@langchain/coreV0.2/tools";
-import {
-  OITracer,
-  setAttributes,
-  setSession,
-} from "@arizeai/openinference-core";
 import { context } from "@opentelemetry/api";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+
+import "dotenv/config";
+
+import { isPatched,LangChainInstrumentation } from "../src";
+import { LangChainTracer } from "../src/tracer";
+
+import { completionsResponse, functionCallResponse } from "./fixtures";
+
+import * as CallbackManager from "@langchain/coreV0.2/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/coreV0.2/prompts";
+import { DynamicTool } from "@langchain/coreV0.2/tools";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.2";
+import { createStuffDocumentsChain } from "langchainV0.2/chains/combine_documents";
+import { createRetrievalChain } from "langchainV0.2/chains/retrieval";
+import { RecursiveCharacterTextSplitter } from "langchainV0.2/text_splitter";
+import { MemoryVectorStore } from "langchainV0.2/vectorstores/memory";
+import { Stream } from "openai/streaming";
 
 const memoryExporter = new InMemorySpanExporter();
 

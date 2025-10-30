@@ -1,5 +1,7 @@
 import { MimeType } from "@arizeai/openinference-semantic-conventions";
+
 import type { Attributes, AttributeValue } from "@opentelemetry/api";
+
 import { GenericFunction, SafeFunction } from "./types.js";
 
 export const safelyJSONStringify = (value: unknown) => {

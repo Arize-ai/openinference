@@ -1,4 +1,5 @@
 import { AttributeValue } from "@opentelemetry/api";
+
 import { OISpan } from "./OISpan";
 
 /**

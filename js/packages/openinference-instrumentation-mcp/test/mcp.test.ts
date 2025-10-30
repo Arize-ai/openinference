@@ -1,27 +1,28 @@
+import { Tracer } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+
+import { isPatched, MCPInstrumentation } from "../src";
+
+import { ExportedSpan, startCollector, Telemetry } from "./collector";
+
+import * as MCPClientModule from "@modelcontextprotocol/sdk/client/index";
+import * as MCPClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse";
+import * as MCPClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio";
+import * as MCPClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
+import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
+import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
+import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { spawn } from "child_process";
 import http from "http";
 import { AddressInfo } from "net";
 import path from "path";
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
-
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import * as MCPClientModule from "@modelcontextprotocol/sdk/client/index";
-import * as MCPClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse";
-import * as MCPClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
-import * as MCPClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio";
-import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
-import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
-import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { Tracer } from "@opentelemetry/api";
+import { afterAll,beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-
-import { ExportedSpan, startCollector, Telemetry } from "./collector";
-import { isPatched, MCPInstrumentation } from "../src";
 
 describe("MCPInstrumentation", () => {
   const telemetry = new Telemetry();

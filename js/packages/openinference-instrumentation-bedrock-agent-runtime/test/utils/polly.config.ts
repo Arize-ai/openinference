@@ -1,7 +1,7 @@
 // test/utils/polly.config.ts
 
-import { Polly } from "@pollyjs/core";
 import NodeHttpAdapter from "@pollyjs/adapter-node-http";
+import { Polly } from "@pollyjs/core";
 import FsPersister from "@pollyjs/persister-fs";
 import path from "path";
 

@@ -1,15 +1,17 @@
+import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import {
   InstrumentationBase,
-  InstrumentationNodeModuleDefinition,
   InstrumentationConfig,
+  InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
+
+import { createTelemetryMiddleware } from "./middleware";
+
 import { Version } from "beeai-framework";
 import * as bee from "beeai-framework";
-
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-import { createTelemetryMiddleware } from "./middleware";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 import { satisfies } from "semver";
 
 const MODULE_NAME = "beeai-framework";

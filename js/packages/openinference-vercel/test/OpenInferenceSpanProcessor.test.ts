@@ -1,10 +1,15 @@
-import { describe, it, test, expect, beforeEach, afterEach } from "vitest";
+import {
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
 } from "@opentelemetry/sdk-trace-base";
-import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
+
 import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
@@ -12,15 +17,13 @@ import {
   SpanFilter,
 } from "../src";
 import {
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-import {
   AISemanticConventions,
   AISemanticConventionsList,
 } from "../src/AISemanticConventions";
+import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
 import { assertUnreachable } from "../src/typeUtils";
+
+import { afterEach,beforeEach, describe, expect, it, test } from "vitest";
 
 type SpanProcessorTestCase = [
   string,

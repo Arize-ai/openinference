@@ -7,25 +7,29 @@
  * - Usage/token count processing
  */
 
-import { Span, diag } from "@opentelemetry/api";
-import {
-  SemanticConventions,
-  LLMSystem,
-} from "@arizeai/openinference-semantic-conventions";
-import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 import { withSafety } from "@arizeai/openinference-core";
 import {
-  normalizeResponseContentBlocks,
-  isSimpleTextResponse,
-  parseResponseBody,
-  normalizeUsageAttributes,
-} from "./invoke-model-helpers";
+  LLMSystem,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { diag,Span } from "@opentelemetry/api";
+
 import {
   BedrockMessage,
   isTextContent,
   isToolUseContent,
 } from "../types/bedrock-types";
+
 import { setSpanAttribute } from "./attribute-helpers";
+import {
+  isSimpleTextResponse,
+  normalizeResponseContentBlocks,
+  normalizeUsageAttributes,
+  parseResponseBody,
+} from "./invoke-model-helpers";
+
+import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 
 /**
  * Processes message content and extracts both text content and tool call attributes

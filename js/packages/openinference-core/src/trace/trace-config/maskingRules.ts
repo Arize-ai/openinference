@@ -1,6 +1,8 @@
-import { AttributeValue } from "@opentelemetry/api";
-import { REDACTED_VALUE } from "./constants";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import { AttributeValue } from "@opentelemetry/api";
+
+import { REDACTED_VALUE } from "./constants";
 import { MaskingRule, MaskingRuleArgs } from "./types";
 
 /**

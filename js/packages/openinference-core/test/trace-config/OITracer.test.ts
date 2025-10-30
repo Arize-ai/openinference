@@ -1,6 +1,5 @@
 import { SESSION_ID } from "@arizeai/openinference-semantic-conventions";
-import { OITracer, REDACTED_VALUE, setSession } from "../../src";
-import { OISpan } from "../../src/trace/trace-config/OISpan";
+
 import {
   context,
   ContextManager,
@@ -10,18 +9,22 @@ import {
   Tracer,
 } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+
+import { OITracer, REDACTED_VALUE, setSession } from "../../src";
+import { OISpan } from "../../src/trace/trace-config/OISpan";
+
 import {
-  type Mocked,
-  describe,
-  it,
-  beforeEach,
   afterEach,
+  beforeEach,
+  describe,
   expect,
+  it,
+  type Mocked,
   vi,
 } from "vitest";
 
