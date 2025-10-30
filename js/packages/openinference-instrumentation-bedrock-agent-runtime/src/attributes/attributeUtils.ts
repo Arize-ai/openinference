@@ -13,7 +13,7 @@ import { isAttributeValue } from "@opentelemetry/core";
 import { parseSanitizedJson } from "../utils/jsonUtils";
 
 import { getStringAttributeValueFromUnknown } from "./attributeExtractionUtils";
-import { DocumentReference,Message, TokenCount } from "./types";
+import { DocumentReference, Message, TokenCount } from "./types";
 
 /**
  * Utility functions for extracting input and output attributes from a text.

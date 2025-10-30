@@ -7,7 +7,7 @@ import { SemanticConventions } from "@arizeai/openinference-semantic-conventions
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 import { Attributes, SpanStatusCode } from "@opentelemetry/api";
-import { context, Span,trace } from "@opentelemetry/api";
+import { context, Span, trace } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 
 import {

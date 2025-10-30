@@ -21,7 +21,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { diag,Span } from "@opentelemetry/api";
+import { diag, Span } from "@opentelemetry/api";
 
 import {
   ConverseStreamEventData,

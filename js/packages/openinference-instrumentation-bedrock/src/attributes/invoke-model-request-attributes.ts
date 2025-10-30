@@ -18,7 +18,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { diag,Span } from "@opentelemetry/api";
+import { diag, Span } from "@opentelemetry/api";
 
 import {
   BedrockMessage,
@@ -28,7 +28,7 @@ import {
   isToolUseContent,
 } from "../types/bedrock-types";
 
-import { extractModelName,setSpanAttribute } from "./attribute-helpers";
+import { extractModelName, setSpanAttribute } from "./attribute-helpers";
 import {
   extractInvocationParameters,
   extractToolResultBlocks,

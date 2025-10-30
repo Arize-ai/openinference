@@ -1,4 +1,4 @@
-import { safelyJSONStringify,withSafety } from "@arizeai/openinference-core";
+import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -6,7 +6,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, AttributeValue, diag,Span } from "@opentelemetry/api";
+import { Attributes, AttributeValue, diag, Span } from "@opentelemetry/api";
 
 import {
   isConverseImageContent,

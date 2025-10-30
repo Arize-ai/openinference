@@ -6,7 +6,7 @@ import {
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes,context, ContextManager } from "@opentelemetry/api";
+import { Attributes, context, ContextManager } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 
 import {
@@ -34,7 +34,7 @@ import {
   User,
 } from "../../src";
 
-import { afterEach, beforeEach, describe, expect,it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("promptTemplate context", () => {
   let contextManager: ContextManager;

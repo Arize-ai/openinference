@@ -4,7 +4,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { diag,Span, SpanStatusCode } from "@opentelemetry/api";
+import { diag, Span, SpanStatusCode } from "@opentelemetry/api";
 
 import { getOutputAttributes } from "./attributes/attributeUtils";
 import { extractRetrievedReferencesAttributes } from "./attributes/ragAttributeExtractionUtils";

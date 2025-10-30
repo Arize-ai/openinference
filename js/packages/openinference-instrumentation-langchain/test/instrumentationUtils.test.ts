@@ -4,7 +4,7 @@ import { addTracerToHandlers } from "../src/instrumentationUtils";
 import { LangChainTracer } from "../src/tracer";
 
 import { CallbackManager } from "@langchain/core/callbacks/manager";
-import { describe, expect,it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("addTracerToHandlers", () => {
   it("should add a tracer if there are no handlers", () => {

@@ -21,7 +21,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 import "dotenv/config";
 
-import { isPatched,LangChainInstrumentation } from "../src";
+import { isPatched, LangChainInstrumentation } from "../src";
 import { LangChainTracer } from "../src/tracer";
 
 import { completionsResponse, functionCallResponse } from "./fixtures";

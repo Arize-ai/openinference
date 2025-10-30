@@ -21,7 +21,7 @@ import { spawn } from "child_process";
 import http from "http";
 import { AddressInfo } from "net";
 import path from "path";
-import { afterAll,beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 describe("MCPInstrumentation", () => {

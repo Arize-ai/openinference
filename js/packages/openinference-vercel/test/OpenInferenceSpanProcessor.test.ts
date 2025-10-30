@@ -23,7 +23,7 @@ import {
 import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
 import { assertUnreachable } from "../src/typeUtils";
 
-import { afterEach,beforeEach, describe, expect, it, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
 type SpanProcessorTestCase = [
   string,
