@@ -16,25 +16,24 @@ interactions:
       tool directly. You can only delegate tasks to members.\n- When you delegate
       a task to another member, make sure to include:\n  - member_id (str): The ID
       of the member to delegate the task to. Use only the ID of the member, not the
-      ID of the team followed by the ID of the member.\n  - task_description (str):
-      A clear description of the task.\n  - expected_output (str): The expected output.\n-
-      You can delegate tasks to multiple members at once.\n- You must always analyze
-      the responses from members before responding to the user.\n- After analyzing
-      the responses from the members, if you feel the task has been completed, you
-      can stop and respond to the user.\n- If you are not satisfied with the responses
-      from the members, you should re-assign the task.\n- For simple greetings, thanks,
-      or questions about the team itself, you should respond directly.\n- For all
-      work requests, tasks, or questions requiring expertise, route to appropriate
-      team members.\n</how_to_respond>\n\n<instructions>\n- Always include sources\n-
-      Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
+      ID of the team followed by the ID of the member.\n  - task (str): A clear description
+      of the task. Determine the best way to describe the task to the member.\n- You
+      can delegate tasks to multiple members at once.\n- You must always analyze the
+      responses from members before responding to the user.\n- After analyzing the
+      responses from the members, if you feel the task has been completed, you can
+      stop and respond to the user.\n- If you are NOT satisfied with the responses
+      from the members, you should re-assign the task to a different member.\n- For
+      simple greetings, thanks, or questions about the team itself, you should respond
+      directly.\n- For all work requests, tasks, or questions requiring expertise,
+      route to appropriate team members.\n</how_to_respond>\n\n<instructions>\n- Always
+      include sources\n- Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
       the market outlook and financial performance of NVIDIA?"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"delegate_task_to_member","description":"Use
       this function to delegate a task to the selected team member.\nYou must provide
       a clear and concise description of the task the member should achieve AND the
       expected output.","parameters":{"type":"object","properties":{"member_id":{"type":"string","description":"(str)
       The ID of the member to delegate the task to. Use only the ID of the member,
-      not the ID of the team followed by the ID of the member."},"task_description":{"type":"string","description":"(str)
-      A clear and concise description of the task the member should achieve."},"expected_output":{"type":"string","description":"(str)
-      The expected output from the member (optional)."}},"required":["member_id","task_description"],"additionalProperties":false}}}]}'
+      not the ID of the team followed by the ID of the member."},"task":{"type":"string","description":"(str)
+      A clear and concise description of the task the member should achieve."}},"required":["member_id","task"],"additionalProperties":false}}}]}'
     headers:
       accept:
       - application/json
@@ -43,7 +42,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '3052'
+      - '2942'
       content-type:
       - application/json
       host:
@@ -51,7 +50,7 @@ interactions:
       user-agent:
       - OpenAI/Python 1.108.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -67,28 +66,26 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.13.5
+      - 3.11.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        YwAgOQBAtqm2e5l0muO04u1LqxwB2SHBiDPyf5//yz3Ps9BS+zeof429fMyN4WFr4EW9NNDAszEx
-        UW9RzvGCAxWXz/ubAaCzWACalRZTR5/vHHxdnpz5VXmg7z5ng/EdV2b7enH2eNBMv7CTASAv12SE
-        EnabGMgdBxSs53IqsljAYDaZDyaz6XgKPLVmSx4LwCpKPua8dsHlw/5wnPdn+WDOgXLFzlDCAl4y
-        AIDfb00AuAZ+JxbQ7/yLtcgQYYH4JQBs2BMWgDoll0QHwQ5C0BB2pAWE1nvgOGH2ymjvhSNvyb+/
-        gxz2U+292g3WujrKYnm8WtrzRBf7e4/+eCgTYc/7jkrhrTHC4uCwdIVAHwAMuqa/zpKnSgsp0Wmj
-        hNXsUMOxUwFg6P2xAPx9RdxxytlXLOAV59K6m3JdUZBX7MArcoV2kAR7FMfh1nxAsgRKfFxBArqN
-        Pwq4Fc+8gZIbOL8/2j3a6nLaR1+RjJBV3EpsRWJWZ4QQRr0zuVDBPGdVSSCPkmpxHNKaHbGh9S4G
-        aSjY1H3FfzQ5+d8BKf/eiDJufx+qz6s2st+Pp+vT+3pwoPsn8Wv/0R/8vRZKArTDTnvI9yJwIwl0
-        wU2KSfOGvh9jGi2OUwf2iMCXIIkWUhfECBvs8bmd0R6SsNlAbJyhlCyW4lYvPQGXspjuBCeqWBII
-        Hqbkt2wftBUFFbQvD4IKYnBlvQUZT2bToecqNrxM5BDHdkxS8+gtxaJkgZkyQI1SbAuvnRgbrqMo
-        4Q0JFkxHJV0SFrBBGIzBcBC0IQpBQPpsEsoUqvEok1OKJUOjzYrsK6hkHdWtdQwEWqIOiKBSRP6I
-        E3p2oXoFAQOMoShk1YimoWYHocobWietyEeYuZr2jw/DaVfiqClL9aVufbVA4LgkO1TpQkVNbFzd
-        cACWUU2mfV1OaTJZYPafGQM=
+        AwsDAGTTaTvLpNMMn9K9fWnVp2CFOBjMY6U0//+vBiiJ/WWobVm82/5Otm4YzonmpIMT5YEGnoVh
+        opxNG/rQt2YbV0BoeSypYF+7jQDQGlSA6ZQkLSqXHL9df5zkq4d2mL/J8ZXcrNOXyot76L+tjzCO
+        ANCPZ5xKS8vBFIOQ9SVEPrnciA0qaA36rd6w0+qMiM8W3rBDBZhVknR9UtjSJu1mu5s0B0lryMFw
+        6m3KARV8RwAA209rAPgO/BVU0Ix/lTMyvKiAXwLA2jtGBUgh2CBUCsYASGGnqqCcO0fUEu+dTsk5
+        4fxCt9/BYD8l53SWF7fOP91eX+bN9+aydStf5uXcGJmcvXNdKaXMxuiKUWjjlMAmACypaP+ZYccZ
+        CWuhkGvxujrUbuyiAOj6VlSA2x/EamlrflDBD9bSep8TyriUH4zhB4VCDkidswDo3JKDzpIFQ1Iv
+        7bVw93Z5cnn4/zqsHkAzQxASFo5v27ie85rduzWJ9eHgB/eoM93fweL72PB/33T7X0yvvBkfdx+e
+        nptXH+PVgpat2abUehsNAnGqRGJ9aU3lef2a4OfivM8dMYhJFSr97emw+gIzyA0BiD3sMP82Uxxz
+        GzqfVbUfh+YWTGdIdOm4k6gGkyVSjKkxifPxqotV7YtKtPicBYf6rb5EgjEFEO5he4clQABauD8a
+        Hp08LToDIw0uVsOU0imbE2LJJc2N9UQadcoeGvXkz21wsC2zE4htacqVsNE5PDvvGqCm1Tzj1BK5
+        nznMioknS1os19EjNaG5C4RWzMShoye2zLiuahsNH8BJpXv9Jk363OuNMNpHAw==
     headers:
       CF-RAY:
-      - 980cf24929795ecc-PDX
+      - 9953a06f0a45c230-HYD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -96,14 +93,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:07:28 GMT
+      - Mon, 27 Oct 2025 16:39:01 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=_QntwmyxS4_7HBmPcAUAUDtLIP2iDS6A28kVQgW1KhE-1758157648-1.0.1.1-1LALu4n6DntfOdG_gMBF0k_8lV5eLmFT9kdX2HREgb3Pp2TkqYshOGOR0yRP28UrAr1vYPr2awTw9m9QSNevTfVIghrtD9wcNV0iS1X.Pc8;
-        path=/; expires=Thu, 18-Sep-25 01:37:28 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=_HHW2OggAoDjoYFHwk9Z9NzRiK.ab8GXJYR7MdNCoSU-1761583141-1.0.1.1-66He.RXwzUlu_W77h.QAytFW_MR6CDh5FiFngVhHA3Q8531msQommQhK_MyO.rpNBCkoxAAkJX2TBudu2xB51OMGWNhF31n6AWX7kzVKOa8;
+        path=/; expires=Mon, 27-Oct-25 17:09:01 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=tk3oY1xMw9DLnYKKdSx21yA5VqyoHpSLVCEwosIfcTM-1758157648491-0.0.1.1-604800000;
+      - _cfuvid=bdCRNrmeXOqTKdA39hwP84O9mUDLhutDe0bel.u10EM-1761583141493-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -120,38 +117,37 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '2103'
+      - '2050'
       openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '2126'
+      - '3638'
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
-      - '30000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '150000000'
+      - '200000'
       x-ratelimit-remaining-requests:
-      - '29999'
+      - '9999'
       x-ratelimit-remaining-tokens:
-      - '149999475'
+      - '199468'
       x-ratelimit-reset-requests:
-      - 2ms
+      - 8.64s
       x-ratelimit-reset-tokens:
-      - 0s
+      - 159ms
       x-request-id:
-      - req_a0c5a9d3687b404ea7ff4196fe8361d1
+      - req_0c8d1bc603cb414d8196f90b0674fca9
     status:
       code: 200
       message: OK
 - request:
     body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
-      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":[{"type":"text","text":"You
-      are a member of a team of agents. Your goal is to complete the following task:\n\n<task>\nGet
-      the current market outlook for NVIDIA.\n</task>\n\n<expected_output>\nMarket
-      outlook for NVIDIA including analyst recommendations and recent trends.\n</expected_output>"}]}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      financial performance data for NVIDIA, including income statements and key financial
+      ratios."}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
       this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
       The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
       this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
@@ -184,7 +180,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '4261'
+      - '4066'
       content-type:
       - application/json
       host:
@@ -192,7 +188,7 @@ interactions:
       user-agent:
       - OpenAI/Python 1.108.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -208,25 +204,25 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.13.5
+      - 3.11.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        MVQVACD+N1V3LdO/N0tx6WwprXIIYZmEFgFJn/9rAsqJ/aKLWiTOou2qbFU+vDfamw6/zQc6wbJI
-        Udyi3ng7Li8f97cggm7ACHIlkrTBVJu7X2cns903ofKqve6GO7X5HOa9zb7y+QplQQRfvyqZKLm1
-        IgY57R0KrrmcphowGswm88FkNh0vgIda3ygDRmhDqsa+strpatgfjqv+rBrMOVBXXksVweixICL6
-        fZsgwhj4y2DUL//iEhlJMMQbEaHzRoERRIw6JuESSgRDE3axjFw2BrgpeW+4FMYIh7fg77fBwX4q
-        jOG7jT0x49Fxfbm3/350ns+n2dgjuy8Tspe/g1KkNIYlDoFFMYENRHDC0pdalXiPYIsx8dC8lkja
-        u8iySATv7wQj/D6h/YArn8DoCSc3W+tP+Add8J9L6H9z6AB/y77Me2G3Po2bxhxtnh8fjJqDxcfH
-        3XLqpbdBuG/u1KfVL7mkJ7hseUy+0yo+gdHEJQg0+BxQDJMX0EeYEGSIuuBkn8mIe24H49vQ+TqS
-        c2gNMMB7XtsNFha5wnuAGt3IwX0nQudtSDz5NyU4Nx1NJAYQJQ0Y6mR+GGbQwEg5bzEqeXK8AcNg
-        jF1xkEKuVCPUEBVXRW60BwIqFJZsNLLlD91gae3aywDUSalCUg1vAtNstQGVWadeleSKSAACP492
-        G7U8adWBEXIaiED7jklZvtSuVV3odGKyB5aBT6Z9sZyqyWSB4r8wAAM=
+        YwAYKgBA/P+p+ruW6Z07W3HpbKn1t8LB6FkmphlQ0uf/cs/P8URP7C+6NdpgY9utZc2B4b2ol4bf
+        8kATz8JAMCBsUW/g5aj15de+V0QwDQRBb1TRLtr68Pvlz9N592q+x4u76TKf/h40311j7L3bPaBX
+        ESGsHlkXSmEviUHVBI+Ccy6ncQNBw/lsOF2Mh5MR8FkXGrYQhDaWehJqZ7ypR4PRpB7M6+GCA3UT
+        jOYMQX8qIqL3txUitIG/CUGD3l+cIsOEQPwQEVKwDEFQOZtclC/oIbiKsCsU5DtrgddKCFZqZa1w
+        eEu/f7sM7KvKWnnzklbuteyGN6252F13ant9u/wVDmRC9uprVBRJjeGLQ2B5QmAPEbxy9CctF9lO
+        /wtY5qJKbRHyMrMGESx+FILw/hclB7z5F4L+4ub70f5ffIIu/cll/s+e1v+WZ782+onj6Ytff7ta
+        nK26hx/7y/P223Cy5VeZBOhnyaSKCScxifQ/9+LqqgAWZV0eFaz8P3MkZngbbGhjCqtMLqDsv5Ss
+        Z+04hMsTKsUAZYyjc9x3EVNwscgStiy4Ol0uOKfgAd0Y/Ghx9ZeBC6bPpv7Hh6cgiytMZ9soglZ6
+        ww25ONDIueoaE4BAkUj/ASoK5A/NYG/j28sFdGjNsXAjC7z06tqFyi3xI2uhMmnmk5TSaJfFcIIg
+        xCsQgfaaCzu5Nr7lFJMJOh7AOsrpbKDWM55Ol6g+KwMD
     headers:
       CF-RAY:
-      - 980cf25779b6ef6f-PDX
+      - 9953a08b799fdf6e-HYD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -234,14 +230,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:07:31 GMT
+      - Mon, 27 Oct 2025 16:39:04 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=9fgE277lWP_I8HajQMVk999Q2A2Ec6a2VgLgKz0QZXQ-1758157651-1.0.1.1-T3WwE0RC_HZQtmrntbz57QpDb7BXyQmTe89D7aeyqOaQzFrSIyqrOTovoqRPZBSRrLusqhCxg6Ed8cDSbyq7kKQbVbYo2xu3SDA594ynLv4;
-        path=/; expires=Thu, 18-Sep-25 01:37:31 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=ijO_OoBDP1_6zB7XTSx6SxHpQPvXYi_cAoXt2qhM2Pw-1761583144-1.0.1.1-wdXiRJBrs1CQ6vujS5T_dmzun14TmzAau7.rQdgU12TJpoSNOY_qvNLLe2onGHHNc1xkZ6kIHmsasxHE.NNiHgLSRAtHwQENWOg3G.O1MgI;
+        path=/; expires=Mon, 27-Oct-25 17:09:04 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=QsrByemDVLi.VvStK4RhshOb8kdXddEBTfiSdw0CfYg-1758157651524-0.0.1.1-604800000;
+      - _cfuvid=RHoq9hG_wXvF3sj6TDOSKn_9Lo0OCrbXTCqiCCF4.k0-1761583144549-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -258,609 +254,80 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '2435'
+      - '1912'
       openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '2567'
+      - '2187'
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
-      - '30000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '150000000'
+      - '200000'
       x-ratelimit-remaining-requests:
-      - '29999'
+      - '9998'
       x-ratelimit-remaining-tokens:
-      - '149999905'
+      - '199947'
       x-ratelimit-reset-requests:
-      - 2ms
+      - 12.676s
       x-ratelimit-reset-tokens:
-      - 0s
+      - 15ms
       x-request-id:
-      - req_1d1421882afe4c059ea1b44fb0ef0a6b
+      - req_603d8ac9ef8b49d38ac68ec7ec2cb64e
     status:
       code: 200
       message: OK
 - request:
     body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
-      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":[{"type":"text","text":"You
-      are a member of a team of agents. Your goal is to complete the following task:\n\n<task>\nGet
-      the current market outlook for NVIDIA.\n</task>\n\n<expected_output>\nMarket
-      outlook for NVIDIA including analyst recommendations and recent trends.\n</expected_output>"}]},{"role":"assistant","tool_calls":[{"id":"call_GdmNl43MbSHIqLQuQ6ulmLmI","function":{"arguments":"{\"symbol\":
-      \"NVDA\"}","name":"get_analyst_recommendations"},"type":"function"},{"id":"call_0cuHpGbOsCllLCQMJ3dJ9vvX","function":{"arguments":"{\"symbol\":
-      \"NVDA\", \"num_stories\": 5}","name":"get_company_news"},"type":"function"}],"content":""},{"role":"tool","content":"{\"0\":{\"period\":\"0m\",\"strongBuy\":10,\"buy\":48,\"hold\":4,\"sell\":1,\"strongSell\":0},\"1\":{\"period\":\"-1m\",\"strongBuy\":10,\"buy\":47,\"hold\":6,\"sell\":1,\"strongSell\":0},\"2\":{\"period\":\"-2m\",\"strongBuy\":10,\"buy\":48,\"hold\":6,\"sell\":1,\"strongSell\":0},\"3\":{\"period\":\"-3m\",\"strongBuy\":11,\"buy\":47,\"hold\":6,\"sell\":1,\"strongSell\":0}}","tool_call_id":"call_GdmNl43MbSHIqLQuQ6ulmLmI"},{"role":"tool","content":"[\n  {\n    \"id\":
-      \"b75aa7a6-4a78-43ba-9a76-401ccd202c12\",\n    \"content\": {\n      \"id\":
-      \"b75aa7a6-4a78-43ba-9a76-401ccd202c12\",\n      \"contentType\": \"STORY\",\n      \"title\":
-      \"Stock market today: Dow, S&P 500, Nasdaq futures rise after Fed lowers rates,
-      signals more cuts ahead\",\n      \"description\": \"\",\n      \"summary\":
-      \"US stock futures rose after the Federal Reserve cut interest rates for the
-      first time this year.\",\n      \"pubDate\": \"2025-09-17T23:14:48Z\",\n      \"displayTime\":
-      \"2025-09-17T23:14:48Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
-      false,\n      \"previewUrl\": null,\n      \"thumbnail\": {\n        \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-08/aff83dc0-82ad-11f0-afff-e0815a7138bc\",\n        \"originalWidth\":
-      6000,\n        \"originalHeight\": 4000,\n        \"caption\": \"\",\n        \"resolutions\":
-      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/UbvkKC2iACzDFEhBnBrUxw--~B/aD00MDAwO3c9NjAwMDthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-08/aff83dc0-82ad-11f0-afff-e0815a7138bc\",\n            \"width\":
-      6000,\n            \"height\": 4000,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
-      \"https://s.yimg.com/uu/api/res/1.2/E1oqrj03FZy3sWHVxW6ohA--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-08/aff83dc0-82ad-11f0-afff-e0815a7138bc\",\n            \"width\":
-      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
-      {\n        \"displayName\": \"Yahoo Finance\",\n        \"url\": \"http://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-futures-rise-after-fed-lowers-rates-signals-more-cuts-ahead-231448085.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-futures-rise-after-fed-lowers-rates-signals-more-cuts-ahead-231448085.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
-      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
-      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
-      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
-      \"71432716-2d15-33b7-8d2e-ed0b2c2723a7\",\n              \"contentType\": \"VIDEO\",\n              \"isHosted\":
-      true,\n              \"title\": \"China''s Nvidia ban marks ''experimental phase''
-      of trade talks\",\n              \"thumbnail\": {\n                \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/658ebaa0-9407-11f0-bee0-60d5c2653223\",\n                \"originalWidth\":
-      8256,\n                \"originalHeight\": 4648,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
-      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
-      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/chinas-nvidia-ban-marks-experimental-213000119.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/chinas-nvidia-ban-marks-experimental-213000119.html\"\n              }\n            }\n          },\n          {\n            \"content\":
-      {\n              \"id\": \"6994fa81-d85d-485e-8ad9-59c2acb08c25\",\n              \"contentType\":
-      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Stock
-      market today: S&P 500, Nasdaq slip as Federal Reserve ushers in first rate cut
-      of 2025\",\n              \"thumbnail\": {\n                \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-08/bd6ad9d0-81dc-11f0-af5b-0c92c5265eb7\",\n                \"originalWidth\":
-      6000,\n                \"originalHeight\": 4000,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
-      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
-      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-sp-500-nasdaq-slip-as-federal-reserve-ushers-in-first-rate-cut-of-2025-200042050.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-sp-500-nasdaq-slip-as-federal-reserve-ushers-in-first-rate-cut-of-2025-200042050.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
-      \"18db44bd-ef38-4268-9e4c-5c97634965ad\",\n    \"content\": {\n      \"id\":
-      \"18db44bd-ef38-4268-9e4c-5c97634965ad\",\n      \"contentType\": \"STORY\",\n      \"title\":
-      \"Nvidia stock dips as China reportedly tells its companies to avoid buying
-      chips\",\n      \"description\": \"\",\n      \"summary\": \"Nvidia stock slid
-      3% after China reportedly told its companies to avoid purchasing some of the
-      AI giant''s chips.\",\n      \"pubDate\": \"2025-09-17T15:34:29Z\",\n      \"displayTime\":
-      \"2025-09-17T20:04:24Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
-      false,\n      \"previewUrl\": null,\n      \"thumbnail\": {\n        \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/0c46f7a0-93d5-11f0-bfb3-fa370574a061\",\n        \"originalWidth\":
-      4000,\n        \"originalHeight\": 3000,\n        \"caption\": \"\",\n        \"resolutions\":
-      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/6JnCUCfSn7GVRio7n7vmqA--~B/aD0zMDAwO3c9NDAwMDthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-09/0c46f7a0-93d5-11f0-bfb3-fa370574a061\",\n            \"width\":
-      4000,\n            \"height\": 3000,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
-      \"https://s.yimg.com/uu/api/res/1.2/dU6.bNsNSfRDPgm31BQl9A--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-09/0c46f7a0-93d5-11f0-bfb3-fa370574a061\",\n            \"width\":
-      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
-      {\n        \"displayName\": \"Yahoo Finance\",\n        \"url\": \"http://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/news/nvidia-stock-dips-as-china-reportedly-tells-its-companies-to-avoid-buying-chips-153429193.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/news/nvidia-stock-dips-as-china-reportedly-tells-its-companies-to-avoid-buying-chips-153429193.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
-      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
-      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
-      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
-      \"e357ad95-4d9f-3ec9-80ca-e93554558662\",\n              \"contentType\": \"VIDEO\",\n              \"isHosted\":
-      true,\n              \"title\": \"Nvidia faces ban in China, Chinese tech gains,
-      Uber stock falls\",\n              \"thumbnail\": {\n                \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/018cba50-93e1-11f0-bfff-d646f92a2844\",\n                \"originalWidth\":
-      4976,\n                \"originalHeight\": 2801,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
-      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
-      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/nvidia-faces-ban-china-chinese-161212259.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/nvidia-faces-ban-china-chinese-161212259.html\"\n              }\n            }\n          },\n          {\n            \"content\":
-      {\n              \"id\": \"f255b811-596a-40af-81f7-84e1431de153\",\n              \"contentType\":
-      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Stock
-      and crypto bulls are watching for rate cuts to drive the market higher: Opening
-      Bid top takeaway\",\n              \"thumbnail\": {\n                \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/e0ffc450-93d9-11f0-aeff-1bf2d7b8977b\",\n                \"originalWidth\":
-      4739,\n                \"originalHeight\": 3159,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
-      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
-      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/stock-and-crypto-bulls-are-watching-for-rate-cuts-to-drive-the-market-higher-opening-bid-top-takeaway-155327339.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/news/stock-and-crypto-bulls-are-watching-for-rate-cuts-to-drive-the-market-higher-opening-bid-top-takeaway-155327339.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
-      \"52f3b476-dc5c-3097-a85f-de0a392dd30b\",\n    \"content\": {\n      \"id\":
-      \"52f3b476-dc5c-3097-a85f-de0a392dd30b\",\n      \"contentType\": \"VIDEO\",\n      \"title\":
-      \"Trump''s UK visit: US Big Tech to invest billions in UK''s AI\",\n      \"description\":
-      \"<p>President Trump is visiting the UK to meet with Prime Minister Keir Starmer
-      on Thursday, accompanied by several Big Tech CEOs. This comes as names like
-      Microsoft (<a data-i13n=\\\"cpos:1;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/MSFT\\\">MSFT</a>),
-      Google (<a data-i13n=\\\"cpos:2;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/GOOG\\\">GOOG</a>,
-      <a data-i13n=\\\"cpos:3;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/GOOGL\\\">GOOGL</a>),
-      Nvidia (<a data-i13n=\\\"cpos:4;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/NVDA\\\">NVDA</a>),
-      Salesforce (<a data-i13n=\\\"cpos:5;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/CRM\\\">CRM</a>),
-      OpenAI (<a data-i13n=\\\"cpos:6;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/OPAI.PVT\\\">OPAI.PVT</a>),
-      and GSK (<a data-i13n=\\\"cpos:7;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/GSK\\\">GSK</a>)
-      pledged $42.3 billion worth of artificial intelligence (AI) infrastructure investments
-      in the UK as part of the \\\"Tech Prosperity Deal.\\\"</p>\\n<p>Yahoo Finance
-      anchor <a data-i13n=\\\"cpos:8;pos:1\\\" href=\\\"https://finance.yahoo.com/author/ramzan-karmali/?fr=sycsrp_catchall\\\">Ramzan
-      Karmali</a> joins Morning Brief with <a data-i13n=\\\"cpos:9;pos:1\\\" href=\\\"https://finance.yahoo.com/author/julie-hyman/\\\">Julie
-      Hyman</a> to discuss the details.</p>\\n<p>To watch more expert insights and
-      analysis on the latest market action, check out more <a data-i13n=\\\"cpos:10;pos:1\\\"
-      href=\\\"https://finance.yahoo.com/videos/series/morning-brief/\\\">Morning
-      Brief</a>.</p>\",\n      \"summary\": \"President Trump is visiting the UK to
-      meet with Prime Minister Keir Starmer on Thursday, accompanied by several Big
-      Tech CEOs. This comes as names like Microsoft (MSFT), Google (GOOG, GOOGL),
-      Nvidia (NVDA), Salesforce (CRM), OpenAI (OPAI.PVT), and GSK (GSK) pledged $42.3
-      billion worth of artificial intelligence (AI) infrastructure investments in
-      the UK as part of the \\\"Tech Prosperity Deal.\\\" Yahoo Finance anchor Ramzan
-      Karmali joins Morning Brief with Julie Hyman to discuss the details. To watch
-      more expert insights and analysis on the latest market action, check out more
-      Morning Brief.\",\n      \"pubDate\": \"2025-09-17T14:46:35Z\",\n      \"displayTime\":
-      \"\",\n      \"isHosted\": true,\n      \"bypassModal\": false,\n      \"previewUrl\":
-      null,\n      \"thumbnail\": {\n        \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/06f2fbf0-93d5-11f0-bf73-1b20b78b7d32\",\n        \"originalWidth\":
-      5382,\n        \"originalHeight\": 3031,\n        \"caption\": \"\",\n        \"resolutions\":
-      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/sd_1LTsbv2kKK5TCsRVzKA--~B/aD0zMDMxO3c9NTM4MjthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-09/06f2fbf0-93d5-11f0-bf73-1b20b78b7d32\",\n            \"width\":
-      5382,\n            \"height\": 3031,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
-      \"https://s.yimg.com/uu/api/res/1.2/uMMsw8.yhF8nnbfr8783.Q--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-09/06f2fbf0-93d5-11f0-bf73-1b20b78b7d32\",\n            \"width\":
-      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
-      {\n        \"displayName\": \"Yahoo Finance Video\",\n        \"url\": \"https://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/video/trumps-uk-visit-us-big-144635870.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/video/trumps-uk-visit-us-big-144635870.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
-      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
-      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
-      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
-      \"50ad1327-53b1-32d2-a90c-de409df60fb4\",\n              \"contentType\": \"VIDEO\",\n              \"isHosted\":
-      true,\n              \"title\": \"China bans Nvidia chip purchases for tech
-      companies, FT reports\",\n              \"thumbnail\": {\n                \"originalUrl\":
-      \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/bc062230-93ce-11f0-b3df-0e80845a8f18\",\n                \"originalWidth\":
-      3801,\n                \"originalHeight\": 2140,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
-      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
-      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/china-bans-nvidia-chip-purchases-140918459.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/china-bans-nvidia-chip-purchases-140918459.html\"\n              }\n            }\n          },\n          {\n            \"content\":
-      {\n              \"id\": \"a449da8b-2039-3259-bf34-b0d68f44730d\",\n              \"contentType\":
-      \"VIDEO\",\n              \"isHosted\": true,\n              \"title\": \"General
-      Mills, Workday, Nvidia, Baidu: Trending Stocks\",\n              \"thumbnail\":
-      {\n                \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/b8daa570-93c6-11f0-abef-35b072243cf8\",\n                \"originalWidth\":
-      6654,\n                \"originalHeight\": 3746,\n                \"caption\":
-      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
-      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
-      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
-      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/general-mills-workday-nvidia-baidu-131440496.html\"\n              },\n              \"clickThroughUrl\":
-      {\n                \"url\": \"https://finance.yahoo.com/video/general-mills-workday-nvidia-baidu-131440496.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
-      \"0022076c-559f-3e4d-8e56-0b9739fa9b26\",\n    \"content\": {\n      \"id\":
-      \"0022076c-559f-3e4d-8e56-0b9739fa9b26\",\n      \"contentType\": \"VIDEO\",\n      \"title\":
-      \"Fed decision, China''s Nvidia ban, TikTok deal: 3 Things\",\n      \"description\":
-      \"<p>US stock futures (<a data-i13n=\\\"cpos:1;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/ES%3DF\\\">ES=F</a>,
-      <a data-i13n=\\\"cpos:2;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/NQ%3DF\\\">NQ=F</a>,
-      <a data-i13n=\\\"cpos:3;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/YM%3DF\\\">YM=F</a>)
-      are largely flat as Wall Street awaits the Federal Reserve''s latest interest
-      rate decision coming out of its policy meeting later today. Experts anticipate
-      Fed officials t<a data-i13n=\\\"cpos:4;pos:1\\\" href=\\\"https://finance.yahoo.com/news/fed-set-to-make-its-first-rate-cut-of-2025-113009892.html\\\">o
-      cut rates by 25 basis points</a> for the first time in 2025.</p>\\n<p>China
-      is banning companies from buying AI chips from major semiconductor manufacturer
-      Nvidia (<a data-i13n=\\\"cpos:5;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/NVDA\\\">NVDA</a>),
-      according to <a data-i13n=\\\"cpos:6;pos:1\\\" href=\\\"https://finance.yahoo.com/news/china-bans-tech-companies-buying-085851004.html\\\">Financial
-      Times reports</a>.</p>\\n<p>Following fresh trade negotiations between the US
-      and China, the latter has agreed to a deal framework for selling TikTok. Hear
-      what Wire China editor Andrew Peaple has to say about <a data-i13n=\\\"cpos:7;pos:1\\\"
-      href=\\\"https://finance.yahoo.com/video/tiktok-nvidia-chinas-ai-stocks-132658651.html\\\">US-China
-      trade talks</a> in regards to Nvidia, TikTok, and more.</p>\\n<p>To watch more
-      expert insights and analysis on the latest market action, check out more\\u00a0<a
-      data-i13n=\\\"cpos:8;pos:1\\\" href=\\\"https://finance.yahoo.com/videos/series/morning-brief/\\\">Morning
-      Brief</a>.</p>\",\n      \"summary\": \"US stock futures (ES=F, NQ=F, YM=F)
-      are largely flat as Wall Street awaits the Federal Reserve''s latest interest
-      rate decision coming out of its policy meeting later today. Experts anticipate
-      Fed officials to cut rates by 25 basis points for the first time in 2025. China
-      is banning companies from buying AI chips from major semiconductor manufacturer
-      Nvidia (NVDA), according to Financial Times reports. Following fresh trade negotiations
-      between the US and China, the latter has agreed to a deal framework for selling
-      TikTok. Hear what Wire China editor Andrew Peaple has to say about US-China
-      trade talks in regards to Nvidia, TikTok, and more. To watch more expert insights
-      and analysis on the latest market action, check out more&nbsp;Morning Brief.\",\n      \"pubDate\":
-      \"2025-09-17T13:12:45Z\",\n      \"displayTime\": \"\",\n      \"isHosted\":
-      true,\n      \"bypassModal\": false,\n      \"previewUrl\": null,\n      \"thumbnail\":
-      {\n        \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/31c47920-93c7-11f0-b999-0b663e0603fe\",\n        \"originalWidth\":
-      4231,\n        \"originalHeight\": 2378,\n        \"caption\": \"\",\n        \"resolutions\":
-      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/Xd6nCcybVEgsLyuNNLfNgA--~B/aD0yMzc4O3c9NDIzMTthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-09/31c47920-93c7-11f0-b999-0b663e0603fe\",\n            \"width\":
-      4231,\n            \"height\": 2378,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
-      \"https://s.yimg.com/uu/api/res/1.2/A3D1TYfIadVmZtPckibfXg--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-09/31c47920-93c7-11f0-b999-0b663e0603fe\",\n            \"width\":
-      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
-      {\n        \"displayName\": \"Yahoo Finance Video\",\n        \"url\": \"https://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/video/fed-decision-chinas-nvidia-ban-131245283.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/video/fed-decision-chinas-nvidia-ban-131245283.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
-      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
-      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
-      null\n    }\n  },\n  {\n    \"id\": \"63c39095-2b8d-3660-a81b-8b674cf95b00\",\n    \"content\":
-      {\n      \"id\": \"63c39095-2b8d-3660-a81b-8b674cf95b00\",\n      \"contentType\":
-      \"VIDEO\",\n      \"title\": \"Nvidia, Stubhub, Trump visits the UK: 3 Things\",\n      \"description\":
-      \"<p>China has instructed its biggest tech firms to stop buying Nvidia (<a data-i13n=\\\"cpos:1;pos:1\\\"
-      href=\\\"https://finance.yahoo.com/quote/NVDA\\\">NVDA</a>) chips and terminate
-      existing orders, Stubhub prepares for its first day of trading after raising
-      $800 million in an IPO, and President Trump arrives in the UK as American top
-      AI companies including Microsoft (<a data-i13n=\\\"cpos:2;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/MSFT/\\\">MSFT</a>),
-      Google (<a data-i13n=\\\"cpos:3;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/GOOG/\\\">GOOGL</a>),
-      OpenAI and CoreWeave (<a data-i13n=\\\"cpos:4;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/CRWV/\\\">CRWV</a>)
-      announce investments in Britain as part of a $54 billion tech pact.\\u00a0</p>\\n<p>Ramzan
-      Karmali has the three things you need to know today. For more live coverage
-      of markets watch the full episode of<a data-i13n=\\\"cpos:5;pos:1\\\" href=\\\"https://www.youtube.com/watch?v=cLr6hc2-oMY&list=PLx28zU8ctIRqTE7Y4uXTY-S2oHlwDsL5c\\\">
-      Market Sunrise</a> and head to<a data-i13n=\\\"cpos:6;pos:1\\\" href=\\\"https://finance.yahoo.com/\\\">
-      Yahoo Finance</a>.</p>\",\n      \"summary\": \"China has instructed its biggest
-      tech firms to stop buying Nvidia (NVDA) chips and terminate existing orders,
-      Stubhub prepares for its first day of trading after raising $800 million in
-      an IPO, and President Trump arrives in the UK as American top AI companies including
-      Microsoft (MSFT), Google (GOOGL), OpenAI and CoreWeave (CRWV) announce investments
-      in Britain as part of a $54 billion tech pact.&nbsp; Ramzan Karmali has the
-      three things you need to know today. For more live coverage of markets watch
-      the full episode of Market Sunrise and head to Yahoo Finance.\",\n      \"pubDate\":
-      \"2025-09-17T13:06:12Z\",\n      \"displayTime\": \"\",\n      \"isHosted\":
-      true,\n      \"bypassModal\": false,\n      \"previewUrl\": null,\n      \"thumbnail\":
-      {\n        \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-09/363d6900-93c5-11f0-9efd-2aacfef4e1c0\",\n        \"originalWidth\":
-      5000,\n        \"originalHeight\": 2816,\n        \"caption\": \"\",\n        \"resolutions\":
-      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/fCKfqAeJ5iE69BJUgU8ZRA--~B/aD0yODE2O3c9NTAwMDthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-09/363d6900-93c5-11f0-9efd-2aacfef4e1c0\",\n            \"width\":
-      5000,\n            \"height\": 2816,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
-      \"https://s.yimg.com/uu/api/res/1.2/1Yi8uVo09raOm4DhiQeeww--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-09/363d6900-93c5-11f0-9efd-2aacfef4e1c0\",\n            \"width\":
-      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
-      {\n        \"displayName\": \"Yahoo Finance Video\",\n        \"url\": \"https://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
-      {\n        \"url\": \"https://finance.yahoo.com/video/nvidia-stubhub-trump-visits-uk-130612056.html\",\n        \"site\":
-      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
-      null,\n      \"metadata\": {\n        \"editorsPick\": true\n      },\n      \"finance\":
-      {\n        \"premiumFinance\": {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\":
-      false\n        }\n      },\n      \"storyline\": null\n    }\n  }\n]","tool_call_id":"call_0cuHpGbOsCllLCQMJ3dJ9vvX"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
-      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
-      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
-      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
-      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
-      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
-      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
-      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
-      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
-      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"period":{"type":"string","description":"(str) The time
-      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
-      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
-      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"period":{"type":"string","description":"(str) The period
-      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
-      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
-      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
-    headers:
-      accept:
-      - application/json
-      accept-encoding:
-      - gzip, deflate, br
-      connection:
-      - keep-alive
-      content-length:
-      - '31007'
-      content-type:
-      - application/json
-      host:
-      - api.openai.com
-      user-agent:
-      - OpenAI/Python 1.108.0
-      x-stainless-arch:
-      - arm64
-      x-stainless-async:
-      - 'false'
-      x-stainless-lang:
-      - python
-      x-stainless-os:
-      - MacOS
-      x-stainless-package-version:
-      - 1.108.0
-      x-stainless-read-timeout:
-      - '600'
-      x-stainless-retry-count:
-      - '0'
-      x-stainless-runtime:
-      - CPython
-      x-stainless-runtime-version:
-      - 3.13.5
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: !!binary |
-        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
-        K1out2pwMzAAAw==
-    headers:
-      CF-RAY:
-      - 980cf26ce98fe102-PDX
-      Connection:
-      - keep-alive
-      Content-Encoding:
-      - br
-      Content-Type:
-      - application/json
-      Date:
-      - Thu, 18 Sep 2025 01:07:42 GMT
-      Server:
-      - cloudflare
-      Set-Cookie:
-      - __cf_bm=92xWy_3xzZEBULh30gfBLciNabzdiIvTH.sTb49E08M-1758157662-1.0.1.1-AIaOMq.xRc0zOWI98.Uhsfqp6VixlQaAHZJOA1tFqT7a0bFMHwH7b9KBHjW.4lySKcc1JL2R4u1OfVr3WmRDdmpVm4a_Fk_6AfGmXOIhcmk;
-        path=/; expires=Thu, 18-Sep-25 01:37:42 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=qC.xUcxBsm6opsrLRcLDrdHIu.Hea9GoLv4bbRYAjJg-1758157662388-0.0.1.1-604800000;
-        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
-      Strict-Transport-Security:
-      - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
-      X-Content-Type-Options:
-      - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
-      alt-svc:
-      - h3=":443"; ma=86400
-      cf-cache-status:
-      - DYNAMIC
-      openai-organization:
-      - arize-ai-ewa7w1
-      openai-processing-ms:
-      - '10290'
-      openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
-      openai-version:
-      - '2020-10-01'
-      x-envoy-upstream-service-time:
-      - '10305'
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149993790'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 2ms
-      x-request-id:
-      - req_d1b99d6d08b44270b2bc377d73b4e0c4
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"session_id":"test_session","run_id":"242b4806-b512-46ec-a181-6e900d5fbbe3","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":true,"has_reasoning":true,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.0.5","type":"agent"}'
-    headers:
-      accept:
-      - '*/*'
-      accept-encoding:
-      - gzip, deflate, br
-      connection:
-      - keep-alive
-      content-length:
-      - '427'
-      content-type:
-      - application/json
-      host:
-      - os-api.agno.com
-      user-agent:
-      - agno/2.0.5
-    method: POST
-    uri: https://os-api.agno.com/telemetry/runs
-  response:
-    body:
-      string: '{"message":"Run creation acknowledged: 242b4806-b512-46ec-a181-6e900d5fbbe3","status":"success"}'
-    headers:
-      Connection:
-      - keep-alive
-      Content-Length:
-      - '96'
-      Content-Type:
-      - application/json
-      Date:
-      - Thu, 18 Sep 2025 01:07:42 GMT
-      server:
-      - uvicorn
-    status:
-      code: 201
-      message: Created
-- request:
-    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
-      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":[{"type":"text","text":"You
-      are a member of a team of agents. Your goal is to complete the following task:\n\n<task>\nGet
-      the latest financial performance indicators for NVIDIA including key financial
-      ratios, income statements and historical stock prices.\n</task>\n\n<expected_output>\nTable
-      of key financial ratios, income statement, and historical stock prices for NVIDIA.\n</expected_output>"}]}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
-      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
-      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
-      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
-      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
-      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
-      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
-      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
-      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
-      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"period":{"type":"string","description":"(str) The time
-      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
-      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
-      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
-      The stock symbol."},"period":{"type":"string","description":"(str) The period
-      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
-      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
-      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
-    headers:
-      accept:
-      - application/json
-      accept-encoding:
-      - gzip, deflate, br
-      connection:
-      - keep-alive
-      content-length:
-      - '4366'
-      content-type:
-      - application/json
-      host:
-      - api.openai.com
-      user-agent:
-      - OpenAI/Python 1.108.0
-      x-stainless-arch:
-      - arm64
-      x-stainless-async:
-      - 'false'
-      x-stainless-lang:
-      - python
-      x-stainless-os:
-      - MacOS
-      x-stainless-package-version:
-      - 1.108.0
-      x-stainless-read-timeout:
-      - '600'
-      x-stainless-retry-count:
-      - '0'
-      x-stainless-runtime:
-      - CPython
-      x-stainless-runtime-version:
-      - 3.13.5
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: !!binary |
-        YwBYMwBAzqm2e5lON9uf0tmSfCkdEXx2iGkypLS/P/U8QBqxvyhjdiysjW0Z811tTS/mSrnqx1i9
-        oBWvFWtaAcsydW3V150xgYtGee8+AUCVIwOUcxGl8TqbXmweZ5PZ7dXlzbj7Yj8vb2/LZ3l9Sy/x
-        aohpAoButiAZKeWTKQZN5SwKPXN5EeXIoDXoDVu9Qb/fAb5oXE4aGWDpY9Z1mVFWZe1mu5s1B1lL
-        ADs/Pi8gg58EAGD/7gAA/wN/Dxk002/pjIwKMsQvAWDtNCEDFCGoEIWNmCJ4SthlMrBLrYF50TnN
-        pdBaOH6C+88eh/1UaM2NPH9qfd4sLpbVVPWLx4ezTevxafglE7M3tl4pNhsjEIfBFjGBYwBohaHP
-        KSnyirZ8Lsx9vBZRucCvA4Cxn0cGuP/F4gEf/iKDX7x/Px3/4hHp4JHL9sfU+tLy7XP6thIPub9+
-        ud7eX3TOT+/cMOqHzbNCAZPEQxSR7Pu/e2n52rssrvxmdbs5u7pqi7dmZ3k6+K7mG62lyFdSaB6i
-        kxX3detI2gHdFH6x+gJ2S7NlHIBWFbBWIkm2aOW+Yp/Bn1kAl3RgjdDtytOhoZv0x415/DHUrvS1
-        mwVyGWskAv57dJeRtVA5UQapsYzLToCLvnbGRx5dRYKb/V47AAA7Kg+GNWxePeuK4IHZgw6ln6fM
-        yzrCELsslELOKSf3dFC3YpkrB4RJtoVoFMof++BqZcuHB+iSknyknBcG9VvtQRVX04KknHhaOLJq
-        lk4eFdXIAMdfjFC0DZEML5Qtqfa16mKfwMLzXr8pij71eiNMjokBAw==
-    headers:
-      CF-RAY:
-      - 980cf2b07820fefe-PDX
-      Connection:
-      - keep-alive
-      Content-Encoding:
-      - br
-      Content-Type:
-      - application/json
-      Date:
-      - Thu, 18 Sep 2025 01:07:45 GMT
-      Server:
-      - cloudflare
-      Set-Cookie:
-      - __cf_bm=.AV8USMw1ZBBj6EYlRgPwYzcrMq6ERsxVSI7li5Z1Ys-1758157665-1.0.1.1-OQQCS24YCODEKY06IVuVQjkJI1_WsDFKv8E57WeEGNNuV..HQSma_0_KPfvzd9sqg9kSZGeVaJ1ML8efVL7u3vIzMYaWWgeEGMEkJHl5JGM;
-        path=/; expires=Thu, 18-Sep-25 01:37:45 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=D0g5npZN2b_WBiXc4CZadesYu.Xcm..3Zv.4PpJ7STo-1758157665430-0.0.1.1-604800000;
-        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
-      Strict-Transport-Security:
-      - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
-      X-Content-Type-Options:
-      - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
-      alt-svc:
-      - h3=":443"; ma=86400
-      cf-cache-status:
-      - DYNAMIC
-      openai-organization:
-      - arize-ai-ewa7w1
-      openai-processing-ms:
-      - '2195'
-      openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
-      openai-version:
-      - '2020-10-01'
-      x-envoy-upstream-service-time:
-      - '2236'
-      x-openai-proxy-wasm:
-      - v0.1
-      x-ratelimit-limit-requests:
-      - '30000'
-      x-ratelimit-limit-tokens:
-      - '150000000'
-      x-ratelimit-remaining-requests:
-      - '29999'
-      x-ratelimit-remaining-tokens:
-      - '149999880'
-      x-ratelimit-reset-requests:
-      - 2ms
-      x-ratelimit-reset-tokens:
-      - 0s
-      x-request-id:
-      - req_b2738278e929424993501852807cc884
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
-      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":[{"type":"text","text":"You
-      are a member of a team of agents. Your goal is to complete the following task:\n\n<task>\nGet
-      the latest financial performance indicators for NVIDIA including key financial
-      ratios, income statements and historical stock prices.\n</task>\n\n<expected_output>\nTable
-      of key financial ratios, income statement, and historical stock prices for NVIDIA.\n</expected_output>"}]},{"role":"assistant","tool_calls":[{"id":"call_mcFQ1XKjGukCi6fPOEx1PQ8Y","function":{"arguments":"{\"symbol\":
-      \"NVDA\"}","name":"get_key_financial_ratios"},"type":"function"},{"id":"call_UXCUvaOdpJSJyNG3FDMo8tlO","function":{"arguments":"{\"symbol\":
-      \"NVDA\"}","name":"get_income_statements"},"type":"function"},{"id":"call_T5HfIpxvLxEII2aU03uD7Zkh","function":{"arguments":"{\"symbol\":
-      \"NVDA\", \"period\": \"1mo\", \"interval\": \"1d\"}","name":"get_historical_stock_prices"},"type":"function"}],"content":""},{"role":"tool","content":"{\n  \"address1\":
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      financial performance data for NVIDIA, including income statements and key financial
+      ratios."},{"role":"assistant","tool_calls":[{"id":"call_Nxrbmytq1NgiJqMuakMO9YoB","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_income_statements"},"type":"function"},{"id":"call_HYhcvepGxnfUL8HbuRWA9IgU","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_key_financial_ratios"},"type":"function"}],"content":""},{"role":"tool","content":"{\"Tax
+      Effect Of Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-284130000.0,\"1643587200000\":0.0},\"Tax
+      Rate For Calcs\":{\"1738281600000\":0.133,\"1706659200000\":0.12,\"1675123200000\":0.21,\"1643587200000\":0.019},\"Normalized
+      EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":11351000000.0},\"Total
+      Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Total
+      Unusual Items Excluding Goodwill\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Net
+      Income From Continuing Operation Net Minority Interest\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Reconciled
+      Depreciation\":{\"1738281600000\":1864000000.0,\"1706659200000\":1508000000.0,\"1675123200000\":1543000000.0,\"1643587200000\":1174000000.0},\"Reconciled
+      Cost Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":5986000000.0,\"1643587200000\":11351000000.0},\"EBIT\":{\"1738281600000\":84273000000.0,\"1706659200000\":34075000000.0,\"1675123200000\":4443000000.0,\"1643587200000\":10177000000.0},\"Net
+      Interest Income\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
+      Expense\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
+      Income\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Normalized
+      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":5436870000.0,\"1643587200000\":9752000000.0},\"Net
+      Income From Continuing And Discontinued Operation\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Total
+      Expenses\":{\"1738281600000\":49044000000.0,\"1706659200000\":27950000000.0,\"1675123200000\":21397000000.0,\"1643587200000\":16873000000.0},\"Total
+      Operating Income As Reported\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":4224000000.0,\"1643587200000\":10041000000.0},\"Diluted
+      Average Shares\":{\"1738281600000\":24804000000.0,\"1706659200000\":24940000000.0,\"1675123200000\":25070000000.0,\"1643587200000\":25350000000.0},\"Basic
+      Average Shares\":{\"1738281600000\":24555000000.0,\"1706659200000\":24690000000.0,\"1675123200000\":24870000000.0,\"1643587200000\":24960000000.0},\"Diluted
+      EPS\":{\"1738281600000\":2.94,\"1706659200000\":1.19,\"1675123200000\":0.174,\"1643587200000\":0.385},\"Basic
+      EPS\":{\"1738281600000\":2.97,\"1706659200000\":1.21,\"1675123200000\":0.176,\"1643587200000\":0.391},\"Diluted
+      NI Availto Com Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Common Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Including Noncontrolling Interests\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
+      Income Continuous Operations\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Tax
+      Provision\":{\"1738281600000\":11146000000.0,\"1706659200000\":4058000000.0,\"1675123200000\":-187000000.0,\"1643587200000\":189000000.0},\"Pretax
+      Income\":{\"1738281600000\":84026000000.0,\"1706659200000\":33818000000.0,\"1675123200000\":4181000000.0,\"1643587200000\":9941000000.0},\"Other
+      Income Expense\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-1401000000.0,\"1643587200000\":107000000.0},\"Other
+      Non Operating Income Expenses\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-48000000.0,\"1643587200000\":107000000.0},\"Special
+      Income Charges\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Restructuring
+      And Mergern Acquisition\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":1353000000.0,\"1643587200000\":0.0},\"Net
+      Non Operating Interest Income Expense\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
+      Expense Non Operating\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
+      Income Non Operating\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Operating
+      Income\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":5577000000.0,\"1643587200000\":10041000000.0},\"Operating
+      Expense\":{\"1738281600000\":16405000000.0,\"1706659200000\":11329000000.0,\"1675123200000\":9779000000.0,\"1643587200000\":7434000000.0},\"Research
+      And Development\":{\"1738281600000\":12914000000.0,\"1706659200000\":8675000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":5268000000.0},\"Selling
+      General And Administration\":{\"1738281600000\":3491000000.0,\"1706659200000\":2654000000.0,\"1675123200000\":2440000000.0,\"1643587200000\":2166000000.0},\"Gross
+      Profit\":{\"1738281600000\":97858000000.0,\"1706659200000\":44301000000.0,\"1675123200000\":15356000000.0,\"1643587200000\":17475000000.0},\"Cost
+      Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"Total
+      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0},\"Operating
+      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0}}","tool_call_id":"call_Nxrbmytq1NgiJqMuakMO9YoB"},{"role":"tool","content":"{\n  \"address1\":
       \"2788 San Tomas Expressway\",\n  \"city\": \"Santa Clara\",\n  \"state\": \"CA\",\n  \"zip\":
       \"95051\",\n  \"country\": \"United States\",\n  \"phone\": \"408 486 2000\",\n  \"website\":
       \"https://www.nvidia.com\",\n  \"industry\": \"Semiconductors\",\n  \"industryKey\":
@@ -918,36 +385,37 @@ interactions:
       0,\n      \"unexercisedValue\": 0\n    },\n    {\n      \"maxAge\": 1,\n      \"name\":
       \"Ms. Mylene  Mangalindan\",\n      \"title\": \"VP of Corporate Communications\",\n      \"fiscalYear\":
       2025,\n      \"exercisedValue\": 0,\n      \"unexercisedValue\": 0\n    }\n  ],\n  \"auditRisk\":
-      4,\n  \"boardRisk\": 10,\n  \"compensationRisk\": 4,\n  \"shareHolderRightsRisk\":
-      8,\n  \"overallRisk\": 8,\n  \"governanceEpochDate\": 1756684800,\n  \"compensationAsOfEpochDate\":
+      5,\n  \"boardRisk\": 10,\n  \"compensationRisk\": 4,\n  \"shareHolderRightsRisk\":
+      8,\n  \"overallRisk\": 8,\n  \"governanceEpochDate\": 1759276800,\n  \"compensationAsOfEpochDate\":
       1767139200,\n  \"irWebsite\": \"http://phx.corporate-ir.net/phoenix.zhtml?c=116466&p=irol-IRHome\",\n  \"executiveTeam\":
-      [],\n  \"maxAge\": 86400,\n  \"priceHint\": 2,\n  \"previousClose\": 174.839,\n  \"open\":
-      172.58,\n  \"dayLow\": 168.41,\n  \"dayHigh\": 173.2,\n  \"regularMarketPreviousClose\":
-      174.839,\n  \"regularMarketOpen\": 172.58,\n  \"regularMarketDayLow\": 168.41,\n  \"regularMarketDayHigh\":
-      173.2,\n  \"dividendRate\": 0.04,\n  \"dividendYield\": 0.02,\n  \"exDividendDate\":
+      [],\n  \"maxAge\": 86400,\n  \"priceHint\": 2,\n  \"previousClose\": 186.26,\n  \"open\":
+      189.98,\n  \"dayLow\": 188.4318,\n  \"dayHigh\": 191.47,\n  \"regularMarketPreviousClose\":
+      186.26,\n  \"regularMarketOpen\": 189.98,\n  \"regularMarketDayLow\": 188.4318,\n  \"regularMarketDayHigh\":
+      191.47,\n  \"dividendRate\": 0.04,\n  \"dividendYield\": 0.02,\n  \"exDividendDate\":
       1757548800,\n  \"payoutRatio\": 0.0114,\n  \"fiveYearAvgDividendYield\": 0.06,\n  \"beta\":
-      2.102,\n  \"trailingPE\": 48.37784,\n  \"forwardPE\": 41.332523,\n  \"volume\":
-      210594769,\n  \"regularMarketVolume\": 210594769,\n  \"averageVolume\": 173393917,\n  \"averageVolume10days\":
-      164213010,\n  \"averageDailyVolume10Day\": 164213010,\n  \"bid\": 170.28,\n  \"ask\":
-      170.4,\n  \"bidSize\": 4,\n  \"askSize\": 4,\n  \"marketCap\": 4146050629632,\n  \"fiftyTwoWeekLow\":
-      86.62,\n  \"fiftyTwoWeekHigh\": 184.48,\n  \"priceToSalesTrailing12Months\":
-      25.094425,\n  \"fiftyDayAverage\": 174.8216,\n  \"twoHundredDayAverage\": 140.34155,\n  \"trailingAnnualDividendRate\":
-      0.04,\n  \"trailingAnnualDividendYield\": 0.0002287819,\n  \"currency\": \"USD\",\n  \"tradeable\":
-      false,\n  \"enterpriseValue\": 4203390959616,\n  \"profitMargins\": 0.52414,\n  \"floatShares\":
-      23323140000,\n  \"sharesOutstanding\": 24347000000,\n  \"sharesShort\": 196695074,\n  \"sharesShortPriorMonth\":
-      192121364,\n  \"sharesShortPreviousMonthDate\": 1753920000,\n  \"dateShortInterest\":
-      1756425600,\n  \"sharesPercentSharesOut\": 0.0081,\n  \"heldPercentInsiders\":
-      0.043319996,\n  \"heldPercentInstitutions\": 0.68971,\n  \"shortRatio\": 1.14,\n  \"shortPercentOfFloat\":
-      0.0084,\n  \"impliedSharesOutstanding\": 24746600448,\n  \"bookValue\": 4.113,\n  \"priceToBook\":
-      41.402866,\n  \"lastFiscalYearEnd\": 1737849600,\n  \"nextFiscalYearEnd\": 1769385600,\n  \"mostRecentQuarter\":
+      2.123,\n  \"trailingPE\": 54.52709,\n  \"forwardPE\": 46.321556,\n  \"volume\":
+      82213253,\n  \"regularMarketVolume\": 82213253,\n  \"averageVolume\": 173456453,\n  \"averageVolume10days\":
+      158377370,\n  \"averageDailyVolume10Day\": 158377370,\n  \"bid\": 190.72,\n  \"ask\":
+      190.94,\n  \"bidSize\": 5,\n  \"askSize\": 5,\n  \"marketCap\": 4646498729984,\n  \"fiftyTwoWeekLow\":
+      86.62,\n  \"fiftyTwoWeekHigh\": 195.62,\n  \"allTimeHigh\": 195.62,\n  \"allTimeLow\":
+      0.033333,\n  \"priceToSalesTrailing12Months\": 28.123442,\n  \"fiftyDayAverage\":
+      179.59,\n  \"twoHundredDayAverage\": 146.57625,\n  \"trailingAnnualDividendRate\":
+      0.04,\n  \"trailingAnnualDividendYield\": 0.00021475357,\n  \"currency\": \"USD\",\n  \"tradeable\":
+      false,\n  \"enterpriseValue\": 4479925092352,\n  \"profitMargins\": 0.52414,\n  \"floatShares\":
+      23327514000,\n  \"sharesOutstanding\": 24347000000,\n  \"sharesShort\": 210957056,\n  \"sharesShortPriorMonth\":
+      217485473,\n  \"sharesShortPreviousMonthDate\": 1757894400,\n  \"dateShortInterest\":
+      1760486400,\n  \"sharesPercentSharesOut\": 0.0087,\n  \"heldPercentInsiders\":
+      0.04322,\n  \"heldPercentInstitutions\": 0.6899,\n  \"shortRatio\": 1.15,\n  \"shortPercentOfFloat\":
+      0.009,\n  \"impliedSharesOutstanding\": 24623853720,\n  \"bookValue\": 4.113,\n  \"priceToBook\":
+      46.40039,\n  \"lastFiscalYearEnd\": 1737849600,\n  \"nextFiscalYearEnd\": 1769385600,\n  \"mostRecentQuarter\":
       1753574400,\n  \"earningsQuarterlyGrowth\": 0.592,\n  \"netIncomeToCommon\":
-      86597001216,\n  \"trailingEps\": 3.52,\n  \"forwardEps\": 4.12,\n  \"lastSplitFactor\":
-      \"10:1\",\n  \"lastSplitDate\": 1717977600,\n  \"enterpriseToRevenue\": 25.441,\n  \"enterpriseToEbitda\":
-      42.769,\n  \"52WeekChange\": 0.54255974,\n  \"SandP52WeekChange\": 0.17594421,\n  \"lastDividendValue\":
+      86597001216,\n  \"trailingEps\": 3.5,\n  \"forwardEps\": 4.12,\n  \"lastSplitFactor\":
+      \"10:1\",\n  \"lastSplitDate\": 1717977600,\n  \"enterpriseToRevenue\": 27.115,\n  \"enterpriseToEbitda\":
+      45.583,\n  \"52WeekChange\": 0.32550526,\n  \"SandP52WeekChange\": 0.16625166,\n  \"lastDividendValue\":
       0.01,\n  \"lastDividendDate\": 1757548800,\n  \"quoteType\": \"EQUITY\",\n  \"currentPrice\":
-      170.29,\n  \"targetHighPrice\": 270.0,\n  \"targetLowPrice\": 100.0,\n  \"targetMeanPrice\":
-      210.97946,\n  \"targetMedianPrice\": 210.0,\n  \"recommendationMean\": 1.34921,\n  \"recommendationKey\":
-      \"strong_buy\",\n  \"numberOfAnalystOpinions\": 56,\n  \"totalCash\": 56790999040,\n  \"totalCashPerShare\":
+      190.8448,\n  \"targetHighPrice\": 320.0,\n  \"targetLowPrice\": 100.0,\n  \"targetMeanPrice\":
+      218.51369,\n  \"targetMedianPrice\": 214.0,\n  \"recommendationMean\": 1.34375,\n  \"recommendationKey\":
+      \"strong_buy\",\n  \"numberOfAnalystOpinions\": 57,\n  \"totalCash\": 56790999040,\n  \"totalCashPerShare\":
       2.337,\n  \"ebitda\": 98280996864,\n  \"totalDebt\": 10597999616,\n  \"quickRatio\":
       3.488,\n  \"currentRatio\": 4.214,\n  \"totalRevenue\": 165217992704,\n  \"debtToEquity\":
       10.584,\n  \"revenuePerShare\": 6.755,\n  \"returnOnAssets\": 0.53094,\n  \"returnOnEquity\":
@@ -956,92 +424,28 @@ interactions:
       0.69847,\n  \"ebitdaMargins\": 0.59486,\n  \"operatingMargins\": 0.60842997,\n  \"financialCurrency\":
       \"USD\",\n  \"symbol\": \"NVDA\",\n  \"language\": \"en-US\",\n  \"region\":
       \"US\",\n  \"typeDisp\": \"Equity\",\n  \"quoteSourceName\": \"Nasdaq Real Time
-      Price\",\n  \"triggerable\": true,\n  \"customPriceAlertConfidence\": \"HIGH\",\n  \"marketState\":
-      \"POSTPOST\",\n  \"corporateActions\": [],\n  \"postMarketTime\": 1758153600,\n  \"regularMarketTime\":
-      1758139200,\n  \"exchangeTimezoneName\": \"America/New_York\",\n  \"shortName\":
-      \"NVIDIA Corporation\",\n  \"exchange\": \"NMS\",\n  \"messageBoardId\": \"finmb_32307\",\n  \"exchangeTimezoneShortName\":
-      \"EDT\",\n  \"gmtOffSetMilliseconds\": -14400000,\n  \"market\": \"us_market\",\n  \"esgPopulated\":
-      false,\n  \"regularMarketChangePercent\": -2.60183,\n  \"regularMarketPrice\":
-      170.29,\n  \"longName\": \"NVIDIA Corporation\",\n  \"earningsTimestamp\": 1763582400,\n  \"earningsTimestampStart\":
+      Price\",\n  \"triggerable\": true,\n  \"customPriceAlertConfidence\": \"HIGH\",\n  \"shortName\":
+      \"NVIDIA Corporation\",\n  \"averageAnalystRating\": \"1.3 - Strong Buy\",\n  \"cryptoTradeable\":
+      false,\n  \"longName\": \"NVIDIA Corporation\",\n  \"regularMarketPrice\": 190.8448,\n  \"hasPrePostMarketData\":
+      true,\n  \"firstTradeDateMilliseconds\": 917015400000,\n  \"regularMarketChange\":
+      4.5848083,\n  \"regularMarketDayRange\": \"188.4318 - 191.47\",\n  \"fullExchangeName\":
+      \"NasdaqGS\",\n  \"averageDailyVolume3Month\": 173456453,\n  \"fiftyTwoWeekLowChange\":
+      104.2248,\n  \"fiftyTwoWeekLowChangePercent\": 1.2032417,\n  \"fiftyTwoWeekRange\":
+      \"86.62 - 195.62\",\n  \"fiftyTwoWeekHighChange\": -4.7751923,\n  \"fiftyTwoWeekHighChangePercent\":
+      -0.024410553,\n  \"fiftyTwoWeekChangePercent\": 32.550526,\n  \"dividendDate\":
+      1759363200,\n  \"earningsTimestamp\": 1763582400,\n  \"earningsTimestampStart\":
       1763582400,\n  \"earningsTimestampEnd\": 1763582400,\n  \"earningsCallTimestampStart\":
       1756328400,\n  \"earningsCallTimestampEnd\": 1756328400,\n  \"isEarningsDateEstimate\":
-      false,\n  \"epsTrailingTwelveMonths\": 3.52,\n  \"epsForward\": 4.12,\n  \"epsCurrentYear\":
-      4.4966,\n  \"priceEpsCurrentYear\": 37.870834,\n  \"fiftyDayAverageChange\":
-      -4.531601,\n  \"fiftyDayAverageChangePercent\": -0.025921289,\n  \"twoHundredDayAverageChange\":
-      29.94844,\n  \"twoHundredDayAverageChangePercent\": 0.21339682,\n  \"sourceInterval\":
-      15,\n  \"exchangeDataDelayedBy\": 0,\n  \"averageAnalystRating\": \"1.3 - Strong
-      Buy\",\n  \"cryptoTradeable\": false,\n  \"hasPrePostMarketData\": true,\n  \"firstTradeDateMilliseconds\":
-      917015400000,\n  \"postMarketChangePercent\": 0.622475,\n  \"postMarketPrice\":
-      171.35,\n  \"postMarketChange\": 1.06001,\n  \"regularMarketChange\": -4.54901,\n  \"regularMarketDayRange\":
-      \"168.41 - 173.2\",\n  \"fullExchangeName\": \"NasdaqGS\",\n  \"averageDailyVolume3Month\":
-      173393917,\n  \"fiftyTwoWeekLowChange\": 83.66999,\n  \"fiftyTwoWeekLowChangePercent\":
-      0.96594304,\n  \"fiftyTwoWeekRange\": \"86.62 - 184.48\",\n  \"fiftyTwoWeekHighChange\":
-      -14.190002,\n  \"fiftyTwoWeekHighChangePercent\": -0.07691892,\n  \"fiftyTwoWeekChangePercent\":
-      54.255974,\n  \"dividendDate\": 1759363200,\n  \"displayName\": \"NVIDIA\",\n  \"trailingPegRatio\":
-      1.3039\n}","tool_call_id":"call_mcFQ1XKjGukCi6fPOEx1PQ8Y"},{"role":"tool","content":"{\"Tax
-      Effect Of Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-284130000.0,\"1643587200000\":0.0},\"Tax
-      Rate For Calcs\":{\"1738281600000\":0.133,\"1706659200000\":0.12,\"1675123200000\":0.21,\"1643587200000\":0.019},\"Normalized
-      EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":11351000000.0},\"Total
-      Unusual Items\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Total
-      Unusual Items Excluding Goodwill\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Net
-      Income From Continuing Operation Net Minority Interest\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Reconciled
-      Depreciation\":{\"1738281600000\":1864000000.0,\"1706659200000\":1508000000.0,\"1675123200000\":1543000000.0,\"1643587200000\":1174000000.0},\"Reconciled
-      Cost Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"EBITDA\":{\"1738281600000\":86137000000.0,\"1706659200000\":35583000000.0,\"1675123200000\":5986000000.0,\"1643587200000\":11351000000.0},\"EBIT\":{\"1738281600000\":84273000000.0,\"1706659200000\":34075000000.0,\"1675123200000\":4443000000.0,\"1643587200000\":10177000000.0},\"Net
-      Interest Income\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
-      Expense\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
-      Income\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Normalized
-      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":5436870000.0,\"1643587200000\":9752000000.0},\"Net
-      Income From Continuing And Discontinued Operation\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Total
-      Expenses\":{\"1738281600000\":49044000000.0,\"1706659200000\":27950000000.0,\"1675123200000\":21397000000.0,\"1643587200000\":16873000000.0},\"Total
-      Operating Income As Reported\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":4224000000.0,\"1643587200000\":10041000000.0},\"Diluted
-      Average Shares\":{\"1738281600000\":24804000000.0,\"1706659200000\":24940000000.0,\"1675123200000\":25070000000.0,\"1643587200000\":25350000000.0},\"Basic
-      Average Shares\":{\"1738281600000\":24555000000.0,\"1706659200000\":24690000000.0,\"1675123200000\":24870000000.0,\"1643587200000\":24960000000.0},\"Diluted
-      EPS\":{\"1738281600000\":2.94,\"1706659200000\":1.19,\"1675123200000\":0.174,\"1643587200000\":0.385},\"Basic
-      EPS\":{\"1738281600000\":2.97,\"1706659200000\":1.21,\"1675123200000\":0.176,\"1643587200000\":0.391},\"Diluted
-      NI Availto Com Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
-      Income Common Stockholders\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
-      Income\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
-      Income Including Noncontrolling Interests\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Net
-      Income Continuous Operations\":{\"1738281600000\":72880000000.0,\"1706659200000\":29760000000.0,\"1675123200000\":4368000000.0,\"1643587200000\":9752000000.0},\"Tax
-      Provision\":{\"1738281600000\":11146000000.0,\"1706659200000\":4058000000.0,\"1675123200000\":-187000000.0,\"1643587200000\":189000000.0},\"Pretax
-      Income\":{\"1738281600000\":84026000000.0,\"1706659200000\":33818000000.0,\"1675123200000\":4181000000.0,\"1643587200000\":9941000000.0},\"Other
-      Income Expense\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-1401000000.0,\"1643587200000\":107000000.0},\"Other
-      Non Operating Income Expenses\":{\"1738281600000\":1034000000.0,\"1706659200000\":237000000.0,\"1675123200000\":-48000000.0,\"1643587200000\":107000000.0},\"Special
-      Income Charges\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":-1353000000.0,\"1643587200000\":0.0},\"Restructuring
-      And Mergern Acquisition\":{\"1738281600000\":0.0,\"1706659200000\":0.0,\"1675123200000\":1353000000.0,\"1643587200000\":0.0},\"Net
-      Non Operating Interest Income Expense\":{\"1738281600000\":1539000000.0,\"1706659200000\":609000000.0,\"1675123200000\":5000000.0,\"1643587200000\":-207000000.0},\"Interest
-      Expense Non Operating\":{\"1738281600000\":247000000.0,\"1706659200000\":257000000.0,\"1675123200000\":262000000.0,\"1643587200000\":236000000.0},\"Interest
-      Income Non Operating\":{\"1738281600000\":1786000000.0,\"1706659200000\":866000000.0,\"1675123200000\":267000000.0,\"1643587200000\":29000000.0},\"Operating
-      Income\":{\"1738281600000\":81453000000.0,\"1706659200000\":32972000000.0,\"1675123200000\":5577000000.0,\"1643587200000\":10041000000.0},\"Operating
-      Expense\":{\"1738281600000\":16405000000.0,\"1706659200000\":11329000000.0,\"1675123200000\":9779000000.0,\"1643587200000\":7434000000.0},\"Research
-      And Development\":{\"1738281600000\":12914000000.0,\"1706659200000\":8675000000.0,\"1675123200000\":7339000000.0,\"1643587200000\":5268000000.0},\"Selling
-      General And Administration\":{\"1738281600000\":3491000000.0,\"1706659200000\":2654000000.0,\"1675123200000\":2440000000.0,\"1643587200000\":2166000000.0},\"Gross
-      Profit\":{\"1738281600000\":97858000000.0,\"1706659200000\":44301000000.0,\"1675123200000\":15356000000.0,\"1643587200000\":17475000000.0},\"Cost
-      Of Revenue\":{\"1738281600000\":32639000000.0,\"1706659200000\":16621000000.0,\"1675123200000\":11618000000.0,\"1643587200000\":9439000000.0},\"Total
-      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0},\"Operating
-      Revenue\":{\"1738281600000\":130497000000.0,\"1706659200000\":60922000000.0,\"1675123200000\":26974000000.0,\"1643587200000\":26914000000.0}}","tool_call_id":"call_UXCUvaOdpJSJyNG3FDMo8tlO"},{"role":"tool","content":"{\"1755489600000\":{\"Open\":180.5898164913,\"High\":182.9296808045,\"Low\":180.5798072904,\"Close\":181.9997253418,\"Volume\":132008000,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1755576000000\":{\"Open\":182.4197068875,\"High\":182.4897102646,\"Low\":175.480110996,\"Close\":175.6300964355,\"Volume\":185229200,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1755662400000\":{\"Open\":175.160123439,\"High\":175.990078481,\"Low\":168.7904874129,\"Close\":175.3901062012,\"Volume\":215142700,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1755748800000\":{\"Open\":174.8401410011,\"High\":176.8900131329,\"Low\":173.8001911338,\"Close\":174.970123291,\"Volume\":140040900,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1755835200000\":{\"Open\":172.6002638092,\"High\":178.5799222097,\"Low\":171.1903396843,\"Close\":177.97996521,\"Volume\":172789400,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756094400000\":{\"Open\":178.3399565344,\"High\":181.8997534962,\"Low\":176.5600580535,\"Close\":179.7998657227,\"Volume\":163012800,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756180800000\":{\"Open\":180.0498401163,\"High\":182.3797105086,\"Low\":178.7999106306,\"Close\":181.7597503662,\"Volume\":168688200,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756267200000\":{\"Open\":181.9697356562,\"High\":182.4797166673,\"Low\":179.0899084066,\"Close\":181.5897674561,\"Volume\":235518900,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756353600000\":{\"Open\":180.8098083074,\"High\":184.4595963287,\"Low\":176.4000533883,\"Close\":180.1598358154,\"Volume\":281787800,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756440000000\":{\"Open\":178.0999522321,\"High\":178.139943262,\"Low\":173.1402253455,\"Close\":174.1701660156,\"Volume\":243257900,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756785600000\":{\"Open\":169.9904156792,\"High\":172.3702863812,\"Low\":167.2105736316,\"Close\":170.7703704834,\"Volume\":231164900,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756872000000\":{\"Open\":171.050359731,\"High\":172.4002897727,\"Low\":168.8704898799,\"Close\":170.6103820801,\"Volume\":164424900,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1756958400000\":{\"Open\":170.5603946798,\"High\":171.8503152671,\"Low\":169.4004563909,\"Close\":171.6503295898,\"Volume\":141670100,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757044800000\":{\"Open\":168.0205271745,\"High\":169.020470806,\"Low\":164.0607589384,\"Close\":167.0105895996,\"Volume\":224441400,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757304000000\":{\"Open\":167.5405549409,\"High\":170.9503663136,\"Low\":167.3405692704,\"Close\":168.3005065918,\"Volume\":163769100,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757390400000\":{\"Open\":169.0804622048,\"High\":170.9703550269,\"Low\":166.7306038642,\"Close\":170.7503662109,\"Volume\":157548400,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757476800000\":{\"Open\":176.6300437721,\"High\":179.2798883121,\"Low\":175.4601115455,\"Close\":177.3200073242,\"Volume\":226852000,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757563200000\":{\"Open\":179.6799926758,\"High\":180.2799987793,\"Low\":176.4799957275,\"Close\":177.1699981689,\"Volume\":151159300,\"Dividends\":0.01,\"Stock
-      Splits\":0.0},\"1757649600000\":{\"Open\":177.7700042725,\"High\":178.6000061035,\"Low\":176.4499969482,\"Close\":177.8200073242,\"Volume\":124911000,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757908800000\":{\"Open\":175.6699981689,\"High\":178.8500061035,\"Low\":174.5099945068,\"Close\":177.75,\"Volume\":147061600,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1757995200000\":{\"Open\":177.0,\"High\":177.5,\"Low\":174.3800048828,\"Close\":174.8800048828,\"Volume\":140737800,\"Dividends\":0.0,\"Stock
-      Splits\":0.0},\"1758081600000\":{\"Open\":172.5800018311,\"High\":173.1999969482,\"Low\":168.4100036621,\"Close\":170.2899932861,\"Volume\":210594769,\"Dividends\":0.0,\"Stock
-      Splits\":0.0}}","tool_call_id":"call_T5HfIpxvLxEII2aU03uD7Zkh"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      false,\n  \"epsTrailingTwelveMonths\": 3.5,\n  \"epsForward\": 4.12,\n  \"epsCurrentYear\":
+      4.51146,\n  \"priceEpsCurrentYear\": 42.302227,\n  \"fiftyDayAverageChange\":
+      11.2548065,\n  \"fiftyDayAverageChangePercent\": 0.06266945,\n  \"twoHundredDayAverageChange\":
+      44.268555,\n  \"twoHundredDayAverageChangePercent\": 0.30201724,\n  \"sourceInterval\":
+      15,\n  \"exchangeDataDelayedBy\": 0,\n  \"corporateActions\": [],\n  \"regularMarketTime\":
+      1761583144,\n  \"exchange\": \"NMS\",\n  \"messageBoardId\": \"finmb_32307\",\n  \"exchangeTimezoneName\":
+      \"America/New_York\",\n  \"exchangeTimezoneShortName\": \"EDT\",\n  \"gmtOffSetMilliseconds\":
+      -14400000,\n  \"market\": \"us_market\",\n  \"esgPopulated\": false,\n  \"regularMarketChangePercent\":
+      2.46151,\n  \"marketState\": \"REGULAR\",\n  \"displayName\": \"NVIDIA\",\n  \"trailingPegRatio\":
+      1.0002\n}","tool_call_id":"call_HYhcvepGxnfUL8HbuRWA9IgU"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
       this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
       The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
       this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
@@ -1074,7 +478,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '26130'
+      - '21642'
       content-type:
       - application/json
       host:
@@ -1082,7 +486,7 @@ interactions:
       user-agent:
       - OpenAI/Python 1.108.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -1098,42 +502,35 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.13.5
+      - 3.11.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        g/wHAOT/peo9l9N/xOlEFLbwLWN1Tvf5UQk7NDK4gDrp/K+5PovEJeB1SjKJpFHvkQah/bsbeiRx
-        aez/m2lEPE31uIRr4hEaoW8jiS2jLTPIFXnOD9C3/XcAgMKIloCGG1eH3X7qTi9/v9ycf/i1eXH7
-        4dPHJ68//3h9cv7yxYez1/rxL4QPAFD69t0PFZMif2LQGlIEIf9z+Xl+REtgRvVMGa1N5Et3afQT
-        WgLa7msnU7cLMXScctlR07Gewrk3KQy+oCV8OQAA+OdaAoA+A/84WgLFoeRfZDSgJeAfAaCcJo+W
-        gFwpoVQXK8IA0BB2EZeArnz2MNtYT5OrvlSoaXBODcDo6mRhPxCev78+uz6Ge8/fnx3ff4956a3/
-        gz8juxpSeTJIOw+lujq7A7UyC1dyhLzXhsFNUGoabmGfw+ALWcVVPDw8hCf+D1wQ5L4eXcVVbH79
-        wPDU4L2bZg/iTFvF1q3p71e1VWzwzOVbX+HU7YcwWPjX1ZAirO/VYCExkxpTRbHmFmvBOfbBy0fn
-        omLde/v22X2pBrInoocNwJt5kfIvl0d8WRtPDSQjQkQCxE86Cz/D6OMIn4KfxhUWJZQfJextdmEK
-        cQsvzy9z1FMDRgSFLRDxea99nXOEFOG4FF8L3Hv94jh1LDVQglB7hJfm/Mcc6p/05xaMWiI3ICsS
-        +zKnTajwzOVtiCuxFCeSHc3z3yrUxIrW8LEBo0RlOiunc84+VqhTHhtIwlk4ENGhV3MYbtGiADQQ
-        RNpA9laxwWVOpSSLETTQlvQqA9l5sffZ1RC3yL410JT08hTg85Prt2fH/HZQlsjCGl/FruvaXvV1
-        kxW8eQDce+0HHyu8ml2uPpf7LbHMnvmawxAZGrziwCmvtfagwSsWzpGZ8MyF0luyStegxcSQqpvg
-        tf/pY89CCnxxgwUTmEqLDaWYUrpdqDG1HPNdvKHBgmNtDZbrjAxUzwClUiFtOB/XYCE41sJiisys
-        wYJprDnbYjCsWb/cYnlHKirRBGUYjBosrMG9omdTSiwoXwyFhdJemMHSKFiaek5UPTqDSYNFz7BU
-        gokYgmNruKXCyhhQkCnFKaYyMKvY4LmvLIHBpMHCcNz3lK8tbrHR4dskFjp/8X3RRvF3cRamufoR
-        zl++gdV2TqyM9NJgwQjrTwAPK0qYAQOEaxOwbK1igxNXwsC1Bo5ZGLTjI3gUwno5NmhnAr/SrXqz
-        kOe+PBruPXWlgqBw5v50KEvPXC1/UDeoKEHfVdjecBmFp+kXGLManE6pIC5o8D5Ncw2S1VsgDVyp
-        frIvOIBTLjpGO6rkaWOGL1fmNmBGEF4L5jHdE8ngkinh9jDOKFZWYqNtC5BQFcgOQziHjp70/i2K
-        aAMnMHGUBlPNsKZ0q1NgI2sRSRRL0ro0FBthcC/g6exATwnPhQ5NpL/GVNR4NGCKYaYsFnK2U9vl
-        zQQzmmiZ1S1VEUWkrhFSjHKucd/MaDck9oC2xHJo50TkX502FRwvnRoTtxsuGGZaYisnib3MMFL2
-        6rK88/WG0hzsa4klp6qmMWqVX42Vjpm2HAYMI7q8/WFYG4pZXkqwG3pSUuba+lMlobrNECrnDM4l
-        lnL5Q1s6Ekodhqj6KaTE9mtDRL2t0/0LRukGTAtstJXTfBU/Xi869FqE7DeTH2rRJUhddW9OucBQ
-        btKvwZUVrmREvlug1JziVq9AdBJ4Ut//VfwuDCmO81BThhDHudT8h2g80JdtEdlNaAlxniZVCFI1
-        ga5V81VJov5rS8zQlLb7nL4VdAqNXq22nin4PmgJqNS0RwfHngOAr1qc5qyY7Yv2Oe32dV3TrWc5
-        2lOtcTSkPUIgQkYV9HVvQLEplnGO0qXWw22rF13QExrccONHfEhxtHTzGFIkngCCNr1QMunjObDu
-        ELdPKFJqGPy++nE9YDuacAi0ZNl/9wN1kNvc/5JRxheva/AZLQG9L4IDXPSnVL9bb0Lc+rzPQfWd
-        vtmvlabOAEgACGY2ZTU1OSIKfQoD
+        gwkGAMT/lur/3pvVGaL3uxlU6i6ldL/xYOnaJpFBH1DyCvn7sXmd1ihREkdIkqQR4vuIVjxB0yb+
+        ELGJelOPW6gLebSJP2CbuxXr02I+7+8JwFTHGrB2LX27Gfrp7sPp0+lyu9DrnauHw4/+fXhb3B1d
+        bmfV3YNg/00AZhZv1HpKNf+KgVEZjSL+5fLzqGMN4rKI8yqNswL41I3pqGcN2Grw08xMN0qraSKS
+        bCrKaVxxOHdtVEuONXidAMDvW20A+w/8DtZA/Peo+BsZGtYg/hLArOmJNWDSOeW81J79h4Bc2P2f
+        BmxrawsXD8d7x9s41q3ZEG699Odh8O7Yk17O9EwHPJO0GAgfkIgkBVSMJvRjSBgQY5jpMI3i6lIV
+        x51cP9MBd8bLHjf0QXokbV8fEMWp4LnAQvW9Mno6dhUQFYLXSbQXCIiSgtclKb+k4HUMyqxs1zgP
+        s8x3FRClCS8ySlC0TwUv4jriGL4GAVHNM66vmumAQ2ucw5U1S+WDPQmI6pJXRSRQlvFUcJHztJg1
+        LnlW6Xn0TAdcDmSlV3q1VpPBngREVcyzXGIdabIM9ggBUc7zStExCS4ybXq4IK+HmHJMZcIrrmNL
+        al7OsjjmClk+rJV513uqHz112L+6RTBrwusMg7UKiGIe13COgsclJLlT0qlhpmd6l/OgU/qJA6Wl
+        bpXscSO9Mi6B+/ljMDXgQfYbX77YQ0R5LDomrMCPvbKqJXiDfWm10iuHv+6sVL3SK1zt/y2WR57x
+        PI1J7Hpg7Ke0XbI0ArKCp/vDKPUcdox5xwBq5pmAzWz6ubQrtbhxHBaQJzyLvz2ON9P4iXeEgKLm
+        VZ6i7SpODisLKASvsmjd9neO7/a2NWZX86z+4xvyo9UwGtvOkXf46+Zy++9gDQPylIuKav//Ufmf
+        NPc7YlHPJEjMe7Twy5OQxh4sFRALnlcMgXrtd0drSfvVd3hAxg99IHfu16Nq32mXAwJSnm1YoPEn
+        OrBE2JVujYPefAadUZ7suSWbYvDtuNlI+3OmTYAu1tLBrc2nhlko8V4b5eRNyEEmUOoOmjyUyTDU
+        fJD9m7DOQToPK9/vP1ha9tSuN7+qvIPz1ugVBuOUV0bjpJyvcbRRrdHd2Hpj4ZblBRx3a8I7/YTR
+        q7D7iAxcQQd/WLMYncdwxMEuaYZI3cFbbZmH0x8FLc8MbgKhq++wtexZAz32PRDZnmB8qb6Tqb/o
+        d8Z6sxqsWbhEzdzZps1PHdqfNWDOm4FRWr8mwHezLnO01PZlgzWbwc+9eSeRliLJMmFpzJxEKKas
+        rBJ0+ScQcLaiTJL/2Krn7nfTnW24FGtlu6aOHhmSU+XYKQMEKtHEx9ApJn8yA/qt9KpHwLC2pcFT
+        N3fgHDndCFUwS2/Uqiczm/Il8TocOveKLGvAnicRhIt+Ok+b+VLpFdnBKlP47OUwzwshlwXlec0m
+        XxMDAw==
     headers:
       CF-RAY:
-      - 980cf2c4a8b0f896-PDX
+      - 9953a0a4e864162a-HYD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -1141,14 +538,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:08:11 GMT
+      - Mon, 27 Oct 2025 16:39:18 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=90LGM0RiqiweHht4CDQtGkzVqJuO8UPNaqT3loLB5qU-1758157691-1.0.1.1-M8lW6rbaizTVO6SvUkzO0w6aiLnzEvyc__cSQdOacSJ3qrGUGlxpW7RwfCMXy7jWA7GHUzucR2NvYdlzQrugI6N1HAq_esEe.N7f4mv9EF8;
-        path=/; expires=Thu, 18-Sep-25 01:38:11 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=ovE.lffU9BT9931xddpBZ0DXkJau.j8pA5y7PKa5yro-1761583158-1.0.1.1-OXz8wOikoJECSxB0bKwRSezwSmOrj2URSA6t1hb3VkLNIZq1L3eFHE9YA1wvRb69x3iGtlrD2uebAOp.6ivnwH5LK3pHZDGyPVA7jpLB7qo;
+        path=/; expires=Mon, 27-Oct-25 17:09:18 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=Uyu0TTpbc5dW0fPY64g7vwm5dmiM7_e9OaXq0ujsvKM-1758157691173-0.0.1.1-604800000;
+      - _cfuvid=B9YbQeBX6uWFhJqT_JQeiYVgto4DhQ1VLnP6N4YtjgE-1761583158696-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -1165,34 +562,34 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '24635'
+      - '12069'
       openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '24750'
+      - '12271'
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
-      - '30000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '150000000'
+      - '200000'
       x-ratelimit-remaining-requests:
-      - '29999'
+      - '9997'
       x-ratelimit-remaining-tokens:
-      - '149995045'
+      - '196006'
       x-ratelimit-reset-requests:
-      - 2ms
+      - 17.333s
       x-ratelimit-reset-tokens:
-      - 1ms
+      - 1.198s
       x-request-id:
-      - req_cd6659ce760f401b9ef246519f3ce594
+      - req_4f0a1d52a3624e6abcec6cd64231cba8
     status:
       code: 200
       message: OK
 - request:
-    body: '{"session_id":"test_session","run_id":"b48ef0eb-8692-4f89-bee1-af20d9951179","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":true,"has_reasoning":true,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.0.5","type":"agent"}'
+    body: '{"session_id":"test_session","run_id":"9b0623ab-ee90-4c5e-853e-6eb98cc2b1d7","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.2.1","type":"agent"}'
     headers:
       accept:
       - '*/*'
@@ -1201,18 +598,18 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '427'
+      - '449'
       content-type:
       - application/json
       host:
       - os-api.agno.com
       user-agent:
-      - agno/2.0.5
+      - agno/2.2.1
     method: POST
     uri: https://os-api.agno.com/telemetry/runs
   response:
     body:
-      string: '{"message":"Run creation acknowledged: b48ef0eb-8692-4f89-bee1-af20d9951179","status":"success"}'
+      string: '{"message":"Run creation acknowledged: 9b0623ab-ee90-4c5e-853e-6eb98cc2b1d7","status":"success"}'
     headers:
       Connection:
       - keep-alive
@@ -1221,120 +618,40 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:08:11 GMT
+      - Mon, 27 Oct 2025 16:39:20 GMT
       server:
       - uvicorn
     status:
       code: 201
       message: Created
 - request:
-    body: '{"messages":[{"role":"developer","content":"You are the leader of a team
-      and sub-teams of AI Agents.\nYour task is to coordinate the team to complete
-      the user''s request.\n\nHere are the members in your team:\n<team_members>\n
-      - Agent 1:\n   - ID: web-agent\n   - Name: Web Agent\n   - Role: Search the
-      web for information\n   - Member tools:\n    - duckduckgo_search\n    - duckduckgo_news\n
-      - Agent 2:\n   - ID: finance-agent\n   - Name: Finance Agent\n   - Role: Get
-      financial data\n   - Member tools:\n    - get_current_stock_price\n    - get_company_info\n    -
-      get_stock_fundamentals\n    - get_income_statements\n    - get_key_financial_ratios\n    -
-      get_analyst_recommendations\n    - get_company_news\n    - get_technical_indicators\n    -
-      get_historical_stock_prices\n</team_members>\n\n<how_to_respond>\n- Your role
-      is to delegate tasks to members in your team with the highest likelihood of
-      completing the user''s request.\n- Carefully analyze the tools available to
-      the members and their roles before delegating tasks.\n- You cannot use a member
-      tool directly. You can only delegate tasks to members.\n- When you delegate
-      a task to another member, make sure to include:\n  - member_id (str): The ID
-      of the member to delegate the task to. Use only the ID of the member, not the
-      ID of the team followed by the ID of the member.\n  - task_description (str):
-      A clear description of the task.\n  - expected_output (str): The expected output.\n-
-      You can delegate tasks to multiple members at once.\n- You must always analyze
-      the responses from members before responding to the user.\n- After analyzing
-      the responses from the members, if you feel the task has been completed, you
-      can stop and respond to the user.\n- If you are not satisfied with the responses
-      from the members, you should re-assign the task.\n- For simple greetings, thanks,
-      or questions about the team itself, you should respond directly.\n- For all
-      work requests, tasks, or questions requiring expertise, route to appropriate
-      team members.\n</how_to_respond>\n\n<instructions>\n- Always include sources\n-
-      Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
-      the market outlook and financial performance of NVIDIA?"},{"role":"assistant","tool_calls":[{"id":"call_Dnddimpt9bJhbdNseOFEXlJ2","function":{"arguments":"{\"member_id\":
-      \"finance-agent\", \"task_description\": \"Get the current market outlook for
-      NVIDIA.\", \"expected_output\": \"Market outlook for NVIDIA including analyst
-      recommendations and recent trends.\"}","name":"delegate_task_to_member"},"type":"function"},{"id":"call_gwQupolFpLjLVm1Ga0KpxFXl","function":{"arguments":"{\"member_id\":
-      \"finance-agent\", \"task_description\": \"Get the latest financial performance
-      indicators for NVIDIA including key financial ratios, income statements and
-      historical stock prices.\", \"expected_output\": \"Table of key financial ratios,
-      income statement, and historical stock prices for NVIDIA.\"}","name":"delegate_task_to_member"},"type":"function"}],"content":""},{"role":"tool","content":"###
-      Market Outlook for NVIDIA (NVDA)\n\n#### Analyst Recommendations\n\nThe current
-      consensus among analysts for NVIDIA is highly favorable:\n\n| Recommendation    |
-      Number of Analysts |\n|-------------------|-------------------|\n| Strong Buy        |
-      10                |\n| Buy               | 48                |\n| Hold              |
-      4                 |\n| Sell              | 1                 |\n| Strong Sell       |
-      0                 |\n\n*This data reflects the recommendations over the past
-      month, indicating strong support for buying NVIDIA shares, with a significant
-      number suggesting strong buy positions.*\n\n#### Recent Trends\n\nRecent news
-      highlights several key issues affecting NVIDIA:\n\n1. **Nvidia stock dips as
-      China reportedly tells its companies to avoid buying chips**  \n   - Published
-      on: 2025-09-17  \n   - Summary: NVIDIA''s stock decreased by 3% following reports
-      that China has advised its companies to refrain from purchasing specific AI
-      chips from NVIDIA.  \n   - [Read more](https://finance.yahoo.com/news/nvidia-stock-dips-as-china-reportedly-tells-its-companies-to-avoid-buying-chips-153429193.html)\n\n2.
-      **Stock market today: Dow, S&P 500, Nasdaq futures rise after Fed lowers rates,
-      signals more cuts ahead**  \n   - Summary: U.S. stock futures rose after the
-      Federal Reserve cut interest rates, potentially benefitting tech stocks like
-      NVIDIA.  \n   - [Read more](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-futures-rise-after-fed-lowers-rates-signals-more-cuts-ahead-231448085.html)\n\n3.
-      **China bans Nvidia chip purchases for tech companies**  \n   - Summary: Contentious
-      trade relations are being highlighted as China instructs its major tech firms
-      to stop buying NVIDIA chips amid ongoing trade negotiations.  \n   - [Read more](https://finance.yahoo.com/video/china-bans-nvidia-chip-purchases-140918459.html)\n\n4.
-      **General Mills, Workday, Nvidia, Baidu: Trending Stocks**  \n   - Summary:
-      NVIDIA remains a focus among trending stocks, reflecting its ongoing relevance
-      in the broader tech market landscape.  \n   - [Read more](https://finance.yahoo.com/video/general-mills-workday-nvidia-baidu-131440496.html)\n\n####
-      Conclusion\n\nNVIDIA continues to show strong buy recommendations from analysts,
-      though recent news regarding China''s chip purchase restrictions poses a potential
-      challenge. Investors are closely watching both the overarching economic indicators
-      from the Federal Reserve and geopolitical developments that could impact NVIDIA''s
-      market position.","tool_call_id":"call_Dnddimpt9bJhbdNseOFEXlJ2"},{"role":"tool","content":"Here
-      is the latest financial performance data for NVIDIA (NVDA), including key financial
-      ratios, income statements, and historical stock prices.\n\n### Key Financial
-      Ratios\n\n| Ratio                          | Value          |\n|--------------------------------|----------------|\n|
-      Market Capitalization          | $4,146,050,629,632 |\n| P/E Ratio (TTM)               |
-      48.38          |\n| Forward P/E                    | 41.33          |\n| Dividend
-      Yield                 | 0.02%          |\n| Trailing PEG Ratio             |
-      1.30           |\n| Return on Assets (ROA)        | 53.09%         |\n| Return
-      on Equity (ROE)        | 109.42%        |\n| Profit Margin                  |
-      52.41%         |\n| Debt to Equity                 | 10.58          |\n| Current
-      Ratio                  | 4.21           |\n| Quick Ratio                    |
-      3.49           |\n| Gross Margin                   | 69.85%         |\n| Operating
-      Margin                | 60.84%         |\n| EBITDA Margin                   |
-      59.49%         |\n\n---\n\n### Income Statement (Recent Quarters)\n\n| Metric                          |
-      Q2 2023           | Q1 2023           | Q4 2022           | Q3 2022           |\n|--------------------------------|-------------------|-------------------|-------------------|-------------------|\n|
-      Total Revenue                  | $13,049,700,000   | $6,092,200,000    | $2,697,400,000    |
-      $2,691,400,000    |\n| Cost of Revenue                | $32,639,000,000   |
-      $16,621,000,000   | $11,618,000,000   | $9,439,000,000    |\n| Gross Profit                   |
-      $97,858,000,000   | $44,301,000,000   | $15,356,000,000   | $17,475,000,000   |\n|
-      Operating Income                | $81,453,000,000   | $32,972,000,000   | $5,577,000,000    |
-      $10,041,000,000   |\n| Net Income                     | $72,880,000,000   |
-      $29,760,000,000   | $4,368,000,000    | $9,752,000,000    |\n| Diluted EPS                    |
-      $2.94             | $1.19             | $0.17             | $0.39             |\n|
-      Basic EPS                      | $2.97             | $1.21             | $0.18             |
-      $0.39             |\n\n---\n\n### Historical Stock Prices (Last 30 Days)\n\n|
-      Date          | Open      | High      | Low       | Close     | Volume       |\n|---------------|-----------|-----------|-----------|-----------|--------------|\n|
-      2023-10-05    | 172.58    | 173.20    | 168.41    | 170.29    | 210,594,769  |\n|
-      2023-10-04    | 177.25    | 178.85    | 175.67    | 177.75    | 147,061,600  |\n|
-      2023-10-03    | 175.67    | 178.85    | 174.51    | 177.66    | 140,737,800  |\n|
-      2023-10-02    | 179.67    | 180.28    | 176.48    | 177.17    | 151,159,300  |\n|
-      2023-09-29    | 176.63    | 179.28    | 175.46    | 177.32    | 226,852,000  |\n|
-      2023-09-28    | 169.99    | 172.37    | 167.21    | 170.77    | 231,164,900  |\n|
-      2023-09-27    | 171.05    | 172.40    | 168.87    | 170.61    | 164,424,900  |\n|
-      2023-09-26    | 170.56    | 171.85    | 169.40    | 171.65    | 141,670,100  |\n|
-      2023-09-25    | 168.02    | 169.02    | 164.06    | 167.01    | 224,441,400  |\n|
-      2023-09-22    | 167.54    | 170.95    | 167.34    | 168.30    | 163,769,100  |\n\nThis
-      table reflects data for October 2023, showcasing NVIDIA''s strong financial
-      performance in the semiconductor industry.","tool_call_id":"call_gwQupolFpLjLVm1Ga0KpxFXl"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"delegate_task_to_member","description":"Use
-      this function to delegate a task to the selected team member.\nYou must provide
-      a clear and concise description of the task the member should achieve AND the
-      expected output.","parameters":{"type":"object","properties":{"member_id":{"type":"string","description":"(str)
-      The ID of the member to delegate the task to. Use only the ID of the member,
-      not the ID of the team followed by the ID of the member."},"task_description":{"type":"string","description":"(str)
-      A clear and concise description of the task the member should achieve."},"expected_output":{"type":"string","description":"(str)
-      The expected output from the member (optional)."}},"required":["member_id","task_description"],"additionalProperties":false}}}]}'
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      analyst recommendations and market outlook for NVIDIA."}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
     headers:
       accept:
       - application/json
@@ -1343,7 +660,7 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '9838'
+      - '4028'
       content-type:
       - application/json
       host:
@@ -1351,7 +668,7 @@ interactions:
       user-agent:
       - OpenAI/Python 1.108.0
       x-stainless-arch:
-      - arm64
+      - x64
       x-stainless-async:
       - 'false'
       x-stainless-lang:
@@ -1367,60 +684,25 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.13.5
+      - 3.11.9
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
       string: !!binary |
-        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
+        MVQVACD/r6l3L6f//lmbiYncOtbkIRIlzAq2e/6vCSgn9osuVo2zaLsqWxU13hvtTYff5gOdYFmk
+        KG5Rb7wdl5eP+5sBoGqQAoqOJ2GDKbbvjh+eyP5EHpB+e765Ve+J7v60Uq679ATzDAB9vZYiUXIb
+        RQySyjsUXHM5TTZIYbIoJ2Q5m5QT4KHWN9IgBWxDKua+sMqpYjqezovxopgsOVA7r4SMSOE5AwD4
+        fesDwDHw55DCOP+LS2REkCLeCAB7byRSQB6jiom7hDmCrAk7TwpuMAa4KXlvmODGCIc3+++3zMF+
+        yo1h58du+/3w65F09WdzuL6rv1V73Cz2ZEL2ge+gFCmNoYpDYG5UYBkAOm7ps61MrEewmZhYaF6L
+        J+VdZJkBQO+vRwr4+4LtB1z5ghRe8OxuZ/MF/5HO/s/F8b/pdIC/5dX9XR+915fVmbnWu8IcvleP
+        8mxYTr3wNnD3zZz8tPol5/CCbrAsJt8rGV+QAnEJArW/BhTZ5AW04CYEyaIuONlXMuKe26Hxbeh9
+        Hck5bA3Qxnpe24g0LHKZ9wA1GnEI7jsx9N6GxJLXUnCSVFOJNoyScgx2echm0EBGOa0k45wnxxow
+        tMfY5YWCi042QmVRcZUPjfJAQIXCkoZGmvyhG0ysXHvJgBIhZEiyYU1gKq2WoTLr5VoKLosEIPDz
+        2G6jmCUle6SAOQ1EoH3HJC1bKdfKPvQqMdkDV4GRcsxXpSSkwuw/MwAD
     headers:
       CF-RAY:
-      - 980cf3642affff0d-PDX
+      - 9953a0ff0f8b49d5-HYD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -1428,14 +710,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:08:36 GMT
+      - Mon, 27 Oct 2025 16:39:24 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=hPRdnuvdniBdUfUMn12hflrmxaTfZtvDmtCtqjh7wzA-1758157716-1.0.1.1-hT6SJ4TP8NKV9F_CDjR5Il1XsLAF_qOzALZG_asIfcSj.FlAIMtTS2qaE_gPXEpYHBhhVmSWFrDNr0f46FFiHUEP6gF9pIlsmLOlfJvYTuo;
-        path=/; expires=Thu, 18-Sep-25 01:38:36 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=0Tx1foIthRrhgC4jYJPXNkK7DXEbmgoA59UxFvyzwYE-1761583164-1.0.1.1-kb3U5hjdN2qhO3AwiUyufhlY.sny7MNpa4cwhgBhNt.57SCkedzuX91cZvF5FBG9A8zuGT21Aaol9arN77DhQHXaP.HeE7xWbvhfGYJAEZQ;
+        path=/; expires=Mon, 27-Oct-25 17:09:24 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=LFo54WXIe8gT2JnTxmvc4Tj8x_3GGKjP_YXa8ZDQYH4-1758157716057-0.0.1.1-604800000;
+      - _cfuvid=RX6i.aEPlZsxqyVGxQWuSCWtq8dxjoNKhXEIYAULntA-1761583164395-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -1452,34 +734,629 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '24217'
+      - '3061'
       openai-project:
-      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '24231'
+      - '3269'
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
-      - '30000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '150000000'
+      - '200000'
       x-ratelimit-remaining-requests:
-      - '29999'
+      - '9998'
       x-ratelimit-remaining-tokens:
-      - '149998035'
+      - '199957'
       x-ratelimit-reset-requests:
-      - 2ms
+      - 11.284s
       x-ratelimit-reset-tokens:
-      - 0s
+      - 12ms
       x-request-id:
-      - req_4a56e58384224a80a762f140fa922020
+      - req_663984f1ee8c4e99aefb91f28d364555
     status:
       code: 200
       message: OK
 - request:
-    body: '{"session_id":"test_session","run_id":"cc6c820f-e809-4fad-82b2-83d8373797d0","data":{"team_id":"team","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"member_count":2,"has_knowledge":false,"has_tools":false},"sdk_version":"2.0.5","type":"team"}'
+    body: '{"messages":[{"role":"developer","content":"<your_role>\nGet financial
+      data\n</your_role>\n\n<instructions>\nUse tables to display data\n</instructions>"},{"role":"user","content":"Get
+      analyst recommendations and market outlook for NVIDIA."},{"role":"assistant","tool_calls":[{"id":"call_OKnCqIxY5hbwdIjVbyigKd7F","function":{"arguments":"{\"symbol\":
+      \"NVDA\"}","name":"get_analyst_recommendations"},"type":"function"},{"id":"call_RWVrsookQ9NlSkEclIq9YeNu","function":{"arguments":"{\"symbol\":
+      \"NVDA\", \"num_stories\": 5}","name":"get_company_news"},"type":"function"}],"content":""},{"role":"tool","content":"{\"0\":{\"period\":\"0m\",\"strongBuy\":10,\"buy\":49,\"hold\":4,\"sell\":1,\"strongSell\":0},\"1\":{\"period\":\"-1m\",\"strongBuy\":11,\"buy\":48,\"hold\":4,\"sell\":1,\"strongSell\":0},\"2\":{\"period\":\"-2m\",\"strongBuy\":11,\"buy\":47,\"hold\":6,\"sell\":1,\"strongSell\":0},\"3\":{\"period\":\"-3m\",\"strongBuy\":11,\"buy\":48,\"hold\":6,\"sell\":1,\"strongSell\":0}}","tool_call_id":"call_OKnCqIxY5hbwdIjVbyigKd7F"},{"role":"tool","content":"[\n  {\n    \"id\":
+      \"5c0dff72-e835-48ac-bfe9-0e62e2647010\",\n    \"content\": {\n      \"id\":
+      \"5c0dff72-e835-48ac-bfe9-0e62e2647010\",\n      \"contentType\": \"STORY\",\n      \"title\":
+      \"Stock market today: Dow, S&P 500, Nasdaq head toward records as Trump stokes
+      hopes US-China trade deal is near\",\n      \"description\": \"\",\n      \"summary\":
+      \"Wall Street is in an upbeat mood as it gears up for a pivotal week featuring
+      the Federal Reserve\\u2019s expected interest rate cut and a barrage of Big
+      Tech earnings, as well as Trump''s visit to Asia.\",\n      \"pubDate\": \"2025-10-26T22:50:50Z\",\n      \"displayTime\":
+      \"2025-10-27T16:35:38Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
+      false,\n      \"previewUrl\": null,\n      \"thumbnail\": {\n        \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n        \"originalWidth\":
+      2410,\n        \"originalHeight\": 1890,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/FjX1ZPUWO0LP5zf_16X8rg--~B/aD0xODkwO3c9MjQxMDthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n            \"width\":
+      2410,\n            \"height\": 1890,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/5wq4teZMjAHBfXXW0QIVkA--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Yahoo Finance\",\n        \"url\": \"http://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
+      \"bafedcde-1688-3134-a50c-56d94202d1d8\",\n              \"contentType\": \"VIDEO\",\n              \"isHosted\":
+      true,\n              \"title\": \"Big Tech earnings: The 3 things Wall Street
+      will be listening for\",\n              \"thumbnail\": {\n                \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/f1cdc750-b33c-11f0-bfd7-93882954981f\",\n                \"originalWidth\":
+      3218,\n                \"originalHeight\": 1808,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance Video\",\n                \"sourceId\":
+      \"video.yahoofinance.com\"\n              },\n              \"previewUrl\":
+      null,\n              \"providerContentUrl\": \"\",\n              \"canonicalUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/video/big-tech-earnings-3-things-143000573.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/video/big-tech-earnings-3-things-143000573.html\"\n              }\n            }\n          },\n          {\n            \"content\":
+      {\n              \"id\": \"7d90ebf9-7d8d-496f-9169-69ff7246812a\",\n              \"contentType\":
+      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Qualcomm
+      stock spikes more than 20% as company enters AI chip race, taking on Nvidia,
+      AMD\",\n              \"thumbnail\": {\n                \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591\",\n                \"originalWidth\":
+      1000,\n                \"originalHeight\": 820,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
+      \"a33c5dc0-c9e5-35ac-a6b8-f60a3e88d1be\",\n    \"content\": {\n      \"id\":
+      \"a33c5dc0-c9e5-35ac-a6b8-f60a3e88d1be\",\n      \"contentType\": \"VIDEO\",\n      \"title\":
+      \"Are the Magnificent Seven as speculative as meme stocks?\",\n      \"description\":
+      \"<p>Beyond Meat (<a data-i13n=\\\"cpos:1;pos:1\\\" href=\\\"https://finance.yahoo.com/quote/BYND\\\">BYND</a>)
+      <a data-i13n=\\\"cpos:2;pos:1\\\" href=\\\"https://finance.yahoo.com/news/why-beyond-meat-stock-is-up-about-600-in-3-days-093158667.html\\\">rallied
+      by 1,300%</a> over the course of several sessions last week, igniting a new
+      <a data-i13n=\\\"cpos:3;pos:1\\\" href=\\\"https://finance.yahoo.com/video/roundhill-relaunches-meme-stock-etf-152455008.html\\\">meme
+      stock trading</a> frenzy. Northwestern Mutual Wealth Management chief portfolio
+      manager, equities Matt Stucky sits down with Morning Brief host <a data-i13n=\\\"cpos:4;pos:1\\\"
+      href=\\\"https://www.yahoo.com/author/julie-hyman/?.tsrc=fin-srch\\\">Julie
+      Hyman</a> to share his perspective on trading meme stocks and what same themes
+      he could see materializing in the Magnificent Seven.</p>\\n<p>To watch more
+      expert insights and analysis on the latest market action, check out more\\u00a0<a
+      data-i13n=\\\"cpos:5;pos:1\\\" href=\\\"https://finance.yahoo.com/videos/series/morning-brief/\\\">Morning
+      Brief</a>.</p>\",\n      \"summary\": \"Beyond Meat (BYND) rallied by 1,300%
+      over the course of several sessions last week, igniting a new meme stock trading
+      frenzy. Northwestern Mutual Wealth Management chief portfolio manager, equities
+      Matt Stucky sits down with Morning Brief host Julie Hyman to share his perspective
+      on trading meme stocks and what same themes he could see materializing in the
+      Magnificent Seven. To watch more expert insights and analysis on the latest
+      market action, check out more&nbsp;Morning Brief.\",\n      \"pubDate\": \"2025-10-27T10:00:02Z\",\n      \"displayTime\":
+      \"\",\n      \"isHosted\": true,\n      \"bypassModal\": false,\n      \"previewUrl\":
+      null,\n      \"thumbnail\": {\n        \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n        \"originalWidth\":
+      7039,\n        \"originalHeight\": 3963,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/TalN8V5ASG9grsBwryyQ5g--~B/aD0zOTYzO3c9NzAzOTthcHBpZD15dGFjaHlvbg--/https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n            \"width\":
+      7039,\n            \"height\": 3963,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/1BJQslt8wIait2cSBy4L3w--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://s.yimg.com/os/creatr-uploaded-images/2025-10/2c24de20-af55-11f0-afd5-33a483240e60\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Yahoo Finance Video\",\n        \"url\": \"https://finance.yahoo.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/video/magnificent-seven-speculative-meme-stocks-100002713.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/video/magnificent-seven-speculative-meme-stocks-100002713.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": true\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      {\n        \"storylineItems\": [\n          {\n            \"content\": {\n              \"id\":
+      \"3f8f9e8b-b6bd-41c0-8fca-538632a9e324\",\n              \"contentType\": \"STORY\",\n              \"isHosted\":
+      true,\n              \"title\": \"''This fight is far from over'': Intel\\u2019s
+      key business is nowhere near a turnaround\",\n              \"thumbnail\": {\n                \"originalUrl\":
+      \"https://s.yimg.com/os/creatr-uploaded-images/2024-03/a1d476c0-dcf8-11ee-bffe-5bbd8a146cd3\",\n                \"originalWidth\":
+      5500,\n                \"originalHeight\": 3667,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/this-fight-is-far-from-over-intels-key-business-is-nowhere-near-a-turnaround-143041684.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/this-fight-is-far-from-over-intels-key-business-is-nowhere-near-a-turnaround-143041684.html\"\n              }\n            }\n          },\n          {\n            \"content\":
+      {\n              \"id\": \"89370013-225f-4d95-8c67-730012fb3747\",\n              \"contentType\":
+      \"STORY\",\n              \"isHosted\": true,\n              \"title\": \"Bitcoin
+      ''just doesn''t cut it anymore'': Miners'' pivot to AI sends stocks soaring\",\n              \"thumbnail\":
+      {\n                \"originalUrl\": \"https://s.yimg.com/os/creatr-uploaded-images/2021-04/5af69a20-a8e5-11eb-bf7f-5f2e9fe992ce\",\n                \"originalWidth\":
+      3931,\n                \"originalHeight\": 2502,\n                \"caption\":
+      \"\",\n                \"resolutions\": null\n              },\n              \"provider\":
+      {\n                \"displayName\": \"Yahoo Finance\",\n                \"sourceId\":
+      \"yahoofinance.com\"\n              },\n              \"previewUrl\": null,\n              \"providerContentUrl\":
+      \"\",\n              \"canonicalUrl\": {\n                \"url\": \"https://finance.yahoo.com/news/bitcoin-just-doesnt-cut-it-anymore-miners-pivot-to-ai-sends-stocks-soaring-150018229.html\"\n              },\n              \"clickThroughUrl\":
+      {\n                \"url\": \"https://finance.yahoo.com/news/bitcoin-just-doesnt-cut-it-anymore-miners-pivot-to-ai-sends-stocks-soaring-150018229.html\"\n              }\n            }\n          }\n        ]\n      }\n    }\n  },\n  {\n    \"id\":
+      \"98b01261-7ecc-361f-b6ca-b6d1bf6d137b\",\n    \"content\": {\n      \"id\":
+      \"98b01261-7ecc-361f-b6ca-b6d1bf6d137b\",\n      \"contentType\": \"STORY\",\n      \"title\":
+      \"US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal\",\n      \"description\":
+      \"\",\n      \"summary\": \"US equity indexes rose in midday trading, breaking
+      records, amid expectations of a trade deal with C\",\n      \"pubDate\": \"2025-10-27T16:31:07Z\",\n      \"displayTime\":
+      \"2025-10-27T16:31:07Z\",\n      \"isHosted\": true,\n      \"bypassModal\":
+      false,\n      \"previewUrl\": null,\n      \"thumbnail\": null,\n      \"provider\":
+      {\n        \"displayName\": \"MT Newswires\",\n        \"url\": \"https://www.mtnewswires.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": false\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": true,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      null\n    }\n  },\n  {\n    \"id\": \"e0aba664-f989-3fab-8463-a9de0ce61e65\",\n    \"content\":
+      {\n      \"id\": \"e0aba664-f989-3fab-8463-a9de0ce61e65\",\n      \"contentType\":
+      \"STORY\",\n      \"title\": \"The ''Debasement Trade'' Just Hit A Wall\\u2014And
+      The Bond Market Knows Something Gold Bugs Don''t\",\n      \"description\":
+      \"\",\n      \"summary\": \"The narrative sounded perfect: gold soaring past
+      records, Bitcoin rallying, stocks climbing relentlessly\\u2014all signs that
+      investors were fleeing the dollar in a panic over U.S. currency debasement.
+      But if you check what\\u2019s actually happening in the bond ...\",\n      \"pubDate\":
+      \"2025-10-27T16:31:03Z\",\n      \"displayTime\": \"2025-10-27T16:31:03Z\",\n      \"isHosted\":
+      true,\n      \"bypassModal\": false,\n      \"previewUrl\": null,\n      \"thumbnail\":
+      {\n        \"originalUrl\": \"https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n        \"originalWidth\":
+      677,\n        \"originalHeight\": 451,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/On.9nT9cb3geH0tDkNJmwg--~B/aD00NTE7dz02Nzc7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n            \"width\":
+      677,\n            \"height\": 451,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/ec288vcI2mbQQSeNYw917g--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/benzinga_79/3112d09d344f767b665887ca547cdd1b\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Benzinga\",\n        \"url\": \"https://www.benzinga.com/\"\n      },\n      \"canonicalUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      {\n        \"url\": \"https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"metadata\":
+      {\n        \"editorsPick\": false\n      },\n      \"finance\": {\n        \"premiumFinance\":
+      {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\": false\n        }\n      },\n      \"storyline\":
+      null\n    }\n  },\n  {\n    \"id\": \"8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7\",\n    \"content\":
+      {\n      \"id\": \"8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7\",\n      \"contentType\":
+      \"STORY\",\n      \"title\": \"Stock Market Today: Dow Up On U.S.-China Trade
+      Hopes; These Stocks Clear Entries (Live Coverage)\",\n      \"description\":
+      \"\",\n      \"summary\": \"The Dow Jones index popped on U.S.-China trade optimism.
+      Nvidia stock and Tesla rallied. Rare earth stocks fell on the stock market today.\",\n      \"pubDate\":
+      \"2025-10-27T16:21:22Z\",\n      \"displayTime\": \"2025-10-27T16:21:22Z\",\n      \"isHosted\":
+      false,\n      \"bypassModal\": false,\n      \"previewUrl\": \"https://finance.yahoo.com/m/8c0f2a09-f3a2-3a4b-aafd-c139836fa0b7/stock-market-today-dow-up-on.html\",\n      \"thumbnail\":
+      {\n        \"originalUrl\": \"https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n        \"originalWidth\":
+      1000,\n        \"originalHeight\": 563,\n        \"caption\": \"\",\n        \"resolutions\":
+      [\n          {\n            \"url\": \"https://s.yimg.com/uu/api/res/1.2/kLH0WqvtacfrdK6JDvvATA--~B/aD01NjM7dz0xMDAwO2FwcGlkPXl0YWNoeW9u/https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n            \"width\":
+      1000,\n            \"height\": 563,\n            \"tag\": \"original\"\n          },\n          {\n            \"url\":
+      \"https://s.yimg.com/uu/api/res/1.2/.1S9aR6n3KxuBD3jyvuEew--~B/Zmk9c3RyaW07aD0xMjg7dz0xNzA7YXBwaWQ9eXRhY2h5b24-/https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d\",\n            \"width\":
+      170,\n            \"height\": 128,\n            \"tag\": \"170x128\"\n          }\n        ]\n      },\n      \"provider\":
+      {\n        \"displayName\": \"Investor''s Business Daily\",\n        \"url\":
+      \"http://www.investors.com/\"\n      },\n      \"canonicalUrl\": {\n        \"url\":
+      \"https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo\",\n        \"site\":
+      \"finance\",\n        \"region\": \"US\",\n        \"lang\": \"en-US\"\n      },\n      \"clickThroughUrl\":
+      null,\n      \"metadata\": {\n        \"editorsPick\": false\n      },\n      \"finance\":
+      {\n        \"premiumFinance\": {\n          \"isPremiumNews\": false,\n          \"isPremiumFreeNews\":
+      false\n        }\n      },\n      \"storyline\": null\n    }\n  }\n]","tool_call_id":"call_RWVrsookQ9NlSkEclIq9YeNu"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"get_current_stock_price","description":"Use
+      this function to get the current stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_info","description":"Use
+      this function to get company information and overview for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_stock_fundamentals","description":"Use
+      this function to get fundamental data for a given stock symbol yfinance API.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_income_statements","description":"Use
+      this function to get income statements for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_key_financial_ratios","description":"Use
+      this function to get key financial ratios for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_analyst_recommendations","description":"Use
+      this function to get analyst recommendations for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_company_news","description":"Use
+      this function to get company news and press releases for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"num_stories":{"type":"number","description":"(int) The
+      number of news stories to return. Defaults to 3."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_technical_indicators","description":"Use
+      this function to get technical indicators for a given stock symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The time
+      period for which to retrieve technical indicators.\nValid periods: 1d, 5d, 1mo,
+      3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max. Defaults to 3mo."}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"get_historical_stock_prices","description":"Use
+      this function to get the historical stock price for a given symbol.","parameters":{"type":"object","properties":{"symbol":{"type":"string","description":"(str)
+      The stock symbol."},"period":{"type":"string","description":"(str) The period
+      for which to retrieve historical prices. Defaults to \"1mo\".\nValid periods:
+      1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max"},"interval":{"type":"string","description":"(str)
+      The interval between data points. Defaults to \"1d\".\nValid intervals: 1d,5d,1wk,1mo,3mo"}},"required":["symbol"]},"requires_confirmation":false,"external_execution":false}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '23213'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        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
+        USm5W4FIZXpkAAM=
+    headers:
+      CF-RAY:
+      - 9953a11b89c7ac91-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=nOmVF._yxLPz.1mK2.jeQKupqiViDGSmCuFLnwU2KQA-1761583186-1.0.1.1-4YDkoW2N3IfZzF4VQJ7dycX4xNsrN7QMSuzAoEO73cVBBfw4Ab9S6uMIt1NfOGh9Z4GdtaarVKNum4mKXiY1ZmoyGPkRzg3G2HFNaI501ik;
+        path=/; expires=Mon, 27-Oct-25 17:09:46 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=T7arOyhUCKnzLuUfTH01zC5FLljGH8yT_JfbaZtG28U-1761583186842-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '21758'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '21772'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9998'
+      x-ratelimit-remaining-tokens:
+      - '195632'
+      x-ratelimit-reset-requests:
+      - 16.118s
+      x-ratelimit-reset-tokens:
+      - 1.31s
+      x-request-id:
+      - req_80a23055f42c490f823011e02c940a24
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"9533f95c-68b7-4530-8e5a-2ef3954ed0c7","data":{"agent_id":"finance-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":true},"sdk_version":"2.2.1","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '449'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.1
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: 9533f95c-68b7-4530-8e5a-2ef3954ed0c7","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:39:48 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+- request:
+    body: "{\"messages\":[{\"role\":\"developer\",\"content\":\"You are the leader
+      of a team and sub-teams of AI Agents.\\nYour task is to coordinate the team
+      to complete the user's request.\\n\\nHere are the members in your team:\\n<team_members>\\n
+      - Agent 1:\\n   - ID: web-agent\\n   - Name: Web Agent\\n   - Role: Search the
+      web for information\\n   - Member tools:\\n    - duckduckgo_search\\n    - duckduckgo_news\\n
+      - Agent 2:\\n   - ID: finance-agent\\n   - Name: Finance Agent\\n   - Role:
+      Get financial data\\n   - Member tools:\\n    - get_current_stock_price\\n    -
+      get_company_info\\n    - get_stock_fundamentals\\n    - get_income_statements\\n
+      \   - get_key_financial_ratios\\n    - get_analyst_recommendations\\n    - get_company_news\\n
+      \   - get_technical_indicators\\n    - get_historical_stock_prices\\n</team_members>\\n\\n<how_to_respond>\\n-
+      Your role is to delegate tasks to members in your team with the highest likelihood
+      of completing the user's request.\\n- Carefully analyze the tools available
+      to the members and their roles before delegating tasks.\\n- You cannot use a
+      member tool directly. You can only delegate tasks to members.\\n- When you delegate
+      a task to another member, make sure to include:\\n  - member_id (str): The ID
+      of the member to delegate the task to. Use only the ID of the member, not the
+      ID of the team followed by the ID of the member.\\n  - task (str): A clear description
+      of the task. Determine the best way to describe the task to the member.\\n-
+      You can delegate tasks to multiple members at once.\\n- You must always analyze
+      the responses from members before responding to the user.\\n- After analyzing
+      the responses from the members, if you feel the task has been completed, you
+      can stop and respond to the user.\\n- If you are NOT satisfied with the responses
+      from the members, you should re-assign the task to a different member.\\n- For
+      simple greetings, thanks, or questions about the team itself, you should respond
+      directly.\\n- For all work requests, tasks, or questions requiring expertise,
+      route to appropriate team members.\\n</how_to_respond>\\n\\n<instructions>\\n-
+      Always include sources\\n- Use tables to display data\\n</instructions>\"},{\"role\":\"user\",\"content\":\"What's
+      the market outlook and financial performance of NVIDIA?\"},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_gkmMloRMKIk0W0w1MtZdTGdd\",\"function\":{\"arguments\":\"{\\\"member_id\\\":
+      \\\"finance-agent\\\", \\\"task\\\": \\\"Get financial performance data for
+      NVIDIA, including income statements and key financial ratios.\\\"}\",\"name\":\"delegate_task_to_member\"},\"type\":\"function\"},{\"id\":\"call_aMqmhJodbC4PRS0JXbxvaw1j\",\"function\":{\"arguments\":\"{\\\"member_id\\\":
+      \\\"finance-agent\\\", \\\"task\\\": \\\"Get analyst recommendations and market
+      outlook for NVIDIA.\\\"}\",\"name\":\"delegate_task_to_member\"},\"type\":\"function\"}],\"content\":\"\"},{\"role\":\"tool\",\"content\":\"###
+      NVIDIA Income Statement Data\\n\\n| Year                  | 2023                      |
+      2022                      | 2021                     | 2020                     |\\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\\n|
+      Total Revenue         | $130.50 billion           | $60.92 billion            |
+      $26.97 billion           | $26.91 billion           |\\n| Cost of Revenue       |
+      $32.64 billion            | $16.62 billion            | $11.62 billion           |
+      $9.44 billion            |\\n| Gross Profit          | $97.86 billion            |
+      $44.30 billion            | $15.36 billion           | $17.48 billion           |\\n|
+      Operating Income       | $81.45 billion            | $32.97 billion            |
+      $5.58 billion            | $10.04 billion           |\\n| Net Income            |
+      $72.88 billion            | $29.76 billion            | $4.36 billion            |
+      $9.75 billion            |\\n| Diluted EPS           | $2.94                     |
+      $1.19                     | $0.17                    | $0.39                    |\\n\\n###
+      NVIDIA Key Financial Ratios\\n\\n| Ratio                              | Value
+      \         |\\n|-------------------------------------|----------------|\\n| Price
+      to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings (Forward
+      PE)     | 46.32          |\\n| Price to Book                       | 46.40          |\\n|
+      Profit Margin                       | 52.41%         |\\n| Gross Margin                        |
+      69.85%         |\\n| Operating Margin                    | 60.84%         |\\n|
+      EBITDA Margin                       | 59.49%         |\\n| Return on Assets
+      (ROA)             | 53.09%         |\\n| Return on Equity (ROE)             |
+      109.41%        |\\n| Debt to Equity                      | 10.58          |\\n|
+      Current Ratio                       | 4.21           |\\n| Quick Ratio                         |
+      3.49           |\\n| Free Cash Flow                      | $52.44 billion  |\\n\\n###
+      Summary\\nNVIDIA has shown significant growth in revenue and net income over
+      the past few years, reflecting its strong position in the semiconductor market.
+      The key financial ratios suggest robust profitability and efficient use of equity.\",\"tool_call_id\":\"call_gkmMloRMKIk0W0w1MtZdTGdd\"},{\"role\":\"tool\",\"content\":\"###
+      Analyst Recommendations for NVIDIA (NVDA)\\n\\nHere is the summary of analyst
+      recommendations over the last few months:\\n\\n| Recommendation     | Current
+      Month | Last Month | 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\n|
+      Strong Buy         | 10            | 11         | 11           | 11           |\\n|
+      Buy                | 49            | 48         | 47           | 48           |\\n|
+      Hold               | 4             | 4          | 6            | 6            |\\n|
+      Sell               | 1             | 1          | 1            | 1            |\\n|
+      Strong Sell        | 0             | 0          | 0            | 0            |\\n\\n###
+      Recent Market Outlook and News for NVIDIA\\n\\nHere are some recent news articles
+      that might reflect the current market outlook:\\n\\n1. **[Stock market today:
+      Dow, S&P 500, Nasdaq head toward records as Trump stokes hopes US-China trade
+      deal is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**
+      \\n   - Published on: **October 26, 2025**\\n   - Summary: Wall Street is in
+      an upbeat mood as it gears up for a pivotal week featuring the Federal Reserve\u2019s
+      expected interest rate cut and a barrage of Big Tech earnings, as well as Trump's
+      visit to Asia.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\\n\\n2.
+      **[Qualcomm stock spikes more than 20% as company enters AI chip race, taking
+      on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\\n
+      \  - Published on: **October 26, 2025**\\n   - Summary: Qualcomm has seen a
+      significant rise in stock value as it enters the competitive AI chip market,
+      directly competing with NVIDIA and AMD.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\\n\\n3.
+      **[US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: US equity indexes rose
+      in midday trading, breaking records, amid expectations of a trade deal with
+      China.\\n   \\n4. **[The 'Debasement Trade' Just Hit A Wall\u2014And The Bond
+      Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: Investors are reassessing
+      the conditions in gold and Bitcoin as the bond market signals shifts in the
+      economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes; These
+      Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: The Dow Jones index
+      rose on U.S.-China trade optimism, leading to a rally in stocks like NVIDIA
+      and Tesla.\\n   - ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\\n\\nThis
+      information suggests a strong optimistic sentiment among analysts regarding
+      NVIDIA, alongside notable market developments that could impact its stock performance.\",\"tool_call_id\":\"call_aMqmhJodbC4PRS0JXbxvaw1j\"}],\"model\":\"gpt-4o-mini\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_task_to_member\",\"description\":\"Use
+      this function to delegate a task to the selected team member.\\nYou must provide
+      a clear and concise description of the task the member should achieve AND the
+      expected output.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"member_id\":{\"type\":\"string\",\"description\":\"(str)
+      The ID of the member to delegate the task to. Use only the ID of the member,
+      not the ID of the team followed by the ID of the member.\"},\"task\":{\"type\":\"string\",\"description\":\"(str)
+      A clear and concise description of the task the member should achieve.\"}},\"required\":[\"member_id\",\"task\"],\"additionalProperties\":false}}}]}"
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '9306'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.108.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.108.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.9
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-RAY:
+      - 9953a1b0cd47162a-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 27 Oct 2025 16:40:17 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=MDS68iYHJ_V7IXaq3JdWyvF_M5kefTGUWtBt9vFGlAU-1761583217-1.0.1.1-komAdoAKDa7z2xZOGoEIVz4HLWLNfc5kC8oky4TK7vWxX0jsne7kzc2uSbKQN3jGgximKWSFziK9916kDVBUGXR_wQ8OPbgidYbX4Xun7_I;
+        path=/; expires=Mon, 27-Oct-25 17:10:17 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=ITIZRLbn3nViRp_ZFtxpCvY3pmYdhexb3lz6AgWyEoQ-1761583217535-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '28536'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '28566'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '200000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '198064'
+      x-ratelimit-reset-requests:
+      - 8.64s
+      x-ratelimit-reset-tokens:
+      - 580ms
+      x-request-id:
+      - req_82df88d3c32e45e787eb4872875fb919
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"576bdbd1-a330-4ec3-ae78-0d12b49de0aa","data":{"team_id":"team","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"member_count":2,"has_knowledge":false,"has_tools":false},"sdk_version":"2.2.1","type":"team"}'
     headers:
       accept:
       - '*/*'
@@ -1494,12 +1371,12 @@ interactions:
       host:
       - os-api.agno.com
       user-agent:
-      - agno/2.0.5
+      - agno/2.2.1
     method: POST
     uri: https://os-api.agno.com/telemetry/runs
   response:
     body:
-      string: '{"message":"Run creation acknowledged: cc6c820f-e809-4fad-82b2-83d8373797d0","status":"success"}'
+      string: '{"message":"Run creation acknowledged: 576bdbd1-a330-4ec3-ae78-0d12b49de0aa","status":"success"}'
     headers:
       Connection:
       - keep-alive
@@ -1508,7 +1385,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Thu, 18 Sep 2025 01:08:36 GMT
+      - Mon, 27 Oct 2025 16:40:18 GMT
       server:
       - uvicorn
     status:
