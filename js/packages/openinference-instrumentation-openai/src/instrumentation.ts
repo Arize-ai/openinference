@@ -1,4 +1,28 @@
-import openai, { APIPromise } from "openai";
+import {
+  OITracer,
+  safelyJSONStringify,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
+import {
+  LLMProvider,
+  LLMSystem,
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import {
+  Attributes,
+  context,
+  diag,
+  Span,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  Tracer,
+  TracerProvider,
+} from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -6,25 +30,22 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
+
 import {
-  diag,
-  context,
-  trace,
-  SpanKind,
-  Attributes,
-  SpanStatusCode,
-  Span,
-  TracerProvider,
-  Tracer,
-} from "@opentelemetry/api";
+  consumeResponseStreamEvents,
+  getResponsesInputMessagesAttributes,
+  getResponsesOutputMessagesAttributes,
+  getResponsesUsageAttributes,
+} from "./responsesAttributes";
+import { assertUnreachable, isString } from "./typeUtils";
 import { VERSION } from "./version";
+
+import openai, { APIPromise } from "openai";
 import {
-  SemanticConventions,
-  OpenInferenceSpanKind,
-  MimeType,
-  LLMSystem,
-  LLMProvider,
-} from "@arizeai/openinference-semantic-conventions";
+  Completion,
+  CreateEmbeddingResponse,
+  EmbeddingCreateParams,
+} from "openai/resources";
 import {
   ChatCompletion,
   ChatCompletionChunk,
@@ -33,32 +54,12 @@ import {
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
 import { CompletionCreateParamsBase } from "openai/resources/completions";
-import { Stream } from "openai/streaming";
 import {
-  Completion,
-  CreateEmbeddingResponse,
-  EmbeddingCreateParams,
-} from "openai/resources";
-import { assertUnreachable, isString } from "./typeUtils";
-import { isTracingSuppressed } from "@opentelemetry/core";
-
-import {
-  OITracer,
-  safelyJSONStringify,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
-import {
+  Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseStreamEvent,
-  Response as ResponseType,
 } from "openai/resources/responses/responses";
-
-import {
-  consumeResponseStreamEvents,
-  getResponsesInputMessagesAttributes,
-  getResponsesOutputMessagesAttributes,
-  getResponsesUsageAttributes,
-} from "./responsesAttributes";
+import { Stream } from "openai/streaming";
 
 const MODULE_NAME = "openai";
 

@@ -1,16 +1,17 @@
-import { OpenAIInstrumentation } from "../src";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
+import { OpenAIInstrumentation } from "../src";
+
 import OpenAI, { APIPromise } from "openai";
-import { Stream } from "openai/streaming";
-import { Response as ResponseType } from "openai/resources/responses/responses";
 import { zodTextFormat } from "openai/helpers/zod";
-import { z } from "zod";
+import { Response as ResponseType } from "openai/resources/responses/responses";
+import { Stream } from "openai/streaming";
 import { vi } from "vitest";
+import { z } from "zod";
 
 const memoryExporter = new InMemorySpanExporter();
 

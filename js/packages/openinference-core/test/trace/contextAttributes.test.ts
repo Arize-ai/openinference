@@ -1,6 +1,3 @@
-import { context, ContextManager, Attributes } from "@opentelemetry/api";
-import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
 import {
   METADATA,
   PROMPT_TEMPLATE_TEMPLATE,
@@ -9,30 +6,35 @@ import {
   SESSION_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
+import { Attributes, context, ContextManager } from "@opentelemetry/api";
+import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
+
 import {
-  clearSession,
-  getSession,
-  setSession,
-  setPromptTemplate,
-  clearPromptTemplate,
-  getPromptTemplate,
-  setMetadata,
-  getMetadata,
+  clearAttributes,
   clearMetadata,
-  getAttributesFromContext,
-  ContextAttributes,
-  User,
-  setUser,
-  getUser,
-  Tags,
-  setTags,
-  getTags,
+  clearPromptTemplate,
+  clearSession,
   clearTags,
   clearUser,
-  setAttributes,
+  ContextAttributes,
   getAttributes,
-  clearAttributes,
+  getAttributesFromContext,
+  getMetadata,
+  getPromptTemplate,
+  getSession,
+  getTags,
+  getUser,
+  setAttributes,
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+  Tags,
+  User,
 } from "../../src";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("promptTemplate context", () => {
   let contextManager: ContextManager;

@@ -1,5 +1,6 @@
-import { AgentChunkSpan } from "./agentChunkSpan";
 import { StringKeyedObject } from "../types";
+
+import { AgentChunkSpan } from "./agentChunkSpan";
 
 /**
  * Tree node representing an agent or model invocation. Each node can own:

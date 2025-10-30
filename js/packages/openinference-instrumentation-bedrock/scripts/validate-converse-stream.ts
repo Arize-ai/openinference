@@ -23,30 +23,32 @@
 
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 
-import { BedrockInstrumentation, isPatched } from "../src/index";
 import {
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-  ConsoleSpanExporter,
-  SpanExporter,
-} from "@opentelemetry/sdk-trace-node";
-import { Resource } from "@opentelemetry/resources";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+} from "@arizeai/openinference-core";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
 import {
+  context,
   diag,
   DiagConsoleLogger,
   DiagLogLevel,
-  context,
 } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { Resource } from "@opentelemetry/resources";
 import {
-  setSession,
-  setUser,
-  setMetadata,
-  setTags,
-  setPromptTemplate,
-} from "@arizeai/openinference-core";
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+  SpanExporter,
+} from "@opentelemetry/sdk-trace-node";
+
+import { BedrockInstrumentation, isPatched } from "../src/index";
 
 // Configuration from environment variables
 const PHOENIX_ENDPOINT =

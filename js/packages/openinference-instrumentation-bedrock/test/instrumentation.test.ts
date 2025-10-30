@@ -1,56 +1,60 @@
-import { BedrockInstrumentation } from "../src/instrumentation";
 import {
-  InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand,
-  ConverseCommand,
-  ConverseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime";
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+} from "@arizeai/openinference-core";
+import {
+  METADATA,
+  PROMPT_TEMPLATE_TEMPLATE,
+  PROMPT_TEMPLATE_VARIABLES,
+  PROMPT_TEMPLATE_VERSION,
+  SESSION_ID,
+  TAG_TAGS,
+  USER_ID,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { context } from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { context } from "@opentelemetry/api";
+
+import { BedrockInstrumentation } from "../src/instrumentation";
+
 import {
-  setSession,
-  setUser,
-  setMetadata,
-  setTags,
-  setPromptTemplate,
-} from "@arizeai/openinference-core";
+  TEST_MAX_TOKENS,
+  TEST_MODEL_ID,
+  TEST_USER_MESSAGE,
+} from "./config/constants";
 import {
-  SESSION_ID,
-  USER_ID,
-  METADATA,
-  TAG_TAGS,
-  PROMPT_TEMPLATE_TEMPLATE,
-  PROMPT_TEMPLATE_VERSION,
-  PROMPT_TEMPLATE_VARIABLES,
-} from "@arizeai/openinference-semantic-conventions";
-import nock from "nock";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  generateToolResultMessage,
-  generateToolCallMessage,
   commonTools,
+  generateToolCallMessage,
+  generateToolResultMessage,
 } from "./helpers/test-data-generators";
+import {
+  consumeStreamResponse,
+  verifyResponseStructure,
+  verifySpanBasics,
+} from "./helpers/test-helpers";
 import {
   createTestClient,
   getRecordingPath,
-  setupTestRecording,
   initializeRecordingMode,
   saveRecordingModeData,
+  setupTestRecording,
 } from "./helpers/vcr-helpers";
+
 import {
-  verifyResponseStructure,
-  verifySpanBasics,
-  consumeStreamResponse,
-} from "./helpers/test-helpers";
-import {
-  TEST_MODEL_ID,
-  TEST_USER_MESSAGE,
-  TEST_MAX_TOKENS,
-} from "./config/constants";
+  ConverseCommand,
+  ConverseStreamCommand,
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import nock from "nock";
 
 describe("BedrockInstrumentation", () => {
   let instrumentation: BedrockInstrumentation;

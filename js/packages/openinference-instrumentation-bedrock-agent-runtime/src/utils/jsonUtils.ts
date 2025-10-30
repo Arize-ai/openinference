@@ -3,7 +3,9 @@
  */
 
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
+
 import { StringKeyedObject } from "../types";
+
 import { isArrayOfObjectWithStringKeys } from "./typeUtils";
 
 /**

@@ -1,3 +1,5 @@
+import { diag } from "@opentelemetry/api";
+
 import "./agent-instrumentation";
 
 import {
@@ -8,7 +10,6 @@ import {
   RetrieveCommand,
   RetrieveCommandInput,
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import { diag } from "@opentelemetry/api";
 import * as process from "node:process";
 
 const knowledgeBaseId = process.env.KNOWLEDGE_BASE_ID;

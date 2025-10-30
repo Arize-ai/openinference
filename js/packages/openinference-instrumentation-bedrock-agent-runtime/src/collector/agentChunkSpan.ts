@@ -1,4 +1,5 @@
 import { StringKeyedObject } from "../types";
+
 import { AgentTraceNode } from "./agentTraceNode";
 
 /**

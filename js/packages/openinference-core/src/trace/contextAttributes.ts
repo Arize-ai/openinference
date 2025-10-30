@@ -7,16 +7,19 @@ import {
   TAG_TAGS,
   USER_ID,
 } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, Context, createContextKey } from "@opentelemetry/api";
-import {
-  safelyJSONStringify,
-  safelyJSONParse,
-  isStringArray,
-  isObjectWithStringKeys,
-  isAttributes,
-} from "../utils";
-import { Metadata, PromptTemplate, Session, Tags, User } from "./types";
 import { isAttributeValue } from "@opentelemetry/core";
+
+import {
+  isAttributes,
+  isObjectWithStringKeys,
+  isStringArray,
+  safelyJSONParse,
+  safelyJSONStringify,
+} from "../utils";
+
+import { Metadata, PromptTemplate, Session, Tags, User } from "./types";
 
 const CONTEXT_ATTRIBUTES_ATTRIBUTES_KEY = "attributes" as const;
 

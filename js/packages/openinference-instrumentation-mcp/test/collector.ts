@@ -1,6 +1,5 @@
-import http from "http";
-
 import express from "express";
+import http from "http";
 
 // We use JSON instead of protobuf because opentelemetry-js does not publish proto
 // generated code in a consumable form. We define the JSON interfaces here as

@@ -1,5 +1,5 @@
-import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { SpanKind } from "@opentelemetry/api";
+import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 
 // Interface for API response structure verification
 interface ApiResponse {
