@@ -509,7 +509,9 @@ class _RunWrapper:
                     run_response = None
                     if hasattr(instance, "_has_async_db") and instance._has_async_db():
                         if hasattr(instance, "aget_last_run_output") and session_id is not None:
-                            run_response = await instance.aget_last_run_output(session_id=session_id)
+                            run_response = await instance.aget_last_run_output(
+                                session_id=session_id
+                            )
                     else:
                         if hasattr(instance, "get_last_run_output") and session_id is not None:
                             run_response = instance.get_last_run_output(session_id=session_id)
