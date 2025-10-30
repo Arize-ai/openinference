@@ -1,4 +1,3 @@
-import json
 from enum import Enum
 from functools import wraps
 from typing import (
@@ -61,6 +60,9 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
+_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 # Skip capture
 KEYS_TO_REDACT = ["api_key", "messages"]
@@ -269,7 +271,37 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     _set_span_attribute(
         span, SpanAttributes.EMBEDDING_MODEL_NAME, kwargs.get("model", "unknown_model")
     )
-    _set_span_attribute(span, EmbeddingAttributes.EMBEDDING_TEXT, str(kwargs.get("input")))
+
+    # Extract invocation parameters (exclude sensitive keys and input)
+    invocation_params = {
+        k: v for k, v in kwargs.items() if k not in KEYS_TO_REDACT and k != "input"
+    }
+    if invocation_params:
+        _set_span_attribute(
+            span, _EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+        )
+
+    # Extract text from embedding input - only records text, not token IDs
+    embedding_input = kwargs.get("input")
+    if embedding_input is not None:
+        if isinstance(embedding_input, str):
+            # Single string input
+            _set_span_attribute(
+                span,
+                f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                embedding_input,
+            )
+        elif isinstance(embedding_input, list) and embedding_input:
+            # Check if it's a list of strings (not tokens)
+            if all(isinstance(item, str) for item in embedding_input):
+                # List of strings
+                for index, text in enumerate(embedding_input):
+                    _set_span_attribute(
+                        span,
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_TEXT}",
+                        text,
+                    )
+
     _set_span_attribute(span, SpanAttributes.INPUT_VALUE, str(kwargs.get("input")))
 
 
@@ -301,13 +333,32 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 )
 
     elif isinstance(result, EmbeddingResponse):
+        # Extract model name from response (may differ from request model name)
+        if model_name := getattr(result, "model", None):
+            _set_span_attribute(span, SpanAttributes.EMBEDDING_MODEL_NAME, model_name)
+
         if result_data := result.data:
-            first_embedding = result_data[0]
-            _set_span_attribute(
-                span,
-                EmbeddingAttributes.EMBEDDING_VECTOR,
-                json.dumps(first_embedding.get("embedding", [])),
-            )
+            # Extract embedding vectors directly (litellm uses enumeration, not explicit index)
+            for index, embedding_item in enumerate(result_data):
+                # LiteLLM returns dicts with 'embedding' key
+                raw_vector = (
+                    embedding_item.get("embedding") if hasattr(embedding_item, "get") else None
+                )
+                if not raw_vector:
+                    continue
+
+                vector = None
+                # Check if it's a list of floats
+                if isinstance(raw_vector, (list, tuple)) and raw_vector:
+                    if all(isinstance(x, (int, float)) for x in raw_vector):
+                        vector = tuple(raw_vector)
+
+                if vector:
+                    _set_span_attribute(
+                        span,
+                        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
+                        vector,
+                    )
     elif isinstance(result, ImageResponse):
         if result.data and len(result.data) > 0:
             if img_data := result.data[0]:
@@ -719,7 +770,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["embedding"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
-            name="embedding", attributes=dict(get_attributes_from_context())
+            name="CreateEmbeddings", attributes=dict(get_attributes_from_context())
         ) as span:
             _instrument_func_type_embedding(span, kwargs)
             result = self.original_litellm_funcs["embedding"](*args, **kwargs)
@@ -731,7 +782,7 @@ class LiteLLMInstrumentor(BaseInstrumentor):  # type: ignore
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return self.original_litellm_funcs["aembedding"](*args, **kwargs)  # type:ignore
         with self._tracer.start_as_current_span(
-            name="aembedding", attributes=dict(get_attributes_from_context())
+            name="CreateEmbeddings", attributes=dict(get_attributes_from_context())
         ) as span:
             _instrument_func_type_embedding(span, kwargs)
             result = await self.original_litellm_funcs["aembedding"](*args, **kwargs)

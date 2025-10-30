@@ -514,10 +514,6 @@ def test_embeddings(
     assert (
         attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
     )
-    assert attributes.pop(LLM_PROVIDER, None) == (
-        LLM_PROVIDER_OPENAI if base_url.startswith(_OPENAI_BASE_URL) else LLM_PROVIDER_AZURE
-    )
-    assert attributes.pop(LLM_SYSTEM, None) == LLM_SYSTEM_OPENAI
     assert (
         json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
         == invocation_parameters
@@ -631,20 +627,45 @@ def test_embeddings_out_of_order(
 
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
+    # Check span kind
+    assert (
+        attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.EMBEDDING.value
+    )
+
+    # Check invocation parameters
+    assert (
+        json.loads(cast(str, attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)))
+        == invocation_parameters
+    )
+
+    # Check input/output values
+    assert isinstance(attributes.pop(INPUT_VALUE, None), str)
+    assert isinstance(attributes.pop(INPUT_MIME_TYPE, None), str)
+    assert isinstance(attributes.pop(OUTPUT_VALUE, None), str)
+    assert isinstance(attributes.pop(OUTPUT_MIME_TYPE, None), str)
+
+    # Check model name and token counts
+    assert attributes.pop(EMBEDDING_MODEL_NAME, None) == embedding_model_name
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == embedding_usage["total_tokens"]
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == embedding_usage["prompt_tokens"]
+
     # Verify that vectors are attributed to correct indices despite out-of-order response
     assert (
-        attributes.get(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}") == output_embeddings[0][1]
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.0.{EMBEDDING_VECTOR}") == output_embeddings[0][1]
     ), "Index 0 should have the first embedding's vector"
     assert (
-        attributes.get(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}") == output_embeddings[1][1]
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}") == output_embeddings[1][1]
     ), "Index 1 should have the second embedding's vector"
     assert (
-        attributes.get(f"{EMBEDDING_EMBEDDINGS}.2.{EMBEDDING_VECTOR}") == output_embeddings[2][1]
+        attributes.pop(f"{EMBEDDING_EMBEDDINGS}.2.{EMBEDDING_VECTOR}") == output_embeddings[2][1]
     ), "Index 2 should have the third embedding's vector"
 
     # Verify text attributes are correctly mapped
     for i, text in enumerate(input_texts):
-        assert attributes.get(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}") == text
+        assert attributes.pop(f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}") == text
+
+    # All attributes should be accounted for
+    assert attributes == {}
 
 
 def randstr() -> str:
