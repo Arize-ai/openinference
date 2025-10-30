@@ -60,7 +60,9 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5, f"Expected 5 spans (2 tool + 2 agent + 1 crew), got {len(spans)}"
+    assert len(spans) == 7, (
+        f"Expected 7 spans (1 crew + 2 agents + 2 tools + 2 agent_actions), got {len(spans)}"
+    )
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
@@ -74,6 +76,12 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     # Enhanced naming: spans now include agent roles
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    assert len(tool_spans) == 2
+
+    agent_action_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.UNKNOWN.value)
+    assert len(agent_action_spans) == 2
 
     # Clear spans exporter
     in_memory_span_exporter.clear()

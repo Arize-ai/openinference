@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict, is_dataclass
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Tuple, cast
@@ -13,7 +14,11 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -158,6 +163,19 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
         return str(base_method)
 
 
+def _serialize_agent_object(obj: Any, class_name: str) -> Tuple[str | None, dict[str, Any] | None]:
+    """Serialize CrewAI objects (AgentAction, AgentFinish) into JSON & dict formats."""
+    try:
+        # Detect class name without importing CrewAI directly
+        if getattr(obj, "__class__", None) and obj.__class__.__name__ == class_name:
+            # Handle both dataclass & legacy class versions
+            data = asdict(obj) if is_dataclass(obj) else vars(obj)  # type: ignore[call-overload]
+            return safe_json_dumps(data, cls=SafeJSONEncoder), data
+    except Exception as e:
+        return f"SerializationError: {e}", None
+    return None, None
+
+
 def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
     for i, a in enumerate(agents):
         if a.role == current_role and i != 0:
@@ -165,6 +183,73 @@ def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
             if parent_agent.role:
                 return cast(str, parent_agent.role)
     return None
+
+
+class _AgentActionWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        span_name = "AgentAction"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.UNKNOWN,
+                    }
+                )
+            ),
+        ) as span:
+            # Get AgentAction object from args
+            agent_action_obj = args[0] if args else None
+            agent_action_json, agent_action_dict = _serialize_agent_object(
+                agent_action_obj, "AgentAction"
+            )
+
+            if agent_action_json:
+                span.set_attributes(
+                    dict(
+                        get_input_attributes(
+                            agent_action_json, mime_type=OpenInferenceMimeTypeValues.JSON
+                        )
+                    )
+                )
+            if agent_action_dict:
+                span.set_attributes(dict(_flatten(agent_action_dict)))
+
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+
+            span.set_status(trace_api.StatusCode.OK)
+
+            # Get AgentFinish object from response
+            agent_finish_json, _ = _serialize_agent_object(response, "AgentFinish")
+
+            if agent_finish_json:
+                span.set_attributes(
+                    dict(
+                        get_output_attributes(
+                            agent_finish_json, mime_type=OpenInferenceMimeTypeValues.JSON
+                        )
+                    )
+                )
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
 
 
 class _ExecuteCoreWrapper:
