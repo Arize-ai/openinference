@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.26...python-openinference-instrumentation-haystack-v0.1.27) (2025-10-29)
+
+
+### Features
+
+* **haysack-ai:** haystack async pipeline support ([#2300](https://github.com/Arize-ai/openinference/issues/2300)) ([abd8837](https://github.com/Arize-ai/openinference/commit/abd883711e519149142d214576e0ecf104e0a522))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.25...python-openinference-instrumentation-haystack-v0.1.26) (2025-10-10)
 
 

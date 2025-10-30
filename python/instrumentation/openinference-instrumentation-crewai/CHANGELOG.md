@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.15...python-openinference-instrumentation-crewai-v0.1.16) (2025-10-29)
+
+
+### Bug Fixes
+
+* **crewai:** CI Failures For CrewAI ([#2359](https://github.com/Arize-ai/openinference/issues/2359)) ([0921129](https://github.com/Arize-ai/openinference/commit/092112969c663b2215bd8a036441b8341a15d239))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.14...python-openinference-instrumentation-crewai-v0.1.15) (2025-10-21)
 
 
