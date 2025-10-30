@@ -4,7 +4,6 @@ from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, cast
 
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -15,6 +14,7 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):
