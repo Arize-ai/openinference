@@ -10,6 +10,7 @@ import {
   MimeType,
   OpenInferenceSpanKind,
 } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, SpanKind, Tracer } from "@opentelemetry/api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

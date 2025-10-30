@@ -1,19 +1,20 @@
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
+
 import {
   getInputAttributes,
   getRetrieverAttributes,
   traceAgent,
   withSpan,
 } from "../src";
-
-import {
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-  ConsoleSpanExporter,
-} from "@opentelemetry/sdk-trace-node";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);

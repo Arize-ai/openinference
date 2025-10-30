@@ -1,13 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { withSpan, traceAgent, traceChain, traceTool } from "../../src/helpers";
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+
 import { SpanKind, trace } from "@opentelemetry/api";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { resourceFromAttributes } from "@opentelemetry/resources";
+
+import { traceAgent, traceChain, traceTool, withSpan } from "../../src/helpers";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let spanExporter: InMemorySpanExporter;
 let tracerProvider: NodeTracerProvider;

@@ -6,19 +6,22 @@ import {
   OUTPUT_VALUE,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { Attributes } from "@opentelemetry/api";
+
 import { safelyJSONStringify } from "../utils";
+
 import {
+  Document,
+  Embedding,
   InputToAttributesFn,
+  Message,
   OutputToAttributesFn,
   SpanInput,
   SpanOutput,
-  Document,
-  Embedding,
-  Message,
   TokenCount,
   Tool,
 } from "./types";
-import { Attributes } from "@opentelemetry/api";
 
 /**
  * Converts function arguments into a standardized SpanInput format for tracing.

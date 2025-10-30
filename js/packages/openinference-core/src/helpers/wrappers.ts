@@ -1,4 +1,5 @@
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+
 import { AnyFn, SpanTraceOptions } from "./types";
 import { withSpan } from "./withSpan";
 

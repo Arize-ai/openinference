@@ -2,7 +2,12 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
+
 import { OITracer } from "../trace";
+import { isPromise } from "../utils/typeUtils";
+
 import { defaultProcessInput, defaultProcessOutput } from "./attributeHelpers";
 import { getTracer, wrapTracer } from "./tracerHelpers";
 import {
@@ -11,8 +16,6 @@ import {
   OutputToAttributesFn,
   SpanTraceOptions,
 } from "./types";
-import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
-import { isPromise } from "../utils/typeUtils";
 
 const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
 

@@ -1,4 +1,5 @@
 import { trace, Tracer } from "@opentelemetry/api";
+
 import { OITracer } from "../trace";
 
 const DEFAULT_TRACER_NAME = "openinference-core";
