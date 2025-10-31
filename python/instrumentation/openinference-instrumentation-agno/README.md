@@ -65,7 +65,7 @@ agent = Agent(
     debug_mode=True,
 )
 
-agent.run("What is currently trending on Twitter?")
+agent.print_response("What is currently trending on Twitter?")
 ```
 
 Finally, run the example:
