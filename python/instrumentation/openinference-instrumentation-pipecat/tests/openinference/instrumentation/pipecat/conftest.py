@@ -3,8 +3,7 @@ Shared test fixtures for Pipecat instrumentation tests.
 """
 
 import asyncio
-from typing import AsyncGenerator, List, Optional
-from unittest.mock import Mock
+from typing import AsyncGenerator, List
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -22,7 +21,6 @@ from pipecat.frames.frames import (
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
-from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_services import LLMService, STTService, TTSService
 
 

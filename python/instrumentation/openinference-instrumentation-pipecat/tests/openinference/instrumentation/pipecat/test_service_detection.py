@@ -3,15 +3,15 @@ Test service type detection and provider identification across different impleme
 This ensures our base class instrumentation affects all inheriting classes.
 """
 
-import pytest
-
 
 class TestServiceTypeDetection:
     """Test detection of service types (LLM, TTS, STT) from base classes"""
 
     def test_detect_llm_service_base(self, mock_llm_service):
         """Test detection of generic LLM service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_llm_service)
@@ -20,7 +20,9 @@ class TestServiceTypeDetection:
 
     def test_detect_tts_service_base(self, mock_tts_service):
         """Test detection of generic TTS service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_tts_service)
@@ -29,7 +31,9 @@ class TestServiceTypeDetection:
 
     def test_detect_stt_service_base(self, mock_stt_service):
         """Test detection of generic STT service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_stt_service)
@@ -38,7 +42,9 @@ class TestServiceTypeDetection:
 
     def test_detect_openai_llm(self, mock_openai_llm):
         """Test detection of OpenAI LLM service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_openai_llm)
@@ -47,7 +53,9 @@ class TestServiceTypeDetection:
 
     def test_detect_anthropic_llm(self, mock_anthropic_llm):
         """Test detection of Anthropic LLM service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_anthropic_llm)
@@ -56,7 +64,9 @@ class TestServiceTypeDetection:
 
     def test_detect_elevenlabs_tts(self, mock_elevenlabs_tts):
         """Test detection of ElevenLabs TTS service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_elevenlabs_tts)
@@ -65,7 +75,9 @@ class TestServiceTypeDetection:
 
     def test_detect_deepgram_stt(self, mock_deepgram_stt):
         """Test detection of Deepgram STT service"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         service_type = detector.detect_service_type(mock_deepgram_stt)
@@ -74,7 +86,9 @@ class TestServiceTypeDetection:
 
     def test_detect_non_service_processor(self):
         """Test that non-service processors return None"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
         from pipecat.processors.frame_processor import FrameProcessor
 
         detector = _ServiceDetector()
@@ -89,7 +103,9 @@ class TestProviderDetection:
 
     def test_openai_provider_detection(self, mock_openai_llm):
         """Test OpenAI provider detection from module path"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         provider = detector.get_provider_from_service(mock_openai_llm)
@@ -98,7 +114,9 @@ class TestProviderDetection:
 
     def test_anthropic_provider_detection(self, mock_anthropic_llm):
         """Test Anthropic provider detection"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         provider = detector.get_provider_from_service(mock_anthropic_llm)
@@ -107,7 +125,9 @@ class TestProviderDetection:
 
     def test_elevenlabs_provider_detection(self, mock_elevenlabs_tts):
         """Test ElevenLabs provider detection"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         provider = detector.get_provider_from_service(mock_elevenlabs_tts)
@@ -116,7 +136,9 @@ class TestProviderDetection:
 
     def test_deepgram_provider_detection(self, mock_deepgram_stt):
         """Test Deepgram provider detection"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         provider = detector.get_provider_from_service(mock_deepgram_stt)
@@ -125,7 +147,9 @@ class TestProviderDetection:
 
     def test_unknown_provider_fallback(self, mock_llm_service):
         """Test fallback for services without clear provider"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         provider = detector.get_provider_from_service(mock_llm_service)
@@ -139,7 +163,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_llm_model(self, mock_openai_llm):
         """Test extraction of LLM model name"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_openai_llm)
@@ -149,7 +175,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_tts_model_and_voice(self, mock_openai_tts):
         """Test extraction of TTS model and voice"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_openai_tts)
@@ -161,7 +189,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_stt_model(self, mock_openai_stt):
         """Test extraction of STT model"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_openai_stt)
@@ -171,7 +201,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_elevenlabs_voice_id(self, mock_elevenlabs_tts):
         """Test extraction of ElevenLabs voice_id"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_elevenlabs_tts)
@@ -180,7 +212,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_anthropic_model(self, mock_anthropic_llm):
         """Test extraction of Anthropic model"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_anthropic_llm)
@@ -190,7 +224,9 @@ class TestServiceMetadataExtraction:
 
     def test_extract_provider_from_metadata(self, mock_openai_llm):
         """Test that provider is included in metadata"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         metadata = detector.extract_service_metadata(mock_openai_llm)
@@ -204,7 +240,9 @@ class TestMultiProviderPipeline:
 
     def test_detect_all_services_in_mixed_pipeline(self, mixed_provider_pipeline):
         """Test detection of all services in a pipeline with mixed providers"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         processors = mixed_provider_pipeline._processors
@@ -218,7 +256,9 @@ class TestMultiProviderPipeline:
 
     def test_extract_providers_from_mixed_pipeline(self, mixed_provider_pipeline):
         """Test provider extraction from mixed provider pipeline"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         processors = mixed_provider_pipeline._processors
@@ -232,7 +272,9 @@ class TestMultiProviderPipeline:
 
     def test_extract_all_metadata_from_pipeline(self, mixed_provider_pipeline):
         """Test metadata extraction from all services in pipeline"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
 
         detector = _ServiceDetector()
         processors = mixed_provider_pipeline._processors
@@ -252,7 +294,9 @@ class TestServiceInheritanceDetection:
 
     def test_custom_llm_service_detected(self):
         """Test that custom LLM service inheriting from base is detected"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
         from pipecat.services.ai_services import LLMService
 
         class CustomLLMService(LLMService):
@@ -268,7 +312,9 @@ class TestServiceInheritanceDetection:
 
     def test_deeply_nested_service_detected(self):
         """Test that services with deep inheritance are detected"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
         from pipecat.services.ai_services import TTSService
 
         class BaseTTSWrapper(TTSService):
@@ -286,7 +332,9 @@ class TestServiceInheritanceDetection:
 
     def test_multiple_inheritance_service(self):
         """Test service detection with multiple inheritance (edge case)"""
-        from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
+        from openinference.instrumentation.pipecat._service_detector import (
+            _ServiceDetector,
+        )
         from pipecat.processors.frame_processor import FrameProcessor
         from pipecat.services.ai_services import STTService
 
