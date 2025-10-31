@@ -157,6 +157,12 @@ def _agent_run_attributes(
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
 
+        if hasattr(agent, "id") and agent.id:
+            yield "agno.agent.id", agent.id
+
+        if hasattr(agent, "user_id") and agent.user_id:
+            yield USER_ID, agent.user_id
+
         # Use context parent instead of structural parent
         if context_parent_id:
             yield GRAPH_NODE_PARENT_ID, cast(str, context_parent_id)
@@ -252,6 +258,10 @@ class _RunWrapper:
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
+                if hasattr(run_response, "run_id") and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+
                 return run_response
 
             except Exception as e:
@@ -310,6 +320,8 @@ class _RunWrapper:
                 for response in wrapped(*args, **kwargs):
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
+                        if current_run_id:
+                            span.set_attribute("agno.run.id", current_run_id)
                     yield response
 
                 if (
@@ -412,6 +424,10 @@ class _RunWrapper:
                 span.set_status(trace_api.StatusCode.OK)
                 span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+
+                if hasattr(run_response, "run_id") and run_response.run_id:
+                    span.set_attribute("agno.run.id", run_response.run_id)
+
                 return run_response
             except Exception as e:
                 span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -472,6 +488,8 @@ class _RunWrapper:
                 async for response in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
+                        if current_run_id:
+                            span.set_attribute("agno.run.id", current_run_id)
                     yield response
 
                 if (
