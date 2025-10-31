@@ -1,13 +1,8 @@
-#
-# Copyright (c) 2024–2025, Daily
-#
-# SPDX-License-Identifier: BSD 2-Clause License
-#
-
 import os
 from datetime import datetime
 
-from arize.otel import register
+from arize.otel import register as register_arize
+from phoenix.otel import register as register_phoenix
 from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
@@ -27,9 +22,8 @@ from pipecat.runner.utils import create_transport
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.services.openai.tts import OpenAITTSService
-from pipecat.transports.base_transport import BaseTransport, TransportParams
+from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.daily.transport import DailyParams
-from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
 
 from openinference.instrumentation.pipecat import PipecatInstrumentor
 
@@ -38,11 +32,23 @@ load_dotenv(override=True)
 conversation_id = f"test-conversation-001_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 debug_log_filename = os.path.join(os.getcwd(), f"pipecat_frames_{conversation_id}.log")
 
-tracer_provider = register(
-    space_id=os.getenv("ARIZE_SPACE_ID"),
-    api_key=os.getenv("ARIZE_API_KEY"),
-    project_name=os.getenv("ARIZE_PROJECT_NAME"),
-)
+
+def setup_tracer_provider():
+    """
+    Setup the tracer provider.
+    """
+    project_name = os.getenv("PROJECT_NAME", "pipecat-voice-agent")
+    if os.getenv("ARIZE_SPACE_ID") and os.getenv("ARIZE_API_KEY"):
+        return register_arize(
+            space_id=os.getenv("ARIZE_SPACE_ID"),
+            api_key=os.getenv("ARIZE_API_KEY"),
+            project_name=project_name,
+        )
+    else:
+        return register_phoenix(project_name=project_name)
+
+
+tracer_provider = setup_tracer_provider()
 PipecatInstrumentor().instrument(
     tracer_provider=tracer_provider,
     debug_log_filename=debug_log_filename,
@@ -50,18 +56,6 @@ PipecatInstrumentor().instrument(
 
 transport_params = {
     "daily": lambda: DailyParams(
-        audio_in_enabled=True,
-        audio_out_enabled=True,
-        vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
-        turn_analyzer=LocalSmartTurnAnalyzerV3(params=SmartTurnParams()),
-    ),
-    "twilio": lambda: FastAPIWebsocketParams(
-        audio_in_enabled=True,
-        audio_out_enabled=True,
-        vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
-        turn_analyzer=LocalSmartTurnAnalyzerV3(params=SmartTurnParams()),
-    ),
-    "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
         audio_out_enabled=True,
         vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
@@ -93,17 +87,6 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
             instructions="Please speak clearly and at a moderate pace."
         ),
     )
-    ### alternative tts - elevenlabs ###
-    # tts = ElevenLabsTTSService(
-    #     api_key=os.getenv("ELEVENLABS_API_KEY"),
-    #     voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
-    #     model="eleven_turbo_v2_5",
-    # )
-    ### alternative tts - cartesia ###
-    # tts = CartesiaTTSService(
-    #     api_key=os.getenv("CARTESIA_API_KEY"),
-    #     voice_id="71a7ad14-091c-4e8e-a314-022ece01c121",  # British Reading Lady
-    # )
 
     messages = [
         {

@@ -47,6 +47,7 @@ test = [
 ]
 examples = [
   "arize-otel>=0.0.1",
+  "arize-phoenix>=0.0.1",
   "daily-python~=0.20.0",
   "transformers",
   "onnxruntime>=1.20.1,<2",
