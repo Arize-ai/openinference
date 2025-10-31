@@ -3,11 +3,9 @@
 import logging
 import json
 from datetime import datetime
-from re import S
 from typing import Optional
 
 from opentelemetry import trace as trace_api
-from opentelemetry import context as context_api
 from pipecat.observers.base_observer import BaseObserver, FramePushed, FrameProcessed
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -16,16 +14,15 @@ from openinference.instrumentation.pipecat._service_detector import _ServiceDete
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
-    AudioAttributes,
 )
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
     BotStoppedSpeakingFrame,
+    LLMFullResponseEndFrame,
+    LLMTextFrame,
     TextFrame,
     TranscriptionFrame,
     UserStartedSpeakingFrame,
-    EndFrame,
-    ErrorFrame,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +41,7 @@ class OpenInferenceObserver(BaseObserver):
         tracer: OITracer,
         config: TraceConfig,
         conversation_id: Optional[str] = None,
+        debug_log_filename: Optional[str] = None,
     ):
         """
         Initialize the observer.
@@ -64,15 +62,15 @@ class OpenInferenceObserver(BaseObserver):
 
         # Debug logging to file
         self._debug_log_file = None
-        if conversation_id:
-            import os
+        if debug_log_filename:
+
             # Write log to current working directory (where the script is running)
-            cwd = os.getcwd()
-            log_filename = os.path.join(cwd, f"pipecat_frames_{conversation_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
             try:
-                self._debug_log_file = open(log_filename, 'w')
-                self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
-                self._log_debug(f"=== Log file: {log_filename} ===")
+                self._debug_log_file = open(debug_log_filename, "w")
+                self._log_debug(
+                    f"=== Observer initialized for conversation {conversation_id} ==="
+                )
+                self._log_debug(f"=== Log file: {debug_log_filename} ===")
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
 
@@ -86,6 +84,9 @@ class OpenInferenceObserver(BaseObserver):
         # Turn tracking state
         self._turn_active = False
         self._turn_span = None
+        self._last_speaking_frame_id = (
+            None  # Deduplicate speaking frames from propagation
+        )
         self._turn_context_token = None  # Token for turn span context
         self._turn_number = 0
         self._turn_user_text = []
@@ -95,9 +96,9 @@ class OpenInferenceObserver(BaseObserver):
 
     def _log_debug(self, message: str):
         """Log debug message to file and logger."""
-        timestamp = datetime.now().isoformat()
-        log_line = f"[{timestamp}] {message}\n"
         if self._debug_log_file:
+            timestamp = datetime.now().isoformat()
+            log_line = f"[{timestamp}] {message}\n"
             self._debug_log_file.write(log_line)
             self._debug_log_file.flush()
         logger.debug(message)
@@ -133,39 +134,73 @@ class OpenInferenceObserver(BaseObserver):
                 "has_text": hasattr(frame, "text"),
             }
             if hasattr(frame, "text"):
-                frame_details["text_preview"] = str(frame.text)[:50] if frame.text else None
+                frame_details["text_preview"] = (
+                    str(frame.text)[:50] if frame.text else None
+                )
             self._log_debug(f"  Details: {json.dumps(frame_details)}")
 
-            ctx = self._turn_context_token
-            # Handle turn tracking frames
-            if isinstance(frame, UserStartedSpeakingFrame):
-                # If bot is speaking, this is an interruption
+            # Service-based turn tracking: Use service frames to define turn boundaries
+            # This avoids duplicate turn creation from frame propagation through pipeline
+            source_name = data.source.__class__.__name__ if data.source else "Unknown"
+            service_type = self._detector.detect_service_type(data.source)
+
+            # Handle turn tracking using service-specific frames
+            # Start turn: When STT produces transcription (user input received)
+            if isinstance(frame, TranscriptionFrame) and service_type == "stt":
+                # Check for interruption
                 if self._bot_speaking and self._turn_active:
+                    self._log_debug(
+                        f"  User interruption detected via TranscriptionFrame"
+                    )
                     await self._finish_turn(interrupted=True)
-                # Start a new turn when user begins speaking (if not already active)
+                # Start new turn when user input arrives
                 if not self._turn_active:
+                    self._log_debug(
+                        f"  Starting turn via TranscriptionFrame from {source_name}"
+                    )
                     self._turn_context_token = await self._start_turn()
+                # Always collect user text
+                if frame.text:
+                    self._turn_user_text.append(frame.text)
+
+            # Collect user input (from TranscriptionFrame without service check for backwards compat)
             elif isinstance(frame, TranscriptionFrame):
-                # Collect user input during turn
                 if self._turn_active and frame.text:
                     self._turn_user_text.append(frame.text)
+
+            # Handle bot-initiated conversations (greeting without user input)
             elif isinstance(frame, BotStartedSpeakingFrame):
                 self._bot_speaking = True
-                # Start a new turn when bot begins speaking (if not already active)
-                # This handles the case where bot speaks first (e.g., greeting)
+                # Start turn if bot speaks first (no user input)
                 if not self._turn_active:
+                    self._log_debug(
+                        f"  Starting turn via BotStartedSpeakingFrame (bot-initiated)"
+                    )
                     self._turn_context_token = await self._start_turn()
-            elif isinstance(frame, TextFrame):
-                # Collect bot output during turn
-                if self._turn_active and self._bot_speaking and frame.text:
+
+            # Collect bot output text from LLM streaming (LLMTextFrame) and TTS (TextFrame)
+            elif isinstance(frame, (LLMTextFrame, TextFrame)):
+                if self._turn_active and frame.text:
+                    # LLMTextFrame arrives during streaming, TextFrame during TTS
                     self._turn_bot_text.append(frame.text)
-            elif isinstance(frame, BotStoppedSpeakingFrame):
+
+            # End turn: When LLM finishes response (semantic completion)
+            elif isinstance(frame, LLMFullResponseEndFrame) and service_type == "llm":
+                self._log_debug(
+                    f"  Ending turn via LLMFullResponseEndFrame from {source_name}"
+                )
                 self._bot_speaking = False
-                # Turn ends when bot finishes speaking
                 await self._finish_turn(interrupted=False)
 
-            # Detect if source is a service we care about
-            service_type = self._detector.detect_service_type(data.source)
+            # Fallback: End turn on BotStoppedSpeaking if no LLM (e.g., TTS-only responses)
+            elif isinstance(frame, BotStoppedSpeakingFrame):
+                # Only end turn if we haven't already (LLMFullResponseEndFrame takes precedence)
+                if self._turn_active and self._bot_speaking:
+                    self._log_debug(
+                        f"  Ending turn via BotStoppedSpeakingFrame fallback"
+                    )
+                    self._bot_speaking = False
+                    await self._finish_turn(interrupted=False)
 
             if service_type:
                 await self._handle_service_frame(data, service_type)
@@ -202,7 +237,9 @@ class OpenInferenceObserver(BaseObserver):
             # If no turn is active yet, start one automatically
             # This ensures we capture initialization frames with proper context
             if self._turn_context_token is None:
-                self._log_debug(f"  No active turn - auto-starting turn for {service_type} initialization")
+                self._log_debug(
+                    f"  No active turn - auto-starting turn for {service_type} initialization"
+                )
                 self._turn_context_token = await self._start_turn()
 
             # Create new span and set as active
@@ -251,8 +288,10 @@ class OpenInferenceObserver(BaseObserver):
         )
 
         span_ctx = span.get_span_context()
-        self._log_debug(f"  Created span - trace_id: {span_ctx.trace_id:032x}, span_id: {span_ctx.span_id:016x}")
-        if hasattr(span, 'parent') and span.parent:
+        self._log_debug(
+            f"  Created span - trace_id: {span_ctx.trace_id:032x}, span_id: {span_ctx.span_id:016x}"
+        )
+        if hasattr(span, "parent") and span.parent:
             self._log_debug(f"  Parent span_id: {span.parent.span_id:016x}")
         else:
             self._log_debug(f"  No parent span")
@@ -267,6 +306,9 @@ class OpenInferenceObserver(BaseObserver):
             span.set_attribute(
                 SpanAttributes.LLM_MODEL_NAME, metadata.get("model", "unknown")
             )
+            span.set_attribute(
+                SpanAttributes.LLM_PROVIDER, metadata.get("provider", "unknown")
+            )
         elif service_type == "tts" or service_type == "stt":
             span.set_attribute(
                 SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -279,7 +321,9 @@ class OpenInferenceObserver(BaseObserver):
                 SpanAttributes.OPENINFERENCE_SPAN_KIND,
                 OpenInferenceSpanKindValues.CHAIN.value,
             )
-        span.set_attribute("service.name", metadata.get("provider", "unknown"))
+
+        # Set service.name to the actual service class name for uniqueness
+        span.set_attribute("service.name", service.__class__.__name__)
 
         return span
 
@@ -318,7 +362,9 @@ class OpenInferenceObserver(BaseObserver):
         )
 
         span_ctx = self._turn_span.get_span_context()
-        self._log_debug(f"  Turn span created - trace_id: {span_ctx.trace_id:032x}, span_id: {span_ctx.span_id:016x}")
+        self._log_debug(
+            f"  Turn span created - trace_id: {span_ctx.trace_id:032x}, span_id: {span_ctx.span_id:016x}"
+        )
 
         if self._conversation_id:
             self._turn_span.set_attribute(
@@ -348,7 +394,9 @@ class OpenInferenceObserver(BaseObserver):
             return
 
         self._log_debug(f"\n{'='*60}")
-        self._log_debug(f">>> FINISHING TURN #{self._turn_number} (interrupted={interrupted})")
+        self._log_debug(
+            f">>> FINISHING TURN #{self._turn_number} (interrupted={interrupted})"
+        )
         self._log_debug(f"  Active service spans: {len(self._active_spans)}")
 
         # Set input/output attributes

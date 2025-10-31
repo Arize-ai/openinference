@@ -151,6 +151,7 @@ class _FrameAttributeExtractor:
                     # Extract text content for input.value
                     user_messages = json.dumps(frame.messages)
                     attributes[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
+                    attributes[SpanAttributes.INPUT_VALUE] = user_messages
             # LLMMessagesAppendFrame adds messages to context
             elif isinstance(frame, LLMMessagesAppendFrame):
                 if hasattr(frame, "messages") and frame.messages:

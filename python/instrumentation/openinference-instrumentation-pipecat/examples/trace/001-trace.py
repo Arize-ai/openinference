@@ -5,6 +5,7 @@
 #
 
 import os
+from datetime import datetime
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -34,17 +35,19 @@ from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)
 
+conversation_id = f"test-conversation-001_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+debug_log_filename = os.path.join(os.getcwd(), f"pipecat_frames_{conversation_id}.log")
+
 tracer_provider = register(
     space_id=os.getenv("ARIZE_SPACE_ID"),
     api_key=os.getenv("ARIZE_API_KEY"),
     project_name=os.getenv("ARIZE_PROJECT_NAME"),
 )
-PipecatInstrumentor().instrument(tracer_provider=tracer_provider)
+PipecatInstrumentor().instrument(
+    tracer_provider=tracer_provider,
+    debug_log_filename=debug_log_filename,
+)
 
-
-# We store functions so objects (e.g. SileroVADAnalyzer) don't get
-# instantiated. The function will be called when the desired transport gets
-# selected.
 transport_params = {
     "daily": lambda: DailyParams(
         audio_in_enabled=True,
@@ -133,7 +136,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
-        conversation_id="test-conversation-001",  # Add conversation ID for session tracking
+        conversation_id=conversation_id,  # Use dynamic conversation ID for session tracking
         idle_timeout_secs=runner_args.pipeline_idle_timeout_secs,
     )
 

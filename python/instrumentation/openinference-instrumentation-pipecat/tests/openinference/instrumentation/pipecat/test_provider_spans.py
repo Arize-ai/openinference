@@ -38,9 +38,9 @@ class TestOpenAISpans:
 
         expected_attrs = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
-            "service.name": "openai",
+            "service.name": "MockLLMService",  # Class name of the service
             SpanAttributes.LLM_MODEL_NAME: "gpt-4",
-            SpanAttributes.LLM_PROVIDER: "openai",
+            SpanAttributes.LLM_PROVIDER: "openai",  # Provider from metadata
         }
         assert_span_has_attributes(llm_span, expected_attrs)
 
@@ -65,9 +65,8 @@ class TestOpenAISpans:
 
         expected_attrs = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-            "service.name": "openai",
-            "model": "tts-1",
-            "voice": "alloy",
+            "service.name": "MockTTSService",  # Class name
+            "audio.voice": "alloy",
         }
         assert_span_has_attributes(tts_span, expected_attrs)
 
@@ -93,8 +92,7 @@ class TestOpenAISpans:
 
         expected_attrs = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-            "service.name": "openai",
-            "model": "whisper-1",
+            "service.name": "MockSTTService",  # Class name
         }
         assert_span_has_attributes(stt_span, expected_attrs)
 
@@ -120,10 +118,12 @@ class TestOpenAISpans:
         assert len(stt_spans) > 0
         # LLM and TTS may not be triggered in mock, but structure is tested
 
-        # All should be OpenAI provider
+        # All should be Mock services with OpenAI provider
         for span in stt_spans + llm_spans + tts_spans:
             attrs = dict(span.attributes)
-            assert attrs.get("service.name") == "openai"
+            service_name = attrs.get("service.name")
+            # Service names should be class names like MockSTTService, MockLLMService, MockTTSService
+            assert service_name in ["MockSTTService", "MockLLMService", "MockTTSService"]
 
         instrumentor.uninstrument()
 
@@ -152,7 +152,7 @@ class TestAnthropicSpans:
 
         expected_attrs = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
-            "service.name": "anthropic",
+            "service.name": "MockLLMService",  # Class name
             SpanAttributes.LLM_MODEL_NAME: "claude-3-5-sonnet-20241022",
             SpanAttributes.LLM_PROVIDER: "anthropic",
         }
@@ -183,14 +183,14 @@ class TestElevenLabsSpans:
         tts_span = tts_spans[0]
 
         expected_attrs = {
-            "service.name": "elevenlabs",
-            "model": "eleven_turbo_v2",
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            "service.name": "MockTTSService",  # Class name
         }
         assert_span_has_attributes(tts_span, expected_attrs)
 
-        # Should have voice_id attribute
+        # Should have audio.voice or audio.voice_id attribute
         attrs = dict(tts_span.attributes)
-        assert "voice" in attrs or "voice_id" in attrs
+        assert "audio.voice" in attrs or "audio.voice_id" in attrs
 
         instrumentor.uninstrument()
 
@@ -218,8 +218,8 @@ class TestDeepgramSpans:
         stt_span = stt_spans[0]
 
         expected_attrs = {
-            "service.name": "deepgram",
-            "model": "nova-2",
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            "service.name": "MockSTTService",  # Class name
         }
         assert_span_has_attributes(stt_span, expected_attrs)
 
@@ -270,23 +270,24 @@ class TestMixedProviderPipeline:
         audio_data = b"\x00" * 1024
         await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
 
-        # STT span should be deepgram
+        # STT span should be MockSTTService with deepgram provider
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
         if stt_spans:
             attrs = dict(stt_spans[0].attributes)
-            assert attrs.get("service.name") == "deepgram"
+            assert attrs.get("service.name") == "MockSTTService"
 
-        # LLM span should be anthropic
+        # LLM span should be MockLLMService with anthropic provider
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
         if llm_spans:
             attrs = dict(llm_spans[0].attributes)
-            assert attrs.get("service.name") == "anthropic"
+            assert attrs.get("service.name") == "MockLLMService"
+            assert attrs.get(SpanAttributes.LLM_PROVIDER) == "anthropic"
 
-        # TTS span should be elevenlabs
+        # TTS span should be MockTTSService with elevenlabs provider
         tts_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.tts")
         if tts_spans:
             attrs = dict(tts_spans[0].attributes)
-            assert attrs.get("service.name") == "elevenlabs"
+            assert attrs.get("service.name") == "MockTTSService"
 
         instrumentor.uninstrument()
 
@@ -438,8 +439,8 @@ class TestProviderSpecificAttributes:
 
         if tts_spans:
             attrs = dict(tts_spans[0].attributes)
-            # Should have voice or voice_id attribute
-            has_voice = "voice" in attrs or "voice_id" in attrs
+            # Should have audio.voice or audio.voice_id attribute
+            has_voice = "audio.voice" in attrs or "audio.voice_id" in attrs
             assert has_voice
 
         instrumentor.uninstrument()

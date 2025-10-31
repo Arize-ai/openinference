@@ -1,7 +1,7 @@
 """OpenInference instrumentation for Pipecat."""
 
 import logging
-from typing import Any, Collection
+from typing import Any, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
@@ -52,6 +52,11 @@ class PipecatInstrumentor(BaseInstrumentor):
     def _instrument(self, **kwargs: Any) -> None:
         """
         Instrument Pipecat by wrapping PipelineTask.__init__ to inject observer.
+
+        Args:
+            tracer_provider: OpenTelemetry TracerProvider
+            config: OpenInference TraceConfig
+            debug_log_filename: Optional debug log filename to use for all observers
         """
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -70,6 +75,7 @@ class PipecatInstrumentor(BaseInstrumentor):
         # Store for creating observers
         self._tracer = tracer
         self._config = config
+        self._debug_log_filename = kwargs.get("debug_log_filename")
 
         try:
             # Store original __init__
@@ -79,7 +85,11 @@ class PipecatInstrumentor(BaseInstrumentor):
             wrap_function_wrapper(
                 module="pipecat.pipeline.task",
                 name="PipelineTask.__init__",
-                wrapper=_TaskInitWrapper(tracer=tracer, config=config),
+                wrapper=_TaskInitWrapper(
+                    tracer=tracer,
+                    config=config,
+                    default_debug_log_filename=self._debug_log_filename,
+                ),
             )
 
             logger.info("Pipecat instrumentation enabled")
@@ -102,9 +112,12 @@ class PipecatInstrumentor(BaseInstrumentor):
 class _TaskInitWrapper:
     """Wrapper for PipelineTask.__init__ to inject OpenInferenceObserver."""
 
-    def __init__(self, tracer: OITracer, config: TraceConfig):
+    def __init__(
+        self, tracer: OITracer, config: TraceConfig, default_debug_log_filename: Optional[str] = None
+    ):
         self._tracer = tracer
         self._config = config
+        self._default_debug_log_filename = default_debug_log_filename
 
     def __call__(self, wrapped, instance, args, kwargs):
         """
@@ -119,8 +132,14 @@ class _TaskInitWrapper:
         # PipelineTask stores it as _conversation_id (private attribute)
         conversation_id = getattr(instance, "_conversation_id", None)
 
+        # Use task-specific debug log filename if set, otherwise use default from instrument()
+        debug_log_filename = getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
+
         observer = OpenInferenceObserver(
-            tracer=self._tracer, config=self._config, conversation_id=conversation_id
+            tracer=self._tracer,
+            config=self._config,
+            conversation_id=conversation_id,
+            debug_log_filename=debug_log_filename,
         )
 
         # Inject observer into task
