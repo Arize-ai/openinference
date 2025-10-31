@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Search for Python tutorials"}],"model":"gpt-4o-mini","n":1,"stream":false,"tools":[{"type":"function","function":{"name":"search","description":"Search
+      documents","parameters":{"type":"object","properties":{"query":{"type":"string"},"user_context":{"type":"string"}},"required":["query"]}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CWletHyGzapkvp0MG02ee7Jwn1x7B\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1761925731,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_BjOwGgWvcqqtxtVBYWjhPRfu\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"search\",\n
+        \             \"arguments\": \"{\\\"query\\\":\\\"Python tutorials\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 48,\n    \"completion_tokens\":
+        14,\n    \"total_tokens\": 62,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_51db84afab\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Search for Python tutorials"},{"role":"assistant","tool_calls":[{"type":"function","function":{"name":"search","arguments":"{\"query\":
+      \"Python tutorials\"}"},"id":"call_BjOwGgWvcqqtxtVBYWjhPRfu"}]},{"role":"tool","content":"{''results'':
+      [\"Found results for ''Python tutorials'' (user: Alice)\"]}","tool_call_id":"call_BjOwGgWvcqqtxtVBYWjhPRfu"}],"model":"gpt-4o-mini","n":1,"stream":false,"tools":[{"type":"function","function":{"name":"search","description":"Search
+      documents","parameters":{"type":"object","properties":{"query":{"type":"string"},"user_context":{"type":"string"}},"required":["query"]}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CWleuO1zD8b4RnjEM1j1FOmAKwpQy\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1761925732,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"I found some results for \\\"Python
+        tutorials.\\\" Would you like more specific information about them?\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        87,\n    \"completion_tokens\": 19,\n    \"total_tokens\": 106,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_51db84afab\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

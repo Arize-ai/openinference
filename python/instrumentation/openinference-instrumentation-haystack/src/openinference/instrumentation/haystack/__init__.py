@@ -137,6 +137,14 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
             ),
         )
+        from haystack.core.component.component import component
+
+        for class_path, cls in component.registry.items():
+            # Ensure the class looks like a Component (has run or run_async)
+            if hasattr(cls, "run"):
+                wrap_component_run_method(cls, cls.run)
+            if hasattr(cls, "run_async"):
+                wrap_component_run_method(cls, cls.run_async)
 
     def _uninstrument(self, **kwargs: Any) -> None:
         import haystack
