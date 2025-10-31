@@ -1,3 +1,5 @@
+import asyncio
+
 from haystack import Document
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -29,5 +31,14 @@ documents = [
 ]
 document_store.write_documents(documents=documents)
 
-retriever = InMemoryBM25Retriever(document_store=document_store)
-print(retriever.run(query="How many languages are spoken around the world today?"))
+
+async def run():
+    retriever = InMemoryBM25Retriever(document_store=document_store)
+    result = await retriever.run_async(
+        query="How many languages are spoken around the world today?"
+    )
+    print(result)
+
+
+if __name__ == "__main__":
+    asyncio.run(run())

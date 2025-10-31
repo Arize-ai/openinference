@@ -157,7 +157,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     span = spans[1]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "OpenAIChatGenerator.run"
+    assert span.name == "OpenAIChatGenerator.run_async"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -393,7 +393,7 @@ async def test_haystack_instrumentation_async_pipeline_filtering(
     spans = in_memory_span_exporter.get_finished_spans()
 
     assert [span.name for span in spans] == [
-        "InMemoryBM25Retriever.run",
+        "InMemoryBM25Retriever.run_async",
         "AsyncPipeline.run_async_generator",
         "AsyncPipeline.run_async",
     ]
@@ -539,13 +539,13 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 4
     assert [span.name for span in spans] == [
-        "OpenAIChatGenerator.run",
+        "OpenAIChatGenerator.run_async",
         "AsyncPipeline.run_async_generator",
         "AsyncPipeline.run_async",
         "AsyncPipeline.run",
     ]
     span = spans[0]
-    assert span.name == "OpenAIChatGenerator.run"
+    assert span.name == "OpenAIChatGenerator.run_async"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -701,13 +701,13 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     assert [span.name for span in spans] == [
-        "OpenAIChatGenerator.run",
+        "OpenAIChatGenerator.run_async",
         "AsyncPipeline.run_async_generator",
     ]
     span = spans[0]
     assert span.status.is_ok
     assert not span.events
-    assert span.name == "OpenAIChatGenerator.run"
+    assert span.name == "OpenAIChatGenerator.run_async"
     attributes = dict(span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert (
@@ -1182,16 +1182,21 @@ def test_pipeline_and_component_spans_contain_context_attributes(
         assert attributes.get(LLM_PROMPT_TEMPLATE_VARIABLES, '{"var_name": "var-value"}')
 
 
+@pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
+    record_mode="once",
 )
-def test_agent_run_component_spans(
+async def test_agent_run_component_spans(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
+    use_async: bool,
 ) -> None:
+    run_method = "run_async" if use_async else "run"
+
     def search_documents(query: str, user_context: str) -> Dict[str, Any]:
         """Search documents using query and user context."""
         return {"results": [f"Found results for '{query}' (user: {user_context})"]}
@@ -1212,10 +1217,14 @@ def test_agent_run_component_spans(
         tools=[search_tool],
         state_schema={"user_name": {"type": str}, "search_results": {"type": list}},
     )
-
-    result = agent.run(
-        messages=[ChatMessage.from_user("Search for Python tutorials")], user_name="Alice"
-    )
+    if use_async:
+        result = await agent.run_async(
+            messages=[ChatMessage.from_user("Search for Python tutorials")], user_name="Alice"
+        )
+    else:
+        result = agent.run(
+            messages=[ChatMessage.from_user("Search for Python tutorials")], user_name="Alice"
+        )
     last_message = result["last_message"]
     assert last_message.role.name == "ASSISTANT"
     assert last_message.text == (
@@ -1225,7 +1234,7 @@ def test_agent_run_component_spans(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 4
     openai_span = spans[0]
-    assert openai_span.name == "OpenAIChatGenerator.run"
+    assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
     attributes = dict(openai_span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -1253,7 +1262,7 @@ def test_agent_run_component_spans(
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
     tool_invoker_span = spans[1]
-    assert tool_invoker_span.name == "ToolInvoker.run"
+    assert tool_invoker_span.name == f"ToolInvoker.{run_method}"
     assert tool_invoker_span.status.is_ok
     attributes = dict(tool_invoker_span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
@@ -1263,7 +1272,7 @@ def test_agent_run_component_spans(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert not attributes
     openai_span = spans[2]
-    assert openai_span.name == "OpenAIChatGenerator.run"
+    assert openai_span.name == f"OpenAIChatGenerator.{run_method}"
     assert openai_span.status.is_ok
     attributes = dict(openai_span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -1287,7 +1296,7 @@ def test_agent_run_component_spans(
     assert prompt_tokens + completion_tokens == total_tokens
     assert not attributes
     agent_run_span = spans[3]  # root span
-    assert agent_run_span.name == "Agent.run"
+    assert agent_run_span.name == f"Agent.{run_method}"
     assert agent_run_span.status.is_ok
     attributes = dict(agent_run_span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "CHAIN"
@@ -1336,6 +1345,65 @@ def test_individual_component_without_child_components(
     assert len(spans) == 1
     retriever_span = spans[0]
     assert retriever_span.name == "InMemoryBM25Retriever.run"
+    assert retriever_span.status.is_ok
+    attributes = dict(retriever_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    for i, document in enumerate(results["documents"]):
+        prefix = f"{RETRIEVAL_DOCUMENTS}.{i}"
+        assert isinstance(content := attributes.pop(f"{prefix}.{DOCUMENT_CONTENT}"), str)
+        assert content == document.content
+        assert isinstance(doc_id := attributes.pop(f"{prefix}.{DOCUMENT_ID}"), str)
+        assert doc_id == document.id
+        assert isinstance(score := attributes.pop(f"{prefix}.{DOCUMENT_SCORE}"), float)
+        assert score == document.score
+        assert isinstance(attributes.pop(f"{prefix}.{DOCUMENT_METADATA}"), str)
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_individual_component_run_async_without_child_components(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_haystack_instrumentation: Any,
+) -> None:
+    document_store = InMemoryDocumentStore()
+    documents = [
+        Document(content="There are over 7,000 languages spoken around the world today."),
+        Document(
+            content="Elephants have been observed to behave in a way that indicates "
+            "a high level of self-awareness, such as recognizing themselves "
+            "in mirrors."
+        ),
+        Document(
+            content="In certain parts of the world, like the Maldives, Puerto Rico, "
+            "and San Diego, you can witness the phenomenon of bioluminescent"
+            " waves."
+        ),
+    ]
+    document_store.write_documents(documents=documents)
+
+    retriever = InMemoryBM25Retriever(document_store=document_store)
+    results = await retriever.run_async(
+        query="How many languages are spoken around the world today?"
+    )
+    assert results.get("documents") is not None
+    assert len(results["documents"]) == 3
+    for document in results["documents"]:
+        assert isinstance(document, Document)
+        assert document.id is not None
+        assert document.content_type == "text"
+        assert isinstance(document.content, str)
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    retriever_span = spans[0]
+    assert retriever_span.name == "InMemoryBM25Retriever.run_async"
     assert retriever_span.status.is_ok
     attributes = dict(retriever_span.attributes or {})
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "RETRIEVER"
