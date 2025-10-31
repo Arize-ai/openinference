@@ -53,9 +53,9 @@ export class OITracer implements Tracer {
   private readonly tracer: Tracer;
   private readonly config: TraceConfig;
   /**
-   *
-   * @param tracer The OpenTelemetry {@link Tracer} to wrap
-   * @param traceConfig The {@link TraceConfigOptions} to set to control the behavior of the tracer
+   * @param params - The parameters for the OITracer constructor
+   * @param params.tracer - The OpenTelemetry {@link Tracer} to wrap
+   * @param params.traceConfig - The {@link TraceConfigOptions} to set to control the behavior of the tracer
    */
   constructor({
     tracer,

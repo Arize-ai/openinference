@@ -1,5 +1,10 @@
+# /// script
+# dependencies = [
+#   "langchain>=1.0.0"
+# ]
+# ///
+from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -41,18 +46,18 @@ def web_search(query: str) -> str:
     )
 
 
-math_agent = create_react_agent(
+math_agent = create_agent(
     model=model,
     tools=[add, multiply],
     name="math_expert",
-    prompt="You are a math expert. Always use one tool at a time.",
+    system_prompt="You are a math expert. Always use one tool at a time.",
 )
 
-research_agent = create_react_agent(
+research_agent = create_agent(
     model=model,
     tools=[web_search],
     name="research_expert",
-    prompt="You are a world class researcher with access to web search. Do not do any math.",
+    system_prompt="You are a world class researcher with access to web search. Do not do any math.",
 )
 
 # Create supervisor workflow

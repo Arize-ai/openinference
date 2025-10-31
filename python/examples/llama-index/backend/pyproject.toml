@@ -19,6 +19,9 @@ h11 = ">0.14.0"
 starlette = ">=0.47.2"
 aiohttp = ">=3.12.14"
 pypdf = ">=6.0.0"
+protobuf = ">=5.29.5"
+urllib3 = ">=2.5.0"
+requests = ">=2.32.4"
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]

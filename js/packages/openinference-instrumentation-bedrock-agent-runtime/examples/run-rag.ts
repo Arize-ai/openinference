@@ -125,7 +125,7 @@ async function main() {
     await runRagExternalSource();
     await runRagStream();
     await runRetrieve();
-  } catch (error) {
+  } catch {
     process.exit(1);
   }
 }

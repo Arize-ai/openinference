@@ -1,6 +1,6 @@
 import { context, ContextManager, Attributes } from "@opentelemetry/api";
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
-
+import { describe, it, beforeEach, afterEach, expect } from "vitest";
 import {
   METADATA,
   PROMPT_TEMPLATE_TEMPLATE,

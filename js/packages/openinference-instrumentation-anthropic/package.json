@@ -1,11 +1,10 @@
 {
   "name": "@arizeai/openinference-instrumentation-anthropic",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenInference instrumentation for Anthropic",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
   "repository": {
     "type": "git",
@@ -13,7 +12,7 @@
   },
   "scripts": {
     "prebuild": "rimraf dist && pnpm run version:update",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",

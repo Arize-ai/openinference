@@ -45,7 +45,7 @@ test = [
   "opentelemetry-sdk",
   "pytest-recording",
   "litellm",
-  "urllib3<2.0",
+  "urllib3<3.0",
   "vcrpy>=5.0.0",
 ]
 

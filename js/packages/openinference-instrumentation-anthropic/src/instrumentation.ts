@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { Stream } from "@anthropic-ai/sdk/streaming";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { Stream } from "@anthropic-ai/sdk/streaming";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -18,6 +18,8 @@ import {
   TracerProvider,
   Tracer,
 } from "@opentelemetry/api";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - No version file until build
 import { VERSION } from "./version";
 import {
   SemanticConventions,
