@@ -1,32 +1,32 @@
 """Attribute extraction from Pipecat frames."""
 
 import base64
-import logging
 import json
-from typing import Any, Dict, List, Optional
+import logging
+from typing import Any, Dict
 
 from openinference.semconv.trace import SpanAttributes
 from pipecat.frames.frames import (
+    AudioRawFrame,
+    ErrorFrame,
     Frame,
+    FunctionCallFromLLM,
+    FunctionCallInProgressFrame,
+    FunctionCallResultFrame,
+    InterimTranscriptionFrame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMMessagesAppendFrame,
+    LLMMessagesFrame,
+    MetricsFrame,
     TextFrame,
     TranscriptionFrame,
-    InterimTranscriptionFrame,
-    LLMMessagesFrame,
-    LLMMessagesAppendFrame,
-    LLMFullResponseStartFrame,
-    LLMFullResponseEndFrame,
-    AudioRawFrame,
-    FunctionCallFromLLM,
-    FunctionCallResultFrame,
-    FunctionCallInProgressFrame,
-    ErrorFrame,
-    MetricsFrame,
 )
 from pipecat.metrics.metrics import (
     LLMUsageMetricsData,
-    TTSUsageMetricsData,
-    TTFBMetricsData,
     ProcessingMetricsData,
+    TTFBMetricsData,
+    TTSUsageMetricsData,
 )
 
 logger = logging.getLogger(__name__)

@@ -5,11 +5,12 @@ Ensures that base class instrumentation works across all provider implementation
 
 import pytest
 from conftest import assert_span_has_attributes, get_spans_by_name, run_pipeline_task
-from openinference.instrumentation.pipecat import PipecatInstrumentor
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from pipecat.frames.frames import AudioRawFrame, LLMMessagesFrame, TextFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
+
+from openinference.instrumentation.pipecat import PipecatInstrumentor
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class TestOpenAISpans:
@@ -125,7 +126,6 @@ class TestOpenAISpans:
         for span in stt_spans + llm_spans + tts_spans:
             attrs = dict(span.attributes)
             service_name = attrs.get("service.name")
-            # Service names should be class names like MockSTTService, MockLLMService, MockTTSService
             assert service_name in [
                 "MockSTTService",
                 "MockLLMService",

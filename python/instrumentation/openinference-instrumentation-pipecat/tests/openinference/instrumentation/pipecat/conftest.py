@@ -10,7 +10,6 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
 from pipecat.frames.frames import (
     AudioRawFrame,
     EndFrame,
@@ -22,7 +21,6 @@ from pipecat.frames.frames import (
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
 from pipecat.services.ai_services import LLMService, STTService, TTSService
-
 
 # Mock Services for Testing
 

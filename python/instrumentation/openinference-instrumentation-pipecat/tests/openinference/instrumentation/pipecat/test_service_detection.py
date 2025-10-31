@@ -86,10 +86,11 @@ class TestServiceTypeDetection:
 
     def test_detect_non_service_processor(self):
         """Test that non-service processors return None"""
+        from pipecat.processors.frame_processor import FrameProcessor
+
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
         )
-        from pipecat.processors.frame_processor import FrameProcessor
 
         detector = _ServiceDetector()
         generic_processor = FrameProcessor()
@@ -294,10 +295,11 @@ class TestServiceInheritanceDetection:
 
     def test_custom_llm_service_detected(self):
         """Test that custom LLM service inheriting from base is detected"""
+        from pipecat.services.ai_services import LLMService
+
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
         )
-        from pipecat.services.ai_services import LLMService
 
         class CustomLLMService(LLMService):
             def __init__(self):
@@ -312,10 +314,11 @@ class TestServiceInheritanceDetection:
 
     def test_deeply_nested_service_detected(self):
         """Test that services with deep inheritance are detected"""
+        from pipecat.services.ai_services import TTSService
+
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
         )
-        from pipecat.services.ai_services import TTSService
 
         class BaseTTSWrapper(TTSService):
             async def run_tts(self, text: str):
@@ -332,11 +335,11 @@ class TestServiceInheritanceDetection:
 
     def test_multiple_inheritance_service(self):
         """Test service detection with multiple inheritance (edge case)"""
+        from pipecat.services.ai_services import STTService
+
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
         )
-        from pipecat.processors.frame_processor import FrameProcessor
-        from pipecat.services.ai_services import STTService
 
         class MixinClass:
             pass

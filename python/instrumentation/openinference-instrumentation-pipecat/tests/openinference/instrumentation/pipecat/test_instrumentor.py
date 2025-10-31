@@ -2,8 +2,9 @@
 Test the PipecatInstrumentor class for automatic observer injection.
 """
 
-from openinference.instrumentation.pipecat import PipecatInstrumentor
 from pipecat.pipeline.task import PipelineTask
+
+from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 
 class TestInstrumentorBasics:

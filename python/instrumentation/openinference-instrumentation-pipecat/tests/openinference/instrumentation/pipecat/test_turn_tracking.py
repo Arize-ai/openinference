@@ -6,14 +6,11 @@ Ensures proper conversation turn detection and span creation.
 import asyncio
 
 import pytest
-
 from conftest import (
     assert_span_has_attributes,
     get_spans_by_name,
     run_pipeline_task,
 )
-from openinference.instrumentation.pipecat import PipecatInstrumentor
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
     BotStoppedSpeakingFrame,
@@ -23,6 +20,9 @@ from pipecat.frames.frames import (
     UserStoppedSpeakingFrame,
 )
 from pipecat.pipeline.task import PipelineTask
+
+from openinference.instrumentation.pipecat import PipecatInstrumentor
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
 class TestTurnDetection:

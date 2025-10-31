@@ -7,9 +7,9 @@
 import os
 from datetime import datetime
 
+from arize.otel import register
 from dotenv import load_dotenv
 from loguru import logger
-
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -30,7 +30,7 @@ from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
-from arize.otel import register
+
 from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)
@@ -71,7 +71,7 @@ transport_params = {
 
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
-    logger.info(f"Starting bot")
+    logger.info("Starting bot")
 
     ### STT ###
     stt = OpenAISTTService(
@@ -108,8 +108,12 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful LLM in a WebRTC call. Your goal is to demonstrate your capabilities in a succinct way. Your output will be converted to audio so don't include special characters in your answers. Respond to what the user said in a creative and helpful way.",
-        },
+            "content": "You are a helpful LLM in a WebRTC call. "
+            + "Your goal is to demonstrate your capabilities in a succinct way. "
+            + "Your output will be converted to audio so don't "
+            + "include special characters in your answers. "
+            + "Respond to what the user said in a creative and helpful way.",
+        }
     ]
 
     context = LLMContext(messages)
@@ -142,14 +146,14 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        logger.info(f"Client connected")
+        logger.info("Client connected")
         # Kick off the conversation.
         messages.append({"role": "system", "content": "Please introduce yourself to the user."})
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
-        logger.info(f"Client disconnected")
+        logger.info("Client disconnected")
         await task.cancel()
 
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
