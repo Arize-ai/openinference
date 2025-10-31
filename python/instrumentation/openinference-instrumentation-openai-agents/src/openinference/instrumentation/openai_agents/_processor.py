@@ -350,7 +350,8 @@ def _get_attributes_from_response_custom_tool_call_output_param(
     if (call_id := obj.get("call_id")) is not None:
         yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
     if (output := obj.get("output")) is not None:
-        yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
+        output_value = output if isinstance(output, str) else safe_json_dumps(output)
+        yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_function_call_output(
@@ -359,7 +360,10 @@ def _get_attributes_from_function_call_output(
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
     yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
-    yield f"{prefix}{MESSAGE_CONTENT}", obj["output"]
+    # output can be str or complex type - serialize complex types to JSON
+    if output := obj.get("output"):
+        output_value = output if isinstance(output, str) else safe_json_dumps(output)
+        yield f"{prefix}{MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_generation_span_data(
