@@ -69,9 +69,7 @@ class TestTurnDetection:
             BotStoppedSpeakingFrame(),
         )
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         # Should have at least one complete turn
         assert len(turn_spans) >= 1
@@ -90,9 +88,7 @@ class TestTurnDetection:
 
         # Complete turn
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Test input", user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Test input", user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
         await task.queue_frame(BotStartedSpeakingFrame())
         await task.queue_frame(TextFrame(text="Test output"))
@@ -100,9 +96,7 @@ class TestTurnDetection:
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         if turn_spans:
             turn_span = turn_spans[0]
@@ -114,9 +108,7 @@ class TestTurnDetection:
             # Should have input and output
             attrs = dict(turn_span.attributes)
             assert SpanAttributes.INPUT_VALUE in attrs or "conversation.input" in attrs
-            assert (
-                SpanAttributes.OUTPUT_VALUE in attrs or "conversation.output" in attrs
-            )
+            assert SpanAttributes.OUTPUT_VALUE in attrs or "conversation.output" in attrs
 
         instrumentor.uninstrument()
 
@@ -157,9 +149,7 @@ class TestMultipleTurns:
             BotStoppedSpeakingFrame(),
         )
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         # Should have 3 separate turn spans
         assert len(turn_spans) >= 3
@@ -198,9 +188,7 @@ class TestMultipleTurns:
             UserStoppedSpeakingFrame(),
         )
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         # Should handle interruption gracefully - first turn ends, second begins
         assert len(turn_spans) >= 1
@@ -231,9 +219,7 @@ class TestTurnHierarchy:
 
         # Complete turn with all phases
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Hello", user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Hello", user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
         # LLM processing happens here
         await task.queue_frame(BotStartedSpeakingFrame())
@@ -243,9 +229,7 @@ class TestTurnHierarchy:
         await asyncio.sleep(0.1)
 
         # Verify hierarchy: Turn -> STT/LLM/TTS
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
         tts_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.tts")
@@ -277,16 +261,12 @@ class TestTurnConfiguration:
 
         # Send frames that would normally trigger turn tracking
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Hello", user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Hello", user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         # Should not create turn spans when disabled
         assert len(turn_spans) == 0
@@ -301,23 +281,17 @@ class TestTurnConfiguration:
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
 
-        task = PipelineTask(
-            simple_pipeline, enable_turn_tracking=True, conversation_id="test-123"
-        )
+        task = PipelineTask(simple_pipeline, enable_turn_tracking=True, conversation_id="test-123")
 
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Hello", user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Hello", user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
         await task.queue_frame(BotStartedSpeakingFrame())
         await task.queue_frame(BotStoppedSpeakingFrame())
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         if turn_spans:
             turn_span = turn_spans[0]
@@ -345,26 +319,20 @@ class TestTurnInputOutput:
         user_message = "This is the user's complete message"
 
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text=user_message, user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text=user_message, user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
         await task.queue_frame(BotStartedSpeakingFrame())
         await task.queue_frame(BotStoppedSpeakingFrame())
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         if turn_spans:
             turn_span = turn_spans[0]
             attrs = dict(turn_span.attributes)
 
-            input_value = attrs.get(SpanAttributes.INPUT_VALUE) or attrs.get(
-                "conversation.input"
-            )
+            input_value = attrs.get(SpanAttributes.INPUT_VALUE) or attrs.get("conversation.input")
             assert input_value is not None
             assert user_message in str(input_value)
 
@@ -383,9 +351,7 @@ class TestTurnInputOutput:
         bot_response = "This is the bot's complete response"
 
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Hello", user_id="user1", timestamp=0)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Hello", user_id="user1", timestamp=0))
         await task.queue_frame(UserStoppedSpeakingFrame())
         await task.queue_frame(BotStartedSpeakingFrame())
         await task.queue_frame(TextFrame(text=bot_response))
@@ -393,9 +359,7 @@ class TestTurnInputOutput:
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         if turn_spans:
             turn_span = turn_spans[0]
@@ -420,12 +384,8 @@ class TestTurnInputOutput:
         task = PipelineTask(simple_pipeline, enable_turn_tracking=True)
 
         await task.queue_frame(UserStartedSpeakingFrame())
-        await task.queue_frame(
-            TranscriptionFrame(text="Part one", user_id="user1", timestamp=0)
-        )
-        await task.queue_frame(
-            TranscriptionFrame(text="Part two", user_id="user1", timestamp=1)
-        )
+        await task.queue_frame(TranscriptionFrame(text="Part one", user_id="user1", timestamp=0))
+        await task.queue_frame(TranscriptionFrame(text="Part two", user_id="user1", timestamp=1))
         await task.queue_frame(UserStoppedSpeakingFrame())
         await task.queue_frame(BotStartedSpeakingFrame())
         await task.queue_frame(TextFrame(text="Response part A"))
@@ -434,18 +394,14 @@ class TestTurnInputOutput:
 
         await asyncio.sleep(0.1)
 
-        turn_spans = get_spans_by_name(
-            in_memory_span_exporter, "pipecat.conversation.turn"
-        )
+        turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")
 
         if turn_spans:
             turn_span = turn_spans[0]
             attrs = dict(turn_span.attributes)
 
             # Should capture aggregated input/output
-            input_value = attrs.get(SpanAttributes.INPUT_VALUE) or attrs.get(
-                "conversation.input"
-            )
+            input_value = attrs.get(SpanAttributes.INPUT_VALUE) or attrs.get("conversation.input")
             output_value = attrs.get(SpanAttributes.OUTPUT_VALUE) or attrs.get(
                 "conversation.output"
             )
@@ -455,8 +411,8 @@ class TestTurnInputOutput:
                 assert "Part one" in str(input_value) or "Part two" in str(input_value)
 
             if output_value:
-                assert "Response part A" in str(
+                assert "Response part A" in str(output_value) or "Response part B" in str(
                     output_value
-                ) or "Response part B" in str(output_value)
+                )
 
         instrumentor.uninstrument()

@@ -1,6 +1,7 @@
 """
 Shared test fixtures for Pipecat instrumentation tests.
 """
+
 import asyncio
 from typing import AsyncGenerator, List, Optional
 from unittest.mock import Mock
@@ -52,7 +53,12 @@ class MockTTSService(TTSService):
     """Mock TTS service for testing"""
 
     def __init__(
-        self, *, model: str = "mock-tts", voice: str = "mock-voice", provider: str = "mock", **kwargs
+        self,
+        *,
+        model: str = "mock-tts",
+        voice: str = "mock-voice",
+        provider: str = "mock",
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self._model = model
@@ -127,9 +133,13 @@ def create_anthropic_llm(model: str = "claude-3-5-sonnet-20241022", **kwargs):
     return create_mock_service(MockLLMService, "anthropic", "llm", model=model, **kwargs)
 
 
-def create_elevenlabs_tts(voice_id: str = "mock-voice-id", model: str = "eleven_turbo_v2", **kwargs):
+def create_elevenlabs_tts(
+    voice_id: str = "mock-voice-id", model: str = "eleven_turbo_v2", **kwargs
+):
     """Create mock ElevenLabs TTS service"""
-    service = create_mock_service(MockTTSService, "elevenlabs", "tts", model=model, voice=voice_id, **kwargs)
+    service = create_mock_service(
+        MockTTSService, "elevenlabs", "tts", model=model, voice=voice_id, **kwargs
+    )
     service._voice_id = voice_id
     return service
 
@@ -141,7 +151,9 @@ def create_deepgram_stt(model: str = "nova-2", **kwargs):
 
 def create_cartesia_tts(model: str = "sonic-english", voice_id: str = "mock-voice", **kwargs):
     """Create mock Cartesia TTS service"""
-    return create_mock_service(MockTTSService, "cartesia", "tts", model=model, voice=voice_id, **kwargs)
+    return create_mock_service(
+        MockTTSService, "cartesia", "tts", model=model, voice=voice_id, **kwargs
+    )
 
 
 # Fixtures
@@ -292,9 +304,9 @@ def assert_span_hierarchy(spans: List, expected_hierarchy: List[str]):
         parent_span = span_by_name[parent_name]
         child_span = span_by_name[child_name]
 
-        assert (
-            child_span.parent.span_id == parent_span.context.span_id
-        ), f"{child_name} is not a child of {parent_name}"
+        assert child_span.parent.span_id == parent_span.context.span_id, (
+            f"{child_name} is not a child of {parent_name}"
+        )
 
 
 async def run_pipeline_task(task: PipelineTask, *frames: Frame):
@@ -314,34 +326,35 @@ async def run_pipeline_task(task: PipelineTask, *frames: Frame):
     class MockFramePushData:
         def __init__(self, source, frame):
             import time
+
             self.source = source
             self.frame = frame
             self.destination = None
             self.direction = FrameDirection.DOWNSTREAM
             self.timestamp = time.time()  # For TurnTrackingObserver
             # Ensure frame has an id attribute for TurnTrackingObserver compatibility
-            if not hasattr(frame, 'id'):
+            if not hasattr(frame, "id"):
                 frame.id = id(frame)
 
     # Get the pipeline processors (services)
     # The structure is: task._pipeline._processors contains [Source, Pipeline, Sink]
     # The actual services are in the nested Pipeline._processors
     processors = []
-    if hasattr(task, '_pipeline'):
+    if hasattr(task, "_pipeline"):
         pipeline = task._pipeline
-        if hasattr(pipeline, '_processors') and len(pipeline._processors) > 1:
+        if hasattr(pipeline, "_processors") and len(pipeline._processors) > 1:
             # The middle item is the actual Pipeline containing the services
             nested_pipeline = pipeline._processors[1]
-            if hasattr(nested_pipeline, '_processors'):
+            if hasattr(nested_pipeline, "_processors"):
                 processors = nested_pipeline._processors
 
     # Get all observers from the task
     # The task has a TaskObserver wrapper which contains the actual observers
     observers = []
-    if hasattr(task, '_observer') and task._observer:
+    if hasattr(task, "_observer") and task._observer:
         task_observer = task._observer
         # TaskObserver has _observers list containing the real observers
-        if hasattr(task_observer, '_observers') and task_observer._observers:
+        if hasattr(task_observer, "_observers") and task_observer._observers:
             observers.extend(task_observer._observers)
 
     # Trigger observer callbacks for each frame through each processor
@@ -349,11 +362,11 @@ async def run_pipeline_task(task: PipelineTask, *frames: Frame):
         for processor in processors:
             # Notify all observers about this frame push
             for observer in observers:
-                if hasattr(observer, 'on_push_frame'):
+                if hasattr(observer, "on_push_frame"):
                     await observer.on_push_frame(MockFramePushData(processor, frame))
 
     # Always send EndFrame to finish spans
     for processor in processors:
         for observer in observers:
-            if hasattr(observer, 'on_push_frame'):
+            if hasattr(observer, "on_push_frame"):
                 await observer.on_push_frame(MockFramePushData(processor, EndFrame()))

@@ -1,6 +1,7 @@
 """
 Test the PipecatInstrumentor class for automatic observer injection.
 """
+
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 

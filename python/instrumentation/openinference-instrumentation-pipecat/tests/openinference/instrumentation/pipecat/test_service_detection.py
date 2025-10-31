@@ -2,6 +2,7 @@
 Test service type detection and provider identification across different implementations.
 This ensures our base class instrumentation affects all inheriting classes.
 """
+
 import pytest
 
 

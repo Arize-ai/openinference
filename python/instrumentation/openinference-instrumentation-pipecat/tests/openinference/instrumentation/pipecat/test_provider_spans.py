@@ -2,6 +2,7 @@
 Test span creation for different service providers (OpenAI, Anthropic, ElevenLabs, Deepgram).
 Ensures that base class instrumentation works across all provider implementations.
 """
+
 import asyncio
 
 import pytest
@@ -83,7 +84,9 @@ class TestOpenAISpans:
 
         # Send audio to transcribe
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
 
@@ -99,7 +102,9 @@ class TestOpenAISpans:
         instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_full_pipeline(self, tracer_provider, in_memory_span_exporter, openai_pipeline):
+    async def test_openai_full_pipeline(
+        self, tracer_provider, in_memory_span_exporter, openai_pipeline
+    ):
         """Test full OpenAI pipeline (STT -> LLM -> TTS)"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -108,7 +113,9 @@ class TestOpenAISpans:
 
         # Simulate full conversation flow
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         # Should have spans for all three phases
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
@@ -210,7 +217,9 @@ class TestDeepgramSpans:
         task = PipelineTask(pipeline)
 
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
 
@@ -241,7 +250,9 @@ class TestMixedProviderPipeline:
 
         # Simulate flow through pipeline
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         spans = in_memory_span_exporter.get_finished_spans()
 
@@ -268,7 +279,9 @@ class TestMixedProviderPipeline:
         task = PipelineTask(mixed_provider_pipeline)
 
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         # STT span should be MockSTTService with deepgram provider
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
@@ -358,7 +371,9 @@ class TestSpanInputOutput:
         task = PipelineTask(pipeline)
 
         audio_data = b"\x00" * 1024
-        await run_pipeline_task(task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1))
+        await run_pipeline_task(
+            task, AudioRawFrame(audio=audio_data, sample_rate=16000, num_channels=1)
+        )
 
         stt_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.stt")
 

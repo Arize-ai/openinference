@@ -113,7 +113,10 @@ class _TaskInitWrapper:
     """Wrapper for PipelineTask.__init__ to inject OpenInferenceObserver."""
 
     def __init__(
-        self, tracer: OITracer, config: TraceConfig, default_debug_log_filename: Optional[str] = None
+        self,
+        tracer: OITracer,
+        config: TraceConfig,
+        default_debug_log_filename: Optional[str] = None,
     ):
         self._tracer = tracer
         self._config = config
@@ -133,7 +136,9 @@ class _TaskInitWrapper:
         conversation_id = getattr(instance, "_conversation_id", None)
 
         # Use task-specific debug log filename if set, otherwise use default from instrument()
-        debug_log_filename = getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
+        debug_log_filename = (
+            getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
+        )
 
         observer = OpenInferenceObserver(
             tracer=self._tracer,
