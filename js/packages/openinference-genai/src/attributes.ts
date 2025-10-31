@@ -1,51 +1,52 @@
-import type { Attributes } from "@opentelemetry/api";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import type { Attributes } from "@opentelemetry/api";
 import {
-  ATTR_GEN_AI_PROVIDER_NAME,
-  ATTR_GEN_AI_REQUEST_MODEL,
-  ATTR_GEN_AI_RESPONSE_MODEL,
-  ATTR_GEN_AI_REQUEST_MAX_TOKENS,
-  ATTR_GEN_AI_REQUEST_TEMPERATURE,
-  ATTR_GEN_AI_REQUEST_TOP_P,
-  ATTR_GEN_AI_REQUEST_TOP_K,
-  ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY,
-  ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY,
-  ATTR_GEN_AI_REQUEST_STOP_SEQUENCES,
-  ATTR_GEN_AI_REQUEST_SEED,
-  ATTR_GEN_AI_INPUT_MESSAGES,
-  ATTR_GEN_AI_OUTPUT_MESSAGES,
-  ATTR_GEN_AI_USAGE_INPUT_TOKENS,
-  ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
-  ATTR_GEN_AI_PROMPT,
-  ATTR_GEN_AI_COMPLETION,
+  ATTR_GEN_AI_AGENT_DESCRIPTION,
   ATTR_GEN_AI_AGENT_ID,
   ATTR_GEN_AI_AGENT_NAME,
-  ATTR_GEN_AI_AGENT_DESCRIPTION,
-  ATTR_GEN_AI_TOOL_NAME,
-  ATTR_GEN_AI_TOOL_DESCRIPTION,
+  ATTR_GEN_AI_COMPLETION,
+  ATTR_GEN_AI_INPUT_MESSAGES,
+  ATTR_GEN_AI_OUTPUT_MESSAGES,
+  ATTR_GEN_AI_PROMPT,
+  ATTR_GEN_AI_PROVIDER_NAME,
+  ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY,
+  ATTR_GEN_AI_REQUEST_MAX_TOKENS,
+  ATTR_GEN_AI_REQUEST_MODEL,
+  ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY,
+  ATTR_GEN_AI_REQUEST_SEED,
+  ATTR_GEN_AI_REQUEST_STOP_SEQUENCES,
+  ATTR_GEN_AI_REQUEST_TEMPERATURE,
+  ATTR_GEN_AI_REQUEST_TOP_K,
+  ATTR_GEN_AI_REQUEST_TOP_P,
+  ATTR_GEN_AI_RESPONSE_MODEL,
   ATTR_GEN_AI_TOOL_CALL_ID,
+  ATTR_GEN_AI_TOOL_DESCRIPTION,
+  ATTR_GEN_AI_TOOL_NAME,
   ATTR_GEN_AI_TOOL_TYPE,
+  ATTR_GEN_AI_USAGE_INPUT_TOKENS,
+  ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
 } from "@opentelemetry/semantic-conventions/incubating";
 
+import type {
+  ChatMessage,
+  GenericPart,
+} from "./__generated__/opentelemetryInputMessages.js";
+import type { OutputMessage } from "./__generated__/opentelemetryOutputMessages.js";
 import {
   getMimeType,
   getNumber,
   getString,
   getStringArray,
   merge,
-  safelyParseJSON,
   safelyJSONStringify,
+  safelyParseJSON,
   set,
   toStringContent,
 } from "./utils.js";
-import type {
-  ChatMessage,
-  GenericPart,
-} from "./__generated__/opentelemetryInputMessages.js";
-import type { OutputMessage } from "./__generated__/opentelemetryOutputMessages.js";
 
 export type GenAIInputMessage = ChatMessage;
 export type GenAIInputMessagePart = ChatMessage["parts"][number];
@@ -225,7 +226,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
 
 /**
  * Map provider and system to openinference attributes
- * @todo add some heuristics that can map incoming provider names to the correct OpenInference provider name
+ * @remarks TODO: add some heuristics that can map incoming provider names to the correct OpenInference provider name
  * @param spanAttributes - The span attributes containing provider and system to map
  * @returns The mapped provider and system attributes
  */

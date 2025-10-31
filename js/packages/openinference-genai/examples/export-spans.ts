@@ -1,15 +1,15 @@
 /* eslint-disable no-console */
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
+import { SpanStatusCode } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
-  NodeTracerProvider,
   BatchSpanProcessor,
+  NodeTracerProvider,
 } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-
 import { OpenInferenceOTLPTraceExporter } from "./openinferenceOTLPTraceExporter.js";
-import { SpanStatusCode } from "@opentelemetry/api";
 
 // setup tracing provider and custom exporter
 

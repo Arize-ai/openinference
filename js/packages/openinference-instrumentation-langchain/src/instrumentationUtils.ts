@@ -1,6 +1,8 @@
-import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
-import { LangChainTracer } from "./tracer";
 import { OITracer } from "@arizeai/openinference-core";
+
+import { LangChainTracer } from "./tracer";
+
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
 
 /**
  * Adds the {@link LangChainTracer} to the callback handlers if it is not already present

@@ -218,11 +218,10 @@ class _RunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        agent = instance
-        if hasattr(agent, "name") and agent.name:
-            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        if hasattr(instance, "name") and instance.name:
+            agent_name = instance.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(agent, Team):
+            if isinstance(instance, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -245,14 +244,14 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(agent)),
+                        **dict(_agent_run_attributes(instance)),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            team_token = _setup_team_context(agent, node_id)
+            team_token = _setup_team_context(instance, node_id)
 
             try:
                 run_response: RunOutput = wrapped(*args, **kwargs)
@@ -283,11 +282,10 @@ class _RunWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        agent = instance
-        if hasattr(agent, "name") and agent.name:
-            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        if hasattr(instance, "name") and instance.name:
+            agent_name = instance.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(agent, Team):
+            if isinstance(instance, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -308,14 +306,14 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(agent)),
+                        **dict(_agent_run_attributes(instance)),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            team_token = _setup_team_context(agent, node_id)
+            team_token = _setup_team_context(instance, node_id)
 
             try:
                 current_run_id = None
@@ -356,11 +354,11 @@ class _RunWrapper:
                         session_id = None
 
                     if session_id is None:
-                        session_id = agent.session_id
+                        session_id = instance.session_id
 
                     run_response = None
-                    if hasattr(agent, "get_last_run_output") and session_id is not None:
-                        run_response = agent.get_last_run_output(session_id=session_id)
+                    if hasattr(instance, "get_last_run_output") and session_id is not None:
+                        run_response = instance.get_last_run_output(session_id=session_id)
 
                     span.set_status(trace_api.StatusCode.OK)
                     if run_response is not None:
@@ -386,11 +384,10 @@ class _RunWrapper:
             response = await wrapped(*args, **kwargs)
             return response
 
-        agent = instance
-        if hasattr(agent, "name") and agent.name:
-            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        if hasattr(instance, "name") and instance.name:
+            agent_name = instance.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(agent, Team):
+            if isinstance(instance, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -413,14 +410,14 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(agent)),
+                        **dict(_agent_run_attributes(instance)),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            team_token = _setup_team_context(agent, node_id)
+            team_token = _setup_team_context(instance, node_id)
 
             try:
                 run_response = await wrapped(*args, **kwargs)
@@ -451,11 +448,10 @@ class _RunWrapper:
             async for response in await wrapped(*args, **kwargs):
                 yield response
 
-        agent = instance
-        if hasattr(agent, "name") and agent.name:
-            agent_name = agent.name.replace(" ", "_").replace("-", "_")
+        if hasattr(instance, "name") and instance.name:
+            agent_name = instance.name.replace(" ", "_").replace("-", "_")
         else:
-            if isinstance(agent, Team):
+            if isinstance(instance, Team):
                 agent_name = "Team"
             else:
                 agent_name = "Agent"
@@ -478,14 +474,14 @@ class _RunWrapper:
                             *args,
                             **kwargs,
                         ),
-                        **dict(_agent_run_attributes(agent)),
+                        **dict(_agent_run_attributes(instance)),
                         **dict(_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
             ),
         ) as span:
-            team_token = _setup_team_context(agent, node_id)
+            team_token = _setup_team_context(instance, node_id)
 
             try:
                 current_run_id = None
@@ -526,11 +522,17 @@ class _RunWrapper:
                         session_id = None
 
                     if session_id is None:
-                        session_id = agent.session_id
+                        session_id = instance.session_id
 
                     run_response = None
-                    if hasattr(agent, "get_last_run_output") and session_id is not None:
-                        run_response = agent.get_last_run_output(session_id=session_id)
+                    if hasattr(instance, "_has_async_db") and instance._has_async_db():
+                        if hasattr(instance, "aget_last_run_output") and session_id is not None:
+                            run_response = await instance.aget_last_run_output(
+                                session_id=session_id
+                            )
+                    else:
+                        if hasattr(instance, "get_last_run_output") and session_id is not None:
+                            run_response = instance.get_last_run_output(session_id=session_id)
 
                     span.set_status(trace_api.StatusCode.OK)
                     if run_response is not None:

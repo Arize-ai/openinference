@@ -1,15 +1,16 @@
 import {
+  Attributes,
+  AttributeValue,
+  Exception,
+  Link,
   Span,
   SpanContext,
   SpanStatus,
   TimeInput,
-  Attributes,
-  Exception,
-  AttributeValue,
-  Link,
 } from "@opentelemetry/api";
-import { TraceConfig } from "./types";
+
 import { mask } from "./maskingRules";
+import { TraceConfig } from "./types";
 
 /**
  * A wrapper around the OpenTelemetry {@link Span} interface that masks sensitive information based on the passed in {@link TraceConfig}.

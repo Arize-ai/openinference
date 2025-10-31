@@ -1,15 +1,18 @@
-import {
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-  ConsoleSpanExporter,
-} from "@opentelemetry/sdk-trace-node";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 import { Resource } from "@opentelemetry/resources";
-import * as beeaiFramework from "beeai-framework";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+
 import { BeeAIInstrumentation } from "../src/index";
+
+import * as beeaiFramework from "beeai-framework";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);

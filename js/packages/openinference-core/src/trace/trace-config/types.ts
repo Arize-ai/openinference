@@ -1,4 +1,5 @@
 import { AttributeValue } from "@opentelemetry/api";
+
 import { OISpan } from "./OISpan";
 
 /**
@@ -24,7 +25,7 @@ export type TraceConfig = Readonly<Required<TraceConfigOptions>>;
 
 export type TraceConfigKey = keyof TraceConfig;
 
-type BooleanTraceConfigFlag = {
+export type BooleanTraceConfigFlag = {
   /**
    * The default value for the flag
    */
@@ -39,7 +40,7 @@ type BooleanTraceConfigFlag = {
   type: "boolean";
 };
 
-type NumericTraceConfigFlag = {
+export type NumericTraceConfigFlag = {
   /**
    * The default value for the flag
    */

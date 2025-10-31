@@ -1,11 +1,13 @@
 import { OITracer } from "@arizeai/openinference-core";
-import { FrameworkSpan, GeneratedResponse } from "../types";
-import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { SpanStatusCode, TimeInput } from "@opentelemetry/api";
+
 import { startEventName, successEventName } from "../config";
+import { FrameworkSpan, GeneratedResponse } from "../types";
 
 interface BuiltTraceTreeProps {
   tracer: OITracer;

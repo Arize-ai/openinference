@@ -1,3 +1,4 @@
+import { Context } from "@opentelemetry/api";
 import {
   BatchSpanProcessor,
   BufferConfig,
@@ -6,9 +7,9 @@ import {
   Span,
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
-import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
+
 import { SpanFilter } from "./types";
-import { Context } from "@opentelemetry/api";
+import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.

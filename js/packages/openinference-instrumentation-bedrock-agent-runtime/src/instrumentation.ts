@@ -1,9 +1,5 @@
-import {
-  InstrumentationBase,
-  InstrumentationConfig,
-  InstrumentationModuleDefinition,
-  InstrumentationNodeModuleDefinition,
-} from "@opentelemetry/instrumentation";
+import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+
 import {
   diag,
   SpanKind,
@@ -11,27 +7,34 @@ import {
   Tracer,
   TracerProvider,
 } from "@opentelemetry/api";
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+import {
+  InstrumentationBase,
+  InstrumentationConfig,
+  InstrumentationModuleDefinition,
+  InstrumentationNodeModuleDefinition,
+} from "@opentelemetry/instrumentation";
+
+import {
+  extractBedrockRagResponseAttributes,
+  extractBedrockRetrieveResponseAttributes,
+} from "./attributes/ragAttributeExtractionUtils";
+import {
+  safelyExtractBaseRagAttributes,
+  safelyExtractBaseRequestAttributes,
+  safelyExtractBaseRetrieveAttributes,
+} from "./attributes/requestAttributes";
+import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
+import { interceptAgentResponse, interceptRagResponse } from "./streamUtils";
 import { VERSION } from "./version";
+
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 import {
   InvokeAgentCommand,
   RetrieveAndGenerateCommand,
   RetrieveAndGenerateStreamCommand,
   RetrieveCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import {
-  safelyExtractBaseRagAttributes,
-  safelyExtractBaseRequestAttributes,
-  safelyExtractBaseRetrieveAttributes,
-} from "./attributes/requestAttributes";
-import { interceptAgentResponse, interceptRagResponse } from "./streamUtils";
-import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
 import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
-import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
-import {
-  extractBedrockRagResponseAttributes,
-  extractBedrockRetrieveResponseAttributes,
-} from "./attributes/ragAttributeExtractionUtils";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
 

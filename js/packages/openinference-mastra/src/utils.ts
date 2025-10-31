@@ -1,8 +1,9 @@
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import {
   SemanticConventions,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
+
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 /**

@@ -3,17 +3,19 @@
  * This file shows an example of how if openai is already imported, you can manually instrument it after it's been imported.
  */
 
-import openai from "openai"; // Note that openai is imported before the instrumentation
-import { isPatched, OpenAIInstrumentation } from "../src";
+import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { Resource } from "@opentelemetry/resources";
 import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { Resource } from "@opentelemetry/resources";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+
+import { isPatched, OpenAIInstrumentation } from "../src";
+
 import { assert } from "console";
+import openai from "openai"; // Note that openai is imported before the instrumentation
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);

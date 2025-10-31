@@ -1,10 +1,11 @@
+import { diag } from "@opentelemetry/api";
+
 import "./agent-instrumentation";
 
 import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import { diag } from "@opentelemetry/api";
 
 async function run() {
   const agentId = process.env.BEDROCK_AGENT_ID;

@@ -6,37 +6,35 @@
  */
 
 // Import official AWS SDK types
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
+
+import { diag } from "@opentelemetry/api";
+
 import {
   // Core content and message types from SDK
   ContentBlock,
-  Message,
-  SystemContentBlock,
-  ConversationRole,
-
-  // Tool-related types
-  Tool,
-  ToolUseBlock,
-  ToolResultBlock,
-  ToolChoice,
-  ToolInputSchema,
-
-  // Configuration types
-  InferenceConfiguration,
-
-  // Streaming types
-  ContentBlockStart,
   ContentBlockDelta,
   ContentBlockDeltaEvent,
+  // Streaming types
+  ContentBlockStart,
   ContentBlockStartEvent,
   ContentBlockStopEvent,
-
+  ConversationRole,
   // Converse Stream types
   ConverseStreamCommand,
   ConverseStreamCommandInput,
   ConverseStreamCommandOutput,
+  // Configuration types
+  InferenceConfiguration,
+  Message,
+  SystemContentBlock,
+  // Tool-related types
+  Tool,
+  ToolChoice,
+  ToolInputSchema,
+  ToolResultBlock,
+  ToolUseBlock,
 } from "@aws-sdk/client-bedrock-runtime";
-import { isObjectWithStringKeys } from "@arizeai/openinference-core";
-import { diag } from "@opentelemetry/api";
 
 // Re-export AWS SDK types for convenience
 export {
