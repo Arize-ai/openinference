@@ -36,6 +36,21 @@ export function isObjectWithStringKeys(
 }
 
 /**
+ * Type guard for if a function is a Promise
+ * @param value
+ * @returns true if it is a Promise
+ */
+export function isPromise<T = unknown>(value: unknown): value is Promise<T> {
+  return (
+    !!value &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    typeof (value as any)?.then === "function" &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    typeof (value as any)?.catch === "function"
+  );
+}
+
+/**
  * Type guard to determine whether or not a value is an object with string keys and attribute values.
  * @param value
  * @returns true if the value is an object with string keys and attribute values, false otherwise.
@@ -51,7 +66,7 @@ export function isAttributes(value: unknown): value is Attributes {
 
 /**
  * A type check function to ensure that a switch or set of conditionals is exhaustive.
- * Typscript will throw an error if the switch or conditionals are not exhaustive.
+ * Typescript will throw an error if the switch or conditionals are not exhaustive.
  * @example
  *  ```typescript
  * type MyType = "a" | "b";
