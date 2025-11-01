@@ -1049,19 +1049,13 @@ class _FunctionCallWrapper:
             if response.status == "success":
                 function_result = ""
                 if isinstance(function_call.result, (GeneratorType, Iterator)):
-                    events = []
-                    for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(
-                            item, TeamRunContentEvent
-                        ):
-                            function_result += self._parse_content(item.content)
-                        else:
-                            function_result += str(item)
-                        events.append(item)
-
-                    # Convert back to iterator for downstream use
-                    function_call.result = self._generator_wrapper(events)
+                    # Create a streaming wrapper that preserves real-time flow
+                    function_call.result = self._streaming_generator_wrapper(
+                        function_call.result, span
+                    )
                     response.result = function_call.result
+                    # Note: span attributes will be set when streaming completes
+                    return response
                 elif isinstance(function_call.result, ToolResult):
                     function_result = function_call.result.content
                 else:
@@ -1115,31 +1109,21 @@ class _FunctionCallWrapper:
             if response.status == "success":
                 function_result = ""
                 if isinstance(function_call.result, (AsyncGeneratorType, AsyncIterator)):
-                    events = []
-                    async for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(
-                            item, TeamRunContentEvent
-                        ):
-                            function_result += self._parse_content(item.content)
-                        else:
-                            function_result += str(item)
-                        events.append(item)
-                    # Convert back to iterator for downstream use
-                    function_call.result = self._async_generator_wrapper(events)
+                    # Create a streaming wrapper that preserves real-time flow
+                    function_call.result = self._streaming_async_generator_wrapper(
+                        function_call.result, span
+                    )
                     response.result = function_call.result
+                    # Note: span attributes will be set when streaming completes
+                    return response
                 elif isinstance(function_call.result, (GeneratorType, Iterator)):
-                    events = []
-                    for item in function_call.result:
-                        if isinstance(item, RunContentEvent) or isinstance(
-                            item, TeamRunContentEvent
-                        ):
-                            function_result += self._parse_content(item.content)
-                        else:
-                            function_result += str(item)
-                        events.append(item)
-                    # Convert back to iterator for downstream use
-                    function_call.result = self._generator_wrapper(events)
+                    # Create a streaming wrapper that preserves real-time flow
+                    function_call.result = self._streaming_generator_wrapper(
+                        function_call.result, span
+                    )
                     response.result = function_call.result
+                    # Note: span attributes will be set when streaming completes
+                    return response
                 elif isinstance(function_call.result, ToolResult):
                     function_result = function_call.result.content
                 else:
@@ -1163,19 +1147,85 @@ class _FunctionCallWrapper:
 
         return response
 
-    def _generator_wrapper(
+    def _streaming_generator_wrapper(
         self,
-        events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
-    ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
-        for event in events:
-            yield event
+        original_generator: Union[
+            Iterator[Union[RunOutputEvent, TeamRunOutputEvent]], Iterator[Any]
+        ],
+        span: trace_api.Span,
+    ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent, Any]]:
+        """
+        Streaming wrapper that preserves real-time flow while collecting data for observability.
+        Yields items immediately to maintain streaming UX, collects content for logging.
+        """
+        function_result = ""
+        try:
+            for item in original_generator:
+                # Yield immediately to preserve streaming
+                yield item
 
-    async def _async_generator_wrapper(
+                # Collect for logging (non-blocking)
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    else:
+                        function_result += str(item)
+                except Exception:
+                    # Don't break streaming if logging fails
+                    pass
+
+            # Set span attributes after streaming completes
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _output_value_and_mime_type_for_tool_span(
+                        result=function_result,
+                    )
+                )
+            )
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            raise
+
+    async def _streaming_async_generator_wrapper(
         self,
-        events: List[Union[RunOutputEvent, TeamRunOutputEvent]],
-    ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]:
-        for event in events:
-            yield event
+        original_generator: Union[
+            AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]], AsyncIterator[Any]
+        ],
+        span: trace_api.Span,
+    ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent, Any]]:
+        """
+        Async streaming wrapper that preserves real-time flow while collecting data for observability.
+        Yields items immediately to maintain streaming UX, collects content for logging.
+        """
+        function_result = ""
+        try:
+            async for item in original_generator:
+                # Yield immediately to preserve streaming
+                yield item
+
+                # Collect for logging (non-blocking)
+                try:
+                    if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
+                        function_result += self._parse_content(item.content)
+                    else:
+                        function_result += str(item)
+                except Exception:
+                    # Don't break streaming if logging fails
+                    pass
+
+            # Set span attributes after streaming completes
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(
+                dict(
+                    _output_value_and_mime_type_for_tool_span(
+                        result=function_result,
+                    )
+                )
+            )
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            raise
 
     def _parse_content(self, content: Any) -> str:
         from pydantic import BaseModel
