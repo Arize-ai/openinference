@@ -1035,7 +1035,8 @@ class _FunctionCallWrapper:
 
         span_name = f"{function_name}"
 
-        with self._tracer.start_as_current_span(
+        # Start span manually (no 'with' context manager)
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
@@ -1043,40 +1044,57 @@ class _FunctionCallWrapper:
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
-            response = wrapped(*args, **kwargs)
+        )
+
+        try:
+            # Set span as current for the wrapped call
+            with trace_api.use_span(span, end_on_exit=False):
+                response = wrapped(*args, **kwargs)
 
             if response.status == "success":
-                function_result = ""
                 if isinstance(function_call.result, (GeneratorType, Iterator)):
-                    # Create a streaming wrapper that preserves real-time flow
+                    # Streaming case: wrapper will handle span closure after iteration completes
                     function_call.result = self._streaming_generator_wrapper(
-                        function_call.result, span
+                        function_call.result, span, should_close_span=True
                     )
                     response.result = function_call.result
-                    # Note: span attributes will be set when streaming completes
                     return response
-                elif isinstance(function_call.result, ToolResult):
-                    function_result = function_call.result.content
                 else:
-                    function_result = function_call.result
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        _output_value_and_mime_type_for_tool_span(
-                            result=function_result,
-                        )
-                    )
-                )
+                    # Non-streaming case: handle immediately and close span
+                    self._handle_non_streaming_success(function_call.result, span)
             elif response.status == "failure":
                 function_error_message = function_call.error
                 span.set_status(trace_api.StatusCode.ERROR, function_error_message)
                 span.set_attribute(OUTPUT_VALUE, function_error_message)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.end()
             else:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                span.end()
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.end()
+            raise
 
         return response
+
+    def _handle_non_streaming_success(self, result, span):
+        """Handle non-streaming success case: set span attributes and close span."""
+        function_result = ""
+        if isinstance(result, ToolResult):
+            function_result = result.content
+        else:
+            function_result = result
+
+        span.set_status(trace_api.StatusCode.OK)
+        span.set_attributes(
+            dict(
+                _output_value_and_mime_type_for_tool_span(
+                    result=function_result,
+                )
+            )
+        )
+        span.end()
 
     async def arun(
         self,
@@ -1095,7 +1113,8 @@ class _FunctionCallWrapper:
 
         span_name = f"{function_name}"
 
-        with self._tracer.start_as_current_span(
+        # Start span manually (no 'with' context manager)
+        span = self._tracer.start_span(
             span_name,
             attributes={
                 OPENINFERENCE_SPAN_KIND: TOOL,
@@ -1103,47 +1122,44 @@ class _FunctionCallWrapper:
                 **dict(_function_call_attributes(function_call)),
                 **dict(get_attributes_from_context()),
             },
-        ) as span:
-            response = await wrapped(*args, **kwargs)
+        )
+
+        try:
+            # Set span as current for the wrapped call
+            with trace_api.use_span(span, end_on_exit=False):
+                response = await wrapped(*args, **kwargs)
 
             if response.status == "success":
-                function_result = ""
                 if isinstance(function_call.result, (AsyncGeneratorType, AsyncIterator)):
-                    # Create a streaming wrapper that preserves real-time flow
+                    # Async streaming case: wrapper will handle span closure after iteration completes
                     function_call.result = self._streaming_async_generator_wrapper(
-                        function_call.result, span
+                        function_call.result, span, should_close_span=True
                     )
                     response.result = function_call.result
-                    # Note: span attributes will be set when streaming completes
                     return response
                 elif isinstance(function_call.result, (GeneratorType, Iterator)):
-                    # Create a streaming wrapper that preserves real-time flow
+                    # Sync streaming case: wrapper will handle span closure after iteration completes
                     function_call.result = self._streaming_generator_wrapper(
-                        function_call.result, span
+                        function_call.result, span, should_close_span=True
                     )
                     response.result = function_call.result
-                    # Note: span attributes will be set when streaming completes
                     return response
-                elif isinstance(function_call.result, ToolResult):
-                    function_result = function_call.result.content
                 else:
-                    function_result = function_call.result
-
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        _output_value_and_mime_type_for_tool_span(
-                            result=function_result,
-                        )
-                    )
-                )
+                    # Non-streaming case: handle immediately and close span
+                    self._handle_non_streaming_success(function_call.result, span)
             elif response.status == "failure":
                 function_error_message = function_call.error
                 span.set_status(trace_api.StatusCode.ERROR, function_error_message)
                 span.set_attribute(OUTPUT_VALUE, function_error_message)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                span.end()
             else:
                 span.set_status(trace_api.StatusCode.ERROR, "Unknown function call status")
+                span.end()
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.end()
+            raise
 
         return response
 
@@ -1153,6 +1169,7 @@ class _FunctionCallWrapper:
             Iterator[Union[RunOutputEvent, TeamRunOutputEvent]], Iterator[Any]
         ],
         span: trace_api.Span,
+        should_close_span: bool = False,
     ) -> Iterator[Union[RunOutputEvent, TeamRunOutputEvent, Any]]:
         """
         Streaming wrapper that preserves real-time flow while collecting data for observability.
@@ -1186,6 +1203,10 @@ class _FunctionCallWrapper:
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             raise
+        finally:
+            # Close span if we're responsible for it
+            if should_close_span:
+                span.end()
 
     async def _streaming_async_generator_wrapper(
         self,
