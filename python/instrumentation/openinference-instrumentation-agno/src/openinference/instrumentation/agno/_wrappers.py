@@ -1214,6 +1214,7 @@ class _FunctionCallWrapper:
             AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]], AsyncIterator[Any]
         ],
         span: trace_api.Span,
+        should_close_span: bool = False,
     ) -> AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent, Any]]:
         """
         Async streaming wrapper that preserves real-time flow while collecting data for observability.
@@ -1247,6 +1248,10 @@ class _FunctionCallWrapper:
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
             raise
+        finally:
+            # Close span if we're responsible for it
+            if should_close_span:
+                span.end()
 
     def _parse_content(self, content: Any) -> str:
         from pydantic import BaseModel
