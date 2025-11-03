@@ -350,8 +350,23 @@ def _get_attributes_from_response_custom_tool_call_output_param(
     if (call_id := obj.get("call_id")) is not None:
         yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
     if (output := obj.get("output")) is not None:
-        output_value = output if isinstance(output, str) else safe_json_dumps(output)
-        yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
+        if isinstance(output, str):
+            yield f"{prefix}{MESSAGE_CONTENT}", output
+        elif isinstance(output, list):
+            for i, item in enumerate(output):
+                if item["type"] == "input_text":
+                    yield (
+                        f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}",
+                        item["text"] or "",
+                    )
+                elif item["type"] == "input_image":
+                    # TODO: handle the input image type for the tool input
+                    pass
+                elif item["type"] == "input_file":
+                    # TODO: handle the input file type for the tool input
+                    pass
+                elif TYPE_CHECKING:
+                    assert_never(item["type"])
 
 
 def _get_attributes_from_function_call_output(
@@ -360,10 +375,24 @@ def _get_attributes_from_function_call_output(
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
     yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
-    # output can be str or complex type - serialize complex types to JSON
-    if output := obj.get("output"):
-        output_value = output if isinstance(output, str) else safe_json_dumps(output)
-        yield f"{prefix}{MESSAGE_CONTENT}", output_value
+    if (output := obj.get("output")) is not None:
+        if isinstance(output, str):
+            yield f"{prefix}{MESSAGE_CONTENT}", output
+        elif isinstance(output, list):
+            for i, item in enumerate(output):
+                if item["type"] == "input_text":
+                    yield (
+                        f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}",
+                        item["text"] or "",
+                    )
+                elif item["type"] == "input_image":
+                    # TODO: handle the input image type for the tool input
+                    pass
+                elif item["type"] == "input_file":
+                    # TODO: handle the input file type for the tool input
+                    pass
+                elif TYPE_CHECKING:
+                    assert_never(item["type"])
 
 
 def _get_attributes_from_generation_span_data(
