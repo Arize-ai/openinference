@@ -39,8 +39,7 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     instrumentation = new BedrockAgentInstrumentation();
     instrumentation.disable();
     memoryExporter = new InMemorySpanExporter();
-    provider = new NodeTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
+    provider = new NodeTracerProvider({spanProcessors: [new SimpleSpanProcessor(memoryExporter)]});
     provider.register();
     instrumentation.setTracerProvider(provider);
     // Manually set module exports for testing (following OpenAI pattern)

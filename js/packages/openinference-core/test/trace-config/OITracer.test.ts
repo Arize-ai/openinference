@@ -27,16 +27,16 @@ import {
   type Mocked,
   vi,
 } from "vitest";
-const memoryExporter = new InMemorySpanExporter();
-const tracerProvider = new NodeTracerProvider({
-  spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
-});
-tracerProvider.register();
 
 describe("OITracer", () => {
   let mockTracer: Mocked<Tracer>;
   let mockSpan: Mocked<Span>;
   let contextManager: ContextManager;
+  const memoryExporter = new InMemorySpanExporter();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
+  tracerProvider.register();
 
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();

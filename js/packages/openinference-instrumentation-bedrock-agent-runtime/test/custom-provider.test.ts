@@ -25,14 +25,10 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
   let polly: Polly;
 
   describe("BedrockAgentInstrumentation with custom TracerProvider passed in", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
-
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+    });
     // Instantiate instrumentation with the custom provider
     const instrumentation = new BedrockAgentInstrumentation({
       tracerProvider: customTracerProvider,
