@@ -98,12 +98,6 @@ class InstrumentationValidator {
   }
 
   private setupTracing() {
-    this.provider = new NodeTracerProvider({
-      resource: new Resource({
-        [SEMRESATTRS_PROJECT_NAME]: "bedrock-validation-script",
-      }),
-    });
-
     // Setup exporters
     const exporters = [new ConsoleSpanExporter()];
 
@@ -136,10 +130,12 @@ class InstrumentationValidator {
       exporters.push(phoenixExporter);
     }
 
-    exporters.forEach((exporter) => {
-      this.provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+    this.provider = new NodeTracerProvider({
+      resource: new Resource({
+        [SEMRESATTRS_PROJECT_NAME]: "bedrock-validation-script",
+      }),
+      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
     });
-
     this.provider.register();
   }
 

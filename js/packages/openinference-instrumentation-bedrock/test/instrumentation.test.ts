@@ -71,9 +71,10 @@ describe("BedrockInstrumentation", () => {
     instrumentation = new BedrockInstrumentation();
     instrumentation.disable(); // Initially disabled
     spanExporter = new InMemorySpanExporter();
-    provider = new NodeTracerProvider();
+    provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(spanExporter)]
+    });
 
-    provider.addSpanProcessor(new SimpleSpanProcessor(spanExporter));
     provider.register();
     instrumentation.setTracerProvider(provider);
 
@@ -3850,8 +3851,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
   beforeAll(() => {
     // Setup global tracer provider and span exporter for comparison
     spanExporter = new InMemorySpanExporter();
-    provider = new NodeTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(spanExporter));
+    provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(spanExporter)]
+    });
     provider.register();
   });
 
@@ -3903,14 +3905,11 @@ describe("BedrockInstrumentation - custom tracing", () => {
   });
 
   describe("BedrockInstrumentation with custom TracerProvider passed in", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
     let instrumentation: BedrockInstrumentation;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     beforeAll(async () => {
       // Instantiate instrumentation with the custom provider
@@ -3975,14 +3974,11 @@ describe("BedrockInstrumentation - custom tracing", () => {
   });
 
   describe("BedrockInstrumentation with custom TracerProvider set", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
     let instrumentation: BedrockInstrumentation;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     beforeAll(async () => {
       // Instantiate instrumentation and set the custom provider
@@ -4046,14 +4042,11 @@ describe("BedrockInstrumentation - custom tracing", () => {
   });
 
   describe("BedrockInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+    });
     let instrumentation: BedrockInstrumentation;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
 
     beforeAll(async () => {
       // Instantiate instrumentation and register with the custom provider

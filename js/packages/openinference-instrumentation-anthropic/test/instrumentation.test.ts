@@ -15,9 +15,9 @@ describe("AnthropicInstrumentation", () => {
 
   beforeEach(() => {
     exporter = new InMemorySpanExporter();
-    provider = new NodeTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-
+    provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)]
+    });
     instrumentation = new AnthropicInstrumentation({
       tracerProvider: provider,
     });

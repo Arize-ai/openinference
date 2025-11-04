@@ -32,14 +32,15 @@ process.env.OPENAI_API_KEY = "fake-api-key";
 const memoryExporter = new InMemorySpanExporter();
 
 describe("OpenAIInstrumentation", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+  });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
   instrumentation.disable();
   let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = OpenAI;
 
@@ -1110,7 +1111,9 @@ describe("OpenAIInstrumentation", () => {
 });
 
 describe("OpenAIInstrumentation with TraceConfig", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+  });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation({
     traceConfig: { hideInputs: true },
@@ -1119,7 +1122,6 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
   let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = OpenAI;
 
@@ -1195,14 +1197,15 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
 });
 
 describe("AzureOpenAIInstrumentation", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+  });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
   instrumentation.disable();
   let azureOpenai: AzureOpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = OpenAI;
 
@@ -1402,14 +1405,11 @@ describe("AzureOpenAIInstrumentation", () => {
 
 describe("OpenAIInstrumentation with a custom tracer provider", () => {
   describe("OpenAIInstrumentation with custom TracerProvider passed in", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+    });
     let openai: OpenAI;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new OpenAIInstrumentation({
@@ -1490,14 +1490,11 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
   });
 
   describe("OpenAIInstrumentation with custom TracerProvider set", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+    });    
     let openai: OpenAI;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new OpenAIInstrumentation();
@@ -1577,14 +1574,11 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
   });
 
   describe("OpenAIInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
     let openai: OpenAI;
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new OpenAIInstrumentation();

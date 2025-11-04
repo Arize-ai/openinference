@@ -102,13 +102,7 @@ class ConverseStreamPhoenixValidator {
   }
 
   private setupTracing() {
-    this.provider = new NodeTracerProvider({
-      resource: new Resource({
-        [SEMRESATTRS_PROJECT_NAME]:
-          "bedrock-converse-stream-phoenix-validation",
-      }),
-    });
-
+    
     // Setup exporters
     const exporters: SpanExporter[] = [new ConsoleSpanExporter()];
 
@@ -141,8 +135,12 @@ class ConverseStreamPhoenixValidator {
       exporters.push(phoenixExporter);
     }
 
-    exporters.forEach((exporter) => {
-      this.provider.addSpanProcessor(new SimpleSpanProcessor(exporter));
+    this.provider = new NodeTracerProvider({
+      resource: new Resource({
+        [SEMRESATTRS_PROJECT_NAME]:
+          "bedrock-converse-stream-phoenix-validation",
+      }),
+      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
     });
 
     this.provider.register();
