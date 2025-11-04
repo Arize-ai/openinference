@@ -371,11 +371,12 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
     ...parsedToolCalls.reduce((acc: Attributes, toolCall, index) => {
       const TOOL_CALL_PREFIX = `${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
       // newer versions of Vercel use the input property instead of the args property
-      const toolCallArgsJSON = toolCall.args
-        ? safelyJSONStringify(toolCall.args)
-        : toolCall.input
-          ? safelyJSONStringify(toolCall.input)
-          : undefined;
+      const toolCallArgsJSON =
+        toolCall.args != null
+          ? safelyJSONStringify(toolCall.args)
+          : toolCall.input != null
+            ? safelyJSONStringify(toolCall.input)
+            : undefined;
       return {
         ...acc,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
