@@ -278,7 +278,8 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               : message.content[0]?.result
                 ? JSON.stringify(message.content[0].result)
                 : // newer versions of Vercel use the output property instead of the result property
-                  typeof message.content[0]?.output === "object"
+                  typeof message.content[0]?.output === "object" &&
+                    message.content[0].output !== null
                   ? message.content[0].output.type === "text"
                     ? message.content[0].output?.value
                     : JSON.stringify(message.content[0].output)
@@ -311,12 +312,13 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
             [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
               typeof content.args === "string"
                 ? content.args
-                : typeof content.args === "object"
+                : typeof content.args === "object" && content.args !== null
                   ? JSON.stringify(content.args)
                   : // newer versions of Vercel use the input property instead of the args property
                     typeof content.input === "string"
                     ? content.input
-                    : typeof content.input === "object"
+                    : typeof content.input === "object" &&
+                        content.input !== null
                       ? JSON.stringify(content.input)
                       : undefined,
           };
