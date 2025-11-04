@@ -1,7 +1,7 @@
 """OpenInference instrumentation for Pipecat."""
 
 import logging
-from typing import Any, Callable, Collection, Optional, Tuple, Dict
+from typing import Any, Callable, Collection, Dict, Optional, Tuple
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore

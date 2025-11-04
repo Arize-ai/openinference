@@ -3,15 +3,16 @@
 import asyncio
 import logging
 from collections import deque
+from contextvars import Token
 from datetime import datetime
 from typing import Any, Deque, Dict, List, Optional, Set
-from contextvars import Token
 
 from opentelemetry import trace as trace_api
-from opentelemetry.trace import Span
 from opentelemetry.context import Context
 from opentelemetry.context import attach as context_api_attach
 from opentelemetry.context import detach as context_api_detach
+from opentelemetry.trace import Span
+
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.pipecat._attributes import _FrameAttributeExtractor
 from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
@@ -33,10 +34,10 @@ from pipecat.frames.frames import (
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.services.image_service import ImageGenService
 from pipecat.services.llm_service import LLMService
 from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
-from pipecat.services.image_service import ImageGenService
 from pipecat.services.vision_service import VisionService
 from pipecat.services.websocket_service import WebsocketService
 
@@ -595,7 +596,8 @@ class OpenInferenceObserver(BaseObserver):
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
-            f">>> FINISHING TURN #{self._turn_number} (interrupted={interrupted}, duration={duration:.2f}s)"
+            f">>> FINISHING TURN #{self._turn_number}"
+            + f" (interrupted={interrupted}, duration={duration:.2f}s)"
         )
         self._log_debug(f"  Active service spans: {len(self._active_spans)}")
 

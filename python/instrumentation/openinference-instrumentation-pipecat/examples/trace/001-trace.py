@@ -2,9 +2,9 @@ import os
 from datetime import datetime
 
 from arize.otel import register as register_arize
-from phoenix.otel import register as register_phoenix
 from dotenv import load_dotenv
 from loguru import logger
+from phoenix.otel import register as register_phoenix
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -25,6 +25,7 @@ from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
+
 from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)

@@ -1,14 +1,15 @@
 """Service type detection for Pipecat base classes."""
 
 from typing import Any, Dict, Optional
+
+from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_service import AIService
+from pipecat.services.image_service import ImageGenService
 from pipecat.services.llm_service import LLMService
 from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
-from pipecat.services.image_service import ImageGenService
 from pipecat.services.vision_service import VisionService
 from pipecat.services.websocket_service import WebsocketService
-from pipecat.processors.frame_processor import FrameProcessor
 
 
 class _ServiceDetector:

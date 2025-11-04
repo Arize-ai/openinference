@@ -31,12 +31,12 @@ dependencies = [
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.34",
   "openinference-semantic-conventions>=0.1.21",
-  "mypy>=1.18.2",
+  "websockets>=13.1,<16.0"
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "pipecat-ai"
+  "pipecat-ai",
 ]
 test = [
   "pipecat-ai",
