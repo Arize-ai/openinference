@@ -1,6 +1,7 @@
 """OpenInference observer for Pipecat pipelines."""
 
 import asyncio
+import json
 import logging
 from collections import deque
 from contextvars import Token
@@ -26,10 +27,9 @@ from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
     Frame,
-    LLMTextFrame,
     StartFrame,
-    TextFrame,
     TranscriptionFrame,
+    TTSTextFrame,
     UserStartedSpeakingFrame,
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
@@ -97,9 +97,6 @@ class OpenInferenceObserver(BaseObserver):
         # Track processed frames to avoid duplicates
         self._processed_frames: Set[int] = set()
         self._frame_history: Deque[int] = deque(maxlen=max_frames)
-
-        # Track active spans per service instance
-        # Key: id(service), Value: {"span": span, "frame_count": int}
         self._active_spans: Dict[int, Dict[str, Any]] = {}
 
         # Track the last frame seen from each service to detect completion
@@ -213,16 +210,19 @@ class OpenInferenceObserver(BaseObserver):
                 await self._handle_pipeline_end(data)
 
             # Collect conversation text (separate concern from turn boundaries)
+            # Only collect from final/complete frames to avoid duplication
             if isinstance(frame, TranscriptionFrame):
-                # Collect user text
+                # Collect user text from STT output
                 if self._turn_active and frame.text:
                     self._turn_user_text.append(frame.text)
                     self._log_debug(f"  Collected user text: {frame.text[:50]}...")
 
-            elif isinstance(frame, (LLMTextFrame, TextFrame)):
-                # Collect bot text
+            elif isinstance(frame, TTSTextFrame):
+                # Collect bot text from TTS input (final complete sentences)
+                # Don't collect from LLMTextFrame to avoid streaming token duplication
                 if self._turn_active and frame.text:
                     self._turn_bot_text.append(frame.text)
+                    self._log_debug(f"  Collected bot text: {frame.text[:50]}...")
 
             # Handle service frames for creating service spans
             service_type = self._detector.detect_service_type(data.source)
@@ -312,6 +312,8 @@ class OpenInferenceObserver(BaseObserver):
                 "span": span,
                 "frame_count": 0,
                 "service_type": service_type,
+                "input_texts": [],  # Accumulate input text chunks
+                "output_texts": [],  # Accumulate output text chunks
             }
 
         # Increment frame count for this service
@@ -321,8 +323,18 @@ class OpenInferenceObserver(BaseObserver):
         # Extract and add attributes from this frame to the span
         span = span_info["span"]
         frame_attrs = self._attribute_extractor.extract_from_frame(frame)
+
+        # Handle input.value and output.value specially - accumulate instead of overwrite
         for key, value in frame_attrs.items():
-            span.set_attribute(key, value)
+            if key == SpanAttributes.INPUT_VALUE and value:
+                # Accumulate input text
+                span_info["input_texts"].append(str(value))
+            elif key == SpanAttributes.OUTPUT_VALUE and value:
+                # Accumulate output text
+                span_info["output_texts"].append(str(value))
+            else:
+                # For all other attributes, just set them (may overwrite)
+                span.set_attribute(key, value)
 
         # Store this as the last frame from this service
         self._last_frames[service_id] = frame
@@ -409,16 +421,16 @@ class OpenInferenceObserver(BaseObserver):
         span.set_attribute(  #
             SpanAttributes.LLM_PROVIDER, metadata.get("provider", "unknown")
         )
+        span.set_attribute("service.type", "llm")
 
         # Additional LLM attributes from settings if available
         if hasattr(service, "_settings"):
-            settings = service._settings
-            if "temperature" in settings:
-                span.set_attribute("llm.temperature", settings["temperature"])
-            if "max_tokens" in settings:
-                span.set_attribute("llm.max_tokens", settings["max_tokens"])
-            if "top_p" in settings:
-                span.set_attribute("llm.top_p", settings["top_p"])
+            try:
+                settings = json.dumps(service._settings)
+                span.set_attribute(SpanAttributes.METADATA, settings)
+            except Exception as e:
+                self._log_debug(f"Error setting LLM attributes: {e}")
+                pass
 
     def _set_stt_attributes(
         self, span: Span, service: STTService, metadata: Dict[str, Any]
@@ -428,6 +440,7 @@ class OpenInferenceObserver(BaseObserver):
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.CHAIN.value,
         )
+        span.set_attribute("service.type", "stt")
 
         # Audio attributes
         if metadata.get("sample_rate"):
@@ -445,7 +458,7 @@ class OpenInferenceObserver(BaseObserver):
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
             OpenInferenceSpanKindValues.CHAIN.value,
         )
-
+        span.set_attribute("service.type", "tts")
         # Audio and voice attributes
         if metadata.get("voice_id"):
             span.set_attribute("audio.voice_id", metadata["voice_id"])
@@ -529,6 +542,25 @@ class OpenInferenceObserver(BaseObserver):
         span_info = self._active_spans.pop(service_id)
         span = span_info["span"]
 
+        # Set accumulated input/output text values
+        if span_info["input_texts"]:
+            # Join all input text chunks
+            full_input = " ".join(span_info["input_texts"])
+            span.set_attribute(SpanAttributes.INPUT_VALUE, full_input)
+            self._log_debug(
+                f"  Set input.value: {len(full_input)} chars from"
+                + f"{len(span_info['input_texts'])} chunks"
+            )
+
+        if span_info["output_texts"]:
+            # Join all output text chunks
+            full_output = " ".join(span_info["output_texts"])
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, full_output)
+            self._log_debug(
+                f"  Set output.value: {len(full_output)} chars from"
+                + f"{len(span_info['output_texts'])} chunks"
+            )
+
         # End the span with OK status
         span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
         span.end()
@@ -545,6 +577,14 @@ class OpenInferenceObserver(BaseObserver):
         self._log_debug(f">>> STARTING TURN #{self._turn_number}")
         self._log_debug(f"  Conversation ID: {self._conversation_id}")
 
+        # Start each turn in a new trace by explicitly using an empty context
+        # This ensures turns are separate root spans, not nested under each other
+        # First create an empty context, then attach it, then create the span in that context
+
+        empty_context = Context()  # Create a fresh, empty context
+        self._turn_context_token = context_api_attach(empty_context)  # Attach it first
+
+        # Now create the span in this empty context (which is now the current context)
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             attributes={
@@ -565,8 +605,11 @@ class OpenInferenceObserver(BaseObserver):
             )
             self._log_debug(f"  Set session.id attribute: {self._conversation_id}")
 
+        # Update the context to include the span we just created
         context = trace_api.set_span_in_context(self._turn_span)
-        self._turn_context_token = context_api_attach(context)  #
+        # Detach the empty context and attach the context with the span
+        context_api_detach(self._turn_context_token)
+        self._turn_context_token = context_api_attach(context)
         self._log_debug(f"  Context token created: {type(self._turn_context_token)}")
 
         self._turn_user_text = []

@@ -3,7 +3,7 @@
 import base64
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from openinference.semconv.trace import SpanAttributes
 from pipecat.frames.frames import (
@@ -14,6 +14,7 @@ from pipecat.frames.frames import (
     FunctionCallInProgressFrame,
     FunctionCallResultFrame,
     InterimTranscriptionFrame,
+    LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
@@ -28,6 +29,9 @@ from pipecat.metrics.metrics import (
     ProcessingMetricsData,
     TTFBMetricsData,
     TTSUsageMetricsData,
+)
+from pipecat.processors.aggregators.llm_context import (
+    LLMSpecificMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,13 +142,60 @@ class _FrameAttributeExtractor:
         """
         Extract LLM-specific attributes from LLM frames.
 
-        Handles: LLMMessagesFrame, LLMMessagesAppendFrame, LLMFullResponseStartFrame, etc.
+        Handles: LLMContextFrame, LLMMessagesFrame, LLMMessagesAppendFrame,
+        LLMFullResponseStartFrame, etc.
         """
         attributes: Dict[str, Any] = {}
 
-        # LLMMessagesFrame and LLMMessagesUpdateFrame contain the full message history
         try:
-            if isinstance(frame, (LLMMessagesFrame, LLMMessagesUpdateFrame)):
+            # LLMContextFrame contains the universal LLM context
+            if isinstance(frame, LLMContextFrame):
+                if hasattr(frame, "context") and frame.context:
+                    context = frame.context
+                    # Extract messages from context (context._messages is a list)
+                    if hasattr(context, "_messages") and context._messages:
+                        attributes["llm.messages_count"] = len(context._messages)
+
+                        # Convert messages to serializable format
+                        try:
+                            # Messages can be LLMStandardMessage or LLMSpecificMessage
+                            # They should be dict-like for serialization
+                            messages_list: List[Any] = []
+                            for msg in context._messages:
+                                if isinstance(msg, dict):
+                                    raw_content = msg.content  # type: ignore
+                                    if isinstance(raw_content, str):
+                                        content = msg.content  # type: ignore
+                                    elif isinstance(raw_content, dict):
+                                        content = json.dumps(raw_content)
+                                    else:
+                                        content = str(raw_content)
+                                    messages = {
+                                        "role": msg.role,  # type: ignore
+                                        "content": content,
+                                        "name": msg.name if hasattr(msg, "name") else "",  # type: ignore
+                                    }
+                                    messages_list.append(messages)
+                                elif isinstance(msg, LLMSpecificMessage):
+                                    # Fallback: try to serialize the object
+                                    messages_list.append(msg.message)
+                            messages_json = json.dumps(messages_list)
+                            attributes[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
+                            attributes[SpanAttributes.INPUT_VALUE] = messages_json
+                        except (TypeError, ValueError, AttributeError) as e:
+                            logger.debug(f"Could not serialize LLMContext messages: {e}")
+
+                    # Extract tools if present
+                    if hasattr(context, "_tools") and context._tools:
+                        try:
+                            # Try to get tool count
+                            if isinstance(context._tools, list):
+                                attributes["llm.tools_count"] = len(context._tools)
+                        except (TypeError, AttributeError):
+                            pass
+
+            # LLMMessagesFrame and LLMMessagesUpdateFrame contain the full message history
+            elif isinstance(frame, (LLMMessagesFrame, LLMMessagesUpdateFrame)):
                 if hasattr(frame, "messages") and frame.messages:
                     attributes["llm.messages_count"] = len(frame.messages)
 

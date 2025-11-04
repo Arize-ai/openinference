@@ -31,7 +31,8 @@ dependencies = [
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.34",
   "openinference-semantic-conventions>=0.1.21",
-  "websockets>=13.1,<16.0"
+  "websockets>=13.1,<16.0",
+  "mypy>=1.18.2",
 ]
 
 [project.optional-dependencies]
