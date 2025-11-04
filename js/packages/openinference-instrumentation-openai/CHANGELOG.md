@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 3.2.5
+
+### Patch Changes
+
+- Updated dependencies [d3d7017]
+  - @arizeai/openinference-core@2.0.0
+
 ## 3.2.4
 
 ### Patch Changes
