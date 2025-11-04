@@ -74,6 +74,7 @@ def test_agno_instrumentation(
             name="News Agent",  # For best results, set a name that will be used by the tracer
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
         )
         agent.run("What's trending on Twitter?", session_id="test_session")
     spans = in_memory_span_exporter.get_finished_spans()
@@ -95,7 +96,7 @@ def test_agno_instrumentation(
             # Validate agent-specific attributes
             assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
             assert attributes.get("agno.run.id") is not None, "Run ID should be present"
-            # Note: user_id is optional, so we don't assert it must be present
+            assert attributes.get("user.id") == "test_user_123", "User ID should be present"
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
@@ -141,6 +142,7 @@ def test_agno_team_coordinate_instrumentation(
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
             instructions="Always include sources",
+            user_id="web_user_456",
         )
 
         finance_agent = Agent(
@@ -151,6 +153,7 @@ def test_agno_team_coordinate_instrumentation(
                 YFinanceTools()  # type: ignore
             ],
             instructions="Use tables to display data",
+            user_id="finance_user_789",
         )
 
         agent_team = Team(
@@ -158,6 +161,7 @@ def test_agno_team_coordinate_instrumentation(
             members=[web_agent, finance_agent],
             model=OpenAIChat(id="gpt-4o-mini"),
             instructions=["Always include sources", "Use tables to display data"],
+            user_id="team_user_999",
         )
 
         agent_team.run(
@@ -198,7 +202,7 @@ def test_agno_team_coordinate_instrumentation(
     assert team_span.get("agno.team.id") is not None, "Team ID should be present"
     assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
     assert team_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Team"
-    # Note: user_id is optional, so we don't assert it must be present
+    assert team_span.get("user.id") == "team_user_999", "Team user ID should be present"
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
@@ -218,6 +222,9 @@ def test_agno_team_coordinate_instrumentation(
         # Validate agent-specific attributes
         assert web_agent_span.get("agno.agent.id") is not None, "Web agent ID should be present"
         assert web_agent_span.get("agno.run.id") is not None, "Web agent run ID should be present"
+        assert web_agent_span.get("user.id") == "web_user_456", (
+            "Web agent user ID should be present"
+        )
 
     # Validate graph attributes for finance agent span
     if finance_agent_span is not None:
@@ -240,6 +247,9 @@ def test_agno_team_coordinate_instrumentation(
         )
         assert finance_agent_span.get("agno.run.id") is not None, (
             "Finance agent run ID should be present"
+        )
+        assert finance_agent_span.get("user.id") == "finance_user_789", (
+            "Finance agent user ID should be present"
         )
 
     # If both agents are present, ensure they have different node IDs
