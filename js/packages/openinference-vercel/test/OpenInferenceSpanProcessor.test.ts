@@ -107,6 +107,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
+      case AISemanticConventions.TOKEN_COUNT_OUTPUT:
       case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         testCases.push(
           [
@@ -138,6 +139,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
+      case AISemanticConventions.TOKEN_COUNT_INPUT:
       case AISemanticConventions.TOKEN_COUNT_PROMPT:
         testCases.push(
           [

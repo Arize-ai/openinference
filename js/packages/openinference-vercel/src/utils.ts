@@ -471,6 +471,8 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
             ...openInferenceAttributes,
             ...safelyGetMetadataAttributes(attributes),
           };
+        case AISemanticConventions.TOKEN_COUNT_INPUT:
+        case AISemanticConventions.TOKEN_COUNT_OUTPUT:
         case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         case AISemanticConventions.TOKEN_COUNT_PROMPT:
           // Do not capture token counts for non LLM spans to avoid double token counts
