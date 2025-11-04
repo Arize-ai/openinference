@@ -25,7 +25,6 @@ class _ServiceDetector:
             "llm", "tts", "stt", or None if not a recognized service
         """
         try:
-
             # Check against base classes - works for ALL implementations
             if isinstance(processor, LLMService):
                 return "llm"
@@ -94,9 +93,7 @@ class _ServiceDetector:
             # TTS-specific attributes
             metadata["model"] = service.model_name
             metadata["voice_id"] = service._voice_id
-            metadata["voice"] = (
-                service._voice_id
-            )  # Also add as "voice" for compatibility
+            metadata["voice"] = service._voice_id  # Also add as "voice" for compatibility
             metadata["sample_rate"] = service.sample_rate
         elif service_type == "stt" and isinstance(service, STTService):
             # STT-specific attributes

@@ -88,9 +88,7 @@ class OpenInferenceObserver(BaseObserver):
             # Write log to current working directory (where the script is running)
             try:
                 self._debug_log_file = open(debug_log_filename, "w")
-                self._log_debug(
-                    f"=== Observer initialized for conversation {conversation_id} ==="
-                )
+                self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
                 self._log_debug(f"=== Log file: {debug_log_filename} ===")
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
@@ -179,9 +177,7 @@ class OpenInferenceObserver(BaseObserver):
 
             # Skip already processed frames to avoid duplicates from propagation
             if frame.id in self._processed_frames:
-                self._log_debug(
-                    f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}"
-                )
+                self._log_debug(f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}")
                 return
 
             # Mark frame as processed
@@ -247,9 +243,7 @@ class OpenInferenceObserver(BaseObserver):
             await self._start_turn(data)
         elif self._turn_active and self._has_bot_spoken:
             # User started speaking during the turn_end_timeout_secs period after bot speech
-            self._log_debug(
-                "  User speaking after bot - ending turn and starting new one"
-            )
+            self._log_debug("  User speaking after bot - ending turn and starting new one")
             self._cancel_turn_end_timer()
             await self._finish_turn(interrupted=False)
             await self._start_turn(data)
@@ -460,9 +454,7 @@ class OpenInferenceObserver(BaseObserver):
         if metadata.get("sample_rate"):
             span.set_attribute("audio.sample_rate", metadata["sample_rate"])
         if service._text_aggregator and hasattr(service._text_aggregator, "text"):
-            span.set_attribute(
-                SpanAttributes.INPUT_VALUE, service._text_aggregator.text
-            )
+            span.set_attribute(SpanAttributes.INPUT_VALUE, service._text_aggregator.text)
 
     def _set_image_gen_attributes(
         self, span: Span, service: ImageGenService, metadata: Dict[str, Any]
@@ -599,9 +591,7 @@ class OpenInferenceObserver(BaseObserver):
             import time
 
             current_time = time.time_ns()
-            duration = (
-                current_time - self._turn_start_time
-            ) / 1_000_000_000  # Convert to seconds
+            duration = (current_time - self._turn_start_time) / 1_000_000_000  # Convert to seconds
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(

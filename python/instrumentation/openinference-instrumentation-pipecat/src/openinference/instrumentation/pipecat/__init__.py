@@ -142,8 +142,7 @@ class _TaskInitWrapper:
 
         # Use task-specific debug log filename if set, otherwise use default from instrument()
         debug_log_filename = (
-            getattr(instance, "_debug_log_filename", None)
-            or self._default_debug_log_filename
+            getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
         )
 
         observer = OpenInferenceObserver(

@@ -188,13 +188,9 @@ class _FrameAttributeExtractor:
                 if hasattr(frame, "arguments") and frame.arguments:
                     # Arguments are typically a dict
                     if isinstance(frame.arguments, dict):
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = json.dumps(
-                            frame.arguments
-                        )
+                        attributes[SpanAttributes.TOOL_PARAMETERS] = json.dumps(frame.arguments)
                     else:
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = str(
-                            frame.arguments
-                        )
+                        attributes[SpanAttributes.TOOL_PARAMETERS] = str(frame.arguments)
                 if hasattr(frame, "tool_call_id") and frame.tool_call_id:
                     attributes["tool.call_id"] = frame.tool_call_id
 
@@ -240,13 +236,13 @@ class _FrameAttributeExtractor:
                             if hasattr(metrics_data, "value") and metrics_data.value:
                                 token_usage = metrics_data.value
                                 if hasattr(token_usage, "prompt_tokens"):
-                                    attributes[
-                                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT
-                                    ] = token_usage.prompt_tokens
+                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = (
+                                        token_usage.prompt_tokens
+                                    )
                                 if hasattr(token_usage, "completion_tokens"):
-                                    attributes[
-                                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-                                    ] = token_usage.completion_tokens
+                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = (
+                                        token_usage.completion_tokens
+                                    )
                                 if hasattr(token_usage, "total_tokens"):
                                     attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = (
                                         token_usage.total_tokens
@@ -288,9 +284,7 @@ class _FrameAttributeExtractor:
                         # Processing time metrics
                         elif isinstance(metrics_data, ProcessingMetricsData):
                             if hasattr(metrics_data, "value"):
-                                attributes["service.processing_time_seconds"] = (
-                                    metrics_data.value
-                                )
+                                attributes["service.processing_time_seconds"] = metrics_data.value
 
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug(f"Error extracting metrics from frame: {e}")
