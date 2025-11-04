@@ -1,5 +1,12 @@
 # @arizeai/openinference-mastra
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [95f4c5f]
+  - @arizeai/openinference-vercel@2.5.0
+
 ## 3.0.2
 
 ### Patch Changes

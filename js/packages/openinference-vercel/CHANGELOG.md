@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.5.0
+
+### Minor Changes
+
+- 95f4c5f: feat: Trace new token usage keys in ai sdk v5
+
 ## 2.4.0
 
 ### Minor Changes
