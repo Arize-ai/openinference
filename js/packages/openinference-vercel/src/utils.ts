@@ -277,7 +277,12 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               ? message.content[0].result
               : message.content[0]?.result
                 ? JSON.stringify(message.content[0].result)
-                : undefined
+                : // newer versions of Vercel use the output property instead of the result property
+                  typeof message.content[0]?.output === "object"
+                  ? message.content[0].output.type === "text"
+                    ? message.content[0].output?.value
+                    : JSON.stringify(message.content[0].output)
+                  : undefined
             : typeof message.content === "string"
               ? message.content
               : undefined,
@@ -308,7 +313,12 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
                 ? content.args
                 : typeof content.args === "object"
                   ? JSON.stringify(content.args)
-                  : undefined,
+                  : // newer versions of Vercel use the input property instead of the args property
+                    typeof content.input === "string"
+                    ? content.input
+                    : typeof content.input === "object"
+                      ? JSON.stringify(content.input)
+                      : undefined,
           };
         },
         {},
@@ -358,7 +368,12 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
       "assistant",
     ...parsedToolCalls.reduce((acc: Attributes, toolCall, index) => {
       const TOOL_CALL_PREFIX = `${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
-      const toolCallArgsJSON = safelyJSONStringify(toolCall.args);
+      // newer versions of Vercel use the input property instead of the args property
+      const toolCallArgsJSON = toolCall.args
+        ? safelyJSONStringify(toolCall.args)
+        : toolCall.input
+          ? safelyJSONStringify(toolCall.input)
+          : undefined;
       return {
         ...acc,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
