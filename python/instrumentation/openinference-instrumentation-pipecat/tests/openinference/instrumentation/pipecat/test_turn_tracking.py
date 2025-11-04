@@ -56,7 +56,7 @@ class TestTurnDetection:
 
         task = PipelineTask(simple_pipeline, enable_turn_tracking=True)
 
-        # User turn and bot response
+        # Turn 1: User speaks and bot responds
         await run_pipeline_task(
             task,
             UserStartedSpeakingFrame(),
@@ -65,6 +65,8 @@ class TestTurnDetection:
             BotStartedSpeakingFrame(),
             TextFrame(text="Hi there!"),
             BotStoppedSpeakingFrame(),
+            # Start Turn 2 to end Turn 1 (cancels timeout timer)
+            UserStartedSpeakingFrame(),
         )
 
         turn_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.conversation.turn")

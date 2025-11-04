@@ -14,13 +14,16 @@ from pipecat.frames.frames import (
     AudioRawFrame,
     EndFrame,
     Frame,
-    LLMMessagesFrame,
+    LLMMessagesUpdateFrame,
+    StartFrame,
     TextFrame,
     TranscriptionFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
-from pipecat.services.ai_services import LLMService, STTService, TTSService
+from pipecat.services.llm_service import LLMService
+from pipecat.services.stt_service import STTService
+from pipecat.services.tts_service import TTSService
 
 # Mock Services for Testing
 
@@ -31,6 +34,7 @@ class MockLLMService(LLMService):
     def __init__(self, *, model: str = "mock-model", provider: str = "mock", **kwargs):
         super().__init__(**kwargs)
         self._model = model
+        self._model_name = model  # Set the private attribute directly
         self._provider = provider
         self.processed_frames = []
         # Set module to simulate provider
@@ -38,7 +42,7 @@ class MockLLMService(LLMService):
 
     async def process_frame(self, frame: Frame, direction):
         self.processed_frames.append(frame)
-        if isinstance(frame, LLMMessagesFrame):
+        if isinstance(frame, LLMMessagesUpdateFrame):
             # Simulate LLM response
             response = TextFrame(text="Mock LLM response")
             await self.push_frame(response, direction)
@@ -58,7 +62,10 @@ class MockTTSService(TTSService):
     ):
         super().__init__(**kwargs)
         self._model = model
+        self._model_name = model  # Set the private attribute directly
         self._voice = voice
+        self._voice_id = voice  # Real Pipecat services use _voice_id
+        self._sample_rate = 16000  # Use private attribute for sample_rate
         self._provider = provider
         self.processed_texts = []
 
@@ -76,14 +83,20 @@ class MockSTTService(STTService):
     def __init__(self, *, model: str = "mock-stt", provider: str = "mock", **kwargs):
         super().__init__(**kwargs)
         self._model = model
+        self._model_name = model  # Set the private attribute directly
         self._provider = provider
+        self._user_id = "test-user"  # Add user_id for STT metadata extraction
+        self._sample_rate = 16000  # Use private attribute for sample_rate
+        self._muted = False  # Use private attribute for is_muted
         self.processed_audio = []
 
     async def run_stt(self, audio: bytes) -> AsyncGenerator[Frame, None]:
         """Convert audio to mock transcription"""
         self.processed_audio.append(audio)
         # Simulate transcription
-        yield TranscriptionFrame(text="Mock transcription", user_id="test-user", timestamp=0)
+        yield TranscriptionFrame(
+            text="Mock transcription", user_id="test-user", timestamp=0
+        )
 
 
 # Service Factory Functions - Better approach than multiple mock classes
@@ -116,7 +129,9 @@ def create_openai_llm(model: str = "gpt-4", **kwargs):
 
 def create_openai_tts(model: str = "tts-1", voice: str = "alloy", **kwargs):
     """Create mock OpenAI TTS service"""
-    return create_mock_service(MockTTSService, "openai", "tts", model=model, voice=voice, **kwargs)
+    return create_mock_service(
+        MockTTSService, "openai", "tts", model=model, voice=voice, **kwargs
+    )
 
 
 def create_openai_stt(model: str = "whisper-1", **kwargs):
@@ -126,7 +141,9 @@ def create_openai_stt(model: str = "whisper-1", **kwargs):
 
 def create_anthropic_llm(model: str = "claude-3-5-sonnet-20241022", **kwargs):
     """Create mock Anthropic LLM service"""
-    return create_mock_service(MockLLMService, "anthropic", "llm", model=model, **kwargs)
+    return create_mock_service(
+        MockLLMService, "anthropic", "llm", model=model, **kwargs
+    )
 
 
 def create_elevenlabs_tts(
@@ -145,7 +162,9 @@ def create_deepgram_stt(model: str = "nova-2", **kwargs):
     return create_mock_service(MockSTTService, "deepgram", "stt", model=model, **kwargs)
 
 
-def create_cartesia_tts(model: str = "sonic-english", voice_id: str = "mock-voice", **kwargs):
+def create_cartesia_tts(
+    model: str = "sonic-english", voice_id: str = "mock-voice", **kwargs
+):
     """Create mock Cartesia TTS service"""
     return create_mock_service(
         MockTTSService, "cartesia", "tts", model=model, voice=voice_id, **kwargs
@@ -300,12 +319,14 @@ def assert_span_hierarchy(spans: List, expected_hierarchy: List[str]):
         parent_span = span_by_name[parent_name]
         child_span = span_by_name[child_name]
 
-        assert child_span.parent.span_id == parent_span.context.span_id, (
-            f"{child_name} is not a child of {parent_name}"
-        )
+        assert (
+            child_span.parent.span_id == parent_span.context.span_id
+        ), f"{child_name} is not a child of {parent_name}"
 
 
-async def run_pipeline_task(task: PipelineTask, *frames: Frame):
+async def run_pipeline_task(
+    task: PipelineTask, *frames: Frame, send_start_frame: bool = True
+):
     """
     Helper to run a pipeline task with given frames.
 
@@ -315,6 +336,7 @@ async def run_pipeline_task(task: PipelineTask, *frames: Frame):
     Args:
         task: The PipelineTask to run
         *frames: Frames to queue before running the task
+        send_start_frame: Whether to send StartFrame first (default: True)
     """
     from pipecat.processors.frame_processor import FrameDirection
 
@@ -327,7 +349,7 @@ async def run_pipeline_task(task: PipelineTask, *frames: Frame):
             self.frame = frame
             self.destination = None
             self.direction = FrameDirection.DOWNSTREAM
-            self.timestamp = time.time()  # For TurnTrackingObserver
+            self.timestamp = time.time_ns()  # Nanoseconds for TurnTrackingObserver
             # Ensure frame has an id attribute for TurnTrackingObserver compatibility
             if not hasattr(frame, "id"):
                 frame.id = id(frame)
@@ -352,6 +374,15 @@ async def run_pipeline_task(task: PipelineTask, *frames: Frame):
         # TaskObserver has _observers list containing the real observers
         if hasattr(task_observer, "_observers") and task_observer._observers:
             observers.extend(task_observer._observers)
+
+    # Send StartFrame first to initialize first turn
+    if send_start_frame:
+        for processor in processors:
+            for observer in observers:
+                if hasattr(observer, "on_push_frame"):
+                    await observer.on_push_frame(
+                        MockFramePushData(processor, StartFrame())
+                    )
 
     # Trigger observer callbacks for each frame through each processor
     for frame in frames:

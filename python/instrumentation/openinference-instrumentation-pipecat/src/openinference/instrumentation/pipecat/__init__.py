@@ -1,10 +1,10 @@
 """OpenInference instrumentation for Pipecat."""
 
 import logging
-from typing import Any, Collection, Optional
+from typing import Any, Callable, Collection, Optional, Tuple, Dict
 
 from opentelemetry import trace as trace_api
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -19,7 +19,7 @@ logger.addHandler(logging.NullHandler())
 __all__ = ["PipecatInstrumentor"]
 
 
-class PipecatInstrumentor(BaseInstrumentor):
+class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
     """
     An instrumentor for Pipecat pipelines.
 
@@ -30,7 +30,7 @@ class PipecatInstrumentor(BaseInstrumentor):
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
-    def create_observer(self):
+    def create_observer(self) -> OpenInferenceObserver:
         """
         Create an OpenInferenceObserver manually.
 
@@ -102,7 +102,7 @@ class PipecatInstrumentor(BaseInstrumentor):
         """
         try:
             if hasattr(self, "_original_task_init"):
-                PipelineTask.__init__ = self._original_task_init
+                PipelineTask.__init__ = self._original_task_init  # type: ignore
                 logger.info("Pipecat instrumentation disabled")
         except (ImportError, AttributeError):
             pass
@@ -121,7 +121,13 @@ class _TaskInitWrapper:
         self._config = config
         self._default_debug_log_filename = default_debug_log_filename
 
-    def __call__(self, wrapped, instance, args, kwargs):
+    def __call__(
+        self,
+        wrapped: Callable[[Any, Any], Any],
+        instance: PipelineTask,
+        args: Tuple[Any, ...],
+        kwargs: Dict[str, Any],
+    ) -> None:
         """
         Call original __init__, then inject our observer.
 
@@ -136,7 +142,8 @@ class _TaskInitWrapper:
 
         # Use task-specific debug log filename if set, otherwise use default from instrument()
         debug_log_filename = (
-            getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
+            getattr(instance, "_debug_log_filename", None)
+            or self._default_debug_log_filename
         )
 
         observer = OpenInferenceObserver(

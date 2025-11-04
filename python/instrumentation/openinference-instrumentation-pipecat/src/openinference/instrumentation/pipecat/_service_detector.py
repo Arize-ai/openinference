@@ -1,12 +1,20 @@
 """Service type detection for Pipecat base classes."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
+from pipecat.services.ai_service import AIService
+from pipecat.services.llm_service import LLMService
+from pipecat.services.stt_service import STTService
+from pipecat.services.tts_service import TTSService
+from pipecat.services.image_service import ImageGenService
+from pipecat.services.vision_service import VisionService
+from pipecat.services.websocket_service import WebsocketService
+from pipecat.processors.frame_processor import FrameProcessor
 
 
 class _ServiceDetector:
     """Detect service types from Pipecat base classes."""
 
-    def detect_service_type(self, processor) -> Optional[str]:
+    def detect_service_type(self, processor: FrameProcessor) -> Optional[str]:
         """
         Detect if a processor is an LLM, TTS, or STT service.
 
@@ -17,21 +25,28 @@ class _ServiceDetector:
             "llm", "tts", "stt", or None if not a recognized service
         """
         try:
-            from pipecat.services.ai_services import LLMService, STTService, TTSService
 
             # Check against base classes - works for ALL implementations
-            if isinstance(processor, STTService):
-                return "stt"
-            elif isinstance(processor, LLMService):
+            if isinstance(processor, LLMService):
                 return "llm"
+            elif isinstance(processor, STTService):
+                return "stt"
             elif isinstance(processor, TTSService):
                 return "tts"
+            elif isinstance(processor, ImageGenService):
+                return "image_gen"
+            elif isinstance(processor, VisionService):
+                return "vision"
+            elif isinstance(processor, WebsocketService):
+                return "websocket"
+            elif isinstance(processor, AIService):
+                return "ai_service"
         except ImportError:
             pass
 
         return None
 
-    def get_provider_from_service(self, service) -> str:
+    def get_provider_from_service(self, service: FrameProcessor) -> str:
         """
         Extract provider name from module path.
 
@@ -53,9 +68,9 @@ class _ServiceDetector:
 
         return "unknown"
 
-    def extract_service_metadata(self, service) -> dict:
+    def extract_service_metadata(self, service: FrameProcessor) -> Dict[str, Any]:
         """
-        Extract basic metadata from service instance.
+        Extract metadata from service instance based on service type.
 
         Args:
             service: A Pipecat service instance
@@ -63,20 +78,37 @@ class _ServiceDetector:
         Returns:
             Dictionary with metadata (provider, model, voice, etc.)
         """
-        metadata = {}
+        metadata: Dict[str, Any] = {}
 
+        provider = self.get_provider_from_service(service)
+        service_type = self.detect_service_type(service)
         # Provider from module path
-        metadata["provider"] = self.get_provider_from_service(service)
+        metadata["provider"] = provider
+        metadata["service_type"] = service_type
 
-        # Common attributes across services
-        if hasattr(service, "_model"):
-            metadata["model"] = service._model
-
-        # TTS-specific
-        if hasattr(service, "_voice"):
-            metadata["voice"] = service._voice
-
-        if hasattr(service, "_voice_id"):
+        # Extract attributes based on service type
+        if service_type == "llm" and isinstance(service, LLMService):
+            # LLM-specific attributes
+            metadata["model"] = service.model_name
+        elif service_type == "tts" and isinstance(service, TTSService):
+            # TTS-specific attributes
+            metadata["model"] = service.model_name
             metadata["voice_id"] = service._voice_id
+            metadata["voice"] = (
+                service._voice_id
+            )  # Also add as "voice" for compatibility
+            metadata["sample_rate"] = service.sample_rate
+        elif service_type == "stt" and isinstance(service, STTService):
+            # STT-specific attributes
+            metadata["model"] = service.model_name
+            metadata["is_muted"] = service.is_muted
+            metadata["user_id"] = service._user_id
+            metadata["sample_rate"] = service.sample_rate
+        elif service_type == "image_gen" and isinstance(service, ImageGenService):
+            # Image generation-specific attributes
+            metadata["model"] = service.model_name
+        elif service_type == "vision" and isinstance(service, VisionService):
+            # Vision-specific attributes
+            metadata["model"] = service.model_name
 
         return metadata

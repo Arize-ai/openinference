@@ -295,7 +295,7 @@ class TestServiceInheritanceDetection:
 
     def test_custom_llm_service_detected(self):
         """Test that custom LLM service inheriting from base is detected"""
-        from pipecat.services.ai_services import LLMService
+        from pipecat.services.llm_service import LLMService
 
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
@@ -314,7 +314,7 @@ class TestServiceInheritanceDetection:
 
     def test_deeply_nested_service_detected(self):
         """Test that services with deep inheritance are detected"""
-        from pipecat.services.ai_services import TTSService
+        from pipecat.services.tts_service import TTSService
 
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,
@@ -335,7 +335,7 @@ class TestServiceInheritanceDetection:
 
     def test_multiple_inheritance_service(self):
         """Test service detection with multiple inheritance (edge case)"""
-        from pipecat.services.ai_services import STTService
+        from pipecat.services.stt_service import STTService
 
         from openinference.instrumentation.pipecat._service_detector import (
             _ServiceDetector,

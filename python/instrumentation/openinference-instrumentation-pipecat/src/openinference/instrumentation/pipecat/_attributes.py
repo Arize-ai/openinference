@@ -18,6 +18,7 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
     LLMMessagesFrame,
+    LLMMessagesUpdateFrame,
     MetricsFrame,
     TextFrame,
     TranscriptionFrame,
@@ -58,7 +59,7 @@ class _FrameAttributeExtractor:
         Returns:
             Dictionary of attributes following OpenInference conventions
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
 
         # ALWAYS capture frame type
         attributes["frame.type"] = frame.__class__.__name__
@@ -139,11 +140,11 @@ class _FrameAttributeExtractor:
 
         Handles: LLMMessagesFrame, LLMMessagesAppendFrame, LLMFullResponseStartFrame, etc.
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
 
-        # LLMMessagesFrame contains the full message history
+        # LLMMessagesFrame and LLMMessagesUpdateFrame contain the full message history
         try:
-            if isinstance(frame, LLMMessagesFrame):
+            if isinstance(frame, (LLMMessagesFrame, LLMMessagesUpdateFrame)):
                 if hasattr(frame, "messages") and frame.messages:
                     attributes["llm.messages_count"] = len(frame.messages)
 
@@ -177,7 +178,7 @@ class _FrameAttributeExtractor:
 
     def _extract_tool_attributes(self, frame: Frame) -> Dict[str, Any]:
         """Extract function calling / tool use attributes."""
-        attributes = {}
+        attributes: Dict[str, Any] = {}
 
         # Function call from LLM
         try:
@@ -187,9 +188,13 @@ class _FrameAttributeExtractor:
                 if hasattr(frame, "arguments") and frame.arguments:
                     # Arguments are typically a dict
                     if isinstance(frame.arguments, dict):
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = json.dumps(frame.arguments)
+                        attributes[SpanAttributes.TOOL_PARAMETERS] = json.dumps(
+                            frame.arguments
+                        )
                     else:
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = str(frame.arguments)
+                        attributes[SpanAttributes.TOOL_PARAMETERS] = str(
+                            frame.arguments
+                        )
                 if hasattr(frame, "tool_call_id") and frame.tool_call_id:
                     attributes["tool.call_id"] = frame.tool_call_id
 
@@ -223,7 +228,7 @@ class _FrameAttributeExtractor:
 
         Handles: LLMUsageMetricsData, TTSUsageMetricsData, TTFBMetricsData, ProcessingMetricsData
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
 
         try:
             if isinstance(frame, MetricsFrame):
@@ -235,13 +240,13 @@ class _FrameAttributeExtractor:
                             if hasattr(metrics_data, "value") and metrics_data.value:
                                 token_usage = metrics_data.value
                                 if hasattr(token_usage, "prompt_tokens"):
-                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = (
-                                        token_usage.prompt_tokens
-                                    )
+                                    attributes[
+                                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+                                    ] = token_usage.prompt_tokens
                                 if hasattr(token_usage, "completion_tokens"):
-                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = (
-                                        token_usage.completion_tokens
-                                    )
+                                    attributes[
+                                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+                                    ] = token_usage.completion_tokens
                                 if hasattr(token_usage, "total_tokens"):
                                     attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = (
                                         token_usage.total_tokens
@@ -283,7 +288,9 @@ class _FrameAttributeExtractor:
                         # Processing time metrics
                         elif isinstance(metrics_data, ProcessingMetricsData):
                             if hasattr(metrics_data, "value"):
-                                attributes["service.processing_time_seconds"] = metrics_data.value
+                                attributes["service.processing_time_seconds"] = (
+                                    metrics_data.value
+                                )
 
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug(f"Error extracting metrics from frame: {e}")

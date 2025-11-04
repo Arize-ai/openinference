@@ -22,9 +22,9 @@ from pipecat.runner.utils import create_transport
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.services.openai.tts import OpenAITTSService
-from pipecat.transports.base_transport import BaseTransport
+from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
-
+from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
 from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)
@@ -56,6 +56,18 @@ PipecatInstrumentor().instrument(
 
 transport_params = {
     "daily": lambda: DailyParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+        vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+        turn_analyzer=LocalSmartTurnAnalyzerV3(params=SmartTurnParams()),
+    ),
+    "twilio": lambda: FastAPIWebsocketParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+        vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+        turn_analyzer=LocalSmartTurnAnalyzerV3(params=SmartTurnParams()),
+    ),
+    "webrtc": lambda: TransportParams(
         audio_in_enabled=True,
         audio_out_enabled=True,
         vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
@@ -131,7 +143,9 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     async def on_client_connected(transport, client):
         logger.info("Client connected")
         # Kick off the conversation.
-        messages.append({"role": "system", "content": "Please introduce yourself to the user."})
+        messages.append(
+            {"role": "system", "content": "Please introduce yourself to the user."}
+        )
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
