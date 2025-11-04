@@ -11,9 +11,9 @@ import {
 import { AsyncHooksContextManager } from "@opentelemetry/context-async-hooks";
 import {
   InMemorySpanExporter,
+  NodeTracerProvider,
   SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+} from "@opentelemetry/sdk-trace-node";
 
 import { OITracer, REDACTED_VALUE, setSession } from "../../src";
 import { OISpan } from "../../src/trace/trace-config/OISpan";
@@ -27,16 +27,16 @@ import {
   type Mocked,
   vi,
 } from "vitest";
-
-const tracerProvider = new NodeTracerProvider();
+const memoryExporter = new InMemorySpanExporter();
+const tracerProvider = new NodeTracerProvider({
+  spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+});
 tracerProvider.register();
 
 describe("OITracer", () => {
   let mockTracer: Mocked<Tracer>;
   let mockSpan: Mocked<Span>;
   let contextManager: ContextManager;
-  const memoryExporter = new InMemorySpanExporter();
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   beforeEach(() => {
     contextManager = new AsyncHooksContextManager().enable();
@@ -266,7 +266,7 @@ describe("OITracer", () => {
       expect(childSpan).toBeDefined();
       const parentSpanId = parentSpan?.spanContext().spanId;
       expect(parentSpanId).toBeDefined();
-      const childSpanParentId = childSpan?.parentSpanId;
+      const childSpanParentId = childSpan?.parentSpanContext?.spanId;
       expect(childSpanParentId).toBeDefined();
       expect(childSpanParentId).toBe(parentSpanId);
       expect(childSpan?.spanContext().traceId).toBe(
