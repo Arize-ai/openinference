@@ -92,6 +92,10 @@ def test_agno_instrumentation(
             assert attributes.get("llm.token_count.prompt") is None
             assert attributes.get("llm.token_count.completion") is None
             assert attributes.get("llm.token_count.total") is None
+            # Validate agent-specific attributes
+            assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
+            assert attributes.get("agno.run.id") is not None, "Run ID should be present"
+            # Note: user_id is optional, so we don't assert it must be present
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
@@ -190,6 +194,11 @@ def test_agno_team_coordinate_instrumentation(
     assert is_valid_node_id(team_node_id), f"Team node ID should be valid hex: {team_node_id}"
     # Team should have no parent (root node)
     assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
+    # Validate team-specific attributes
+    assert team_span.get("agno.team.id") is not None, "Team ID should be present"
+    assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
+    assert team_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Team"
+    # Note: user_id is optional, so we don't assert it must be present
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
@@ -206,6 +215,9 @@ def test_agno_team_coordinate_instrumentation(
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure web agent has different node ID than team (uniqueness)
         assert web_agent_node_id != team_node_id, "Web agent should have unique node ID"
+        # Validate agent-specific attributes
+        assert web_agent_span.get("agno.agent.id") is not None, "Web agent ID should be present"
+        assert web_agent_span.get("agno.run.id") is not None, "Web agent run ID should be present"
 
     # Validate graph attributes for finance agent span
     if finance_agent_span is not None:
@@ -222,6 +234,13 @@ def test_agno_team_coordinate_instrumentation(
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure finance agent has different node ID than team (uniqueness)
         assert finance_agent_node_id != team_node_id, "Finance agent should have unique node ID"
+        # Validate agent-specific attributes
+        assert finance_agent_span.get("agno.agent.id") is not None, (
+            "Finance agent ID should be present"
+        )
+        assert finance_agent_span.get("agno.run.id") is not None, (
+            "Finance agent run ID should be present"
+        )
 
     # If both agents are present, ensure they have different node IDs
     if web_agent_span is not None and finance_agent_span is not None:
