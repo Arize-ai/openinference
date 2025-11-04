@@ -199,7 +199,7 @@ def test_agno_team_coordinate_instrumentation(
     # Validate team-specific attributes
     assert team_span.get("agno.team.id") is not None, "Team ID should be present"
     assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
-    assert team_span.get("user.id") == "team_user_999", "Team user ID should be present"
+    assert team_span.get("user.id") == "team_user_999"
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
