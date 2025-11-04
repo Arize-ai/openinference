@@ -17,7 +17,9 @@ class TestOpenAISpans:
     """Test span creation for OpenAI services"""
 
     @pytest.mark.asyncio
-    async def test_openai_llm_span(self, tracer_provider, in_memory_span_exporter, mock_openai_llm):
+    async def test_openai_llm_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_llm
+    ):
         """Test that OpenAI LLM service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -27,7 +29,9 @@ class TestOpenAISpans:
 
         # Send LLM request and run pipeline
         messages = [{"role": "user", "content": "Hello"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -45,7 +49,9 @@ class TestOpenAISpans:
         instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_tts_span(self, tracer_provider, in_memory_span_exporter, mock_openai_tts):
+    async def test_openai_tts_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_tts
+    ):
         """Test that OpenAI TTS service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -71,7 +77,9 @@ class TestOpenAISpans:
         instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_stt_span(self, tracer_provider, in_memory_span_exporter, mock_openai_stt):
+    async def test_openai_stt_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_stt
+    ):
         """Test that OpenAI STT service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -150,7 +158,9 @@ class TestAnthropicSpans:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Hello Claude"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -309,57 +319,6 @@ class TestSpanInputOutput:
     """Test that spans capture input and output correctly for different providers"""
 
     @pytest.mark.asyncio
-    async def test_llm_input_captured(
-        self, tracer_provider, in_memory_span_exporter, mock_openai_llm
-    ):
-        """Test that LLM span captures input messages"""
-        instrumentor = PipecatInstrumentor()
-        instrumentor.instrument(tracer_provider=tracer_provider)
-
-        pipeline = Pipeline([mock_openai_llm])
-        task = PipelineTask(pipeline)
-
-        user_message = "What is the meaning of life?"
-        messages = [{"role": "user", "content": user_message}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
-
-        llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
-
-        if llm_spans:
-            attrs = dict(llm_spans[0].attributes)
-            input_value = attrs.get(SpanAttributes.INPUT_VALUE)
-
-            # assert input_value is not None
-            # assert user_message in str(input_value)
-
-        instrumentor.uninstrument()
-
-    @pytest.mark.asyncio
-    async def test_tts_input_captured(
-        self, tracer_provider, in_memory_span_exporter, mock_openai_tts
-    ):
-        """Test that TTS span captures input text"""
-        instrumentor = PipecatInstrumentor()
-        instrumentor.instrument(tracer_provider=tracer_provider)
-
-        pipeline = Pipeline([mock_openai_tts])
-        task = PipelineTask(pipeline)
-
-        text_to_speak = "Hello, this is a test"
-        await run_pipeline_task(task, TextFrame(text=text_to_speak))
-
-        tts_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.tts")
-
-        if tts_spans:
-            attrs = dict(tts_spans[0].attributes)
-            input_value = attrs.get(SpanAttributes.INPUT_VALUE)
-
-            # assert input_value is not None
-            # assert text_to_speak in str(input_value)
-
-        instrumentor.uninstrument()
-
-    @pytest.mark.asyncio
     async def test_stt_output_captured(
         self, tracer_provider, in_memory_span_exporter, mock_openai_stt
     ):
@@ -403,7 +362,9 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -426,7 +387,9 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
