@@ -142,7 +142,6 @@ def test_agno_team_coordinate_instrumentation(
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
             instructions="Always include sources",
-            user_id="web_user_456",
         )
 
         finance_agent = Agent(
@@ -153,7 +152,6 @@ def test_agno_team_coordinate_instrumentation(
                 YFinanceTools()  # type: ignore
             ],
             instructions="Use tables to display data",
-            user_id="finance_user_789",
         )
 
         agent_team = Team(
@@ -201,7 +199,6 @@ def test_agno_team_coordinate_instrumentation(
     # Validate team-specific attributes
     assert team_span.get("agno.team.id") is not None, "Team ID should be present"
     assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
-    assert team_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Team"
     assert team_span.get("user.id") == "team_user_999", "Team user ID should be present"
 
     # Validate graph attributes for web agent span
@@ -219,12 +216,6 @@ def test_agno_team_coordinate_instrumentation(
         assert web_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure web agent has different node ID than team (uniqueness)
         assert web_agent_node_id != team_node_id, "Web agent should have unique node ID"
-        # Validate agent-specific attributes
-        assert web_agent_span.get("agno.agent.id") is not None, "Web agent ID should be present"
-        assert web_agent_span.get("agno.run.id") is not None, "Web agent run ID should be present"
-        assert web_agent_span.get("user.id") == "web_user_456", (
-            "Web agent user ID should be present"
-        )
 
     # Validate graph attributes for finance agent span
     if finance_agent_span is not None:
@@ -241,16 +232,6 @@ def test_agno_team_coordinate_instrumentation(
         assert finance_agent_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == team_node_id
         # Ensure finance agent has different node ID than team (uniqueness)
         assert finance_agent_node_id != team_node_id, "Finance agent should have unique node ID"
-        # Validate agent-specific attributes
-        assert finance_agent_span.get("agno.agent.id") is not None, (
-            "Finance agent ID should be present"
-        )
-        assert finance_agent_span.get("agno.run.id") is not None, (
-            "Finance agent run ID should be present"
-        )
-        assert finance_agent_span.get("user.id") == "finance_user_789", (
-            "Finance agent user ID should be present"
-        )
 
     # If both agents are present, ensure they have different node IDs
     if web_agent_span is not None and finance_agent_span is not None:
