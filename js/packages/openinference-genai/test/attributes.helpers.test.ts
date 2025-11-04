@@ -1,16 +1,17 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import {
-  mapProviderAndSystem,
-  mapModels,
-  mapSpanKind,
-  mapInvocationParameters,
-  mapInputMessages,
-  mapOutputMessages,
-  mapTokenCounts,
   convertGenAISpanAttributesToOpenInferenceSpanAttributes,
-  mapToolExecution,
+  mapInputMessages,
   mapInputValue,
+  mapInvocationParameters,
+  mapModels,
+  mapOutputMessages,
   mapOutputValue,
+  mapProviderAndSystem,
+  mapSpanKind,
+  mapTokenCounts,
+  mapToolExecution,
 } from "../src/attributes.js";
 
 /**

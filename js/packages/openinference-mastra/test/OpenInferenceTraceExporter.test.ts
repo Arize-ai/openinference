@@ -1,9 +1,13 @@
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
 import { OpenInferenceOTLPTraceExporter } from "../src/OpenInferenceTraceExporter.js";
 import { isOpenInferenceSpan } from "../src/utils.js";
-import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json" with { type: "json" };
+
 import type { Mock } from "vitest";
 
 vi.mock(import("@opentelemetry/exporter-trace-otlp-proto"), () => {

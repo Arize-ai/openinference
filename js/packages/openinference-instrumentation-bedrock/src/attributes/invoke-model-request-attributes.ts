@@ -8,32 +8,36 @@
  * - Invocation parameters
  */
 
-import { Span, diag } from "@opentelemetry/api";
 import {
-  SemanticConventions,
-  MimeType,
-  LLMSystem,
-} from "@arizeai/openinference-semantic-conventions";
-import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import {
-  withSafety,
   isObjectWithStringKeys,
+  withSafety,
 } from "@arizeai/openinference-core";
 import {
-  InvokeModelRequestBody,
+  LLMSystem,
+  MimeType,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { diag, Span } from "@opentelemetry/api";
+
+import {
   BedrockMessage,
-  isTextContent,
+  InvokeModelRequestBody,
   isImageContent,
+  isTextContent,
   isToolUseContent,
 } from "../types/bedrock-types";
-import { setSpanAttribute, extractModelName } from "./attribute-helpers";
+
+import { extractModelName, setSpanAttribute } from "./attribute-helpers";
 import {
   extractInvocationParameters,
-  parseRequestBody,
   extractToolResultBlocks,
   formatImageUrl,
   normalizeRequestContentBlocks,
+  parseRequestBody,
 } from "./invoke-model-helpers";
+
+import { InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 // Helper functions
 /**

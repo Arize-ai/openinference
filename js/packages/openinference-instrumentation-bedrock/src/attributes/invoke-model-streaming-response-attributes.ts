@@ -9,18 +9,22 @@
  * - Safe stream splitting with original stream preservation
  */
 
-import { Span, diag } from "@opentelemetry/api";
 import {
-  withSafety,
   isObjectWithStringKeys,
+  withSafety,
 } from "@arizeai/openinference-core";
 import {
-  SemanticConventions,
   LLMSystem,
+  SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { diag, Span } from "@opentelemetry/api";
+
+import { UsageAttributes } from "../types/bedrock-types";
+
 import { setSpanAttribute } from "./attribute-helpers";
 import { normalizeUsageAttributes } from "./invoke-model-helpers";
-import { UsageAttributes } from "../types/bedrock-types";
+
 import { PassThrough } from "stream";
 
 /**

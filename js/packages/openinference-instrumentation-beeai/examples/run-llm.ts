@@ -1,6 +1,7 @@
 import "./instrumentation";
-import { UserMessage } from "beeai-framework/backend/message";
+
 import { OllamaChatModel } from "beeai-framework/adapters/ollama/backend/chat";
+import { UserMessage } from "beeai-framework/backend/message";
 
 const llm = new OllamaChatModel("llama3.1");
 const prompt = "Hello, how are you?";

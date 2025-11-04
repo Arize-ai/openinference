@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-openai",
-  "version": "3.2.3",
+  "version": "3.2.5",
   "description": "OpenInference instrumentation for OpenAI",
   "private": false,
   "main": "dist/src/index.js",
@@ -47,6 +47,7 @@
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "vitest": "^2.1.8",
     "openai": "^5.7.0",
-    "zod": "^3.24.3"
+    "zod": "^3.24.3",
+    "typescript": "^5.5.4"
   }
 }

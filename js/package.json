@@ -11,9 +11,11 @@
     "prettier:check": "prettier --check .",
     "prettier:write": "prettier --write .",
     "type:check": "pnpm run -r type:check",
-    "lint": "eslint .",
+    "lint": "eslint",
     "ci:version": "pnpm changeset version",
-    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --access public --provenance"
+    "ci:publish": "pnpm run -r prebuild && pnpm run -r build && pnpm publish -r --access public --provenance",
+    "docs:generate": "typedoc",
+    "docs:preview": "rimraf docs && pnpm docs:generate && pnpx http-server ./docs -p 8080 -o"
   },
   "keywords": [
     "telemetry",
@@ -27,11 +29,13 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^9.38.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
     "globals": "^16.4.0",
     "jiti": "^2.6.1",
     "prettier": "^3.6.2",
     "rimraf": "^5.0.9",
     "tsc-alias": "^1.8.10",
+    "typedoc": "^0.28.14",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.46.2",
     "vitest": "^4.0.3"

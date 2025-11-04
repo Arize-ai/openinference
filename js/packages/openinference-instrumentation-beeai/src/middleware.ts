@@ -15,17 +15,18 @@
  */
 
 import { OITracer } from "@arizeai/openinference-core";
-import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { diag } from "@opentelemetry/api";
+
+import { buildTraceTree } from "./helpers/buildTraceTree";
 import { createSpan } from "./helpers/create-span";
-import { IdNameManager } from "./helpers/idNameManager";
 import { getErrorSafe } from "./helpers/getErrorSafe";
-import { findLast, isEmpty } from "remeda";
-import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
-import type { InferCallbackValue } from "beeai-framework/emitter/types";
-import { FrameworkError } from "beeai-framework/errors";
-import { Version } from "beeai-framework/version";
-import { Role } from "beeai-framework/backend/message";
-import type { GetRunContext, RunInstance } from "beeai-framework/context";
+import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
+import { IdNameManager } from "./helpers/idNameManager";
 import { traceSerializer } from "./helpers/traceSerializer";
 import {
   errorLLMEventName,
@@ -35,18 +36,20 @@ import {
   partialUpdateEventName,
   successLLMEventName,
 } from "./config";
-import { createFullPath } from "beeai-framework/emitter/utils";
-import { ReActAgent } from "beeai-framework/agents/react/agent";
-import { BaseAgent } from "beeai-framework/agents/base";
-import { diag } from "@opentelemetry/api";
 import { FrameworkSpan, GeneratedResponse } from "./types";
-import { buildTraceTree } from "./helpers/buildTraceTree";
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+
+import { BaseAgent } from "beeai-framework/agents/base";
+import { ReActAgent } from "beeai-framework/agents/react/agent";
+import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
 import { ToolCallingAgent } from "beeai-framework/agents/toolCalling/agent";
 import type { ToolCallingAgentCallbacks } from "beeai-framework/agents/toolCalling/types";
+import { Role } from "beeai-framework/backend/message";
+import type { GetRunContext, RunInstance } from "beeai-framework/context";
+import type { InferCallbackValue } from "beeai-framework/emitter/types";
+import { createFullPath } from "beeai-framework/emitter/utils";
+import { FrameworkError } from "beeai-framework/errors";
+import { Version } from "beeai-framework/version";
+import { findLast, isEmpty } from "remeda";
 
 export const activeTracesMap = new Map<string, string>();
 

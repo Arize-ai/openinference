@@ -4,10 +4,9 @@ import {
   InstrumentationConfig,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
-import type {
-  JSONRPCMessage,
-  JSONRPCRequest,
-} from "@modelcontextprotocol/sdk/types";
+
+import { VERSION } from "./version";
+
 import type * as ClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
 import type * as ClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
 import type * as ClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
@@ -15,8 +14,10 @@ import type * as ServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import type * as ServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import type * as ServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
-
-import { VERSION } from "./version";
+import type {
+  JSONRPCMessage,
+  JSONRPCRequest,
+} from "@modelcontextprotocol/sdk/types";
 
 const CLIENT_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/client/sse";
 const SERVER_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/server/sse";

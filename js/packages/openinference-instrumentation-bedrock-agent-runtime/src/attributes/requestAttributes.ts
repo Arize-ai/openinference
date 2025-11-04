@@ -1,19 +1,14 @@
-import { Attributes, diag } from "@opentelemetry/api";
+import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import {
   LLMProvider,
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import {
-  InvokeAgentCommand,
-  RetrieveAndGenerateCommand,
-  RetrieveAndGenerateStreamCommand,
-  RetrieveCommand,
-  RetrieveCommandInput,
-} from "@aws-sdk/client-bedrock-agent-runtime";
+
+import { Attributes, diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
-import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
+
 import {
   getInputAttributes,
   getLLMInvocationParameterAttributes,
@@ -22,6 +17,14 @@ import {
   extractRagInvocationParams,
   getModelNameAttributes,
 } from "./ragAttributeExtractionUtils";
+
+import {
+  InvokeAgentCommand,
+  RetrieveAndGenerateCommand,
+  RetrieveAndGenerateStreamCommand,
+  RetrieveCommand,
+  RetrieveCommandInput,
+} from "@aws-sdk/client-bedrock-agent-runtime";
 
 function extractBaseRequestAttributes(command: InvokeAgentCommand): Attributes {
   const attributes: Attributes = {

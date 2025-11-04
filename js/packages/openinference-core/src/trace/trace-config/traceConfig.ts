@@ -1,6 +1,7 @@
-import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
-import { TraceConfigKey, TraceConfig, TraceConfigOptions } from "./types";
 import { assertUnreachable, withSafety } from "../../utils";
+
+import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
+import { TraceConfig, TraceConfigKey, TraceConfigOptions } from "./types";
 
 const safelyParseInt = withSafety({ fn: parseInt });
 

@@ -9,25 +9,28 @@
  * - Safe stream splitting with original stream preservation
  */
 
-import { Span, diag } from "@opentelemetry/api";
 import {
-  withSafety,
+  assertUnreachable,
+  isObjectWithStringKeys,
   safelyJSONParse,
   safelyJSONStringify,
-  isObjectWithStringKeys,
-  assertUnreachable,
+  withSafety,
 } from "@arizeai/openinference-core";
 import {
-  SemanticConventions,
   MimeType,
+  SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { setSpanAttribute } from "./attribute-helpers";
+
+import { diag, Span } from "@opentelemetry/api";
+
 import {
   ConverseStreamEventData,
   ConverseStreamProcessingState,
   isValidConverseStreamEventData,
   toNormalizedConverseStreamEvent,
 } from "../types/bedrock-types";
+
+import { setSpanAttribute } from "./attribute-helpers";
 
 /**
  * Resolves the target tool use id from either an explicit id or a content block index.

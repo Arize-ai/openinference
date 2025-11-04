@@ -1,16 +1,18 @@
-import { AgentTraceNode } from "./agentTraceNode";
-import { TraceNodeStack } from "./traceNodeStack";
-import { AgentChunkSpan } from "./agentChunkSpan";
+import { diag } from "@opentelemetry/api";
+
 import {
   extractTraceId,
   getChunkType,
   getEventType,
 } from "../attributes/attributeExtractionUtils";
 import { generateUniqueTraceId } from "../attributes/attributeUtils";
-import { getObjectDataFromUnknown } from "../utils/jsonUtils";
-import { StringKeyedObject } from "../types";
-import { diag } from "@opentelemetry/api";
 import { ChunkType } from "../attributes/constants";
+import { StringKeyedObject } from "../types";
+import { getObjectDataFromUnknown } from "../utils/jsonUtils";
+
+import { AgentChunkSpan } from "./agentChunkSpan";
+import { AgentTraceNode } from "./agentTraceNode";
+import { TraceNodeStack } from "./traceNodeStack";
 
 /**
  * Aggregates agent trace data into a hierarchical structure of nodes and spans.

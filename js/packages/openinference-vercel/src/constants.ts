@@ -2,6 +2,7 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
 import {
   AISemanticConvention,
   AISemanticConventions,

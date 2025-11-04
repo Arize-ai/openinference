@@ -1,13 +1,26 @@
-# Changelog
+# @arizeai/openinference-instrumentation-anthropic
 
-## [0.0.0] - 2024-10-02
+## 0.1.2
 
-### Added
+### Patch Changes
 
-- Initial release of OpenInference Anthropic instrumentation
-- Support for `anthropic.messages.create()` method
-- Support for streaming responses
-- Tool use/function calling instrumentation
-- Token usage tracking
-- Full OpenInference semantic conventions compliance
-- TypeScript support
+- Updated dependencies [d3d7017]
+  - @arizeai/openinference-core@2.0.0
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [5161c9f]
+  - @arizeai/openinference-core@1.0.8
+
+## 0.1.0
+
+### Minor Changes
+
+- 43db6b3: - Support for `anthropic.messages.create()` method
+  - Support for streaming responses
+  - Tool use/function calling instrumentation
+  - Token usage tracking
+  - Full OpenInference semantic conventions compliance
+  - TypeScript support

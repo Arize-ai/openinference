@@ -1,5 +1,28 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { Stream } from "@anthropic-ai/sdk/streaming";
+import {
+  OITracer,
+  safelyJSONStringify,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
+import {
+  LLMProvider,
+  LLMSystem,
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import {
+  Attributes,
+  context,
+  diag,
+  Span,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+  Tracer,
+  TracerProvider,
+} from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -7,31 +30,13 @@ import {
   InstrumentationNodeModuleDefinition,
   safeExecuteInTheMiddle,
 } from "@opentelemetry/instrumentation";
-import {
-  diag,
-  context,
-  trace,
-  SpanKind,
-  Attributes,
-  SpanStatusCode,
-  Span,
-  TracerProvider,
-  Tracer,
-} from "@opentelemetry/api";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - No version file until build
 import { VERSION } from "./version";
-import {
-  SemanticConventions,
-  OpenInferenceSpanKind,
-  MimeType,
-  LLMSystem,
-  LLMProvider,
-} from "@arizeai/openinference-semantic-conventions";
-import { isTracingSuppressed } from "@opentelemetry/core";
-import {
-  OITracer,
-  safelyJSONStringify,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
+
+import type Anthropic from "@anthropic-ai/sdk";
+import type { Stream } from "@anthropic-ai/sdk/streaming";
 
 const MODULE_NAME = "@anthropic-ai/sdk";
 

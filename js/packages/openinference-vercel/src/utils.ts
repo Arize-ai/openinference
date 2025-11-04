@@ -1,17 +1,26 @@
 import {
+  safelyJSONParse,
+  safelyJSONStringify,
+  withSafety,
+} from "@arizeai/openinference-core";
+import {
   MimeType,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, AttributeValue, diag } from "@opentelemetry/api";
-import {
-  VercelSDKFunctionNameToSpanKindMap,
-  AISemConvToOISemConvMap,
-} from "./constants";
+import { isAttributeValue } from "@opentelemetry/core";
+import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
 import {
   AISemanticConventions,
   AISemanticConventionsList,
 } from "./AISemanticConventions";
+import {
+  AISemConvToOISemConvMap,
+  VercelSDKFunctionNameToSpanKindMap,
+} from "./constants";
 import {
   OpenInferenceIOConventionKey,
   OpenInferenceSemanticConventionKey,
@@ -22,13 +31,6 @@ import {
   isArrayOfObjects,
   isStringArray,
 } from "./typeUtils";
-import { isAttributeValue } from "@opentelemetry/core";
-import {
-  safelyJSONParse,
-  safelyJSONStringify,
-  withSafety,
-} from "@arizeai/openinference-core";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(
@@ -51,7 +53,7 @@ const getVercelFunctionNameFromOperationName = (
 
 /**
  * Gets the OpenInference span kind that corresponds to the Vercel operation name
- * @param attributes the attributes of the span
+ * @param attributes - The attributes of the span
  * @returns the OpenInference span kind associated with the attributes or null if not found
  */
 const getOISpanKindFromAttributes = (
@@ -248,6 +250,25 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
   return messages.reduce((acc: Attributes, message, index) => {
     const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
     if (message.role === "tool") {
+      const firstContent = Array.isArray(message.content)
+        ? message.content[0]
+        : message.content;
+      // prefer the output property over the result property
+      // newer versions of Vercel use the output property instead of the result property
+      // when output is present, prefer the text value type
+      const TOOL_OUTPUT =
+        firstContent.output != null
+          ? firstContent.output?.type === "text"
+            ? firstContent.output?.value
+            : null
+          : firstContent.result;
+      // Do not double-stringify the tool output
+      const TOOL_OUTPUT_JSON =
+        typeof TOOL_OUTPUT === "string"
+          ? TOOL_OUTPUT
+          : TOOL_OUTPUT != null
+            ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
+            : undefined;
       return {
         ...acc,
         ...message,
@@ -270,21 +291,28 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
             ? message.toolName
             : undefined,
         [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
-          Array.isArray(message.content)
-            ? typeof message.content[0]?.result === "string"
-              ? message.content[0].result
-              : message.content[0]?.result
-                ? JSON.stringify(message.content[0].result)
-                : undefined
-            : typeof message.content === "string"
-              ? message.content
-              : undefined,
+          TOOL_OUTPUT_JSON,
       };
     } else if (isArrayOfObjects(message.content)) {
       const messageAttributes = message.content.reduce(
         (acc: Attributes, content, contentIndex) => {
           const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
           const TOOL_CALL_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}`;
+          // prefer the input property over the args property
+          // newer versions of ai-sdk use the input property instead of the args property
+          const TOOL_CALL_ARGS =
+            content.input != null
+              ? content.input
+              : content.args != null
+                ? content.args
+                : undefined;
+          // Do not double-stringify the tool call arguments
+          const TOOL_CALL_ARGS_JSON =
+            typeof TOOL_CALL_ARGS === "string"
+              ? TOOL_CALL_ARGS
+              : TOOL_CALL_ARGS != null
+                ? (safelyJSONStringify(TOOL_CALL_ARGS) ?? undefined)
+                : undefined;
           return {
             ...acc,
             [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
@@ -302,11 +330,7 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
                 ? content.toolName
                 : undefined,
             [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
-              typeof content.args === "string"
-                ? content.args
-                : typeof content.args === "object"
-                  ? JSON.stringify(content.args)
-                  : undefined,
+              TOOL_CALL_ARGS_JSON,
           };
         },
         {},
@@ -356,7 +380,13 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
       "assistant",
     ...parsedToolCalls.reduce((acc: Attributes, toolCall, index) => {
       const TOOL_CALL_PREFIX = `${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
-      const toolCallArgsJSON = safelyJSONStringify(toolCall.args);
+      // newer versions of Vercel use the input property instead of the args property
+      const toolCallArgsJSON =
+        toolCall.args != null
+          ? safelyJSONStringify(toolCall.args)
+          : toolCall.input != null
+            ? safelyJSONStringify(toolCall.input)
+            : undefined;
       return {
         ...acc,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
@@ -411,9 +441,7 @@ const safelyGetMetadataAttributes = withSafety({
 
 /**
  * Gets the OpenInference attributes associated with the span from the initial attributes
- * @param attributesWithSpanKind the initial attributes of the span and the OpenInference span kind
- * @param attributesWithSpanKind.attributes the initial attributes of the span
- * @param attributesWithSpanKind.spanKind the OpenInference span kind
+ * @param attributes - The initial attributes of the span
  * @returns The OpenInference attributes associated with the span
  */
 const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
@@ -567,8 +595,9 @@ export const isOpenInferenceSpan = (span: ReadableSpan) => {
 
 /**
  * Determines whether a span should be exported based on configuration and the spans attributes.
- * @param span the spn to check for export eligibility.
- * @param spanFilter a filter to apply to a span before exporting. If it returns true for a given span, the span will be exported.
+ * @param params - The parameters object
+ * @param params.span - The span to check for export eligibility
+ * @param params.spanFilter - A filter to apply to a span before exporting. If it returns true for a given span, the span will be exported
  * @returns true if the span should be exported, false otherwise.
  */
 export const shouldExportSpan = ({

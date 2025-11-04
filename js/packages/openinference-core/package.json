@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "1.0.7",
+  "version": "2.0.0",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
@@ -46,11 +46,12 @@
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^1.25.1",
-    "@opentelemetry/resources": "^1.19.0",
-    "@opentelemetry/sdk-trace-base": "^1.19.0",
-    "@opentelemetry/sdk-trace-node": "^1.19.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.207.0",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/node": "^20.14.11",
-    "vitest": "^4.0.2"
+    "vitest": "^4.0.2",
+    "typescript": "^5.5.4"
   }
 }

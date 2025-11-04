@@ -1,5 +1,23 @@
 # @arizeai/openinference-vercel
 
+## 2.4.0
+
+### Minor Changes
+
+- 6103271: # feat: Add support for ai sdk v5 tools
+
+### Patch Changes
+
+- Updated dependencies [d3d7017]
+  - @arizeai/openinference-core@2.0.0
+
+## 2.3.5
+
+### Patch Changes
+
+- Updated dependencies [5161c9f]
+  - @arizeai/openinference-core@1.0.8
+
 ## 2.3.4
 
 ### Patch Changes

@@ -1,14 +1,18 @@
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+
+import { Attributes } from "@opentelemetry/api";
+
+import { getObjectDataFromUnknown } from "../utils/jsonUtils";
+
 import {
   getDocumentAttributes,
   getLLMInvocationParameterAttributes,
   getLLMModelNameAttributes,
   getOutputAttributes,
 } from "./attributeUtils";
-import { Attributes } from "@opentelemetry/api";
-import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 import { DocumentReference } from "./types";
-import { getObjectDataFromUnknown } from "../utils/jsonUtils";
-import { safelyJSONStringify } from "@arizeai/openinference-core";
+
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 
 /**
  * Extracts invocation parameters from a Bedrock RAG (Retrieve and Generate) command input.

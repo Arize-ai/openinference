@@ -1,26 +1,29 @@
-import { Span, diag } from "@opentelemetry/api";
+import {
+  isObjectWithStringKeys,
+  withSafety,
+} from "@arizeai/openinference-core";
+import {
+  MimeType,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { diag, Span } from "@opentelemetry/api";
+
+import {
+  aggregateMessages,
+  extractModelName,
+  processMessages,
+  setSpanAttribute,
+} from "./attribute-helpers";
+
 import {
   ConverseCommand,
   ConverseRequest,
-  ToolConfiguration,
-  SystemContentBlock,
-  Message,
   ConverseStreamCommand,
+  Message,
+  SystemContentBlock,
+  ToolConfiguration,
 } from "@aws-sdk/client-bedrock-runtime";
-import {
-  SemanticConventions,
-  MimeType,
-} from "@arizeai/openinference-semantic-conventions";
-import {
-  withSafety,
-  isObjectWithStringKeys,
-} from "@arizeai/openinference-core";
-import {
-  setSpanAttribute,
-  aggregateMessages,
-  processMessages,
-  extractModelName,
-} from "./attribute-helpers";
 
 /**
  * Type guard to safely validate ConverseRequest structure

@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock",
-  "version": "0.4.1",
+  "version": "0.4.3",
   "description": "OpenInference instrumentation for AWS Bedrock",
   "private": false,
   "main": "dist/src/index.js",
@@ -60,7 +60,8 @@
     "@types/node": "^20.14.11",
     "nock": "^13.5.0",
     "tsx": "^4.7.0",
-    "vitest": "^4.0.3"
+    "vitest": "^4.0.3",
+    "typescript": "^5.5.4"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.0.0"

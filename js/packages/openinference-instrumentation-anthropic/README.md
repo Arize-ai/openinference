@@ -19,49 +19,64 @@ npm install @arizeai/openinference-instrumentation-anthropic
 Install required packages:
 
 ```shell
-npm install @arizeai/openinference-instrumentation-anthropic @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-otlp-http
+npm install @arizeai/openinference-instrumentation-anthropic @arizeai/openinference-semantic-conventions @anthropic-ai/sdk @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions
 ```
 
 Set up instrumentation in your application:
 
 ```typescript
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import { NodeSDK, resources } from "@opentelemetry/sdk-node";
 import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
+import Anthropic from "@anthropic-ai/sdk";
 
 // Configure the SDK with Anthropic instrumentation
+const instrumentation = new AnthropicInstrumentation({
+  // Optional: configure trace settings
+  traceConfig: {
+    // hideInputs: true,
+    // hideOutputs: true,
+  },
+});
+// necessary when instrumenting in an ESM environment
+instrumentation.manuallyInstrument(Anthropic);
 const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter({
-    url: "http://localhost:6006/v1/traces", // Phoenix endpoint
-  }),
-  instrumentations: [
-    new AnthropicInstrumentation({
-      // Optional: configure trace settings
-      traceConfig: {
-        // hideInputs: true,
-        // hideOutputs: true,
-      },
-    }),
+  spanProcessors: [
+    new SimpleSpanProcessor(
+      new OTLPTraceExporter({
+        url: "http://localhost:6006/v1/traces",
+      }),
+    ),
   ],
+  resource: resources.resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: "anthropic-service",
+    [SEMRESATTRS_PROJECT_NAME]: "anthropic-service",
+  }),
+  instrumentations: [instrumentation],
 });
 
 // Initialize the SDK
 sdk.start();
 
 // Now use Anthropic as normal
-import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const message = await anthropic.messages.create({
-  model: "claude-3-sonnet-20240229",
+  model: "claude-3-5-haiku-latest",
   max_tokens: 1000,
   messages: [{ role: "user", content: "Hello, Claude!" }],
 });
 
 console.log(message.content);
+
+sdk.shutdown();
 ```
 
 ## Configuration
@@ -91,6 +106,15 @@ This instrumentation follows the [OpenInference semantic conventions](https://gi
 - Invocation parameters
 
 ## Examples
+
+To run an example, run the following commands:
+
+```shell
+cd js/packages/openinference-instrumentation-anthropic
+pnpm install
+pnpm -r build
+pnpx tsx examples/basic-usage.ts # or streaming.ts, tool-use.ts, etc
+```
 
 See the [examples](./examples) directory for more detailed usage examples.
 

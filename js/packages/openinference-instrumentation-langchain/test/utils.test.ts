@@ -5,11 +5,15 @@ import {
   SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { diag } from "@opentelemetry/api";
+
+import { LLMMessage } from "../src/types";
 import {
   safelyFlattenAttributes,
   safelyFormatFunctionCalls,
-  safelyFormatIO,
   safelyFormatInputMessages,
+  safelyFormatIO,
   safelyFormatLLMParams,
   safelyFormatMetadata,
   safelyFormatOutputMessages,
@@ -19,10 +23,10 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "../src/utils";
-import { diag } from "@opentelemetry/api";
+
 import { getLangchainMessage, getLangchainRun } from "./fixtures";
-import { LLMMessage } from "../src/types";
-import { afterEach, describe, it, expect, vi } from "vitest";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("safelyFlattenAttributes", () => {
   const testAttributes = {
