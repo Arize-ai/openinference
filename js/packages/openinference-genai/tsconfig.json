@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.esm.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["vitest/globals"],
+    "lib": ["ESNext"],
+    "resolveJsonModule": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true
+  },
+  "files": [],
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "test/__fixtures__/**/*.json",
+    "examples/**/*.ts"
+  ],
+  "exclude": ["test/__snapshots__/**/*.ts"],
+  "references": []
+}

@@ -146,8 +146,8 @@ Normalize and convert data across other instrumentation libraries by adding span
 
 OpenInference supports the following destinations as span collectors.
 
--   ✅ [Arize-Phoenix](https://github.com/Arize-ai/phoenix)
--   ✅ [Arize](https://arize.com/)
+-   ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
+-   ✅ [Arize AX](https://arize.com/)
 -   ✅ Any OTEL-compatible collector
 
 ## Community

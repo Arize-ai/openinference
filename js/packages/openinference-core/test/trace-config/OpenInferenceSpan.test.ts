@@ -4,24 +4,24 @@ import {
 } from "../../src/trace/trace-config/constants";
 import { OISpan } from "../../src/trace/trace-config/OISpan";
 import { Span } from "@opentelemetry/api";
-
+import { type Mocked, describe, it, beforeEach, expect, vi } from "vitest";
 describe("OISpan", () => {
   describe("OISpan", () => {
-    let mockSpan: jest.Mocked<Span>;
+    let mockSpan: Mocked<Span>;
 
     beforeEach(() => {
       mockSpan = {
-        setAttribute: jest.fn(),
-        setAttributes: jest.fn(),
-        spanContext: jest.fn(),
-        addEvent: jest.fn(),
-        addLink: jest.fn(),
-        addLinks: jest.fn(),
-        end: jest.fn(),
-        isRecording: jest.fn(),
-        recordException: jest.fn(),
-        updateName: jest.fn(),
-        setStatus: jest.fn(),
+        setAttribute: vi.fn().mockReturnThis(),
+        setAttributes: vi.fn().mockReturnThis(),
+        spanContext: vi.fn(),
+        addEvent: vi.fn().mockReturnThis(),
+        addLink: vi.fn().mockReturnThis(),
+        addLinks: vi.fn().mockReturnThis(),
+        end: vi.fn().mockReturnThis(),
+        isRecording: vi.fn().mockReturnThis(),
+        recordException: vi.fn().mockReturnThis(),
+        updateName: vi.fn().mockReturnThis(),
+        setStatus: vi.fn().mockReturnThis(),
       };
     });
     it("should delegate all methods to the span", () => {

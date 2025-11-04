@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["jest"],
+    "types": ["vitest/globals"],
     "lib": ["ESNext"]
   },
   "files": [],

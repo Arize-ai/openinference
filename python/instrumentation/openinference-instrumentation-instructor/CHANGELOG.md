@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.11...python-openinference-instrumentation-instructor-v0.1.12) (2025-10-23)
+
+
+### Bug Fixes
+
+* **instructor:** make UserInfo fields optional for streaming partial responses ([#2295](https://github.com/Arize-ai/openinference/issues/2295)) ([5bb52cf](https://github.com/Arize-ai/openinference/commit/5bb52cfe25d0ec9693d562110c0af1097b7518b5))
+
 ## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.10...python-openinference-instrumentation-instructor-v0.1.11) (2025-10-14)
 
 

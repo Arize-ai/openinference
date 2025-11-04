@@ -13,7 +13,7 @@ from openinference.instrumentation import (
 from openinference.instrumentation.crewai._wrappers import (
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
-    _FlowKickoffWrapper,
+    _FlowKickoffAsyncWrapper,
     _ToolUseWrapper,
 )
 from openinference.instrumentation.crewai.version import __version__
@@ -27,7 +27,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_execute_core",
         "_original_crew_kickoff",
-        "_original_flow_kickoff",
+        "_original_flow_kickoff_async",
         "_original_tool_use",
         "_tracer",
     )
@@ -63,12 +63,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=crew_kickoff_wrapper,
         )
 
-        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)
-        self._original_flow_kickoff = getattr(import_module("crewai").Flow, "kickoff", None)
+        flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)
+        self._original_flow_kickoff_async = getattr(
+            import_module("crewai").Flow, "kickoff_async", None
+        )
         wrap_function_wrapper(
             module="crewai",
-            name="Flow.kickoff",
-            wrapper=flow_kickoff_wrapper,
+            name="Flow.kickoff_async",
+            wrapper=flow_kickoff_async_wrapper,
         )
 
         use_wrapper = _ToolUseWrapper(tracer=self._tracer)
@@ -92,10 +94,10 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module.Crew.kickoff = self._original_crew_kickoff
             self._original_crew_kickoff = None
 
-        if self._original_flow_kickoff is not None:
+        if self._original_flow_kickoff_async is not None:
             crew_module = import_module("crewai")
-            crew_module.Flow.kickoff = self._original_flow_kickoff
-            self._original_flow_kickoff = None
+            crew_module.Flow.kickoff_async = self._original_flow_kickoff_async
+            self._original_flow_kickoff_async = None
 
         if self._original_tool_use is not None:
             tool_usage_module = import_module("crewai.tools.tool_usage")

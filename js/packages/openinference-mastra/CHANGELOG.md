@@ -1,5 +1,11 @@
 # @arizeai/openinference-mastra
 
+## 3.0.0
+
+### Major Changes
+
+- 6d23050: feat: Add deprecation notices
+
 ## 2.2.1
 
 ### Patch Changes

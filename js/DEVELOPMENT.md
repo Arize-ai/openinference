@@ -17,7 +17,7 @@ This project and its packages are built using the following tools:
 
 - [pnpm](https://pnpm.io/) for managing packages across the repo. Note, this project uses pnpm workspaces, so you must use pnpm to install packages at the root of the repo.
 - [TypeScript](https://www.typescriptlang.org/) for type checking and transpiling.
-- [Jest](https://jestjs.io/) for unit testing.
+- [Vitest](https://vitest.dev/) for unit testing and test running.
 - [Eslint](https://eslint.org/) for linting and best practices.
 - [Prettier](https://prettier.io/) for code formatting.
 
@@ -66,7 +66,7 @@ pnpm run -r test
 ```
 
 > [!NOTE]
-> The tests in this repo use `jest` but it's auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.x.`instrumentation._modules[0].moduleExports = module`)
+> The tests in this repo use `vitest` but it's auto-mocking feature can cause issues since instrumentation relies on it running first before the package is imported in user-code. For the tests you may have to manually set the instrumented module manually (e.x.`instrumentation._modules[0].moduleExports = module`)
 
 ## Creating an Instrumentor
 

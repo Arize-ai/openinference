@@ -538,7 +538,7 @@ function getOutputMessages(
       }
     }
     return messages;
-  } catch (e) {
+  } catch {
     messages.push({
       content: safelyJSONStringify(outputContent) ?? undefined,
       role: "assistant",

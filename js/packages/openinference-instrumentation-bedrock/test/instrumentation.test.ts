@@ -62,7 +62,7 @@ describe("BedrockInstrumentation", () => {
   const isRecordingMode = process.env.BEDROCK_RECORD_MODE === "record";
 
   // Global setup - initialize instrumentation once
-  beforeAll(() => {
+  beforeAll(async () => {
     // Setup instrumentation and tracer provider
     instrumentation = new BedrockInstrumentation();
     instrumentation.disable(); // Initially disabled
@@ -74,8 +74,7 @@ describe("BedrockInstrumentation", () => {
     instrumentation.setTracerProvider(provider);
 
     // Manually set module exports for testing
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const BedrockRuntime = require("@aws-sdk/client-bedrock-runtime");
+    const BedrockRuntime = await import("@aws-sdk/client-bedrock-runtime");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (instrumentation as any)._modules[0].moduleExports = BedrockRuntime;
 
@@ -896,7 +895,7 @@ This model is designed to avoid generating sensitive content. It is important to
 `);
       });
 
-      xit("should handle Mistral Pixtral Large models with multimodal and tools", async () => {
+      it.skip("should handle Mistral Pixtral Large models with multimodal and tools", async () => {
         setupTestRecordingWrapper("should-handle-mistral-pixtral-models");
         const client = createTestClient(isRecordingMode);
 
@@ -3909,7 +3908,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       new SimpleSpanProcessor(customMemoryExporter),
     );
 
-    beforeAll(() => {
+    beforeAll(async () => {
       // Instantiate instrumentation with the custom provider
       instrumentation = new BedrockInstrumentation({
         tracerProvider: customTracerProvider,
@@ -3918,7 +3917,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+      instrumentation._modules[0].moduleExports = await import(
+        "@aws-sdk/client-bedrock-runtime"
+      );
 
       instrumentation.enable();
     });
@@ -3979,7 +3980,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       new SimpleSpanProcessor(customMemoryExporter),
     );
 
-    beforeAll(() => {
+    beforeAll(async () => {
       // Instantiate instrumentation and set the custom provider
       instrumentation = new BedrockInstrumentation();
       instrumentation.setTracerProvider(customTracerProvider);
@@ -3987,7 +3988,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+      instrumentation._modules[0].moduleExports = await import(
+        "@aws-sdk/client-bedrock-runtime"
+      );
 
       instrumentation.enable();
     });
@@ -4048,7 +4051,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       new SimpleSpanProcessor(customMemoryExporter),
     );
 
-    beforeAll(() => {
+    beforeAll(async () => {
       // Instantiate instrumentation and register with the custom provider
       instrumentation = new BedrockInstrumentation();
       registerInstrumentations({
@@ -4059,7 +4062,9 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = require("@aws-sdk/client-bedrock-runtime");
+      instrumentation._modules[0].moduleExports = await import(
+        "@aws-sdk/client-bedrock-runtime"
+      );
 
       instrumentation.enable();
     });

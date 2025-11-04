@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.53...python-openinference-instrumentation-langchain-v0.1.54) (2025-10-23)
+
+
+### Bug Fixes
+
+* **langchain:** import testing dependencies from changes brought by langchian v1.0.0 ([#2336](https://github.com/Arize-ai/openinference/issues/2336)) ([55c9a0d](https://github.com/Arize-ai/openinference/commit/55c9a0d3a6826f6a9c2fd76a108291a82e2f5b22))
+
 ## [0.1.53](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.52...python-openinference-instrumentation-langchain-v0.1.53) (2025-10-10)
 
 

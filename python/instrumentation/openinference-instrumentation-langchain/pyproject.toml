@@ -94,6 +94,18 @@ exclude = [
   "sdist",
 ]
 
+[[tool.mypy.overrides]]
+module = [
+  "langchain.*",
+  "langchain_classic.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.test_instrumentor"]
+disable_error_code = ["no-redef"]
+
+
 [tool.ruff]
 line-length = 100
 target-version = "py38"
@@ -106,3 +118,4 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
+
