@@ -138,7 +138,7 @@ def _agent_run_attributes(
         # Set graph attributes for team
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
-            
+
         if hasattr(agent, "id") and agent.id:
             yield "agno.team.id", agent.id
 
@@ -271,6 +271,7 @@ class _RunWrapper:
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
             raise
 
         finally:
@@ -355,6 +356,7 @@ class _RunWrapper:
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
             raise
 
         finally:
@@ -424,6 +426,7 @@ class _RunWrapper:
             return run_response
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
             raise
 
         finally:
@@ -510,6 +513,7 @@ class _RunWrapper:
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
             raise
 
         finally:

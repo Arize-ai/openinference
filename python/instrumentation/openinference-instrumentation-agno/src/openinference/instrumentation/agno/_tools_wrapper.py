@@ -115,6 +115,7 @@ class _FunctionCallWrapper:
                     return response
                 else:
                     self._handle_success(function_call.result, span)
+                    span.end()
 
             elif response.status == "failure":
                 function_error_message = function_call.error
@@ -126,10 +127,9 @@ class _FunctionCallWrapper:
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
-            raise
-
-        finally:
+            span.record_exception(e)
             span.end()
+            raise
 
         return response
 
@@ -179,7 +179,7 @@ class _FunctionCallWrapper:
                     return response
                 else:
                     self._handle_success(function_call.result, span)
-
+                    span.end()
             elif response.status == "failure":
                 function_error_message = function_call.error
                 span.set_status(trace_api.StatusCode.ERROR, function_error_message)
@@ -190,10 +190,9 @@ class _FunctionCallWrapper:
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
-            raise
-
-        finally:
+            span.record_exception(e)
             span.end()
+            raise
 
         return response
 
@@ -241,6 +240,7 @@ class _FunctionCallWrapper:
                 )
             )
         )
+        span.end()
 
     async def _handle_async_success_streaming(
         self, result: AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]], span: trace_api.Span
@@ -266,6 +266,7 @@ class _FunctionCallWrapper:
                 )
             )
         )
+        span.end()
 
     def _parse_content(self, content: Any) -> str:
         from pydantic import BaseModel
