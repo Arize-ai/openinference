@@ -1,7 +1,12 @@
+import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+<<<<<<< HEAD
 
 import { Attributes, diag } from "@opentelemetry/api";
 
+=======
+import { Attributes } from "@opentelemetry/api";
+>>>>>>> c0d133c2 (serialize tool output)
 import {
   Response as ResponseType,
   ResponseCreateParamsBase,
@@ -48,7 +53,10 @@ function getResponseItemAttributes(
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
           item.output;
       } else {
-        diag.warn("Failed to serialize non-string typed tool output");
+        // Best effort to serialize the output
+        // TODO(mikeldking): Consider figuring out the MIME type of the content
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          safelyJSONStringify(item.output) ?? undefined;
       }
       break;
     }
