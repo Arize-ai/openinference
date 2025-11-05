@@ -143,8 +143,7 @@ class _CompletionsWrapper(_WithTracer):
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
-            finally:
-                return response
+            return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
@@ -202,5 +201,4 @@ class _AsyncCompletionsWrapper(_WithTracer):
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
-            finally:
-                return response
+            return response
