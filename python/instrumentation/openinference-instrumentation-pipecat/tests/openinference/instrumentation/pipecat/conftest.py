@@ -94,9 +94,7 @@ class MockSTTService(STTService):
         """Convert audio to mock transcription"""
         self.processed_audio.append(audio)
         # Simulate transcription
-        yield TranscriptionFrame(
-            text="Mock transcription", user_id="test-user", timestamp=0
-        )
+        yield TranscriptionFrame(text="Mock transcription", user_id="test-user", timestamp=0)
 
 
 # Service Factory Functions - Better approach than multiple mock classes
@@ -129,9 +127,7 @@ def create_openai_llm(model: str = "gpt-4", **kwargs):
 
 def create_openai_tts(model: str = "tts-1", voice: str = "alloy", **kwargs):
     """Create mock OpenAI TTS service"""
-    return create_mock_service(
-        MockTTSService, "openai", "tts", model=model, voice=voice, **kwargs
-    )
+    return create_mock_service(MockTTSService, "openai", "tts", model=model, voice=voice, **kwargs)
 
 
 def create_openai_stt(model: str = "whisper-1", **kwargs):
@@ -141,9 +137,7 @@ def create_openai_stt(model: str = "whisper-1", **kwargs):
 
 def create_anthropic_llm(model: str = "claude-3-5-sonnet-20241022", **kwargs):
     """Create mock Anthropic LLM service"""
-    return create_mock_service(
-        MockLLMService, "anthropic", "llm", model=model, **kwargs
-    )
+    return create_mock_service(MockLLMService, "anthropic", "llm", model=model, **kwargs)
 
 
 def create_elevenlabs_tts(
@@ -162,9 +156,7 @@ def create_deepgram_stt(model: str = "nova-2", **kwargs):
     return create_mock_service(MockSTTService, "deepgram", "stt", model=model, **kwargs)
 
 
-def create_cartesia_tts(
-    model: str = "sonic-english", voice_id: str = "mock-voice", **kwargs
-):
+def create_cartesia_tts(model: str = "sonic-english", voice_id: str = "mock-voice", **kwargs):
     """Create mock Cartesia TTS service"""
     return create_mock_service(
         MockTTSService, "cartesia", "tts", model=model, voice=voice_id, **kwargs
@@ -286,9 +278,7 @@ def pipeline_task(simple_pipeline):
 
 def get_spans_by_name(exporter: InMemorySpanExporter, name: str) -> List:
     """Helper to get spans by name from exporter"""
-    return [
-        span for span in exporter.get_finished_spans() if span.name.startswith(name)
-    ]
+    return [span for span in exporter.get_finished_spans() if span.name.startswith(name)]
 
 
 def get_span_attributes(span) -> dict:
@@ -321,14 +311,12 @@ def assert_span_hierarchy(spans: List, expected_hierarchy: List[str]):
         parent_span = span_by_name[parent_name]
         child_span = span_by_name[child_name]
 
-        assert (
-            child_span.parent.span_id == parent_span.context.span_id
-        ), f"{child_name} is not a child of {parent_name}"
+        assert child_span.parent.span_id == parent_span.context.span_id, (
+            f"{child_name} is not a child of {parent_name}"
+        )
 
 
-async def run_pipeline_task(
-    task: PipelineTask, *frames: Frame, send_start_frame: bool = True
-):
+async def run_pipeline_task(task: PipelineTask, *frames: Frame, send_start_frame: bool = True):
     """
     Helper to run a pipeline task with given frames.
 
@@ -382,9 +370,7 @@ async def run_pipeline_task(
         for processor in processors:
             for observer in observers:
                 if hasattr(observer, "on_push_frame"):
-                    await observer.on_push_frame(
-                        MockFramePushData(processor, StartFrame())
-                    )
+                    await observer.on_push_frame(MockFramePushData(processor, StartFrame()))
 
     # Trigger observer callbacks for each frame through each processor
     for frame in frames:

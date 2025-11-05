@@ -148,9 +148,7 @@ class TextFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from a text frame."""
 
     attributes: Dict[str, Any] = {
-        "text.skip_tts": lambda frame: (
-            frame.skip_tts if hasattr(frame, "skip_tts") else None
-        ),
+        "text.skip_tts": lambda frame: (frame.skip_tts if hasattr(frame, "skip_tts") else None),
     }
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
@@ -195,9 +193,7 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         "llm.messages_count": lambda frame: (
-            len(frame.context._messages)
-            if hasattr(frame.context, "_messages")
-            else None
+            len(frame.context._messages) if hasattr(frame.context, "_messages") else None
         ),
         "llm.messages": lambda frame: (
             safe_json_dumps(frame.context._messages)
@@ -336,9 +332,7 @@ class FunctionCallFromLLMFrameExtractor(FrameAttributeExtractor):
                 if params:
                     results[SpanAttributes.TOOL_PARAMETERS] = params
             else:
-                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(
-                    lambda: str(frame.arguments)
-                )
+                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(lambda: str(frame.arguments))
         if hasattr(frame, "tool_call_id") and frame.tool_call_id:
             results["tool.call_id"] = frame.tool_call_id
         return results
@@ -356,7 +350,9 @@ class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
         SpanAttributes.OUTPUT_VALUE: lambda frame: (
             safe_json_dumps(frame.result)
             if hasattr(frame, "result") and isinstance(frame.result, (dict, list))
-            else str(frame.result) if hasattr(frame, "result") else None
+            else str(frame.result)
+            if hasattr(frame, "result")
+            else None
         ),
         "tool.call_id": lambda frame: getattr(frame, "tool_call_id", None),
     }
@@ -385,15 +381,11 @@ class LLMTokenMetricsDataExtractor(FrameAttributeExtractor):
     """Extract attributes from LLM token metrics data."""
 
     attributes: Dict[str, Any] = {
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(
-            frame, "prompt_tokens", None
-        ),
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(frame, "prompt_tokens", None),
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda frame: getattr(
             frame, "completion_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(
-            frame, "total_tokens", None
-        ),
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(frame, "total_tokens", None),
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda frame: getattr(
             frame, "cache_read_input_tokens", None
         ),
@@ -508,12 +500,8 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         "frame.pts": lambda frame: getattr(frame, "pts", None),
         "frame.timestamp": lambda frame: getattr(frame, "timestamp", None),
         "frame.metadata": lambda frame: safe_json_dumps(getattr(frame, "metadata", {})),
-        "frame.transport_source": lambda frame: getattr(
-            frame, "transport_source", None
-        ),
-        "frame.transport_destination": lambda frame: getattr(
-            frame, "transport_destination", None
-        ),
+        "frame.transport_source": lambda frame: getattr(frame, "transport_source", None),
+        "frame.transport_destination": lambda frame: getattr(frame, "transport_destination", None),
         "frame.error.message": lambda frame: getattr(frame, "error", None),
     }
 
@@ -530,29 +518,17 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         if isinstance(frame, LLMMessagesFrame):
             results.update(_llm_messages_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, LLMMessagesAppendFrame):
-            results.update(
-                _llm_messages_append_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_llm_messages_append_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, LLMFullResponseStartFrame):
-            results.update(
-                _llm_full_response_start_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_llm_full_response_start_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, LLMFullResponseEndFrame):
-            results.update(
-                _llm_full_response_end_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_llm_full_response_end_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, FunctionCallFromLLM):
-            results.update(
-                _function_call_from_llm_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_function_call_from_llm_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, FunctionCallResultFrame):
-            results.update(
-                _function_call_result_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_function_call_result_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, FunctionCallInProgressFrame):
-            results.update(
-                _function_call_in_progress_frame_extractor.extract_from_frame(frame)
-            )
+            results.update(_function_call_in_progress_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, MetricsFrame):
             results.update(_metrics_frame_extractor.extract_from_frame(frame))
         return results
@@ -612,13 +588,9 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
-            service, "model_name", None
-        )
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
-            service
-        ),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
     }
@@ -648,13 +620,9 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
-            service, "model_name", None
-        )
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
-            service
-        ),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
@@ -674,13 +642,9 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
-            service, "model_name", None
-        )
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
-            service
-        ),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
@@ -788,30 +752,18 @@ def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
 
     # Extract service-specific attributes based on type
     if isinstance(service, LLMService):
-        attributes.update(
-            _llm_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_llm_service_attribute_extractor.extract_from_service(service))
     elif isinstance(service, STTService):
-        attributes.update(
-            _stt_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_stt_service_attribute_extractor.extract_from_service(service))
     elif isinstance(service, TTSService):
-        attributes.update(
-            _tts_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_tts_service_attribute_extractor.extract_from_service(service))
     elif isinstance(service, ImageGenService):
-        attributes.update(
-            _image_gen_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_image_gen_service_attribute_extractor.extract_from_service(service))
     elif isinstance(service, VisionService):
-        attributes.update(
-            _vision_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_vision_service_attribute_extractor.extract_from_service(service))
     elif MCPClientService is not None and isinstance(service, MCPClientService):
         attributes.update(_mcp_client_attribute_extractor.extract_from_service(service))
     elif isinstance(service, WebsocketService):
-        attributes.update(
-            _websocket_service_attribute_extractor.extract_from_service(service)
-        )
+        attributes.update(_websocket_service_attribute_extractor.extract_from_service(service))
 
     return attributes

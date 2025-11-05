@@ -24,23 +24,17 @@ class TestOpenAISpans:
     """Test span creation for OpenAI services"""
 
     @pytest.mark.asyncio
-    async def test_openai_llm_span(
-        self, tracer_provider, in_memory_span_exporter, mock_openai_llm
-    ):
+    async def test_openai_llm_span(self, tracer_provider, in_memory_span_exporter, mock_openai_llm):
         """Test that OpenAI LLM service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
         try:
             pipeline = Pipeline([mock_openai_llm])
-            task = PipelineTask(
-                pipeline
-            )  # Use default settings so pipeline can complete
+            task = PipelineTask(pipeline)  # Use default settings so pipeline can complete
 
             # Send LLM request and run pipeline
             messages = [{"role": "user", "content": "Hello"}]
-            await run_pipeline_task(
-                task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
-            )
+            await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
 
             llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -58,9 +52,7 @@ class TestOpenAISpans:
             instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_tts_span(
-        self, tracer_provider, in_memory_span_exporter, mock_openai_tts
-    ):
+    async def test_openai_tts_span(self, tracer_provider, in_memory_span_exporter, mock_openai_tts):
         """Test that OpenAI TTS service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -86,9 +78,7 @@ class TestOpenAISpans:
         instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_stt_span(
-        self, tracer_provider, in_memory_span_exporter, mock_openai_stt
-    ):
+    async def test_openai_stt_span(self, tracer_provider, in_memory_span_exporter, mock_openai_stt):
         """Test that OpenAI STT service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -167,9 +157,7 @@ class TestAnthropicSpans:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Hello Claude"}]
-        await run_pipeline_task(
-            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
-        )
+        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -371,9 +359,7 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(
-            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
-        )
+        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -396,9 +382,7 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(
-            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
-        )
+        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
