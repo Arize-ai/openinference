@@ -49,15 +49,8 @@ function getResponseItemAttributes(
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
       attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
         item.call_id;
-      if (typeof item.output === "string") {
-        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-          item.output;
-      } else {
-        // Best effort to serialize the output
-        // TODO(mikeldking): Consider figuring out the MIME type of the content
-        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-          safelyJSONStringify(item.output) ?? undefined;
-      }
+      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+        item.output;
       break;
     }
     case "reasoning": {
