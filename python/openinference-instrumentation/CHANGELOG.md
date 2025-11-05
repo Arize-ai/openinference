@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.41...python-openinference-instrumentation-v0.1.42) (2025-11-05)
+
+
+### Features
+
+* **litellm:** align embedding instrumentation with pending spec ([#2238](https://github.com/Arize-ai/openinference/issues/2238)) ([d03047d](https://github.com/Arize-ai/openinference/commit/d03047d880fc5538ba1b2fcbb37812a665905d33))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.40...python-openinference-instrumentation-v0.1.41) (2025-10-20)
 
 
