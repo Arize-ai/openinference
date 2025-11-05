@@ -225,9 +225,9 @@ class _FunctionCallWrapper:
         try:
             for item in result:
                 yield item
-                if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
                     function_result += self._parse_content(item.content)
-                else:
+                elif isinstance(item, str):
                     function_result += str(item)
         except Exception:
             # Don't break if observability fails
@@ -250,9 +250,9 @@ class _FunctionCallWrapper:
         async for item in result:
             yield item
             try:
-                if isinstance(item, RunContentEvent) or isinstance(item, TeamRunContentEvent):
+                if isinstance(item, (RunContentEvent, TeamRunContentEvent)):
                     function_result += self._parse_content(item.content)
-                else:
+                elif isinstance(item, str):
                     function_result += str(item)
             except Exception:
                 # Don't break if observability fails
