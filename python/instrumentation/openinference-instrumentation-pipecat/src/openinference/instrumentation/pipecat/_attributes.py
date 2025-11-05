@@ -3,12 +3,11 @@
 import base64
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from openinference.semconv.trace import SpanAttributes
 from pipecat.frames.frames import (
     AudioRawFrame,
-    ErrorFrame,
     Frame,
     FunctionCallFromLLM,
     FunctionCallInProgressFrame,
@@ -19,7 +18,6 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
     LLMMessagesFrame,
-    LLMMessagesUpdateFrame,
     MetricsFrame,
     TextFrame,
     TranscriptionFrame,
@@ -36,308 +34,485 @@ from pipecat.processors.aggregators.llm_context import (
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "extract_attributes_from_frame",
+]
 
-class _FrameAttributeExtractor:
-    """Extract attributes from Pipecat frames using pattern-based detection."""
 
-    def __init__(self, max_length: int = 1000):
-        """
-        Initialize extractor.
+def safe_json_dumps(obj: Any, default: Optional[str] = None) -> Optional[str]:
+    """
+    Safely serialize an object to JSON, returning None if serialization fails.
 
-        Args:
-            max_length: Maximum length for text values
-        """
-        self._max_length = max_length
+    Args:
+        obj: The object to serialize
+        default: Default value to return on error (defaults to None)
+
+    Returns:
+        JSON string or default value on error
+    """
+    try:
+        return json.dumps(obj)
+    except Exception as e:
+        logger.debug(f"Failed to serialize object to JSON: {e}")
+        return default
+
+
+def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
+    """
+    Safely execute an extractor function, returning default value on error.
+
+    Args:
+        extractor: Function to execute
+        default: Default value to return on error
+
+    Returns:
+        Result of extractor or default value on error
+    """
+    try:
+        return extractor()
+    except Exception as e:
+        logger.debug(f"Failed to extract attribute: {e}")
+        return default
+
+
+class FrameAttributeExtractor:
+    """Extract attributes from Pipecat frames."""
+
+    attributes: Dict[str, Any] = {}
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        """
-        Extract attributes from a frame using pattern-based detection.
+        result: Dict[str, Any] = {}
+        for attribute, operation in self.attributes.items():
+            # Use safe_extract to prevent individual attribute failures from breaking extraction
+            value = safe_extract(lambda: operation(frame))
+            if value is not None:
+                result[attribute] = value
+        return result
 
-        This method handles 100+ Pipecat frame types without creating
-        unique handlers for each one. It uses duck-typing to detect
-        common properties across frame types.
 
-        Args:
-            frame: A Pipecat frame
+class TextFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from a text frame."""
 
-        Returns:
-            Dictionary of attributes following OpenInference conventions
-        """
-        attributes: Dict[str, Any] = {}
+    attributes: Dict[str, Any] = {
+        "text.skip_tts": lambda frame: (
+            frame.skip_tts if hasattr(frame, "skip_tts") else None
+        ),
+    }
 
-        # ALWAYS capture frame type
-        attributes["frame.type"] = frame.__class__.__name__
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results = super().extract_from_frame(frame)
+        if hasattr(frame, "text"):
+            text = frame.text
+            if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
+                results[SpanAttributes.OUTPUT_VALUE] = text
+            elif isinstance(frame, TextFrame):
+                results[SpanAttributes.INPUT_VALUE] = text
+            else:
+                results[SpanAttributes.INPUT_VALUE] = text
+        return results
 
-        # Pattern 1: Text content (TextFrame, TranscriptionFrame, etc.)
-        try:
-            if isinstance(frame, TextFrame):
-                # For transcription, this is output from STT
-                attributes["text.skip_tts"] = frame.skip_tts
-                if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
-                    attributes[SpanAttributes.OUTPUT_VALUE] = frame.text
-                else:
-                    attributes[SpanAttributes.INPUT_VALUE] = frame.text
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting text from frame: {frame}")
-            pass
 
-        # Pattern 2: Audio metadata (AudioRawFrame variants)
-        try:
-            if isinstance(frame, AudioRawFrame):
-                attributes["audio"] = base64.b64encode(frame.audio).decode("utf-8")
-                attributes["audio.sample_rate"] = frame.sample_rate
-                attributes["audio.num_channels"] = frame.num_channels
-                attributes["audio.size_bytes"] = len(frame.audio)
-                attributes["audio.frame_count"] = frame.num_frames
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting audio metadata from frame: {frame}")
-            pass
-        # Pattern 3: User metadata (for user attribution)
-        try:
-            if hasattr(frame, "user_id") and frame.user_id:
-                attributes[SpanAttributes.USER_ID] = frame.user_id
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting user metadata from frame: {frame}")
-            pass
-        # Pattern 4: Timestamps (for timing analysis)
-        try:
-            if hasattr(frame, "timestamp") and frame.timestamp is not None:
-                attributes["frame.timestamp"] = frame.timestamp
-            if hasattr(frame, "pts") and frame.pts is not None:
-                attributes["frame.pts"] = frame.pts
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting metadata from frame: {frame}")
-            pass
+# Singleton text frame extractor
+_text_frame_extractor = TextFrameExtractor()
 
-        # Pattern 5: Error information
-        try:
-            if isinstance(frame, ErrorFrame):
-                if hasattr(frame, "error") and frame.error:
-                    attributes["frame.error.message"] = str(frame.error)
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting error information from frame: {frame}")
-            pass
 
-        # Pattern 6: LLM Messages (special handling for LLM frames)
-        attributes.update(self._extract_llm_attributes(frame))
+class AudioFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from an audio frame."""
 
-        # Pattern 7: Function calling / Tool use
-        attributes.update(self._extract_tool_attributes(frame))
+    attributes: Dict[str, Any] = {
+        "audio.wav": lambda frame: (
+            base64.b64encode(frame.audio).decode("utf-8")
+            if hasattr(frame, "audio") and frame.audio
+            else None
+        ),
+        "audio.sample_rate": lambda frame: (getattr(frame, "sample_rate", None)),
+        "audio.num_channels": lambda frame: (getattr(frame, "num_channels", None)),
+        "audio.size_bytes": lambda frame: (len(getattr(frame, "audio", []))),
+        "audio.frame_count": lambda frame: (getattr(frame, "num_frames", 0)),
+    }
 
-        # Pattern 8: Frame metadata (if present)
-        if hasattr(frame, "metadata") and frame.metadata:
-            # Store as JSON string if it's a dict
-            if isinstance(frame.metadata, dict):
+
+# Singleton audio frame extractor
+_audio_frame_extractor = AudioFrameExtractor()
+
+
+class LLMContextFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from an LLM context frame."""
+
+    attributes: Dict[str, Any] = {
+        "llm.messages_count": lambda frame: (
+            len(frame.context._messages)
+            if hasattr(frame.context, "_messages")
+            else None
+        ),
+        "llm.messages": lambda frame: (
+            safe_json_dumps(frame.context._messages)
+            if hasattr(frame.context, "_messages")
+            else None
+        ),
+    }
+
+
+# Singleton LLM context frame extractor
+_llm_context_frame_extractor = LLMContextFrameExtractor()
+
+
+class LLMMessagesFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from an LLM messages frame."""
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        if hasattr(frame, "context") and frame.context:
+            context = frame.context
+            # Extract messages from context (context._messages is a list)
+            if hasattr(context, "_messages") and context._messages:
+                results["llm.messages_count"] = len(context._messages)
+
+                # Convert messages to serializable format
                 try:
-                    attributes["frame.metadata"] = json.dumps(frame.metadata)
-                except (TypeError, ValueError):
+                    # Messages can be LLMStandardMessage or LLMSpecificMessage
+                    # They should be dict-like for serialization
+                    messages_list: List[Any] = []
+                    for msg in context._messages:
+                        if isinstance(msg, dict):
+                            raw_content = msg.content  # type: ignore
+                            if isinstance(raw_content, str):
+                                content = msg.content  # type: ignore
+                            elif isinstance(raw_content, dict):
+                                content = safe_json_dumps(raw_content)
+                            else:
+                                content = str(raw_content)
+                            messages = {
+                                "role": msg.role,  # type: ignore # LLMSpecificMessage does not have a role attribute
+                                "content": content,
+                                "name": msg.name if hasattr(msg, "name") else "",
+                            }
+                            messages_list.append(messages)
+                        elif isinstance(msg, LLMSpecificMessage):
+                            # Fallback: try to serialize the object
+                            messages_list.append(msg.message)
+                    messages_json = safe_json_dumps(messages_list)
+                    results[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
+                    results[SpanAttributes.INPUT_VALUE] = messages_json
+                except (TypeError, ValueError, AttributeError) as e:
+                    logger.debug(f"Could not serialize LLMContext messages: {e}")
+
+            # Extract tools if present
+            if hasattr(context, "_tools") and context._tools:
+                try:
+                    # Try to get tool count
+                    if isinstance(context._tools, list):
+                        results["llm.tools_count"] = len(context._tools)
+                except (TypeError, AttributeError):
                     pass
 
-        # Pattern 9: Metrics data (usage, TTFB, processing time)
-        attributes.update(self._extract_metrics_attributes(frame))
+        return results
 
-        return attributes
 
-    def _extract_llm_attributes(self, frame: Frame) -> Dict[str, Any]:
-        """
-        Extract LLM-specific attributes from LLM frames.
+# Singleton LLM messages frame extractor
+_llm_messages_frame_extractor = LLMMessagesFrameExtractor()
 
-        Handles: LLMContextFrame, LLMMessagesFrame, LLMMessagesAppendFrame,
-        LLMFullResponseStartFrame, etc.
-        """
-        attributes: Dict[str, Any] = {}
 
-        try:
-            # LLMContextFrame contains the universal LLM context
-            if isinstance(frame, LLMContextFrame):
-                if hasattr(frame, "context") and frame.context:
-                    context = frame.context
-                    # Extract messages from context (context._messages is a list)
-                    if hasattr(context, "_messages") and context._messages:
-                        attributes["llm.messages_count"] = len(context._messages)
+class LLMMessagesSequenceFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from an LLM messages append frame."""
 
-                        # Convert messages to serializable format
-                        try:
-                            # Messages can be LLMStandardMessage or LLMSpecificMessage
-                            # They should be dict-like for serialization
-                            messages_list: List[Any] = []
-                            for msg in context._messages:
-                                if isinstance(msg, dict):
-                                    raw_content = msg.content  # type: ignore
-                                    if isinstance(raw_content, str):
-                                        content = msg.content  # type: ignore
-                                    elif isinstance(raw_content, dict):
-                                        content = json.dumps(raw_content)
-                                    else:
-                                        content = str(raw_content)
-                                    messages = {
-                                        "role": msg.role,  # type: ignore
-                                        "content": content,
-                                        "name": msg.name if hasattr(msg, "name") else "",  # type: ignore
-                                    }
-                                    messages_list.append(messages)
-                                elif isinstance(msg, LLMSpecificMessage):
-                                    # Fallback: try to serialize the object
-                                    messages_list.append(msg.message)
-                            messages_json = json.dumps(messages_list)
-                            attributes[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
-                            attributes[SpanAttributes.INPUT_VALUE] = messages_json
-                        except (TypeError, ValueError, AttributeError) as e:
-                            logger.debug(f"Could not serialize LLMContext messages: {e}")
+    phase: str = "append"
 
-                    # Extract tools if present
-                    if hasattr(context, "_tools") and context._tools:
-                        try:
-                            # Try to get tool count
-                            if isinstance(context._tools, list):
-                                attributes["llm.tools_count"] = len(context._tools)
-                        except (TypeError, AttributeError):
-                            pass
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {
+            "llm.response_phase": self.phase,
+        }
+        if hasattr(frame, "messages") and frame.messages:
+            messages = frame.messages
+            results["llm.messages_count"] = len(messages)
 
-            # LLMMessagesFrame and LLMMessagesUpdateFrame contain the full message history
-            elif isinstance(frame, (LLMMessagesFrame, LLMMessagesUpdateFrame)):
-                if hasattr(frame, "messages") and frame.messages:
-                    attributes["llm.messages_count"] = len(frame.messages)
+            # Extract text content for input.value
+            user_messages = safe_json_dumps(messages)
+            if user_messages:
+                results[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
+                results[SpanAttributes.INPUT_VALUE] = user_messages
+        return results
 
-                    # Extract text content for input.value
-                    user_messages = json.dumps(frame.messages)
-                    attributes[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
-                    attributes[SpanAttributes.INPUT_VALUE] = user_messages
-            # LLMMessagesAppendFrame adds messages to context
-            elif isinstance(frame, LLMMessagesAppendFrame):
-                if hasattr(frame, "messages") and frame.messages:
-                    attributes["llm.messages_appended"] = len(frame.messages)
 
-            # LLM response boundaries
-            elif isinstance(frame, LLMFullResponseStartFrame):
-                attributes["llm.response_phase"] = "start"
-                if hasattr(frame, "messages") and frame.messages:
-                    attributes["llm.messages_count"] = len(frame.messages)
-                    user_messages = json.dumps(frame.messages)
-                    attributes[SpanAttributes.LLM_OUTPUT_MESSAGES] = user_messages
-            elif isinstance(frame, LLMFullResponseEndFrame):
-                attributes["llm.response_phase"] = "end"
-                if hasattr(frame, "messages") and frame.messages:
-                    attributes["llm.messages_count"] = len(frame.messages)
-                    user_messages = json.dumps(frame.messages)
-                    attributes[SpanAttributes.LLM_OUTPUT_MESSAGES] = user_messages
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting LLM attributes from frame: {frame}")
-            pass
-        finally:
-            return attributes
+# Singleton LLM messages sequence frame extractor
+_llm_messages_sequence_frame_extractor = LLMMessagesSequenceFrameExtractor()
 
-    def _extract_tool_attributes(self, frame: Frame) -> Dict[str, Any]:
-        """Extract function calling / tool use attributes."""
-        attributes: Dict[str, Any] = {}
 
-        # Function call from LLM
-        try:
-            if isinstance(frame, FunctionCallFromLLM):
-                if hasattr(frame, "function_name") and frame.function_name:
-                    attributes[SpanAttributes.TOOL_NAME] = frame.function_name
-                if hasattr(frame, "arguments") and frame.arguments:
-                    # Arguments are typically a dict
-                    if isinstance(frame.arguments, dict):
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = json.dumps(frame.arguments)
-                    else:
-                        attributes[SpanAttributes.TOOL_PARAMETERS] = str(frame.arguments)
-                if hasattr(frame, "tool_call_id") and frame.tool_call_id:
-                    attributes["tool.call_id"] = frame.tool_call_id
+class LLMMessagesAppendFrameExtractor(LLMMessagesSequenceFrameExtractor):
+    """Extract attributes from an LLM messages append frame."""
 
-            # Function call result
-            elif isinstance(frame, FunctionCallResultFrame):
-                if hasattr(frame, "function_name") and frame.function_name:
-                    attributes[SpanAttributes.TOOL_NAME] = frame.function_name
-                if hasattr(frame, "result") and frame.result:
-                    # Result could be any type
-                    if isinstance(frame.result, (dict, list)):
-                        attributes["tool.result"] = json.dumps(frame.result)
-                    else:
-                        attributes["tool.result"] = str(frame.result)
-                if hasattr(frame, "tool_call_id") and frame.tool_call_id:
-                    attributes["tool.call_id"] = frame.tool_call_id
+    phase: str = "append"
 
-            # In-progress function call
-            elif isinstance(frame, FunctionCallInProgressFrame):
-                if hasattr(frame, "function_name") and frame.function_name:
-                    attributes[SpanAttributes.TOOL_NAME] = frame.function_name
-                    attributes["tool.status"] = "in_progress"
-        except (TypeError, ValueError):
-            logger.error(f"Error extracting tool attributes from frame: {frame}")
-            pass
-        finally:
-            return attributes
 
-    def _extract_metrics_attributes(self, frame: Frame) -> Dict[str, Any]:
-        """
-        Extract metrics attributes from MetricsFrame.
+# Singleton LLM messages append frame extractor
+_llm_messages_append_frame_extractor = LLMMessagesAppendFrameExtractor()
 
-        Handles: LLMUsageMetricsData, TTSUsageMetricsData, TTFBMetricsData, ProcessingMetricsData
-        """
-        attributes: Dict[str, Any] = {}
 
-        try:
-            if isinstance(frame, MetricsFrame):
-                # MetricsFrame contains a list of MetricsData objects
-                if hasattr(frame, "data") and frame.data:
-                    for metrics_data in frame.data:
-                        # LLM token usage metrics
-                        if isinstance(metrics_data, LLMUsageMetricsData):
-                            if hasattr(metrics_data, "value") and metrics_data.value:
-                                token_usage = metrics_data.value
-                                if hasattr(token_usage, "prompt_tokens"):
-                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = (
-                                        token_usage.prompt_tokens
-                                    )
-                                if hasattr(token_usage, "completion_tokens"):
-                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = (
-                                        token_usage.completion_tokens
-                                    )
-                                if hasattr(token_usage, "total_tokens"):
-                                    attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = (
-                                        token_usage.total_tokens
-                                    )
+class LLMFullResponseStartFrameExtractor(LLMMessagesSequenceFrameExtractor):
+    """Extract attributes from an LLM full response start frame."""
 
-                                # Optional token fields
-                                if (
-                                    hasattr(token_usage, "cache_read_input_tokens")
-                                    and token_usage.cache_read_input_tokens
-                                ):
-                                    attributes["llm.token_count.cache_read"] = (
-                                        token_usage.cache_read_input_tokens
-                                    )
-                                if (
-                                    hasattr(token_usage, "cache_creation_input_tokens")
-                                    and token_usage.cache_creation_input_tokens
-                                ):
-                                    attributes["llm.token_count.cache_creation"] = (
-                                        token_usage.cache_creation_input_tokens
-                                    )
-                                if (
-                                    hasattr(token_usage, "reasoning_tokens")
-                                    and token_usage.reasoning_tokens
-                                ):
-                                    attributes["llm.token_count.reasoning"] = (
-                                        token_usage.reasoning_tokens
-                                    )
+    phase: str = "start"
 
-                        # TTS character usage metrics
-                        elif isinstance(metrics_data, TTSUsageMetricsData):
-                            if hasattr(metrics_data, "value"):
-                                attributes["tts.character_count"] = metrics_data.value
 
-                        # Time to first byte metrics
-                        elif isinstance(metrics_data, TTFBMetricsData):
-                            if hasattr(metrics_data, "value"):
-                                attributes["service.ttfb_seconds"] = metrics_data.value
+# Singleton LLM full response start frame extractor
+_llm_full_response_start_frame_extractor = LLMFullResponseStartFrameExtractor()
 
-                        # Processing time metrics
-                        elif isinstance(metrics_data, ProcessingMetricsData):
-                            if hasattr(metrics_data, "value"):
-                                attributes["service.processing_time_seconds"] = metrics_data.value
 
-        except (TypeError, ValueError, AttributeError) as e:
-            logger.debug(f"Error extracting metrics from frame: {e}")
+class LLMFullResponseEndFrameExtractor(LLMMessagesSequenceFrameExtractor):
+    """Extract attributes from an LLM full response end frame."""
 
-        return attributes
+    phase: str = "end"
+
+
+# Singleton LLM full response end frame extractor
+_llm_full_response_end_frame_extractor = LLMFullResponseEndFrameExtractor()
+
+
+class FunctionCallFromLLMFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from function call frames."""
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        if hasattr(frame, "function_name") and frame.function_name:
+            results[SpanAttributes.TOOL_NAME] = frame.function_name
+        if hasattr(frame, "arguments") and frame.arguments:
+            # Arguments are typically a dict
+            if isinstance(frame.arguments, dict):
+                params = safe_json_dumps(frame.arguments)
+                if params:
+                    results[SpanAttributes.TOOL_PARAMETERS] = params
+            else:
+                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(
+                    lambda: str(frame.arguments)
+                )
+        if hasattr(frame, "tool_call_id") and frame.tool_call_id:
+            results["tool.call_id"] = frame.tool_call_id
+        return results
+
+
+# Singleton function call from LLM frame extractor
+_function_call_from_llm_frame_extractor = FunctionCallFromLLMFrameExtractor()
+
+
+class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from function call result frames."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.TOOL_NAME: lambda frame: getattr(frame, "function_name", None),
+        SpanAttributes.OUTPUT_VALUE: lambda frame: (
+            safe_json_dumps(frame.result)
+            if hasattr(frame, "result") and isinstance(frame.result, (dict, list))
+            else str(frame.result) if hasattr(frame, "result") else None
+        ),
+        "tool.call_id": lambda frame: getattr(frame, "tool_call_id", None),
+    }
+
+
+# Singleton function call result frame extractor
+_function_call_result_frame_extractor = FunctionCallResultFrameExtractor()
+
+
+class FunctionCallInProgressFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from function call in-progress frames."""
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        if hasattr(frame, "function_name") and frame.function_name:
+            results[SpanAttributes.TOOL_NAME] = frame.function_name
+            results["tool.status"] = "in_progress"
+        return results
+
+
+# Singleton function call in-progress frame extractor
+_function_call_in_progress_frame_extractor = FunctionCallInProgressFrameExtractor()
+
+
+class LLMTokenMetricsDataExtractor(FrameAttributeExtractor):
+    """Extract attributes from LLM token metrics data."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(
+            frame, "prompt_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda frame: getattr(
+            frame, "completion_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(
+            frame, "total_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda frame: getattr(
+            frame, "cache_read_input_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO: lambda frame: getattr(
+            frame, "audio_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: lambda frame: getattr(
+            frame, "reasoning_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO: lambda frame: getattr(
+            frame, "audio_tokens", None
+        ),
+    }
+
+
+# Singleton LLM token metrics data extractor
+_llm_token_metrics_data_extractor = LLMTokenMetricsDataExtractor()
+
+
+class LLMUsageMetricsDataExtractor(FrameAttributeExtractor):
+    """Extract attributes from LLM usage metrics data."""
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        if hasattr(frame, "value") and frame.value:
+            return _llm_token_metrics_data_extractor.extract_from_frame(frame.value)
+        return {}
+
+
+# Singleton LLM usage metrics data extractor
+_llm_usage_metrics_data_extractor = LLMUsageMetricsDataExtractor()
+
+
+class TTSUsageMetricsDataExtractor(FrameAttributeExtractor):
+    """Extract attributes from TTS usage metrics data."""
+
+    attributes: Dict[str, Any] = {
+        "tts.character_count": lambda frame: getattr(frame, "value", None),
+    }
+
+
+# Singleton TTS usage metrics data extractor
+_tts_usage_metrics_data_extractor = TTSUsageMetricsDataExtractor()
+
+
+class TTFBMetricsDataExtractor(FrameAttributeExtractor):
+    """Extract attributes from TTFB metrics data."""
+
+    attributes: Dict[str, Any] = {
+        "service.ttfb_seconds": lambda frame: getattr(frame, "value", None),
+    }
+
+
+# Singleton TTFB metrics data extractor
+_ttfb_metrics_data_extractor = TTFBMetricsDataExtractor()
+
+
+class ProcessingMetricsDataExtractor(FrameAttributeExtractor):
+    """Extract attributes from processing metrics data."""
+
+    attributes: Dict[str, Any] = {
+        "service.processing_time_seconds": lambda frame: getattr(frame, "value", None),
+    }
+
+
+# Singleton processing metrics data extractor
+_processing_metrics_data_extractor = ProcessingMetricsDataExtractor()
+
+
+class MetricsFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from metrics frames."""
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+
+        if not hasattr(frame, "data") or not frame.data:
+            return results
+
+        for metrics_data in frame.data:
+            # Check the type of metrics_data and extract accordingly
+            if isinstance(metrics_data, LLMUsageMetricsData):
+                results.update(
+                    _llm_usage_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
+                )
+            elif isinstance(metrics_data, TTSUsageMetricsData):
+                results.update(
+                    _tts_usage_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
+                )
+            elif isinstance(metrics_data, TTFBMetricsData):
+                results.update(
+                    _ttfb_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
+                )
+            elif isinstance(metrics_data, ProcessingMetricsData):
+                results.update(
+                    _processing_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
+                )
+
+        return results
+
+
+# Singleton metrics frame extractor
+_metrics_frame_extractor = MetricsFrameExtractor()
+
+
+class GenericFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from a generic frame."""
+
+    attributes: Dict[str, Any] = {
+        "frame.type": lambda frame: frame.__class__.__name__,
+        "frame.id": lambda frame: frame.id,
+        SpanAttributes.USER_ID: lambda frame: getattr(frame, "user_id", None),
+        "frame.name": lambda frame: getattr(frame, "name", None),
+        "frame.pts": lambda frame: getattr(frame, "pts", None),
+        "frame.timestamp": lambda frame: getattr(frame, "timestamp", None),
+        "frame.metadata": lambda frame: safe_json_dumps(getattr(frame, "metadata", {})),
+        "frame.transport_source": lambda frame: getattr(
+            frame, "transport_source", None
+        ),
+        "frame.transport_destination": lambda frame: getattr(
+            frame, "transport_destination", None
+        ),
+        "frame.error.message": lambda frame: getattr(frame, "error", None),
+    }
+
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results = super().extract_from_frame(frame)
+
+        # Use singleton instances to avoid creating new objects for every frame
+        if isinstance(frame, TextFrame):
+            results.update(_text_frame_extractor.extract_from_frame(frame))
+        if isinstance(frame, AudioRawFrame):
+            results.update(_audio_frame_extractor.extract_from_frame(frame))
+        if isinstance(frame, LLMContextFrame):
+            results.update(_llm_context_frame_extractor.extract_from_frame(frame))
+        if isinstance(frame, LLMMessagesFrame):
+            results.update(_llm_messages_frame_extractor.extract_from_frame(frame))
+        if isinstance(frame, LLMMessagesAppendFrame):
+            results.update(
+                _llm_messages_append_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, LLMFullResponseStartFrame):
+            results.update(
+                _llm_full_response_start_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, LLMFullResponseEndFrame):
+            results.update(
+                _llm_full_response_end_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, FunctionCallFromLLM):
+            results.update(
+                _function_call_from_llm_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, FunctionCallResultFrame):
+            results.update(
+                _function_call_result_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, FunctionCallInProgressFrame):
+            results.update(
+                _function_call_in_progress_frame_extractor.extract_from_frame(frame)
+            )
+        if isinstance(frame, MetricsFrame):
+            results.update(_metrics_frame_extractor.extract_from_frame(frame))
+
+        return results
+
+
+# Singleton generic frame extractor
+_generic_frame_extractor = GenericFrameExtractor()
+
+
+def extract_attributes_from_frame(frame: Frame) -> Dict[str, Any]:
+    """
+    Extract attributes from a frame using the singleton extractor.
+
+    This is the main entry point for attribute extraction.
+    """
+    return _generic_frame_extractor.extract_from_frame(frame)

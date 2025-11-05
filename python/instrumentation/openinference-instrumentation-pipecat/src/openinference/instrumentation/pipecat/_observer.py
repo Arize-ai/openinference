@@ -15,7 +15,9 @@ from opentelemetry.context import detach as context_api_detach
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._attributes import _FrameAttributeExtractor
+from openinference.instrumentation.pipecat._attributes import (
+    extract_attributes_from_frame,
+)
 from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
@@ -78,7 +80,6 @@ class OpenInferenceObserver(BaseObserver):
         self._tracer = tracer
         self._config = config
         self._detector = _ServiceDetector()
-        self._attribute_extractor = _FrameAttributeExtractor()
 
         # Session management
         self._conversation_id = conversation_id
@@ -89,7 +90,9 @@ class OpenInferenceObserver(BaseObserver):
             # Write log to current working directory (where the script is running)
             try:
                 self._debug_log_file = open(debug_log_filename, "w")
-                self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
+                self._log_debug(
+                    f"=== Observer initialized for conversation {conversation_id} ==="
+                )
                 self._log_debug(f"=== Log file: {debug_log_filename} ===")
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
@@ -175,7 +178,9 @@ class OpenInferenceObserver(BaseObserver):
 
             # Skip already processed frames to avoid duplicates from propagation
             if frame.id in self._processed_frames:
-                self._log_debug(f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}")
+                self._log_debug(
+                    f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}"
+                )
                 return
 
             # Mark frame as processed
@@ -219,10 +224,14 @@ class OpenInferenceObserver(BaseObserver):
 
             elif isinstance(frame, TTSTextFrame):
                 # Collect bot text from TTS input (final complete sentences)
-                # Don't collect from LLMTextFrame to avoid streaming token duplication
-                if self._turn_active and frame.text:
+                # Only collect if the frame comes from an actual TTS service, not transport
+                # This prevents duplication when frames propagate through the pipeline
+                service_type = self._detector.detect_service_type(data.source)
+                if self._turn_active and frame.text and service_type == "tts":
                     self._turn_bot_text.append(frame.text)
-                    self._log_debug(f"  Collected bot text: {frame.text[:50]}...")
+                    self._log_debug(
+                        f"  Collected bot text from TTS: {frame.text[:50]}..."
+                    )
 
             # Handle service frames for creating service spans
             service_type = self._detector.detect_service_type(data.source)
@@ -244,7 +253,9 @@ class OpenInferenceObserver(BaseObserver):
             await self._start_turn(data)
         elif self._turn_active and self._has_bot_spoken:
             # User started speaking during the turn_end_timeout_secs period after bot speech
-            self._log_debug("  User speaking after bot - ending turn and starting new one")
+            self._log_debug(
+                "  User speaking after bot - ending turn and starting new one"
+            )
             self._cancel_turn_end_timer()
             await self._finish_turn(interrupted=False)
             await self._start_turn(data)
@@ -322,7 +333,7 @@ class OpenInferenceObserver(BaseObserver):
 
         # Extract and add attributes from this frame to the span
         span = span_info["span"]
-        frame_attrs = self._attribute_extractor.extract_from_frame(frame)
+        frame_attrs = extract_attributes_from_frame(frame)
 
         # Handle input.value and output.value specially - accumulate instead of overwrite
         for key, value in frame_attrs.items():
@@ -468,7 +479,9 @@ class OpenInferenceObserver(BaseObserver):
         if metadata.get("sample_rate"):
             span.set_attribute("audio.sample_rate", metadata["sample_rate"])
         if service._text_aggregator and hasattr(service._text_aggregator, "text"):
-            span.set_attribute(SpanAttributes.INPUT_VALUE, service._text_aggregator.text)
+            span.set_attribute(
+                SpanAttributes.INPUT_VALUE, service._text_aggregator.text
+            )
 
     def _set_image_gen_attributes(
         self, span: Span, service: ImageGenService, metadata: Dict[str, Any]
@@ -635,7 +648,9 @@ class OpenInferenceObserver(BaseObserver):
             import time
 
             current_time = time.time_ns()
-            duration = (current_time - self._turn_start_time) / 1_000_000_000  # Convert to seconds
+            duration = (
+                current_time - self._turn_start_time
+            ) / 1_000_000_000  # Convert to seconds
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
