@@ -1075,6 +1075,8 @@ describe("OpenAIInstrumentation", () => {
           content: "Alice and Bob are going to a science fair on Friday.",
         },
       ],
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - Type instantiation is excessively deep with zod helper
       response_format: zodResponseFormat(CalendarEvent, "event"),
     });
 

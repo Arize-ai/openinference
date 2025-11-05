@@ -665,6 +665,8 @@ describe("OpenAIInstrumentation - Responses", () => {
       ],
       model: "gpt-4.1",
       text: {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore - Type instantiation is excessively deep with zod helper
         format: zodTextFormat(CalendarEvent, "event"),
       },
     });
