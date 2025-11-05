@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-openai
 
+## 4.0.0
+
+### Major Changes
+
+- 0cca135: support for openai@6 with discriminated unions for tool types
+
 ## 3.2.5
 
 ### Patch Changes
