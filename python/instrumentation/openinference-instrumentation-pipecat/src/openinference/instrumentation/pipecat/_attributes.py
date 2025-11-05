@@ -42,11 +42,6 @@ from pipecat.services.websocket_service import WebsocketService
 
 logger = logging.getLogger(__name__)
 
-try:
-    from pipecat.services.mcp_service import MCPClient as MCPClientService
-except Exception as e:
-    logger.warning(f"Failed to import MCPClientService: {e}")
-
 __all__ = [
     "extract_attributes_from_frame",
     "extract_service_attributes",
@@ -103,8 +98,6 @@ def detect_service_type(service: FrameProcessor) -> str:
         return "image_gen"
     elif isinstance(service, VisionService):
         return "vision"
-    elif isinstance(service, MCPClientService):
-        return "mcp"
     elif isinstance(service, WebsocketService):
         return "websocket"
     elif isinstance(service, AIService):
@@ -689,31 +682,6 @@ class VisionServiceAttributeExtractor(ServiceAttributeExtractor):
 _vision_service_attribute_extractor = VisionServiceAttributeExtractor()
 
 
-class MCPClientAttributeExtractor(ServiceAttributeExtractor):
-    """Extract attributes from an MCP client for span creation."""
-
-    attributes: Dict[str, Any] = {
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.CHAIN.value
-        ),
-    }
-
-    def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
-        """Extract MCP client attributes including server params."""
-        results = super().extract_from_service(service)
-
-        # Extract MCP-specific attributes
-        if hasattr(service, "_server_params"):
-            server_params = service._server_params
-            results["mcp.server_type"] = type(server_params).__name__
-
-        return results
-
-
-# Singleton MCP client attribute extractor
-_mcp_client_attribute_extractor = MCPClientAttributeExtractor()
-
-
 class WebsocketServiceAttributeExtractor(ServiceAttributeExtractor):
     """Extract attributes from a websocket service for span creation."""
 
@@ -761,8 +729,6 @@ def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
         attributes.update(_image_gen_service_attribute_extractor.extract_from_service(service))
     elif isinstance(service, VisionService):
         attributes.update(_vision_service_attribute_extractor.extract_from_service(service))
-    elif MCPClientService is not None and isinstance(service, MCPClientService):
-        attributes.update(_mcp_client_attribute_extractor.extract_from_service(service))
     elif isinstance(service, WebsocketService):
         attributes.update(_websocket_service_attribute_extractor.extract_from_service(service))
 
