@@ -67,7 +67,6 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
-
     def _uninstrument(self, **kwargs: Any) -> None:
         portkey_module = import_module("portkey_ai.api_resources.apis.chat_complete")
         if self._original_completions_create is not None:
