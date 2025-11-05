@@ -21,6 +21,7 @@ from opentelemetry.context.context import Context
 from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
+from agno.models.message import Message
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
 from agno.run.team import TeamRunOutput
@@ -75,6 +76,23 @@ def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: 
     run_response: Optional[RunOutput] = arguments.get("run_response")
     if run_response and hasattr(run_response, "input") and run_response.input:
         if hasattr(run_response.input, "input_content") and run_response.input.input_content:
+            if isinstance(run_response.input.input_content, str):
+                return run_response.input.input_content
+            elif isinstance(run_response.input.input_content, list):
+                list_content = ""
+                for item in run_response.input.input_content:
+                    if isinstance(item, Message):
+                        list_content += str(item.content) + "\n"
+                    else:
+                        list_content += str(item) + "\n"
+                return list_content
+            elif isinstance(run_response.input.input_content, dict):
+                import json
+
+                return json.dumps(run_response.input.input_content, indent=2, ensure_ascii=False)
+            elif isinstance(run_response.input.input_content, Message):
+                return str(run_response.input.input_content.content)
+
             return str(run_response.input.input_content)
 
     # Fallback: try run_messages approach
