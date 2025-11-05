@@ -704,7 +704,9 @@ describe("LangChainInstrumentation", () => {
 });
 
 describe("LangChainInstrumentation with TraceConfigOptions", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new LangChainInstrumentation({
     traceConfig: {
@@ -712,9 +714,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     },
   });
   instrumentation.disable();
-  const provider = new NodeTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
-  });
+  const provider = new NodeTracerProvider();
   provider.getTracer("default");
   instrumentation.setTracerProvider(tracerProvider);
 
