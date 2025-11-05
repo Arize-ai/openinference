@@ -1,7 +1,6 @@
 """OpenInference observer for Pipecat pipelines."""
 
 import asyncio
-import json
 import logging
 from collections import deque
 from contextvars import Token
@@ -16,9 +15,10 @@ from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.pipecat._attributes import (
+    detect_service_type,
     extract_attributes_from_frame,
+    extract_service_attributes,
 )
-from openinference.instrumentation.pipecat._service_detector import _ServiceDetector
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -36,12 +36,6 @@ from pipecat.frames.frames import (
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameProcessor
-from pipecat.services.image_service import ImageGenService
-from pipecat.services.llm_service import LLMService
-from pipecat.services.stt_service import STTService
-from pipecat.services.tts_service import TTSService
-from pipecat.services.vision_service import VisionService
-from pipecat.services.websocket_service import WebsocketService
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +73,6 @@ class OpenInferenceObserver(BaseObserver):
         super().__init__()
         self._tracer = tracer
         self._config = config
-        self._detector = _ServiceDetector()
 
         # Session management
         self._conversation_id = conversation_id
@@ -226,7 +219,7 @@ class OpenInferenceObserver(BaseObserver):
                 # Collect bot text from TTS input (final complete sentences)
                 # Only collect if the frame comes from an actual TTS service, not transport
                 # This prevents duplication when frames propagate through the pipeline
-                service_type = self._detector.detect_service_type(data.source)
+                service_type = detect_service_type(data.source)
                 if self._turn_active and frame.text and service_type == "tts":
                     self._turn_bot_text.append(frame.text)
                     self._log_debug(
@@ -234,9 +227,9 @@ class OpenInferenceObserver(BaseObserver):
                     )
 
             # Handle service frames for creating service spans
-            service_type = self._detector.detect_service_type(data.source)
-            if service_type:
-                await self._handle_service_frame(data, service_type)
+            service_type = detect_service_type(data.source)
+            if service_type and service_type != "unknown":
+                await self._handle_service_frame(data)
 
         except Exception as e:
             logger.debug(f"Error in observer: {e}")
@@ -293,13 +286,12 @@ class OpenInferenceObserver(BaseObserver):
             # End the current turn
             await self._finish_turn(interrupted=True)
 
-    async def _handle_service_frame(self, data: FramePushed, service_type: str) -> None:
+    async def _handle_service_frame(self, data: FramePushed) -> None:
         """
         Handle frame from an LLM, TTS, or STT service.
 
         Args:
             data: FramePushed event data
-            service_type: "llm", "tts", or "stt"
         """
         from pipecat.frames.frames import EndFrame, ErrorFrame
 
@@ -313,16 +305,16 @@ class OpenInferenceObserver(BaseObserver):
             # This ensures we capture initialization frames with proper context
             if self._turn_context_token is None:
                 self._log_debug(
-                    f"  No active turn - auto-starting turn for {service_type} initialization"
+                    f"  No active turn - auto-starting turn for {service_id} initialization"
                 )
                 self._turn_context_token = await self._start_turn(data)
 
             # Create new span and set as active
+            service_type = detect_service_type(service)
             span = self._create_service_span(service, service_type)
             self._active_spans[service_id] = {
                 "span": span,
                 "frame_count": 0,
-                "service_type": service_type,
                 "input_texts": [],  # Accumulate input text chunks
                 "output_texts": [],  # Accumulate output text chunks
             }
@@ -382,165 +374,17 @@ class OpenInferenceObserver(BaseObserver):
         else:
             self._log_debug("  No parent span")
 
-        # Extract metadata from service
-        metadata = self._detector.extract_service_metadata(service)
-
         # Set service.name to the actual service class name for uniqueness
         span.set_attribute("service.name", service.__class__.__name__)
 
-        # Set common attributes if available
-        if metadata.get("provider"):
-            span.set_attribute("service.provider", metadata["provider"])
-        if metadata.get("model"):
-            span.set_attribute("service.model", metadata["model"])
-
-        # Set type-specific attributes based on service type
-        if service_type == "llm" and isinstance(service, LLMService):
-            self._set_llm_attributes(span, service, metadata)
-        elif service_type == "stt" and isinstance(service, STTService):
-            self._set_stt_attributes(span, service, metadata)
-        elif service_type == "tts" and isinstance(service, TTSService):
-            self._set_tts_attributes(span, service, metadata)
-        elif service_type == "image_gen" and isinstance(service, ImageGenService):
-            self._set_image_gen_attributes(span, service, metadata)
-        elif service_type == "vision" and isinstance(service, VisionService):
-            self._set_vision_attributes(span, service, metadata)
-        elif service_type == "mcp" and isinstance(service, FrameProcessor):
-            self._set_mcp_attributes(span, service, metadata)
-        elif service_type == "websocket" and isinstance(service, WebsocketService):
-            self._set_websocket_attributes(span, service, metadata)
-        else:
-            # Default for unknown service types
-            span.set_attribute(
-                SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                OpenInferenceSpanKindValues.CHAIN.value,
-            )
+        # Extract and apply service-specific attributes
+        service_attrs = extract_service_attributes(service)
+        for key, value in service_attrs.items():
+            if value is not None:
+                span.set_attribute(key, value)
+                self._log_debug(f"  Set attribute {key}: {value}")
 
         return span
-
-    def _set_llm_attributes(
-        self, span: Span, service: LLMService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set LLM-specific span attributes."""
-        span.set_attribute(  #
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.LLM.value,
-        )
-        span.set_attribute(  #
-            SpanAttributes.LLM_MODEL_NAME, metadata.get("model", "unknown")
-        )
-        span.set_attribute(  #
-            SpanAttributes.LLM_PROVIDER, metadata.get("provider", "unknown")
-        )
-        span.set_attribute("service.type", "llm")
-
-        # Additional LLM attributes from settings if available
-        if hasattr(service, "_settings"):
-            try:
-                settings = json.dumps(service._settings)
-                span.set_attribute(SpanAttributes.METADATA, settings)
-            except Exception as e:
-                self._log_debug(f"Error setting LLM attributes: {e}")
-                pass
-
-    def _set_stt_attributes(
-        self, span: Span, service: STTService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set STT-specific span attributes."""
-        span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "stt")
-
-        # Audio attributes
-        if metadata.get("sample_rate"):
-            span.set_attribute("audio.sample_rate", metadata["sample_rate"])
-        if metadata.get("is_muted") is not None:
-            span.set_attribute("audio.is_muted", metadata["is_muted"])
-        if metadata.get("user_id"):
-            span.set_attribute("audio.user_id", metadata["user_id"])
-
-    def _set_tts_attributes(
-        self, span: Span, service: TTSService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set TTS-specific span attributes."""
-        span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "tts")
-        # Audio and voice attributes
-        if metadata.get("voice_id"):
-            span.set_attribute("audio.voice_id", metadata["voice_id"])
-            span.set_attribute(
-                "audio.voice", metadata["voice_id"]
-            )  # Also set as audio.voice for compatibility
-        if metadata.get("sample_rate"):
-            span.set_attribute("audio.sample_rate", metadata["sample_rate"])
-        if service._text_aggregator and hasattr(service._text_aggregator, "text"):
-            span.set_attribute(
-                SpanAttributes.INPUT_VALUE, service._text_aggregator.text
-            )
-
-    def _set_image_gen_attributes(
-        self, span: Span, service: ImageGenService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set image generation-specific span attributes."""
-        span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "image_generation")
-
-    def _set_vision_attributes(
-        self, span: Span, service: VisionService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set vision-specific span attributes."""
-        span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "vision")
-
-    def _set_mcp_attributes(
-        self, span: Span, service: FrameProcessor, metadata: Dict[str, Any]
-    ) -> None:
-        """Set MCP (Model Context Protocol) client-specific span attributes."""
-
-        span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "mcp_client")
-
-        try:
-            from pipecat.services.mcp_service import MCPClient
-
-            if isinstance(service, MCPClient):
-                # MCP-specific attributes
-                if hasattr(service, "_server_params"):
-                    server_params = service._server_params
-                    span.set_attribute("mcp.server_type", type(server_params).__name__)
-        except Exception as e:
-            logger.error(f"Error setting MCP attributes: {e}")
-            pass
-
-    def _set_websocket_attributes(
-        self, span: Span, service: WebsocketService, metadata: Dict[str, Any]
-    ) -> None:
-        """Set websocket service-specific span attributes."""
-        span.set_attribute(  #
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
-        span.set_attribute("service.type", "websocket")  #
-
-        # Websocket-specific attributes
-        if hasattr(service, "_reconnect_on_error"):
-            span.set_attribute(  #
-                "websocket.reconnect_on_error", service._reconnect_on_error
-            )
 
     def _finish_span(self, service_id: int) -> None:
         """
@@ -684,9 +528,7 @@ class OpenInferenceObserver(BaseObserver):
 
         # Clear turn context (no need to detach since we're not using attach)
         self._log_debug("  Clearing context token")
-        if self._turn_context_token:
-            context_api_detach(self._turn_context_token)
-            self._turn_context_token = None
+        self._turn_context_token = None
         self._log_debug(
             f"  Turn finished - input: {len(self._turn_user_text)} chunks, "
             f"output: {len(self._turn_bot_text)} chunks"

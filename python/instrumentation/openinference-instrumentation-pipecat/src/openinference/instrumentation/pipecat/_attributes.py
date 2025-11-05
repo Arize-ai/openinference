@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from pipecat.frames.frames import (
     AudioRawFrame,
     Frame,
@@ -31,11 +31,27 @@ from pipecat.metrics.metrics import (
 from pipecat.processors.aggregators.llm_context import (
     LLMSpecificMessage,
 )
+from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.services.ai_service import AIService
+from pipecat.services.image_service import ImageGenService
+from pipecat.services.llm_service import LLMService
+from pipecat.services.stt_service import STTService
+from pipecat.services.tts_service import TTSService
+from pipecat.services.vision_service import VisionService
+from pipecat.services.websocket_service import WebsocketService
 
 logger = logging.getLogger(__name__)
 
+try:
+    from pipecat.services.mcp_service import MCPClient as MCPClientService
+except Exception as e:
+    logger.warning(f"Failed to import MCPClientService: {e}")
+
 __all__ = [
     "extract_attributes_from_frame",
+    "extract_service_attributes",
+    "detect_service_type",
+    "detect_provider_from_service",
 ]
 
 
@@ -73,6 +89,44 @@ def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
     except Exception as e:
         logger.debug(f"Failed to extract attribute: {e}")
         return default
+
+
+def detect_service_type(service: FrameProcessor) -> str:
+    """Detect the type of service."""
+    if isinstance(service, STTService):
+        return "stt"
+    elif isinstance(service, LLMService):
+        return "llm"
+    elif isinstance(service, TTSService):
+        return "tts"
+    elif isinstance(service, ImageGenService):
+        return "image_gen"
+    elif isinstance(service, VisionService):
+        return "vision"
+    elif isinstance(service, MCPClientService):
+        return "mcp"
+    elif isinstance(service, WebsocketService):
+        return "websocket"
+    elif isinstance(service, AIService):
+        return "ai"
+    else:
+        return "unknown"
+
+
+def detect_provider_from_service(service: FrameProcessor) -> str:
+    """Detect the provider from a service."""
+    try:
+        module = service.__class__.__module__
+        parts = module.split(".")
+
+        # Module format: pipecat.services.{provider}.{service_type}
+        if len(parts) >= 3 and parts[0] == "pipecat" and parts[1] == "services":
+            return parts[2]
+        else:
+            return "unknown"
+    except Exception as e:
+        logger.warning(f"Failed to detect provider from service: {e}")
+        return "unknown"
 
 
 class FrameAttributeExtractor:
@@ -501,7 +555,6 @@ class GenericFrameExtractor(FrameAttributeExtractor):
             )
         if isinstance(frame, MetricsFrame):
             results.update(_metrics_frame_extractor.extract_from_frame(frame))
-
         return results
 
 
@@ -516,3 +569,249 @@ def extract_attributes_from_frame(frame: Frame) -> Dict[str, Any]:
     This is the main entry point for attribute extraction.
     """
     return _generic_frame_extractor.extract_from_frame(frame)
+
+
+# ============================================================================
+# Service Attribute Extraction (for span creation)
+# ============================================================================
+
+
+class ServiceAttributeExtractor:
+    """Base class for extracting attributes from services for span creation."""
+
+    attributes: Dict[str, Any] = {}
+
+    def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
+        """Extract attributes from a service."""
+        result: Dict[str, Any] = {}
+        for attribute, operation in self.attributes.items():
+            # Use safe_extract to prevent individual attribute failures from breaking extraction
+            value = safe_extract(lambda: operation(service))
+            if value is not None:
+                result[attribute] = value
+        return result
+
+
+class BaseServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract base attributes common to all services."""
+
+    attributes: Dict[str, Any] = {
+        "service.type": lambda service: detect_service_type(service),
+        "service.provider": lambda service: detect_provider_from_service(service),
+    }
+
+
+# Singleton base service attribute extractor
+_base_service_attribute_extractor = BaseServiceAttributeExtractor()
+
+
+class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from an LLM service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.LLM.value
+        ),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
+        or getattr(service, "model", None),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
+        "service.model": lambda service: getattr(service, "model_name", None)
+        or getattr(service, "model", None),
+    }
+
+    def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
+        """Extract LLM service attributes including settings."""
+        results = super().extract_from_service(service)
+
+        # Extract LLM settings/configuration as metadata
+        if hasattr(service, "_settings"):
+            if isinstance(service._settings, dict):
+                results[SpanAttributes.METADATA] = safe_json_dumps(service._settings)
+            else:
+                results[SpanAttributes.METADATA] = str(service._settings)
+
+        return results
+
+
+# Singleton LLM service attribute extractor
+_llm_service_attribute_extractor = LLMServiceAttributeExtractor()
+
+
+class STTServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from an STT service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
+        or getattr(service, "model", None),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
+        "service.model": lambda service: getattr(service, "model_name", None)
+        or getattr(service, "model", None),
+        "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
+        "audio.is_muted": lambda service: getattr(service, "is_muted", None),
+        "audio.user_id": lambda service: getattr(service, "_user_id", None),
+    }
+
+
+# Singleton STT service attribute extractor
+_stt_service_attribute_extractor = STTServiceAttributeExtractor()
+
+
+class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from a TTS service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
+        or getattr(service, "model", None),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
+        "service.model": lambda service: getattr(service, "model_name", None)
+        or getattr(service, "model", None),
+        "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
+        "audio.voice": lambda service: getattr(service, "_voice_id", None),
+        "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
+    }
+
+
+# Singleton TTS service attribute extractor
+_tts_service_attribute_extractor = TTSServiceAttributeExtractor()
+
+
+class ImageGenServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from an image generation service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+        "service.model": lambda service: getattr(service, "model_name", None)
+        or getattr(service, "model", None),
+    }
+
+
+# Singleton image gen service attribute extractor
+_image_gen_service_attribute_extractor = ImageGenServiceAttributeExtractor()
+
+
+class VisionServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from a vision service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+        "service.model": lambda service: getattr(service, "model_name", None)
+        or getattr(service, "model", None),
+    }
+
+
+# Singleton vision service attribute extractor
+_vision_service_attribute_extractor = VisionServiceAttributeExtractor()
+
+
+class MCPClientAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from an MCP client for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+    }
+
+    def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
+        """Extract MCP client attributes including server params."""
+        results = super().extract_from_service(service)
+
+        # Extract MCP-specific attributes
+        if hasattr(service, "_server_params"):
+            server_params = service._server_params
+            results["mcp.server_type"] = type(server_params).__name__
+
+        return results
+
+
+# Singleton MCP client attribute extractor
+_mcp_client_attribute_extractor = MCPClientAttributeExtractor()
+
+
+class WebsocketServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from a websocket service for span creation."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
+            OpenInferenceSpanKindValues.CHAIN.value
+        ),
+        "websocket.reconnect_on_error": lambda service: getattr(
+            service, "_reconnect_on_error", None
+        ),
+    }
+
+
+# Singleton websocket service attribute extractor
+_websocket_service_attribute_extractor = WebsocketServiceAttributeExtractor()
+
+
+def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
+    """
+    Extract attributes from a service for span creation.
+
+    This function is used when creating service spans to collect the right attributes
+    based on the service type. It applies service-specific extractors to gather
+    attributes like span kind, model name, provider, and service-specific configuration.
+
+    Args:
+        service: The service instance (FrameProcessor)
+
+    Returns:
+        Dictionary of attributes to set on the span
+    """
+    attributes: Dict[str, Any] = {}
+
+    # Always extract base service attributes
+    attributes.update(_base_service_attribute_extractor.extract_from_service(service))
+
+    # Extract service-specific attributes based on type
+    if isinstance(service, LLMService):
+        attributes.update(
+            _llm_service_attribute_extractor.extract_from_service(service)
+        )
+    elif isinstance(service, STTService):
+        attributes.update(
+            _stt_service_attribute_extractor.extract_from_service(service)
+        )
+    elif isinstance(service, TTSService):
+        attributes.update(
+            _tts_service_attribute_extractor.extract_from_service(service)
+        )
+    elif isinstance(service, ImageGenService):
+        attributes.update(
+            _image_gen_service_attribute_extractor.extract_from_service(service)
+        )
+    elif isinstance(service, VisionService):
+        attributes.update(
+            _vision_service_attribute_extractor.extract_from_service(service)
+        )
+    elif MCPClientService is not None and isinstance(service, MCPClientService):
+        attributes.update(_mcp_client_attribute_extractor.extract_from_service(service))
+    elif isinstance(service, WebsocketService):
+        attributes.update(
+            _websocket_service_attribute_extractor.extract_from_service(service)
+        )
+
+    return attributes

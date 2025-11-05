@@ -7,7 +7,12 @@ import json
 
 import pytest
 from conftest import assert_span_has_attributes, get_spans_by_name, run_pipeline_task
-from pipecat.frames.frames import AudioRawFrame, LLMContextFrame, LLMMessagesUpdateFrame, TextFrame
+from pipecat.frames.frames import (
+    AudioRawFrame,
+    LLMContextFrame,
+    LLMMessagesUpdateFrame,
+    TextFrame,
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
 
@@ -19,35 +24,43 @@ class TestOpenAISpans:
     """Test span creation for OpenAI services"""
 
     @pytest.mark.asyncio
-    async def test_openai_llm_span(self, tracer_provider, in_memory_span_exporter, mock_openai_llm):
+    async def test_openai_llm_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_llm
+    ):
         """Test that OpenAI LLM service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
+        try:
+            pipeline = Pipeline([mock_openai_llm])
+            task = PipelineTask(
+                pipeline
+            )  # Use default settings so pipeline can complete
 
-        pipeline = Pipeline([mock_openai_llm])
-        task = PipelineTask(pipeline)  # Use default settings so pipeline can complete
+            # Send LLM request and run pipeline
+            messages = [{"role": "user", "content": "Hello"}]
+            await run_pipeline_task(
+                task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+            )
 
-        # Send LLM request and run pipeline
-        messages = [{"role": "user", "content": "Hello"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+            llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
-        llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
+            assert len(llm_spans) > 0
+            llm_span = llm_spans[0]
 
-        assert len(llm_spans) > 0
-        llm_span = llm_spans[0]
-
-        expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
-            "service.name": "MockLLMService",  # Class name of the service
-            SpanAttributes.LLM_MODEL_NAME: "gpt-4",
-            SpanAttributes.LLM_PROVIDER: "openai",  # Provider from metadata
-        }
-        assert_span_has_attributes(llm_span, expected_attrs)
-
-        instrumentor.uninstrument()
+            expected_attrs = {
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
+                "service.name": "MockLLMService",  # Class name of the service
+                SpanAttributes.LLM_MODEL_NAME: "gpt-4",
+                SpanAttributes.LLM_PROVIDER: "openai",  # Provider from metadata
+            }
+            assert_span_has_attributes(llm_span, expected_attrs)
+        finally:
+            instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_tts_span(self, tracer_provider, in_memory_span_exporter, mock_openai_tts):
+    async def test_openai_tts_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_tts
+    ):
         """Test that OpenAI TTS service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -73,7 +86,9 @@ class TestOpenAISpans:
         instrumentor.uninstrument()
 
     @pytest.mark.asyncio
-    async def test_openai_stt_span(self, tracer_provider, in_memory_span_exporter, mock_openai_stt):
+    async def test_openai_stt_span(
+        self, tracer_provider, in_memory_span_exporter, mock_openai_stt
+    ):
         """Test that OpenAI STT service creates proper spans"""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -152,7 +167,9 @@ class TestAnthropicSpans:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Hello Claude"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -354,7 +371,9 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
@@ -377,7 +396,9 @@ class TestProviderSpecificAttributes:
         task = PipelineTask(pipeline)
 
         messages = [{"role": "user", "content": "Test"}]
-        await run_pipeline_task(task, LLMMessagesUpdateFrame(messages=messages, run_llm=True))
+        await run_pipeline_task(
+            task, LLMMessagesUpdateFrame(messages=messages, run_llm=True)
+        )
 
         llm_spans = get_spans_by_name(in_memory_span_exporter, "pipecat.llm")
 
