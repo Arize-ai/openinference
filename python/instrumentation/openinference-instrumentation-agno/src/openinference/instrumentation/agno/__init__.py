@@ -8,11 +8,11 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
-from openinference.instrumentation.agno._wrappers import (
-    _FunctionCallWrapper,
+from openinference.instrumentation.agno._model_wrapper import (
     _ModelWrapper,
-    _RunWrapper,
 )
+from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
+from openinference.instrumentation.agno._tools_wrapper import _FunctionCallWrapper
 from openinference.instrumentation.agno.version import __version__
 
 _instruments = ("agno >= 1.5.2",)
