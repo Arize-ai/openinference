@@ -30,6 +30,7 @@ The following attributes are reserved and MUST be supported by all OpenInference
 | `document.metadata`                            | JSON String                 | `"{'author': 'John Doe', 'date': '2023-09-09'}"`                                                                  | Metadata associated with a document                                                                                                                                                 |
 | `document.score`                               | Float                       | `0.98`                                                                                                            | Score representing the relevance of a document                                                                                                                                      |
 | `embedding.embeddings`                         | List of objects<sup>†</sup> | `[{"embedding.vector": [...], "embedding.text": "hello"}]`                                                        | List of embedding objects including text and vector data                                                                                                                            |
+| `embedding.invocation_parameters`              | JSON String                 | `"{\"model\": \"text-embedding-3-small\", \"encoding_format\": \"float\"}"`                                       | Parameters used during the invocation of an embedding model or API (excluding input)                                                                                                |
 | `embedding.model_name`                         | String                      | `"BERT-base"`                                                                                                     | Name of the embedding model used                                                                                                                                                    |
 | `embedding.text`                               | String                      | `"hello world"`                                                                                                   | The text represented in the embedding                                                                                                                                               |
 | `embedding.vector`                             | List of floats              | `[0.123, 0.456, ...]`                                                                                             | The embedding vector consisting of a list of floats                                                                                                                                 |
@@ -172,8 +173,12 @@ The `llm.system` attribute identifies the AI product/vendor, while `llm.model_na
 
 -   `llm.system` should use well-known values when applicable (e.g., "openai", "anthropic", "cohere")
 -   `llm.model_name` should contain the actual model name returned by the API (e.g., "gpt-4-0613", "claude-3-opus-20240229")
--   For embeddings operations, these same attributes apply
 -   The `llm.provider` attribute can be used to identify the hosting provider when different from the system (e.g., "azure" for Azure-hosted OpenAI)
+
+**For embedding operations (`openinference.span.kind: "EMBEDDING"`):**
+- `llm.system` and `llm.provider` are **not used**
+- Use `embedding.model_name` to identify the embedding model (e.g., "text-embedding-3-small", "text-embedding-ada-002")
+- See the [Embedding Spans](./embedding_spans.md#attributes-not-used-in-embedding-spans) specification for the rationale
 
 The `llm.cost` prefix is used to group cost-related attributes. When these keys are transformed into a JSON-like structure, it would look like:
 

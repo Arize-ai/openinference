@@ -11,11 +11,9 @@ from openinference.instrumentation.litellm import LiteLLMInstrumentor
 @pytest.fixture(autouse=True)
 def instrument(
     tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
 ) -> Iterator[None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
-    LiteLLMInstrumentor().uninstrument()
 
 
 @pytest.mark.vcr(
