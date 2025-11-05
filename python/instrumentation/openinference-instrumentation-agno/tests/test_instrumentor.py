@@ -74,6 +74,7 @@ def test_agno_instrumentation(
             name="News Agent",  # For best results, set a name that will be used by the tracer
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
         )
         agent.run("What's trending on Twitter?", session_id="test_session")
     spans = in_memory_span_exporter.get_finished_spans()
@@ -92,6 +93,10 @@ def test_agno_instrumentation(
             assert attributes.get("llm.token_count.prompt") is None
             assert attributes.get("llm.token_count.completion") is None
             assert attributes.get("llm.token_count.total") is None
+            # Validate agent-specific attributes
+            assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
+            assert attributes.get("agno.run.id") is not None, "Run ID should be present"
+            assert attributes.get("user.id") == "test_user_123", "User ID should be present"
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
@@ -154,6 +159,7 @@ def test_agno_team_coordinate_instrumentation(
             members=[web_agent, finance_agent],
             model=OpenAIChat(id="gpt-4o-mini"),
             instructions=["Always include sources", "Use tables to display data"],
+            user_id="team_user_999",
         )
 
         agent_team.run(
@@ -190,6 +196,10 @@ def test_agno_team_coordinate_instrumentation(
     assert is_valid_node_id(team_node_id), f"Team node ID should be valid hex: {team_node_id}"
     # Team should have no parent (root node)
     assert team_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) is None
+    # Validate team-specific attributes
+    assert team_span.get("agno.team.id") is not None, "Team ID should be present"
+    assert team_span.get("agno.run.id") is not None, "Team run ID should be present"
+    assert team_span.get("user.id") == "team_user_999"
 
     # Validate graph attributes for web agent span
     if web_agent_span is not None:
