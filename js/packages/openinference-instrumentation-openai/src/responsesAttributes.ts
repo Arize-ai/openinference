@@ -1,12 +1,8 @@
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-<<<<<<< HEAD
 
-import { Attributes, diag } from "@opentelemetry/api";
-
-=======
 import { Attributes } from "@opentelemetry/api";
->>>>>>> c0d133c2 (serialize tool output)
+
 import {
   Response as ResponseType,
   ResponseCreateParamsBase,
@@ -49,8 +45,15 @@ function getResponseItemAttributes(
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
       attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
         item.call_id;
-      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-        item.output;
+      if (typeof item.output === "string") {
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          item.output;
+      } else {
+        // TODO: figure out how to serialize the list of tools
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          safelyJSONStringify(item.output) || undefined;
+      }
+
       break;
     }
     case "reasoning": {
