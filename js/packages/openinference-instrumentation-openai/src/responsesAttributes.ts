@@ -49,7 +49,7 @@ function getResponseItemAttributes(
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
           item.output;
       } else {
-        // TODO: figure out how to serialize the list of tools
+        // TODO(2410): figure out how to serialize the list of tools
         attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
           safelyJSONStringify(item.output) || undefined;
       }
