@@ -7,6 +7,7 @@ from agno.models.openai.chat import OpenAIChat
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
+from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -15,7 +16,6 @@ from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
-from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
@@ -96,7 +96,7 @@ def test_agno_instrumentation(
             # Validate agent-specific attributes
             assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
             assert attributes.get("agno.run.id") is not None, "Run ID should be present"
-            assert attributes.get("user.id") == "test_user_123", "User ID should be present"
+            assert attributes.get("user.id") == "test_user_123"
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
