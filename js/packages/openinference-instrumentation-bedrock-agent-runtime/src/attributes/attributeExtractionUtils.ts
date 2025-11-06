@@ -1,28 +1,33 @@
 import {
-  getInputAttributes,
-  getLLMAttributes,
-  getOutputAttributes,
-  getToolAttributes,
-  getLLMInputMessageAttributes,
-  getLLMOutputMessageAttributes,
-  getDocumentAttributes,
-} from "./attributeUtils";
+  isObjectWithStringKeys,
+  safelyJSONParse,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import {
   LLMProvider,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { TokenCount, Message, ToolCall, ToolCallFunction } from "./types";
+
+import { Attributes } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
+import { StringKeyedObject } from "../types";
 import {
   fixLooseJsonString,
   getObjectDataFromUnknown,
   parseSanitizedJson,
 } from "../utils/jsonUtils";
-import { StringKeyedObject } from "../types";
+import { isArrayOfObjectWithStringKeys } from "../utils/typeUtils";
+
 import {
-  isObjectWithStringKeys,
-  safelyJSONParse,
-  safelyJSONStringify,
-} from "@arizeai/openinference-core";
+  getDocumentAttributes,
+  getInputAttributes,
+  getLLMAttributes,
+  getLLMInputMessageAttributes,
+  getLLMOutputMessageAttributes,
+  getOutputAttributes,
+  getToolAttributes,
+} from "./attributeUtils";
 import {
   CHUNK_TYPES,
   ChunkType,
@@ -31,9 +36,7 @@ import {
   TRACE_EVENT_TYPES,
   TraceEventType,
 } from "./constants";
-import { isArrayOfObjectWithStringKeys } from "../utils/typeUtils";
-import { Attributes } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
+import { Message, TokenCount, ToolCall, ToolCallFunction } from "./types";
 
 /**
  * Return the first matching event type key discovered in {@link traceData}.

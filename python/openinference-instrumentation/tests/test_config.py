@@ -16,6 +16,9 @@ from openinference.instrumentation._spans import _IMPORTANT_ATTRIBUTES  # type:i
 from openinference.instrumentation.config import (
     DEFAULT_BASE64_IMAGE_MAX_LENGTH,
     DEFAULT_HIDE_CHOICES,
+    DEFAULT_HIDE_EMBEDDING_VECTORS,
+    DEFAULT_HIDE_EMBEDDINGS_TEXT,
+    DEFAULT_HIDE_EMBEDDINGS_VECTORS,
     DEFAULT_HIDE_INPUT_IMAGES,
     DEFAULT_HIDE_INPUT_MESSAGES,
     DEFAULT_HIDE_INPUT_TEXT,
@@ -27,6 +30,9 @@ from openinference.instrumentation.config import (
     DEFAULT_HIDE_PROMPTS,
     OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH,
     OPENINFERENCE_HIDE_CHOICES,
+    OPENINFERENCE_HIDE_EMBEDDING_VECTORS,
+    OPENINFERENCE_HIDE_EMBEDDINGS_TEXT,
+    OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS,
     OPENINFERENCE_HIDE_INPUT_IMAGES,
     OPENINFERENCE_HIDE_INPUT_MESSAGES,
     OPENINFERENCE_HIDE_INPUT_TEXT,
@@ -50,6 +56,9 @@ def test_default_settings() -> None:
     assert config.hide_input_images == DEFAULT_HIDE_INPUT_IMAGES
     assert config.hide_input_text == DEFAULT_HIDE_INPUT_TEXT
     assert config.hide_output_text == DEFAULT_HIDE_OUTPUT_TEXT
+    assert config.hide_embedding_vectors == DEFAULT_HIDE_EMBEDDING_VECTORS
+    assert config.hide_embeddings_vectors == DEFAULT_HIDE_EMBEDDINGS_VECTORS
+    assert config.hide_embeddings_text == DEFAULT_HIDE_EMBEDDINGS_TEXT
     assert config.hide_prompts == DEFAULT_HIDE_PROMPTS
     assert config.hide_choices == DEFAULT_HIDE_CHOICES
     assert config.base64_image_max_length == DEFAULT_BASE64_IMAGE_MAX_LENGTH
@@ -123,6 +132,8 @@ def test_attribute_priority(k: str, in_memory_span_exporter: InMemorySpanExporte
 @pytest.mark.parametrize("hide_input_images", [False, True])
 @pytest.mark.parametrize("hide_input_text", [False, True])
 @pytest.mark.parametrize("hide_output_text", [False, True])
+@pytest.mark.parametrize("hide_embeddings_vectors", [False, True])
+@pytest.mark.parametrize("hide_embeddings_text", [False, True])
 @pytest.mark.parametrize("hide_prompts", [False, True])
 @pytest.mark.parametrize("hide_choices", [False, True])
 @pytest.mark.parametrize("base64_image_max_length", [10_000])
@@ -134,6 +145,8 @@ def test_settings_from_env_vars_and_code(
     hide_input_images: bool,
     hide_input_text: bool,
     hide_output_text: bool,
+    hide_embeddings_vectors: bool,
+    hide_embeddings_text: bool,
     hide_prompts: bool,
     hide_choices: bool,
     base64_image_max_length: int,
@@ -149,6 +162,8 @@ def test_settings_from_env_vars_and_code(
     monkeypatch.setenv(OPENINFERENCE_HIDE_CHOICES, str(hide_choices))
     monkeypatch.setenv(OPENINFERENCE_HIDE_INPUT_TEXT, str(hide_input_text))
     monkeypatch.setenv(OPENINFERENCE_HIDE_OUTPUT_TEXT, str(hide_output_text))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, str(hide_embeddings_vectors))
+    monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT, str(hide_embeddings_text))
     monkeypatch.setenv(OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH, str(base64_image_max_length))
 
     config = TraceConfig()
@@ -159,6 +174,10 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_IMAGES)
     assert config.hide_input_text is parse_bool_from_env(OPENINFERENCE_HIDE_INPUT_TEXT)
     assert config.hide_output_text is parse_bool_from_env(OPENINFERENCE_HIDE_OUTPUT_TEXT)
+    assert config.hide_embeddings_vectors is parse_bool_from_env(
+        OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS
+    )
+    assert config.hide_embeddings_text is parse_bool_from_env(OPENINFERENCE_HIDE_EMBEDDINGS_TEXT)
     assert config.hide_prompts is parse_bool_from_env(OPENINFERENCE_HIDE_PROMPTS)
     assert config.hide_choices is parse_bool_from_env(OPENINFERENCE_HIDE_CHOICES)
     assert config.base64_image_max_length == int(
@@ -175,6 +194,8 @@ def test_settings_from_env_vars_and_code(
     new_hide_input_images = not hide_input_images
     new_hide_input_text = not hide_input_text
     new_hide_output_text = not hide_output_text
+    new_hide_embeddings_vectors = not hide_embeddings_vectors
+    new_hide_embeddings_text = not hide_embeddings_text
     new_hide_prompts = not hide_prompts
     new_hide_choices = not hide_choices
     config = TraceConfig(
@@ -185,6 +206,8 @@ def test_settings_from_env_vars_and_code(
         hide_input_images=new_hide_input_images,
         hide_input_text=new_hide_input_text,
         hide_output_text=new_hide_output_text,
+        hide_embeddings_vectors=new_hide_embeddings_vectors,
+        hide_embeddings_text=new_hide_embeddings_text,
         hide_prompts=new_hide_prompts,
         hide_choices=new_hide_choices,
         base64_image_max_length=new_base64_image_max_length,
@@ -196,6 +219,8 @@ def test_settings_from_env_vars_and_code(
     assert config.hide_input_images is new_hide_input_images
     assert config.hide_input_text is new_hide_input_text
     assert config.hide_output_text is new_hide_output_text
+    assert config.hide_embeddings_vectors is new_hide_embeddings_vectors
+    assert config.hide_embeddings_text is new_hide_embeddings_text
     assert config.hide_prompts is new_hide_prompts
     assert config.hide_choices is new_hide_choices
     assert config.base64_image_max_length == new_base64_image_max_length
@@ -248,3 +273,81 @@ def parse_bool_from_env(env_var: str) -> Optional[bool]:
         return False
     else:
         return None
+
+
+@pytest.mark.parametrize(
+    "use_deprecated",
+    [True, False],
+)
+def test_embedding_vectors_backwards_compatibility(
+    use_deprecated: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Test that both hide_embedding_vectors (deprecated) and hide_embeddings_vectors work."""
+    from openinference.semconv.trace import EmbeddingAttributes, SpanAttributes
+
+    if use_deprecated:
+        config = TraceConfig(hide_embedding_vectors=True)
+    else:
+        config = TraceConfig(hide_embeddings_vectors=True)
+
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    tracer.start_span(
+        "test",
+        attributes={
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}": (
+                1.0,
+                2.0,
+                3.0,
+            )
+        },
+    ).end()
+    span = in_memory_span_exporter.get_finished_spans()[0]
+    assert span.attributes is not None
+    assert (
+        span.attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        )
+        == REDACTED_VALUE
+    )
+
+
+@pytest.mark.parametrize(
+    "use_deprecated",
+    [True, False],
+)
+def test_embedding_vectors_env_var_backwards_compatibility(
+    use_deprecated: bool,
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that both OPENINFERENCE_HIDE_EMBEDDING_VECTORS (deprecated) and OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS work."""
+    from openinference.semconv.trace import EmbeddingAttributes, SpanAttributes
+
+    if use_deprecated:
+        monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDING_VECTORS, "True")
+    else:
+        monkeypatch.setenv(OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS, "True")
+
+    config = TraceConfig()
+    tracer = OITracer(tracer_provider.get_tracer(__name__), config=config)
+    tracer.start_span(
+        "test",
+        attributes={
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}": (
+                1.0,
+                2.0,
+                3.0,
+            )
+        },
+    ).end()
+    span = in_memory_span_exporter.get_finished_spans()[0]
+    assert span.attributes is not None
+    assert (
+        span.attributes.get(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        )
+        == REDACTED_VALUE
+    )

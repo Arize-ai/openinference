@@ -1,4 +1,6 @@
-import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
+import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+
+import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
 import {
   InstrumentationBase,
   InstrumentationConfig,
@@ -6,10 +8,11 @@ import {
   InstrumentationNodeModuleDefinition,
   isWrapped,
 } from "@opentelemetry/instrumentation";
-import { VERSION } from "./version";
-import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
+
 import { addTracerToHandlers } from "./instrumentationUtils";
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
+import { VERSION } from "./version";
+
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
 
 const MODULE_NAME = "@langchain/core/callbacks";
 

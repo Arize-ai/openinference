@@ -1,10 +1,15 @@
-import { describe, it, test, expect, beforeEach, afterEach } from "vitest";
+import {
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
 } from "@opentelemetry/sdk-trace-base";
-import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
+
 import {
   isOpenInferenceSpan,
   OpenInferenceBatchSpanProcessor,
@@ -12,15 +17,13 @@ import {
   SpanFilter,
 } from "../src";
 import {
-  MimeType,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-import {
   AISemanticConventions,
   AISemanticConventionsList,
 } from "../src/AISemanticConventions";
+import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
 import { assertUnreachable } from "../src/typeUtils";
+
+import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
 type SpanProcessorTestCase = [
   string,
@@ -104,6 +107,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           },
         ]);
         break;
+      case AISemanticConventions.TOKEN_COUNT_OUTPUT:
       case AISemanticConventions.TOKEN_COUNT_COMPLETION:
         testCases.push(
           [
@@ -135,6 +139,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           ],
         );
         break;
+      case AISemanticConventions.TOKEN_COUNT_INPUT:
       case AISemanticConventions.TOKEN_COUNT_PROMPT:
         testCases.push(
           [
@@ -212,6 +217,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
               [vercelSemanticConvention]: JSON.stringify([
                 { toolName: "test-tool-1", args: { test1: "test-1" } },
                 { toolName: "test-tool-2", args: { test2: "test-2" } },
+                { toolName: "test-tool-3", input: { test3: "test-3" } },
               ]),
             },
             addedOpenInferenceAttributes: {
@@ -223,6 +229,10 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                 "test-tool-2",
               [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
                 JSON.stringify({ test2: "test-2" }),
+              [`${firstOutputMessageToolPrefix}.2.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                "test-tool-3",
+              [`${firstOutputMessageToolPrefix}.2.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                JSON.stringify({ test3: "test-3" }),
               [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
                 "assistant",
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -335,6 +345,63 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
                   undefined,
                 [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]:
                   undefined,
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+              },
+            },
+          ],
+          [
+            `${vercelSemanticConvention} to ${SemanticConventions.LLM_INPUT_MESSAGES} with role and content for tool call messages`,
+            {
+              vercelFunctionName: "ai.generateText.doGenerate",
+              vercelAttributes: {
+                [vercelSemanticConvention]: JSON.stringify([
+                  {
+                    role: "assistant",
+                    content: [
+                      {
+                        type: "tool_call",
+                        toolCallId: "test-tool-id",
+                        toolName: "test-tool",
+                        input: { testInput: "test" },
+                      },
+                      {
+                        type: "tool_call",
+                        toolCallId: "test-tool-id-2",
+                        toolName: "test-tool",
+                        args: { testArgs: "test" },
+                      },
+                    ],
+                  },
+                ]),
+              },
+              addedOpenInferenceAttributes: {
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+                  "assistant",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+                  "tool_call",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+                  "tool_call",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.1.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
+                  undefined,
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  JSON.stringify({ testInput: "test" }),
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  "test-tool",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`]:
+                  "test-tool-id",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+                  JSON.stringify({ testArgs: "test" }),
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+                  "test-tool",
+                [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]:
+                  "test-tool-id-2",
                 [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
                   OpenInferenceSpanKind.LLM,
               },

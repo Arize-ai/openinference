@@ -20,6 +20,10 @@ class SpanAttributes:
     """
     A list of objects containing embedding data, including the vector and represented piece of text.
     """
+    EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
+    """
+    Invocation parameters passed to the embedding model or API, such as the model name, encoding format, etc.
+    """
     EMBEDDING_MODEL_NAME = "embedding.model_name"
     """
     The name of the embedding model.

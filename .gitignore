@@ -106,4 +106,6 @@ Thumbs.db
 
 # Gradle wrapper (keep gradle-wrapper.properties)
 !gradle/wrapper/gradle-wrapper.properties
-*.code-workspace
+
+# Scratch files
+.scratch/

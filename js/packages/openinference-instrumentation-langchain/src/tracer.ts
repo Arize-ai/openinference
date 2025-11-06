@@ -1,18 +1,20 @@
-import { BaseTracer, Run } from "@langchain/core/tracers/base";
+import { OITracer } from "@arizeai/openinference-core";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import {
-  SpanKind,
-  Span,
   context,
-  trace,
+  Span,
+  SpanKind,
   SpanStatusCode,
+  trace,
 } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import {
   safelyFlattenAttributes,
   safelyFormatFunctionCalls,
-  safelyFormatIO,
   safelyFormatInputMessages,
+  safelyFormatIO,
   safelyFormatLLMParams,
   safelyFormatMetadata,
   safelyFormatOutputMessages,
@@ -23,7 +25,8 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "./utils";
-import { OITracer } from "@arizeai/openinference-core";
+
+import { BaseTracer, Run } from "@langchain/core/tracers/base";
 
 type RunWithSpan = {
   run: Run;

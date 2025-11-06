@@ -1,12 +1,4 @@
-import { Attributes, diag } from "@opentelemetry/api";
-import {
-  assertUnreachable,
-  isNonEmptyArray,
-  isNumber,
-  isObject,
-  isString,
-} from "./typeUtils";
-import { isAttributeValue } from "@opentelemetry/core";
+import { withSafety } from "@arizeai/openinference-core";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -14,19 +6,30 @@ import {
   SemanticAttributePrefixes,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { Run } from "@langchain/core/tracers/base";
+
+import { Attributes, diag } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import {
   LLMMessage,
   LLMMessageFunctionCall,
-  LLMMessageToolCalls,
   LLMMessagesAttributes,
+  LLMMessageToolCalls,
   LLMParameterAttributes,
   PromptTemplateAttributes,
   RetrievalDocument,
   TokenCountAttributes,
   ToolAttributes,
 } from "./types";
-import { withSafety } from "@arizeai/openinference-core";
+import {
+  assertUnreachable,
+  isNonEmptyArray,
+  isNumber,
+  isObject,
+  isString,
+} from "./typeUtils";
+
+import { Run } from "@langchain/core/tracers/base";
 
 export const RETRIEVAL_DOCUMENTS =
   `${SemanticAttributePrefixes.retrieval}.${RetrievalAttributePostfixes.documents}` as const;

@@ -1,20 +1,22 @@
-import { isPatched, OpenAIInstrumentation } from "../src";
+import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
+
+import { context } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { suppressTracing } from "@opentelemetry/core";
-import { context } from "@opentelemetry/api";
+
+import { isPatched, OpenAIInstrumentation } from "../src";
 
 import OpenAI, { APIPromise, AzureOpenAI } from "openai";
-import { Stream } from "openai/streaming";
-import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
-import { CreateEmbeddingResponse } from "openai/resources/embeddings";
-import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { CreateEmbeddingResponse } from "openai/resources/embeddings";
+import { Stream } from "openai/streaming";
 import { vi } from "vitest";
+import { z } from "zod";
 
 // Function tools
 async function getCurrentLocation() {
@@ -1073,6 +1075,8 @@ describe("OpenAIInstrumentation", () => {
           content: "Alice and Bob are going to a science fair on Friday.",
         },
       ],
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - Type instantiation is excessively deep with zod helper
       response_format: zodResponseFormat(CalendarEvent, "event"),
     });
 

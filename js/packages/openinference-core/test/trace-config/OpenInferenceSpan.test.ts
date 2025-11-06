@@ -1,10 +1,12 @@
+import { Span } from "@opentelemetry/api";
+
 import {
   DefaultTraceConfig,
   REDACTED_VALUE,
 } from "../../src/trace/trace-config/constants";
 import { OISpan } from "../../src/trace/trace-config/OISpan";
-import { Span } from "@opentelemetry/api";
-import { type Mocked, describe, it, beforeEach, expect, vi } from "vitest";
+
+import { beforeEach, describe, expect, it, type Mocked, vi } from "vitest";
 describe("OISpan", () => {
   describe("OISpan", () => {
     let mockSpan: Mocked<Span>;

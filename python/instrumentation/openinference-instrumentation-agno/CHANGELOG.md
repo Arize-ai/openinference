@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.20...python-openinference-instrumentation-agno-v0.1.21) (2025-11-06)
+
+
+### Bug Fixes
+
+* agno team id release ([#2415](https://github.com/Arize-ai/openinference/issues/2415)) ([dcd3aa7](https://github.com/Arize-ai/openinference/commit/dcd3aa7f33192a30976485c1a01b06765da24010))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.19...python-openinference-instrumentation-agno-v0.1.20) (2025-11-03)
+
+
+### Bug Fixes
+
+* **agno:** Resolving CI issues for Agno ([#2380](https://github.com/Arize-ai/openinference/issues/2380)) ([a82ef6c](https://github.com/Arize-ai/openinference/commit/a82ef6c34a79d53c892c5017d76cce053655801d))
+* Get last run output ([#2369](https://github.com/Arize-ai/openinference/issues/2369)) ([57a9758](https://github.com/Arize-ai/openinference/commit/57a97585512f34550d5a50508ca801440cda1071))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.18...python-openinference-instrumentation-agno-v0.1.19) (2025-10-22)
 
 

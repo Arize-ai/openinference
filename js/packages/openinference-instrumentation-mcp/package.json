@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-mcp",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "description": "OpenInference instrumentation for MCP",
   "private": false,
   "main": "dist/src/index.js",
@@ -50,6 +50,7 @@
     "@types/express": "^5.0.1",
     "vitest": "^4.0.3",
     "tsx": "^4.19.3",
-    "zod": "^3.24.3"
+    "zod": "^3.24.3",
+    "typescript": "^5.5.4"
   }
 }

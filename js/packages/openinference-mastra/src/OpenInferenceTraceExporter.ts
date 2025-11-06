@@ -1,11 +1,11 @@
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 import {
-  processMastraSpanAttributes,
-  markUnlabeledRootSpansInAgentTraces,
   addIOToRootSpans,
+  markUnlabeledRootSpansInAgentTraces,
+  processMastraSpanAttributes,
 } from "./attributes.js";
 
 type ConstructorArgs = {

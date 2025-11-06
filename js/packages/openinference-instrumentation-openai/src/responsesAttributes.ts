@@ -1,11 +1,14 @@
+import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import { Attributes } from "@opentelemetry/api";
+
 import {
+  Response as ResponseType,
   ResponseCreateParamsBase,
   ResponseInputItem,
   ResponseOutputItem,
   ResponseStreamEvent,
-  Response as ResponseType,
 } from "openai/resources/responses/responses";
 import { Stream } from "openai/streaming";
 
@@ -42,8 +45,15 @@ function getResponseItemAttributes(
       attributes[`${prefix}${SemanticConventions.MESSAGE_ROLE}`] = "tool";
       attributes[`${prefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
         item.call_id;
-      attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-        item.output;
+      if (typeof item.output === "string") {
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          item.output;
+      } else {
+        // TODO(2410): figure out how to serialize the list of tools
+        attributes[`${prefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          safelyJSONStringify(item.output) || undefined;
+      }
+
       break;
     }
     case "reasoning": {

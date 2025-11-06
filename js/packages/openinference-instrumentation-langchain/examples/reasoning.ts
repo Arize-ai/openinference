@@ -1,7 +1,8 @@
 import "./instrumentation";
 import "dotenv/config";
-import { ChatOpenAI } from "@langchain/openai";
+
 import { HumanMessage } from "@langchain/core/messages";
+import { ChatOpenAI } from "@langchain/openai";
 
 const main = async () => {
   const chatModel = new ChatOpenAI({

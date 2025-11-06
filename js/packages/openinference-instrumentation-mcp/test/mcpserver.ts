@@ -1,8 +1,12 @@
-import { randomUUID } from "crypto";
-import http from "http";
-import { AddressInfo } from "net";
+import { Tracer } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import {
+  BatchSpanProcessor,
+  NodeTracerProvider,
+} from "@opentelemetry/sdk-trace-node";
 
-import express from "express";
+import { MCPInstrumentation } from "../src";
+
 import { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
 import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
@@ -12,15 +16,11 @@ import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Tracer } from "@opentelemetry/api";
-import {
-  BatchSpanProcessor,
-  NodeTracerProvider,
-} from "@opentelemetry/sdk-trace-node";
+import { randomUUID } from "crypto";
+import express from "express";
+import http from "http";
+import { AddressInfo } from "net";
 import { z } from "zod";
-
-import { MCPInstrumentation } from "../src";
 
 function newMcpServer(tracer: Tracer) {
   const server = new McpServer({

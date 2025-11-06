@@ -1,9 +1,10 @@
 import "./instrumentation";
-import { TokenMemory } from "beeai-framework/memory/tokenMemory";
-import { OpenMeteoTool } from "beeai-framework/tools/weather/openMeteo";
+
 import { OllamaChatModel } from "beeai-framework/adapters/ollama/backend/chat";
 import { ToolCallingAgent } from "beeai-framework/agents/toolCalling/agent";
+import { TokenMemory } from "beeai-framework/memory/tokenMemory";
 import { DuckDuckGoSearchTool } from "beeai-framework/tools/search/duckDuckGoSearch";
+import { OpenMeteoTool } from "beeai-framework/tools/weather/openMeteo";
 
 const llm = new OllamaChatModel("llama3.1");
 const agent = new ToolCallingAgent({

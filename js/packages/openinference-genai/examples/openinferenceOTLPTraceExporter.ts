@@ -1,6 +1,6 @@
+import type { ExportResult } from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import type { ExportResult } from "@opentelemetry/core";
 
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "../src/index.js";
 import { Mutable } from "../src/types.js";

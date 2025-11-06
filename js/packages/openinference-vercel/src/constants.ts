@@ -2,6 +2,7 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
 import {
   AISemanticConvention,
   AISemanticConventions,
@@ -41,6 +42,10 @@ export const AISemConvToOISemConvMap: Record<
     SemanticConventions.LLM_INVOCATION_PARAMETERS,
   [AISemanticConventions.METADATA]: SemanticConventions.METADATA,
   [AISemanticConventions.TOKEN_COUNT_COMPLETION]:
+    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
+  [AISemanticConventions.TOKEN_COUNT_INPUT]:
+    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
+  [AISemanticConventions.TOKEN_COUNT_OUTPUT]:
     SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
   [AISemanticConventions.TOKEN_COUNT_PROMPT]:
     SemanticConventions.LLM_TOKEN_COUNT_PROMPT,

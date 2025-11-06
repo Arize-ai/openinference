@@ -80,7 +80,11 @@ OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT"
 OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT"
 # Hides text from output messages
 OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS"
+# Deprecated: use OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS instead
+OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS = "OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS"
 # Hides embedding vectors
+OPENINFERENCE_HIDE_EMBEDDINGS_TEXT = "OPENINFERENCE_HIDE_EMBEDDINGS_TEXT"
+# Hides embedding text
 OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH"
 # Limits characters of a base64 encoding of an image
 OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
@@ -103,7 +107,9 @@ DEFAULT_HIDE_INPUT_IMAGES = False
 DEFAULT_HIDE_INPUT_TEXT = False
 DEFAULT_HIDE_OUTPUT_TEXT = False
 
-DEFAULT_HIDE_EMBEDDING_VECTORS = False
+DEFAULT_HIDE_EMBEDDING_VECTORS = False  # Deprecated
+DEFAULT_HIDE_EMBEDDINGS_VECTORS = False
+DEFAULT_HIDE_EMBEDDINGS_TEXT = False
 DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
 
 
@@ -190,7 +196,23 @@ class TraceConfig:
             "default_value": DEFAULT_HIDE_EMBEDDING_VECTORS,
         },
     )
+    """Deprecated: use hide_embeddings_vectors instead"""
+    hide_embeddings_vectors: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_EMBEDDINGS_VECTORS,
+            "default_value": DEFAULT_HIDE_EMBEDDINGS_VECTORS,
+        },
+    )
     """Hides embedding vectors"""
+    hide_embeddings_text: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_HIDE_EMBEDDINGS_TEXT,
+            "default_value": DEFAULT_HIDE_EMBEDDINGS_TEXT,
+        },
+    )
+    """Hides embedding text"""
     hide_prompts: Optional[bool] = field(
         default=None,
         metadata={
@@ -296,11 +318,17 @@ class TraceConfig:
         ):
             value = REDACTED_VALUE
         elif (
-            self.hide_embedding_vectors
+            (self.hide_embedding_vectors or self.hide_embeddings_vectors)
             and SpanAttributes.EMBEDDING_EMBEDDINGS in key
             and EmbeddingAttributes.EMBEDDING_VECTOR in key
         ):
-            return None
+            value = REDACTED_VALUE
+        elif (
+            self.hide_embeddings_text
+            and SpanAttributes.EMBEDDING_EMBEDDINGS in key
+            and EmbeddingAttributes.EMBEDDING_TEXT in key
+        ):
+            value = REDACTED_VALUE
         return value() if callable(value) else value
 
     def _parse_value(

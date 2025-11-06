@@ -1,5 +1,7 @@
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
 import { Mutable, ValueOf } from "./typeUtils";
 
 /**

@@ -1,14 +1,16 @@
-import { SpanStatusCode, Span, diag } from "@opentelemetry/api";
-
+import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   MimeType,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
-import { SpanCreator } from "./spanCreator";
+
+import { diag, Span, SpanStatusCode } from "@opentelemetry/api";
+
 import { getOutputAttributes } from "./attributes/attributeUtils";
 import { extractRetrievedReferencesAttributes } from "./attributes/ragAttributeExtractionUtils";
+import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
+import { SpanCreator } from "./spanCreator";
+
 import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export class CallbackHandler {

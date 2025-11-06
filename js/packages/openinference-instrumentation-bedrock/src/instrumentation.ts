@@ -1,9 +1,9 @@
 import {
-  InstrumentationBase,
-  InstrumentationConfig,
-  InstrumentationModuleDefinition,
-  InstrumentationNodeModuleDefinition,
-} from "@opentelemetry/instrumentation";
+  getAttributesFromContext,
+  OITracer,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
+
 import {
   context,
   diag,
@@ -13,33 +13,36 @@ import {
   TracerProvider,
 } from "@opentelemetry/api";
 import {
-  getAttributesFromContext,
-  OITracer,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
-import { VERSION } from "./version";
-import {
-  InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand,
-  ConverseCommand,
-  ConverseStreamCommand,
-  BedrockRuntimeClient,
-  InvokeModelResponse,
-  ConverseResponse,
-} from "@aws-sdk/client-bedrock-runtime";
-import { extractInvokeModelRequestAttributes } from "./attributes/invoke-model-request-attributes";
-import { extractInvokeModelResponseAttributes } from "./attributes/invoke-model-response-attributes";
-import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
-import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
-import {
-  consumeBedrockStreamChunks,
-  safelySplitStream,
-} from "./attributes/invoke-model-streaming-response-attributes";
-import { consumeConverseStreamChunks } from "./attributes/converse-streaming-response-attributes";
+  InstrumentationBase,
+  InstrumentationConfig,
+  InstrumentationModuleDefinition,
+  InstrumentationNodeModuleDefinition,
+} from "@opentelemetry/instrumentation";
+
 import {
   getSystemFromModelId,
   setBasicSpanAttributes,
 } from "./attributes/attribute-helpers";
+import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
+import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
+import { consumeConverseStreamChunks } from "./attributes/converse-streaming-response-attributes";
+import { extractInvokeModelRequestAttributes } from "./attributes/invoke-model-request-attributes";
+import { extractInvokeModelResponseAttributes } from "./attributes/invoke-model-response-attributes";
+import {
+  consumeBedrockStreamChunks,
+  safelySplitStream,
+} from "./attributes/invoke-model-streaming-response-attributes";
+import { VERSION } from "./version";
+
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+  ConverseResponse,
+  ConverseStreamCommand,
+  InvokeModelCommand,
+  InvokeModelResponse,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 import { isPromise } from "util/types";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";

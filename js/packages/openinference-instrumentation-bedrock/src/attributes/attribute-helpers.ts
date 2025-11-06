@@ -1,24 +1,28 @@
-import { Span, AttributeValue, Attributes, diag } from "@opentelemetry/api";
-import { withSafety, safelyJSONStringify } from "@arizeai/openinference-core";
+import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import {
-  SemanticConventions,
+  LLMProvider,
   LLMSystem,
   OpenInferenceSpanKind,
-  LLMProvider,
+  SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
+import { Attributes, AttributeValue, diag, Span } from "@opentelemetry/api";
+
 import {
-  Message,
-  SystemContentBlock,
+  isConverseImageContent,
+  isConverseTextContent,
+  isConverseToolResultContent,
+  isConverseToolUseContent,
+} from "../types/bedrock-types";
+
+import { formatImageUrl } from "./invoke-model-helpers";
+
+import {
   ContentBlock,
   ConversationRole,
+  Message,
+  SystemContentBlock,
 } from "@aws-sdk/client-bedrock-runtime";
-import {
-  isConverseTextContent,
-  isConverseImageContent,
-  isConverseToolUseContent,
-  isConverseToolResultContent,
-} from "../types/bedrock-types";
-import { formatImageUrl } from "./invoke-model-helpers";
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
