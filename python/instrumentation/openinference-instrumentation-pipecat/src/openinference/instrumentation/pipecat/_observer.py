@@ -299,7 +299,7 @@ class OpenInferenceObserver(BaseObserver):
                 self._log_debug(
                     f"  No active turn - auto-starting turn for {service_id} initialization"
                 )
-                self._turn_context_token = await self._start_turn(data)
+                await self._start_turn(data)
 
             # Create new span and set as active
             service_type = detect_service_type(service)
@@ -350,22 +350,9 @@ class OpenInferenceObserver(BaseObserver):
             The created span
         """
         self._log_debug(f">>> Creating {service_type} span")
-        self._log_debug(f"  Context token type: {type(self._turn_context_token)}")
-        self._log_debug(f"  Context token value: {self._turn_context_token}")
-
         span = self._tracer.start_span(
             name=f"pipecat.{service_type}",
         )
-
-        span_ctx = span.get_span_context()
-        self._log_debug(
-            f"  Created span - trace_id: {span_ctx.trace_id:032x}, span_id: {span_ctx.span_id:016x}"
-        )
-        if hasattr(span, "parent") and span.parent:
-            self._log_debug(f"  Parent span_id: {span.parent.span_id:016x}")
-        else:
-            self._log_debug("  No parent span")
-
         # Set service.name to the actual service class name for uniqueness
         span.set_attribute("service.name", service.__class__.__name__)
 
@@ -431,21 +418,14 @@ class OpenInferenceObserver(BaseObserver):
         # First create an empty context, then attach it, then create the span in that context
 
         empty_context = Context()  # Create a fresh, empty context
-        self._turn_context_token = context_api_attach(empty_context)  # Attach it first
-
         # Now create the span in this empty context (which is now the current context)
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
+            context=empty_context,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
                 "conversation.turn_number": self._turn_number,
             },
-        )
-
-        span_ctx = self._turn_span.get_span_context()
-        self._log_debug(
-            f"Turn span created - trace_id: {span_ctx.trace_id:032x},"
-            f"span_id: {span_ctx.span_id:016x}"
         )
 
         if self._conversation_id:
@@ -456,15 +436,11 @@ class OpenInferenceObserver(BaseObserver):
 
         # Update the context to include the span we just created
         context = trace_api.set_span_in_context(self._turn_span)
-        # Detach the empty context and attach the context with the span
-        context_api_detach(self._turn_context_token)
         self._turn_context_token = context_api_attach(context)
-        self._log_debug(f"  Context token created: {type(self._turn_context_token)}")
 
         self._turn_user_text = []
         self._turn_bot_text = []
 
-        self._log_debug(f"{'=' * 60}\n")
         return self._turn_context_token
 
     async def _finish_turn(self, interrupted: bool = False) -> None:
@@ -516,15 +492,14 @@ class OpenInferenceObserver(BaseObserver):
         for service_id in service_ids_to_finish:
             self._finish_span(service_id)
 
-        # Clear turn context (no need to detach since we're not using attach)
+        # Clear turn context
         self._log_debug("  Clearing context token")
-        self._turn_context_token = None
-        self._log_debug(
-            f"  Turn finished - input: {len(self._turn_user_text)} chunks, "
-            f"output: {len(self._turn_bot_text)} chunks"
-        )
-        self._log_debug(f"{'=' * 60}\n")
-
-        # Reset turn state
+        if self._turn_context_token:
+            try:
+                context_api_detach(self._turn_context_token)
+            except ValueError as e:
+                # Token was created in different async context, which is expected in async code
+                self._log_debug(f"  Context detach skipped (different async context): {e}")
         self._turn_active = False
         self._turn_span = None
+        self._turn_context_token = None
