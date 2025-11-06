@@ -25,6 +25,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypedDict,
     TypeVar,
     Union,
     cast,
@@ -35,6 +36,7 @@ from uuid import UUID
 
 import wrapt  # type: ignore
 from langchain_core.messages import BaseMessage
+from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
 from opentelemetry import context as context_api
@@ -43,6 +45,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
+from typing_extensions import TypeGuard
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -832,6 +835,172 @@ def _model_name(
             return
 
 
+class _HasInputAndOutputTokens(TypedDict):
+    input_tokens: int
+    output_tokens: int
+
+
+class _RawAnthropicUsageWithCache(_HasInputAndOutputTokens):
+    # https://github.com/anthropics/anthropic-sdk-python/blob/2e2f663104c8926434088828c08fbdf202d6d6fd/src/anthropic/types/usage.py#L13
+    cache_creation_input_tokens: int
+    cache_read_input_tokens: int
+
+
+class _RawAnthropicUsageWithCacheRead(_HasInputAndOutputTokens):
+    cache_read_input_tokens: int
+
+
+class _RawAnthropicUsageWithCacheCreation(_HasInputAndOutputTokens):
+    cache_creation_input_tokens: int
+
+
+def _is_raw_anthropic_usage_with_cache(
+    obj: Mapping[str, Any],
+) -> TypeGuard[_RawAnthropicUsageWithCache]:
+    return (
+        "input_tokens" in obj
+        and "output_tokens" in obj
+        and "cache_creation_input_tokens" in obj
+        and "cache_read_input_tokens" in obj
+        and isinstance(obj["input_tokens"], int)
+        and isinstance(obj["output_tokens"], int)
+        and isinstance(obj["cache_creation_input_tokens"], int)
+        and isinstance(obj["cache_read_input_tokens"], int)
+    )
+
+
+def _token_counts_from_raw_anthropic_usage_with_cache(
+    obj: _RawAnthropicUsageWithCache,
+) -> Iterator[Tuple[str, int]]:
+    input_tokens = obj["input_tokens"]
+    output_tokens = obj["output_tokens"]
+
+    if cache_creation_input_tokens := obj["cache_creation_input_tokens"]:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+
+    if cache_read_input_tokens := obj["cache_read_input_tokens"]:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+
+    prompt_tokens = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
+    completion_tokens = output_tokens
+
+    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+
+def _is_raw_anthropic_usage_with_cache_creation(
+    obj: Mapping[str, Any],
+) -> TypeGuard[_RawAnthropicUsageWithCacheCreation]:
+    return (
+        "input_tokens" in obj
+        and "output_tokens" in obj
+        and "cache_creation_input_tokens" in obj
+        and isinstance(obj["input_tokens"], int)
+        and isinstance(obj["output_tokens"], int)
+        and isinstance(obj["cache_creation_input_tokens"], int)
+    )
+
+
+def _token_counts_from_raw_anthropic_usage_with_cache_creation(
+    obj: _RawAnthropicUsageWithCacheCreation,
+) -> Iterator[Tuple[str, int]]:
+    input_tokens = obj["input_tokens"]
+    output_tokens = obj["output_tokens"]
+
+    if cache_creation_input_tokens := obj["cache_creation_input_tokens"]:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+
+    prompt_tokens = input_tokens + cache_creation_input_tokens
+    completion_tokens = output_tokens
+
+    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+
+def _is_raw_anthropic_usage_with_cache_read(
+    obj: Mapping[str, Any],
+) -> TypeGuard[_RawAnthropicUsageWithCacheRead]:
+    return (
+        "input_tokens" in obj
+        and "output_tokens" in obj
+        and "cache_read_input_tokens" in obj
+        and isinstance(obj["input_tokens"], int)
+        and isinstance(obj["output_tokens"], int)
+        and isinstance(obj["cache_read_input_tokens"], int)
+    )
+
+
+def _token_counts_from_raw_anthropic_usage_with_cache_read(
+    obj: _RawAnthropicUsageWithCacheRead,
+) -> Iterator[Tuple[str, int]]:
+    input_tokens = obj["input_tokens"]
+    output_tokens = obj["output_tokens"]
+
+    if cache_read_input_tokens := obj["cache_read_input_tokens"]:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+
+    prompt_tokens = input_tokens + cache_read_input_tokens
+    completion_tokens = output_tokens
+
+    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+
+def _is_lc_usage_metadata(obj: Mapping[str, Any]) -> TypeGuard[UsageMetadata]:
+    return (
+        "input_tokens" in obj
+        and "output_tokens" in obj
+        and "total_tokens" in obj
+        and isinstance(obj["input_tokens"], int)
+        and isinstance(obj["output_tokens"], int)
+        and isinstance(obj["total_tokens"], int)
+    )
+
+
+def _token_counts_from_lc_usage_metadata(obj: UsageMetadata) -> Iterator[Tuple[str, int]]:
+    input_tokens = obj["input_tokens"]
+    output_tokens = obj["output_tokens"]
+    total_tokens = obj["total_tokens"]
+
+    yield LLM_TOKEN_COUNT_TOTAL, total_tokens
+
+    if input_token_details := (obj.get("input_token_details") or {}):
+        if audio := input_token_details.get("audio"):
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio
+        if cache_creation := input_token_details.get("cache_creation"):
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation
+        if cache_read := input_token_details.get("cache_read"):
+            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read
+
+    if output_token_details := (obj.get("output_token_details") or {}):
+        if audio := output_token_details.get("audio"):
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio
+        if reasoning := output_token_details.get("reasoning"):
+            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning
+
+    if total_tokens == input_tokens + output_tokens:
+        prompt_tokens = input_tokens
+        completion_tokens = output_tokens
+    else:
+        prompt_tokens = (
+            input_tokens
+            + (input_token_details.get("audio") or 0)
+            + (input_token_details.get("cache_creation") or 0)
+            + (input_token_details.get("cache_read") or 0)
+        )
+        if total_tokens == prompt_tokens + output_tokens:
+            completion_tokens = output_tokens
+        else:
+            completion_tokens = (
+                output_tokens
+                + (output_token_details.get("audio") or 0)
+                + (output_token_details.get("reasoning") or 0)
+            )
+
+    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
+    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+
 @stop_on_exception
 def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, int]]:
     """Yields token count information if present."""
@@ -894,40 +1063,16 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
 
+    if _is_raw_anthropic_usage_with_cache(token_usage):
+        yield from _token_counts_from_raw_anthropic_usage_with_cache(token_usage)
+    elif _is_raw_anthropic_usage_with_cache_read(token_usage):
+        yield from _token_counts_from_raw_anthropic_usage_with_cache_read(token_usage)
+    elif _is_raw_anthropic_usage_with_cache_creation(token_usage):
+        yield from _token_counts_from_raw_anthropic_usage_with_cache_creation(token_usage)
+
     # maps langchain_core.messages.ai.UsageMetadata object
-    for attribute_name, details_key_or_none, keys in [
-        (LLM_TOKEN_COUNT_PROMPT, None, ("input_tokens",)),
-        (LLM_TOKEN_COUNT_COMPLETION, None, ("output_tokens",)),
-        (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
-            "input_token_details",
-            ("audio",),
-        ),
-        (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
-            "input_token_details",
-            ("cache_creation",),
-        ),
-        (
-            LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-            "input_token_details",
-            ("cache_read",),
-        ),
-        (
-            LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
-            "output_token_details",
-            ("audio",),
-        ),
-        (
-            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
-            "output_token_details",
-            ("reasoning",),
-        ),
-    ]:
-        details = token_usage.get(details_key_or_none) if details_key_or_none else token_usage
-        if details is not None:
-            if (token_count := _get_first_value(details, keys)) is not None:
-                yield attribute_name, token_count
+    if _is_lc_usage_metadata(token_usage):
+        yield from _token_counts_from_lc_usage_metadata(token_usage)
 
 
 def _parse_token_usage_for_vertexai(
