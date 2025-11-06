@@ -626,7 +626,8 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
     elif message_class_name.startswith("ToolMessage"):
         return "tool"
     elif message_class_name.startswith("ChatMessage"):
-        return cast(str, message_data["kwargs"]["role"])
+        role: str = cast(str, message_data["kwargs"]["role"])
+        return role
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
 
