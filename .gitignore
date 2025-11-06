@@ -106,3 +106,6 @@ Thumbs.db
 
 # Gradle wrapper (keep gradle-wrapper.properties)
 !gradle/wrapper/gradle-wrapper.properties
+
+# Scratch files
+.scratch/
