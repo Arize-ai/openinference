@@ -7,7 +7,6 @@ from agno.models.openai.chat import OpenAIChat
 from agno.team import Team
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -16,6 +15,7 @@ from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
+from openinference.semconv.trace import SpanAttributes
 
 test_vcr = vcr.VCR(
     serializer="yaml",
