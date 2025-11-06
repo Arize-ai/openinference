@@ -1,10 +1,10 @@
 """Attribute extraction from Pipecat frames."""
 
 import base64
-import json
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
+from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from pipecat.frames.frames import (
     AudioRawFrame,
@@ -48,24 +48,6 @@ __all__ = [
     "detect_service_type",
     "detect_provider_from_service",
 ]
-
-
-def safe_json_dumps(obj: Any, default: Optional[str] = None) -> Optional[str]:
-    """
-    Safely serialize an object to JSON, returning None if serialization fails.
-
-    Args:
-        obj: The object to serialize
-        default: Default value to return on error (defaults to None)
-
-    Returns:
-        JSON string or default value on error
-    """
-    try:
-        return json.dumps(obj)
-    except Exception as e:
-        logger.debug(f"Failed to serialize object to JSON: {e}")
-        return default
 
 
 def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
