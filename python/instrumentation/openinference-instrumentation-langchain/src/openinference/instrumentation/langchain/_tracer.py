@@ -964,41 +964,51 @@ def _token_counts_from_lc_usage_metadata(obj: UsageMetadata) -> Iterator[Tuple[s
 
     yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
-    if input_token_details := (obj.get("input_token_details") or {}):
-        if audio := input_token_details.get("audio"):
-            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, audio
-        if cache_creation := input_token_details.get("cache_creation"):
-            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation
-        if cache_read := input_token_details.get("cache_read"):
-            yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read
+    input_audio = 0
+    input_cache_creation = 0
+    input_cache_read = 0
+    output_audio = 0
+    output_reasoning = 0
 
-    if output_token_details := (obj.get("output_token_details") or {}):
-        if audio := output_token_details.get("audio"):
-            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, audio
-        if reasoning := output_token_details.get("reasoning"):
-            yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, reasoning
+    if "input_token_details" in obj:
+        input_token_details = obj["input_token_details"]
+        if "audio" in input_token_details:
+            input_audio = input_token_details["audio"]
+        if "cache_creation" in input_token_details:
+            input_cache_creation = input_token_details["cache_creation"]
+        if "cache_read" in input_token_details:
+            input_cache_read = input_token_details["cache_read"]
+
+    if "output_token_details" in obj:
+        output_token_details = obj["output_token_details"]
+        if "audio" in output_token_details:
+            output_audio = output_token_details["audio"]
+        if "reasoning" in output_token_details:
+            output_reasoning = output_token_details["reasoning"]
 
     if total_tokens == input_tokens + output_tokens:
         prompt_tokens = input_tokens
         completion_tokens = output_tokens
     else:
-        prompt_tokens = (
-            input_tokens
-            + (input_token_details.get("audio") or 0)
-            + (input_token_details.get("cache_creation") or 0)
-            + (input_token_details.get("cache_read") or 0)
-        )
+        prompt_tokens = input_tokens + input_audio + input_cache_creation + input_cache_read
         if total_tokens == prompt_tokens + output_tokens:
             completion_tokens = output_tokens
         else:
-            completion_tokens = (
-                output_tokens
-                + (output_token_details.get("audio") or 0)
-                + (output_token_details.get("reasoning") or 0)
-            )
+            completion_tokens = output_tokens + output_audio + output_reasoning
 
     yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+
+    if input_audio:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, input_audio
+    if input_cache_creation:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, input_cache_creation
+    if input_cache_read:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, input_cache_read
+    if output_audio:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, output_audio
+    if output_reasoning:
+        yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, output_reasoning
 
 
 @stop_on_exception
