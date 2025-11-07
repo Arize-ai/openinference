@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.21...python-openinference-instrumentation-agno-v0.1.22) (2025-11-07)
+
+
+### Bug Fixes
+
+* Iterators for runs ([#2406](https://github.com/Arize-ai/openinference/issues/2406)) ([6ac1483](https://github.com/Arize-ai/openinference/commit/6ac14839368a932265cf64b8682586533b1633e2))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.20...python-openinference-instrumentation-agno-v0.1.21) (2025-11-06)
 
 
