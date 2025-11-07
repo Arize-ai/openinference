@@ -95,6 +95,37 @@ from openinference.semconv.trace import SpanAttributes
             id="zeros",
         ),
         pytest.param(
+            {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "total_tokens": 30,
+                "input_token_details": {"cache_creation": 0, "cache_read": 0},
+            },
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 10,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 20,
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 30,
+            },
+            True,
+            id="zero_cache_no_details",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "total_tokens": 30,
+                "input_token_details": {},
+                "output_token_details": {},
+            },
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 10,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 20,
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 30,
+            },
+            True,
+            id="empty_details",
+        ),
+        pytest.param(
             {"input_tokens": 10, "output_tokens": 20},
             {},
             False,
@@ -162,6 +193,29 @@ def test_token_counts_from_lc_usage_metadata(
             },
             True,
             id="read",
+        ),
+        pytest.param(
+            {"input_tokens": 10, "output_tokens": 20, "cache_creation_input_tokens": 0},
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 10,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 20,
+            },
+            True,
+            id="zero_cache_write",
+        ),
+        pytest.param(
+            {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 10,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 20,
+            },
+            True,
+            id="zero_both_cache",
         ),
         pytest.param(
             {"input_tokens": 10, "output_tokens": 20},
