@@ -253,7 +253,6 @@ class _RunWrapper:
         node_id = _generate_node_id()
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        team_token, team_ctx = _setup_team_context(instance, node_id)
 
         span = self._tracer.start_span(
             span_name,
@@ -277,6 +276,7 @@ class _RunWrapper:
 
         try:
             with trace_api.use_span(span, end_on_exit=False):
+                team_token, team_ctx = _setup_team_context(instance, node_id)
                 run_response: RunOutput = wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
@@ -322,7 +322,6 @@ class _RunWrapper:
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
-        team_token, team_ctx = _setup_team_context(instance, node_id)
 
         span = self._tracer.start_span(
             span_name,
@@ -353,6 +352,7 @@ class _RunWrapper:
 
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
+                team_token, team_ctx = _setup_team_context(instance, node_id)
                 for response in wrapped(*args, **kwargs):
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
@@ -410,7 +410,6 @@ class _RunWrapper:
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
-        team_token, team_ctx = _setup_team_context(instance, node_id)
         span = self._tracer.start_span(
             span_name,
             attributes=dict(
@@ -433,6 +432,7 @@ class _RunWrapper:
 
         try:
             with trace_api.use_span(span, end_on_exit=False):
+                team_token, team_ctx = _setup_team_context(instance, node_id)
                 run_response = await wrapped(*args, **kwargs)
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
@@ -480,8 +480,6 @@ class _RunWrapper:
 
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
-        team_token, team_ctx = _setup_team_context(instance, node_id)
-
         span = self._tracer.start_span(
             span_name,
             attributes=dict(
@@ -510,6 +508,7 @@ class _RunWrapper:
                 kwargs["yield_run_response"] = True  # type: ignore
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
+                team_token, team_ctx = _setup_team_context(instance, node_id)
                 async for response in wrapped(*args, **kwargs):  # type: ignore
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
