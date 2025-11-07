@@ -45,7 +45,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
 from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
-from typing_extensions import TypeGuard
+from typing_extensions import NotRequired, TypeGuard
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
@@ -835,51 +835,44 @@ def _model_name(
             return
 
 
-class _HasInputAndOutputTokens(TypedDict):
+class _RawAnthropicUsageWithCacheReadOrWrite(TypedDict):
+    # https://github.com/anthropics/anthropic-sdk-python/blob/2e2f663104c8926434088828c08fbdf202d6d6fd/src/anthropic/types/usage.py#L13
     input_tokens: int
     output_tokens: int
+    cache_read_input_tokens: NotRequired[int]
+    cache_creation_input_tokens: NotRequired[int]
 
 
-class _RawAnthropicUsageWithCache(_HasInputAndOutputTokens):
-    # https://github.com/anthropics/anthropic-sdk-python/blob/2e2f663104c8926434088828c08fbdf202d6d6fd/src/anthropic/types/usage.py#L13
-    cache_creation_input_tokens: int
-    cache_read_input_tokens: int
-
-
-class _RawAnthropicUsageWithCacheRead(_HasInputAndOutputTokens):
-    cache_read_input_tokens: int
-
-
-class _RawAnthropicUsageWithCacheCreation(_HasInputAndOutputTokens):
-    cache_creation_input_tokens: int
-
-
-def _is_raw_anthropic_usage_with_cache(
+def _is_raw_anthropic_usage_with_cache_read_or_write(
     obj: Mapping[str, Any],
-) -> TypeGuard[_RawAnthropicUsageWithCache]:
+) -> TypeGuard[_RawAnthropicUsageWithCacheReadOrWrite]:
     return (
         "input_tokens" in obj
         and "output_tokens" in obj
-        and "cache_creation_input_tokens" in obj
-        and "cache_read_input_tokens" in obj
         and isinstance(obj["input_tokens"], int)
         and isinstance(obj["output_tokens"], int)
-        and isinstance(obj["cache_creation_input_tokens"], int)
-        and isinstance(obj["cache_read_input_tokens"], int)
+        and (
+            "cache_read_input_tokens" in obj
+            and isinstance(obj["cache_read_input_tokens"], int)
+            or "cache_creation_input_tokens" in obj
+            and isinstance(obj["cache_creation_input_tokens"], int)
+        )
     )
 
 
-def _token_counts_from_raw_anthropic_usage_with_cache(
-    obj: _RawAnthropicUsageWithCache,
+def _token_counts_from_raw_anthropic_usage_with_cache_read_or_write(
+    obj: _RawAnthropicUsageWithCacheReadOrWrite,
 ) -> Iterator[Tuple[str, int]]:
     input_tokens = obj["input_tokens"]
     output_tokens = obj["output_tokens"]
 
-    if cache_creation_input_tokens := obj["cache_creation_input_tokens"]:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
+    cache_creation_input_tokens = 0
+    cache_read_input_tokens = 0
 
-    if cache_read_input_tokens := obj["cache_read_input_tokens"]:
-        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
+    if "cache_creation_input_tokens" in obj:
+        cache_creation_input_tokens = obj["cache_creation_input_tokens"]
+    if "cache_read_input_tokens" in obj:
+        cache_read_input_tokens = obj["cache_read_input_tokens"]
 
     prompt_tokens = input_tokens + cache_creation_input_tokens + cache_read_input_tokens
     completion_tokens = output_tokens
@@ -887,63 +880,10 @@ def _token_counts_from_raw_anthropic_usage_with_cache(
     yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
 
-
-def _is_raw_anthropic_usage_with_cache_creation(
-    obj: Mapping[str, Any],
-) -> TypeGuard[_RawAnthropicUsageWithCacheCreation]:
-    return (
-        "input_tokens" in obj
-        and "output_tokens" in obj
-        and "cache_creation_input_tokens" in obj
-        and isinstance(obj["input_tokens"], int)
-        and isinstance(obj["output_tokens"], int)
-        and isinstance(obj["cache_creation_input_tokens"], int)
-    )
-
-
-def _token_counts_from_raw_anthropic_usage_with_cache_creation(
-    obj: _RawAnthropicUsageWithCacheCreation,
-) -> Iterator[Tuple[str, int]]:
-    input_tokens = obj["input_tokens"]
-    output_tokens = obj["output_tokens"]
-
-    if cache_creation_input_tokens := obj["cache_creation_input_tokens"]:
+    if cache_creation_input_tokens:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
-
-    prompt_tokens = input_tokens + cache_creation_input_tokens
-    completion_tokens = output_tokens
-
-    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
-
-
-def _is_raw_anthropic_usage_with_cache_read(
-    obj: Mapping[str, Any],
-) -> TypeGuard[_RawAnthropicUsageWithCacheRead]:
-    return (
-        "input_tokens" in obj
-        and "output_tokens" in obj
-        and "cache_read_input_tokens" in obj
-        and isinstance(obj["input_tokens"], int)
-        and isinstance(obj["output_tokens"], int)
-        and isinstance(obj["cache_read_input_tokens"], int)
-    )
-
-
-def _token_counts_from_raw_anthropic_usage_with_cache_read(
-    obj: _RawAnthropicUsageWithCacheRead,
-) -> Iterator[Tuple[str, int]]:
-    input_tokens = obj["input_tokens"]
-    output_tokens = obj["output_tokens"]
-
-    if cache_read_input_tokens := obj["cache_read_input_tokens"]:
+    if cache_read_input_tokens:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
-
-    prompt_tokens = input_tokens + cache_read_input_tokens
-    completion_tokens = output_tokens
-
-    yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
 
 
 def _is_lc_usage_metadata(obj: Mapping[str, Any]) -> TypeGuard[UsageMetadata]:
@@ -961,8 +901,6 @@ def _token_counts_from_lc_usage_metadata(obj: UsageMetadata) -> Iterator[Tuple[s
     input_tokens = obj["input_tokens"]
     output_tokens = obj["output_tokens"]
     total_tokens = obj["total_tokens"]
-
-    yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
     input_audio = 0
     input_cache_creation = 0
@@ -986,18 +924,23 @@ def _token_counts_from_lc_usage_metadata(obj: UsageMetadata) -> Iterator[Tuple[s
         if "reasoning" in output_token_details:
             output_reasoning = output_token_details["reasoning"]
 
-    if total_tokens == input_tokens + output_tokens:
-        prompt_tokens = input_tokens
-        completion_tokens = output_tokens
-    else:
-        prompt_tokens = input_tokens + input_audio + input_cache_creation + input_cache_read
-        if total_tokens == prompt_tokens + output_tokens:
-            completion_tokens = output_tokens
-        else:
-            completion_tokens = output_tokens + output_audio + output_reasoning
+    prompt_tokens = input_tokens
+    completion_tokens = output_tokens
+
+    # heuristic adjustment for Bedrock Anthropic models with cache read or write
+    # https://github.com/Arize-ai/openinference/issues/2381
+    if input_cache := input_cache_creation + input_cache_read:
+        if total_tokens == input_tokens + output_tokens + input_cache:
+            # for Bedrock Converse
+            prompt_tokens += input_cache
+        elif input_tokens < input_cache:
+            # for Bedrock InvokeModel
+            prompt_tokens += input_cache
+            total_tokens += input_cache
 
     yield LLM_TOKEN_COUNT_PROMPT, prompt_tokens
     yield LLM_TOKEN_COUNT_COMPLETION, completion_tokens
+    yield LLM_TOKEN_COUNT_TOTAL, total_tokens
 
     if input_audio:
         yield LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, input_audio
@@ -1022,12 +965,12 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
         )
     ):
         return
+    keys: Sequence[str]
     for attribute_name, keys in [
         (
             LLM_TOKEN_COUNT_PROMPT,
             (
                 "prompt_tokens",
-                "input_tokens",  # Anthropic-specific key
                 "prompt_token_count",  # Gemini-specific key - https://ai.google.dev/gemini-api/docs/tokens?lang=python
             ),
         ),
@@ -1035,13 +978,10 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             LLM_TOKEN_COUNT_COMPLETION,
             (
                 "completion_tokens",
-                "output_tokens",  # Anthropic-specific key
                 "candidates_token_count",  # Gemini-specific key
             ),
         ),
         (LLM_TOKEN_COUNT_TOTAL, ("total_tokens", "total_token_count")),  # Gemini-specific key
-        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, ("cache_read_input_tokens",)),  # Antrhopic
-        (LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, ("cache_creation_input_tokens",)),  # Antrhopic
     ]:
         if (token_count := _get_first_value(token_usage, keys)) is not None:
             yield attribute_name, token_count
@@ -1073,16 +1013,12 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             if (token_count := _get_first_value(details, keys)) is not None:
                 yield attribute_name, token_count
 
-    if _is_raw_anthropic_usage_with_cache(token_usage):
-        yield from _token_counts_from_raw_anthropic_usage_with_cache(token_usage)
-    elif _is_raw_anthropic_usage_with_cache_read(token_usage):
-        yield from _token_counts_from_raw_anthropic_usage_with_cache_read(token_usage)
-    elif _is_raw_anthropic_usage_with_cache_creation(token_usage):
-        yield from _token_counts_from_raw_anthropic_usage_with_cache_creation(token_usage)
-
     # maps langchain_core.messages.ai.UsageMetadata object
     if _is_lc_usage_metadata(token_usage):
         yield from _token_counts_from_lc_usage_metadata(token_usage)
+
+    if _is_raw_anthropic_usage_with_cache_read_or_write(token_usage):
+        yield from _token_counts_from_raw_anthropic_usage_with_cache_read_or_write(token_usage)
 
 
 def _parse_token_usage_for_vertexai(
