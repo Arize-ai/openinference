@@ -503,9 +503,8 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if kwargs.get("yield_run_output") or kwargs.get("yield_run_response"):
                 yield_run_output_set = True
-                kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
@@ -517,7 +516,7 @@ class _RunWrapper:
 
                     if isinstance(response, (RunOutput, TeamRunOutput)):
                         run_response = response
-                        if yield_run_output_set:
+                        if not yield_run_output_set:
                             continue
 
                     yield response
