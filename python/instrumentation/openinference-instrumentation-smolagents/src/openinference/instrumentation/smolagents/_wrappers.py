@@ -515,14 +515,15 @@ def _output_value_and_mime_type_for_tool_span(
         "boolean",
         "integer",
         "number",
-    ):
+    ) or isinstance(response, str):
         yield OUTPUT_VALUE, response
         yield OUTPUT_MIME_TYPE, TEXT
     elif output_type == "object":
         yield OUTPUT_VALUE, safe_json_dumps(response)
         yield OUTPUT_MIME_TYPE, JSON
-
-    # TODO: handle other types
+    else:
+        yield OUTPUT_VALUE, safe_json_dumps(response)
+        yield OUTPUT_MIME_TYPE, JSON
 
 
 def _has_active_llm_parent_span() -> bool:
