@@ -852,10 +852,11 @@ def _is_raw_anthropic_usage_with_cache_read_or_write(
         and isinstance(obj["input_tokens"], int)
         and isinstance(obj["output_tokens"], int)
         and (
-            "cache_read_input_tokens" in obj
-            and isinstance(obj["cache_read_input_tokens"], int)
-            or "cache_creation_input_tokens" in obj
-            and isinstance(obj["cache_creation_input_tokens"], int)
+            ("cache_read_input_tokens" in obj and isinstance(obj["cache_read_input_tokens"], int))
+            or (
+                "cache_creation_input_tokens" in obj
+                and isinstance(obj["cache_creation_input_tokens"], int)
+            )
         )
     )
 
