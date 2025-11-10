@@ -972,6 +972,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             LLM_TOKEN_COUNT_PROMPT,
             (
                 "prompt_tokens",
+                "input_tokens",  # Anthropic-specific key
                 "prompt_token_count",  # Gemini-specific key - https://ai.google.dev/gemini-api/docs/tokens?lang=python
             ),
         ),
@@ -979,6 +980,7 @@ def _token_counts(outputs: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, i
             LLM_TOKEN_COUNT_COMPLETION,
             (
                 "completion_tokens",
+                "output_tokens",  # Anthropic-specific key
                 "candidates_token_count",  # Gemini-specific key
             ),
         ),
