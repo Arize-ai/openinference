@@ -1,11 +1,19 @@
 """Attribute extraction from Pipecat frames."""
 
 import base64
+import io
 import logging
+import wave
 from typing import Any, Callable, Dict, List
 
 from openinference.instrumentation.helpers import safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolCallAttributes,
+    AudioAttributes,
+    MessageAttributes,
+)
 from pipecat.frames.frames import (
     AudioRawFrame,
     Frame,
@@ -21,6 +29,7 @@ from pipecat.frames.frames import (
     MetricsFrame,
     TextFrame,
     TranscriptionFrame,
+    TTSTextFrame,
 )
 from pipecat.metrics.metrics import (
     LLMUsageMetricsData,
@@ -123,7 +132,9 @@ class TextFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from a text frame."""
 
     attributes: Dict[str, Any] = {
-        "text.skip_tts": lambda frame: (frame.skip_tts if hasattr(frame, "skip_tts") else None),
+        "text.skip_tts": lambda frame: (
+            frame.skip_tts if hasattr(frame, "skip_tts") else None
+        ),
     }
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
@@ -131,11 +142,40 @@ class TextFrameExtractor(FrameAttributeExtractor):
         if hasattr(frame, "text"):
             text = frame.text
             if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
-                results[SpanAttributes.OUTPUT_VALUE] = text
+                results[SpanAttributes.INPUT_VALUE] = text
+                results[AudioAttributes.AUDIO_TRANSCRIPT] = text
+                results[MessageAttributes.MESSAGE_ROLE] = "user"
+                results[MessageAttributes.MESSAGE_CONTENT] = text
+
+                # Add is_final flag for transcriptions
+                if isinstance(frame, TranscriptionFrame):
+                    results["transcription.is_final"] = True
+                elif isinstance(frame, InterimTranscriptionFrame):
+                    results["transcription.is_final"] = False
+
+            elif isinstance(frame, TTSTextFrame):
+                # TTSTextFrame represents input TO the TTS service (text to be synthesized)
+                results[SpanAttributes.INPUT_VALUE] = text
+                results["text"] = text  # Match Pipecat native tracing attribute name
+                results[MessageAttributes.MESSAGE_ROLE] = "agent"
+                results[MessageAttributes.MESSAGE_CONTENT] = text
+
+                # Add character count for TTS text frames
+                if text:
+                    results["text.character_count"] = len(text)
+
             elif isinstance(frame, TextFrame):
-                results[SpanAttributes.INPUT_VALUE] = text
+                results[SpanAttributes.OUTPUT_VALUE] = text
+                results[MessageAttributes.MESSAGE_ROLE] = "agent"
+                results[MessageAttributes.MESSAGE_CONTENT] = text
+
+                # Add character count for text frames
+                if text:
+                    results["text.character_count"] = len(text)
             else:
-                results[SpanAttributes.INPUT_VALUE] = text
+                results[SpanAttributes.OUTPUT_VALUE] = text
+                results[MessageAttributes.MESSAGE_CONTENT] = text
+                results[MessageAttributes.MESSAGE_ROLE] = "system"
         return results
 
 
@@ -143,15 +183,55 @@ class TextFrameExtractor(FrameAttributeExtractor):
 _text_frame_extractor = TextFrameExtractor()
 
 
+def _create_wav_data_url(audio_data: bytes, sample_rate: int, num_channels: int) -> str:
+    """
+    Create a data URL for WAV audio from raw PCM data.
+
+    Args:
+        audio_data: Raw PCM audio bytes (16-bit signed integer little-endian format)
+        sample_rate: Audio sample rate in Hz
+        num_channels: Number of audio channels
+
+    Returns:
+        Data URL string in format: data:audio/wav;base64,<encoded_wav_data>
+
+    Note:
+        Assumes audio_data is in 16-bit signed PCM format (little-endian), which is
+        the standard format used by Pipecat's AudioRawFrame.
+    """
+    try:
+        # Create WAV file in memory
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wav_file:
+            wav_file.setnchannels(num_channels)
+            wav_file.setsampwidth(2)  # 16-bit audio (2 bytes per sample)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(audio_data)
+
+        # Encode to base64 and create data URL
+        wav_bytes = wav_buffer.getvalue()
+        base64_data = base64.b64encode(wav_bytes).decode("utf-8")
+        return f"data:audio/wav;base64,{base64_data}"
+    except Exception as e:
+        logger.debug(f"Failed to create WAV data URL: {e}")
+        # Fallback: return just the base64-encoded raw PCM data
+        return f"data:audio/pcm;base64,{base64.b64encode(audio_data).decode('utf-8')}"
+
+
 class AudioFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from an audio frame."""
 
     attributes: Dict[str, Any] = {
-        "audio.wav": lambda frame: (
-            base64.b64encode(frame.audio).decode("utf-8")
+        AudioAttributes.AUDIO_URL: lambda frame: (
+            _create_wav_data_url(
+                frame.audio,
+                getattr(frame, "sample_rate", 16000),
+                getattr(frame, "num_channels", 1),
+            )
             if hasattr(frame, "audio") and frame.audio
             else None
         ),
+        AudioAttributes.AUDIO_MIME_TYPE: lambda frame: "audio/wav",
         "audio.sample_rate": lambda frame: (getattr(frame, "sample_rate", None)),
         "audio.num_channels": lambda frame: (getattr(frame, "num_channels", None)),
         "audio.size_bytes": lambda frame: (len(getattr(frame, "audio", []))),
@@ -166,16 +246,61 @@ _audio_frame_extractor = AudioFrameExtractor()
 class LLMContextFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from an LLM context frame."""
 
-    attributes: Dict[str, Any] = {
-        "llm.messages_count": lambda frame: (
-            len(frame.context._messages) if hasattr(frame.context, "_messages") else None
-        ),
-        "llm.messages": lambda frame: (
-            safe_json_dumps(frame.context._messages)
-            if hasattr(frame.context, "_messages")
-            else None
-        ),
-    }
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        if hasattr(frame, "context") and frame.context:
+            context = frame.context
+            # Extract messages from context
+            if hasattr(context, "_messages") and context._messages:
+                results["llm.messages_count"] = len(context._messages)
+
+                # Serialize messages
+                try:
+                    messages_json = safe_json_dumps(context._messages)
+                    if messages_json:
+                        results["llm.messages"] = messages_json
+                        results["messages"] = messages_json  # Match Pipecat native tracing
+                        results[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
+                        results[SpanAttributes.INPUT_VALUE] = messages_json
+                except (TypeError, ValueError) as e:
+                    logger.debug(f"Could not serialize LLMContext messages: {e}")
+
+            # Extract tools if present
+            if hasattr(context, "_tools") and context._tools:
+                try:
+                    tools = context._tools
+                    if isinstance(tools, list):
+                        results["llm.tools_count"] = len(tools)
+
+                        # Extract tool names
+                        tool_names = []
+                        for tool in tools:
+                            if isinstance(tool, dict) and "name" in tool:
+                                tool_names.append(tool["name"])
+                            elif hasattr(tool, "name"):
+                                tool_names.append(tool.name)
+                            elif (
+                                isinstance(tool, dict)
+                                and "function" in tool
+                                and "name" in tool["function"]
+                            ):
+                                tool_names.append(tool["function"]["name"])
+
+                        if tool_names:
+                            results["tools.names"] = ",".join(tool_names)
+
+                        # Serialize full tool definitions (with size limit)
+                        try:
+                            tools_json = safe_json_dumps(tools)
+                            if tools_json and len(tools_json) < 10000:  # 10KB limit
+                                results["tools.definitions"] = tools_json
+                        except (TypeError, ValueError) as e:
+                            logger.debug(f"Could not serialize tool definitions: {e}")
+
+                except (TypeError, AttributeError) as e:
+                    logger.debug(f"Could not extract tool information: {e}")
+
+        return results
 
 
 # Singleton LLM context frame extractor
@@ -219,17 +344,46 @@ class LLMMessagesFrameExtractor(FrameAttributeExtractor):
                     messages_json = safe_json_dumps(messages_list)
                     results[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
                     results[SpanAttributes.INPUT_VALUE] = messages_json
+                    results["messages"] = messages_json  # Match Pipecat native tracing attribute name
                 except (TypeError, ValueError, AttributeError) as e:
                     logger.debug(f"Could not serialize LLMContext messages: {e}")
 
             # Extract tools if present
             if hasattr(context, "_tools") and context._tools:
                 try:
-                    # Try to get tool count
-                    if isinstance(context._tools, list):
-                        results["llm.tools_count"] = len(context._tools)
-                except (TypeError, AttributeError):
-                    pass
+                    tools = context._tools
+
+                    # Get tool count
+                    if isinstance(tools, list):
+                        results["llm.tools_count"] = len(tools)
+
+                        # Extract tool names as comma-separated list
+                        tool_names = []
+                        for tool in tools:
+                            if isinstance(tool, dict) and "name" in tool:
+                                tool_names.append(tool["name"])
+                            elif hasattr(tool, "name"):
+                                tool_names.append(tool.name)
+                            elif (
+                                isinstance(tool, dict)
+                                and "function" in tool
+                                and "name" in tool["function"]
+                            ):
+                                tool_names.append(tool["function"]["name"])
+
+                        if tool_names:
+                            results["tools.names"] = ",".join(tool_names)
+
+                        # Serialize full tool definitions (with size limit)
+                        try:
+                            tools_json = safe_json_dumps(tools)
+                            if tools_json and len(tools_json) < 10000:  # 10KB limit
+                                results["tools.definitions"] = tools_json
+                        except (TypeError, ValueError) as e:
+                            logger.debug(f"Could not serialize tool definitions: {e}")
+
+                except (TypeError, AttributeError) as e:
+                    logger.debug(f"Could not extract tool information: {e}")
 
         return results
 
@@ -255,7 +409,6 @@ class LLMMessagesSequenceFrameExtractor(FrameAttributeExtractor):
             user_messages = safe_json_dumps(messages)
             if user_messages:
                 results[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
-                results[SpanAttributes.INPUT_VALUE] = user_messages
         return results
 
 
@@ -307,9 +460,11 @@ class FunctionCallFromLLMFrameExtractor(FrameAttributeExtractor):
                 if params:
                     results[SpanAttributes.TOOL_PARAMETERS] = params
             else:
-                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(lambda: str(frame.arguments))
-        if hasattr(frame, "tool_call_id") and frame.tool_call_id:
-            results["tool.call_id"] = frame.tool_call_id
+                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(
+                    lambda: str(frame.arguments)
+                )
+        if hasattr(frame, "tool_callid") and frame.tool_call_id:
+            results[ToolCallAttributes.TOOL_CALL_ID] = frame.tool_call_id
         return results
 
 
@@ -325,9 +480,7 @@ class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
         SpanAttributes.OUTPUT_VALUE: lambda frame: (
             safe_json_dumps(frame.result)
             if hasattr(frame, "result") and isinstance(frame.result, (dict, list))
-            else str(frame.result)
-            if hasattr(frame, "result")
-            else None
+            else str(frame.result) if hasattr(frame, "result") else None
         ),
         "tool.call_id": lambda frame: getattr(frame, "tool_call_id", None),
     }
@@ -356,11 +509,15 @@ class LLMTokenMetricsDataExtractor(FrameAttributeExtractor):
     """Extract attributes from LLM token metrics data."""
 
     attributes: Dict[str, Any] = {
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(frame, "prompt_tokens", None),
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(
+            frame, "prompt_tokens", None
+        ),
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda frame: getattr(
             frame, "completion_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(frame, "total_tokens", None),
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(
+            frame, "total_tokens", None
+        ),
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda frame: getattr(
             frame, "cache_read_input_tokens", None
         ),
@@ -475,8 +632,12 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         "frame.pts": lambda frame: getattr(frame, "pts", None),
         "frame.timestamp": lambda frame: getattr(frame, "timestamp", None),
         "frame.metadata": lambda frame: safe_json_dumps(getattr(frame, "metadata", {})),
-        "frame.transport_source": lambda frame: getattr(frame, "transport_source", None),
-        "frame.transport_destination": lambda frame: getattr(frame, "transport_destination", None),
+        "frame.transport_source": lambda frame: getattr(
+            frame, "transport_source", None
+        ),
+        "frame.transport_destination": lambda frame: getattr(
+            frame, "transport_destination", None
+        ),
         "frame.error.message": lambda frame: getattr(frame, "error", None),
     }
 
@@ -493,17 +654,29 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         if isinstance(frame, LLMMessagesFrame):
             results.update(_llm_messages_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, LLMMessagesAppendFrame):
-            results.update(_llm_messages_append_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _llm_messages_append_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, LLMFullResponseStartFrame):
-            results.update(_llm_full_response_start_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _llm_full_response_start_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, LLMFullResponseEndFrame):
-            results.update(_llm_full_response_end_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _llm_full_response_end_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, FunctionCallFromLLM):
-            results.update(_function_call_from_llm_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _function_call_from_llm_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, FunctionCallResultFrame):
-            results.update(_function_call_result_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _function_call_result_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, FunctionCallInProgressFrame):
-            results.update(_function_call_in_progress_frame_extractor.extract_from_frame(frame))
+            results.update(
+                _function_call_in_progress_frame_extractor.extract_from_frame(frame)
+            )
         if isinstance(frame, MetricsFrame):
             results.update(_metrics_frame_extractor.extract_from_frame(frame))
         return results
@@ -531,11 +704,14 @@ class ServiceAttributeExtractor:
     """Base class for extracting attributes from services for span creation."""
 
     attributes: Dict[str, Any] = {}
+    _base_attributes: Dict[str, Any] = {}
 
     def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
         """Extract attributes from a service."""
         result: Dict[str, Any] = {}
-        for attribute, operation in self.attributes.items():
+        attributes = self._base_attributes
+        attributes.update(self.attributes)
+        for attribute, operation in attributes.items():
             # Use safe_extract to prevent individual attribute failures from breaking extraction
             value = safe_extract(lambda: operation(service))
             if value is not None:
@@ -546,7 +722,7 @@ class ServiceAttributeExtractor:
 class BaseServiceAttributeExtractor(ServiceAttributeExtractor):
     """Extract base attributes common to all services."""
 
-    attributes: Dict[str, Any] = {
+    _base_attributes: Dict[str, Any] = {
         "service.type": lambda service: detect_service_type(service),
         "service.provider": lambda service: detect_provider_from_service(service),
     }
@@ -563,11 +739,21 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
-        "service.model": lambda service: getattr(service, "model_name", None)
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
+        # GenAI semantic conventions (dual attributes)
+        "gen_ai.system": lambda service: detect_provider_from_service(service),
+        "gen_ai.request.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
+        "gen_ai.operation.name": lambda service: "chat",
+        "gen_ai.output.type": lambda service: "text",
+        # Streaming flag
+        "stream": lambda service: getattr(service, "_stream", True),
     }
 
     def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
@@ -595,14 +781,25 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
         "service.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
         "audio.user_id": lambda service: getattr(service, "_user_id", None),
+        "audio.vad_enabled": lambda service: getattr(service, "_vad_enabled", None)
+        or getattr(service, "vad_enabled", None),
+        "audio.vad_analyzer": lambda service: (
+            getattr(service, "_vad_analyzer", None).__class__.__name__
+            if getattr(service, "_vad_analyzer", None)
+            else None
+        ),
     }
 
 
@@ -617,9 +814,13 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
+            service, "model_name", None
+        )
         or getattr(service, "model", None),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
+        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(
+            service
+        ),
         "service.model": lambda service: getattr(service, "model_name", None)
         or getattr(service, "model", None),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
@@ -695,23 +896,35 @@ def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
     Returns:
         Dictionary of attributes to set on the span
     """
-    attributes: Dict[str, Any] = {}
+    attributes: Dict[str, Any] = extract_attributes_from_frame(service)
 
     # Always extract base service attributes
     attributes.update(_base_service_attribute_extractor.extract_from_service(service))
 
     # Extract service-specific attributes based on type
     if isinstance(service, LLMService):
-        attributes.update(_llm_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _llm_service_attribute_extractor.extract_from_service(service)
+        )
     elif isinstance(service, STTService):
-        attributes.update(_stt_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _stt_service_attribute_extractor.extract_from_service(service)
+        )
     elif isinstance(service, TTSService):
-        attributes.update(_tts_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _tts_service_attribute_extractor.extract_from_service(service)
+        )
     elif isinstance(service, ImageGenService):
-        attributes.update(_image_gen_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _image_gen_service_attribute_extractor.extract_from_service(service)
+        )
     elif isinstance(service, VisionService):
-        attributes.update(_vision_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _vision_service_attribute_extractor.extract_from_service(service)
+        )
     elif isinstance(service, WebsocketService):
-        attributes.update(_websocket_service_attribute_extractor.extract_from_service(service))
+        attributes.update(
+            _websocket_service_attribute_extractor.extract_from_service(service)
+        )
 
     return attributes

@@ -58,6 +58,7 @@ examples = [
   "uvicorn>=0.32.0,<1.0.0",
   "fastapi>=0.115.6,<0.117.0",
   "pipecat-ai-small-webrtc-prebuilt>=1.0.0",
+  "pipecat-ai[tracing]",
   "aiortc>=1.13.0,<2",
   "opencv-python>=4.11.0.86,<5",
 ]

@@ -83,7 +83,9 @@ class OpenInferenceObserver(BaseObserver):
             # Write log to current working directory (where the script is running)
             try:
                 self._debug_log_file = open(debug_log_filename, "w")
-                self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
+                self._log_debug(
+                    f"=== Observer initialized for conversation {conversation_id} ==="
+                )
                 self._log_debug(f"=== Log file: {debug_log_filename} ===")
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
@@ -95,6 +97,11 @@ class OpenInferenceObserver(BaseObserver):
 
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
+
+        # Track service call stack for nested LLM detection
+        # Stack of (service_id, service_type, span) tuples
+        self._service_call_stack: List[tuple[int, str, Span]] = []
+        self._nested_llm_calls: Set[int] = set()  # Track which LLM calls are nested
 
         # Turn tracking state (based on TurnTrackingObserver pattern)
         self._turn_active = False
@@ -169,7 +176,9 @@ class OpenInferenceObserver(BaseObserver):
 
             # Skip already processed frames to avoid duplicates from propagation
             if frame.id in self._processed_frames:
-                self._log_debug(f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}")
+                self._log_debug(
+                    f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}"
+                )
                 return
 
             # Mark frame as processed
@@ -218,12 +227,24 @@ class OpenInferenceObserver(BaseObserver):
                 service_type = detect_service_type(data.source)
                 if self._turn_active and frame.text and service_type == "tts":
                     self._turn_bot_text.append(frame.text)
-                    self._log_debug(f"  Collected bot text from TTS: {frame.text[:50]}...")
+                    self._log_debug(
+                        f"  Collected bot text from TTS: {frame.text[:50]}..."
+                    )
 
             # Handle service frames for creating service spans
-            service_type = detect_service_type(data.source)
-            if service_type and service_type != "unknown":
-                await self._handle_service_frame(data)
+            # Check both source (frames emitted BY service) and destination (frames received BY service)
+            source_service_type = detect_service_type(data.source)
+            dest_service_type = detect_service_type(data.destination)
+
+            # Handle frames emitted by a service (outputs)
+            if source_service_type and source_service_type != "unknown":
+                await self._handle_service_frame(data, is_input=False)
+
+            # Handle frames received by a service (inputs)
+            # Only process if destination is different from source to avoid double-counting
+            if (dest_service_type and dest_service_type != "unknown" and
+                data.destination != data.source):
+                await self._handle_service_frame(data, is_input=True)
 
         except Exception as e:
             logger.debug(f"Error in observer: {e}")
@@ -240,7 +261,9 @@ class OpenInferenceObserver(BaseObserver):
             await self._start_turn(data)
         elif self._turn_active and self._has_bot_spoken:
             # User started speaking during the turn_end_timeout_secs period after bot speech
-            self._log_debug("  User speaking after bot - ending turn and starting new one")
+            self._log_debug(
+                "  User speaking after bot - ending turn and starting new one"
+            )
             self._cancel_turn_end_timer()
             await self._finish_turn(interrupted=False)
             await self._start_turn(data)
@@ -278,18 +301,27 @@ class OpenInferenceObserver(BaseObserver):
             # End the current turn
             await self._finish_turn(interrupted=True)
 
-    async def _handle_service_frame(self, data: FramePushed) -> None:
+    async def _handle_service_frame(self, data: FramePushed, is_input: bool = False) -> None:
         """
         Handle frame from an LLM, TTS, or STT service.
+        Detects nested LLM calls within TTS/STT services.
 
         Args:
             data: FramePushed event data
+            is_input: True if this frame is being received by the service (input),
+                     False if being emitted by the service (output)
         """
-        from pipecat.frames.frames import EndFrame, ErrorFrame
+        from pipecat.frames.frames import (
+            EndFrame,
+            ErrorFrame,
+            LLMFullResponseEndFrame,
+        )
 
-        service = data.source
+        # Use destination for input frames, source for output frames
+        service = data.destination if is_input else data.source
         service_id = id(service)
         frame = data.frame
+        service_type = detect_service_type(service)
 
         # Check if we already have a span for this service
         if service_id not in self._active_spans:
@@ -301,15 +333,37 @@ class OpenInferenceObserver(BaseObserver):
                 )
                 await self._start_turn(data)
 
+            # Detect if we're nested inside another service
+            parent_service_span = None
+            parent_type = None
+            if self._service_call_stack:
+                # We have an active parent service - this is a nested call
+                parent_service_id, parent_type, parent_service_span = (
+                    self._service_call_stack[-1]
+                )
+
+                # Mark as nested if this is an LLM within TTS/STT/Vision
+                if service_type == "llm" and parent_type in ("tts", "stt", "vision"):
+                    self._nested_llm_calls.add(service_id)
+                    self._log_debug(
+                        f"  🔍 Detected nested LLM call within {parent_type} service"
+                    )
+
             # Create new span and set as active
-            service_type = detect_service_type(service)
-            span = self._create_service_span(service, service_type)
+            span = self._create_service_span(
+                service, service_type, parent_span=parent_service_span
+            )
             self._active_spans[service_id] = {
                 "span": span,
                 "frame_count": 0,
                 "input_texts": [],  # Accumulate input text chunks
                 "output_texts": [],  # Accumulate output text chunks
+                "nested": service_id in self._nested_llm_calls,
+                "parent_type": parent_type,
             }
+
+            # Push this service onto the call stack
+            self._service_call_stack.append((service_id, service_type, span))
 
         # Increment frame count for this service
         span_info = self._active_spans[service_id]
@@ -319,14 +373,22 @@ class OpenInferenceObserver(BaseObserver):
         span = span_info["span"]
         frame_attrs = extract_attributes_from_frame(frame)
 
+        # Log frame direction for debugging
+        direction = "INPUT" if is_input else "OUTPUT"
+        self._log_debug(
+            f"  Processing {direction} frame: {frame.__class__.__name__} for {service_type}"
+        )
+
         # Handle input.value and output.value specially - accumulate instead of overwrite
         for key, value in frame_attrs.items():
             if key == SpanAttributes.INPUT_VALUE and value:
                 # Accumulate input text
                 span_info["input_texts"].append(str(value))
+                self._log_debug(f"    Accumulated INPUT: {str(value)[:100]}...")
             elif key == SpanAttributes.OUTPUT_VALUE and value:
                 # Accumulate output text
                 span_info["output_texts"].append(str(value))
+                self._log_debug(f"    Accumulated OUTPUT: {str(value)[:100]}...")
             else:
                 # For all other attributes, just set them (may overwrite)
                 span.set_attribute(key, value)
@@ -336,23 +398,62 @@ class OpenInferenceObserver(BaseObserver):
 
         # Finish span only on completion frames (EndFrame or ErrorFrame)
         if isinstance(frame, (EndFrame, ErrorFrame)):
+            # Pop from call stack if this service is on top
+            if (
+                self._service_call_stack
+                and self._service_call_stack[-1][0] == service_id
+            ):
+                self._service_call_stack.pop()
+                self._log_debug(
+                    f"  Popped service from call stack (depth: {len(self._service_call_stack)})"
+                )
+
+            # Clean up nested tracking
+            if service_id in self._nested_llm_calls:
+                self._nested_llm_calls.remove(service_id)
+
             self._finish_span(service_id)
 
-    def _create_service_span(self, service: FrameProcessor, service_type: str) -> Span:
+    def _create_service_span(
+        self,
+        service: FrameProcessor,
+        service_type: str,
+        parent_span: Optional[Span] = None,
+    ) -> Span:
         """
         Create a span for a service with type-specific attributes.
+        If parent_span is provided, creates a child span under that parent.
 
         Args:
             service: The service instance (FrameProcessor)
             service_type: Service type (llm, tts, stt, image_gen, vision, mcp, websocket)
+            parent_span: Optional parent span for nested service calls
 
         Returns:
             The created span
         """
-        self._log_debug(f">>> Creating {service_type} span")
-        span = self._tracer.start_span(
-            name=f"pipecat.{service_type}",
-        )
+        # Determine span name based on nesting
+        if parent_span:
+            span_name = f"pipecat.{service_type}.nested"
+            self._log_debug(f">>> Creating nested {service_type} span")
+        else:
+            span_name = f"pipecat.{service_type}"
+            self._log_debug(f">>> Creating {service_type} span")
+
+        # Create span with parent context if provided
+        if parent_span:
+            # Create child span under the parent service span
+            parent_context = trace_api.set_span_in_context(parent_span)
+            span = self._tracer.start_span(
+                name=span_name,
+                context=parent_context,
+            )
+        else:
+            # Regular span under the turn context
+            span = self._tracer.start_span(
+                name=span_name,
+            )
+
         # Set service.name to the actual service class name for uniqueness
         span.set_attribute("service.name", service.__class__.__name__)
 
@@ -377,6 +478,15 @@ class OpenInferenceObserver(BaseObserver):
 
         span_info = self._active_spans.pop(service_id)
         span = span_info["span"]
+
+        # Mark as nested if applicable
+        if span_info.get("nested"):
+            span.set_attribute("service.nested", True)
+            parent_type = span_info.get("parent_type")
+            if parent_type:
+                span.set_attribute("service.parent_type", parent_type)
+                span.set_attribute("service.purpose", f"internal_to_{parent_type}")
+            self._log_debug(f"  Marked span as nested (parent: {parent_type})")
 
         # Set accumulated input/output text values
         if span_info["input_texts"]:
@@ -460,7 +570,9 @@ class OpenInferenceObserver(BaseObserver):
             import time
 
             current_time = time.time_ns()
-            duration = (current_time - self._turn_start_time) / 1_000_000_000  # Convert to seconds
+            duration = (
+                current_time - self._turn_start_time
+            ) / 1_000_000_000  # Convert to seconds
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
@@ -499,7 +611,9 @@ class OpenInferenceObserver(BaseObserver):
                 context_api_detach(self._turn_context_token)
             except ValueError as e:
                 # Token was created in different async context, which is expected in async code
-                self._log_debug(f"  Context detach skipped (different async context): {e}")
+                self._log_debug(
+                    f"  Context detach skipped (different async context): {e}"
+                )
         self._turn_active = False
         self._turn_span = None
         self._turn_context_token = None
