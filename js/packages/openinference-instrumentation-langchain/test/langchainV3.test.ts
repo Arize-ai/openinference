@@ -838,10 +838,9 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   });
 
   describe("LangChainInstrumentation with custom TracerProvider set", () => {
-    
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter),]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
 
     // Instantiate instrumentation with the custom provider
@@ -888,7 +887,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter),]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
 
     // Instantiate instrumentation with the custom provider

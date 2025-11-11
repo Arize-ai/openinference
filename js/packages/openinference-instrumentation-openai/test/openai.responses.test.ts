@@ -18,7 +18,7 @@ const memoryExporter = new InMemorySpanExporter();
 // Add new describe block for OpenAI Responses tests
 describe("OpenAIInstrumentation - Responses", () => {
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(memoryExporter)] 
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
   });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();

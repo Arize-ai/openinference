@@ -27,7 +27,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
   describe("BedrockAgentInstrumentation with custom TracerProvider passed in", () => {
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
     // Instantiate instrumentation with the custom provider
     const instrumentation = new BedrockAgentInstrumentation({
@@ -92,12 +92,11 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
   });
 
   describe("BedrockkAgentInstrumentation with custom TracerProvider set", () => {
-    
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter),]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
-    
+
     // Instantiate instrumentation with the custom provider
     const instrumentation = new BedrockAgentInstrumentation({});
     instrumentation.setTracerProvider(customTracerProvider);

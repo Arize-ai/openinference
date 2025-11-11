@@ -32,7 +32,9 @@ describe("BedrockAgentInstrumentation Integration - agent attributes and API rec
     instrumentation = new BedrockAgentInstrumentation();
     instrumentation.disable();
     memoryExporter = new InMemorySpanExporter();
-    provider = new NodeTracerProvider({spanProcessors: [new SimpleSpanProcessor(memoryExporter)]});
+    provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+    });
     provider.register();
     instrumentation.setTracerProvider(provider);
     // Manually set module exports for testing (following OpenAI pattern)

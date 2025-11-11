@@ -1,3 +1,5 @@
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
@@ -7,8 +9,6 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-
 
 import { OpenAIInstrumentation } from "../src/index";
 
@@ -25,8 +25,8 @@ const provider = new NodeTracerProvider({
       new OTLPTraceExporter({
         url: "http://localhost:6006/v1/traces",
       }),
-    ),  
-  ]
+    ),
+  ],
 });
 
 registerInstrumentations({

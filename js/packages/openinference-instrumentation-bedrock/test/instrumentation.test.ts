@@ -72,7 +72,7 @@ describe("BedrockInstrumentation", () => {
     instrumentation.disable(); // Initially disabled
     spanExporter = new InMemorySpanExporter();
     provider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(spanExporter)]
+      spanProcessors: [new SimpleSpanProcessor(spanExporter)],
     });
 
     provider.register();
@@ -3852,7 +3852,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
     // Setup global tracer provider and span exporter for comparison
     spanExporter = new InMemorySpanExporter();
     provider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(spanExporter)]
+      spanProcessors: [new SimpleSpanProcessor(spanExporter)],
     });
     provider.register();
   });
@@ -4044,7 +4044,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
   describe("BedrockInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
     let instrumentation: BedrockInstrumentation;
 

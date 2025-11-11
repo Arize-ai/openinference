@@ -134,7 +134,9 @@ class ConverseComprehensiveValidator {
       resource: new Resource({
         [SEMRESATTRS_PROJECT_NAME]: "bedrock-converse-comprehensive-validation",
       }),
-      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
+      spanProcessors: exporters.map(
+        (exporter) => new SimpleSpanProcessor(exporter),
+      ),
     });
 
     this.provider.register();

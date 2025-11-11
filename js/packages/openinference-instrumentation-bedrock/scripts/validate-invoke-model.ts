@@ -134,7 +134,9 @@ class InstrumentationValidator {
       resource: new Resource({
         [SEMRESATTRS_PROJECT_NAME]: "bedrock-validation-script",
       }),
-      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
+      spanProcessors: exporters.map(
+        (exporter) => new SimpleSpanProcessor(exporter),
+      ),
     });
     this.provider.register();
   }

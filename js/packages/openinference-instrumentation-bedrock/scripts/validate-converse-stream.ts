@@ -102,7 +102,6 @@ class ConverseStreamPhoenixValidator {
   }
 
   private setupTracing() {
-    
     // Setup exporters
     const exporters: SpanExporter[] = [new ConsoleSpanExporter()];
 
@@ -140,7 +139,9 @@ class ConverseStreamPhoenixValidator {
         [SEMRESATTRS_PROJECT_NAME]:
           "bedrock-converse-stream-phoenix-validation",
       }),
-      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
+      spanProcessors: exporters.map(
+        (exporter) => new SimpleSpanProcessor(exporter),
+      ),
     });
 
     this.provider.register();

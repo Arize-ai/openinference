@@ -33,7 +33,7 @@ const memoryExporter = new InMemorySpanExporter();
 
 describe("OpenAIInstrumentation", () => {
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
   });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
@@ -1112,7 +1112,7 @@ describe("OpenAIInstrumentation", () => {
 
 describe("OpenAIInstrumentation with TraceConfig", () => {
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
   });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation({
@@ -1198,7 +1198,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
 
 describe("AzureOpenAIInstrumentation", () => {
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(memoryExporter)]
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
   });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
@@ -1407,7 +1407,7 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
   describe("OpenAIInstrumentation with custom TracerProvider passed in", () => {
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
     });
     let openai: OpenAI;
 
@@ -1492,8 +1492,8 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
   describe("OpenAIInstrumentation with custom TracerProvider set", () => {
     const customMemoryExporter = new InMemorySpanExporter();
     const customTracerProvider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)]
-    });    
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
     let openai: OpenAI;
 
     // Instantiate instrumentation with the custom provider
