@@ -144,4 +144,5 @@ class TestAssistantAgent:
         assert "the weather in new york" in content_lower
         assert "73 degrees" in content_lower
         assert "sunny" in content_lower
+        assert attributes.pop("llm.model_name") == 'gpt-35'
         assert not attributes

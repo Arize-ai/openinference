@@ -472,6 +472,7 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
+                        **dict(_llm_model_name(instance)),
                         **dict(_llm_messages_attributes(messages, "input")),
                         **dict(_get_llm_tool_attributes(tools)),
                         **dict(get_attributes_from_context()),
@@ -543,6 +544,7 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: LLM,
+                        **dict(_llm_model_name(instance)),
                         **dict(_llm_messages_attributes(messages, "input")),
                         **dict(_get_llm_tool_attributes(tools)),
                         **dict(get_attributes_from_context()),
@@ -685,6 +687,17 @@ def _get_llm_tool_attributes(
                 # If serialization fails, convert to string as fallback
                 attributes[f"{LLM_TOOLS}.{tool_index}.{TOOL_JSON_SCHEMA}"] = str(tool_json_schema)
 
+    return attributes
+
+
+def _llm_model_name(
+    instance: BaseOpenAIChatCompletionClient,
+) -> "Mapping[str, AttributeValue]":
+    attributes: Dict[str, AttributeValue] = {}
+    if instance and hasattr(instance, "model_info"):
+        model_info = getattr(instance, "model_info", {})
+        if model_name := model_info.get("family"):
+            attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
     return attributes
 
 

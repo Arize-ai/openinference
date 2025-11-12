@@ -54,5 +54,5 @@ async def test_instrumenting_model_client(
     assert output_json["cached"] is False
     assert output_json["logprobs"] is None
     assert output_json["thought"] is None
-
+    assert attrs.pop("llm.model_name") == 'gpt-4o'
     assert not attrs
