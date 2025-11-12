@@ -184,7 +184,25 @@ def _output_value_and_mime_type(output: str) -> Iterator[Tuple[str, Any]]:
 
             messages.append(message)
             for i, message in enumerate(messages):
-                yield f"{LLM_OUTPUT_MESSAGES}.{i}", safe_json_dumps(message)
+                if role := _get_attr(message, "role"):
+                    yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+                if content := _get_attr(message, "content"):
+                    yield f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+                if tool_calls := _get_attr(message, "tool_calls"):
+                    for tool_call_index, tool_call in enumerate(tool_calls):
+                        yield (
+                            f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_ID}",
+                            _get_attr(tool_call, "id"),
+                        )
+                        function_obj = _get_attr(tool_call, "function", {})
+                        yield (
+                            f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_NAME}",
+                            _get_attr(function_obj, "name"),
+                        )
+                        yield (
+                            f"{LLM_OUTPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            safe_json_dumps(_get_attr(function_obj, "arguments", {})),
+                        )
 
             yield OUTPUT_VALUE, safe_json_dumps(messages)
 
