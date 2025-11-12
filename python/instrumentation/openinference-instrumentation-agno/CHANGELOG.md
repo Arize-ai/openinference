@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.22...python-openinference-instrumentation-agno-v0.1.23) (2025-11-12)
+
+
+### Bug Fixes
+
+* **agno:** Update _output_value_and_mime_type to properly deserialize output messages ([#2433](https://github.com/Arize-ai/openinference/issues/2433)) ([600d2f3](https://github.com/Arize-ai/openinference/commit/600d2f3f320bed94bcae4ae4ed956c2d178a1e1c))
+
 ## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.21...python-openinference-instrumentation-agno-v0.1.22) (2025-11-07)
 
 
