@@ -56,6 +56,16 @@ For more information on OpenTelemetry Node.js SDK, see the [OpenTelemetry Node.j
 
 For more examples on how to use OpenInference, see the [examples](./examples) directory.
 
+## Compatibility
+
+| @langchain/core Version | @arizeai/openinference-instrumentation-langchain Version |
+| ----------------------- | -------------------------------------------------------- |
+| ^1.0.0                  | 🚧 Compatibility Unknown                                 |
+| ^0.3.0                  | ^4.0.0                                                   |
+| ^0.2.0                  |                                                          |
+
+> **Note:** The version of `@langchain/core` is pinned via [PNPM overrides](./package.json) to ensure compatibility.
+
 ## Contributing
 
 See [contributing guide](../CONTRIBUTING) for information on how to contribute to this project and the [JS Development Guide](./DEVELOPMENT.md) for setting up a development environment.
