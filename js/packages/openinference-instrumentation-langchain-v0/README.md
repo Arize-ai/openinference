@@ -5,7 +5,7 @@ This module provides automatic instrumentation for [LangChain.js](https://github
 ## Installation
 
 ```shell
-npm install --save @arizeai/openinference-instrumentation-langchain
+npm install --save @arizeai/openinference-instrumentation-langchain-v0
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ To load the Langchain instrumentation, manually instrument the `@langchain/core/
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain-v0";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 const provider = new NodeTracerProvider();
@@ -35,7 +35,7 @@ You can specify a custom tracer provider when creating the LangChain instrumenta
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain-v0";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 // Create a custom tracer provider

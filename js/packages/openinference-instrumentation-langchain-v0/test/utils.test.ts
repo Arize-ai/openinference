@@ -425,7 +425,7 @@ describe("formatLLMParams", () => {
       [SemanticConventions.LLM_MODEL_NAME]: "gpt-4",
     });
     expect(diagMock).toHaveBeenCalledWith(
-      "OpenInference-LangChain: error processing langchain run, falling back to null. Error stringifying JSON. TypeError: Do not know how to serialize a BigInt",
+      "OpenInference-LangChain-v0: error processing langchain run, falling back to null. Error stringifying JSON. TypeError: Do not know how to serialize a BigInt",
     );
   });
 

@@ -45,7 +45,7 @@ export const SESSION_ID_KEYS = [
  */
 const onError = (message: string) => (error: unknown) => {
   diag.warn(
-    `OpenInference-LangChain: error processing langchain run, falling back to null. ${message}. ${error}`,
+    `OpenInference-LangChain-v0: error processing langchain run, falling back to null. ${message}. ${error}`,
   );
 };
 

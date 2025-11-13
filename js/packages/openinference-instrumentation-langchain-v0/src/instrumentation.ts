@@ -16,7 +16,8 @@ import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manage
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
-const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain";
+const INSTRUMENTATION_NAME =
+  "@arizeai/openinference-instrumentation-langchain-v0";
 
 /**
  * Flag to check if the openai module has been patched
