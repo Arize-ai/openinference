@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.6...python-openinference-instrumentation-portkey-v0.1.7) (2025-11-13)
+
+
+### Features
+
+* **portkey:** Support instrumentation of `portkey_ai.AsyncPortkey` ([#2407](https://github.com/Arize-ai/openinference/issues/2407)) ([118ef32](https://github.com/Arize-ai/openinference/commit/118ef329a797c59e1e91ce00a3a13fd165c8fded))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.5...python-openinference-instrumentation-portkey-v0.1.6) (2025-10-29)
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.54...python-openinference-instrumentation-langchain-v0.1.55) (2025-11-10)
+
+
+### Bug Fixes
+
+* anthropic token count ([#2428](https://github.com/Arize-ai/openinference/issues/2428)) ([698dc81](https://github.com/Arize-ai/openinference/commit/698dc81f731140efb128a84892f6c9579c879a10))
+* **langchain:** anthropic cache token count ([#2414](https://github.com/Arize-ai/openinference/issues/2414)) ([9f21f0f](https://github.com/Arize-ai/openinference/commit/9f21f0ffca32c9ba370c621166aa50a4743c6891))
+
 ## [0.1.54](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.53...python-openinference-instrumentation-langchain-v0.1.54) (2025-10-23)
 
 

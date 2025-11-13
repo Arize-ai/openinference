@@ -1,10 +1,21 @@
 from typing import Optional
 
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from smolagents import (
     LiteLLMModel,
     tool,
 )
 from smolagents.agents import ToolCallingAgent
+
+from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+
+endpoint = "http://127.0.0.1:6006/v1/traces"
+tracer_provider = trace_sdk.TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+
+SmolagentsInstrumentor().instrument(tracer_provider=tracer_provider)
 
 # Choose which LLM engine to use!
 # model = HfApiModel(model_id="meta-llama/Llama-3.3-70B-Instruct")
@@ -27,6 +38,18 @@ def get_weather(location: str, celsius: Optional[bool] = False) -> str:
     return "The weather is UNGODLY with torrential rains and temperatures below -10°C"
 
 
-agent = ToolCallingAgent(tools=[get_weather], model=model)
+@tool
+def get_population(location: str) -> tuple:
+    """
+    Get Population of the location and location type for the given location.
 
-print(agent.run("What's the weather like in Paris?"))
+    Args:
+        location: the location
+    """
+    return f"Population In {location} is 10 million", "City"
+
+
+if __name__ == "__main__":
+    agent = ToolCallingAgent(tools=[get_weather, get_population], model=model)
+    print(agent.run("What's the population in Paris?"))
+    print(agent.run("What's the weather like in Paris?"))
