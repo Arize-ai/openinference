@@ -33,7 +33,7 @@ import { createStuffDocumentsChain } from "langchainV0.3/chains/combine_document
 import { createRetrievalChain } from "langchainV0.3/chains/retrieval";
 import { RecursiveCharacterTextSplitter } from "langchainV0.3/text_splitter";
 import { DynamicTool } from "langchainV0.3/tools";
-import { tool } from "langchainV0.3/tools";
+import { Tool } from "langchainV0.3/tools";
 import { MemoryVectorStore } from "langchainV0.3/vectorstores/memory";
 import { Stream } from "openai/streaming";
 
@@ -65,9 +65,11 @@ const {
   TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
-vi.mock("@langchain/openai", async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const originalModule = (await vi.importActual("@langchain/openai")) as any;
+vi.mock("@langchain/openaiV0.3", async () => {
+  const originalModule = (await vi.importActual(
+    "@langchain/openaiV0.3",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  )) as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
     constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
       super(...args);
@@ -258,7 +260,7 @@ describe("LangChainInstrumentation", () => {
     );
     expect(llmSpan).toBeDefined();
 
-    expect(llmSpan?.attributes).toStrictEqual({
+    expect(lnglmSpan?.attributes).toStrictEqual({
       ...expectedSpanAttributes,
       [LLM_INVOCATION_PARAMETERS]:
         '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
@@ -507,7 +509,7 @@ describe("LangChainInstrumentation", () => {
       temperature: 1,
     });
 
-    const multiply = tool(
+    const multiply = Tool(
       ({ a, b }: { a: number; b: number }): number => {
         return a * b;
       },
