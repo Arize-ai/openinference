@@ -40,7 +40,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "peerDependencies": {
-    "@langchain/core": "^0.2.0"
+    "@langchain/core": "^0.3.0"
   },
   "devDependencies": {
     "@langchain/core": "^0.3.13",
