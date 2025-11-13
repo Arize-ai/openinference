@@ -14,7 +14,7 @@ from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInst
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-# tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 # Instrument the AutogenAgentChat
 AutogenAgentChatInstrumentor().instrument(tracer_provider=tracer_provider)

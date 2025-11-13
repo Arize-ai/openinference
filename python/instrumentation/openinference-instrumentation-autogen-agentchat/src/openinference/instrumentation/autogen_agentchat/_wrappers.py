@@ -34,7 +34,9 @@ from autogen_agentchat.base import Response, TaskResult
 from autogen_agentchat.messages import BaseAgentEvent, BaseChatMessage
 from autogen_agentchat.teams import BaseGroupChat
 from openinference.instrumentation import (
+    TokenCount,
     get_attributes_from_context,
+    get_llm_token_count_attributes,
     get_output_attributes,
     safe_json_dumps,
 )
@@ -484,11 +486,14 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
         ) as span:
             try:
                 result = await wrapped(*args, **valid_kwargs)
+
                 span.set_status(trace_api.StatusCode.OK)
 
                 # Extract output attributes and process tool calls in response
                 output_attributes = dict(get_output_attributes(result))
+                output_message_attributes = dict(_extract_output_message_attributes(result))
                 tool_call_attributes = dict(_extract_output_tool_calls(result))
+                token_attributes = dict(_extract_token_attributes(result))
 
                 span.set_attributes(
                     dict(
@@ -496,6 +501,8 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                             {
                                 **output_attributes,
                                 **tool_call_attributes,
+                                **token_attributes,
+                                **output_message_attributes,
                             }
                         )
                     )
@@ -559,14 +566,17 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
                     if isinstance(res, CreateResult):
                         # Extract output attributes and process tool calls in response
                         output_attributes = dict(get_output_attributes(res))
+                        output_message_attributes = dict(_extract_output_message_attributes(res))
                         tool_call_attributes = dict(_extract_output_tool_calls(res))
-
+                        token_attributes = dict(_extract_token_attributes(res))
                         span.set_attributes(
                             dict(
                                 _flatten(
                                     {
                                         **output_attributes,
                                         **tool_call_attributes,
+                                        **token_attributes,
+                                        **output_message_attributes,
                                     }
                                 )
                             )
@@ -607,6 +617,20 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> di
     bound_args = method_signature.bind(*args, **valid_kwargs)
     bound_args.apply_defaults()
     return bound_args.arguments
+
+
+def _extract_output_message_attributes(result: Any) -> Iterator[Tuple[str, AttributeValue]]:
+    """
+    Extract message attributes from CreateResult response content.
+    """
+    if not hasattr(result, "content"):
+        return
+    content = getattr(result, "content", None)
+    # Tool Messages are handled separately
+    if isinstance(content, list):
+        return
+    yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", "assistant"
+    yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", result.content
 
 
 def _extract_output_tool_calls(result: Any) -> Iterator[Tuple[str, AttributeValue]]:
@@ -660,6 +684,20 @@ def _extract_output_tool_calls(result: Any) -> Iterator[Tuple[str, AttributeValu
             )
 
 
+def _extract_token_attributes(res: Any) -> "Mapping[str, AttributeValue]":
+    attributes: Dict[str, AttributeValue] = {}
+    if not hasattr(res, "usage"):
+        return attributes
+    if usage := res.usage:
+        token_count = TokenCount(
+            prompt=usage.prompt_tokens,
+            completion=usage.completion_tokens,
+            total=usage.prompt_tokens + usage.completion_tokens,
+        )
+        return get_llm_token_count_attributes(token_count)
+    return attributes
+
+
 def _get_llm_tool_attributes(
     tools: Optional["Sequence[Tool]"],
 ) -> "Mapping[str, AttributeValue]":
@@ -694,8 +732,12 @@ def _llm_model_name(
     instance: BaseOpenAIChatCompletionClient,
 ) -> "Mapping[str, AttributeValue]":
     attributes: Dict[str, AttributeValue] = {}
-    if instance and hasattr(instance, "model_info"):
-        model_info = getattr(instance, "model_info", {})
+    if not instance:
+        return attributes
+    if hasattr(instance, "_resolved_model"):
+        model_name = getattr(instance, "_resolved_model", "")
+        attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+    elif model_info := getattr(instance, "model_info", None):
         if model_name := model_info.get("family"):
             attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
     return attributes
