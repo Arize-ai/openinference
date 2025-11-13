@@ -13,7 +13,7 @@ from opentelemetry.context import Context
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._attributes import (
+from openinference.instrumentation.pipecat._attributes import (  # type: ignore
     detect_service_type,
     extract_attributes_from_frame,
     extract_service_attributes,
@@ -90,9 +90,7 @@ class OpenInferenceObserver(BaseObserver):
             # Write log to current working directory (where the script is running)
             try:
                 self._debug_log_file = open(debug_log_filename, "w")
-                self._log_debug(
-                    f"=== Observer initialized for conversation {conversation_id} ==="
-                )
+                self._log_debug(f"=== Observer initialized for conversation {conversation_id} ===")
                 self._log_debug(f"=== Log file: {debug_log_filename} ===")
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
@@ -179,9 +177,7 @@ class OpenInferenceObserver(BaseObserver):
 
             # Skip already processed frames to avoid duplicates from propagation
             if frame.id in self._processed_frames:
-                self._log_debug(
-                    f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}"
-                )
+                self._log_debug(f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}")
                 return
 
             # Mark frame as processed
@@ -230,12 +226,11 @@ class OpenInferenceObserver(BaseObserver):
                 service_type = detect_service_type(data.source)
                 if self._turn_active and frame.text and service_type == "tts":
                     self._turn_bot_text.append(frame.text)
-                    self._log_debug(
-                        f"  Collected bot text from TTS: {frame.text[:50]}..."
-                    )
+                    self._log_debug(f"  Collected bot text from TTS: {frame.text[:50]}...")
 
             # Handle service frames for creating service spans
-            # Check both source (frames emitted BY service) and destination (frames received BY service)
+            # Check both source (frames emitted BY service)
+            # and destination (frames received BY service)
             source_service_type = detect_service_type(data.source)
             dest_service_type = detect_service_type(data.destination)
 
@@ -263,9 +258,7 @@ class OpenInferenceObserver(BaseObserver):
             await self._start_turn(data)
         elif self._turn_active and self._has_bot_spoken:
             # User started speaking during the turn_end_timeout_secs period after bot speech
-            self._log_debug(
-                "  User speaking after bot - ending turn and starting new one"
-            )
+            self._log_debug("  User speaking after bot - ending turn and starting new one")
             self._cancel_turn_end_timer()
             await self._finish_turn(interrupted=False)
             await self._start_turn(data)
@@ -303,9 +296,7 @@ class OpenInferenceObserver(BaseObserver):
             # End the current turn
             await self._finish_turn(interrupted=True)
 
-    async def _handle_service_frame(
-        self, data: FramePushed, is_input: bool = False
-    ) -> None:
+    async def _handle_service_frame(self, data: FramePushed, is_input: bool = False) -> None:
         """
         Handle frame from an LLM, TTS, or STT service.
         Detects nested LLM calls within TTS/STT services.
@@ -328,10 +319,12 @@ class OpenInferenceObserver(BaseObserver):
 
         if service_type != "unknown":
             # Check if we need to create a new span
-            # For LLM services, LLMContextFrame signals a new invocation - finish previous span if exists
+            # For LLM services, LLMContextFrame signals a new invocation
+            # finish previous span if exists
             if isinstance(frame, LLMContextFrame) and service_id in self._active_spans:
                 self._log_debug(
-                    f"  New LLM invocation detected - finishing previous span for service {service_id}"
+                    f"  New LLM invocation detected"
+                    f"  Finishing previous span for service {service_id}"
                 )
                 self._finish_span(service_id)
 
@@ -360,9 +353,7 @@ class OpenInferenceObserver(BaseObserver):
 
             # Check if span still exists (it might have been ended by a previous call)
             if service_id not in self._active_spans:
-                self._log_debug(
-                    f"  Span for service {service_id} already ended, skipping frame"
-                )
+                self._log_debug(f"  Span for service {service_id} already ended, skipping frame")
                 return
 
             # Increment frame count for this service
@@ -383,7 +374,7 @@ class OpenInferenceObserver(BaseObserver):
                     f"    Extracted {len(frame_attrs)} attributes: {list(frame_attrs.keys())}"
                 )
             else:
-                self._log_debug(f"    No attributes extracted from this frame")
+                self._log_debug("    No attributes extracted from this frame")
 
             # Handle text chunk accumulation with deduplication
             # IMPORTANT: Only collect INPUT chunks when frame is received by service (is_input=True)
@@ -397,9 +388,7 @@ class OpenInferenceObserver(BaseObserver):
                 if is_input and service_type == "tts":
                     # Check if destination is the final output transport
                     if not isinstance(data.destination, BaseOutputTransport):
-                        self._log_debug(
-                            f"    Skipping TTS chunk (not going to output transport)"
-                        )
+                        self._log_debug("    Skipping TTS chunk (not going to output transport)")
                         text_chunk = None  # Skip this chunk
 
                 if text_chunk and is_input:
@@ -417,19 +406,15 @@ class OpenInferenceObserver(BaseObserver):
                         new_part = text_chunk[len(accumulated) :]
                         if new_part:
                             span_info["accumulated_input"] = text_chunk
-                            self._log_debug(
-                                f"    Accumulated INPUT (new part): {new_part[:50]}..."
-                            )
+                            self._log_debug(f"    Accumulated INPUT (new part): {new_part[:50]}...")
                         else:
-                            self._log_debug(f"    Skipped fully redundant INPUT chunk")
+                            self._log_debug("    Skipped fully redundant INPUT chunk")
                     elif accumulated in text_chunk:
                         # Current accumulated text is contained in new chunk
                         # This means we're getting the full text again with more added
                         span_info["accumulated_input"] = text_chunk
                         new_part = text_chunk.replace(accumulated, "", 1)
-                        self._log_debug(
-                            f"    Accumulated INPUT (replaced): {new_part[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated INPUT (replaced): {new_part[:50]}...")
                     else:
                         # Non-overlapping chunk - just append
                         span_info["accumulated_input"] = accumulated + text_chunk
@@ -452,13 +437,11 @@ class OpenInferenceObserver(BaseObserver):
                                 f"    Accumulated OUTPUT (new part): {new_part[:50]}..."
                             )
                         else:
-                            self._log_debug(f"    Skipped fully redundant OUTPUT chunk")
+                            self._log_debug("    Skipped fully redundant OUTPUT chunk")
                     elif accumulated in text_chunk:
                         span_info["accumulated_output"] = text_chunk
                         new_part = text_chunk.replace(accumulated, "", 1)
-                        self._log_debug(
-                            f"    Accumulated OUTPUT (replaced): {new_part[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated OUTPUT (replaced): {new_part[:50]}...")
                     else:
                         span_info["accumulated_output"] = accumulated + text_chunk
                         self._log_debug(
@@ -473,8 +456,7 @@ class OpenInferenceObserver(BaseObserver):
 
                 # Skip input-related attributes if this is an output frame
                 if not is_input and (
-                    key
-                    in (SpanAttributes.INPUT_VALUE, SpanAttributes.LLM_INPUT_MESSAGES)
+                    key in (SpanAttributes.INPUT_VALUE, SpanAttributes.LLM_INPUT_MESSAGES)
                     or key.startswith("llm.input_messages.")
                 ):
                     self._log_debug(
@@ -484,8 +466,7 @@ class OpenInferenceObserver(BaseObserver):
 
                 # Skip output-related attributes if this is an input frame
                 if is_input and (
-                    key
-                    in (SpanAttributes.OUTPUT_VALUE, SpanAttributes.LLM_OUTPUT_MESSAGES)
+                    key in (SpanAttributes.OUTPUT_VALUE, SpanAttributes.LLM_OUTPUT_MESSAGES)
                     or key.startswith("llm.output_messages.")
                 ):
                     self._log_debug(
@@ -501,17 +482,13 @@ class OpenInferenceObserver(BaseObserver):
                         # This is a complete input, not streaming - set immediately
                         # For STT, we capture output transcriptions as input values
                         span.set_attribute(SpanAttributes.INPUT_VALUE, value)
-                        self._log_debug(
-                            f"    Set complete INPUT_VALUE: {str(value)[:100]}..."
-                        )
+                        self._log_debug(f"    Set complete INPUT_VALUE: {str(value)[:100]}...")
 
                 # Handle complete (non-streaming) OUTPUT_VALUE
                 elif key == SpanAttributes.OUTPUT_VALUE and value and not is_input:
                     # This is a complete output, not streaming - set immediately
                     span.set_attribute(SpanAttributes.OUTPUT_VALUE, value)
-                    self._log_debug(
-                        f"    Set complete OUTPUT_VALUE: {str(value)[:100]}..."
-                    )
+                    self._log_debug(f"    Set complete OUTPUT_VALUE: {str(value)[:100]}...")
 
                 elif key == "service.processing_time_seconds":
                     # Store processing time for use in _finish_span to calculate proper end_time
@@ -558,9 +535,7 @@ class OpenInferenceObserver(BaseObserver):
             self._log_debug(f"  Created service span under turn #{self._turn_number}")
         else:
             # No active turn, create as root span (will be in new trace)
-            self._log_debug(
-                f"  WARNING: No active turn! Creating root span for {service_type}"
-            )
+            self._log_debug(f"  WARNING: No active turn! Creating root span for {service_type}")
             span = self._tracer.start_span(
                 name=span_name,
             )
@@ -623,7 +598,7 @@ class OpenInferenceObserver(BaseObserver):
         span.end(end_time=int(end_time_ns))
         return
 
-    async def _start_turn(self, data: FramePushed) -> Token[Context]:
+    async def _start_turn(self, data: FramePushed) -> None:
         """Start a new conversation turn and set it as parent context."""
         self._turn_active = True
         self._has_bot_spoken = False
@@ -650,15 +625,9 @@ class OpenInferenceObserver(BaseObserver):
             )
             self._log_debug(f"  Set session.id attribute: {self._conversation_id}")
 
-        # Note: We don't attach the context here because it causes issues in async code
-        # where contexts created in one async task can't be detached in another.
-        # Instead, we explicitly pass the turn span as parent when creating service spans.
-        self._turn_context_token = None  # Not using context attachment
-
         self._turn_user_text = []
         self._turn_bot_text = []
-
-        return self._turn_context_token
+        return
 
     async def _finish_turn(self, interrupted: bool = False) -> None:
         """
@@ -674,9 +643,7 @@ class OpenInferenceObserver(BaseObserver):
         # Calculate turn duration
         duration = 0.0
         current_time_ns = time.time_ns()
-        duration = (
-            current_time_ns - self._turn_start_time
-        ) / 1_000_000_000  # Convert to seconds
+        duration = (current_time_ns - self._turn_start_time) / 1_000_000_000  # Convert to seconds
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(

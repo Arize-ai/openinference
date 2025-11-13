@@ -8,9 +8,9 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
-from openinference.instrumentation.pipecat.package import _instruments
-from openinference.instrumentation.pipecat.version import __version__
+from openinference.instrumentation.pipecat._observer import OpenInferenceObserver  # type: ignore
+from openinference.instrumentation.pipecat.package import _instruments  # type: ignore
+from openinference.instrumentation.pipecat.version import __version__  # type: ignore
 from pipecat.pipeline.task import PipelineTask
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     def instrumentation_dependencies(self) -> Collection[str]:
-        return _instruments
+        return _instruments if isinstance(_instruments, tuple) else ()
 
     def create_observer(self) -> OpenInferenceObserver:
         """
@@ -143,8 +143,7 @@ class _TaskInitWrapper:
 
         # Use task-specific debug log filename if set, otherwise use default from instrument()
         debug_log_filename = (
-            getattr(instance, "_debug_log_filename", None)
-            or self._default_debug_log_filename
+            getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
         )
 
         observer = OpenInferenceObserver(
