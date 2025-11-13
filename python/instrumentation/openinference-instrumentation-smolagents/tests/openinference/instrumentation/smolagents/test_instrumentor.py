@@ -8,7 +8,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
-from smolagents import LiteLLMModel, OpenAIServerModel, Tool
+from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
 from smolagents.agents import (  # type: ignore[import-untyped]
     CodeAgent,
     ToolCallingAgent,
@@ -773,6 +773,51 @@ class TestTools:
             "location": {
                 "type": "string",
                 "description": "The city to get the weather for",
+            },
+        }
+        assert not attributes
+
+    def test_tool_invocation_returning_tuple_has_expected_attributes(
+        self, in_memory_span_exporter: InMemorySpanExporter
+    ) -> None:
+        @tool  # type: ignore[misc]
+        def get_population(location: str) -> tuple[str, str]:
+            """
+            Get Population of the location and location type for the given location.
+
+            Args:
+                location: the location
+            """
+            return f"Population In {location} is 10 million", "City"
+
+        result = get_population("Paris")
+        assert result == ("Population In Paris is 10 million", "City")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == TOOL
+        assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
+        assert json.loads(input_value) == {
+            "args": ["Paris"],
+            "sanitize_inputs_outputs": False,
+            "kwargs": {},
+        }
+        assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
+        assert json.loads(output_value) == ["Population In Paris is 10 million", "City"]
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+        assert attributes.pop(TOOL_NAME) == "get_population"
+        assert (
+            attributes.pop(TOOL_DESCRIPTION) == "Get Population of the location and location "
+            "type for the given location."
+        )
+        assert isinstance(tool_parameters := attributes.pop(TOOL_PARAMETERS), str)
+        assert json.loads(tool_parameters) == {
+            "location": {
+                "type": "string",
+                "description": "the location",
             },
         }
         assert not attributes
