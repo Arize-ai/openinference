@@ -21,16 +21,15 @@ const provider = new NodeTracerProvider({
     [ATTR_SERVICE_NAME]: "langchain-service",
     [SEMRESATTRS_PROJECT_NAME]: "langchain-project",
   }),
+  spanProcessors: [
+    new SimpleSpanProcessor(new ConsoleSpanExporter()),
+    new SimpleSpanProcessor(
+      new OTLPTraceExporter({
+        url: "http://localhost:6006/v1/traces",
+      }),
+    ),
+  ],
 });
-
-provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-provider.addSpanProcessor(
-  new SimpleSpanProcessor(
-    new OTLPTraceExporter({
-      url: "http://localhost:6006/v1/traces",
-    }),
-  ),
-);
 
 const lcInstrumentation = new LangChainInstrumentation();
 // LangChain must be manually instrumented as it doesn't have a traditional module structure

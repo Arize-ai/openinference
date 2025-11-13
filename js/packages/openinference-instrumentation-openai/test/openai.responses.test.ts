@@ -17,14 +17,15 @@ const memoryExporter = new InMemorySpanExporter();
 
 // Add new describe block for OpenAI Responses tests
 describe("OpenAIInstrumentation - Responses", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new OpenAIInstrumentation();
   instrumentation.disable();
   let openai: OpenAI;
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
   // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
   instrumentation._modules[0].moduleExports = OpenAI;
 

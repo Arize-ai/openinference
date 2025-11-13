@@ -135,7 +135,9 @@ const expectedSpanAttributes = {
 };
 
 describe("LangChainInstrumentation", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new LangChainInstrumentation();
   instrumentation.disable();
@@ -144,7 +146,6 @@ describe("LangChainInstrumentation", () => {
   provider.getTracer("default");
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   const PROMPT_TEMPLATE = `Use the context below to answer the question.
   ----------------
@@ -703,7 +704,9 @@ describe("LangChainInstrumentation", () => {
 });
 
 describe("LangChainInstrumentation with TraceConfigOptions", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new LangChainInstrumentation({
     traceConfig: {
@@ -714,7 +717,6 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   const provider = new NodeTracerProvider();
   provider.getTracer("default");
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   beforeAll(() => {
     // Use manual instrumentation as intended for LangChain
@@ -784,13 +786,10 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
 
 describe("LangChainInstrumentation with a custom tracer provider", () => {
   describe("LangChainInstrumentation with custom TracerProvider passed in", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation({
@@ -839,13 +838,10 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   });
 
   describe("LangChainInstrumentation with custom TracerProvider set", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation();
@@ -889,13 +885,10 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   });
 
   describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation();
