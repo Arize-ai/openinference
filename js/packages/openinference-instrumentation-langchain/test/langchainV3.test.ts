@@ -26,15 +26,15 @@ import { LangChainTracer } from "../src/tracer";
 
 import { completionsResponse, functionCallResponse } from "./fixtures";
 
-import * as CallbackManager from "@langchain/core/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { DynamicTool } from "@langchain/core/tools";
-import { tool } from "@langchain/core/tools";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
-import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
-import { createRetrievalChain } from "langchain/chains/retrieval";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import * as CallbackManager from "@langchain/coreV0.3/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/coreV0.3/prompts";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.3";
+import { createStuffDocumentsChain } from "langchainV0.3/chains/combine_documents";
+import { createRetrievalChain } from "langchainV0.3/chains/retrieval";
+import { RecursiveCharacterTextSplitter } from "langchainV0.3/text_splitter";
+import { DynamicTool } from "langchainV0.3/tools";
+import { tool } from "langchainV0.3/tools";
+import { MemoryVectorStore } from "langchainV0.3/vectorstores/memory";
 import { Stream } from "openai/streaming";
 
 const memoryExporter = new InMemorySpanExporter();
@@ -203,7 +203,7 @@ describe("LangChainInstrumentation", () => {
     });
     const chain = await createRetrievalChain({
       combineDocsChain: combineDocsChain,
-      retriever: vectorStore.asRetriever(),
+      retriever: vectorStore,
     });
 
     await chain.invoke({
@@ -249,7 +249,7 @@ describe("LangChainInstrumentation", () => {
       temperature: 0,
     });
 
-    await chatModel.invoke("hello, this is a test");
+    await chatModel.invoke();
 
     const spans = memoryExporter.getFinishedSpans();
     const llmSpan = spans.find(
@@ -336,7 +336,7 @@ describe("LangChainInstrumentation", () => {
     });
     const chain = await createRetrievalChain({
       combineDocsChain: combineDocsChain,
-      retriever: vectorStore.asRetriever(),
+      retriever: vectorStore,
     });
 
     await chain.invoke({
