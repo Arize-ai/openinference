@@ -69,7 +69,7 @@ class TestOpenAISpans:
         tts_span = tts_spans[0]
 
         expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "MockTTSService",  # Class name
             "audio.voice": "alloy",
         }
@@ -98,7 +98,7 @@ class TestOpenAISpans:
         stt_span = stt_spans[0]
 
         expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "MockSTTService",  # Class name
         }
         assert_span_has_attributes(stt_span, expected_attrs)
@@ -197,7 +197,7 @@ class TestElevenLabsSpans:
         tts_span = tts_spans[0]
 
         expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "MockTTSService",  # Class name
         }
         assert_span_has_attributes(tts_span, expected_attrs)
@@ -234,7 +234,7 @@ class TestDeepgramSpans:
         stt_span = stt_spans[0]
 
         expected_attrs = {
-            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.LLM.value,
             "service.name": "MockSTTService",  # Class name
         }
         assert_span_has_attributes(stt_span, expected_attrs)

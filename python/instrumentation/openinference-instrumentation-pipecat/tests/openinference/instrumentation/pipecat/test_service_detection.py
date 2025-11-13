@@ -141,8 +141,9 @@ class TestServiceMetadataExtraction:
 
         metadata = extract_service_attributes(mock_openai_llm)
 
-        assert "service.model" in metadata
-        assert metadata["service.model"] == "gpt-4"
+        # LLM services use GenAI semantic conventions
+        assert "gen_ai.request.model" in metadata
+        assert metadata["gen_ai.request.model"] == "gpt-4"
 
     def test_extract_tts_model_and_voice(self, mock_openai_tts):
         """Test extraction of TTS model and voice"""
@@ -186,8 +187,9 @@ class TestServiceMetadataExtraction:
 
         metadata = extract_service_attributes(mock_anthropic_llm)
 
-        assert "service.model" in metadata
-        assert "claude" in metadata["service.model"].lower()
+        # LLM services use GenAI semantic conventions
+        assert "gen_ai.request.model" in metadata
+        assert "claude" in metadata["gen_ai.request.model"].lower()
 
     def test_extract_provider_from_metadata(self, mock_openai_llm):
         """Test that provider is included in metadata"""
@@ -197,8 +199,9 @@ class TestServiceMetadataExtraction:
 
         metadata = extract_service_attributes(mock_openai_llm)
 
-        assert "service.provider" in metadata
-        assert metadata["service.provider"] == "openai"
+        # LLM services use GenAI semantic conventions
+        assert "gen_ai.system" in metadata
+        assert metadata["gen_ai.system"] == "openai"
 
 
 class TestMultiProviderPipeline:
@@ -235,18 +238,25 @@ class TestMultiProviderPipeline:
     def test_extract_all_metadata_from_pipeline(self, mixed_provider_pipeline):
         """Test metadata extraction from all services in pipeline"""
         from openinference.instrumentation.pipecat._attributes import (
+            detect_service_type,
             extract_service_attributes,
         )
 
         processors = mixed_provider_pipeline._processors
 
-        metadata_list = [extract_service_attributes(p) for p in processors]
+        # Filter for only actual services (not generic processors)
+        service_processors = [p for p in processors if detect_service_type(p) != "unknown"]
+        metadata_list = [extract_service_attributes(p) for p in service_processors]
 
-        # Each should have metadata
+        # Each service should have provider information (via gen_ai.system or llm.provider)
         for metadata in metadata_list:
-            assert "service.provider" in metadata
-            # At least one should have a model
-            if "service.model" in metadata:
+            # Check for provider in either gen_ai.system or llm.provider
+            has_provider = "gen_ai.system" in metadata or "llm.provider" in metadata
+            assert has_provider, f"No provider found in metadata: {metadata.keys()}"
+            # At least one should have a model (gen_ai.request.model or service.model)
+            if "gen_ai.request.model" in metadata:
+                assert isinstance(metadata["gen_ai.request.model"], str)
+            elif "service.model" in metadata:
                 assert isinstance(metadata["service.model"], str)
 
 

@@ -13,7 +13,7 @@ from opentelemetry.context import Context
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._attributes import (  # type: ignore
+from openinference.instrumentation.pipecat._attributes import (
     detect_service_type,
     extract_attributes_from_frame,
     extract_service_attributes,
@@ -381,7 +381,8 @@ class OpenInferenceObserver(BaseObserver):
             # and only collect OUTPUT chunks when frame is emitted by service (is_input=False)
 
             # Check for streaming text chunks
-            text_chunk = frame_attrs.get("text.chunk")
+            text_chunk: str = frame_attrs.get("text.chunk", "")
+            accumulated: str = ""
             if text_chunk:
                 # For TTS input frames, only accumulate if going to output transport
                 # This ensures we only capture complete sentences being sent to the user
@@ -389,7 +390,7 @@ class OpenInferenceObserver(BaseObserver):
                     # Check if destination is the final output transport
                     if not isinstance(data.destination, BaseOutputTransport):
                         self._log_debug("    Skipping TTS chunk (not going to output transport)")
-                        text_chunk = None  # Skip this chunk
+                        text_chunk = ""  # Skip this chunk
 
                 if text_chunk and is_input:
                     # Input chunk - check if this extends our accumulated text
@@ -409,11 +410,11 @@ class OpenInferenceObserver(BaseObserver):
                             self._log_debug(f"    Accumulated INPUT (new part): {new_part[:50]}...")
                         else:
                             self._log_debug("    Skipped fully redundant INPUT chunk")
-                    elif accumulated in text_chunk:
+                    elif accumulated and accumulated in text_chunk:
                         # Current accumulated text is contained in new chunk
                         # This means we're getting the full text again with more added
-                        span_info["accumulated_input"] = text_chunk
-                        new_part = text_chunk.replace(accumulated, "", 1)
+                        span_info["accumulated_input"] = text_chunk if text_chunk else ""
+                        new_part = text_chunk.replace(accumulated, "", 1) if text_chunk else ""
                         self._log_debug(f"    Accumulated INPUT (replaced): {new_part[:50]}...")
                     else:
                         # Non-overlapping chunk - just append
