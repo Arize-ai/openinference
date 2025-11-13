@@ -3,14 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "moduleResolution": "bundler"
   },
   "types": ["node", "vitest/globals"],
-  "paths": {
-    "langchainV0.3/*": ["node_modules/langchainV0.3/*"],
-    "@langchain/coreV0.3/*": ["node_modules/@langchain/coreV0.3/*"],
-    "@langchain/openaiV0.3/*": ["node_modules/@langchain/openaiV0.3/*"]
-  },
   "files": [],
   "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"],
   "references": []

@@ -6,10 +6,5 @@
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [],
-  "paths": {
-    "langchainV0.1/*": ["node_modules/langchainV0.1/*"],
-    "@langchain/coreV0.1/*": ["node_modules/@langchain/coreV0.1/*"],
-    "@langchain/openaiV0.1/*": ["node_modules/@langchain/openaiV0.1/*"]
-  }
+  "references": []
 }
