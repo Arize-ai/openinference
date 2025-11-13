@@ -134,7 +134,7 @@ class _ComponentRunWrapper:
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
 
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name)
+            name=_get_component_span_name(component_class_name, wrapped)
         ) as span:
             component_type = _get_component_type(component)
             span.set_attributes(_set_component_runner_request_attributes(bound_arguments, instance))
@@ -170,7 +170,7 @@ class _AsyncComponentRunWrapper:
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
         component_type = _get_component_type(instance)
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name),
+            name=_get_component_span_name(component_class_name, wrapped),
             attributes=_set_component_runner_request_attributes(bound_arguments, instance),
         ) as span:
             result = await wrapped(*args, **kwargs)
@@ -325,11 +325,11 @@ def _get_component_class_name(component: "Component") -> str:
     return str(component.__class__.__name__)
 
 
-def _get_component_span_name(component_class_name: str) -> str:
+def _get_component_span_name(component_class_name: str, wrapped: Callable[..., Any]) -> str:
     """
     Gets the name of the span for a component.
     """
-    return f"{component_class_name}.run"
+    return f"{component_class_name}.{wrapped.__name__}"
 
 
 def _get_component_type(component: "Component") -> ComponentType:
