@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from collections import deque
 from contextvars import Token
 from datetime import datetime
@@ -9,8 +10,6 @@ from typing import Any, Deque, Dict, List, Optional, Set
 
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
-from opentelemetry.context import attach as context_api_attach
-from opentelemetry.context import detach as context_api_detach
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -29,6 +28,7 @@ from pipecat.frames.frames import (
     CancelFrame,
     EndFrame,
     Frame,
+    LLMContextFrame,
     StartFrame,
     TranscriptionFrame,
     TTSTextFrame,
@@ -36,6 +36,11 @@ from pipecat.frames.frames import (
 )
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.transports.base_output import BaseOutputTransport
+
+# Suppress OpenTelemetry context detach errors - these are expected in async code
+# where contexts may be created and detached in different async contexts
+logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,7 @@ class OpenInferenceObserver(BaseObserver):
         debug_log_filename: Optional[str] = None,
         max_frames: int = 100,
         turn_end_timeout_secs: float = 2.5,
+        verbose: bool = False,
     ):
         """
         Initialize the observer.
@@ -79,6 +85,7 @@ class OpenInferenceObserver(BaseObserver):
 
         # Debug logging to file
         self._debug_log_file = None
+        self._verbose = verbose
         if debug_log_filename:
             # Write log to current working directory (where the script is running)
             try:
@@ -97,11 +104,6 @@ class OpenInferenceObserver(BaseObserver):
 
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
-
-        # Track service call stack for nested LLM detection
-        # Stack of (service_id, service_type, span) tuples
-        self._service_call_stack: List[tuple[int, str, Span]] = []
-        self._nested_llm_calls: Set[int] = set()  # Track which LLM calls are nested
 
         # Turn tracking state (based on TurnTrackingObserver pattern)
         self._turn_active = False
@@ -123,7 +125,8 @@ class OpenInferenceObserver(BaseObserver):
             log_line = f"[{timestamp}] {message}\n"
             self._debug_log_file.write(log_line)
             self._debug_log_file.flush()
-        logger.debug(message)
+        if self._verbose:
+            logger.debug(message)
 
     def __del__(self) -> None:
         """Clean up debug log file."""
@@ -237,13 +240,12 @@ class OpenInferenceObserver(BaseObserver):
             dest_service_type = detect_service_type(data.destination)
 
             # Handle frames emitted by a service (outputs)
-            if source_service_type and source_service_type != "unknown":
+            if source_service_type:
                 await self._handle_service_frame(data, is_input=False)
 
             # Handle frames received by a service (inputs)
             # Only process if destination is different from source to avoid double-counting
-            if (dest_service_type and dest_service_type != "unknown" and
-                data.destination != data.source):
+            if dest_service_type and data.destination != data.source:
                 await self._handle_service_frame(data, is_input=True)
 
         except Exception as e:
@@ -301,7 +303,9 @@ class OpenInferenceObserver(BaseObserver):
             # End the current turn
             await self._finish_turn(interrupted=True)
 
-    async def _handle_service_frame(self, data: FramePushed, is_input: bool = False) -> None:
+    async def _handle_service_frame(
+        self, data: FramePushed, is_input: bool = False
+    ) -> None:
         """
         Handle frame from an LLM, TTS, or STT service.
         Detects nested LLM calls within TTS/STT services.
@@ -314,7 +318,6 @@ class OpenInferenceObserver(BaseObserver):
         from pipecat.frames.frames import (
             EndFrame,
             ErrorFrame,
-            LLMFullResponseEndFrame,
         )
 
         # Use destination for input frames, source for output frames
@@ -323,133 +326,241 @@ class OpenInferenceObserver(BaseObserver):
         frame = data.frame
         service_type = detect_service_type(service)
 
-        # Check if we already have a span for this service
-        if service_id not in self._active_spans:
-            # If no turn is active yet, start one automatically
-            # This ensures we capture initialization frames with proper context
-            if self._turn_context_token is None:
+        if service_type != "unknown":
+            # Check if we need to create a new span
+            # For LLM services, LLMContextFrame signals a new invocation - finish previous span if exists
+            if isinstance(frame, LLMContextFrame) and service_id in self._active_spans:
                 self._log_debug(
-                    f"  No active turn - auto-starting turn for {service_id} initialization"
+                    f"  New LLM invocation detected - finishing previous span for service {service_id}"
                 )
-                await self._start_turn(data)
+                self._finish_span(service_id)
 
-            # Detect if we're nested inside another service
-            parent_service_span = None
-            parent_type = None
-            if self._service_call_stack:
-                # We have an active parent service - this is a nested call
-                parent_service_id, parent_type, parent_service_span = (
-                    self._service_call_stack[-1]
-                )
-
-                # Mark as nested if this is an LLM within TTS/STT/Vision
-                if service_type == "llm" and parent_type in ("tts", "stt", "vision"):
-                    self._nested_llm_calls.add(service_id)
+            # Check if we already have a span for this service
+            if service_id not in self._active_spans:
+                # If no turn is active yet, start one automatically
+                # This ensures we capture initialization frames with proper context
+                if not self._turn_active or self._turn_span is None:
                     self._log_debug(
-                        f"  🔍 Detected nested LLM call within {parent_type} service"
+                        f"  No active turn - auto-starting turn for {service_id} initialization"
+                    )
+                    await self._start_turn(data)
+
+                # Create new span directly under turn (no nesting logic)
+                # All service spans are siblings under the turn span
+                span = self._create_service_span(service, service_type)
+                self._active_spans[service_id] = {
+                    "span": span,
+                    "service_type": service_type,  # Track service type for later use
+                    "frame_count": 0,
+                    "accumulated_input": "",  # Deduplicated accumulated input text
+                    "accumulated_output": "",  # Deduplicated accumulated output text
+                    "start_time_ns": time.time_ns(),  # Store start time in nanoseconds (Unix epoch)
+                    "processing_time_seconds": None,  # Will be set from metrics
+                }
+
+            # Check if span still exists (it might have been ended by a previous call)
+            if service_id not in self._active_spans:
+                self._log_debug(
+                    f"  Span for service {service_id} already ended, skipping frame"
+                )
+                return
+
+            # Increment frame count for this service
+            span_info = self._active_spans[service_id]
+            span_info["frame_count"] += 1
+
+            # Extract and add attributes from this frame to the span
+            span = span_info["span"]
+            frame_attrs = extract_attributes_from_frame(frame)
+
+            # Log frame direction for debugging
+            direction = "INPUT" if is_input else "OUTPUT"
+            self._log_debug(
+                f"  Processing {direction} frame: {frame.__class__.__name__} for {service_type}"
+            )
+            if frame_attrs:
+                self._log_debug(
+                    f"    Extracted {len(frame_attrs)} attributes: {list(frame_attrs.keys())}"
+                )
+            else:
+                self._log_debug(f"    No attributes extracted from this frame")
+
+            # Handle text chunk accumulation with deduplication
+            # IMPORTANT: Only collect INPUT chunks when frame is received by service (is_input=True)
+            # and only collect OUTPUT chunks when frame is emitted by service (is_input=False)
+
+            # Check for streaming text chunks
+            text_chunk = frame_attrs.get("text.chunk")
+            if text_chunk:
+                # For TTS input frames, only accumulate if going to output transport
+                # This ensures we only capture complete sentences being sent to the user
+                if is_input and service_type == "tts":
+                    # Check if destination is the final output transport
+                    if not isinstance(data.destination, BaseOutputTransport):
+                        self._log_debug(
+                            f"    Skipping TTS chunk (not going to output transport)"
+                        )
+                        text_chunk = None  # Skip this chunk
+
+                if text_chunk and is_input:
+                    # Input chunk - check if this extends our accumulated text
+                    accumulated = span_info["accumulated_input"]
+                    if not accumulated:
+                        # First chunk
+                        span_info["accumulated_input"] = text_chunk
+                        self._log_debug(
+                            f"    Accumulated INPUT chunk (first): {text_chunk[:50]}..."
+                        )
+                    elif text_chunk.startswith(accumulated):
+                        # New chunk contains all previous text plus more (redundant pattern)
+                        # Extract only the new part
+                        new_part = text_chunk[len(accumulated) :]
+                        if new_part:
+                            span_info["accumulated_input"] = text_chunk
+                            self._log_debug(
+                                f"    Accumulated INPUT (new part): {new_part[:50]}..."
+                            )
+                        else:
+                            self._log_debug(f"    Skipped fully redundant INPUT chunk")
+                    elif accumulated in text_chunk:
+                        # Current accumulated text is contained in new chunk
+                        # This means we're getting the full text again with more added
+                        span_info["accumulated_input"] = text_chunk
+                        new_part = text_chunk.replace(accumulated, "", 1)
+                        self._log_debug(
+                            f"    Accumulated INPUT (replaced): {new_part[:50]}..."
+                        )
+                    else:
+                        # Non-overlapping chunk - just append
+                        span_info["accumulated_input"] = accumulated + text_chunk
+                        self._log_debug(
+                            f"    Accumulated INPUT chunk (append): {text_chunk[:50]}..."
+                        )
+                else:
+                    # Output chunk - same logic
+                    accumulated = span_info["accumulated_output"]
+                    if not accumulated:
+                        span_info["accumulated_output"] = text_chunk
+                        self._log_debug(
+                            f"    Accumulated OUTPUT chunk (first): {text_chunk[:50]}..."
+                        )
+                    elif text_chunk.startswith(accumulated):
+                        new_part = text_chunk[len(accumulated) :]
+                        if new_part:
+                            span_info["accumulated_output"] = text_chunk
+                            self._log_debug(
+                                f"    Accumulated OUTPUT (new part): {new_part[:50]}..."
+                            )
+                        else:
+                            self._log_debug(f"    Skipped fully redundant OUTPUT chunk")
+                    elif accumulated in text_chunk:
+                        span_info["accumulated_output"] = text_chunk
+                        new_part = text_chunk.replace(accumulated, "", 1)
+                        self._log_debug(
+                            f"    Accumulated OUTPUT (replaced): {new_part[:50]}..."
+                        )
+                    else:
+                        span_info["accumulated_output"] = accumulated + text_chunk
+                        self._log_debug(
+                            f"    Accumulated OUTPUT chunk (append): {text_chunk[:50]}..."
+                        )
+
+            # Process all other attributes
+            for key, value in frame_attrs.items():
+                # Skip text.chunk since we handled it above
+                if key == "text.chunk":
+                    continue
+
+                # Skip input-related attributes if this is an output frame
+                if not is_input and (
+                    key
+                    in (SpanAttributes.INPUT_VALUE, SpanAttributes.LLM_INPUT_MESSAGES)
+                    or key.startswith("llm.input_messages.")
+                ):
+                    self._log_debug(
+                        f"    Skipping INPUT attribute {key} (frame is OUTPUT from service)"
+                    )
+                    continue
+
+                # Skip output-related attributes if this is an input frame
+                if is_input and (
+                    key
+                    in (SpanAttributes.OUTPUT_VALUE, SpanAttributes.LLM_OUTPUT_MESSAGES)
+                    or key.startswith("llm.output_messages.")
+                ):
+                    self._log_debug(
+                        f"    Skipping OUTPUT attribute {key} (frame is INPUT to service)"
+                    )
+                    continue
+
+                # Handle complete (non-streaming) INPUT_VALUE (e.g., from TranscriptionFrame)
+                # Special case for STT: TranscriptionFrame is OUTPUT from STT but represents the
+                # transcribed text which should be recorded as INPUT to the span for observability
+                if key == SpanAttributes.INPUT_VALUE and value:
+                    if is_input or service_type == "stt":
+                        # This is a complete input, not streaming - set immediately
+                        # For STT, we capture output transcriptions as input values
+                        span.set_attribute(SpanAttributes.INPUT_VALUE, value)
+                        self._log_debug(
+                            f"    Set complete INPUT_VALUE: {str(value)[:100]}..."
+                        )
+
+                # Handle complete (non-streaming) OUTPUT_VALUE
+                elif key == SpanAttributes.OUTPUT_VALUE and value and not is_input:
+                    # This is a complete output, not streaming - set immediately
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, value)
+                    self._log_debug(
+                        f"    Set complete OUTPUT_VALUE: {str(value)[:100]}..."
                     )
 
-            # Create new span and set as active
-            span = self._create_service_span(
-                service, service_type, parent_span=parent_service_span
-            )
-            self._active_spans[service_id] = {
-                "span": span,
-                "frame_count": 0,
-                "input_texts": [],  # Accumulate input text chunks
-                "output_texts": [],  # Accumulate output text chunks
-                "nested": service_id in self._nested_llm_calls,
-                "parent_type": parent_type,
-            }
+                elif key == "service.processing_time_seconds":
+                    # Store processing time for use in _finish_span to calculate proper end_time
+                    span_info["processing_time_seconds"] = value
+                    span.set_attribute("service.processing_time_seconds", value)
+                else:
+                    # For all other attributes, just set them (may overwrite)
+                    span.set_attribute(key, value)
 
-            # Push this service onto the call stack
-            self._service_call_stack.append((service_id, service_type, span))
-
-        # Increment frame count for this service
-        span_info = self._active_spans[service_id]
-        span_info["frame_count"] += 1
-
-        # Extract and add attributes from this frame to the span
-        span = span_info["span"]
-        frame_attrs = extract_attributes_from_frame(frame)
-
-        # Log frame direction for debugging
-        direction = "INPUT" if is_input else "OUTPUT"
-        self._log_debug(
-            f"  Processing {direction} frame: {frame.__class__.__name__} for {service_type}"
-        )
-
-        # Handle input.value and output.value specially - accumulate instead of overwrite
-        for key, value in frame_attrs.items():
-            if key == SpanAttributes.INPUT_VALUE and value:
-                # Accumulate input text
-                span_info["input_texts"].append(str(value))
-                self._log_debug(f"    Accumulated INPUT: {str(value)[:100]}...")
-            elif key == SpanAttributes.OUTPUT_VALUE and value:
-                # Accumulate output text
-                span_info["output_texts"].append(str(value))
-                self._log_debug(f"    Accumulated OUTPUT: {str(value)[:100]}...")
-            else:
-                # For all other attributes, just set them (may overwrite)
-                span.set_attribute(key, value)
-
-        # Store this as the last frame from this service
-        self._last_frames[service_id] = frame
+            # Store this as the last frame from this service
+            self._last_frames[service_id] = frame
 
         # Finish span only on completion frames (EndFrame or ErrorFrame)
         if isinstance(frame, (EndFrame, ErrorFrame)):
-            # Pop from call stack if this service is on top
-            if (
-                self._service_call_stack
-                and self._service_call_stack[-1][0] == service_id
-            ):
-                self._service_call_stack.pop()
-                self._log_debug(
-                    f"  Popped service from call stack (depth: {len(self._service_call_stack)})"
-                )
-
-            # Clean up nested tracking
-            if service_id in self._nested_llm_calls:
-                self._nested_llm_calls.remove(service_id)
-
             self._finish_span(service_id)
 
     def _create_service_span(
         self,
         service: FrameProcessor,
         service_type: str,
-        parent_span: Optional[Span] = None,
     ) -> Span:
         """
         Create a span for a service with type-specific attributes.
-        If parent_span is provided, creates a child span under that parent.
+        All service spans are created as children of the turn span.
 
         Args:
             service: The service instance (FrameProcessor)
             service_type: Service type (llm, tts, stt, image_gen, vision, mcp, websocket)
-            parent_span: Optional parent span for nested service calls
 
         Returns:
             The created span
         """
-        # Determine span name based on nesting
-        if parent_span:
-            span_name = f"pipecat.{service_type}.nested"
-            self._log_debug(f">>> Creating nested {service_type} span")
-        else:
-            span_name = f"pipecat.{service_type}"
-            self._log_debug(f">>> Creating {service_type} span")
+        span_name = f"pipecat.{service_type}"
+        self._log_debug(f">>> Creating {service_type} span")
 
-        # Create span with parent context if provided
-        if parent_span:
-            # Create child span under the parent service span
-            parent_context = trace_api.set_span_in_context(parent_span)
+        # Create span under the turn context
+        # Explicitly set the turn span as parent to avoid context issues in async code
+        if self._turn_span and self._turn_active:
+            turn_context = trace_api.set_span_in_context(self._turn_span)
             span = self._tracer.start_span(
                 name=span_name,
-                context=parent_context,
+                context=turn_context,
             )
+            self._log_debug(f"  Created service span under turn #{self._turn_number}")
         else:
-            # Regular span under the turn context
+            # No active turn, create as root span (will be in new trace)
+            self._log_debug(
+                f"  WARNING: No active turn! Creating root span for {service_type}"
+            )
             span = self._tracer.start_span(
                 name=span_name,
             )
@@ -459,10 +570,8 @@ class OpenInferenceObserver(BaseObserver):
 
         # Extract and apply service-specific attributes
         service_attrs = extract_service_attributes(service)
-        for key, value in service_attrs.items():
-            if value is not None:
-                span.set_attribute(key, value)
-                self._log_debug(f"  Set attribute {key}: {value}")
+        span.set_attributes(service_attrs)
+        self._log_debug(f"  Set attributes: {service_attrs}")
 
         return span
 
@@ -477,39 +586,41 @@ class OpenInferenceObserver(BaseObserver):
             return
 
         span_info = self._active_spans.pop(service_id)
-        span = span_info["span"]
+        span: Span = span_info["span"]
+        start_time_ns = span_info["start_time_ns"]
 
-        # Mark as nested if applicable
-        if span_info.get("nested"):
-            span.set_attribute("service.nested", True)
-            parent_type = span_info.get("parent_type")
-            if parent_type:
-                span.set_attribute("service.parent_type", parent_type)
-                span.set_attribute("service.purpose", f"internal_to_{parent_type}")
-            self._log_debug(f"  Marked span as nested (parent: {parent_type})")
+        # Calculate end time (use processing time if available, otherwise use current time)
+        processing_time_seconds = span_info.get("processing_time_seconds")
+        if processing_time_seconds is not None:
+            end_time_ns = start_time_ns + int(processing_time_seconds * 1_000_000_000)
+        else:
+            end_time_ns = time.time_ns()
 
-        # Set accumulated input/output text values
-        if span_info["input_texts"]:
-            # Join all input text chunks
-            full_input = " ".join(span_info["input_texts"])
-            span.set_attribute(SpanAttributes.INPUT_VALUE, full_input)
+        # Set accumulated input/output text values from streaming chunks
+        # These were deduplicated during accumulation
+        accumulated_input = span_info.get("accumulated_input", "")
+        accumulated_output = span_info.get("accumulated_output", "")
+
+        if accumulated_input:
+            span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
             self._log_debug(
-                f"  Set input.value: {len(full_input)} chars from"
-                + f"{len(span_info['input_texts'])} chunks"
+                f"  Set input.value from accumulated chunks: {len(accumulated_input)} chars"
             )
 
-        if span_info["output_texts"]:
-            # Join all output text chunks
-            full_output = " ".join(span_info["output_texts"])
-            span.set_attribute(SpanAttributes.OUTPUT_VALUE, full_output)
+        if accumulated_output:
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, accumulated_output)
             self._log_debug(
-                f"  Set output.value: {len(full_output)} chars from"
-                + f"{len(span_info['output_texts'])} chunks"
+                f"  Set output.value from accumulated chunks: {len(accumulated_output)} chars"
             )
 
-        # End the span with OK status
+            # For LLM spans, also set flattened output messages format
+            service_type = span_info.get("service_type")
+            if service_type == "llm":
+                span.set_attribute("llm.output_messages.0.message.role", "assistant")
+                span.set_attribute("llm.output_messages.0.message.content", accumulated_output)
+
         span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
-        span.end()
+        span.end(end_time=int(end_time_ns))
         return
 
     async def _start_turn(self, data: FramePushed) -> Token[Context]:
@@ -517,21 +628,16 @@ class OpenInferenceObserver(BaseObserver):
         self._turn_active = True
         self._has_bot_spoken = False
         self._turn_number += 1
-        self._turn_start_time = data.timestamp
+        self._turn_start_time = time.time_ns()  # Use our own clock for consistency
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(f">>> STARTING TURN #{self._turn_number}")
         self._log_debug(f"  Conversation ID: {self._conversation_id}")
 
-        # Start each turn in a new trace by explicitly using an empty context
-        # This ensures turns are separate root spans, not nested under each other
-        # First create an empty context, then attach it, then create the span in that context
-
-        empty_context = Context()  # Create a fresh, empty context
-        # Now create the span in this empty context (which is now the current context)
+        # Create turn span as root (no parent)
+        # Each turn will be a separate trace automatically
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
-            context=empty_context,
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
                 "conversation.turn_number": self._turn_number,
@@ -544,9 +650,10 @@ class OpenInferenceObserver(BaseObserver):
             )
             self._log_debug(f"  Set session.id attribute: {self._conversation_id}")
 
-        # Update the context to include the span we just created
-        context = trace_api.set_span_in_context(self._turn_span)
-        self._turn_context_token = context_api_attach(context)
+        # Note: We don't attach the context here because it causes issues in async code
+        # where contexts created in one async task can't be detached in another.
+        # Instead, we explicitly pass the turn span as parent when creating service spans.
+        self._turn_context_token = None  # Not using context attachment
 
         self._turn_user_text = []
         self._turn_bot_text = []
@@ -566,13 +673,10 @@ class OpenInferenceObserver(BaseObserver):
 
         # Calculate turn duration
         duration = 0.0
-        if self._turn_start_time > 0:
-            import time
-
-            current_time = time.time_ns()
-            duration = (
-                current_time - self._turn_start_time
-            ) / 1_000_000_000  # Convert to seconds
+        current_time_ns = time.time_ns()
+        duration = (
+            current_time_ns - self._turn_start_time
+        ) / 1_000_000_000  # Convert to seconds
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
@@ -590,30 +694,24 @@ class OpenInferenceObserver(BaseObserver):
             bot_output = " ".join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)  #
 
-        # Set turn metadata
-        end_reason = "interrupted" if interrupted else "completed"
-        self._turn_span.set_attribute("conversation.end_reason", end_reason)  #
-        self._turn_span.set_attribute("conversation.turn_duration_seconds", duration)
-        self._turn_span.set_attribute("conversation.was_interrupted", interrupted)  #
-
-        # Finish span
-        self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
-        self._turn_span.end()  #
-
+        # Finish all active service spans BEFORE ending the turn span
+        # This ensures child spans are ended before the parent
         service_ids_to_finish = list(self._active_spans.keys())
         for service_id in service_ids_to_finish:
             self._finish_span(service_id)
 
-        # Clear turn context
-        self._log_debug("  Clearing context token")
-        if self._turn_context_token:
-            try:
-                context_api_detach(self._turn_context_token)
-            except ValueError as e:
-                # Token was created in different async context, which is expected in async code
-                self._log_debug(
-                    f"  Context detach skipped (different async context): {e}"
-                )
+        # Set turn metadata
+        end_reason = "interrupted" if interrupted else "completed"
+        self._turn_span.set_attribute("conversation.end_reason", end_reason)  #
+        self._turn_span.set_attribute("conversation.turn_duration_seconds", duration)
+        self._turn_span.set_attribute("conversation.was_interrupted", interrupted)
+
+        # Finish turn span (parent) last
+        self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
+        self._turn_span.end(end_time=int(current_time_ns))  #
+
+        # Clear turn state
+        self._log_debug("  Clearing turn state")
         self._turn_active = False
         self._turn_span = None
         self._turn_context_token = None

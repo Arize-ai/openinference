@@ -26,6 +26,7 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
     LLMMessagesFrame,
+    LLMTextFrame,
     MetricsFrame,
     TextFrame,
     TranscriptionFrame,
@@ -50,6 +51,7 @@ from pipecat.services.vision_service import VisionService
 from pipecat.services.websocket_service import WebsocketService
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 __all__ = [
     "extract_attributes_from_frame",
@@ -77,6 +79,74 @@ def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
         return default
 
 
+def detect_frame_type(frame: Frame) -> str:
+    """Detect the type of frame."""
+    if isinstance(frame, TranscriptionFrame):
+        return "transcription"
+    elif isinstance(frame, TTSTextFrame):
+        return "tts_text"
+    elif isinstance(frame, TextFrame):
+        return "text"
+    elif isinstance(frame, AudioRawFrame):
+        return "audio"
+    elif isinstance(frame, FunctionCallFromLLM):
+        return "function_call_from_llm"
+    elif isinstance(frame, FunctionCallInProgressFrame):
+        return "function_call_in_progress"
+    elif isinstance(frame, FunctionCallResultFrame):
+        return "function_call_result"
+    elif isinstance(frame, LLMContextFrame):
+        return "llm_context"
+    elif isinstance(frame, LLMMessagesFrame):
+        return "llm_messages"
+    elif isinstance(frame, LLMMessagesAppendFrame):
+        return "llm_messages_append"
+    elif isinstance(frame, LLMFullResponseStartFrame):
+        return "llm_full_response_start"
+    elif isinstance(frame, LLMFullResponseEndFrame):
+        return "llm_full_response_end"
+    elif isinstance(frame, MetricsFrame):
+        return "metrics"
+    elif isinstance(frame, ProcessingMetricsData):
+        return "processing_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    else:
+        return detect_service_type(frame)
+
+
 def detect_service_type(service: FrameProcessor) -> str:
     """Detect the type of service."""
     if isinstance(service, STTService):
@@ -93,6 +163,74 @@ def detect_service_type(service: FrameProcessor) -> str:
         return "websocket"
     elif isinstance(service, AIService):
         return "ai"
+    else:
+        return "unknown"
+
+
+def detect_frame_type(frame: Frame) -> str:
+    """Detect the type of frame."""
+    if isinstance(frame, TranscriptionFrame):
+        return "transcription"
+    elif isinstance(frame, TTSTextFrame):
+        return "tts_text"
+    elif isinstance(frame, TextFrame):
+        return "text"
+    elif isinstance(frame, AudioRawFrame):
+        return "audio"
+    elif isinstance(frame, FunctionCallFromLLM):
+        return "function_call_from_llm"
+    elif isinstance(frame, FunctionCallInProgressFrame):
+        return "function_call_in_progress"
+    elif isinstance(frame, FunctionCallResultFrame):
+        return "function_call_result"
+    elif isinstance(frame, LLMContextFrame):
+        return "llm_context"
+    elif isinstance(frame, LLMMessagesFrame):
+        return "llm_messages"
+    elif isinstance(frame, LLMMessagesAppendFrame):
+        return "llm_messages_append"
+    elif isinstance(frame, LLMFullResponseStartFrame):
+        return "llm_full_response_start"
+    elif isinstance(frame, LLMFullResponseEndFrame):
+        return "llm_full_response_end"
+    elif isinstance(frame, MetricsFrame):
+        return "metrics"
+    elif isinstance(frame, ProcessingMetricsData):
+        return "processing_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
+    elif isinstance(frame, LLMUsageMetricsData):
+        return "llm_usage_metrics"
+    elif isinstance(frame, TTSUsageMetricsData):
+        return "tts_usage_metrics"
+    elif isinstance(frame, TTFBMetricsData):
+        return "ttfb_metrics"
     else:
         return "unknown"
 
@@ -116,71 +254,33 @@ def detect_provider_from_service(service: FrameProcessor) -> str:
 class FrameAttributeExtractor:
     """Extract attributes from Pipecat frames."""
 
+    _base_attributes: Dict[str, Any] = {
+        "frame.id": lambda frame: frame.id,
+        SpanAttributes.USER_ID: lambda frame: getattr(frame, "user_id", None),
+        "frame.name": lambda frame: getattr(frame, "name", None),
+        "frame.pts": lambda frame: getattr(frame, "pts", None),
+        "frame.timestamp": lambda frame: getattr(frame, "timestamp", None),
+        "frame.metadata": lambda frame: safe_json_dumps(getattr(frame, "metadata", {})),
+        "frame.transport_source": lambda frame: getattr(
+            frame, "transport_source", None
+        ),
+        "frame.transport_destination": lambda frame: getattr(
+            frame, "transport_destination", None
+        ),
+        "frame.error.message": lambda frame: getattr(frame, "error", None),
+    }
     attributes: Dict[str, Any] = {}
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
-        for attribute, operation in self.attributes.items():
+        attributes = self._base_attributes
+        attributes.update(self.attributes)
+        for attribute, operation in attributes.items():
             # Use safe_extract to prevent individual attribute failures from breaking extraction
             value = safe_extract(lambda: operation(frame))
             if value is not None:
                 result[attribute] = value
         return result
-
-
-class TextFrameExtractor(FrameAttributeExtractor):
-    """Extract attributes from a text frame."""
-
-    attributes: Dict[str, Any] = {
-        "text.skip_tts": lambda frame: (
-            frame.skip_tts if hasattr(frame, "skip_tts") else None
-        ),
-    }
-
-    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        results = super().extract_from_frame(frame)
-        if hasattr(frame, "text"):
-            text = frame.text
-            if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
-                results[SpanAttributes.INPUT_VALUE] = text
-                results[AudioAttributes.AUDIO_TRANSCRIPT] = text
-                results[MessageAttributes.MESSAGE_ROLE] = "user"
-                results[MessageAttributes.MESSAGE_CONTENT] = text
-
-                # Add is_final flag for transcriptions
-                if isinstance(frame, TranscriptionFrame):
-                    results["transcription.is_final"] = True
-                elif isinstance(frame, InterimTranscriptionFrame):
-                    results["transcription.is_final"] = False
-
-            elif isinstance(frame, TTSTextFrame):
-                # TTSTextFrame represents input TO the TTS service (text to be synthesized)
-                results[SpanAttributes.INPUT_VALUE] = text
-                results["text"] = text  # Match Pipecat native tracing attribute name
-                results[MessageAttributes.MESSAGE_ROLE] = "agent"
-                results[MessageAttributes.MESSAGE_CONTENT] = text
-
-                # Add character count for TTS text frames
-                if text:
-                    results["text.character_count"] = len(text)
-
-            elif isinstance(frame, TextFrame):
-                results[SpanAttributes.OUTPUT_VALUE] = text
-                results[MessageAttributes.MESSAGE_ROLE] = "agent"
-                results[MessageAttributes.MESSAGE_CONTENT] = text
-
-                # Add character count for text frames
-                if text:
-                    results["text.character_count"] = len(text)
-            else:
-                results[SpanAttributes.OUTPUT_VALUE] = text
-                results[MessageAttributes.MESSAGE_CONTENT] = text
-                results[MessageAttributes.MESSAGE_ROLE] = "system"
-        return results
-
-
-# Singleton text frame extractor
-_text_frame_extractor = TextFrameExtractor()
 
 
 def _create_wav_data_url(audio_data: bytes, sample_rate: int, num_channels: int) -> str:
@@ -218,29 +318,56 @@ def _create_wav_data_url(audio_data: bytes, sample_rate: int, num_channels: int)
         return f"data:audio/pcm;base64,{base64.b64encode(audio_data).decode('utf-8')}"
 
 
-class AudioFrameExtractor(FrameAttributeExtractor):
-    """Extract attributes from an audio frame."""
+class TextFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from text frames (TextFrame, LLMTextFrame, TranscriptionFrame, etc.)."""
 
-    attributes: Dict[str, Any] = {
-        AudioAttributes.AUDIO_URL: lambda frame: (
-            _create_wav_data_url(
-                frame.audio,
-                getattr(frame, "sample_rate", 16000),
-                getattr(frame, "num_channels", 1),
-            )
-            if hasattr(frame, "audio") and frame.audio
-            else None
-        ),
-        AudioAttributes.AUDIO_MIME_TYPE: lambda frame: "audio/wav",
-        "audio.sample_rate": lambda frame: (getattr(frame, "sample_rate", None)),
-        "audio.num_channels": lambda frame: (getattr(frame, "num_channels", None)),
-        "audio.size_bytes": lambda frame: (len(getattr(frame, "audio", []))),
-        "audio.frame_count": lambda frame: (getattr(frame, "num_frames", 0)),
-    }
+    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
+        results: Dict[str, Any] = super().extract_from_frame(frame)
+        if hasattr(frame, "text") and frame.text:
+            text = frame.text
+
+            # Handle different text frame types
+            if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
+                # Transcription frames are INPUT (user speech)
+                results[SpanAttributes.INPUT_VALUE] = text
+                results[AudioAttributes.AUDIO_TRANSCRIPT] = text
+
+                results[f"llm.input_messages.0.message.role"] = "user"
+                results[f"llm.input_messages.0.message.content"] = text
+                results[f"llm.input_messages.0.message.name"] = "stt_text"
+
+                # Add is_final flag for transcriptions
+                if isinstance(frame, TranscriptionFrame):
+                    results["transcription.is_final"] = True
+                elif isinstance(frame, InterimTranscriptionFrame):
+                    results["transcription.is_final"] = False
+
+            elif isinstance(frame, TTSTextFrame):
+                # TTSTextFrame represents input TO the TTS service (text to be synthesized)
+                # Note: Don't set INPUT_VALUE here - observer will accumulate streaming chunks
+                results["text"] = text  # Match Pipecat native tracing attribute name
+                results["text.chunk"] = text  # Raw chunk for accumulation
+
+            elif isinstance(frame, LLMTextFrame):
+                # LLMTextFrame represents output FROM the LLM service
+                # Note: Don't set OUTPUT_VALUE here - observer will accumulate streaming chunks
+                results["text.chunk"] = text  # Raw chunk for accumulation
+
+            elif isinstance(frame, TextFrame):
+                # Generic text frame (output)
+                results[SpanAttributes.OUTPUT_VALUE] = text
+                results[f"llm.output_messages.0.message.role"] = "user"
+                results[f"llm.output_messages.0.message.content"] = text
+                results[f"llm.output_messages.0.message.name"] = "text"
+
+            # Add character count for all text frames
+            results["text.character_count"] = len(text)
+
+        return results
 
 
-# Singleton audio frame extractor
-_audio_frame_extractor = AudioFrameExtractor()
+# Singleton text frame extractor
+_text_frame_extractor = TextFrameExtractor()
 
 
 class LLMContextFrameExtractor(FrameAttributeExtractor):
@@ -251,20 +378,80 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
         if hasattr(frame, "context") and frame.context:
             context = frame.context
             # Extract messages from context
+            # Note: context.messages is the public API, context._messages is the internal list
+            # Try _messages first (more reliable), then fall back to messages
+            messages_list = None
             if hasattr(context, "_messages") and context._messages:
+                messages_list = context._messages
                 results["llm.messages_count"] = len(context._messages)
+            elif hasattr(context, "messages") and context.messages:
+                messages_list = context.messages
+                results["llm.messages_count"] = len(context.messages)
 
-                # Serialize messages
-                try:
-                    messages_json = safe_json_dumps(context._messages)
-                    if messages_json:
-                        results["llm.messages"] = messages_json
-                        results["messages"] = messages_json  # Match Pipecat native tracing
-                        results[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
-                        results[SpanAttributes.INPUT_VALUE] = messages_json
-                except (TypeError, ValueError) as e:
-                    logger.debug(f"Could not serialize LLMContext messages: {e}")
+            if messages_list:
+                # Convert messages to serializable format
+                serializable_messages = []
+                for msg in messages_list:
+                    if isinstance(msg, dict):
+                        serializable_messages.append(msg)
+                    elif hasattr(msg, "role") and hasattr(msg, "content"):
+                        # LLMMessage object - convert to dict
+                        msg_dict = {
+                            "role": (
+                                str(msg.role)
+                                if hasattr(msg.role, "__str__")
+                                else msg.role
+                            ),
+                            "content": (
+                                str(msg.content)
+                                if not isinstance(msg.content, str)
+                                else msg.content
+                            ),
+                        }
+                        if hasattr(msg, "name") and msg.name:
+                            msg_dict["name"] = msg.name
+                        serializable_messages.append(msg_dict)
+                    else:
+                        # Fallback: try to extract from object attributes
+                        try:
+                            msg_dict = {
+                                "role": getattr(msg, "role", "unknown"),
+                                "content": str(msg),
+                            }
+                            serializable_messages.append(msg_dict)
+                        except:
+                            pass
 
+                # Store full message history in flattened format that Arize expects
+                if serializable_messages:
+                    for index, message in enumerate(serializable_messages):
+                        if isinstance(message, dict):
+                            results[f"llm.input_messages.{index}.message.role"] = message.get("role")
+                            results[f"llm.input_messages.{index}.message.content"] = message.get("content")
+                            if message.get("name"):
+                                results[f"llm.input_messages.{index}.message.name"] = message.get("name")
+
+                    # For input.value, only capture the LAST user message (current turn's input)
+                    last_user_message = None
+                    for msg in reversed(serializable_messages):
+                        if isinstance(msg, dict) and msg.get("role") == "user":
+                            last_user_message = msg
+                            break
+
+                    if last_user_message:
+                        # Set input.value to just the content of the current turn's user message
+                        content = last_user_message.get("content", "")
+                        results[SpanAttributes.INPUT_VALUE] = content
+
+                        # Set message attributes with proper role attribution
+                        results[MessageAttributes.MESSAGE_ROLE] = last_user_message.get(
+                            "role", "user"
+                        )
+                        results[MessageAttributes.MESSAGE_CONTENT] = content
+                        if last_user_message.get("name"):
+                            results[MessageAttributes.MESSAGE_NAME] = (
+                                last_user_message.get("name")
+                            )
             # Extract tools if present
             if hasattr(context, "_tools") and context._tools:
                 try:
@@ -341,10 +528,29 @@ class LLMMessagesFrameExtractor(FrameAttributeExtractor):
                         elif isinstance(msg, LLMSpecificMessage):
                             # Fallback: try to serialize the object
                             messages_list.append(msg.message)
-                    messages_json = safe_json_dumps(messages_list)
-                    results[SpanAttributes.LLM_INPUT_MESSAGES] = messages_json
-                    results[SpanAttributes.INPUT_VALUE] = messages_json
-                    results["messages"] = messages_json  # Match Pipecat native tracing attribute name
+
+                    # Store full message history for reference
+                    for index, message in enumerate(messages_list):
+                        if isinstance(message, dict):
+                            results[f"llm.input_messages.{index}.message.role"] = (
+                                message.get("role")
+                            )
+                            results[f"llm.input_messages.{index}.message.content"] = (
+                                message.get("content")
+                            )
+                            results[f"llm.input_messages.{index}.message.name"] = (
+                                message.get("name")
+                            )
+                        else:
+                            results[f"llm.input_messages.{index}.message.role"] = (
+                                "unknown"
+                            )
+                            results[f"llm.input_messages.{index}.message.content"] = (
+                                str(message)
+                            )
+                            results[f"llm.input_messages.{index}.message.name"] = (
+                                "unknown"
+                            )
                 except (TypeError, ValueError, AttributeError) as e:
                     logger.debug(f"Could not serialize LLMContext messages: {e}")
 
@@ -401,14 +607,27 @@ class LLMMessagesSequenceFrameExtractor(FrameAttributeExtractor):
         results: Dict[str, Any] = {
             "llm.response_phase": self.phase,
         }
-        if hasattr(frame, "messages") and frame.messages:
-            messages = frame.messages
-            results["llm.messages_count"] = len(messages)
-
+        if hasattr(frame, "_messages") and frame._messages:
+            messages = frame._messages
+            results[SpanAttributes.LLM_INPUT_MESSAGES] = []
             # Extract text content for input.value
-            user_messages = safe_json_dumps(messages)
-            if user_messages:
-                results[SpanAttributes.LLM_INPUT_MESSAGES] = user_messages
+            for message in messages:
+                if isinstance(message, dict):
+                    results[SpanAttributes.LLM_INPUT_MESSAGES].append(
+                        {
+                            MessageAttributes.MESSAGE_ROLE: message.get("role"),
+                            MessageAttributes.MESSAGE_CONTENT: message.get("content"),
+                            MessageAttributes.MESSAGE_NAME: message.get("name"),
+                        }
+                    )
+                else:
+                    results[SpanAttributes.LLM_INPUT_MESSAGES].append(
+                        {
+                            MessageAttributes.MESSAGE_ROLE: "unknown",
+                            MessageAttributes.MESSAGE_CONTENT: str(message),
+                            MessageAttributes.MESSAGE_NAME: "unknown",
+                        }
+                    )
         return results
 
 
@@ -624,31 +843,15 @@ _metrics_frame_extractor = MetricsFrameExtractor()
 class GenericFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from a generic frame."""
 
-    attributes: Dict[str, Any] = {
-        "frame.type": lambda frame: frame.__class__.__name__,
-        "frame.id": lambda frame: frame.id,
-        SpanAttributes.USER_ID: lambda frame: getattr(frame, "user_id", None),
-        "frame.name": lambda frame: getattr(frame, "name", None),
-        "frame.pts": lambda frame: getattr(frame, "pts", None),
-        "frame.timestamp": lambda frame: getattr(frame, "timestamp", None),
-        "frame.metadata": lambda frame: safe_json_dumps(getattr(frame, "metadata", {})),
-        "frame.transport_source": lambda frame: getattr(
-            frame, "transport_source", None
-        ),
-        "frame.transport_destination": lambda frame: getattr(
-            frame, "transport_destination", None
-        ),
-        "frame.error.message": lambda frame: getattr(frame, "error", None),
-    }
-
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        results = super().extract_from_frame(frame)
-
+        results: Dict[str, Any] = {}
         # Use singleton instances to avoid creating new objects for every frame
+
+        # Text frames (including LLMTextFrame, TranscriptionFrame, TTSTextFrame, etc.)
         if isinstance(frame, TextFrame):
             results.update(_text_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, AudioRawFrame):
-            results.update(_audio_frame_extractor.extract_from_frame(frame))
+
+        # LLM-specific frames
         if isinstance(frame, LLMContextFrame):
             results.update(_llm_context_frame_extractor.extract_from_frame(frame))
         if isinstance(frame, LLMMessagesFrame):
@@ -665,6 +868,8 @@ class GenericFrameExtractor(FrameAttributeExtractor):
             results.update(
                 _llm_full_response_end_frame_extractor.extract_from_frame(frame)
             )
+
+        # Function call frames
         if isinstance(frame, FunctionCallFromLLM):
             results.update(
                 _function_call_from_llm_frame_extractor.extract_from_frame(frame)
@@ -677,8 +882,11 @@ class GenericFrameExtractor(FrameAttributeExtractor):
             results.update(
                 _function_call_in_progress_frame_extractor.extract_from_frame(frame)
             )
+
+        # Metrics frames
         if isinstance(frame, MetricsFrame):
             results.update(_metrics_frame_extractor.extract_from_frame(frame))
+
         return results
 
 
@@ -779,7 +987,7 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.CHAIN.value
+            OpenInferenceSpanKindValues.LLM.value
         ),
         SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
             service, "model_name", None
@@ -793,13 +1001,6 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
         "audio.user_id": lambda service: getattr(service, "_user_id", None),
-        "audio.vad_enabled": lambda service: getattr(service, "_vad_enabled", None)
-        or getattr(service, "vad_enabled", None),
-        "audio.vad_analyzer": lambda service: (
-            getattr(service, "_vad_analyzer", None).__class__.__name__
-            if getattr(service, "_vad_analyzer", None)
-            else None
-        ),
     }
 
 
@@ -812,7 +1013,7 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.CHAIN.value
+            OpenInferenceSpanKindValues.LLM.value
         ),
         SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(
             service, "model_name", None
@@ -898,33 +1099,37 @@ def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
     """
     attributes: Dict[str, Any] = extract_attributes_from_frame(service)
 
-    # Always extract base service attributes
-    attributes.update(_base_service_attribute_extractor.extract_from_service(service))
-
     # Extract service-specific attributes based on type
     if isinstance(service, LLMService):
+        logger.debug(f"Extracting LLM service attributes for service: {service}")
         attributes.update(
             _llm_service_attribute_extractor.extract_from_service(service)
         )
     elif isinstance(service, STTService):
+        logger.debug(f"Extracting STT service attributes for service: {service}")
         attributes.update(
             _stt_service_attribute_extractor.extract_from_service(service)
         )
     elif isinstance(service, TTSService):
+        logger.debug(f"Extracting TTS service attributes for service: {service}")
         attributes.update(
             _tts_service_attribute_extractor.extract_from_service(service)
         )
     elif isinstance(service, ImageGenService):
+        logger.debug(f"Extracting image gen service attributes for service: {service}")
         attributes.update(
             _image_gen_service_attribute_extractor.extract_from_service(service)
         )
     elif isinstance(service, VisionService):
+        logger.debug(f"Extracting vision service attributes for service: {service}")
         attributes.update(
             _vision_service_attribute_extractor.extract_from_service(service)
         )
     elif isinstance(service, WebsocketService):
+        logger.debug(f"Extracting websocket service attributes for service: {service}")
         attributes.update(
             _websocket_service_attribute_extractor.extract_from_service(service)
         )
 
+    logger.debug(f"Extracted attributes: {attributes}")
     return attributes
