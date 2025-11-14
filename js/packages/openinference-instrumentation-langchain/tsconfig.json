@@ -9,6 +9,5 @@
   },
   "files": [],
   "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"],
-  "references": [],
-  "moduleResolution": "bundler"
+  "references": []
 }
