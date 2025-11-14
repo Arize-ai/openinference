@@ -413,6 +413,9 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.23)(msw@2.12.1(@types/node@20.19.23)(typescript@5.9.3))
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
 
   packages/openinference-instrumentation-langchain-v0:
     dependencies:
@@ -10110,7 +10113,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.13.0)
+      retry-axios: 2.6.0(axios@1.13.0(debug@4.4.3))
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -11014,7 +11017,7 @@ snapshots:
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
-  retry-axios@2.6.0(axios@1.13.0):
+  retry-axios@2.6.0(axios@1.13.0(debug@4.4.3)):
     dependencies:
       axios: 1.13.0(debug@4.4.3)
     optional: true
