@@ -65,7 +65,8 @@ const {
 } = SemanticConventions;
 
 const expectedSpanAttributes = {
-  [OPENINFERENCE_SPAN_KIND]: JSON.stringify({
+  [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+  [INPUT_VALUE]: JSON.stringify({
     messages: [
       [
         {
