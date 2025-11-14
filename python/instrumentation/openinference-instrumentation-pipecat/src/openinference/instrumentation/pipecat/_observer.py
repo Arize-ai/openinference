@@ -398,16 +398,14 @@ class OpenInferenceObserver(BaseObserver):
                     if not accumulated:
                         # First chunk
                         span_info["accumulated_input"] = text_chunk
-                        self._log_debug(
-                            f"    Accumulated INPUT chunk (first): {text_chunk[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated INPUT chunk (first): {text_chunk}...")
                     elif text_chunk.startswith(accumulated):
                         # New chunk contains all previous text plus more (redundant pattern)
                         # Extract only the new part
                         new_part = text_chunk[len(accumulated) :]
                         if new_part:
                             span_info["accumulated_input"] = text_chunk
-                            self._log_debug(f"    Accumulated INPUT (new part): {new_part[:50]}...")
+                            self._log_debug(f"    Accumulated INPUT (new part): {new_part}...")
                         else:
                             self._log_debug("    Skipped fully redundant INPUT chunk")
                     elif accumulated and accumulated in text_chunk:
@@ -415,39 +413,33 @@ class OpenInferenceObserver(BaseObserver):
                         # This means we're getting the full text again with more added
                         span_info["accumulated_input"] = text_chunk if text_chunk else ""
                         new_part = text_chunk.replace(accumulated, "", 1) if text_chunk else ""
-                        self._log_debug(f"    Accumulated INPUT (replaced): {new_part[:50]}...")
+                        self._log_debug(f"    Accumulated INPUT (replaced): {new_part}...")
                     else:
                         # Non-overlapping chunk - just append
                         span_info["accumulated_input"] = accumulated + text_chunk
-                        self._log_debug(
-                            f"    Accumulated INPUT chunk (append): {text_chunk[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated INPUT chunk (append): {text_chunk}...")
                 else:
                     # Output chunk - same logic
                     accumulated = span_info["accumulated_output"]
                     if not accumulated:
                         span_info["accumulated_output"] = text_chunk
-                        self._log_debug(
-                            f"    Accumulated OUTPUT chunk (first): {text_chunk[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated OUTPUT chunk (first): {text_chunk}...")
                     elif text_chunk.startswith(accumulated):
                         new_part = text_chunk[len(accumulated) :]
                         if new_part:
                             span_info["accumulated_output"] = text_chunk
-                            self._log_debug(
-                                f"    Accumulated OUTPUT (new part): {new_part[:50]}..."
-                            )
+                            self._log_debug(f"    Accumulated OUTPUT (new part): {new_part}...")
                         else:
                             self._log_debug("    Skipped fully redundant OUTPUT chunk")
                     elif accumulated in text_chunk:
                         span_info["accumulated_output"] = text_chunk
                         new_part = text_chunk.replace(accumulated, "", 1)
-                        self._log_debug(f"    Accumulated OUTPUT (replaced): {new_part[:50]}...")
-                    else:
+                        self._log_debug(f"    Accumulated OUTPUT (replaced): {new_part}...")
+                    elif accumulated and text_chunk:
                         span_info["accumulated_output"] = accumulated + text_chunk
-                        self._log_debug(
-                            f"    Accumulated OUTPUT chunk (append): {text_chunk[:50]}..."
-                        )
+                        self._log_debug(f"    Accumulated OUTPUT chunk (append): {text_chunk}...")
+                    else:
+                        self._log_debug("    Skipped OUTPUT chunk (no accumulated text)")
 
             # Process all other attributes
             for key, value in frame_attrs.items():
@@ -489,7 +481,7 @@ class OpenInferenceObserver(BaseObserver):
                 elif key == SpanAttributes.OUTPUT_VALUE and value and not is_input:
                     # This is a complete output, not streaming - set immediately
                     span.set_attribute(SpanAttributes.OUTPUT_VALUE, value)
-                    self._log_debug(f"    Set complete OUTPUT_VALUE: {str(value)[:100]}...")
+                    self._log_debug(f"    Set complete OUTPUT_VALUE: {str(value)}...")
 
                 elif key == "service.processing_time_seconds":
                     # Store processing time for use in _finish_span to calculate proper end_time

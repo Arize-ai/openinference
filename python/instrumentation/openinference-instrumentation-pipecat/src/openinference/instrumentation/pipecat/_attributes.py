@@ -824,11 +824,10 @@ class ServiceAttributeExtractor:
     def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
         """Extract attributes from a service."""
         result: Dict[str, Any] = {}
-        attributes = self._base_attributes
-        attributes.update(self.attributes)
+        attributes = {**self._base_attributes, **self.attributes}
         for attribute, operation in attributes.items():
             # Use safe_extract to prevent individual attribute failures from breaking extraction
-            value = safe_extract(lambda: operation(service))
+            value = safe_extract(lambda: operation(service)) if operation else None
             if value is not None:
                 result[attribute] = value
         return result

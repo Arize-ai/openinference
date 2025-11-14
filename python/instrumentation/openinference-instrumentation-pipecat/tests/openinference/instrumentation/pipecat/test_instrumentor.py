@@ -107,7 +107,7 @@ class TestObserverInjection:
     def test_manual_observer_creation(self, tracer_provider):
         """Test manual observer creation for advanced use cases"""
         instrumentor = PipecatInstrumentor()
-        instrumentor.instrument(tracer_provider=tracer_provider, auto_inject=False)
+        instrumentor.instrument(tracer_provider=tracer_provider)
 
         # Create observer manually
         observer = instrumentor.create_observer()
@@ -128,19 +128,6 @@ class TestInstrumentationWithConfig:
         instrumentor.instrument(tracer_provider=tracer_provider, config=config)
 
         assert instrumentor.is_instrumented_by_opentelemetry
-        instrumentor.uninstrument()
-
-    def test_instrument_with_auto_inject_disabled(self, tracer_provider, simple_pipeline):
-        """Test instrumentation with auto_inject=False"""
-        instrumentor = PipecatInstrumentor()
-        instrumentor.instrument(tracer_provider=tracer_provider, auto_inject=False)
-
-        # Create task - should NOT auto-inject observer
-        task = PipelineTask(simple_pipeline)
-
-        # Verify no automatic observation (would need to check spans or task state)
-        assert task is not None
-
         instrumentor.uninstrument()
 
 
