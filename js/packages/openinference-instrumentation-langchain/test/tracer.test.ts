@@ -300,7 +300,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add attributes to llm spans when streaming", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
       streaming: true,
     });
