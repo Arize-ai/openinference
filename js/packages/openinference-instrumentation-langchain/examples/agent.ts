@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import "./instrumentation";
 import "dotenv/config";
 
@@ -93,15 +94,6 @@ const main = async () => {
     tools: [getWeather, calculateMath, searchInfo],
   });
 
-  // eslint-disable-next-line no-console
-  console.log(
-    "🤖 Agent created with tools: weather, math calculator, and info search",
-  );
-  // eslint-disable-next-line no-console
-  console.log(
-    "📊 OpenInference tracing is active - check your Phoenix dashboard!",
-  );
-
   // Example conversations to demonstrate different tools
   const conversations = [
     "What's the weather like in Tokyo?",
@@ -111,9 +103,7 @@ const main = async () => {
   ];
 
   for (const [index, message] of conversations.entries()) {
-    // eslint-disable-next-line no-console
     console.log(`\n--- Conversation ${index + 1} ---`);
-    // eslint-disable-next-line no-console
     console.log(`User: ${message}`);
 
     try {
@@ -123,22 +113,11 @@ const main = async () => {
 
       // Extract the final message content
       const finalMessage = response.messages[response.messages.length - 1];
-      // eslint-disable-next-line no-console
       console.log(`Agent: ${finalMessage.content}`);
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error(`Error in conversation ${index + 1}:`, error);
     }
   }
-
-  // eslint-disable-next-line no-console
-  console.log("\n✅ Agent example completed!");
-  // eslint-disable-next-line no-console
-  console.log(
-    "🔍 Check your Phoenix dashboard at http://localhost:6006 to see the traces",
-  );
 };
 
-// Run the example
-// eslint-disable-next-line no-console
-main().catch(console.error);
+main();
