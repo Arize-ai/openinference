@@ -1,10 +1,7 @@
 """Attribute extraction from Pipecat frames."""
 
-import base64
-import io
 import logging
-import wave
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Type
 
 from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import (
@@ -34,6 +31,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.metrics.metrics import (
     LLMUsageMetricsData,
+    MetricsData,
     ProcessingMetricsData,
     TTFBMetricsData,
     TTSUsageMetricsData,
@@ -165,41 +163,6 @@ class FrameAttributeExtractor:
         return result
 
 
-def _create_wav_data_url(audio_data: bytes, sample_rate: int, num_channels: int) -> str:
-    """
-    Create a data URL for WAV audio from raw PCM data.
-
-    Args:
-        audio_data: Raw PCM audio bytes (16-bit signed integer little-endian format)
-        sample_rate: Audio sample rate in Hz
-        num_channels: Number of audio channels
-
-    Returns:
-        Data URL string in format: data:audio/wav;base64,<encoded_wav_data>
-
-    Note:
-        Assumes audio_data is in 16-bit signed PCM format (little-endian), which is
-        the standard format used by Pipecat's AudioRawFrame.
-    """
-    try:
-        # Create WAV file in memory
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, "wb") as wav_file:
-            wav_file.setnchannels(num_channels)
-            wav_file.setsampwidth(2)  # 16-bit audio (2 bytes per sample)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(audio_data)
-
-        # Encode to base64 and create data URL
-        wav_bytes = wav_buffer.getvalue()
-        base64_data = base64.b64encode(wav_bytes).decode("utf-8")
-        return f"data:audio/wav;base64,{base64_data}"
-    except Exception as e:
-        logger.debug(f"Failed to create WAV data URL: {e}")
-        # Fallback: return just the base64-encoded raw PCM data
-        return f"data:audio/pcm;base64,{base64.b64encode(audio_data).decode('utf-8')}"
-
-
 class TextFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from text frames (TextFrame, LLMTextFrame, TranscriptionFrame, etc.)."""
 
@@ -221,6 +184,7 @@ class TextFrameExtractor(FrameAttributeExtractor):
                 # Add is_final flag for transcriptions
                 if isinstance(frame, TranscriptionFrame):
                     results["transcription.is_final"] = True
+                    results[SpanAttributes.INPUT_VALUE] = text
                 elif isinstance(frame, InterimTranscriptionFrame):
                     results["transcription.is_final"] = False
 
@@ -241,9 +205,6 @@ class TextFrameExtractor(FrameAttributeExtractor):
                 results["llm.output_messages.0.message.role"] = "user"
                 results["llm.output_messages.0.message.content"] = text
                 results["llm.output_messages.0.message.name"] = "text"
-
-            # Add character count for all text frames
-            results["text.character_count"] = len(text)
 
         return results
 
@@ -542,63 +503,24 @@ class LLMFullResponseEndFrameExtractor(LLMMessagesSequenceFrameExtractor):
 _llm_full_response_end_frame_extractor = LLMFullResponseEndFrameExtractor()
 
 
-class FunctionCallFromLLMFrameExtractor(FrameAttributeExtractor):
-    """Extract attributes from function call frames."""
-
-    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        results: Dict[str, Any] = {}
-        if hasattr(frame, "function_name") and frame.function_name:
-            results[SpanAttributes.TOOL_NAME] = frame.function_name
-        if hasattr(frame, "arguments") and frame.arguments:
-            # Arguments are typically a dict
-            if isinstance(frame.arguments, dict):
-                params = safe_json_dumps(frame.arguments)
-                if params:
-                    results[SpanAttributes.TOOL_PARAMETERS] = params
-            else:
-                results[SpanAttributes.TOOL_PARAMETERS] = safe_extract(lambda: str(frame.arguments))
-        if hasattr(frame, "tool_call_id") and frame.tool_call_id:
-            results[ToolCallAttributes.TOOL_CALL_ID] = frame.tool_call_id
-        return results
-
-
-# Singleton function call from LLM frame extractor
-_function_call_from_llm_frame_extractor = FunctionCallFromLLMFrameExtractor()
-
-
 class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from function call result frames."""
 
     attributes: Dict[str, Any] = {
         SpanAttributes.TOOL_NAME: lambda frame: getattr(frame, "function_name", None),
-        SpanAttributes.OUTPUT_VALUE: lambda frame: (
-            safe_json_dumps(frame.result)
-            if hasattr(frame, "result") and isinstance(frame.result, (dict, list))
-            else str(frame.result)
-            if hasattr(frame, "result")
-            else None
+        ToolCallAttributes.TOOL_CALL_ID: lambda frame: getattr(frame, "tool_call_id", None),
+        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME: lambda frame: getattr(
+            frame, "function_name", None
         ),
-        "tool.call_id": lambda frame: getattr(frame, "tool_call_id", None),
+        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON: lambda frame: (
+            safe_json_dumps(getattr(frame, "arguments", {}))
+        ),
+        "tool.result": lambda frame: (safe_json_dumps(getattr(frame, "result", {}))),
     }
 
 
 # Singleton function call result frame extractor
 _function_call_result_frame_extractor = FunctionCallResultFrameExtractor()
-
-
-class FunctionCallInProgressFrameExtractor(FrameAttributeExtractor):
-    """Extract attributes from function call in-progress frames."""
-
-    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        results: Dict[str, Any] = {}
-        if hasattr(frame, "function_name") and frame.function_name:
-            results[SpanAttributes.TOOL_NAME] = frame.function_name
-            results["tool.status"] = "in_progress"
-        return results
-
-
-# Singleton function call in-progress frame extractor
-_function_call_in_progress_frame_extractor = FunctionCallInProgressFrameExtractor()
 
 
 class LLMTokenMetricsDataExtractor(FrameAttributeExtractor):
@@ -681,6 +603,13 @@ _processing_metrics_data_extractor = ProcessingMetricsDataExtractor()
 class MetricsFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from metrics frames."""
 
+    metrics_extractor_map: Dict[Type[MetricsData], FrameAttributeExtractor] = {
+        LLMUsageMetricsData: _llm_usage_metrics_data_extractor,
+        TTSUsageMetricsData: _tts_usage_metrics_data_extractor,
+        TTFBMetricsData: _ttfb_metrics_data_extractor,
+        ProcessingMetricsData: _processing_metrics_data_extractor,
+    }
+
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
         results: Dict[str, Any] = {}
 
@@ -688,23 +617,10 @@ class MetricsFrameExtractor(FrameAttributeExtractor):
             return results
 
         for metrics_data in frame.data:
-            # Check the type of metrics_data and extract accordingly
-            if isinstance(metrics_data, LLMUsageMetricsData):
-                results.update(
-                    _llm_usage_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
-                )
-            elif isinstance(metrics_data, TTSUsageMetricsData):
-                results.update(
-                    _tts_usage_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
-                )
-            elif isinstance(metrics_data, TTFBMetricsData):
-                results.update(
-                    _ttfb_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
-                )
-            elif isinstance(metrics_data, ProcessingMetricsData):
-                results.update(
-                    _processing_metrics_data_extractor.extract_from_frame(metrics_data)  # type: ignore
-                )
+            for base_class in metrics_data.__class__.__mro__:
+                extractor = self.metrics_extractor_map.get(base_class)
+                if extractor:
+                    results.update(extractor.extract_from_frame(metrics_data))
 
         return results
 
@@ -716,38 +632,23 @@ _metrics_frame_extractor = MetricsFrameExtractor()
 class GenericFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from a generic frame."""
 
+    frame_extractor_map: Dict[Type[Frame], FrameAttributeExtractor] = {
+        TextFrame: _text_frame_extractor,
+        LLMContextFrame: _llm_context_frame_extractor,
+        LLMMessagesFrame: _llm_messages_frame_extractor,
+        LLMMessagesAppendFrame: _llm_messages_append_frame_extractor,
+        LLMFullResponseStartFrame: _llm_full_response_start_frame_extractor,
+        LLMFullResponseEndFrame: _llm_full_response_end_frame_extractor,
+        FunctionCallResultFrame: _function_call_result_frame_extractor,
+        MetricsFrame: _metrics_frame_extractor,
+    }
+
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
         results: Dict[str, Any] = {}
-        # Use singleton instances to avoid creating new objects for every frame
-
-        # Text frames (including LLMTextFrame, TranscriptionFrame, TTSTextFrame, etc.)
-        if isinstance(frame, TextFrame):
-            results.update(_text_frame_extractor.extract_from_frame(frame))
-
-        # LLM-specific frames
-        if isinstance(frame, LLMContextFrame):
-            results.update(_llm_context_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, LLMMessagesFrame):
-            results.update(_llm_messages_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, LLMMessagesAppendFrame):
-            results.update(_llm_messages_append_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, LLMFullResponseStartFrame):
-            results.update(_llm_full_response_start_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, LLMFullResponseEndFrame):
-            results.update(_llm_full_response_end_frame_extractor.extract_from_frame(frame))
-
-        # Function call frames
-        if isinstance(frame, FunctionCallFromLLM):
-            results.update(_function_call_from_llm_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, FunctionCallResultFrame):
-            results.update(_function_call_result_frame_extractor.extract_from_frame(frame))
-        if isinstance(frame, FunctionCallInProgressFrame):
-            results.update(_function_call_in_progress_frame_extractor.extract_from_frame(frame))
-
-        # Metrics frames
-        if isinstance(frame, MetricsFrame):
-            results.update(_metrics_frame_extractor.extract_from_frame(frame))
-
+        for base_class in frame.__class__.__mro__:
+            extractor = self.frame_extractor_map.get(base_class)
+            if extractor:
+                results.update(extractor.extract_from_frame(frame))
         return results
 
 
@@ -914,58 +815,31 @@ class VisionServiceAttributeExtractor(ServiceAttributeExtractor):
 _vision_service_attribute_extractor = VisionServiceAttributeExtractor()
 
 
-class WebsocketServiceAttributeExtractor(ServiceAttributeExtractor):
-    """Extract attributes from a websocket service for span creation."""
+class GenericServiceAttributeExtractor(ServiceAttributeExtractor):
+    """Extract attributes from a generic service for span creation."""
 
-    attributes: Dict[str, Any] = {
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.CHAIN.value
-        ),
-        "websocket.reconnect_on_error": lambda service: getattr(
-            service, "_reconnect_on_error", None
-        ),
+    service_attribute_extractor_map: Dict[Type[FrameProcessor], ServiceAttributeExtractor] = {
+        LLMService: _llm_service_attribute_extractor,
+        STTService: _stt_service_attribute_extractor,
+        TTSService: _tts_service_attribute_extractor,
+        ImageGenService: _image_gen_service_attribute_extractor,
+        VisionService: _vision_service_attribute_extractor,
     }
 
+    def extract_from_service(self, service: FrameProcessor) -> Dict[str, Any]:
+        """Extract attributes from a generic service."""
+        results: Dict[str, Any] = {}
+        for base_class in service.__class__.__mro__:
+            extractor = self.service_attribute_extractor_map.get(base_class)
+            if extractor:
+                results.update(extractor.extract_from_service(service))
+        return results
 
-# Singleton websocket service attribute extractor
-_websocket_service_attribute_extractor = WebsocketServiceAttributeExtractor()
+
+# Singleton generic service attribute extractor
+_generic_service_attribute_extractor = GenericServiceAttributeExtractor()
 
 
 def extract_service_attributes(service: FrameProcessor) -> Dict[str, Any]:
-    """
-    Extract attributes from a service for span creation.
-
-    This function is used when creating service spans to collect the right attributes
-    based on the service type. It applies service-specific extractors to gather
-    attributes like span kind, model name, provider, and service-specific configuration.
-
-    Args:
-        service: The service instance (FrameProcessor)
-
-    Returns:
-        Dictionary of attributes to set on the span
-    """
-    attributes: Dict[str, Any] = {}
-
-    # Extract service-specific attributes based on type
-    if isinstance(service, LLMService):
-        logger.debug(f"Extracting LLM service attributes for service: {service}")
-        attributes.update(_llm_service_attribute_extractor.extract_from_service(service))
-    elif isinstance(service, STTService):
-        logger.debug(f"Extracting STT service attributes for service: {service}")
-        attributes.update(_stt_service_attribute_extractor.extract_from_service(service))
-    elif isinstance(service, TTSService):
-        logger.debug(f"Extracting TTS service attributes for service: {service}")
-        attributes.update(_tts_service_attribute_extractor.extract_from_service(service))
-    elif isinstance(service, ImageGenService):
-        logger.debug(f"Extracting image gen service attributes for service: {service}")
-        attributes.update(_image_gen_service_attribute_extractor.extract_from_service(service))
-    elif isinstance(service, VisionService):
-        logger.debug(f"Extracting vision service attributes for service: {service}")
-        attributes.update(_vision_service_attribute_extractor.extract_from_service(service))
-    elif isinstance(service, WebsocketService):
-        logger.debug(f"Extracting websocket service attributes for service: {service}")
-        attributes.update(_websocket_service_attribute_extractor.extract_from_service(service))
-
-    logger.debug(f"Extracted attributes: {attributes}")
-    return attributes
+    """Extract attributes from a service using the singleton extractor."""
+    return _generic_service_attribute_extractor.extract_from_service(service)
