@@ -262,7 +262,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add attributes to llm spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "test-api-key",
+      apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 0,
     });
@@ -336,7 +336,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add documents to retriever spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -347,7 +347,7 @@ describe("LangChainInstrumentation", () => {
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
       new OpenAIEmbeddings({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
       }),
     );
     const combineDocsChain = await createStuffDocumentsChain({
@@ -412,7 +412,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add a prompt template to a span if found ", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
     const chain = prompt.pipe(chatModel);
@@ -453,7 +453,7 @@ describe("LangChainInstrumentation", () => {
     );
 
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 1,
     });
@@ -524,7 +524,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should capture tool json schema in llm spans for bound tools", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-4o-mini",
       temperature: 1,
     });
@@ -613,7 +613,7 @@ describe("LangChainInstrumentation", () => {
       ),
       async () => {
         const chatModel = new ChatOpenAI({
-          openAIApiKey: "my-api-key",
+          apiKey: "my-api-key",
           modelName: "gpt-3.5-turbo",
           temperature: 0,
         });
@@ -655,7 +655,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should extract session ID from run metadata with session_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -673,7 +673,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should extract session ID from run metadata with thread_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -691,7 +691,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should extract session ID from run metadata with conversation_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -709,7 +709,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should prioritize session_id over thread_id and conversation_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -729,7 +729,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should handle missing session identifiers in metadata", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -790,7 +790,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
       ),
       async () => {
         const chatModel = new ChatOpenAI({
-          openAIApiKey: "my-api-key",
+          apiKey: "my-api-key",
           modelName: "gpt-3.5-turbo",
           temperature: 0,
         });
@@ -864,7 +864,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
 
@@ -917,7 +917,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
       await chatModel.invoke("test message");
@@ -969,7 +969,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
       await chatModel.invoke("test message");
