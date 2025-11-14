@@ -110,7 +110,7 @@ class _RunWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        span_name = f"{instance.__class__.__name__}.run"
+        span_name = f"{getattr(instance, 'name', instance.__class__.__name__)}.run"
         agent = instance
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
