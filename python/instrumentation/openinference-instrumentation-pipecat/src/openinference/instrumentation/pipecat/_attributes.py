@@ -60,6 +60,28 @@ __all__ = [
     "detect_provider_from_service",
 ]
 
+FRAME_TYPE_MAP = {
+    TranscriptionFrame.__name__: "transcription",
+    TTSTextFrame.__name__: "tts_text",
+    TextFrame.__name__: "text",
+    AudioRawFrame.__name__: "audio",
+    FunctionCallFromLLM.__name__: "function_call_from_llm",
+    FunctionCallInProgressFrame.__name__: "function_call_in_progress",
+    FunctionCallResultFrame.__name__: "function_call_result",
+    LLMContextFrame.__name__: "llm_context",
+    LLMMessagesFrame.__name__: "llm_messages",
+}
+
+SERVICE_TYPE_MAP = {
+    STTService.__name__: "stt",
+    LLMService.__name__: "llm",
+    TTSService.__name__: "tts",
+    ImageGenService.__name__: "image_gen",
+    VisionService.__name__: "vision",
+    WebsocketService.__name__: "websocket",
+    AIService.__name__: "ai",
+}
+
 
 def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
     """
@@ -80,91 +102,23 @@ def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
 
 
 def detect_frame_type(frame: Frame) -> str:
-    """Detect the type of frame."""
-    if isinstance(frame, TranscriptionFrame):
-        return "transcription"
-    elif isinstance(frame, TTSTextFrame):
-        return "tts_text"
-    elif isinstance(frame, TextFrame):
-        return "text"
-    elif isinstance(frame, AudioRawFrame):
-        return "audio"
-    elif isinstance(frame, FunctionCallFromLLM):
-        return "function_call_from_llm"
-    elif isinstance(frame, FunctionCallInProgressFrame):
-        return "function_call_in_progress"
-    elif isinstance(frame, FunctionCallResultFrame):
-        return "function_call_result"
-    elif isinstance(frame, LLMContextFrame):
-        return "llm_context"
-    elif isinstance(frame, LLMMessagesFrame):
-        return "llm_messages"
-    elif isinstance(frame, LLMMessagesAppendFrame):
-        return "llm_messages_append"
-    elif isinstance(frame, LLMFullResponseStartFrame):
-        return "llm_full_response_start"
-    elif isinstance(frame, LLMFullResponseEndFrame):
-        return "llm_full_response_end"
-    elif isinstance(frame, MetricsFrame):
-        return "metrics"
-    elif isinstance(frame, ProcessingMetricsData):
-        return "processing_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    elif isinstance(frame, LLMUsageMetricsData):
-        return "llm_usage_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    elif isinstance(frame, LLMUsageMetricsData):
-        return "llm_usage_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    elif isinstance(frame, LLMUsageMetricsData):
-        return "llm_usage_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    elif isinstance(frame, LLMUsageMetricsData):
-        return "llm_usage_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    elif isinstance(frame, LLMUsageMetricsData):
-        return "llm_usage_metrics"
-    elif isinstance(frame, TTSUsageMetricsData):
-        return "tts_usage_metrics"
-    elif isinstance(frame, TTFBMetricsData):
-        return "ttfb_metrics"
-    else:
-        return "unknown"
+    """Detect the type of frame using MRO for inheritance support."""
+    # Walk through the Method Resolution Order to find first matching frame type
+    for base_class in frame.__class__.__mro__:
+        frame_type = FRAME_TYPE_MAP.get(base_class.__name__)
+        if frame_type:
+            return frame_type
+    return "unknown"
 
 
 def detect_service_type(service: FrameProcessor) -> str:
-    """Detect the type of service."""
-    if isinstance(service, STTService):
-        return "stt"
-    elif isinstance(service, LLMService):
-        return "llm"
-    elif isinstance(service, TTSService):
-        return "tts"
-    elif isinstance(service, ImageGenService):
-        return "image_gen"
-    elif isinstance(service, VisionService):
-        return "vision"
-    elif isinstance(service, WebsocketService):
-        return "websocket"
-    elif isinstance(service, AIService):
-        return "ai"
-    else:
-        return "unknown"
+    """Detect the type of service using MRO for inheritance support."""
+    # Walk through the Method Resolution Order to find first matching service type
+    for base_class in service.__class__.__mro__:
+        service_type = SERVICE_TYPE_MAP.get(base_class.__name__)
+        if service_type:
+            return service_type
+    return "unknown"
 
 
 def detect_provider_from_service(service: FrameProcessor) -> str:
