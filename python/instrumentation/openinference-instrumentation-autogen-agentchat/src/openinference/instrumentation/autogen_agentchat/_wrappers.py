@@ -632,7 +632,7 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
         # Ensure stream_options includes include_usage for token metrics
         if valid_kwargs.get("include_usage") is None:
             extra_create_args = valid_kwargs.get("extra_create_args", {})
-            if isinstance(extra_create_args, dict):
+            if isinstance(extra_create_args, dict) and "extra_create_args" in method_signature.parameters:
                 stream_options = extra_create_args.get("stream_options", {})
                 if not stream_options.get("include_usage"):
                     # Inject stream_options to ensure we get usage data
