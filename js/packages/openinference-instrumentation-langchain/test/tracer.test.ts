@@ -64,9 +64,9 @@ const {
   TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
-vi.mock("@langchain/openaiV0.3", async () => {
+vi.mock("@langchain/openai", async () => {
   const originalModule = (await vi.importActual(
-    "@langchain/openaiV0.3",
+    "@langchain/openai",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   )) as any;
   class MockChatOpenAI extends originalModule.ChatOpenAI {
