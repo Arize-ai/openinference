@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
 from importlib.metadata import version
+from io import IOBase
 from queue import SimpleQueue
 from threading import RLock, Thread
 from time import sleep, time, time_ns
@@ -843,9 +844,17 @@ def _get_attributes_from_image_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if obj.image and obj.image_mimetype:
-        url = f"data:{obj.image_mimetype};base64,{obj.image.decode()}"
-        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
-        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
+        url = None
+        if isinstance(obj.image, bytes):
+            image_bytes = obj.image
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        elif isinstance(obj.image, IOBase):
+            obj.image.seek(0)
+            image_bytes = obj.image.read()
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        if url:
+            yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
+            yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
     elif obj.url:
         yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", str(obj.url)
         yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
