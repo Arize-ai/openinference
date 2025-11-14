@@ -1,0 +1,121 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-pipecat"
+dynamic = ["version"]
+description = "OpenInference Pipecat Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9, <3.15"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-instrumentation>=0.1.34",
+  "openinference-semantic-conventions>=0.1.21",
+  "websockets>=13.1,<16.0",
+  "mypy>=1.18.2",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "pipecat-ai",
+]
+test = [
+  "pipecat-ai",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-exporter-otlp-proto-http",
+  "pytest-recording",
+  "pytest>=7.0.0",
+  "pytest-asyncio>=0.21.0",
+]
+examples = [
+  "arize-otel>=0.0.1",
+  "arize-phoenix>=0.0.1",
+  "daily-python~=0.20.0",
+  "transformers",
+  "onnxruntime>=1.20.1,<2",
+  "websockets>=13.1,<16.0",
+  "python-dotenv>=1.0.0,<2.0.0",
+  "uvicorn>=0.32.0,<1.0.0",
+  "fastapi>=0.115.6,<0.117.0",
+  "pipecat-ai-small-webrtc-prebuilt>=1.0.0",
+  "pipecat-ai[tracing]",
+  "aiortc>=1.13.0,<2",
+  "opencv-python>=4.11.0.86,<5",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+pipecat = "openinference.instrumentation.pipecat:PipecatInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+pipecat = "openinference.instrumentation.pipecat:PipecatInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-pipecat"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/pipecat/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+  "tests",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false 
