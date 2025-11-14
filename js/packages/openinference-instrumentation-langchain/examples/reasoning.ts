@@ -8,7 +8,7 @@ const main = async () => {
   const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     modelName: "o3-mini",
-    reasoningEffort: "medium",
+    reasoning: { effort: "medium" },
   });
 
   const request = new HumanMessage("Hello! How are you?");
