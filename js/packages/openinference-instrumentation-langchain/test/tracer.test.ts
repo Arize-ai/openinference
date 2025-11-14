@@ -38,9 +38,45 @@ import { setupServer } from "msw/node";
 
 // Set up MSW server to mock API calls
 const server = setupServer(
-  http.post("https://api.openai.com/v1/chat/completions", () => {
-    return HttpResponse.json(completionsResponse);
-  }),
+  http.post(
+    "https://api.openai.com/v1/chat/completions",
+    async ({ request }) => {
+      const body = await request.text();
+      const requestData = JSON.parse(body);
+
+      // Check if this is a streaming request
+      if (requestData.stream === true) {
+        // Return streaming response
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            const chunks = [
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}\n\n',
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}\n\n',
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}\n\n',
+              "data: [DONE]\n\n",
+            ];
+
+            chunks.forEach((chunk) => {
+              controller.enqueue(encoder.encode(chunk));
+            });
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        });
+      }
+
+      // Return regular completion response
+      return HttpResponse.json(completionsResponse);
+    },
+  ),
   http.post("https://api.openai.com/v1/embeddings", () => {
     return HttpResponse.json({
       object: "list",
@@ -266,7 +302,7 @@ describe("LangChainInstrumentation", () => {
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
-      streaming: false, // Disable streaming to use regular completion response
+      streaming: true,
     });
 
     await chatModel.invoke("hello, this is a test");
@@ -274,27 +310,28 @@ describe("LangChainInstrumentation", () => {
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span).toBeDefined();
 
-    // Test basic structure for streaming - using the regular completion response
+    // Test basic structure for streaming
     expect(span.attributes).toMatchObject({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
-      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
-      [LLM_TOKEN_COUNT_COMPLETION]: 5,
-      [LLM_TOKEN_COUNT_PROMPT]: 12,
-      [LLM_TOKEN_COUNT_TOTAL]: 17,
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test stream.",
+      [LLM_TOKEN_COUNT_COMPLETION]: 6,
+      [LLM_TOKEN_COUNT_PROMPT]: 13,
+      [LLM_TOKEN_COUNT_TOTAL]: 19,
       [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_MIME_TYPE]: "application/json",
     });
 
-    // Test that invocation parameters contain expected fields
+    // Test that invocation parameters contain streaming fields
     const invocationParams = JSON.parse(
       String(span.attributes[LLM_INVOCATION_PARAMETERS]),
     );
     expect(invocationParams.model).toBe("gpt-3.5-turbo");
-    expect(invocationParams.stream).toBe(false);
+    expect(invocationParams.stream).toBe(true);
+    expect(invocationParams.stream_options).toBeDefined();
   });
 
   it("should add documents to retriever spans", async () => {
