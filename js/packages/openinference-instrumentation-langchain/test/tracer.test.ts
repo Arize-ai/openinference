@@ -34,8 +34,8 @@ import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
 import { tool } from "langchain";
-import { Stream } from "openai/streaming";
-
+import nock from "nock";
+import { Readable } from "stream";
 const memoryExporter = new InMemorySpanExporter();
 
 const {
@@ -64,44 +64,8 @@ const {
   TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
-vi.mock("@langchain/openai", async () => {
-  const originalModule = (await vi.importActual(
-    "@langchain/openai",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as any;
-  class MockChatOpenAI extends originalModule.ChatOpenAI {
-    constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
-      super(...args);
-      this.client = {
-        chat: {
-          completions: {
-            create: vi.fn().mockResolvedValue(completionsResponse),
-          },
-        },
-      };
-    }
-  }
-  return {
-    ...originalModule,
-    ChatOpenAI: MockChatOpenAI,
-    OpenAIEmbeddings: class extends originalModule.OpenAIEmbeddings {
-      embedDocuments = async () => {
-        return Promise.resolve([
-          [1, 2, 3],
-          [4, 5, 6],
-          [7, 8, 9],
-        ]);
-      };
-      embedQuery = async () => {
-        return Promise.resolve([1, 2, 4]);
-      };
-    },
-  };
-});
-
 const expectedSpanAttributes = {
-  [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-  [INPUT_VALUE]: JSON.stringify({
+  [OPENINFERENCE_SPAN_KIND]: JSON.stringify({
     messages: [
       [
         {
@@ -161,14 +125,35 @@ describe("LangChainInstrumentation", () => {
     // Use manual instrumentation as intended for LangChain
     instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
+    nock.disableNetConnect();
   });
   afterAll(() => {
     instrumentation.disable();
+    nock.enableNetConnect();
+    nock.cleanAll();
   });
   beforeEach(() => {
     memoryExporter.reset();
+    nock.cleanAll();
+    // Default interceptors for most tests - persist to handle multiple requests
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/chat/completions")
+      .reply(200, completionsResponse);
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/embeddings")
+      .reply(200, {
+        object: "list",
+        data: [
+          { embedding: [1, 2, 3], index: 0 },
+          { embedding: [4, 5, 6], index: 1 },
+          { embedding: [7, 8, 9], index: 2 },
+        ],
+      });
   });
   afterEach(() => {
+    nock.cleanAll();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -267,21 +252,51 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add attributes to llm spans when streaming", async () => {
+    nock.cleanAll();
+    // Set up streaming response with SSE format
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/chat/completions")
+      .reply(
+        200,
+        function () {
+          const chunks = [
+            { choices: [{ delta: { content: "This is " } }] },
+            { choices: [{ delta: { content: "a test stream." } }] },
+            {
+              choices: [{ delta: { finish_reason: "stop" } }],
+              usage: {
+                prompt_tokens: 13,
+                completion_tokens: 6,
+                total_tokens: 19,
+              },
+            },
+          ];
+          let index = 0;
+          const stream = new Readable({
+            read() {
+              if (index < chunks.length) {
+                this.push(`data: ${JSON.stringify(chunks[index])}\n\n`);
+                index++;
+              } else if (index === chunks.length) {
+                this.push("data: [DONE]\n\n");
+                this.push(null); // End the stream
+                index++;
+              }
+            },
+          });
+          return stream;
+        },
+        {
+          "Content-Type": "text/event-stream",
+        },
+      );
+
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       streaming: true,
     });
-
-    // Access the mock from the mocked class
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (chatModel as any).client.chat.completions.create.mockResolvedValue(
-      new Stream(async function* iterator() {
-        yield { choices: [{ delta: { content: "This is " } }] };
-        yield { choices: [{ delta: { content: "a test stream." } }] };
-        yield { choices: [{ delta: { finish_reason: "stop" } }] };
-      }, new AbortController()),
-    );
 
     await chatModel.invoke("hello, this is a test");
 
@@ -426,16 +441,17 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add function calls to spans", async () => {
+    nock.cleanAll();
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/chat/completions")
+      .reply(200, functionCallResponse);
+
     const chatModel = new ChatOpenAI({
       openAIApiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 1,
     });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (chatModel as any).client.chat.completions.create.mockResolvedValue(
-      functionCallResponse,
-    );
 
     const weatherFunction = {
       name: "get_current_weather",
@@ -725,14 +741,35 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     // Use manual instrumentation as intended for LangChain
     instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
+    nock.disableNetConnect();
   });
   afterAll(() => {
     instrumentation.disable();
+    nock.enableNetConnect();
+    nock.cleanAll();
   });
   beforeEach(() => {
     memoryExporter.reset();
+    nock.cleanAll();
+    // Default interceptors for most tests - persist to handle multiple requests
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/chat/completions")
+      .reply(200, completionsResponse);
+    nock("https://api.openai.com")
+      .persist()
+      .post("/v1/embeddings")
+      .reply(200, {
+        object: "list",
+        data: [
+          { embedding: [1, 2, 3], index: 0 },
+          { embedding: [4, 5, 6], index: 1 },
+          { embedding: [7, 8, 9], index: 2 },
+        ],
+      });
   });
   afterEach(() => {
+    nock.cleanAll();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
@@ -805,18 +842,39 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
+      nock.disableNetConnect();
     });
 
     afterAll(() => {
       instrumentation.disable();
+      nock.enableNetConnect();
+      nock.cleanAll();
     });
 
     beforeEach(() => {
       memoryExporter.reset();
       customMemoryExporter.reset();
+      nock.cleanAll();
+      // Default interceptors for most tests - persist to handle multiple requests
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/chat/completions")
+        .reply(200, completionsResponse);
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/embeddings")
+        .reply(200, {
+          object: "list",
+          data: [
+            { embedding: [1, 2, 3], index: 0 },
+            { embedding: [4, 5, 6], index: 1 },
+            { embedding: [7, 8, 9], index: 2 },
+          ],
+        });
     });
 
     afterEach(() => {
+      nock.cleanAll();
       vi.clearAllMocks();
       vi.restoreAllMocks();
     });
@@ -857,18 +915,39 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
+      nock.disableNetConnect();
     });
 
     afterAll(() => {
       instrumentation.disable();
+      nock.enableNetConnect();
+      nock.cleanAll();
     });
 
     beforeEach(() => {
       memoryExporter.reset();
       customMemoryExporter.reset();
+      nock.cleanAll();
+      // Default interceptors for most tests - persist to handle multiple requests
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/chat/completions")
+        .reply(200, completionsResponse);
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/embeddings")
+        .reply(200, {
+          object: "list",
+          data: [
+            { embedding: [1, 2, 3], index: 0 },
+            { embedding: [4, 5, 6], index: 1 },
+            { embedding: [7, 8, 9], index: 2 },
+          ],
+        });
     });
 
     afterEach(() => {
+      nock.cleanAll();
       vi.clearAllMocks();
       vi.restoreAllMocks();
     });
@@ -908,18 +987,39 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       instrumentation.manuallyInstrument(CallbackManager as any);
       instrumentation.enable();
+      nock.disableNetConnect();
     });
 
     afterAll(() => {
       instrumentation.disable();
+      nock.enableNetConnect();
+      nock.cleanAll();
     });
 
     beforeEach(() => {
       memoryExporter.reset();
       customMemoryExporter.reset();
+      nock.cleanAll();
+      // Default interceptors for most tests - persist to handle multiple requests
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/chat/completions")
+        .reply(200, completionsResponse);
+      nock("https://api.openai.com")
+        .persist()
+        .post("/v1/embeddings")
+        .reply(200, {
+          object: "list",
+          data: [
+            { embedding: [1, 2, 3], index: 0 },
+            { embedding: [4, 5, 6], index: 1 },
+            { embedding: [7, 8, 9], index: 2 },
+          ],
+        });
     });
 
     afterEach(() => {
+      nock.cleanAll();
       vi.clearAllMocks();
       vi.restoreAllMocks();
     });
