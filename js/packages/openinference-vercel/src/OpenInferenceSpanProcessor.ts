@@ -27,7 +27,14 @@ import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
  *   exporter,
  *   spanFilter: isOpenInferenceSpan,
  * });
- * tracerProvider.addSpanProcessor(processor);
+ *
+ * const tracerProvider = new NodeTracerProvider({
+ *   resource: resourceFromAttributes({
+ *     [SEMRESATTRS_PROJECT_NAME]: "your-project-name",
+ *   }),
+ *   spanProcessors: [processor], // <-- pass processor here
+ * });
+ *
  * ```
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
@@ -81,7 +88,14 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  *   spanFilter: isOpenInferenceSpan,
  *   config: { maxQueueSize: 2048, scheduledDelayMillis: 5000 },
  * });
- * tracerProvider.addSpanProcessor(processor);
+ *
+ * const tracerProvider = new NodeTracerProvider({
+ *   resource: resourceFromAttributes({
+ *     [SEMRESATTRS_PROJECT_NAME]: "your-project-name",
+ *   }),
+ *   spanProcessors: [processor], // <-- pass processor here
+ * });
+ *
  * ```
  */
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {

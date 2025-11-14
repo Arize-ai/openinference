@@ -1,5 +1,12 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.0.0
+
+### Major Changes
+
+- 9b3681c: Deprecates langchain v0.2 in favor of v0.3 only
+- 3ef46a9: Add support for langchain 1.0 and above
+
 ## 3.4.6
 
 ### Patch Changes

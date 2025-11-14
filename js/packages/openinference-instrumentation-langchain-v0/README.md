@@ -1,11 +1,11 @@
-# OpenInference Instrumentation for LangChain.js
+# OpenInference Instrumentation for LangChain.js Version 0.X
 
 This module provides automatic instrumentation for [LangChain.js](https://github.com/langchain-ai/langchainjs). which may be used in conjunction with [@opentelemetry/sdk-trace-node](https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-node).
 
 ## Installation
 
 ```shell
-npm install --save @arizeai/openinference-instrumentation-langchain
+npm install --save @arizeai/openinference-instrumentation-langchain-v0
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ To load the Langchain instrumentation, manually instrument the `@langchain/core/
 
 ```typescript
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain-v0";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 const provider = new NodeTracerProvider();
@@ -35,7 +35,7 @@ You can specify a custom tracer provider when creating the LangChain instrumenta
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { Resource } from "@opentelemetry/resources";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain";
+import { LangChainInstrumentation } from "@arizeai/openinference-instrumentation-langchain-v0";
 import * as CallbackManagerModule from "@langchain/core/callbacks/manager";
 
 // Create a custom tracer provider
@@ -61,15 +61,6 @@ const lcInstrumentation = new LangChainInstrumentation();
 lcInstrumentation.setTracerProvider(customTracerProvider);
 ```
 
-## Compatibility
-
-| @langchain/core Version | @arizeai/openinference-instrumentation-langchain Version |
-| ----------------------- | -------------------------------------------------------- |
-| ^1.0.0                  | ^4.0.0                                                   |
-| ^0.3.0                  | ^4.0.0                                                   |
-
-This package is only tested against the 1.X versions of `@langchain/core`. Older versions may work but are not officially supported. For full compatibility for the 0.X versions of LangChain.js, a dedicated package called `openinference-instrumentation-langchain-v0` is available.
-
 ## Deprecations
 
-LangChain v0.1 was deprecated on 2025-03-02 due to security vulnerabilities in the core package.
+LangChain v0.1 was deprecated on 2025-03-02 due to security vulerabilities in the core package.

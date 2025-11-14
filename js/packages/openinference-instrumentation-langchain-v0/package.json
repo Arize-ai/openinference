@@ -1,7 +1,7 @@
 {
-  "name": "@arizeai/openinference-instrumentation-langchain",
-  "version": "4.0.0",
-  "description": "OpenInference Instrumentation for LangChain.js",
+  "name": "@arizeai/openinference-instrumentation-langchain-v0",
+  "version": "0.0.1",
+  "description": "OpenInference Instrumentation for LangChain.js Version 0.X",
   "private": false,
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
@@ -40,24 +40,23 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "peerDependencies": {
-    "@langchain/core": "^1.0.0 || ^0.3.0 || ^0.2.0"
+    "@langchain/core": "^0.3.0"
   },
   "devDependencies": {
-    "@langchain/classic": "^1.0.2",
-    "@langchain/core": "^1.0.4",
-    "@langchain/openai": "^1.1.0",
+    "@langchain/core": "^0.3.13",
+    "@langchain/coreV0.2": "npm:@langchain/core@^0.2.0",
+    "@langchain/openai": "^0.3.17",
+    "@langchain/openaiV0.2": "npm:@langchain/openai@^0.2.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
+    "vitest": "^2.1.8",
     "@types/node": "^20.14.11",
     "dotenv": "^16.4.5",
-    "langchain": "^1.0.4",
-    "msw": "^2.12.1",
+    "langchain": "^0.3.3",
     "openai": "^4.52.7",
-    "typescript": "^5.5.4",
-    "vitest": "^2.1.8",
-    "zod": "^3.25.76"
+    "typescript": "^5.5.4"
   }
 }

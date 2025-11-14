@@ -16,7 +16,8 @@ import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manage
 
 const MODULE_NAME = "@langchain/core/callbacks";
 
-const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain";
+const INSTRUMENTATION_NAME =
+  "@arizeai/openinference-instrumentation-langchain-v0";
 
 /**
  * Flag to check if the openai module has been patched
@@ -90,7 +91,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     const module =
       new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
         "@langchain/core/dist/callbacks/manager.cjs",
-        ["^1.0.0", "^0.3.0", "^0.2.0"], // Only the latest is tested in this module
+        ["^0.3.0"],
         this.patch.bind(this),
         this.unpatch.bind(this),
       );

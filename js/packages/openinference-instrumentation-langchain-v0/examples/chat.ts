@@ -7,8 +7,9 @@ import { ChatOpenAI } from "@langchain/openai";
 const main = async () => {
   const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: "o3-mini",
-    reasoning: { effort: "medium" },
+    metadata: {
+      session_id: "test-session-123",
+    },
   });
 
   const request = new HumanMessage("Hello! How are you?");

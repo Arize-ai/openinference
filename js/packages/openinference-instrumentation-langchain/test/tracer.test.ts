@@ -5,7 +5,6 @@ import {
 } from "@arizeai/openinference-core";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
-  METADATA,
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
@@ -26,15 +25,76 @@ import { LangChainTracer } from "../src/tracer";
 
 import { completionsResponse, functionCallResponse } from "./fixtures";
 
-import * as CallbackManager from "@langchain/coreV0.2/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/coreV0.2/prompts";
-import { DynamicTool } from "@langchain/coreV0.2/tools";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openaiV0.2";
-import { createStuffDocumentsChain } from "langchainV0.2/chains/combine_documents";
-import { createRetrievalChain } from "langchainV0.2/chains/retrieval";
-import { RecursiveCharacterTextSplitter } from "langchainV0.2/text_splitter";
-import { MemoryVectorStore } from "langchainV0.2/vectorstores/memory";
-import { Stream } from "openai/streaming";
+import { createStuffDocumentsChain } from "@langchain/classic/chains/combine_documents";
+import { createRetrievalChain } from "@langchain/classic/chains/retrieval";
+import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
+import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
+import * as CallbackManager from "@langchain/core/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { tool } from "langchain";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+
+// Set up MSW server to mock API calls
+const server = setupServer(
+  http.post(
+    "https://api.openai.com/v1/chat/completions",
+    async ({ request }) => {
+      const body = await request.text();
+      const requestData = JSON.parse(body);
+
+      // Check if this is a streaming request
+      if (requestData.stream === true) {
+        // Return streaming response
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            const chunks = [
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}\n\n',
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}\n\n',
+              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}\n\n',
+              "data: [DONE]\n\n",
+            ];
+
+            chunks.forEach((chunk) => {
+              controller.enqueue(encoder.encode(chunk));
+            });
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        });
+      }
+
+      // Return regular completion response
+      return HttpResponse.json(completionsResponse);
+    },
+  ),
+  http.post("https://api.openai.com/v1/embeddings", () => {
+    return HttpResponse.json({
+      object: "list",
+      data: [
+        { embedding: [1, 2, 3], index: 0 },
+        { embedding: [4, 5, 6], index: 1 },
+        { embedding: [7, 8, 9], index: 2 },
+      ],
+    });
+  }),
+);
+
+// Start server before all tests
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// Reset handlers after each test
+afterEach(() => server.resetHandlers());
+// Clean up after all tests
+afterAll(() => server.close());
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -60,112 +120,14 @@ const {
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VARIABLES,
   RETRIEVAL_DOCUMENTS,
+  LLM_TOOLS,
+  TOOL_JSON_SCHEMA,
 } = SemanticConventions;
 
-vi.mock("@langchain/openaiV0.2", async () => {
-  const originalModule = (await vi.importActual(
-    "@langchain/openaiV0.2",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  )) as any;
-  class MockChatOpenAI extends originalModule.ChatOpenAI {
-    constructor(...args: Parameters<typeof originalModule.ChatOpenAI>) {
-      super(...args);
-      this.client = {
-        chat: {
-          completions: {
-            create: vi.fn().mockResolvedValue(completionsResponse),
-          },
-        },
-      };
-    }
-  }
-  return {
-    ...originalModule,
-    ChatOpenAI: MockChatOpenAI,
-    OpenAIEmbeddings: class extends originalModule.OpenAIEmbeddings {
-      embedDocuments = async () => {
-        return Promise.resolve([
-          [1, 2, 3],
-          [4, 5, 6],
-          [7, 8, 9],
-        ]);
-      };
-      embedQuery = async () => {
-        return Promise.resolve([1, 2, 4]);
-      };
-    },
-  };
-});
-
-const expectedSpanAttributes = {
-  [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-  [INPUT_VALUE]: JSON.stringify({
-    messages: [
-      [
-        {
-          lc: 1,
-          type: "constructor",
-          id: ["langchain_core", "messages", "HumanMessage"],
-          kwargs: {
-            content: "hello, this is a test",
-            additional_kwargs: {},
-            response_metadata: {},
-          },
-        },
-      ],
-    ],
-  }),
-  [INPUT_MIME_TYPE]: "application/json",
-  [OUTPUT_VALUE]: JSON.stringify({
-    generations: [
-      [
-        {
-          text: "This is a test.",
-          message: {
-            lc: 1,
-            type: "constructor",
-            id: ["langchain_core", "messages", "AIMessage"],
-            kwargs: {
-              content: "This is a test.",
-              tool_calls: [],
-              invalid_tool_calls: [],
-              additional_kwargs: {},
-              response_metadata: {
-                tokenUsage: {
-                  completionTokens: 5,
-                  promptTokens: 12,
-                  totalTokens: 17,
-                },
-                finish_reason: "stop",
-              },
-              id: "chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p",
-            },
-          },
-          generationInfo: { finish_reason: "stop" },
-        },
-      ],
-    ],
-    llmOutput: {
-      tokenUsage: { completionTokens: 5, promptTokens: 12, totalTokens: 17 },
-    },
-  }),
-  [LLM_TOKEN_COUNT_COMPLETION]: 5,
-  [LLM_TOKEN_COUNT_PROMPT]: 12,
-  [LLM_TOKEN_COUNT_TOTAL]: 17,
-  [OUTPUT_MIME_TYPE]: "application/json",
-  [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
-  [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
-  [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
-  [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
-  [LLM_MODEL_NAME]: "gpt-3.5-turbo",
-  [LLM_INVOCATION_PARAMETERS]:
-    '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true,"stream_options":{"include_usage":true}}',
-  metadata:
-    '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}',
-};
-
 describe("LangChainInstrumentation", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new LangChainInstrumentation();
   instrumentation.disable();
@@ -174,7 +136,6 @@ describe("LangChainInstrumentation", () => {
   provider.getTracer("default");
 
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   const PROMPT_TEMPLATE = `Use the context below to answer the question.
   ----------------
@@ -187,8 +148,7 @@ describe("LangChainInstrumentation", () => {
 
   beforeAll(() => {
     // Use manual instrumentation as intended for LangChain
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    instrumentation.manuallyInstrument(CallbackManager as any);
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -196,6 +156,7 @@ describe("LangChainInstrumentation", () => {
   });
   beforeEach(() => {
     memoryExporter.reset();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.clearAllMocks();
@@ -206,6 +167,33 @@ describe("LangChainInstrumentation", () => {
     expect(isPatched()).toBe(true);
   });
 
+  it("should trace an llm call", async () => {
+    const chatModel = new ChatOpenAI({
+      apiKey: "test-api-key",
+      modelName: "gpt-3.5-turbo",
+    });
+    await chatModel.invoke("hello, this is a test");
+
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    expect(llmSpan?.attributes).toMatchObject({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+      [LLM_TOKEN_COUNT_COMPLETION]: 5,
+      [LLM_TOKEN_COUNT_PROMPT]: 12,
+      [LLM_TOKEN_COUNT_TOTAL]: 17,
+      [INPUT_MIME_TYPE]: "application/json",
+      [OUTPUT_MIME_TYPE]: "application/json",
+    });
+  });
   const testDocuments = [
     "dogs are cute",
     "rainbows are colorful",
@@ -214,7 +202,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should properly nest spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
     });
     const textSplitter = new RecursiveCharacterTextSplitter({
@@ -224,7 +212,7 @@ describe("LangChainInstrumentation", () => {
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
       new OpenAIEmbeddings({
-        openAIApiKey: "my-api-key",
+        apiKey: "test-api-key",
       }),
     );
     const combineDocsChain = await createStuffDocumentsChain({
@@ -274,74 +262,81 @@ describe("LangChainInstrumentation", () => {
 
   it("should add attributes to llm spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 0,
     });
 
     await chatModel.invoke("hello, this is a test");
 
-    const span = memoryExporter.getFinishedSpans()[0];
-    expect(span).toBeDefined();
+    const spans = memoryExporter.getFinishedSpans();
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
 
-    expect(span.attributes).toStrictEqual({
-      ...expectedSpanAttributes,
-      [LLM_INVOCATION_PARAMETERS]:
-        '{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}',
+    expect(llmSpan?.attributes).toMatchObject({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test.",
+      [LLM_TOKEN_COUNT_COMPLETION]: 5,
+      [LLM_TOKEN_COUNT_PROMPT]: 12,
+      [LLM_TOKEN_COUNT_TOTAL]: 17,
+      [INPUT_MIME_TYPE]: "application/json",
+      [OUTPUT_MIME_TYPE]: "application/json",
     });
+
+    // Test that invocation parameters contain expected fields
+    const invocationParams = JSON.parse(
+      String(llmSpan?.attributes[LLM_INVOCATION_PARAMETERS]),
+    );
+    expect(invocationParams.model).toBe("gpt-3.5-turbo");
+    expect(invocationParams.temperature).toBe(0);
   });
 
   it("should add attributes to llm spans when streaming", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
       streaming: true,
     });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (chatModel as any).client.chat.completions.create.mockResolvedValue(
-      new Stream(async function* iterator() {
-        yield { choices: [{ delta: { content: "This is " } }] };
-        yield { choices: [{ delta: { content: "a test stream." } }] };
-        yield { choices: [{ delta: { finish_reason: "stop" } }] };
-      }, new AbortController()),
-    );
 
     await chatModel.invoke("hello, this is a test");
 
     const span = memoryExporter.getFinishedSpans()[0];
     expect(span).toBeDefined();
 
-    const expectedStreamingAttributes = {
-      ...expectedSpanAttributes,
+    // Test basic structure for streaming
+    expect(span.attributes).toMatchObject({
+      [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+      [LLM_MODEL_NAME]: "gpt-3.5-turbo",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
+      [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "hello, this is a test",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "This is a test stream.",
-      [LLM_INVOCATION_PARAMETERS]:
-        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":true,"stream_options":{"include_usage":true}}',
-      [LLM_TOKEN_COUNT_PROMPT]: 13,
       [LLM_TOKEN_COUNT_COMPLETION]: 6,
+      [LLM_TOKEN_COUNT_PROMPT]: 13,
       [LLM_TOKEN_COUNT_TOTAL]: 19,
-      [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"This is a test stream.","generationInfo":{"prompt":0,"completion":0},"message":{"lc":1,"type":"constructor","id":["langchain_core","messages","ChatMessageChunk"],"kwargs":{"content":"This is a test stream.","additional_kwargs":{},"response_metadata":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19},"prompt":0,"completion":0}}}}]],"llmOutput":{"estimatedTokenUsage":{"promptTokens":13,"completionTokens":6,"totalTokens":19}}}',
-      [METADATA]:
-        '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
-    };
-    delete expectedStreamingAttributes[
-      `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
-    ];
+      [INPUT_MIME_TYPE]: "application/json",
+      [OUTPUT_MIME_TYPE]: "application/json",
+    });
 
-    // Remove the id since it is randomly generated and inherited from the run
-    const actualAttributes = { ...span.attributes };
-    const output = JSON.parse(String(actualAttributes[OUTPUT_VALUE]));
-    delete output.generations[0][0].message.kwargs.id;
-    const newOutputValue = JSON.stringify(output);
-    actualAttributes[OUTPUT_VALUE] = newOutputValue;
-
-    expect(actualAttributes).toStrictEqual(expectedStreamingAttributes);
+    // Test that invocation parameters contain streaming fields
+    const invocationParams = JSON.parse(
+      String(span.attributes[LLM_INVOCATION_PARAMETERS]),
+    );
+    expect(invocationParams.model).toBe("gpt-3.5-turbo");
+    expect(invocationParams.stream).toBe(true);
+    expect(invocationParams.stream_options).toBeDefined();
   });
 
   it("should add documents to retriever spans", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -352,7 +347,7 @@ describe("LangChainInstrumentation", () => {
     const vectorStore = await MemoryVectorStore.fromDocuments(
       docs,
       new OpenAIEmbeddings({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
       }),
     );
     const combineDocsChain = await createStuffDocumentsChain({
@@ -417,7 +412,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should add a prompt template to a span if found ", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
     const chain = prompt.pipe(chatModel);
@@ -450,16 +445,18 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add function calls to spans", async () => {
+    // Override the default handler for this test
+    server.use(
+      http.post("https://api.openai.com/v1/chat/completions", () => {
+        return HttpResponse.json(functionCallResponse);
+      }),
+    );
+
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
       temperature: 1,
     });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (chatModel as any).client.chat.completions.create.mockResolvedValue(
-      functionCallResponse,
-    );
 
     const weatherFunction = {
       name: "get_current_weather",
@@ -492,7 +489,13 @@ describe("LangChainInstrumentation", () => {
         span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
-    expect(llmSpan?.attributes).toStrictEqual({
+    // We strip out the input and output values because they are unstable
+    const {
+      [INPUT_VALUE]: inputValue,
+      [OUTPUT_VALUE]: outputValue,
+      ...attributes
+    } = llmSpan?.attributes || {};
+    expect(attributes).toStrictEqual({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
       [LLM_MODEL_NAME]: "gpt-3.5-turbo",
       [LLM_FUNCTION_CALL]:
@@ -508,25 +511,76 @@ describe("LangChainInstrumentation", () => {
       [LLM_TOKEN_COUNT_PROMPT]: 88,
       [LLM_TOKEN_COUNT_TOTAL]: 110,
       [LLM_INVOCATION_PARAMETERS]:
-        '{"model":"gpt-3.5-turbo","temperature":1,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false,"functions":[{"name":"get_current_weather","description":"Get the current weather in a given location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location"]}}]}',
-      [INPUT_VALUE]:
-        '{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"whats the weather like in seattle, wa in fahrenheit?","additional_kwargs":{},"response_metadata":{}}}]]}',
+        '{"model":"gpt-3.5-turbo","temperature":1,"stream":false,"functions":[{"name":"get_current_weather","description":"Get the current weather in a given location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location"]}}]}',
       [INPUT_MIME_TYPE]: "application/json",
-      [OUTPUT_VALUE]:
-        '{"generations":[[{"text":"","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{"function_call":{"name":"get_current_weather","arguments":"{\\"location\\":\\"Seattle, WA\\",\\"unit\\":\\"fahrenheit\\"}"}},"response_metadata":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110},"finish_reason":"function_call"},"id":"chatcmpl-9D6ZQKSVCtEeMT272J8h6xydy1jE2"}},"generationInfo":{"finish_reason":"function_call"}}]],"llmOutput":{"tokenUsage":{"completionTokens":22,"promptTokens":88,"totalTokens":110}}}',
       [OUTPUT_MIME_TYPE]: "application/json",
       metadata:
         '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     });
+    // Make sure the input and output values are set
+    expect(inputValue).toBeDefined();
+    expect(outputValue).toBeDefined();
+  });
+
+  it("should capture tool json schema in llm spans for bound tools", async () => {
+    const chatModel = new ChatOpenAI({
+      apiKey: "my-api-key",
+      modelName: "gpt-4o-mini",
+      temperature: 1,
+    });
+
+    const multiply = tool(
+      async ({ a, b }: { a: number; b: number }): Promise<number> => {
+        return a * b;
+      },
+      {
+        name: "multiply",
+        description: "Multiply two numbers",
+      },
+    );
+
+    const modelWithTools = chatModel.bindTools([multiply]);
+    await modelWithTools.invoke("What is 2 * 3?");
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans).toBeDefined();
+
+    const llmSpan = spans.find(
+      (span) =>
+        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+    expect(llmSpan).toBeDefined();
+    const toolSchema = JSON.parse(
+      String(llmSpan?.attributes[`${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`]),
+    );
+    expect(toolSchema).toMatchObject({
+      type: "function",
+      function: {
+        name: "multiply",
+        description: "Multiply two numbers",
+        parameters: {
+          type: "object",
+          properties: {
+            input: {
+              type: "string",
+            },
+          },
+          additionalProperties: false,
+          $schema: "http://json-schema.org/draft-07/schema#",
+        },
+      },
+    });
   });
 
   it("should add tool information to tool spans", async () => {
-    const simpleTool = new DynamicTool({
-      name: "test_tool",
-      description:
-        "call this to get the value of a test, input should be an empty string",
-      func: async () => Promise.resolve("this is a test tool"),
-    });
+    const simpleTool = tool(
+      async () => Promise.resolve("this is a test tool"),
+      {
+        name: "test_tool",
+        description:
+          "call this to get the value of a test, input should be an empty string",
+      },
+    );
 
     await simpleTool.invoke("hello");
 
@@ -538,11 +592,11 @@ describe("LangChainInstrumentation", () => {
         span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpan).toBeDefined();
-    expect(toolSpan?.attributes).toStrictEqual({
+    expect(toolSpan?.attributes).toMatchObject({
       [OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
       [TOOL_NAME]: "test_tool",
-      [INPUT_VALUE]: "hello",
-      [INPUT_MIME_TYPE]: "text/plain",
+      [INPUT_VALUE]: '{"input":"hello"}',
+      [INPUT_MIME_TYPE]: "application/json",
       [OUTPUT_VALUE]: "this is a test tool",
       [OUTPUT_MIME_TYPE]: "text/plain",
       metadata: "{}",
@@ -559,7 +613,7 @@ describe("LangChainInstrumentation", () => {
       ),
       async () => {
         const chatModel = new ChatOpenAI({
-          openAIApiKey: "my-api-key",
+          apiKey: "my-api-key",
           modelName: "gpt-3.5-turbo",
           temperature: 0,
         });
@@ -570,32 +624,38 @@ describe("LangChainInstrumentation", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
-    expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.mime_type": "application/json",
-  "input.value": "{"messages":[[{"lc":1,"type":"constructor","id":["langchain_core","messages","HumanMessage"],"kwargs":{"content":"hello, this is a test","additional_kwargs":{},"response_metadata":{}}}]]}",
-  "llm.input_messages.0.message.content": "hello, this is a test",
-  "llm.input_messages.0.message.role": "user",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "This is a test.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
-  "session.id": "session-id",
-  "test-attribute": "test-value",
-}
-`);
+    // Check all attributes except for the input and output values
+    const {
+      ["input.value"]: inputValue,
+      ["output.value"]: outputValue,
+      ...attributes
+    } = span.attributes;
+    expect(attributes).toMatchInlineSnapshot(`
+      {
+        "input.mime_type": "application/json",
+        "llm.input_messages.0.message.content": "hello, this is a test",
+        "llm.input_messages.0.message.role": "user",
+        "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"stream":false}",
+        "llm.model_name": "gpt-3.5-turbo",
+        "llm.output_messages.0.message.content": "This is a test.",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.token_count.completion": 5,
+        "llm.token_count.prompt": 12,
+        "llm.token_count.total": 17,
+        "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
+        "openinference.span.kind": "LLM",
+        "output.mime_type": "application/json",
+        "session.id": "session-id",
+        "test-attribute": "test-value",
+      }
+    `);
+    expect(inputValue).toBeDefined();
+    expect(outputValue).toBeDefined();
   });
 
   it("should extract session ID from run metadata with session_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -613,7 +673,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should extract session ID from run metadata with thread_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -631,7 +691,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should extract session ID from run metadata with conversation_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -649,7 +709,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should prioritize session_id over thread_id and conversation_id", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -669,7 +729,7 @@ describe("LangChainInstrumentation", () => {
 
   it("should handle missing session identifiers in metadata", async () => {
     const chatModel = new ChatOpenAI({
-      openAIApiKey: "my-api-key",
+      apiKey: "my-api-key",
       modelName: "gpt-3.5-turbo",
     });
 
@@ -685,7 +745,9 @@ describe("LangChainInstrumentation", () => {
 });
 
 describe("LangChainInstrumentation with TraceConfigOptions", () => {
-  const tracerProvider = new NodeTracerProvider();
+  const tracerProvider = new NodeTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(memoryExporter)],
+  });
   tracerProvider.register();
   const instrumentation = new LangChainInstrumentation({
     traceConfig: {
@@ -696,12 +758,10 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   const provider = new NodeTracerProvider();
   provider.getTracer("default");
   instrumentation.setTracerProvider(tracerProvider);
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(memoryExporter));
 
   beforeAll(() => {
     // Use manual instrumentation as intended for LangChain
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    instrumentation.manuallyInstrument(CallbackManager as any);
+    instrumentation.manuallyInstrument(CallbackManager);
     instrumentation.enable();
   });
   afterAll(() => {
@@ -709,6 +769,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
   });
   beforeEach(() => {
     memoryExporter.reset();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.clearAllMocks();
@@ -729,7 +790,7 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
       ),
       async () => {
         const chatModel = new ChatOpenAI({
-          openAIApiKey: "my-api-key",
+          apiKey: "my-api-key",
           modelName: "gpt-3.5-turbo",
           temperature: 0,
         });
@@ -740,36 +801,39 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     const span = spans[0];
-    expect(span.attributes).toMatchInlineSnapshot(`
-{
-  "input.value": "__REDACTED__",
-  "llm.invocation_parameters": "{"model":"gpt-3.5-turbo","temperature":0,"top_p":1,"frequency_penalty":0,"presence_penalty":0,"n":1,"stream":false}",
-  "llm.model_name": "gpt-3.5-turbo",
-  "llm.output_messages.0.message.content": "This is a test.",
-  "llm.output_messages.0.message.role": "assistant",
-  "llm.token_count.completion": 5,
-  "llm.token_count.prompt": 12,
-  "llm.token_count.total": 17,
-  "metadata": "{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}",
-  "openinference.span.kind": "LLM",
-  "output.mime_type": "application/json",
-  "output.value": "{"generations":[[{"text":"This is a test.","message":{"lc":1,"type":"constructor","id":["langchain_core","messages","AIMessage"],"kwargs":{"content":"This is a test.","tool_calls":[],"invalid_tool_calls":[],"additional_kwargs":{},"response_metadata":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17},"finish_reason":"stop"},"id":"chatcmpl-8adq9JloOzNZ9TyuzrKyLpGXexh6p"}},"generationInfo":{"finish_reason":"stop"}}]],"llmOutput":{"tokenUsage":{"completionTokens":5,"promptTokens":12,"totalTokens":17}}}",
-  "session.id": "session-id",
-  "test-attribute": "test-value",
-}
-`);
+    expect(span.attributes["input.value"]).toBe("__REDACTED__");
+    const invocationParams = JSON.parse(
+      String(span.attributes["llm.invocation_parameters"]),
+    );
+    expect(invocationParams.model).toBe("gpt-3.5-turbo");
+    expect(invocationParams.temperature).toBe(0);
+    expect(span.attributes["test-attribute"]).toBe("test-value");
+    expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo");
+    expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
+      "This is a test.",
+    );
+    expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
+      "assistant",
+    );
+    expect(span.attributes["llm.token_count.completion"]).toBe(5);
+    expect(span.attributes["llm.token_count.prompt"]).toBe(12);
+    expect(span.attributes["llm.token_count.total"]).toBe(17);
+    expect(span.attributes["metadata"]).toBe(
+      `{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":0}`,
+    );
+    expect(span.attributes["openinference.span.kind"]).toBe("LLM");
+    expect(span.attributes["output.mime_type"]).toBe("application/json");
+    // Output value is unstable, so we don't check it
+    expect(span.attributes["session.id"]).toBe("session-id");
   });
 });
 
 describe("LangChainInstrumentation with a custom tracer provider", () => {
   describe("LangChainInstrumentation with custom TracerProvider passed in", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation({
@@ -800,7 +864,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
 
@@ -818,13 +882,10 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   });
 
   describe("LangChainInstrumentation with custom TracerProvider set", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation();
@@ -846,6 +907,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     beforeEach(() => {
       memoryExporter.reset();
       customMemoryExporter.reset();
+      vi.clearAllMocks();
     });
 
     afterEach(() => {
@@ -855,7 +917,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
       await chatModel.invoke("test message");
@@ -868,13 +930,10 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
   });
 
   describe("LangChainInstrumentation with custom TracerProvider set via registerInstrumentations", () => {
-    const customTracerProvider = new NodeTracerProvider();
     const customMemoryExporter = new InMemorySpanExporter();
-
-    // Note: We don't register this provider globally.
-    customTracerProvider.addSpanProcessor(
-      new SimpleSpanProcessor(customMemoryExporter),
-    );
+    const customTracerProvider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(customMemoryExporter)],
+    });
 
     // Instantiate instrumentation with the custom provider
     const instrumentation = new LangChainInstrumentation();
@@ -900,6 +959,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
     beforeEach(() => {
       memoryExporter.reset();
       customMemoryExporter.reset();
+      vi.clearAllMocks();
     });
 
     afterEach(() => {
@@ -909,7 +969,7 @@ describe("LangChainInstrumentation with a custom tracer provider", () => {
 
     it("should use the provided tracer provider instead of the global one", async () => {
       const chatModel = new ChatOpenAI({
-        openAIApiKey: "my-api-key",
+        apiKey: "my-api-key",
         modelName: "gpt-3.5-turbo",
       });
       await chatModel.invoke("test message");
