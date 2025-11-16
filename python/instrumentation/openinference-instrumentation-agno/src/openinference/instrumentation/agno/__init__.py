@@ -13,6 +13,10 @@ from openinference.instrumentation.agno._model_wrapper import (
 )
 from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
 from openinference.instrumentation.agno._tools_wrapper import _FunctionCallWrapper
+from openinference.instrumentation.agno._workflow_wrapper import (
+    _StepWrapper,
+    _WorkflowWrapper,
+)
 from openinference.instrumentation.agno.version import __version__
 
 _instruments = ("agno >= 1.5.2",)
@@ -79,6 +83,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_function_execute_method",
         "_original_function_aexecute_method",
         "_original_model_call_methods",
+        "_original_workflow_methods",
+        "_original_step_methods",
         "_tracer",
     )
 
@@ -209,6 +215,77 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=function_call_wrapper.arun,
         )
 
+        # Instrument Workflow and Step
+        try:
+            from agno.workflow.workflow import Workflow
+            from agno.workflow.step import Step
+
+            workflow_wrapper = _WorkflowWrapper(tracer=self._tracer)
+            step_wrapper = _StepWrapper(tracer=self._tracer)
+
+            # Store original methods
+            self._original_workflow_methods = {}
+            self._original_step_methods = {}
+            
+            # Wrap Workflow.run (sync) - wraps both streaming and non-streaming
+            if hasattr(Workflow, "run") and callable(getattr(Workflow, "run", None)):
+                self._original_workflow_methods["run"] = Workflow.run
+                wrap_function_wrapper(
+                    module=Workflow,
+                    name="run",
+                    wrapper=workflow_wrapper.run,
+                )
+            
+            # Wrap Workflow.arun (async) - wraps both streaming and non-streaming
+            if hasattr(Workflow, "arun") and callable(getattr(Workflow, "arun", None)):
+                self._original_workflow_methods["arun"] = Workflow.arun
+                wrap_function_wrapper(
+                    module=Workflow,
+                    name="arun",
+                    wrapper=workflow_wrapper.arun,
+                )
+
+            # Wrap Step.execute (sync)
+            if hasattr(Step, "execute") and callable(getattr(Step, "execute", None)):
+                self._original_step_methods["execute"] = Step.execute
+                wrap_function_wrapper(
+                    module=Step,
+                    name="execute",
+                    wrapper=step_wrapper.run,
+                )
+            
+            # Wrap Step.execute_stream (sync streaming)
+            if hasattr(Step, "execute_stream") and callable(getattr(Step, "execute_stream", None)):
+                self._original_step_methods["execute_stream"] = Step.execute_stream
+                wrap_function_wrapper(
+                    module=Step,
+                    name="execute_stream",
+                    wrapper=step_wrapper.run,
+                )
+            
+            # Wrap Step.aexecute (async)
+            if hasattr(Step, "aexecute") and callable(getattr(Step, "aexecute", None)):
+                self._original_step_methods["aexecute"] = Step.aexecute
+                wrap_function_wrapper(
+                    module=Step,
+                    name="aexecute",
+                    wrapper=step_wrapper.arun,
+                )
+            
+            # Wrap Step.aexecute_stream (async streaming)
+            if hasattr(Step, "aexecute_stream") and callable(getattr(Step, "aexecute_stream", None)):
+                self._original_step_methods["aexecute_stream"] = Step.aexecute_stream
+                wrap_function_wrapper(
+                    module=Step,
+                    name="aexecute_stream",
+                    wrapper=step_wrapper.arun,
+                )
+
+        except (ImportError, AttributeError):
+            # Workflow/Step not available in this version of agno
+            self._original_workflow_methods = None
+            self._original_step_methods = None
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from agno.agent import Agent
         from agno.team import Team
@@ -258,3 +335,26 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_function_aexecute_method is not None:
             FunctionCall.aexecute = self._original_function_aexecute_method  # type: ignore[method-assign]
             self._original_function_aexecute_method = None
+
+        # Uninstrument Workflow and Step
+        if self._original_workflow_methods is not None:
+            try:
+                from agno.workflow.workflow import Workflow
+
+                for method_name, original in self._original_workflow_methods.items():
+                    if original is not None:
+                        setattr(Workflow, method_name, original)
+            except ImportError:
+                pass
+            self._original_workflow_methods = None
+
+        if self._original_step_methods is not None:
+            try:
+                from agno.workflow.step import Step
+
+                for method_name, original in self._original_step_methods.items():
+                    if original is not None:
+                        setattr(Step, method_name, original)
+            except ImportError:
+                pass
+            self._original_step_methods = None
