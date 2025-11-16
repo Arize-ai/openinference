@@ -18,6 +18,9 @@ from openinference.semconv.trace import (
 class Processor:
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.UNKNOWN
 
+    def get_span_name(self, target_cls: type) -> str:
+        return target_cls.__name__
+
     def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
         from beeai_framework.context import RunContext
 
@@ -27,7 +30,7 @@ class Processor:
         assert meta.trace is not None
         self.run_id = meta.trace.run_id
 
-        self.span = SpanWrapper(name=target_cls.__name__, kind=type(self).kind)
+        self.span = SpanWrapper(name=self.get_span_name(target_cls), kind=type(self).kind)
         self.span.started_at = meta.created_at
         self.span.attributes.update(
             {
