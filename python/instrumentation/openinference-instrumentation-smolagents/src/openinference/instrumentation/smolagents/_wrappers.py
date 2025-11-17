@@ -109,9 +109,9 @@ class _RunWrapper:
         # Skip instrumentation if explicitly disabled
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-
-        span_name = f"{getattr(instance, 'name', instance.__class__.__name__)}.run"
+        
         agent = instance
+        span_name = f"{getattr(agent, 'name', None) or agent.__class__.__name__}.run"
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         # Start parent span for the full run
