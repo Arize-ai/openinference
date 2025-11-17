@@ -153,11 +153,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-if TYPE_CHECKING:
-    # Only imported for type checking; mypy sees the class
-    pass
-
-
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -748,7 +743,6 @@ class _Span(BaseSpan):
                 self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = blocks[0].text
             else:
                 for j, block in enumerate(blocks):
-                    # if type(block).__name__ == "ToolCallBlock":
                     if ToolCallBlock is not None and isinstance(block, ToolCallBlock):
                         tool_calls.append(block)
                     for k, v in _get_attributes_from_content_block(
@@ -1084,7 +1078,6 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
             elif isinstance(arguments, dict):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
-    # elif type(tool_call).__name__ == "ToolCallBlock":
     elif ToolCallBlock is not None and isinstance(tool_call, ToolCallBlock):
         if tool_call_id := getattr(tool_call, "tool_call_id"):
             yield TOOL_CALL_ID, tool_call_id
