@@ -1079,16 +1079,16 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
             elif isinstance(arguments, dict):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
     elif ToolCallBlock is not None and isinstance(tool_call, ToolCallBlock):
-        if tool_call_id := getattr(tool_call, "tool_call_id"):
+        if tool_call_id := getattr(tool_call, "tool_call_id", None):
             yield TOOL_CALL_ID, tool_call_id
-        if name := getattr(tool_call, "tool_name"):
+        if name := getattr(tool_call, "tool_name", None):
             yield TOOL_CALL_FUNCTION_NAME, name
-        if isinstance(getattr(tool_call, "tool_kwargs"), str):
-            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, getattr(tool_call, "tool_kwargs")
+        if isinstance(getattr(tool_call, "tool_kwargs", None), str):
+            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, getattr(tool_call, "tool_kwargs", None)
         else:
             yield (
                 TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
-                safe_json_dumps(getattr(tool_call, "tool_kwargs")),
+                safe_json_dumps(getattr(tool_call, "tool_kwargs", None)),
             )
     elif function := getattr(tool_call, "function", None):
         if tool_call_id := getattr(tool_call, "id", None):
