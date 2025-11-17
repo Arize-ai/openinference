@@ -40,7 +40,8 @@ instruments = [
 ]
 test = [
   "langchain_core == 0.3.50",
-  "langchain == 0.3.15",
+  "langchain >= 1.0.0",  # New 1.x agent framework
+  "langchain-classic >= 1.0.0",  # Legacy chains and tools (formerly langchain 0.x)
   "langchain_openai == 0.2.14",
   "langchain-community == 0.3.15",
   "langchain-google-vertexai == 2.0.12",
