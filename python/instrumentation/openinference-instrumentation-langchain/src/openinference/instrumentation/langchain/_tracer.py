@@ -588,6 +588,11 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
         role = "tool"
     elif message_class_name.startswith("ChatMessage"):
         role = message_data["kwargs"]["role"]
+    elif message_class_name.startswith("RemoveMessage"):
+        # RemoveMessage is a special message type used by LangGraph to mark messages for removal
+        # It doesn't have a traditional role, so we skip adding a role attribute
+        # This prevents ValueError while allowing RemoveMessage to be processed
+        return
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
     yield MESSAGE_ROLE, role
