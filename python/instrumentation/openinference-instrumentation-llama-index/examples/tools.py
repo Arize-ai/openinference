@@ -1,12 +1,10 @@
-from random import randint
-
 from llama_index.core.tools import FunctionTool
 from llama_index.llms.anthropic import Anthropic
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
@@ -23,7 +21,6 @@ def get_weather(location: str) -> str:
 TOOL = FunctionTool.from_defaults(get_weather, name="get_weather")
 
 llm = Anthropic(model="claude-3-5-haiku-20241022")
-
 
 if __name__ == "__main__":
     response = llm.chat(

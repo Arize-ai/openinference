@@ -5,7 +5,7 @@ llama-index-llms-openai
 llama-index-llms-vertex
 llama-index-multi-modal-llms-openai>=0.1.7
 llama-index==0.13.1
-llama_index-llms-anthropic>=0.8.1
+llama_index-llms-anthropic<0.9.0
 openinference-instrumentation-openai
 opentelemetry-sdk
 pytest-vcr

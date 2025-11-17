@@ -73,17 +73,16 @@ class TestToolCallsInChatResponse:
         )
         spans = in_memory_span_exporter.get_finished_spans()
         span = spans[-1]
-        attributes = dict(span.attributes or {})
-        assert attributes
-        assert attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
+        assert span.attributes
+        assert span.attributes.get(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_ID}")
         assert (
-            attributes.get(
+            span.attributes.get(
                 f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_NAME}"
             )
             == "get_weather"
         )
         assert isinstance(
-            arguments := attributes.get(
+            arguments := span.attributes.get(
                 f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
             ),
             str,

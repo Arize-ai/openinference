@@ -56,6 +56,10 @@ except ImportError:
     except ImportError:
         BaseAgent = None  # type: ignore[misc,assignment]
         BaseAgentWorker = None  # type: ignore[misc,assignment]
+try:
+    from llama_index.core.base.llms.types import ToolCallBlock  # type: ignore
+except ImportError:
+    ToolCallBlock = None  # type: ignore
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -148,6 +152,11 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+if TYPE_CHECKING:
+    # Only imported for type checking; mypy sees the class
+    pass
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -734,10 +743,14 @@ class _Span(BaseSpan):
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             blocks = message.blocks
+            tool_calls = []
             if len(blocks) == 1 and isinstance(blocks[0], TextBlock):
                 self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = blocks[0].text
             else:
                 for j, block in enumerate(blocks):
+                    # if type(block).__name__ == "ToolCallBlock":
+                    if ToolCallBlock is not None and isinstance(block, ToolCallBlock):
+                        tool_calls.append(block)
                     for k, v in _get_attributes_from_content_block(
                         block,
                         prefix=f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.",
@@ -746,7 +759,7 @@ class _Span(BaseSpan):
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
                 self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
-            if tool_calls := additional_kwargs.get("tool_calls"):
+            if tool_calls := (additional_kwargs.get("tool_calls") or tool_calls):
                 for j, tool_call in enumerate(tool_calls):
                     for k, v in _get_tool_call(tool_call):
                         self[f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{k}"] = v
@@ -1071,6 +1084,19 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
             elif isinstance(arguments, dict):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    # elif type(tool_call).__name__ == "ToolCallBlock":
+    elif ToolCallBlock is not None and isinstance(tool_call, ToolCallBlock):
+        if tool_call_id := getattr(tool_call, "tool_call_id"):
+            yield TOOL_CALL_ID, tool_call_id
+        if name := getattr(tool_call, "tool_name"):
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if isinstance(getattr(tool_call, "tool_kwargs"), str):
+            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, getattr(tool_call, "tool_kwargs")
+        else:
+            yield (
+                TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                safe_json_dumps(getattr(tool_call, "tool_kwargs")),
+            )
     elif function := getattr(tool_call, "function", None):
         if tool_call_id := getattr(tool_call, "id", None):
             yield TOOL_CALL_ID, tool_call_id
