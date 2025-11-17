@@ -363,13 +363,47 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
     return zip((OUTPUT_VALUE, OUTPUT_MIME_TYPE), values)
 
 
+def _is_json_parseable(value: str) -> bool:
+    """
+    Check if a string value is valid JSON (object or array).
+    
+    This function is performance-optimized to avoid unnecessary parsing:
+    - Returns early if the string doesn't look like JSON (no braces/brackets)
+    - Only attempts parsing for strings that structurally resemble JSON
+    
+    Args:
+        value: String to check for JSON parseability.
+        
+    Returns:
+        `True` if the string is valid JSON (dict/list), `False` otherwise.
+    """
+    if not value:
+        return False
+    
+    stripped = value.strip()
+    if not stripped:
+        return False
+    
+    if not ((stripped.startswith("{") and stripped.endswith("}"))
+            or (stripped.startswith("[") and stripped.endswith("]"))):
+        return False
+    
+    try:
+        parsed = json.loads(value)
+        return isinstance(parsed, (dict, list))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return False
+
+
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
 
     This function handles different cases with increasing complexity:
     1. Empty/None objects: return nothing
-    2. Single string values: return the string directly (performance optimization, no MIME type)
+    2. Single string values: return the string directly
+       - If the string is parseable JSON (object/array), also yield JSON MIME type
+       - Otherwise, no MIME type (defaults to text/plain)
     3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
        - Conditional MIME type: only for structured data (objects/arrays), not primitives
     4. Multiple keys or other cases: use _json_dumps for consistent formatting
@@ -390,10 +424,14 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if len(obj) == 1:
         value = next(iter(obj.values()))
 
-        # Optimization: Single string values are returned as-is without processing
-        # This is the most common case in LangChain runs (e.g., {"input": "user message"})
+        # Handle string values: check if they contain JSON
+        # This is a common case when producers pass stringified JSON
         if isinstance(value, str):
             yield value
+            # Check if the string is parseable JSON (object or array)
+            # If so, tag it with JSON MIME type for proper frontend rendering
+            if _is_json_parseable(value):
+                yield OpenInferenceMimeTypeValues.JSON.value
             return
 
         key = next(iter(obj.keys()))
