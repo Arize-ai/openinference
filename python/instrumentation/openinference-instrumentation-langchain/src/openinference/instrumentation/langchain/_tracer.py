@@ -678,7 +678,14 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
             if role:
                 logger.debug("Extracted message role from type field: %s", role)
 
-    # Strategy 3: Try inferring from context
+    # Strategy 3: Try direct role field (for raw dict messages)
+    if role is None:
+        direct_role = message_data.get("role")
+        if isinstance(direct_role, str):
+            logger.debug("Extracted message role from direct role field: %s", direct_role)
+            role = direct_role
+
+    # Strategy 4: Try inferring from context
     if role is None:
         role = _infer_role_from_context(message_data)
         if role:
