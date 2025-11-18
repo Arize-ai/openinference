@@ -297,6 +297,18 @@ def _get_attributes_from_input(
             continue  # TODO
         elif item["type"] == "mcp_call":
             continue  # TODO
+        elif item["type"] == "shell_call":
+            # TODO: Handle shell call
+            continue
+        elif item["type"] == "shell_call_output":
+            # TODO: Handle shell call output
+            continue
+        elif item["type"] == "apply_patch_call":
+            # TODO: Handle patch call
+            continue
+        elif item["type"] == "apply_patch_call_output":
+            # TODO: Handle patch call output
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -663,6 +675,14 @@ def _get_attributes_from_response_output(
         elif item.type == "mcp_list_tools":
             ...  # TODO
         elif item.type == "mcp_approval_request":
+            ...  # TODO
+        elif item.type == "shell_call":
+            ...  # TODO
+        elif item.type == "shell_call_output":
+            ...  # TODO
+        elif item.type == "apply_patch_call":
+            ...  # TODO
+        elif item.type == "apply_patch_call_output":
             ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
