@@ -60,7 +60,6 @@ def _generate_node_id() -> str:
 
 def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
     """Extract input message from workflow/step arguments."""
-    # Try different common argument names
     for key in ["input", "message", "messages", "prompt"]:
         if value := arguments.get(key):
             if isinstance(value, str):
