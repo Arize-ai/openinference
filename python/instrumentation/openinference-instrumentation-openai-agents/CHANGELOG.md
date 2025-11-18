@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.0...python-openinference-instrumentation-openai-agents-v1.3.1) (2025-11-18)
+
+
+### Bug Fixes
+
+* CI issues for openai agents ([#2367](https://github.com/Arize-ai/openinference/issues/2367)) ([a18078b](https://github.com/Arize-ai/openinference/commit/a18078bb150134b5988c454b9143e1ef93fc4aa6))
+
 ## [1.3.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.2.0...python-openinference-instrumentation-openai-agents-v1.3.0) (2025-09-08)
 
 
