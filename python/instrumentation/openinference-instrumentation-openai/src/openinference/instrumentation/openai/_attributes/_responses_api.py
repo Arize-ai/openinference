@@ -446,6 +446,18 @@ class _ResponsesApiAttributes:
         elif obj["type"] == "mcp_call":
             # TODO: Handle mcp call
             pass
+        elif obj["type"] == "shell_call":
+            # TODO: Handle shell call
+            pass
+        elif obj["type"] == "shell_call_output":
+            # TODO: Handle shell call output
+            pass
+        elif obj["type"] == "apply_patch_call":
+            # TODO: Handle patch call
+            pass
+        elif obj["type"] == "apply_patch_call_output":
+            # TODO: Handle patch call output
+            pass
         elif TYPE_CHECKING and obj["type"] is not None:
             assert_never(obj["type"])
 
@@ -571,6 +583,18 @@ class _ResponsesApiAttributes:
             pass
         elif obj.type == "mcp_approval_request":
             # TODO: Handle mcp approval request
+            pass
+        elif obj.type == "shell_call":
+            # TODO: Handle shell call
+            pass
+        elif obj.type == "shell_call_output":
+            # TODO: Handle shell call output
+            pass
+        elif obj.type == "apply_patch_call":
+            # TODO: Handle patch call
+            pass
+        elif obj.type == "apply_patch_call_output":
+            # TODO: Handle patch call output
             pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
