@@ -5,6 +5,7 @@ from typing import (
     Callable,
     Dict,
     Iterator,
+    AsyncIterator,
     Mapping,
     OrderedDict,
     Tuple,
@@ -138,36 +139,16 @@ class _WorkflowWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            result = wrapped(*args, **kwargs)
-            # Return the result as-is (either iterator or regular result)
-            return result
+            return wrapped(*args, **kwargs)
         
-        # Bind arguments to extract input
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
-        
-        # Call the wrapped method to check what it returns
-        result = wrapped(*args, **kwargs)
-        
-        # Check if the result is an iterator (streaming mode)
-        if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
-            # Streaming mode - return a generator that wraps the iterator
-            return self._run_stream_wrapper_iter(result, instance, arguments)
-        else:
-            # Non-streaming mode - return the result with instrumentation
-            return self._run_wrapper_result(result, instance, arguments)
-    
-    def _run_wrapper_result(
-        self,
-        result: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
-    ) -> Any:
-        """Wrap a non-streaming workflow execution"""
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
         span_name = f"{workflow_name}.run"
         
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
+        
+        # Bind arguments to extract input
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
         
         span = self._tracer.start_span(
             span_name,
@@ -186,8 +167,16 @@ class _WorkflowWrapper:
         
         workflow_token = None
         try:
-            workflow_token = _setup_workflow_context(node_id)
+            # Execute inside span context so children can find parent (like _runs_wrapper.py:253-255)
+            with trace_api.use_span(span, end_on_exit=False):
+                workflow_token = _setup_workflow_context(node_id)
+                result = wrapped(*args, **kwargs)
             
+            # Check if result is an iterator (streaming)
+            if isinstance(result, Iterator):
+                return self._run_stream_continue(result, span, workflow_token)
+            
+            # Non-streaming mode - set output and return
             span.set_status(trace_api.StatusCode.OK)
             output = _extract_output(result)
             if output:
@@ -202,49 +191,27 @@ class _WorkflowWrapper:
             raise
         
         finally:
-            if workflow_token:
-                try:
-                    context_api.detach(workflow_token)
-                except Exception:
-                    pass
-            span.end()
+            # Only cleanup if not streaming (streaming handles its own)
+            if not isinstance(result, Iterator):
+                if workflow_token:
+                    try:
+                        context_api.detach(workflow_token)
+                    except Exception:
+                        pass
+                span.end()
     
-    def _run_stream_wrapper_iter(
+    def _run_stream_continue(
         self,
         iterator: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
+        span: Any,
+        workflow_token: Any,
     ) -> Any:
-        """Wrap a streaming workflow execution"""
-        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
-        span_name = f"{workflow_name}.run"
-        
-        # Generate unique node ID for this execution
-        node_id = _generate_node_id()
-        
-        span = self._tracer.start_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                        GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_from_args(arguments),
-                        **dict(_workflow_attributes(instance)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
-        )
-        
-        workflow_token = None
+        """Continue streaming workflow with existing span"""
         accumulated_output = []
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                workflow_token = _setup_workflow_context(node_id)
                 try:
                     for response in iterator:
-                        # Try to extract content for accumulated output
                         if hasattr(response, 'content') and response.content:
                             accumulated_output.append(str(response.content))
                         yield response
@@ -282,37 +249,17 @@ class _WorkflowWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            result = wrapped(*args, **kwargs)
-            # Return the result as-is (either coroutine or async iterator)
-            return result
+            return wrapped(*args, **kwargs)
+        
+        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
+        span_name = f"{workflow_name}.arun"
+        
+        # Generate unique node ID for this execution
+        node_id = _generate_node_id()
         
         # Bind arguments to extract input
         arguments = _bind_arguments(wrapped, *args, **kwargs)
         
-        # Call the wrapped method to check what it returns
-        result = wrapped(*args, **kwargs)
-        
-        # Check if the result is an async iterator (streaming mode)
-        if hasattr(result, '__aiter__'):
-            # Streaming mode - return an async generator that wraps the iterator
-            return self._arun_stream_wrapper_iter(result, instance, arguments)
-        else:
-            # Non-streaming mode - return a coroutine that awaits the result
-            return self._arun_wrapper_coro(result, instance, arguments)
-    
-    async def _arun_wrapper_coro(
-        self,
-        coro: Awaitable[Any],
-        instance: Any,
-        arguments: Dict[str, Any],
-    ) -> Any:
-        """Wrap a non-streaming async workflow execution"""
-        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
-        span_name = f"{workflow_name}.arun"
-        
-        # Generate unique node ID for this execution
-        node_id = _generate_node_id()
-        
         span = self._tracer.start_span(
             span_name,
             attributes=dict(
@@ -329,68 +276,65 @@ class _WorkflowWrapper:
         )
         
         workflow_token = None
-        try:
-            with trace_api.use_span(span, end_on_exit=False):
-                workflow_token = _setup_workflow_context(node_id)
-                response = await coro
-            
-            span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(response)
-            if output:
-                span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-            
-            return response
         
-        except Exception as e:
-            span.set_status(trace_api.StatusCode.ERROR, str(e))
-            span.record_exception(e)
-            raise
+        async def wrapper():
+            nonlocal workflow_token
+            result = None
+            is_streaming = False
+            try:
+                # Execute inside span context so children can find parent
+                with trace_api.use_span(span, end_on_exit=False):
+                    workflow_token = _setup_workflow_context(node_id)
+                    result = wrapped(*args, **kwargs)
+                
+                # Check if result is an async iterator (streaming)
+                is_streaming = isinstance(result, AsyncIterator)
+                
+                if is_streaming:
+                    # Streaming mode - return async generator that continues with this span
+                    return self._arun_stream_continue(result, span, workflow_token)
+                
+                # Non-streaming mode - await the coroutine
+                with trace_api.use_span(span, end_on_exit=False):
+                    response = await result
+                
+                span.set_status(trace_api.StatusCode.OK)
+                output = _extract_output(response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                
+                return response
+            
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                span.record_exception(e)
+                raise
+            
+            finally:
+                # Only cleanup if not streaming
+                if not is_streaming:
+                    if workflow_token:
+                        try:
+                            context_api.detach(workflow_token)
+                        except Exception:
+                            pass
+                    span.end()
         
-        finally:
-            if workflow_token:
-                try:
-                    context_api.detach(workflow_token)
-                except Exception:
-                    pass
-            span.end()
+        return wrapper()
     
-    async def _arun_stream_wrapper_iter(
+    async def _arun_stream_continue(
         self,
         async_iter: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
+        span: Any,
+        workflow_token: Any,
     ) -> Any:
-        """Wrap a streaming async workflow execution"""
-        workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
-        span_name = f"{workflow_name}.arun"
-        
-        # Generate unique node ID for this execution
-        node_id = _generate_node_id()
-        
-        span = self._tracer.start_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                        GRAPH_NODE_ID: node_id,
-                        INPUT_VALUE: _get_input_from_args(arguments),
-                        **dict(_workflow_attributes(instance)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
-        )
-        
-        workflow_token = None
+        """Continue streaming async workflow with existing span"""
         accumulated_output = []
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                workflow_token = _setup_workflow_context(node_id)
                 try:
                     async for response in async_iter:
-                        # Try to extract content for accumulated output
                         if hasattr(response, 'content') and response.content:
                             accumulated_output.append(str(response.content))
                         yield response
@@ -433,32 +377,9 @@ class _StepWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            result = wrapped(*args, **kwargs)
-            return result
+            return wrapped(*args, **kwargs)
         
-        # Bind arguments to extract input
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
-        
-        # Call the wrapped method to check what it returns
-        result = wrapped(*args, **kwargs)
-        
-        # Check if the result is an iterator (streaming mode)
-        if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
-            # Streaming mode - return a generator that wraps the iterator
-            return self._run_stream_wrapper_iter(result, instance, arguments)
-        else:
-            # Non-streaming mode - return the result with instrumentation
-            return self._run_wrapper_result(result, instance, arguments)
-    
-    def _run_wrapper_result(
-        self,
-        result: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
-    ) -> Any:
-        """Wrap a non-streaming step execution"""
         step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
-        method_name = getattr(result, "__class__", "execute").__name__
         span_name = f"{step_name}.execute"
         
         # Generate unique node ID for this execution
@@ -466,6 +387,9 @@ class _StepWrapper:
         
         # Get parent node ID from workflow context
         parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+        
+        # Bind arguments to extract input
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
         
         span = self._tracer.start_span(
             span_name,
@@ -485,8 +409,17 @@ class _StepWrapper:
         
         step_token = None
         try:
-            step_token = _setup_step_context(node_id)
+            # Execute inside span context so children can find parent (like _runs_wrapper.py:253-255)
+            with trace_api.use_span(span, end_on_exit=False):
+                step_token = _setup_step_context(node_id)
+                result = wrapped(*args, **kwargs)
             
+            # Check if result is an iterator (streaming)
+            if isinstance(result, Iterator):
+                # Streaming mode - continue with this span
+                return self._run_stream_continue(result, span, step_token)
+            
+            # Non-streaming mode - set output and return
             span.set_status(trace_api.StatusCode.OK)
             output = _extract_output(result)
             if output:
@@ -501,53 +434,27 @@ class _StepWrapper:
             raise
         
         finally:
-            if step_token:
-                try:
-                    context_api.detach(step_token)
-                except Exception:
-                    pass
-            span.end()
+            # Only cleanup if not streaming
+            if not isinstance(result, Iterator):
+                if step_token:
+                    try:
+                        context_api.detach(step_token)
+                    except Exception:
+                        pass
+                span.end()
     
-    def _run_stream_wrapper_iter(
+    def _run_stream_continue(
         self,
         iterator: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
+        span: Any,
+        step_token: Any,
     ) -> Any:
-        """Wrap a streaming step execution"""
-        step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
-        span_name = f"{step_name}.execute_stream"
-        
-        # Generate unique node ID for this execution
-        node_id = _generate_node_id()
-        
-        # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
-        
-        span = self._tracer.start_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                        GRAPH_NODE_ID: node_id,
-                        **({GRAPH_NODE_PARENT_ID: parent_id} if parent_id else {}),
-                        INPUT_VALUE: _get_input_from_args(arguments),
-                        **dict(_step_attributes(instance)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
-        )
-        
-        step_token = None
+        """Continue streaming step with existing span"""
         accumulated_output = []
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                step_token = _setup_step_context(node_id)
                 try:
                     for response in iterator:
-                        # Try to extract content for accumulated output
                         if hasattr(response, 'content') and response.content:
                             accumulated_output.append(str(response.content))
                         yield response
@@ -585,30 +492,8 @@ class _StepWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            result = wrapped(*args, **kwargs)
-            return result
+            return wrapped(*args, **kwargs)
         
-        # Bind arguments to extract input
-        arguments = _bind_arguments(wrapped, *args, **kwargs)
-        
-        # Call the wrapped method to check what it returns
-        result = wrapped(*args, **kwargs)
-        
-        # Check if the result is an async iterator (streaming mode)
-        if hasattr(result, '__aiter__'):
-            # Streaming mode - return an async generator that wraps the iterator
-            return self._arun_stream_wrapper(result, instance, arguments)
-        else:
-            # Non-streaming mode - return a coroutine that awaits the result
-            return self._arun_wrapper(result, instance, arguments)
-    
-    async def _arun_wrapper(
-        self,
-        coro: Awaitable[Any],
-        instance: Any,
-        arguments: Dict[str, Any],
-    ) -> Any:
-        """Wrap a non-streaming async step execution"""
         step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
         span_name = f"{step_name}.aexecute"
         
@@ -618,6 +503,9 @@ class _StepWrapper:
         # Get parent node ID from workflow context
         parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
         
+        # Bind arguments to extract input
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+        
         span = self._tracer.start_span(
             span_name,
             attributes=dict(
@@ -635,72 +523,65 @@ class _StepWrapper:
         )
         
         step_token = None
-        try:
-            with trace_api.use_span(span, end_on_exit=False):
-                step_token = _setup_step_context(node_id)
-                response = await coro
-            
-            span.set_status(trace_api.StatusCode.OK)
-            output = _extract_output(response)
-            if output:
-                span.set_attribute(OUTPUT_VALUE, output)
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-            
-            return response
         
-        except Exception as e:
-            span.set_status(trace_api.StatusCode.ERROR, str(e))
-            span.record_exception(e)
-            raise
+        async def wrapper():
+            nonlocal step_token
+            result = None
+            is_streaming = False
+            try:
+                # Execute inside span context so children can find parent
+                with trace_api.use_span(span, end_on_exit=False):
+                    step_token = _setup_step_context(node_id)
+                    result = wrapped(*args, **kwargs)
+                
+                # Check if result is an async iterator (streaming)
+                is_streaming = isinstance(result, AsyncIterator)
+                
+                if is_streaming:
+                    # Streaming mode - return async generator that continues with this span
+                    return self._arun_stream_continue(result, span, step_token)
+                
+                # Non-streaming mode - await the coroutine
+                with trace_api.use_span(span, end_on_exit=False):
+                    response = await result
+                
+                span.set_status(trace_api.StatusCode.OK)
+                output = _extract_output(response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                
+                return response
+            
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                span.record_exception(e)
+                raise
+            
+            finally:
+                # Only cleanup if not streaming
+                if not is_streaming:
+                    if step_token:
+                        try:
+                            context_api.detach(step_token)
+                        except Exception:
+                            pass
+                    span.end()
         
-        finally:
-            if step_token:
-                try:
-                    context_api.detach(step_token)
-                except Exception:
-                    pass
-            span.end()
+        return wrapper()
     
-    async def _arun_stream_wrapper(
+    async def _arun_stream_continue(
         self,
         async_iter: Any,
-        instance: Any,
-        arguments: Dict[str, Any],
+        span: Any,
+        step_token: Any,
     ) -> Any:
-        """Wrap a streaming async step execution"""
-        step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
-        span_name = f"{step_name}.aexecute_stream"
-        
-        # Generate unique node ID for this execution
-        node_id = _generate_node_id()
-        
-        # Get parent node ID from workflow context
-        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
-        
-        span = self._tracer.start_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: CHAIN,
-                        GRAPH_NODE_ID: node_id,
-                        **({GRAPH_NODE_PARENT_ID: parent_id} if parent_id else {}),
-                        INPUT_VALUE: _get_input_from_args(arguments),
-                        **dict(_step_attributes(instance)),
-                        **dict(get_attributes_from_context()),
-                    }
-                )
-            ),
-        )
-        
-        step_token = None
+        """Continue streaming async step with existing span"""
         accumulated_output = []
         try:
             with trace_api.use_span(span, end_on_exit=False):
-                step_token = _setup_step_context(node_id)
                 try:
                     async for response in async_iter:
-                        # Try to extract content for accumulated output
                         if hasattr(response, 'content') and response.content:
                             accumulated_output.append(str(response.content))
                         yield response
@@ -747,4 +628,3 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 
 # span kinds
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
-
