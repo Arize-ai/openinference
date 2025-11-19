@@ -5,7 +5,6 @@ from typing import (
     Callable,
     Dict,
     Iterator,
-    AsyncIterator,
     Mapping,
     OrderedDict,
     Tuple,
@@ -173,7 +172,9 @@ class _WorkflowWrapper:
                 result = wrapped(*args, **kwargs)
             
             # Check if result is an iterator (streaming)
-            if isinstance(result, Iterator):
+            is_streaming = hasattr(result, '__iter__') and not isinstance(result, (str, bytes))
+            
+            if is_streaming:
                 return self._run_stream_continue(result, span, workflow_token)
             
             # Non-streaming mode - set output and return
@@ -192,7 +193,8 @@ class _WorkflowWrapper:
         
         finally:
             # Only cleanup if not streaming (streaming handles its own)
-            if not isinstance(result, Iterator):
+            is_streaming = hasattr(result, '__iter__') and not isinstance(result, (str, bytes))
+            if not is_streaming:
                 if workflow_token:
                     try:
                         context_api.detach(workflow_token)
@@ -275,26 +277,21 @@ class _WorkflowWrapper:
             ),
         )
         
+        # Setup context and call wrapped to detect streaming
         workflow_token = None
+        with trace_api.use_span(span, end_on_exit=False):
+            workflow_token = _setup_workflow_context(node_id)
+            result = wrapped(*args, **kwargs)
         
-        async def wrapper():
-            nonlocal workflow_token
-            result = None
-            is_streaming = False
+        # Check if result is an async iterator (streaming)
+        if hasattr(result, '__aiter__'):
+            # Streaming mode - return async generator that continues with this span
+            return self._arun_stream_continue(result, span, workflow_token)
+        
+        # Non-streaming mode - return coroutine that handles it
+        async def non_stream_wrapper():
             try:
-                # Execute inside span context so children can find parent
-                with trace_api.use_span(span, end_on_exit=False):
-                    workflow_token = _setup_workflow_context(node_id)
-                    result = wrapped(*args, **kwargs)
-                
-                # Check if result is an async iterator (streaming)
-                is_streaming = isinstance(result, AsyncIterator)
-                
-                if is_streaming:
-                    # Streaming mode - return async generator that continues with this span
-                    return self._arun_stream_continue(result, span, workflow_token)
-                
-                # Non-streaming mode - await the coroutine
+                # Await the coroutine inside span context
                 with trace_api.use_span(span, end_on_exit=False):
                     response = await result
                 
@@ -312,16 +309,14 @@ class _WorkflowWrapper:
                 raise
             
             finally:
-                # Only cleanup if not streaming
-                if not is_streaming:
-                    if workflow_token:
-                        try:
-                            context_api.detach(workflow_token)
-                        except Exception:
-                            pass
-                    span.end()
+                if workflow_token:
+                    try:
+                        context_api.detach(workflow_token)
+                    except Exception:
+                        pass
+                span.end()
         
-        return wrapper()
+        return non_stream_wrapper()
     
     async def _arun_stream_continue(
         self,
@@ -415,7 +410,9 @@ class _StepWrapper:
                 result = wrapped(*args, **kwargs)
             
             # Check if result is an iterator (streaming)
-            if isinstance(result, Iterator):
+            is_streaming = hasattr(result, '__iter__') and not isinstance(result, (str, bytes))
+            
+            if is_streaming:
                 # Streaming mode - continue with this span
                 return self._run_stream_continue(result, span, step_token)
             
@@ -435,7 +432,8 @@ class _StepWrapper:
         
         finally:
             # Only cleanup if not streaming
-            if not isinstance(result, Iterator):
+            is_streaming = hasattr(result, '__iter__') and not isinstance(result, (str, bytes))
+            if not is_streaming:
                 if step_token:
                     try:
                         context_api.detach(step_token)
@@ -522,26 +520,21 @@ class _StepWrapper:
             ),
         )
         
+        # Setup context and call wrapped to detect streaming
         step_token = None
+        with trace_api.use_span(span, end_on_exit=False):
+            step_token = _setup_step_context(node_id)
+            result = wrapped(*args, **kwargs)
         
-        async def wrapper():
-            nonlocal step_token
-            result = None
-            is_streaming = False
+        # Check if result is an async iterator (streaming)
+        if hasattr(result, '__aiter__'):
+            # Streaming mode - return async generator that continues with this span
+            return self._arun_stream_continue(result, span, step_token)
+        
+        # Non-streaming mode - return coroutine that handles it
+        async def non_stream_wrapper():
             try:
-                # Execute inside span context so children can find parent
-                with trace_api.use_span(span, end_on_exit=False):
-                    step_token = _setup_step_context(node_id)
-                    result = wrapped(*args, **kwargs)
-                
-                # Check if result is an async iterator (streaming)
-                is_streaming = isinstance(result, AsyncIterator)
-                
-                if is_streaming:
-                    # Streaming mode - return async generator that continues with this span
-                    return self._arun_stream_continue(result, span, step_token)
-                
-                # Non-streaming mode - await the coroutine
+                # Await the coroutine inside span context
                 with trace_api.use_span(span, end_on_exit=False):
                     response = await result
                 
@@ -559,16 +552,14 @@ class _StepWrapper:
                 raise
             
             finally:
-                # Only cleanup if not streaming
-                if not is_streaming:
-                    if step_token:
-                        try:
-                            context_api.detach(step_token)
-                        except Exception:
-                            pass
-                    span.end()
+                if step_token:
+                    try:
+                        context_api.detach(step_token)
+                    except Exception:
+                        pass
+                span.end()
         
-        return wrapper()
+        return non_stream_wrapper()
     
     async def _arun_stream_continue(
         self,
