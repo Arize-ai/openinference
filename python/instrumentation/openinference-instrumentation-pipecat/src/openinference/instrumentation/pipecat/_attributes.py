@@ -30,6 +30,7 @@ from pipecat.frames.frames import (
     TTSTextFrame,
 )
 from pipecat.metrics.metrics import (
+    LLMTokenUsage,
     LLMUsageMetricsData,
     MetricsData,
     ProcessingMetricsData,
@@ -153,8 +154,7 @@ class FrameAttributeExtractor:
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
-        attributes = self._base_attributes
-        attributes.update(self.attributes)
+        attributes = {**self._base_attributes, **self.attributes}
         for attribute, operation in attributes.items():
             # Use safe_extract to prevent individual attribute failures from breaking extraction
             value = safe_extract(lambda: operation(frame))
@@ -523,52 +523,87 @@ class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
 _function_call_result_frame_extractor = FunctionCallResultFrameExtractor()
 
 
-class LLMTokenMetricsDataExtractor(FrameAttributeExtractor):
+class MetricsDataExtractor:
+    """Extract attributes from metrics frames."""
+
+    attributes: Dict[str, Any] = {}
+    _base_attributes: Dict[str, Any] = {
+        "metrics.processor": lambda metrics_data: getattr(metrics_data, "processor", None),
+        "metrics.model": lambda metrics_data: getattr(metrics_data, "model", None),
+    }
+
+    def extract_from_metrics_data(self, metrics_data: MetricsData) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        attributes = {**self._base_attributes, **self.attributes}
+        for attribute, operation in attributes.items():
+            value = safe_extract(lambda: operation(metrics_data))
+            if value is not None:
+                results[attribute] = value
+        return results
+
+
+class LLMTokenMetricsDataExtractor:
     """Extract attributes from LLM token metrics data."""
 
     attributes: Dict[str, Any] = {
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda frame: getattr(frame, "prompt_tokens", None),
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda frame: getattr(
-            frame, "completion_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: lambda metrics_data: getattr(
+            metrics_data, "prompt_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda frame: getattr(frame, "total_tokens", None),
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda frame: getattr(
-            frame, "cache_read_input_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: lambda metrics_data: getattr(
+            metrics_data, "completion_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO: lambda frame: getattr(
-            frame, "audio_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: lambda metrics_data: getattr(
+            metrics_data, "total_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: lambda frame: getattr(
-            frame, "reasoning_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: lambda metrics_data: getattr(
+            metrics_data, "cache_read_input_tokens", None
         ),
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO: lambda frame: getattr(
-            frame, "audio_tokens", None
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO: lambda metrics_data: getattr(
+            metrics_data, "audio_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: lambda metrics_data: getattr(
+            metrics_data, "reasoning_tokens", None
+        ),
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO: lambda metrics_data: getattr(
+            metrics_data, "audio_tokens", None
         ),
     }
+
+    def extract_from_metrics_data(self, metrics_data: LLMTokenUsage) -> Dict[str, Any]:
+        results: Dict[str, Any] = {}
+        for attribute, operation in self.attributes.items():
+            value = safe_extract(lambda: operation(metrics_data))
+            if value is not None:
+                results[attribute] = value
+        return results
 
 
 # Singleton LLM token metrics data extractor
 _llm_token_metrics_data_extractor = LLMTokenMetricsDataExtractor()
 
 
-class LLMUsageMetricsDataExtractor(FrameAttributeExtractor):
+class LLMUsageMetricsDataExtractor(MetricsDataExtractor):
     """Extract attributes from LLM usage metrics data."""
 
-    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        if hasattr(frame, "value") and frame.value:
-            return _llm_token_metrics_data_extractor.extract_from_frame(frame.value)
-        return {}
+    def extract_from_metrics_data(self, metrics_data: MetricsData) -> Dict[str, Any]:
+        results: Dict[str, Any] = super().extract_from_metrics_data(metrics_data)
+        if isinstance(metrics_data, LLMUsageMetricsData):
+            llm_usage_metrics_data: LLMTokenUsage = metrics_data.value
+            results.update(
+                _llm_token_metrics_data_extractor.extract_from_metrics_data(llm_usage_metrics_data)
+            )
+        return results
 
 
 # Singleton LLM usage metrics data extractor
 _llm_usage_metrics_data_extractor = LLMUsageMetricsDataExtractor()
 
 
-class TTSUsageMetricsDataExtractor(FrameAttributeExtractor):
+class TTSUsageMetricsDataExtractor(MetricsDataExtractor):
     """Extract attributes from TTS usage metrics data."""
 
     attributes: Dict[str, Any] = {
-        "tts.character_count": lambda frame: getattr(frame, "value", None),
+        "tts.character_count": lambda metrics_data: getattr(metrics_data, "value", None),
     }
 
 
@@ -576,11 +611,11 @@ class TTSUsageMetricsDataExtractor(FrameAttributeExtractor):
 _tts_usage_metrics_data_extractor = TTSUsageMetricsDataExtractor()
 
 
-class TTFBMetricsDataExtractor(FrameAttributeExtractor):
+class TTFBMetricsDataExtractor(MetricsDataExtractor):
     """Extract attributes from TTFB metrics data."""
 
     attributes: Dict[str, Any] = {
-        "service.ttfb_seconds": lambda frame: getattr(frame, "value", None),
+        "service.ttfb_seconds": lambda metrics_data: getattr(metrics_data, "value", None),
     }
 
 
@@ -588,11 +623,13 @@ class TTFBMetricsDataExtractor(FrameAttributeExtractor):
 _ttfb_metrics_data_extractor = TTFBMetricsDataExtractor()
 
 
-class ProcessingMetricsDataExtractor(FrameAttributeExtractor):
+class ProcessingMetricsDataExtractor(MetricsDataExtractor):
     """Extract attributes from processing metrics data."""
 
     attributes: Dict[str, Any] = {
-        "service.processing_time_seconds": lambda frame: getattr(frame, "value", None),
+        "service.processing_time_seconds": lambda metrics_data: getattr(
+            metrics_data, "value", None
+        ),
     }
 
 
@@ -603,7 +640,7 @@ _processing_metrics_data_extractor = ProcessingMetricsDataExtractor()
 class MetricsFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from metrics frames."""
 
-    metrics_extractor_map: Dict[Type[MetricsData], FrameAttributeExtractor] = {
+    metrics_extractor_map: Dict[Type[MetricsData], MetricsDataExtractor] = {
         LLMUsageMetricsData: _llm_usage_metrics_data_extractor,
         TTSUsageMetricsData: _tts_usage_metrics_data_extractor,
         TTFBMetricsData: _ttfb_metrics_data_extractor,
@@ -616,12 +653,13 @@ class MetricsFrameExtractor(FrameAttributeExtractor):
         if not hasattr(frame, "data") or not frame.data:
             return results
 
-        for metrics_data in frame.data:
+        metrics: List[MetricsData] = frame.data
+        for metrics_data in metrics:
             for base_class in metrics_data.__class__.__mro__:
                 extractor = self.metrics_extractor_map.get(base_class)
                 if extractor:
-                    results.update(extractor.extract_from_frame(metrics_data))
-
+                    results.update(extractor.extract_from_metrics_data(metrics_data))
+                    break  # Only extract attributes from the first matching extractor
         return results
 
 
