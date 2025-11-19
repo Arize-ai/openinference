@@ -35,9 +35,7 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-
-_AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
-
+from openinference.instrumentation.agno.utils import _flatten, _generate_node_id, _AGNO_PARENT_NODE_CONTEXT_KEY
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
     """Helper function to get attribute from either dict or object."""
@@ -47,25 +45,6 @@ def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
         return obj.get(key, default)
     else:  # It's an object with attributes
         return getattr(obj, key, default)
-
-
-def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
-    if not mapping:
-        return
-    for key, value in mapping.items():
-        if value is None:
-            continue
-        if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
-        elif isinstance(value, list) and any(isinstance(item, Mapping) for item in value):
-            for index, sub_mapping in enumerate(value):
-                for sub_key, sub_value in _flatten(sub_mapping):
-                    yield f"{key}.{index}.{sub_key}", sub_value
-        else:
-            if isinstance(value, Enum):
-                value = value.value
-            yield key, value
 
 
 def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
@@ -125,10 +104,6 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
-
-
-def _generate_node_id() -> str:
-    return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
