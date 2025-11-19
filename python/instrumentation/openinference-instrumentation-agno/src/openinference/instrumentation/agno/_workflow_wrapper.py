@@ -60,7 +60,7 @@ def _generate_node_id() -> str:
 
 def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
     """Extract input message from workflow/step arguments."""
-    for key in ["input", "message", "messages", "prompt"]:
+    for key in ["input", "message", "messages"]:
         if value := arguments.get(key):
             if isinstance(value, str):
                 return value
