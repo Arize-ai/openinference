@@ -1,8 +1,9 @@
-from typing import Any, Iterator, Mapping, Optional, Tuple
 from enum import Enum
-from opentelemetry.util.types import AttributeValue
-from opentelemetry import context as context_api
 from secrets import token_hex
+from typing import Any, Iterator, Mapping, Optional, Tuple
+
+from opentelemetry import context as context_api
+from opentelemetry.util.types import AttributeValue
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 

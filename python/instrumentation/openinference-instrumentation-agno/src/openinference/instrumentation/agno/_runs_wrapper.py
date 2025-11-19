@@ -1,6 +1,4 @@
-from enum import Enum
 from inspect import signature
-from secrets import token_hex
 from typing import (
     Any,
     Awaitable,
@@ -29,13 +27,18 @@ from agno.team import Team
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.agno.utils import (
+    _AGNO_PARENT_NODE_CONTEXT_KEY,
+    _flatten,
+    _generate_node_id,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from openinference.instrumentation.agno.utils import _flatten, _generate_node_id, _AGNO_PARENT_NODE_CONTEXT_KEY
+
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
     """Helper function to get attribute from either dict or object."""

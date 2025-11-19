@@ -217,8 +217,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
         # Instrument Workflow and Step
         try:
-            from agno.workflow.workflow import Workflow
             from agno.workflow.step import Step
+            from agno.workflow.workflow import Workflow
 
             workflow_wrapper = _WorkflowWrapper(tracer=self._tracer)
             step_wrapper = _StepWrapper(tracer=self._tracer)
@@ -226,7 +226,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             # Store original methods
             self._original_workflow_methods = {}
             self._original_step_methods = {}
-            
+
             # Wrap Workflow.run (sync) - wraps both streaming and non-streaming
             if hasattr(Workflow, "run") and callable(getattr(Workflow, "run", None)):
                 self._original_workflow_methods["run"] = Workflow.run
@@ -235,7 +235,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     name="run",
                     wrapper=workflow_wrapper.run,
                 )
-            
+
             # Wrap Workflow.arun (async) - wraps both streaming and non-streaming
             if hasattr(Workflow, "arun") and callable(getattr(Workflow, "arun", None)):
                 self._original_workflow_methods["arun"] = Workflow.arun
@@ -253,7 +253,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     name="execute",
                     wrapper=step_wrapper.run,
                 )
-            
+
             # Wrap Step.execute_stream (sync streaming)
             if hasattr(Step, "execute_stream") and callable(getattr(Step, "execute_stream", None)):
                 self._original_step_methods["execute_stream"] = Step.execute_stream
@@ -262,7 +262,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     name="execute_stream",
                     wrapper=step_wrapper.run,
                 )
-            
+
             # Wrap Step.aexecute (async)
             if hasattr(Step, "aexecute") and callable(getattr(Step, "aexecute", None)):
                 self._original_step_methods["aexecute"] = Step.aexecute
@@ -271,7 +271,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     name="aexecute",
                     wrapper=step_wrapper.arun,
                 )
-            
+
             # Wrap Step.aexecute_stream (async streaming)
             if hasattr(Step, "aexecute_stream") and callable(getattr(Step, "aexecute_stream", None)):
                 self._original_step_methods["aexecute_stream"] = Step.aexecute_stream
