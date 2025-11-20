@@ -40,103 +40,98 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
 # Start instrumenting agno
 AgnoInstrumentor().instrument(tracer_provider=tracer_provider)
 
-from textwrap import dedent
-
-from agno.agent import Agent
-from agno.db.sqlite import SqliteDb
-from agno.models.openai import OpenAIChat
-from agno.team import Team
+from agno.agent.agent import Agent
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.tools.hackernews import HackerNewsTools
-from agno.workflow.types import StepInput, StepOutput
+from agno.workflow.condition import Condition
+from agno.workflow.step import Step
+from agno.workflow.types import StepInput
 from agno.workflow.workflow import Workflow
 
-# Define agents
-web_agent = Agent(
-    name="Web Agent",
-    model=OpenAIChat(id="gpt-4o-mini"),
+# === BASIC AGENTS ===
+researcher = Agent(
+    name="Researcher",
+    instructions="Research the given topic and provide detailed findings.",
     tools=[DuckDuckGoTools()],
-    role="Search the web for the latest news and trends",
-)
-hackernews_agent = Agent(
-    name="Hackernews Agent",
-    model=OpenAIChat(id="gpt-4o-mini"),
-    tools=[HackerNewsTools()],
-    role="Extract key insights and content from Hackernews posts",
 )
 
-writer_agent = Agent(
-    name="Writer Agent",
-    model=OpenAIChat(id="gpt-4o-mini"),
-    instructions="Write a blog post on the topic",
+summarizer = Agent(
+    name="Summarizer",
+    instructions="Create a clear summary of the research findings.",
 )
 
-
-def prepare_input_for_web_search(step_input: StepInput) -> StepOutput:
-    topic = step_input.input
-    return StepOutput(
-        content=dedent(f"""\
-	I'm writing a blog post on the topic
-	<topic>
-	{topic}
-	</topic>
-
-	Search the web for atleast 10 articles\
-	""")
-    )
-
-
-def prepare_input_for_writer(step_input: StepInput) -> StepOutput:
-    topic = step_input.input
-    research_team_output = step_input.previous_step_content
-
-    return StepOutput(
-        content=dedent(f"""\
-	I'm writing a blog post on the topic:
-	<topic>
-	{topic}
-	</topic>
-
-	Here is information from the web:
-	<research_results>
-	{research_team_output}
-	<research_results>\
-	""")
-    )
-
-
-# Define research team for complex analysis
-research_team = Team(
-    name="Research Team",
-    members=[hackernews_agent, web_agent],
-    instructions="Research tech topics from Hackernews and the web",
+fact_checker = Agent(
+    name="Fact Checker",
+    instructions="Verify facts and check for accuracy in the research.",
+    tools=[DuckDuckGoTools()],
 )
 
+writer = Agent(
+    name="Writer",
+    instructions="Write a comprehensive article based on all available research and verification.",
+)
 
-# Create and use workflow
-if __name__ == "__main__":
-    content_creation_workflow = Workflow(
-        name="Blog Post Workflow",
-        description="Automated blog post creation from Hackernews and the web",
-        db=SqliteDb(
-            session_table="workflow_session",
-            db_file="tmp/workflow.db",
+# === CONDITION EVALUATOR ===
+
+
+def needs_fact_checking(step_input: StepInput) -> bool:
+    """Determine if the research contains claims that need fact-checking"""
+    return True
+
+
+# === WORKFLOW STEPS ===
+research_step = Step(
+    name="research",
+    description="Research the topic",
+    agent=researcher,
+)
+
+summarize_step = Step(
+    name="summarize",
+    description="Summarize research findings",
+    agent=summarizer,
+)
+
+# Conditional fact-checking step
+fact_check_step = Step(
+    name="fact_check",
+    description="Verify facts and claims",
+    agent=fact_checker,
+)
+
+write_article = Step(
+    name="write_article",
+    description="Write final article",
+    agent=writer,
+)
+
+# === BASIC LINEAR WORKFLOW ===
+basic_workflow = Workflow(
+    name="Basic Linear Workflow",
+    description="Research -> Summarize -> Condition(Fact Check) -> Write Article",
+    steps=[
+        research_step,
+        summarize_step,
+        Condition(
+            name="fact_check_condition",
+            description="Check if fact-checking is needed",
+            evaluator=needs_fact_checking,
+            steps=[fact_check_step],
         ),
-        steps=[
-            prepare_input_for_web_search,
-            research_team,
-            prepare_input_for_writer,
-            writer_agent,
-        ],
-    )
-
-
-def main():
-    content_creation_workflow.print_response(
-        input="Compare machine learning algorithms for image classification?",
-        stream=True,
-        stream_events=True,
-    )
+        write_article,
+    ],
+)
 
 if __name__ == "__main__":
-    main()
+    print("Running Basic Linear Workflow Example")
+    print("=" * 50)
+
+    try:
+        basic_workflow.print_response(
+            input="Recent breakthroughs in quantum computing",
+            stream=True,
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+
+        traceback.print_exc()
