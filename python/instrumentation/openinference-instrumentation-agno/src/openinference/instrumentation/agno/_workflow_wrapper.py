@@ -146,7 +146,9 @@ class _WorkflowWrapper:
             return wrapped(*args, **kwargs)
 
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
-        span_name = f"{workflow_name}.run"
+        # Use the actual method name for consistency
+        method_name = getattr(wrapped, "__name__", "run")
+        span_name = f"{workflow_name}.{method_name}"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -273,7 +275,9 @@ class _WorkflowWrapper:
             return wrapped(*args, **kwargs)
 
         workflow_name = getattr(instance, "name", "Workflow").replace(" ", "_").replace("-", "_")
-        span_name = f"{workflow_name}.arun"
+        # Use the actual method name for consistency
+        method_name = getattr(wrapped, "__name__", "arun")
+        span_name = f"{workflow_name}.{method_name}"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -403,7 +407,9 @@ class _StepWrapper:
             return wrapped(*args, **kwargs)
 
         step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
-        span_name = f"{step_name}.execute"
+        # Detect if this is execute_stream or execute by checking the wrapped method name
+        method_name = getattr(wrapped, "__name__", "execute")
+        span_name = f"{step_name}.{method_name}"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
@@ -433,7 +439,6 @@ class _StepWrapper:
         step_token = None
         result = None
         try:
-            # Execute inside span context so children can find parent (like _runs_wrapper.py:253-255)
             with trace_api.use_span(span, end_on_exit=False):
                 step_token = _setup_step_context(node_id)
                 result = wrapped(*args, **kwargs)
@@ -534,7 +539,9 @@ class _StepWrapper:
             return wrapped(*args, **kwargs)
 
         step_name = getattr(instance, "name", "Step").replace(" ", "_").replace("-", "_")
-        span_name = f"{step_name}.aexecute"
+        # Detect if this is aexecute_stream or aexecute by checking the wrapped method name
+        method_name = getattr(wrapped, "__name__", "aexecute")
+        span_name = f"{step_name}.{method_name}"
 
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
