@@ -4,3 +4,5 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp
 openinference-instrumentation-openai
 openinference-instrumentation-agno
+arize-phoenix 
+openai 

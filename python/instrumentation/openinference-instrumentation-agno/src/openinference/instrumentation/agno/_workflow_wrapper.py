@@ -76,7 +76,9 @@ def _extract_output(response: Any) -> str:
         return response
     if hasattr(response, "content"):
         return str(response.content)
-    return str(response)
+    else:
+        return str(response.model_dump_json())
+    return ""
 
 
 def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
