@@ -186,7 +186,7 @@ class _WorkflowWrapper:
 
                 if is_streaming:
                     # For streaming, keep token attached and handle in stream continuation
-                    return self._run_stream_continue(result, span, workflow_token)
+                    return self._run_stream_continue(result, span, workflow_token, instance)
 
                 # Non-streaming mode - detach token immediately while still in span context
                 if workflow_token:
@@ -196,12 +196,16 @@ class _WorkflowWrapper:
                     except Exception:
                         pass
 
-            # Set output and return (outside use_span but token already detached)
+            # Set output and workflow ID (outside use_span but token already detached)
             span.set_status(trace_api.StatusCode.OK)
             output = _extract_output(result)
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            
+            # Set workflow ID after execution (it's initialized inside the wrapped method)
+            if hasattr(instance, "id") and instance.id:
+                span.set_attribute("agno.workflow.id", instance.id)
 
             return result
 
@@ -230,6 +234,7 @@ class _WorkflowWrapper:
         iterator: Any,
         span: Any,
         workflow_token: Any,
+        instance: Any = None,
     ) -> Any:
         """Continue streaming workflow with existing span"""
         accumulated_output = []
@@ -252,6 +257,10 @@ class _WorkflowWrapper:
             if accumulated_output:
                 span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            
+            # Set workflow ID after execution (it's initialized inside the wrapped method)
+            if instance and hasattr(instance, "id") and instance.id:
+                span.set_attribute("agno.workflow.id", instance.id)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -311,7 +320,7 @@ class _WorkflowWrapper:
         # Check if result is an async iterator (streaming)
         if hasattr(result, "__aiter__"):
             # Streaming mode - return async generator that continues with this span
-            return self._arun_stream_continue(result, span, workflow_token)
+            return self._arun_stream_continue(result, span, workflow_token, instance)
 
         # Non-streaming mode - return coroutine that handles it
         async def non_stream_wrapper():
@@ -334,6 +343,10 @@ class _WorkflowWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+                
+                # Set workflow ID after execution (it's initialized inside the wrapped method)
+                if hasattr(instance, "id") and instance.id:
+                    span.set_attribute("agno.workflow.id", instance.id)
 
                 return response
 
@@ -357,6 +370,7 @@ class _WorkflowWrapper:
         async_iter: Any,
         span: Any,
         workflow_token: Any,
+        instance: Any = None,
     ) -> Any:
         """Continue streaming async workflow with existing span"""
         accumulated_output = []
@@ -379,6 +393,10 @@ class _WorkflowWrapper:
             if accumulated_output:
                 span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            
+            # Set workflow ID after execution (it's initialized inside the wrapped method)
+            if instance and hasattr(instance, "id") and instance.id:
+                span.set_attribute("agno.workflow.id", instance.id)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
