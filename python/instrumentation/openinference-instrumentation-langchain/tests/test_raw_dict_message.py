@@ -1,24 +1,27 @@
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 import pytest
-
-if TYPE_CHECKING:
-    from opentelemetry.sdk.trace import TracerProvider
-
-try:
-    from langchain.agents import AgentExecutor, create_tool_calling_agent
-except ImportError:
-    # Fallback for older versions
-    from langchain.agents import AgentExecutor
-
-    create_tool_calling_agent = None  # type: ignore[assignment]
-
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import TracerProvider
+
+AgentExecutor: Any
+create_tool_calling_agent: Any
+
+try:
+    from langchain.agents import (  # type: ignore[attr-defined,no-redef]
+        AgentExecutor,
+        create_tool_calling_agent,
+    )
+except (ImportError, AttributeError):
+    AgentExecutor = None
+    create_tool_calling_agent = None
 
 
 @pytest.fixture
