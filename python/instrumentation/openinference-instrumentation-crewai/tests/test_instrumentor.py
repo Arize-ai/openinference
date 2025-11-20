@@ -115,6 +115,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
         goal="Extract quotes from text",
         backstory="You extract quotes from text",
         llm=llm,
+        tools=[MockScrapeWebsiteTool()],
         max_iter=1,
         max_retry_limit=0,
         verbose=True,
