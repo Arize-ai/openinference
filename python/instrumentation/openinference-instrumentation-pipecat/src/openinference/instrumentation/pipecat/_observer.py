@@ -604,8 +604,10 @@ class OpenInferenceObserver(BaseObserver):
 
         # Create turn span as root (no parent)
         # Each turn will be a separate trace automatically
+        # Use an empty context to ensure no ambient parent span is picked up
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
+            context=Context(),  # Empty context ensures this is a true root span
             attributes={
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
                 "conversation.turn_number": self._turn_number,
