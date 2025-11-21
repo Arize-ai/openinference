@@ -92,11 +92,18 @@ def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
     if hasattr(instance, "steps") and instance.steps:
         yield "agno.workflow.steps_count", len(instance.steps)
         step_names = []
+        step_types = []
         for step in instance.steps:
             if hasattr(step, "name") and step.name:
                 step_names.append(step.name)
+            # Capture step type
+            step_type = type(step).__name__
+            step_types.append(step_type)
+        
         if step_names:
             yield "agno.workflow.steps", step_names
+        if step_types:
+            yield "agno.workflow.step_types", step_types
 
 
 def _step_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
