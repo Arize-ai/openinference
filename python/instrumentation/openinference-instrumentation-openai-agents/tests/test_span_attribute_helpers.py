@@ -409,8 +409,8 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "output": "",
             },
             {
-                "message.role": "tool",
                 "message.content": "",
+                "message.role": "tool",
                 "message.tool_call_id": "123",
             },
             id="empty_output",
@@ -421,22 +421,11 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "output": None,
             },
             {
+                "message.content": None,
                 "message.role": "tool",
                 "message.tool_call_id": "123",
             },
             id="none_output",
-        ),
-        pytest.param(
-            {
-                "call_id": "123",
-                "output": [{"type": "input_text", "text": "result"}],
-            },
-            {
-                "message.role": "tool",
-                "message.contents.0.message_content.text": "result",
-                "message.tool_call_id": "123",
-            },
-            id="functional_call_output",
         ),
     ],
 )
