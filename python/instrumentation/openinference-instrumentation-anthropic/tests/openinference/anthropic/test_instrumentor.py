@@ -237,6 +237,63 @@ def test_anthropic_instrumentation_stream_message(
     assert not attributes
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_stream_context_manager_exit(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Test that __exit__() is properly called on the MessageStreamManager when exiting context."""
+    from unittest.mock import patch
+
+    client = Anthropic(api_key="fake")
+
+    invocation_params = {
+        "model": "claude-3-opus-latest",
+        "max_tokens": 1024,
+    }
+
+    # Track if __exit__ was called on the wrapped manager
+    exit_called = False
+
+    # Store the original __exit__ method before patching
+    original_exit = anthropic.lib.streaming.MessageStreamManager.__exit__
+
+    def mock_exit(self: Any, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        nonlocal exit_called
+        exit_called = True
+        # Call the original __exit__ to ensure proper cleanup
+        return original_exit(self, exc_type, exc_val, exc_tb)
+
+    # Patch MessageStreamManager.__exit__ to track if it's called
+    with patch.object(
+        anthropic.lib.streaming.MessageStreamManager,
+        "__exit__",
+        side_effect=mock_exit,
+        autospec=True,
+    ):
+        # Use the context manager pattern
+        with client.messages.stream(
+            **invocation_params,
+            messages=[
+                {"role": "user", "content": "Say hello in one word"},
+            ],
+        ) as stream:
+            # Consume the stream
+            for text in stream.text_stream:
+                pass
+            # get_final_message should work
+            final_message = stream.get_final_message()
+            assert final_message is not None
+
+    # Verify that __exit__ was actually called
+    assert exit_called, "MessageStreamManager.__exit__() was not called"
+
+
 @pytest.mark.asyncio
 @pytest.mark.vcr(
     decode_compressed_response=True,

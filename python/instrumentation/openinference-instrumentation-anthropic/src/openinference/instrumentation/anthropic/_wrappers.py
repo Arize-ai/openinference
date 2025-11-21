@@ -352,10 +352,8 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
         self._self_with_span = with_span
 
     def __enter__(self) -> "MessageStream":
-        # Delegate to the wrapped MessageStreamManager's __enter__
-        # to get the proper MessageStream object with helper methods
         message_stream = self.__wrapped__.__enter__()
-        return _MessagesStream(message_stream, self._self_with_span)
+        return _MessagesStream(message_stream, self._self_with_span, self.__wrapped__)
 
 
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
