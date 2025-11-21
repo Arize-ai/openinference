@@ -34,7 +34,7 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
-    from anthropic.lib.streaming import MessageStreamManager
+    from anthropic.lib.streaming import MessageStream, MessageStreamManager
     from anthropic.types import Message, Usage
 
 
@@ -351,9 +351,11 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
         super().__init__(manager)
         self._self_with_span = with_span
 
-    def __enter__(self) -> Iterator[str]:
-        raw = self.__api_request()
-        return _MessagesStream(raw, self._self_with_span)
+    def __enter__(self) -> "MessageStream":
+        # Delegate to the wrapped MessageStreamManager's __enter__
+        # to get the proper MessageStream object with helper methods
+        message_stream = self.__wrapped__.__enter__()
+        return _MessagesStream(message_stream, self._self_with_span)
 
 
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
