@@ -130,13 +130,8 @@ if __name__ == "__main__":
         ],
     )
 
-
-def main():
     content_creation_workflow.print_response(
         input="Compare machine learning algorithms for image classification?",
         stream=True,
         stream_events=True,
     )
-
-if __name__ == "__main__":
-    main()
