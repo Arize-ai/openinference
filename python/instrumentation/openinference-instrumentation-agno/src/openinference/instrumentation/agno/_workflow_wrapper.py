@@ -244,13 +244,12 @@ class _WorkflowWrapper:
         instance: Any = None,
     ) -> Any:
         """Continue streaming workflow with existing span"""
-        accumulated_output = []
+        final_response = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 try:
                     for response in iterator:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
+                        final_response = response
                         yield response
                 finally:
                     if workflow_token:
@@ -261,9 +260,12 @@ class _WorkflowWrapper:
                             pass
 
             span.set_status(trace_api.StatusCode.OK)
-            if accumulated_output:
-                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            # Extract output only from the final response
+            if final_response is not None:
+                output = _extract_output(final_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
             
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
@@ -380,13 +382,12 @@ class _WorkflowWrapper:
         instance: Any = None,
     ) -> Any:
         """Continue streaming async workflow with existing span"""
-        accumulated_output = []
+        final_response = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 try:
                     async for response in async_iter:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
+                        final_response = response
                         yield response
                 finally:
                     if workflow_token:
@@ -397,9 +398,12 @@ class _WorkflowWrapper:
                             pass
 
             span.set_status(trace_api.StatusCode.OK)
-            if accumulated_output:
-                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            # Extract output only from the final response
+            if final_response is not None:
+                output = _extract_output(final_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
             
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
@@ -521,13 +525,12 @@ class _StepWrapper:
         step_token: Any,
     ) -> Any:
         """Continue streaming step with existing span"""
-        accumulated_output = []
+        final_response = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 try:
                     for response in iterator:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
+                        final_response = response
                         yield response
                 finally:
                     if step_token:
@@ -538,9 +541,12 @@ class _StepWrapper:
                             pass
 
             span.set_status(trace_api.StatusCode.OK)
-            if accumulated_output:
-                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            # Extract output only from the final response
+            if final_response is not None:
+                output = _extract_output(final_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -652,13 +658,12 @@ class _StepWrapper:
         step_token: Any,
     ) -> Any:
         """Continue streaming async step with existing span"""
-        accumulated_output = []
+        final_response = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 try:
                     async for response in async_iter:
-                        if hasattr(response, "content") and response.content:
-                            accumulated_output.append(str(response.content))
+                        final_response = response
                         yield response
                 finally:
                     if step_token:
@@ -669,9 +674,12 @@ class _StepWrapper:
                             pass
 
             span.set_status(trace_api.StatusCode.OK)
-            if accumulated_output:
-                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
-                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+            # Extract output only from the final response
+            if final_response is not None:
+                output = _extract_output(final_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
