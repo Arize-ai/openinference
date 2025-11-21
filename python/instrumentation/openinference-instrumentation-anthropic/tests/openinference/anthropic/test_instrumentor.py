@@ -194,6 +194,11 @@ def test_anthropic_instrumentation_stream_message(
     ) as stream:
         for _ in stream:
             pass
+        # Test that get_final_message() works (fixes #2467)
+        final_message = stream.get_final_message()
+        assert final_message is not None
+        assert hasattr(final_message, 'content')
+        assert hasattr(final_message, 'usage')
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
