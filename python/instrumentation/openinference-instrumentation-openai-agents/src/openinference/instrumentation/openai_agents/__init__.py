@@ -22,7 +22,6 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        logger.debug("Instrumenting openai-agents with OpenInference instrumentation")
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if (exclusive_processor := kwargs.get("exclusive_processor")) is None:
