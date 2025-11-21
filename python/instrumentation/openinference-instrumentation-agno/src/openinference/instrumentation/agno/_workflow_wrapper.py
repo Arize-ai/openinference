@@ -41,21 +41,38 @@ def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Di
 def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
     """Extract input message from workflow/step arguments."""
     step_input = arguments.get("step_input")
-    if step_input is not None and hasattr(step_input, "input"):
-        input_value = step_input.input
-        if input_value is not None:
-            if isinstance(input_value, str):
-                return input_value
-            elif isinstance(input_value, list):
-                return "\n".join(str(item) for item in input_value)
-            elif hasattr(input_value, "model_dump_json"):
-                return input_value.model_dump_json(indent=2, exclude_none=True)
-            elif isinstance(input_value, dict):
-                import json
+    if step_input is not None:
+        # For subsequent steps, try to get the actual content from previous steps
+        if hasattr(step_input, "get_last_step_content"):
+            try:
+                content = step_input.get_last_step_content()
+                if content:
+                    if isinstance(content, str):
+                        return content
+                    elif isinstance(content, dict):
+                        import json
+                        return json.dumps(content, indent=2, ensure_ascii=False)
+                    else:
+                        return str(content)
+            except Exception:
+                pass  
+            
+        # Fallback to step_input.input (for first step or if no previous content)
+        if hasattr(step_input, "input"):
+            input_value = step_input.input
+            if input_value is not None:
+                if isinstance(input_value, str):
+                    return input_value
+                elif isinstance(input_value, list):
+                    return "\n".join(str(item) for item in input_value)
+                elif hasattr(input_value, "model_dump_json"):
+                    return input_value.model_dump_json(indent=2, exclude_none=True)
+                elif isinstance(input_value, dict):
+                    import json
 
-                return json.dumps(input_value, indent=2, ensure_ascii=False)
-            else:
-                return str(input_value)
+                    return json.dumps(input_value, indent=2, ensure_ascii=False)
+                else:
+                    return str(input_value)
 
     for key in ["input", "message", "messages"]:
         if value := arguments.get(key):
