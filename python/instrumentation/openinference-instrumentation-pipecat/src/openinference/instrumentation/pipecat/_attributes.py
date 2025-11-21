@@ -38,6 +38,7 @@ from pipecat.metrics.metrics import (
     TTSUsageMetricsData,
 )
 from pipecat.processors.aggregators.llm_context import (
+    LLMContext,
     LLMSpecificMessage,
 )
 from pipecat.processors.frame_processor import FrameProcessor
@@ -343,7 +344,7 @@ class LLMMessagesFrameExtractor(FrameAttributeExtractor):
 
     def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
         results: Dict[str, Any] = {}
-        if hasattr(frame, "context") and frame.context:
+        if hasattr(frame, "context") and frame.context and isinstance(frame.context, LLMContext):
             context = frame.context
             # Extract messages from context (context._messages is a list)
             if hasattr(context, "_messages") and context._messages:
@@ -356,17 +357,17 @@ class LLMMessagesFrameExtractor(FrameAttributeExtractor):
                     messages_list: List[Any] = []
                     for msg in context._messages:
                         if isinstance(msg, dict):
-                            raw_content = msg.content  # type: ignore
+                            raw_content = msg.get("content")
                             if isinstance(raw_content, str):
-                                content = msg.content  # type: ignore
+                                content = msg.get("content")
                             elif isinstance(raw_content, dict):
                                 content = safe_json_dumps(raw_content)
                             else:
                                 content = str(raw_content)
                             messages = {
-                                "role": msg.role,  # type: ignore # LLMSpecificMessage does not have a role attribute
+                                "role": msg.get("role"),
                                 "content": content,
-                                "name": msg.name if hasattr(msg, "name") else "",
+                                "name": msg.get("name", ""),
                             }
                             messages_list.append(messages)
                         elif isinstance(msg, LLMSpecificMessage):

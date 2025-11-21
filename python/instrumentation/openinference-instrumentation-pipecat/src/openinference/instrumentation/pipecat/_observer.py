@@ -57,6 +57,7 @@ class OpenInferenceObserver(BaseObserver):
         self,
         tracer: OITracer,
         config: TraceConfig,
+        additional_span_attributes: Optional[Dict[str, Any]] = None,
         conversation_id: Optional[str] = None,
         debug_log_filename: Optional[str] = None,
         max_frames: int = 100,
@@ -79,7 +80,10 @@ class OpenInferenceObserver(BaseObserver):
         super().__init__()
         self._tracer = tracer
         self._config = config
-
+        self._additional_span_attributes: Dict[str, str] = {}
+        if additional_span_attributes and isinstance(additional_span_attributes, dict):
+            for k, v in additional_span_attributes.items():
+                self._additional_span_attributes[str(k)] = str(v)
         # Session management
         self._conversation_id = conversation_id
 
@@ -605,13 +609,16 @@ class OpenInferenceObserver(BaseObserver):
         # Create turn span as root (no parent)
         # Each turn will be a separate trace automatically
         # Use an empty context to ensure no ambient parent span is picked up
+        span_attributes = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+            "conversation.turn_number": self._turn_number,
+        }
+        if self._additional_span_attributes:
+            span_attributes.update(self._additional_span_attributes)
         self._turn_span = self._tracer.start_span(
             name="pipecat.conversation.turn",
             context=Context(),  # Empty context ensures this is a true root span
-            attributes={
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-                "conversation.turn_number": self._turn_number,
-            },
+            attributes=span_attributes,  # type: ignore
         )
 
         if self._conversation_id:

@@ -140,6 +140,7 @@ class _TaskInitWrapper:
         # Extract conversation_id from PipelineTask if available
         # PipelineTask stores it as _conversation_id (private attribute)
         conversation_id = getattr(instance, "_conversation_id", None)
+        additional_span_attributes = getattr(instance, "_additional_span_attributes", None)
 
         # Use task-specific debug log filename if set, otherwise use default from instrument()
         debug_log_filename = (
@@ -151,12 +152,14 @@ class _TaskInitWrapper:
             config=self._config,
             conversation_id=conversation_id,
             debug_log_filename=debug_log_filename,
+            additional_span_attributes=additional_span_attributes,
         )
 
         # Inject observer into task
         instance.add_observer(observer)
 
-        logger.info(
-            f"Injected OpenInferenceObserver into PipelineTask {id(instance)} "
-            f"(conversation_id: {conversation_id})"
-        )
+        logger.info(f"Injected OpenInferenceObserver into PipelineTask {id(instance)} ")
+        if additional_span_attributes:
+            logger.info(f"Additional span attributes: {str(additional_span_attributes)}")
+        if conversation_id:
+            logger.info(f"Conversation ID: {conversation_id}")
