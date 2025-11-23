@@ -324,16 +324,14 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if not kwargs.get("yield_run_output"):
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
 
             run_response = None
-            final_response = None
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
                 for response in wrapped(*args, **kwargs):
-                    final_response = response
                     
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
@@ -347,10 +345,8 @@ class _RunWrapper:
 
                     yield response
 
-            # Use run_response if available, otherwise fall back to final_response
-            output_response = run_response if run_response is not None else final_response
-            if output_response is not None:
-                output = _extract_run_response_output(output_response)
+            if run_response is not None:
+                output = _extract_run_response_output(run_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -487,15 +483,13 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if not kwargs.get("yield_run_output"):
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
-            final_response = None
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
                 async for response in wrapped(*args, **kwargs):  # type: ignore
-                    final_response = response
                     
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
@@ -509,10 +503,8 @@ class _RunWrapper:
 
                     yield response
 
-            # Use run_response if available, otherwise fall back to final_response
-            output_response = run_response if run_response is not None else final_response
-            if output_response is not None:
-                output = _extract_run_response_output(output_response)
+            if run_response is not None:
+                output = _extract_run_response_output(run_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
