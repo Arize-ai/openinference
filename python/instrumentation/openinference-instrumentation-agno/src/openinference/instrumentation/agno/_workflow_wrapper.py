@@ -251,10 +251,6 @@ class _WorkflowWrapper:
             # Check instance user_id
             if hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
-            
-            # Check arguments user_id (arguments already captured in span attributes via _workflow_run_arguments)
-            if "user_id" in arguments:
-                print(f"[DEBUG] user_id from arguments: {arguments.get('user_id')}")
 
             return result
 
