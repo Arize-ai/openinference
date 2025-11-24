@@ -145,6 +145,22 @@ def _step_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
             yield "agno.step.agent_name", instance.agent.name
 
 
+def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+    """Extract user_id and session_id from workflow run arguments."""
+    user_id = arguments.get("user_id")
+    session_id = arguments.get("session_id")
+    
+    # For agno v2: session_id might be in the session object
+    session = arguments.get("session")
+    if session and hasattr(session, "session_id"):
+        session_id = session.session_id
+    
+    if session_id:
+        yield SESSION_ID, session_id
+    if user_id:
+        yield USER_ID, user_id
+
+
 def _setup_workflow_context(node_id: str) -> Any:
     """Set up context for workflow to propagate to children."""
     workflow_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
@@ -191,6 +207,7 @@ class _WorkflowWrapper:
                         GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_from_args(arguments),
                         **dict(_workflow_attributes(instance)),
+                        **dict(_workflow_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -230,6 +247,14 @@ class _WorkflowWrapper:
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+            
+            # Check instance user_id
+            if hasattr(instance, "user_id") and instance.user_id:
+                span.set_attribute(USER_ID, instance.user_id)
+            
+            # Check arguments user_id (arguments already captured in span attributes via _workflow_run_arguments)
+            if "user_id" in arguments:
+                print(f"[DEBUG] user_id from arguments: {arguments.get('user_id')}")
 
             return result
 
@@ -287,6 +312,10 @@ class _WorkflowWrapper:
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+            
+            # Capture user_id from instance if available
+            if instance and hasattr(instance, "user_id") and instance.user_id:
+                span.set_attribute(USER_ID, instance.user_id)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -331,6 +360,7 @@ class _WorkflowWrapper:
                         GRAPH_NODE_ID: node_id,
                         INPUT_VALUE: _get_input_from_args(arguments),
                         **dict(_workflow_attributes(instance)),
+                        **dict(_workflow_run_arguments(arguments)),
                         **dict(get_attributes_from_context()),
                     }
                 )
@@ -373,6 +403,10 @@ class _WorkflowWrapper:
                 # Set workflow ID after execution (it's initialized inside the wrapped method)
                 if hasattr(instance, "id") and instance.id:
                     span.set_attribute("agno.workflow.id", instance.id)
+                
+                # Capture user_id from instance if available
+                if hasattr(instance, "user_id") and instance.user_id:
+                    span.set_attribute(USER_ID, instance.user_id)
 
                 return response
 
@@ -425,6 +459,10 @@ class _WorkflowWrapper:
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
+            
+            # Capture user_id from instance if available
+            if instance and hasattr(instance, "user_id") and instance.user_id:
+                span.set_attribute(USER_ID, instance.user_id)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -715,9 +753,11 @@ class _StepWrapper:
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+SESSION_ID = SpanAttributes.SESSION_ID
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+USER_ID = SpanAttributes.USER_ID
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
