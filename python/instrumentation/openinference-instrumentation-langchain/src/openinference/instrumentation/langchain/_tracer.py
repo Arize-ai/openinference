@@ -1266,7 +1266,10 @@ def _get_attributes_from_message_content(
     content: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     content = dict(content)
-    type_ = content.pop("type")
+    type_ = content.pop("type", None)
+    
+    if type_ is None:
+        return
     if type_ == "text":
         yield f"{MESSAGE_CONTENT_TYPE}", "text"
         if text := content.pop("text"):
