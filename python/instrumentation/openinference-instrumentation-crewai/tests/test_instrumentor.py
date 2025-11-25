@@ -2,8 +2,8 @@ import json
 import os
 from typing import Any, Mapping, Sequence, Tuple, cast
 
-import pytest
 import crewai
+import pytest
 from crewai import LLM, Agent, Crew, Task
 from crewai.crews import CrewOutput
 from crewai.flow.flow import Flow, listen, start  # type: ignore[import-untyped, unused-ignore]
