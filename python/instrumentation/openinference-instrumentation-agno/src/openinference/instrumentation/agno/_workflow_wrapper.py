@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 from inspect import signature
 from typing import (
     Any,
@@ -10,6 +12,11 @@ from typing import (
     Tuple,
 )
 
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -19,11 +26,6 @@ from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _flatten,
     _generate_node_id,
-)
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
 )
 
 
@@ -51,12 +53,13 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                         return content
                     elif isinstance(content, dict):
                         import json
+
                         return json.dumps(content, indent=2, ensure_ascii=False)
                     else:
                         return str(content)
             except Exception:
-                pass  
-            
+                pass
+
         # Fallback to step_input.input (for first step or if no previous content)
         if hasattr(step_input, "input"):
             input_value = step_input.input
@@ -116,7 +119,7 @@ def _workflow_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
             # Capture step type
             step_type = type(step).__name__
             step_types.append(step_type)
-        
+
         if step_names:
             yield "agno.workflow.steps", step_names
         if step_types:
@@ -149,12 +152,12 @@ def _workflow_run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str,
     """Extract user_id and session_id from workflow run arguments."""
     user_id = arguments.get("user_id")
     session_id = arguments.get("session_id")
-    
+
     # For agno v2: session_id might be in the session object
     session = arguments.get("session")
     if session and hasattr(session, "session_id"):
         session_id = session.session_id
-    
+
     if session_id:
         yield SESSION_ID, session_id
     if user_id:
@@ -243,11 +246,11 @@ class _WorkflowWrapper:
             if output:
                 span.set_attribute(OUTPUT_VALUE, output)
                 span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-            
+
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
-            
+
             # Check instance user_id
             if hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
@@ -304,11 +307,11 @@ class _WorkflowWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-            
+
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
-            
+
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
@@ -395,11 +398,11 @@ class _WorkflowWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-                
+
                 # Set workflow ID after execution (it's initialized inside the wrapped method)
                 if hasattr(instance, "id") and instance.id:
                     span.set_attribute("agno.workflow.id", instance.id)
-                
+
                 # Capture user_id from instance if available
                 if hasattr(instance, "user_id") and instance.user_id:
                     span.set_attribute(USER_ID, instance.user_id)
@@ -451,11 +454,11 @@ class _WorkflowWrapper:
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
-            
+
             # Set workflow ID after execution (it's initialized inside the wrapped method)
             if instance and hasattr(instance, "id") and instance.id:
                 span.set_attribute("agno.workflow.id", instance.id)
-            
+
             # Capture user_id from instance if available
             if instance and hasattr(instance, "user_id") and instance.user_id:
                 span.set_attribute(USER_ID, instance.user_id)
@@ -744,6 +747,158 @@ class _StepWrapper:
                 except Exception:
                     pass
             span.end()
+
+
+class _ParallelWrapper:
+    """
+    Wrapper for Parallel to propagate context to worker threads.
+
+    When Parallel executes steps using ThreadPoolExecutor, worker threads
+    don't inherit the parent thread's OpenTelemetry context. This wrapper
+    ensures context propagation so all parallel steps appear in the same trace
+    with correct parent-child relationships.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def execute(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        parallel_name = getattr(instance, "name", "Parallel").replace(" ", "_").replace("-", "_")
+        span_name = f"{parallel_name}.execute"
+
+        # Generate unique node ID for this parallel container
+        node_id = _generate_node_id()
+
+        # Get parent node ID from workflow context
+        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+        # Bind arguments
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
+        # Create span for the parallel container
+        span = self._tracer.start_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        GRAPH_NODE_ID: node_id,
+                        **({GRAPH_NODE_PARENT_ID: parent_id} if parent_id else {}),
+                        INPUT_VALUE: _get_input_from_args(arguments),
+                        "agno.parallel.step_count": len(getattr(instance, "steps", [])),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        )
+
+        parallel_token = None
+        result = None
+        try:
+            # CRITICAL: Capture current context before spawning threads
+            # This context will be propagated to worker threads
+            current_context = context_api.get_current()
+
+            with trace_api.use_span(span, end_on_exit=False):
+                parallel_token = _setup_parallel_context(node_id)
+
+                # Execute with context propagation to worker threads
+                result = self._execute_with_context_propagation(
+                    wrapped, args, kwargs, current_context
+                )
+
+                # Detach token immediately after execution
+                if parallel_token:
+                    try:
+                        context_api.detach(parallel_token)
+                        parallel_token = None
+                    except Exception:
+                        pass
+
+            # Set output
+            span.set_status(trace_api.StatusCode.OK)
+            output = _extract_output(result)
+            if output:
+                span.set_attribute(OUTPUT_VALUE, output)
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+
+            return result
+
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+
+        finally:
+            # Safety cleanup
+            if parallel_token:
+                try:
+                    context_api.detach(parallel_token)
+                except Exception:
+                    pass
+            span.end()
+
+    def _execute_with_context_propagation(
+        self,
+        wrapped: Callable,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+        parent_context: Any,
+    ) -> Any:
+        """
+        Execute the parallel steps with context propagation to worker threads.
+
+        This method temporarily patches ThreadPoolExecutor.submit to wrap each
+        submitted function with context attachment logic.
+        """
+
+        def context_propagating_wrapper(fn: Callable) -> Callable:
+            """Wrap a function to run with parent context in worker thread"""
+
+            @wraps(fn)
+            def wrapper(*args, **kwargs):
+                # CRITICAL: Attach parent context in worker thread
+                # This ensures the worker thread has access to:
+                # 1. The parent span context (same trace)
+                # 2. Our _AGNO_PARENT_NODE_CONTEXT_KEY (correct hierarchy)
+                token = context_api.attach(parent_context)
+                try:
+                    return fn(*args, **kwargs)
+                finally:
+                    context_api.detach(token)
+
+            return wrapper
+
+        # Store original submit method
+        original_submit = ThreadPoolExecutor.submit
+
+        def patched_submit(self, fn, /, *args, **kwargs):
+            """Patched submit that wraps functions with context propagation"""
+            wrapped_fn = context_propagating_wrapper(fn)
+            return original_submit(self, wrapped_fn, *args, **kwargs)
+
+        # Temporarily monkey-patch ThreadPoolExecutor during this execution
+        try:
+            ThreadPoolExecutor.submit = patched_submit
+            return wrapped(*args, **kwargs)
+        finally:
+            # Restore original submit method
+            ThreadPoolExecutor.submit = original_submit
+
+
+def _setup_parallel_context(node_id: str) -> Any:
+    """Set up context for parallel container to propagate to child steps."""
+    parallel_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+    return context_api.attach(parallel_ctx)
 
 
 # span attributes

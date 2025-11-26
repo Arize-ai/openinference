@@ -14,6 +14,7 @@ from openinference.instrumentation.agno._model_wrapper import (
 from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
 from openinference.instrumentation.agno._tools_wrapper import _FunctionCallWrapper
 from openinference.instrumentation.agno._workflow_wrapper import (
+    _ParallelWrapper,
     _StepWrapper,
     _WorkflowWrapper,
 )
@@ -85,6 +86,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_model_call_methods",
         "_original_workflow_methods",
         "_original_step_methods",
+        "_original_parallel_methods",
         "_tracer",
     )
 
@@ -273,7 +275,9 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 )
 
             # Wrap Step.aexecute_stream (async streaming)
-            if hasattr(Step, "aexecute_stream") and callable(getattr(Step, "aexecute_stream", None)):
+            if hasattr(Step, "aexecute_stream") and callable(
+                getattr(Step, "aexecute_stream", None)
+            ):
                 self._original_step_methods["aexecute_stream"] = Step.aexecute_stream
                 wrap_function_wrapper(
                     module=Step,
@@ -281,10 +285,31 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     wrapper=step_wrapper.arun,
                 )
 
+            # Instrument Parallel for context propagation to worker threads
+            try:
+                from agno.workflow.parallel import Parallel
+
+                parallel_wrapper = _ParallelWrapper(tracer=self._tracer)
+                self._original_parallel_methods = {}
+
+                # Wrap Parallel.execute (sync)
+                if hasattr(Parallel, "execute") and callable(getattr(Parallel, "execute", None)):
+                    self._original_parallel_methods["execute"] = Parallel.execute
+                    wrap_function_wrapper(
+                        module=Parallel,
+                        name="execute",
+                        wrapper=parallel_wrapper.execute,
+                    )
+
+            except (ImportError, AttributeError):
+                # Parallel not available in this version of agno
+                self._original_parallel_methods = None
+
         except (ImportError, AttributeError):
             # Workflow/Step not available in this version of agno
             self._original_workflow_methods = None
             self._original_step_methods = None
+            self._original_parallel_methods = None
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from agno.agent import Agent
@@ -358,3 +383,15 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             except ImportError:
                 pass
             self._original_step_methods = None
+
+        # Uninstrument Parallel
+        if self._original_parallel_methods is not None:
+            try:
+                from agno.workflow.parallel import Parallel
+
+                for method_name, original in self._original_parallel_methods.items():
+                    if original is not None:
+                        setattr(Parallel, method_name, original)
+            except ImportError:
+                pass
+            self._original_parallel_methods = None
