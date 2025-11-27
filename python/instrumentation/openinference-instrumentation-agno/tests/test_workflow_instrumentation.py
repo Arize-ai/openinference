@@ -112,16 +112,19 @@ class TestWorkflowInstrumentation:
         assert workflow_span.get("agno.workflow.steps_count") == 1
         workflow_steps = workflow_span.get("agno.workflow.steps")
         assert workflow_steps is not None
+        assert isinstance(workflow_steps, (tuple, list))
         assert "test_step" in workflow_steps
 
         # Validate step types
         step_types = workflow_span.get("agno.workflow.step_types")
         assert step_types is not None
+        assert isinstance(step_types, (tuple, list))
         assert "Step" in step_types
 
         # Validate graph node attributes
         workflow_node_id = workflow_span.get(SpanAttributes.GRAPH_NODE_ID)
         assert workflow_node_id is not None
+        assert isinstance(workflow_node_id, str)
         assert is_valid_node_id(workflow_node_id)
         assert workflow_span.get(SpanAttributes.GRAPH_NODE_NAME) == "Test Workflow"
 
@@ -137,6 +140,7 @@ class TestWorkflowInstrumentation:
         if step_span is not None:
             step_node_id = step_span.get(SpanAttributes.GRAPH_NODE_ID)
             assert step_node_id is not None
+            assert isinstance(step_node_id, str)
             assert is_valid_node_id(step_node_id)
             assert step_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == workflow_node_id
             # Ensure step has unique node ID
@@ -201,6 +205,7 @@ class TestWorkflowInstrumentation:
         assert workflow_span.get("agno.workflow.steps_count") == 2
         workflow_steps = workflow_span.get("agno.workflow.steps")
         assert workflow_steps is not None
+        assert isinstance(workflow_steps, (tuple, list))
         assert len(workflow_steps) == 2
         assert "step_1" in workflow_steps
         assert "step_2" in workflow_steps
@@ -208,6 +213,7 @@ class TestWorkflowInstrumentation:
         # Validate all steps are of type "Step"
         step_types = workflow_span.get("agno.workflow.step_types")
         assert step_types is not None
+        assert isinstance(step_types, (tuple, list))
         assert len(step_types) == 2
         assert all(st == "Step" for st in step_types)
 
@@ -318,6 +324,7 @@ class TestWorkflowInstrumentation:
         # Validate workflow node
         if workflow_span:
             assert workflow_node_id is not None
+            assert isinstance(workflow_node_id, str)
             assert is_valid_node_id(workflow_node_id)
 
             # Validate each step has workflow as parent
@@ -456,12 +463,14 @@ class TestWorkflowInstrumentation:
         # Validate workflow has Condition in step types
         step_types = workflow_span.get("agno.workflow.step_types")
         assert step_types is not None, "Step types should be present"
+        assert isinstance(step_types, (tuple, list))
         assert "Condition" in step_types, "Should include Condition step type"
         assert "Step" in step_types, "Should also include regular Step types"
 
         # Validate all steps are recorded (including Condition)
         workflow_steps = workflow_span.get("agno.workflow.steps")
         assert workflow_steps is not None, "Workflow steps should be present"
+        assert isinstance(workflow_steps, (tuple, list))
         assert "research" in workflow_steps
         assert "fact_check_condition" in workflow_steps
         assert "write" in workflow_steps
