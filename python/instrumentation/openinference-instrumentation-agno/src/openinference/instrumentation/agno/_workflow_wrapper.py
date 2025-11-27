@@ -12,11 +12,6 @@ from typing import (
     Tuple,
 )
 
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
@@ -26,6 +21,11 @@ from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _flatten,
     _generate_node_id,
+)
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 
@@ -220,7 +220,6 @@ class _WorkflowWrapper:
         workflow_token = None
         result = None
         try:
-            # Execute inside span context so children can find parent (like _runs_wrapper.py:253-255)
             with trace_api.use_span(span, end_on_exit=False):
                 workflow_token = _setup_workflow_context(node_id)
                 result = wrapped(*args, **kwargs)

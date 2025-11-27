@@ -8,13 +8,11 @@ This example shows how to instrument your agno agent with OpenInference and send
   - export LANGFUSE_SECRET_KEY=<your-key>
 """
 
-import asyncio
 import base64
 import os
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.yfinance import YFinanceTools
 from openinference.instrumentation.agno import AgnoInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider

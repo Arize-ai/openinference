@@ -6,6 +6,9 @@ from typing import Any, Generator
 import pytest
 from agno.agent import Agent
 from agno.models.openai.chat import OpenAIChat
+from agno.workflow.condition import Condition
+from agno.workflow.step import Step
+from agno.workflow.workflow import Workflow
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -13,10 +16,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from openinference.instrumentation.agno import AgnoInstrumentor
 from openinference.semconv.trace import SpanAttributes
-
-from agno.workflow.step import Step
-from agno.workflow.workflow import Workflow
-from agno.workflow.condition import Condition
 
 
 @pytest.fixture()
@@ -78,7 +77,7 @@ class TestWorkflowInstrumentation:
         # Try to run the workflow (will fail due to no API key, but that's ok)
         # We're only testing that instrumentation creates spans
         try:
-            result = workflow.run(
+            workflow.run(
                 input="What is 2+2?",
                 user_id="test_user_456",
                 session_id="test_session_789",
@@ -180,7 +179,7 @@ class TestWorkflowInstrumentation:
 
         # Try to run workflow (will fail without real API, but spans should be created)
         try:
-            result = workflow.run(input="Test input", session_id="multi_session_123")
+            workflow.run(input="Test input", session_id="multi_session_123")
         except Exception:
             # Expected to fail without real API
             pass
@@ -243,7 +242,7 @@ class TestWorkflowInstrumentation:
 
         # Try to run async workflow (will fail without real API, but spans should be created)
         try:
-            result = await workflow.arun(
+            await workflow.arun(
                 input="Async test",
                 user_id="async_user",
                 session_id="async_session",
@@ -297,7 +296,7 @@ class TestWorkflowInstrumentation:
 
         try:
             # Run workflow (may fail due to API, that's ok)
-            result = workflow.run(input="Graph test")
+            workflow.run(input="Graph test")
         except Exception:
             pass  # We're just testing instrumentation
 
@@ -352,7 +351,7 @@ class TestWorkflowInstrumentation:
 
         try:
             # Run without user_id or session_id
-            result = workflow.run(input="Minimal test")
+            workflow.run(input="Minimal test")
         except Exception:
             pass
 
@@ -432,7 +431,7 @@ class TestWorkflowInstrumentation:
         )
 
         try:
-            result = workflow.run(
+            workflow.run(
                 input="Test topic",
                 user_id="condition_user",
                 session_id="condition_session",
