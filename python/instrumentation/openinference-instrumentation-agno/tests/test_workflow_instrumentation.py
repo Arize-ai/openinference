@@ -16,7 +16,7 @@ from openinference.semconv.trace import SpanAttributes
 
 from agno.workflow.step import Step
 from agno.workflow.workflow import Workflow
-from agno.workflow.condition import Condition  
+from agno.workflow.condition import Condition
 
 
 @pytest.fixture()
@@ -110,7 +110,7 @@ class TestWorkflowInstrumentation:
 
         # Validate workflow-specific attributes
         assert workflow_span.get("agno.workflow.description") == "A simple test workflow"
-        assert workflow_span.get("agno.workflow.steps_count") == 1  
+        assert workflow_span.get("agno.workflow.steps_count") == 1
         workflow_steps = workflow_span.get("agno.workflow.steps")
         assert workflow_steps is not None
         assert "test_step" in workflow_steps
@@ -199,7 +199,7 @@ class TestWorkflowInstrumentation:
         assert workflow_span is not None
 
         # Validate multiple steps are recorded
-        assert workflow_span.get("agno.workflow.steps_count") == 2 
+        assert workflow_span.get("agno.workflow.steps_count") == 2
         workflow_steps = workflow_span.get("agno.workflow.steps")
         assert workflow_steps is not None
         assert len(workflow_steps) == 2
@@ -324,9 +324,7 @@ class TestWorkflowInstrumentation:
             # Validate each step has workflow as parent
             for step_span in step_spans:
                 step_parent_id = step_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID)
-                assert step_parent_id == workflow_node_id, (
-                    "Step should have workflow as parent"
-                )
+                assert step_parent_id == workflow_node_id, "Step should have workflow as parent"
 
     def test_workflow_without_optional_params(
         self,
@@ -475,4 +473,3 @@ class TestWorkflowInstrumentation:
         # Validate user_id and session_id
         assert workflow_span.get(SpanAttributes.USER_ID) == "condition_user"
         assert workflow_span.get(SpanAttributes.SESSION_ID) == "condition_session"
-
