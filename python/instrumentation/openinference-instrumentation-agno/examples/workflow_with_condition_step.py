@@ -11,7 +11,12 @@ This example shows how to instrument your agno agent with OpenInference and send
 import base64
 import os
 
-from agno.agent import Agent
+from agno.agent.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.workflow.condition import Condition
+from agno.workflow.step import Step
+from agno.workflow.types import StepInput
+from agno.workflow.workflow import Workflow
 from openinference.instrumentation.agno import AgnoInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
@@ -36,13 +41,6 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
 
 # Start instrumenting agno
 AgnoInstrumentor().instrument(tracer_provider=tracer_provider)
-
-from agno.agent.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.workflow.condition import Condition
-from agno.workflow.step import Step
-from agno.workflow.types import StepInput
-from agno.workflow.workflow import Workflow
 
 # === BASIC AGENTS ===
 researcher = Agent(
