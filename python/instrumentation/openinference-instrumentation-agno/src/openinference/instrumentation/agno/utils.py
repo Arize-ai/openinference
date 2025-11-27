@@ -7,6 +7,7 @@ from opentelemetry.util.types import AttributeValue
 
 _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
@@ -24,6 +25,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
+
 
 def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)

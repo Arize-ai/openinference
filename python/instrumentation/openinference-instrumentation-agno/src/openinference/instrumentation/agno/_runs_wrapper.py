@@ -332,7 +332,6 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
                 for response in wrapped(*args, **kwargs):
-                    
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                         if current_run_id:
@@ -490,7 +489,6 @@ class _RunWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
                 async for response in wrapped(*args, **kwargs):  # type: ignore
-                    
                     if hasattr(response, "run_id"):
                         current_run_id = response.run_id
                         if current_run_id:
