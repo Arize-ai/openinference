@@ -1,7 +1,9 @@
 """
-This example shows how to instrument your agno agent with OpenInference and send traces to Langfuse.
+This example shows how to instrument your agno agent with OpenInference
+and send traces to Langfuse.
 
-1. Install dependencies: pip install openai langfuse opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-agno
+1. Install dependencies: pip install openai langfuse opentelemetry-sdk
+   opentelemetry-exporter-otlp openinference-instrumentation-agno
 2. Either self-host or sign up for an account at https://us.cloud.langfuse.com
 3. Set your Langfuse API key as an environment variables:
   - export LANGFUSE_PUBLIC_KEY=<your-key>
@@ -17,10 +19,11 @@ from agno.workflow.condition import Condition
 from agno.workflow.step import Step
 from agno.workflow.types import StepInput
 from agno.workflow.workflow import Workflow
-from openinference.instrumentation.agno import AgnoInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.agno import AgnoInstrumentor
 
 LANGFUSE_AUTH = base64.b64encode(
     f"{os.getenv('LANGFUSE_PUBLIC_KEY')}:{os.getenv('LANGFUSE_SECRET_KEY')}".encode()
@@ -31,7 +34,8 @@ LANGFUSE_AUTH = base64.b64encode(
 os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = (
     "https://cloud.langfuse.com/api/public/otel"  # 🇪🇺 EU data region
 )
-# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"]="http://localhost:3000/api/public/otel" # 🏠 Local deployment (>= v3.22.0)
+# Local deployment (>= v3.22.0):
+# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:3000/api/public/otel"
 
 os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
 
