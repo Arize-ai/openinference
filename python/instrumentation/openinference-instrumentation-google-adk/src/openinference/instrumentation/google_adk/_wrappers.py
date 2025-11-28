@@ -23,7 +23,7 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.events import Event
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.tools import BaseTool
+from google.adk.tools.base_tool import BaseTool
 from google.genai import types
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
