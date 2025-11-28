@@ -434,7 +434,9 @@ def _get_attributes_from_content(
     prefix = f"{span_attribute}.{message_index}."
     yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", role
     if parts := obj.parts:
-        yield from _get_attributes_from_parts(parts, span_attribute=span_attribute, message_index=message_index)
+        yield from _get_attributes_from_parts(
+            parts, span_attribute=span_attribute, message_index=message_index
+        )
 
 
 @stop_on_exception
@@ -460,7 +462,7 @@ def _get_attributes_from_parts(
             yield from _get_attributes_from_function_call(
                 function_call,
                 prefix=prefix,
-            ) 
+            )
         elif (function_response := part.function_response) is not None:
             prefix = f"{span_attribute}.{message_index}."
             yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
