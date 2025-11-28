@@ -427,7 +427,7 @@ def _get_attributes_from_content(
     obj: types.Content,
     /,
     *,
-    span_attribute: SpanAttributes = SpanAttributes.LLM_INPUT_MESSAGES,
+    span_attribute: str = SpanAttributes.LLM_INPUT_MESSAGES,
     message_index: int = 0,
 ) -> Iterator[tuple[str, AttributeValue]]:
     role = obj.role or "user"
@@ -444,7 +444,7 @@ def _get_attributes_from_parts(
     obj: Iterable[types.Part],
     /,
     *,
-    span_attribute: SpanAttributes = SpanAttributes.LLM_INPUT_MESSAGES,
+    span_attribute: str = SpanAttributes.LLM_INPUT_MESSAGES,
     message_index: int = 0,
     text_only: bool = False,
 ) -> Iterator[tuple[str, AttributeValue]]:
