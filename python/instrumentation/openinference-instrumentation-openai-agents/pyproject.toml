@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference OpenAI Agents Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.14"
+requires-python = ">=3.9, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -23,6 +23,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
   "opentelemetry-api",
@@ -82,6 +83,12 @@ module = [
   "wrapt",
   "agents.*",
 ]
+
+# openai library types differ between v1.99.9 (py39) and v2.7.2 (py313-latest),
+# causing type ignores to be unused in one version but required in the other.
+[[tool.mypy.overrides]]
+module = "tests.test_span_attribute_helpers"
+warn_unused_ignores = false
 
 [tool.ruff]
 line-length = 100

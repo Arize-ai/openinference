@@ -26,7 +26,7 @@ def get_weather(location: str) -> str:
     raise NotImplementedError
 
 
-TOOL = FunctionTool.from_defaults(get_weather)
+TOOL = FunctionTool.from_defaults(get_weather, name="get_weather")
 
 
 class TestToolCallsInChatResponse:
@@ -59,7 +59,7 @@ class TestToolCallsInChatResponse:
         self,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
-        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-")
+        llm = Anthropic(model="claude-3-5-haiku-20241022", api_key="sk-ant-")
         await self._test(llm, in_memory_span_exporter)
 
     @classmethod

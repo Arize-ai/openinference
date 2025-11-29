@@ -297,6 +297,18 @@ def _get_attributes_from_input(
             continue  # TODO
         elif item["type"] == "mcp_call":
             continue  # TODO
+        elif item["type"] == "shell_call":
+            # TODO: Handle shell call
+            continue
+        elif item["type"] == "shell_call_output":
+            # TODO: Handle shell call output
+            continue
+        elif item["type"] == "apply_patch_call":
+            # TODO: Handle patch call
+            continue
+        elif item["type"] == "apply_patch_call_output":
+            # TODO: Handle patch call output
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -349,24 +361,14 @@ def _get_attributes_from_response_custom_tool_call_output_param(
     yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
     if (call_id := obj.get("call_id")) is not None:
         yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
-    if (output := obj.get("output")) is not None:
-        if isinstance(output, str):
-            yield f"{prefix}{MESSAGE_CONTENT}", output
-        elif isinstance(output, list):
-            for i, item in enumerate(output):
-                if item["type"] == "input_text":
-                    yield (
-                        f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}",
-                        item["text"] or "",
-                    )
-                elif item["type"] == "input_image":
-                    # TODO: handle the input image type for the tool input
-                    pass
-                elif item["type"] == "input_file":
-                    # TODO: handle the input file type for the tool input
-                    pass
-                elif TYPE_CHECKING:
-                    assert_never(item["type"])
+    if "output" in obj:
+        output = obj["output"]
+        if output is not None:
+            if isinstance(output, str):
+                output_value = output
+            else:
+                output_value = safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_function_call_output(
@@ -375,24 +377,13 @@ def _get_attributes_from_function_call_output(
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
     yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
-    if (output := obj.get("output")) is not None:
+    output = obj["output"]
+    if output is not None:
         if isinstance(output, str):
-            yield f"{prefix}{MESSAGE_CONTENT}", output
-        elif isinstance(output, list):
-            for i, item in enumerate(output):
-                if item["type"] == "input_text":
-                    yield (
-                        f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}",
-                        item["text"] or "",
-                    )
-                elif item["type"] == "input_image":
-                    # TODO: handle the input image type for the tool input
-                    pass
-                elif item["type"] == "input_file":
-                    # TODO: handle the input file type for the tool input
-                    pass
-                elif TYPE_CHECKING:
-                    assert_never(item["type"])
+            output_value = output
+        else:
+            output_value = safe_json_dumps(output)
+        yield f"{prefix}{MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_generation_span_data(
@@ -663,6 +654,14 @@ def _get_attributes_from_response_output(
         elif item.type == "mcp_list_tools":
             ...  # TODO
         elif item.type == "mcp_approval_request":
+            ...  # TODO
+        elif item.type == "shell_call":
+            ...  # TODO
+        elif item.type == "shell_call_output":
+            ...  # TODO
+        elif item.type == "apply_patch_call":
+            ...  # TODO
+        elif item.type == "apply_patch_call_output":
             ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)

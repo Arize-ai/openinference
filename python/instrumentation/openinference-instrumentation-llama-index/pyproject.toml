@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference LlamaIndex Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.15"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "llama-index-core >= 0.12.3",
+  "llama-index-core >= 0.13.1",
   "llama-index-multi-modal-llms-openai>=0.1.7",
 ]
 
@@ -92,7 +92,7 @@ module = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

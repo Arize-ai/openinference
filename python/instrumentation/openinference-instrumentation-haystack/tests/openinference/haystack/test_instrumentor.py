@@ -1044,7 +1044,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     span = spans[0]
-    assert span.name == "OpenAIDocumentEmbedder.run"
+    assert span.name == "CreateEmbeddings"
     assert span.status.is_ok
     assert not span.events
     attributes = dict(span.attributes or {})
@@ -1076,6 +1076,10 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
         == "France won the World Cup in 2018."
     )
     assert _is_vector(attributes.pop(f"{EMBEDDING_EMBEDDINGS}.1.{EMBEDDING_VECTOR}"))
+    invocation_params_raw = attributes.pop(EMBEDDING_INVOCATION_PARAMETERS, None)
+    if invocation_params_raw is not None and isinstance(invocation_params_raw, str):
+        invocation_params = json.loads(invocation_params_raw)
+        assert isinstance(invocation_params, dict)
     assert not attributes
 
 
@@ -1465,6 +1469,7 @@ DOCUMENT_ID = DocumentAttributes.DOCUMENT_ID
 DOCUMENT_METADATA = DocumentAttributes.DOCUMENT_METADATA
 DOCUMENT_SCORE = DocumentAttributes.DOCUMENT_SCORE
 EMBEDDING_EMBEDDINGS = SpanAttributes.EMBEDDING_EMBEDDINGS
+EMBEDDING_INVOCATION_PARAMETERS = SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS
 EMBEDDING_MODEL_NAME = SpanAttributes.EMBEDDING_MODEL_NAME
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
