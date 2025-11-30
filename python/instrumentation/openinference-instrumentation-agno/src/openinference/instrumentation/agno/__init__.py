@@ -397,9 +397,9 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             try:
                 from agno.workflow.workflow import Workflow
 
-                for method_name, original in self._original_workflow_methods.items():  # type: ignore[assignment]
+                for method_name, original in self._original_workflow_methods.items():
                     if original is not None:
-                        setattr(Workflow, method_name, original)  # type: ignore[assignment]
+                        setattr(Workflow, method_name, original)
             except ImportError:
                 pass
             self._original_workflow_methods = None  # type: ignore[assignment]
@@ -410,7 +410,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
                 for method_name, original in self._original_step_methods.items():  # type: ignore[assignment]
                     if original is not None:
-                        setattr(Step, method_name, original)  # type: ignore[assignment]
+                        setattr(Step, method_name, original)
             except ImportError:
                 pass
             self._original_step_methods = None  # type: ignore[assignment]
@@ -422,7 +422,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
                 for method_name, original in self._original_parallel_methods.items():  # type: ignore[assignment]
                     if original is not None:
-                        setattr(Parallel, method_name, original)  # type: ignore[assignment]
+                        setattr(Parallel, method_name, original)
             except ImportError:
                 pass
             self._original_parallel_methods = None  # type: ignore[assignment]
