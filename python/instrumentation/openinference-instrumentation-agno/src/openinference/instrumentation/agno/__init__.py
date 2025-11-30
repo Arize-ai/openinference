@@ -318,7 +318,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     wrap_function_wrapper(
                         module=Parallel,
                         name="aexecute",
-                        wrapper=parallel_wrapper.execute,
+                        wrapper=parallel_wrapper.aexecute,
                     )
 
                 # Wrap Parallel.aexecute_stream (async streaming)
@@ -329,7 +329,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                     wrap_function_wrapper(
                         module=Parallel,
                         name="aexecute_stream",
-                        wrapper=parallel_wrapper.execute,
+                        wrapper=parallel_wrapper.aexecute,
                     )
 
             except (ImportError, AttributeError):

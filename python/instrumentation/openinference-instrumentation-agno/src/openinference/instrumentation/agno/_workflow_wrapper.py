@@ -816,11 +816,11 @@ class _ParallelWrapper:
                     wrapped, args, kwargs, current_context, span
                 )
 
-                # Check if result is an iterator (streaming mode)
+                # Check if result is a sync iterator (streaming mode)
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
 
                 if is_streaming:
-                    # Streaming mode - keep token attached and handle in continuation
+                    # Sync streaming mode - return sync generator continuation
                     return self._execute_stream_continue(result, span, parallel_token)
 
                 # Non-streaming mode - detach token immediately
@@ -847,6 +847,7 @@ class _ParallelWrapper:
 
         finally:
             # Cleanup for non-streaming (streaming handles its own)
+            # Note: execute only handles sync methods, no need to check for async iterators
             if result is not None:
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
             else:
@@ -872,6 +873,144 @@ class _ParallelWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 try:
                     for response in iterator:
+                        if hasattr(response, "content") and response.content:
+                            accumulated_output.append(str(response.content))
+                        yield response
+                finally:
+                    if parallel_token:
+                        try:
+                            context_api.detach(parallel_token)
+                            parallel_token = None
+                        except Exception:
+                            pass
+
+            span.set_status(trace_api.StatusCode.OK)
+            if accumulated_output:
+                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+
+        finally:
+            if parallel_token:
+                try:
+                    context_api.detach(parallel_token)
+                except Exception:
+                    pass
+            span.end()
+
+    def aexecute(
+        self,
+        wrapped: Callable[..., Awaitable[Any]],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        """Handle async parallel execution"""
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        parallel_name = getattr(instance, "name", "Parallel").replace(" ", "_").replace("-", "_")
+        span_name = f"{parallel_name}.aexecute"
+
+        # Generate unique node ID for this parallel container
+        node_id = _generate_node_id()
+
+        # Get parent node ID from workflow context
+        parent_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+        # Bind arguments
+        arguments = _bind_arguments(wrapped, *args, **kwargs)
+
+        # Create span for the parallel container
+        span = self._tracer.start_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: CHAIN,
+                        GRAPH_NODE_ID: node_id,
+                        **({GRAPH_NODE_PARENT_ID: parent_id} if parent_id else {}),
+                        INPUT_VALUE: _get_input_from_args(arguments),
+                        "agno.parallel.step_count": len(getattr(instance, "steps", [])),
+                        **dict(get_attributes_from_context()),
+                    }
+                )
+            ),
+        )
+
+        # Setup context and call wrapped to detect streaming
+        parallel_token = None
+        with trace_api.use_span(span, end_on_exit=False):
+            parallel_token = _setup_parallel_context(node_id)
+
+            # CRITICAL: Capture context AFTER setting up parallel context
+            current_context = context_api.get_current()
+
+            # Execute with context propagation - this returns a coroutine or async iterator
+            result = self._execute_with_context_propagation(
+                wrapped, args, kwargs, current_context, span
+            )
+
+        # Check if result is an async iterator (streaming)
+        if hasattr(result, "__aiter__"):
+            # Async streaming mode - return async generator continuation
+            return self._aexecute_stream_continue(result, span, parallel_token)
+
+        # Non-streaming async mode - return coroutine that handles it
+        async def non_stream_wrapper() -> Any:
+            nonlocal parallel_token
+            try:
+                # Await the coroutine inside span context
+                with trace_api.use_span(span, end_on_exit=False):
+                    response = await result
+
+                    # Detach token immediately after execution
+                    if parallel_token:
+                        try:
+                            context_api.detach(parallel_token)
+                            parallel_token = None
+                        except Exception:
+                            pass
+
+                span.set_status(trace_api.StatusCode.OK)
+                output = _extract_output(response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+
+                return response
+
+            except Exception as e:
+                span.set_status(trace_api.StatusCode.ERROR, str(e))
+                span.record_exception(e)
+                raise
+
+            finally:
+                if parallel_token:
+                    try:
+                        context_api.detach(parallel_token)
+                    except Exception:
+                        pass
+                span.end()
+
+        return non_stream_wrapper()
+
+    async def _aexecute_stream_continue(
+        self,
+        async_iter: Any,
+        span: Any,
+        parallel_token: Any,
+    ) -> Any:
+        """Continue streaming async parallel execution with existing span"""
+        accumulated_output = []
+        try:
+            with trace_api.use_span(span, end_on_exit=False):
+                try:
+                    async for response in async_iter:
                         if hasattr(response, "content") and response.content:
                             accumulated_output.append(str(response.content))
                         yield response
