@@ -292,12 +292,43 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 parallel_wrapper = _ParallelWrapper(tracer=self._tracer)
                 self._original_parallel_methods = {}
 
-                # Wrap Parallel.execute (sync)
+                # Wrap Parallel.execute (sync non-streaming)
                 if hasattr(Parallel, "execute") and callable(getattr(Parallel, "execute", None)):
                     self._original_parallel_methods["execute"] = Parallel.execute
                     wrap_function_wrapper(
                         module=Parallel,
                         name="execute",
+                        wrapper=parallel_wrapper.execute,
+                    )
+
+                # Wrap Parallel.execute_stream (sync streaming)
+                if hasattr(Parallel, "execute_stream") and callable(
+                    getattr(Parallel, "execute_stream", None)
+                ):
+                    self._original_parallel_methods["execute_stream"] = Parallel.execute_stream
+                    wrap_function_wrapper(
+                        module=Parallel,
+                        name="execute_stream",
+                        wrapper=parallel_wrapper.execute,
+                    )
+
+                # Wrap Parallel.aexecute (async non-streaming)
+                if hasattr(Parallel, "aexecute") and callable(getattr(Parallel, "aexecute", None)):
+                    self._original_parallel_methods["aexecute"] = Parallel.aexecute
+                    wrap_function_wrapper(
+                        module=Parallel,
+                        name="aexecute",
+                        wrapper=parallel_wrapper.execute,
+                    )
+
+                # Wrap Parallel.aexecute_stream (async streaming)
+                if hasattr(Parallel, "aexecute_stream") and callable(
+                    getattr(Parallel, "aexecute_stream", None)
+                ):
+                    self._original_parallel_methods["aexecute_stream"] = Parallel.aexecute_stream
+                    wrap_function_wrapper(
+                        module=Parallel,
+                        name="aexecute_stream",
                         wrapper=parallel_wrapper.execute,
                     )
 

@@ -803,19 +803,27 @@ class _ParallelWrapper:
         parallel_token = None
         result = None
         try:
-            # CRITICAL: Capture current context before spawning threads
-            # This context will be propagated to worker threads
-            current_context = context_api.get_current()
-
             with trace_api.use_span(span, end_on_exit=False):
                 parallel_token = _setup_parallel_context(node_id)
 
+                # CRITICAL: Capture context AFTER setting up parallel context
+                # This ensures worker threads get the context WITH parallel node ID
+                current_context = context_api.get_current()
+
                 # Execute with context propagation to worker threads
+                # Pass both context AND span so worker threads join the same trace
                 result = self._execute_with_context_propagation(
-                    wrapped, args, kwargs, current_context
+                    wrapped, args, kwargs, current_context, span
                 )
 
-                # Detach token immediately after execution
+                # Check if result is an iterator (streaming mode)
+                is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
+
+                if is_streaming:
+                    # Streaming mode - keep token attached and handle in continuation
+                    return self._execute_stream_continue(result, span, parallel_token)
+
+                # Non-streaming mode - detach token immediately
                 if parallel_token:
                     try:
                         context_api.detach(parallel_token)
@@ -838,7 +846,54 @@ class _ParallelWrapper:
             raise
 
         finally:
-            # Safety cleanup
+            # Cleanup for non-streaming (streaming handles its own)
+            if result is not None:
+                is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
+            else:
+                is_streaming = False
+
+            if not is_streaming:
+                if parallel_token:
+                    try:
+                        context_api.detach(parallel_token)
+                    except Exception:
+                        pass
+                span.end()
+
+    def _execute_stream_continue(
+        self,
+        iterator: Any,
+        span: Any,
+        parallel_token: Any,
+    ) -> Any:
+        """Continue streaming parallel execution with existing span"""
+        accumulated_output = []
+        try:
+            with trace_api.use_span(span, end_on_exit=False):
+                try:
+                    for response in iterator:
+                        if hasattr(response, "content") and response.content:
+                            accumulated_output.append(str(response.content))
+                        yield response
+                finally:
+                    if parallel_token:
+                        try:
+                            context_api.detach(parallel_token)
+                            parallel_token = None
+                        except Exception:
+                            pass
+
+            span.set_status(trace_api.StatusCode.OK)
+            if accumulated_output:
+                span.set_attribute(OUTPUT_VALUE, "\n".join(accumulated_output))
+                span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
+
+        except Exception as e:
+            span.set_status(trace_api.StatusCode.ERROR, str(e))
+            span.record_exception(e)
+            raise
+
+        finally:
             if parallel_token:
                 try:
                     context_api.detach(parallel_token)
@@ -852,6 +907,7 @@ class _ParallelWrapper:
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
         parent_context: Any,
+        parent_span: Any = None,
     ) -> Any:
         """
         Execute the parallel steps with context propagation to worker threads.
@@ -865,11 +921,15 @@ class _ParallelWrapper:
 
             @wraps(fn)
             def wrapper(*args, **kwargs):
-                # CRITICAL: Attach parent context in worker thread
-                # This ensures the worker thread has access to:
-                # 1. The parent span context (same trace)
-                # 2. Our _AGNO_PARENT_NODE_CONTEXT_KEY (correct hierarchy)
-                token = context_api.attach(parent_context)
+                # CRITICAL: Set the parent span in context so child spans join same trace
+                # We need to explicitly set the span in context, not just attach context
+                if parent_span:
+                    # Create context with both span and our custom values
+                    ctx_with_span = trace_api.set_span_in_context(parent_span, parent_context)
+                    token = context_api.attach(ctx_with_span)
+                else:
+                    token = context_api.attach(parent_context)
+
                 try:
                     return fn(*args, **kwargs)
                 finally:
@@ -885,13 +945,29 @@ class _ParallelWrapper:
             wrapped_fn = context_propagating_wrapper(fn)
             return original_submit(self, wrapped_fn, *args, **kwargs)
 
-        # Temporarily monkey-patch ThreadPoolExecutor during this execution
-        try:
-            ThreadPoolExecutor.submit = patched_submit
-            return wrapped(*args, **kwargs)
-        finally:
-            # Restore original submit method
+        # Monkey-patch ThreadPoolExecutor for this execution
+        ThreadPoolExecutor.submit = patched_submit
+
+        result = wrapped(*args, **kwargs)
+
+        # Check if result is a generator (lazy evaluation)
+        # If so, we need to keep the monkey-patch active until the generator is exhausted
+        import types
+
+        if isinstance(result, types.GeneratorType):
+            # Wrap the generator to restore the patch when exhausted
+            def generator_wrapper():
+                try:
+                    yield from result
+                finally:
+                    # Restore after generator is exhausted
+                    ThreadPoolExecutor.submit = original_submit
+
+            return generator_wrapper()
+        else:
+            # Non-generator result - restore immediately
             ThreadPoolExecutor.submit = original_submit
+            return result
 
 
 def _setup_parallel_context(node_id: str) -> Any:
