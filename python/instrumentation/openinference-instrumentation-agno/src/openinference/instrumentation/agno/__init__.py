@@ -240,7 +240,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
             # Wrap Workflow.arun (async) - wraps both streaming and non-streaming
             if hasattr(Workflow, "arun") and callable(getattr(Workflow, "arun", None)):
-                self._original_workflow_methods["arun"] = Workflow.arun
+                self._original_workflow_methods["arun"] = Workflow.arun  # type: ignore[assignment]
                 wrap_function_wrapper(
                     module=Workflow,
                     name="arun",
@@ -258,7 +258,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
             # Wrap Step.execute_stream (sync streaming)
             if hasattr(Step, "execute_stream") and callable(getattr(Step, "execute_stream", None)):
-                self._original_step_methods["execute_stream"] = Step.execute_stream
+                self._original_step_methods["execute_stream"] = Step.execute_stream  # type: ignore[assignment]
                 wrap_function_wrapper(
                     module=Step,
                     name="execute_stream",
@@ -267,7 +267,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
             # Wrap Step.aexecute (async)
             if hasattr(Step, "aexecute") and callable(getattr(Step, "aexecute", None)):
-                self._original_step_methods["aexecute"] = Step.aexecute
+                self._original_step_methods["aexecute"] = Step.aexecute  # type: ignore[assignment]
                 wrap_function_wrapper(
                     module=Step,
                     name="aexecute",
@@ -278,7 +278,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             if hasattr(Step, "aexecute_stream") and callable(
                 getattr(Step, "aexecute_stream", None)
             ):
-                self._original_step_methods["aexecute_stream"] = Step.aexecute_stream
+                self._original_step_methods["aexecute_stream"] = Step.aexecute_stream  # type: ignore[assignment]
                 wrap_function_wrapper(
                     module=Step,
                     name="aexecute_stream",
@@ -305,7 +305,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 if hasattr(Parallel, "execute_stream") and callable(
                     getattr(Parallel, "execute_stream", None)
                 ):
-                    self._original_parallel_methods["execute_stream"] = Parallel.execute_stream
+                    self._original_parallel_methods["execute_stream"] = Parallel.execute_stream  # type: ignore[assignment]
                     wrap_function_wrapper(
                         module=Parallel,
                         name="execute_stream",
@@ -314,7 +314,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
                 # Wrap Parallel.aexecute (async non-streaming)
                 if hasattr(Parallel, "aexecute") and callable(getattr(Parallel, "aexecute", None)):
-                    self._original_parallel_methods["aexecute"] = Parallel.aexecute
+                    self._original_parallel_methods["aexecute"] = Parallel.aexecute  # type: ignore[assignment]
                     wrap_function_wrapper(
                         module=Parallel,
                         name="aexecute",
@@ -325,7 +325,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 if hasattr(Parallel, "aexecute_stream") and callable(
                     getattr(Parallel, "aexecute_stream", None)
                 ):
-                    self._original_parallel_methods["aexecute_stream"] = Parallel.aexecute_stream
+                    self._original_parallel_methods["aexecute_stream"] = Parallel.aexecute_stream  # type: ignore[assignment]
                     wrap_function_wrapper(
                         module=Parallel,
                         name="aexecute_stream",
@@ -334,13 +334,13 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
             except (ImportError, AttributeError):
                 # Parallel not available in this version of agno
-                self._original_parallel_methods = None
+                self._original_parallel_methods = None  # type: ignore[assignment]
 
         except (ImportError, AttributeError):
             # Workflow/Step not available in this version of agno
-            self._original_workflow_methods = None
-            self._original_step_methods = None
-            self._original_parallel_methods = None
+            self._original_workflow_methods = None  # type: ignore[assignment]
+            self._original_step_methods = None  # type: ignore[assignment]
+            self._original_parallel_methods = None  # type: ignore[assignment]
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from agno.agent import Agent
@@ -397,32 +397,32 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             try:
                 from agno.workflow.workflow import Workflow
 
-                for method_name, original in self._original_workflow_methods.items():
+                for method_name, original in self._original_workflow_methods.items():  # type: ignore[assignment]
                     if original is not None:
-                        setattr(Workflow, method_name, original)
+                        setattr(Workflow, method_name, original)  # type: ignore[assignment]
             except ImportError:
                 pass
-            self._original_workflow_methods = None
+            self._original_workflow_methods = None  # type: ignore[assignment]
 
         if self._original_step_methods is not None:
             try:
                 from agno.workflow.step import Step
 
-                for method_name, original in self._original_step_methods.items():
+                for method_name, original in self._original_step_methods.items():  # type: ignore[assignment]
                     if original is not None:
-                        setattr(Step, method_name, original)
+                        setattr(Step, method_name, original)  # type: ignore[assignment]
             except ImportError:
                 pass
-            self._original_step_methods = None
+            self._original_step_methods = None  # type: ignore[assignment]
 
         # Uninstrument Parallel
         if self._original_parallel_methods is not None:
             try:
                 from agno.workflow.parallel import Parallel
 
-                for method_name, original in self._original_parallel_methods.items():
+                for method_name, original in self._original_parallel_methods.items():  # type: ignore[assignment]
                     if original is not None:
-                        setattr(Parallel, method_name, original)
+                        setattr(Parallel, method_name, original)  # type: ignore[assignment]
             except ImportError:
                 pass
-            self._original_parallel_methods = None
+            self._original_parallel_methods = None  # type: ignore[assignment]

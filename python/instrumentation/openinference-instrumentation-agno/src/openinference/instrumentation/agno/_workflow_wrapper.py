@@ -69,7 +69,7 @@ def _get_input_from_args(arguments: Mapping[str, Any]) -> str:
                 elif isinstance(input_value, list):
                     return "\n".join(str(item) for item in input_value)
                 elif hasattr(input_value, "model_dump_json"):
-                    return input_value.model_dump_json(indent=2, exclude_none=True)
+                    return str(input_value.model_dump_json(indent=2, exclude_none=True))
                 elif isinstance(input_value, dict):
                     import json
 
@@ -134,7 +134,7 @@ def _step_attributes(instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
     if hasattr(instance, "name") and instance.name:
         yield GRAPH_NODE_NAME, instance.name
 
-    if context_parent_id:
+    if context_parent_id and isinstance(context_parent_id, str):
         yield GRAPH_NODE_PARENT_ID, context_parent_id
 
     # Identify if step has a team or agent
@@ -377,7 +377,7 @@ class _WorkflowWrapper:
             return self._arun_stream_continue(result, span, workflow_token, instance)
 
         # Non-streaming mode - return coroutine that handles it
-        async def non_stream_wrapper():
+        async def non_stream_wrapper() -> Any:
             nonlocal workflow_token
             try:
                 # Await the coroutine inside span context
@@ -666,7 +666,7 @@ class _StepWrapper:
             return self._arun_stream_continue(result, span, step_token)
 
         # Non-streaming mode - return coroutine that handles it
-        async def non_stream_wrapper():
+        async def non_stream_wrapper() -> Any:
             nonlocal step_token
             try:
                 # Await the coroutine inside span context
@@ -903,7 +903,7 @@ class _ParallelWrapper:
 
     def _execute_with_context_propagation(
         self,
-        wrapped: Callable,
+        wrapped: Callable[..., Any],
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
         parent_context: Any,
@@ -916,11 +916,11 @@ class _ParallelWrapper:
         submitted function with context attachment logic.
         """
 
-        def context_propagating_wrapper(fn: Callable) -> Callable:
+        def context_propagating_wrapper(fn: Callable[..., Any]) -> Callable[..., Any]:
             """Wrap a function to run with parent context in worker thread"""
 
             @wraps(fn)
-            def wrapper(*args, **kwargs):
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
                 # CRITICAL: Set the parent span in context so child spans join same trace
                 # We need to explicitly set the span in context, not just attach context
                 if parent_span:
@@ -940,13 +940,13 @@ class _ParallelWrapper:
         # Store original submit method
         original_submit = ThreadPoolExecutor.submit
 
-        def patched_submit(self, fn, /, *args, **kwargs):
+        def patched_submit(self: Any, fn: Any, /, *args: Any, **kwargs: Any) -> Any:
             """Patched submit that wraps functions with context propagation"""
             wrapped_fn = context_propagating_wrapper(fn)
             return original_submit(self, wrapped_fn, *args, **kwargs)
 
         # Monkey-patch ThreadPoolExecutor for this execution
-        ThreadPoolExecutor.submit = patched_submit
+        ThreadPoolExecutor.submit = patched_submit  # type: ignore[method-assign]
 
         result = wrapped(*args, **kwargs)
 
@@ -956,17 +956,17 @@ class _ParallelWrapper:
 
         if isinstance(result, types.GeneratorType):
             # Wrap the generator to restore the patch when exhausted
-            def generator_wrapper():
+            def generator_wrapper() -> Any:
                 try:
                     yield from result
                 finally:
                     # Restore after generator is exhausted
-                    ThreadPoolExecutor.submit = original_submit
+                    ThreadPoolExecutor.submit = original_submit  # type: ignore[method-assign]
 
             return generator_wrapper()
         else:
             # Non-generator result - restore immediately
-            ThreadPoolExecutor.submit = original_submit
+            ThreadPoolExecutor.submit = original_submit  # type: ignore[method-assign]
             return result
 
 
