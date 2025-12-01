@@ -1,6 +1,8 @@
 from enum import Enum
 from secrets import token_hex
-from typing import Any, Iterator, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Tuple
+from inspect import signature
+from collections import OrderedDict
 
 from opentelemetry import context as context_api
 from opentelemetry.util.types import AttributeValue
@@ -29,3 +31,13 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
 
 def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)
+
+def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    method_signature = signature(method)
+    bound_args = method_signature.bind(*args, **kwargs)
+    bound_args.apply_defaults()
+    arguments = bound_args.arguments
+    arguments = OrderedDict(
+        {key: value for key, value in arguments.items() if value is not None and value != {}}
+    )
+    return arguments

@@ -1,13 +1,10 @@
-from inspect import signature
 from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
     Iterator,
     Mapping,
     Optional,
-    OrderedDict,
     Tuple,
     Union,
     cast,
@@ -31,6 +28,7 @@ from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
     _flatten,
     _generate_node_id,
+    _bind_arguments,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -92,17 +90,6 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
         else:
             return str(run_response.content.model_dump_json())
     return ""
-
-
-def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
-    method_signature = signature(method)
-    bound_args = method_signature.bind(*args, **kwargs)
-    bound_args.apply_defaults()
-    arguments = bound_args.arguments
-    arguments = OrderedDict(
-        {key: value for key, value in arguments.items() if value is not None and value != {}}
-    )
-    return arguments
 
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
