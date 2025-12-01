@@ -32,6 +32,7 @@ def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Attrib
 def _generate_node_id() -> str:
     return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
+
 def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
     method_signature = signature(method)
     bound_args = method_signature.bind(*args, **kwargs)

@@ -311,7 +311,7 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if not kwargs.get("yield_run_output"):
+            if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
 
@@ -469,7 +469,7 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if not kwargs.get("yield_run_output"):
+            if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
