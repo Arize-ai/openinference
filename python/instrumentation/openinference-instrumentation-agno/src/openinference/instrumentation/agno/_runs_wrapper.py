@@ -26,9 +26,9 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
+    _bind_arguments,
     _flatten,
     _generate_node_id,
-    _bind_arguments,
 )
 from openinference.semconv.trace import (
     MessageAttributes,

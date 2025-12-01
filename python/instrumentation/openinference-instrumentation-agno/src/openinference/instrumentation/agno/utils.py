@@ -1,8 +1,8 @@
+from collections import OrderedDict
 from enum import Enum
+from inspect import signature
 from secrets import token_hex
 from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Tuple
-from inspect import signature
-from collections import OrderedDict
 
 from opentelemetry import context as context_api
 from opentelemetry.util.types import AttributeValue
