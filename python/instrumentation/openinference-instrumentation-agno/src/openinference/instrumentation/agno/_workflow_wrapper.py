@@ -96,8 +96,11 @@ def _extract_output(response: Any) -> str:
         return response
     if hasattr(response, "content"):
         return str(response.content)
-    else:
-        return str(response.model_dump_json())
+    if hasattr(response, "model_dump_json"):
+        try:
+            return str(response.model_dump_json())
+        except Exception:
+            pass
     return ""
 
 
