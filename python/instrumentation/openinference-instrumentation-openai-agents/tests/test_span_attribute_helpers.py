@@ -2154,6 +2154,21 @@ def test_get_attributes_from_message(
             },
             id="large_token_counts",
         ),
+        pytest.param(
+            ResponseUsage.model_construct(
+                input_tokens=100,
+                output_tokens=50,
+                total_tokens=150,
+                input_tokens_details=None,
+                output_tokens_details=None,
+            ),
+            {
+                "llm.token_count.prompt": 100,
+                "llm.token_count.completion": 50,
+                "llm.token_count.total": 150,
+            },
+            id="none_token_details",
+        ),
     ],
 )
 def test_get_attributes_from_usage(
