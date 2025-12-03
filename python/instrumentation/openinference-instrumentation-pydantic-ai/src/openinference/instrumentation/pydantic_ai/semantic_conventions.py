@@ -166,6 +166,8 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
     Returns:
         Iterator of (key, value) pairs for OpenInference attributes
     """
+
+    print("GENAI Attributes================= ", dict(gen_ai_attrs))
     yield from _extract_agent_attributes(gen_ai_attrs)
     yield from _extract_common_attributes(gen_ai_attrs)
     yield from _extract_llm_attributes(gen_ai_attrs)
