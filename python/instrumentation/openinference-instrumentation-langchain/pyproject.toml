@@ -117,4 +117,3 @@ select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
 force-single-line = false
-
