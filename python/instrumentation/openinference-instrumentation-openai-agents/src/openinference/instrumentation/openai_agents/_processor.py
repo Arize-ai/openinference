@@ -725,8 +725,13 @@ def _get_attributes_from_usage(
     yield LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
     yield LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
-    yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, obj.output_tokens_details.reasoning_tokens
+    if obj.input_tokens_details:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
+    if obj.output_tokens_details:
+        yield (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            obj.output_tokens_details.reasoning_tokens,
+        )
 
 
 def _get_span_status(obj: Span[Any]) -> Status:
