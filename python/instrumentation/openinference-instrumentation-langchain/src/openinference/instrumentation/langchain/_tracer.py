@@ -39,16 +39,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.tracers import BaseTracer, LangChainTracer
 from langchain_core.tracers.schemas import Run
-from opentelemetry import context as context_api
-from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
-from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
-from typing_extensions import NotRequired, TypeGuard
-from wrapt import ObjectProxy
-
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -64,6 +54,16 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from opentelemetry import context as context_api
+from opentelemetry import trace as trace_api
+from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, get_value
+from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+from typing_extensions import NotRequired, TypeGuard
+from wrapt import ObjectProxy
+
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -662,7 +662,7 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
             message_class_name = id_[-1]
             role = _map_class_name_to_role(message_class_name, message_data)
             logger.debug("Extracted message role from id field: %s", role)
-        except (IndexError, KeyError, ValueError, TypeError) as e:
+        except (IndexError, KeyError, ValueError, TypeError, AttributeError) as e:
             logger.debug("Failed to extract role from id field: %s", e)
 
     # Strategy 2: Try the type field (alternative serialization format)

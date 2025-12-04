@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Any, Iterator
 import pytest
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -231,3 +231,49 @@ def test_chat_message_with_none_kwargs_fallback_to_role_field() -> None:
 
     assert MESSAGE_ROLE in result
     assert result[MESSAGE_ROLE] == "assistant"
+
+
+def test_message_with_non_string_id_element_fallback() -> None:
+    """
+    Test that non-string id elements fall back to alternative strategies.
+
+    This tests the fix for the bug where AttributeError wasn't caught when
+    id_[-1] is not a string (e.g., integer, None), causing .startswith() to
+    raise AttributeError. The function should fall back to Strategy 2.
+    """
+    from openinference.instrumentation.langchain._tracer import MESSAGE_ROLE, _extract_message_role
+
+    # Simulate a message where id[-1] is an integer instead of string
+    message_data = {
+        "id": ["langchain_core", "messages", 12345],  # Last element is int, not string
+        "type": "system",  # Fallback to Strategy 2
+    }
+
+    # This should NOT raise AttributeError, should fall back to type field
+    result = dict(_extract_message_role(message_data))
+
+    # Should successfully extract role from type field (Strategy 2)
+    assert MESSAGE_ROLE in result
+    assert result[MESSAGE_ROLE] == "system"
+
+
+def test_message_with_none_id_element_fallback() -> None:
+    """
+    Test that None as id element falls back to alternative strategies.
+
+    Tests that when id[-1] is None, the function catches AttributeError
+    and falls back to the direct role field (Strategy 3).
+    """
+    from openinference.instrumentation.langchain._tracer import MESSAGE_ROLE, _extract_message_role
+
+    # Simulate a message where id[-1] is None
+    message_data = {
+        "id": ["langchain_core", "messages", None],  # Last element is None
+        "role": "tool",  # Fallback to Strategy 3
+    }
+
+    # Should fall back to direct role field
+    result = dict(_extract_message_role(message_data))
+
+    assert MESSAGE_ROLE in result
+    assert result[MESSAGE_ROLE] == "tool"
