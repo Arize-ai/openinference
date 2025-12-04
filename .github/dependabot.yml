@@ -339,6 +339,16 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
+- directory: js/packages/openinference-genai
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-instrumentation-beeai
   ignore:
   - dependency-name: '*'
@@ -350,6 +360,16 @@ updates:
   schedule:
     interval: weekly
 - directory: js/packages/openinference-instrumentation-anthropic
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
+- directory: js/packages/openinference-instrumentation-langchain-v0
   ignore:
   - dependency-name: '*'
     update-types:
