@@ -15,7 +15,7 @@ AgentExecutor: Any
 create_tool_calling_agent: Any
 
 try:
-    from langchain.agents import (  # type: ignore[attr-defined,no-redef]
+    from langchain.agents import (  # type: ignore[attr-defined,no-redef,unused-ignore]
         AgentExecutor,
         create_tool_calling_agent,
     )
