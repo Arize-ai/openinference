@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import litellm
 import pytest
-from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
+from litellm import OpenAIChatCompletion  # type: ignore[attr-defined, unused-ignore]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
@@ -26,9 +26,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
@@ -827,7 +824,10 @@ def test_embedding(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
-    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
     assert (
         attributes.get(
@@ -937,7 +937,10 @@ async def test_aembedding(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
-    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
     assert (
         attributes.get(

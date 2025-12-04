@@ -14,10 +14,7 @@ from packaging.version import Version
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-llms = [
-    OpenAI(max_retries=0),
-    Anthropic(max_retries=0),
-]
+llms = [OpenAI(max_retries=0), Anthropic(max_retries=0, model="claude-3-5-haiku-20241022")]
 
 if Version(version("llama-index-llms-openai")) >= Version("0.3.30"):
     from llama_index.llms.openai import OpenAIResponses
@@ -32,7 +29,7 @@ def test_openai_chat_with_tools(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     n = randint(1, 5)
-    tools = [FunctionTool.from_defaults(fn=lambda: None) for _ in range(n)]
+    tools = [FunctionTool.from_defaults(fn=lambda: None) for i in range(n)]
     with suppress(Exception):
         llm.chat_with_tools(tools, "")
     spans = in_memory_span_exporter.get_finished_spans()

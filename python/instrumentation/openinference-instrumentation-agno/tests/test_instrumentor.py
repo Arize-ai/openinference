@@ -96,7 +96,7 @@ def test_agno_instrumentation(
             # Validate agent-specific attributes
             assert attributes.get("agno.agent.id") is not None, "Agent ID should be present"
             assert attributes.get("agno.run.id") is not None, "Run ID should be present"
-            assert attributes.get("user.id") == "test_user_123", "User ID should be present"
+            assert attributes.get("user.id") == "test_user_123"
             assert span.status.is_ok
         elif span.name == "ToolUsage._use":
             checked_spans += 1
@@ -148,9 +148,7 @@ def test_agno_team_coordinate_instrumentation(
             name="Finance Agent",
             role="Get financial data",
             model=OpenAIChat(id="gpt-4o-mini"),
-            tools=[
-                YFinanceTools()  # type: ignore
-            ],
+            tools=[YFinanceTools()],
             instructions="Use tables to display data",
         )
 

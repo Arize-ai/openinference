@@ -3,13 +3,9 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "baseUrl": ".",
     "types": ["node", "vitest/globals"],
-    "paths": {
-      "langchainV0.1/*": ["node_modules/langchainV0.1/*"],
-      "@langchain/coreV0.1/*": ["node_modules/@langchain/coreV0.1/*"],
-      "@langchain/openaiV0.1/*": ["node_modules/@langchain/openaiV0.1/*"]
-    }
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext"
   },
   "files": [],
   "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"],

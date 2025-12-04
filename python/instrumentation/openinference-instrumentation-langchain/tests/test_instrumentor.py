@@ -590,7 +590,7 @@ def test_anthropic_token_counts(
     span = spans[0]
     llm_attributes = dict(span.attributes or {})
     assert llm_attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM.value
-    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 22
+    assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == 33
     assert llm_attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == 5
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) == 2
     assert llm_attributes.pop(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ) == 9

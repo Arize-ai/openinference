@@ -12,6 +12,7 @@ from beeai_framework.backend.events import (
 from beeai_framework.context import RunContext
 from typing_extensions import override
 
+from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.beeai.processors.base import Processor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
@@ -23,6 +24,10 @@ from openinference.semconv.trace import (
 class EmbeddingModelProcessor(Processor):
     kind: ClassVar[OpenInferenceSpanKindValues] = OpenInferenceSpanKindValues.EMBEDDING
 
+    @override
+    def get_span_name(self, target_cls: type) -> str:
+        return "CreateEmbeddings"
+
     def __init__(self, event: "RunContextStartEvent", meta: "EventMeta"):
         super().__init__(event, meta)
 
@@ -33,9 +38,21 @@ class EmbeddingModelProcessor(Processor):
         self.span.set_attributes(
             {
                 SpanAttributes.EMBEDDING_MODEL_NAME: llm.model_id,
-                SpanAttributes.LLM_PROVIDER: llm.provider_id,
             }
         )
+
+        # Extract invocation parameters (exclude input values)
+        if hasattr(event, "input") and hasattr(event.input, "__dict__"):
+            invocation_params = {
+                k: v
+                for k, v in event.input.__dict__.items()
+                if k not in {"values", "api_key", "token"} and not k.startswith("_")
+            }
+            if invocation_params:
+                self.span.set_attribute(
+                    SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS,
+                    safe_json_dumps(invocation_params),
+                )
 
     @override
     async def update(
@@ -56,9 +73,10 @@ class EmbeddingModelProcessor(Processor):
                 )
         elif isinstance(event, EmbeddingModelSuccessEvent):
             for idx, embedding in enumerate(event.value.embeddings):
+                vector = list(embedding) if not isinstance(embedding, list) else embedding
                 self.span.set_attribute(
                     f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{idx}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
-                    embedding,
+                    vector,
                 )
 
             if event.value.usage:

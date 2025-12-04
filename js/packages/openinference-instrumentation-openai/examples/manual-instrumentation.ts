@@ -3,6 +3,8 @@
  * This file shows an example of how if openai is already imported, you can manually instrument it after it's been imported.
  */
 
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
+
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
@@ -10,7 +12,6 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import { isPatched, OpenAIInstrumentation } from "../src";
 
@@ -22,17 +23,16 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 const provider = new NodeTracerProvider({
   resource: new Resource({
-    [SEMRESATTRS_SERVICE_NAME]: "openai-service",
+    [SEMRESATTRS_PROJECT_NAME]: "openai-service",
   }),
+  spanProcessors: [
+    new SimpleSpanProcessor(
+      new OTLPTraceExporter({
+        url: "http://localhost:6006/v1/traces",
+      }),
+    ),
+  ],
 });
-
-provider.addSpanProcessor(
-  new SimpleSpanProcessor(
-    new OTLPTraceExporter({
-      url: "http://localhost:6006/v1/traces",
-    }),
-  ),
-);
 
 provider.register();
 

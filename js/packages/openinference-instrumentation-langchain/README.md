@@ -61,6 +61,15 @@ const lcInstrumentation = new LangChainInstrumentation();
 lcInstrumentation.setTracerProvider(customTracerProvider);
 ```
 
+## Compatibility
+
+| @langchain/core Version | @arizeai/openinference-instrumentation-langchain Version |
+| ----------------------- | -------------------------------------------------------- |
+| ^1.0.0                  | ^4.0.0                                                   |
+| ^0.3.0                  | ^4.0.0                                                   |
+
+This package is only tested against the 1.X versions of `@langchain/core`. Older versions may work but are not officially supported. For full compatibility for the 0.X versions of LangChain.js, a dedicated package called `openinference-instrumentation-langchain-v0` is available.
+
 ## Deprecations
 
-LangChain v0.1 was deprecated on 2025-03-02 due to security vulerabilities in the core package.
+LangChain v0.1 was deprecated on 2025-03-02 due to security vulnerabilities in the core package.

@@ -297,6 +297,18 @@ def _get_attributes_from_input(
             continue  # TODO
         elif item["type"] == "mcp_call":
             continue  # TODO
+        elif item["type"] == "shell_call":
+            # TODO: Handle shell call
+            continue
+        elif item["type"] == "shell_call_output":
+            # TODO: Handle shell call output
+            continue
+        elif item["type"] == "apply_patch_call":
+            # TODO: Handle patch call
+            continue
+        elif item["type"] == "apply_patch_call_output":
+            # TODO: Handle patch call output
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -349,8 +361,14 @@ def _get_attributes_from_response_custom_tool_call_output_param(
     yield f"{prefix}{MessageAttributes.MESSAGE_ROLE}", "tool"
     if (call_id := obj.get("call_id")) is not None:
         yield f"{prefix}{MessageAttributes.MESSAGE_TOOL_CALL_ID}", call_id
-    if (output := obj.get("output")) is not None:
-        yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output
+    if "output" in obj:
+        output = obj["output"]
+        if output is not None:
+            if isinstance(output, str):
+                output_value = output
+            else:
+                output_value = safe_json_dumps(output)
+            yield f"{prefix}{MessageAttributes.MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_function_call_output(
@@ -359,7 +377,13 @@ def _get_attributes_from_function_call_output(
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", "tool"
     yield f"{prefix}{MESSAGE_TOOL_CALL_ID}", obj["call_id"]
-    yield f"{prefix}{MESSAGE_CONTENT}", obj["output"]
+    output = obj["output"]
+    if output is not None:
+        if isinstance(output, str):
+            output_value = output
+        else:
+            output_value = safe_json_dumps(output)
+        yield f"{prefix}{MESSAGE_CONTENT}", output_value
 
 
 def _get_attributes_from_generation_span_data(
@@ -631,6 +655,14 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "mcp_approval_request":
             ...  # TODO
+        elif item.type == "shell_call":
+            ...  # TODO
+        elif item.type == "shell_call_output":
+            ...  # TODO
+        elif item.type == "apply_patch_call":
+            ...  # TODO
+        elif item.type == "apply_patch_call_output":
+            ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
 
@@ -693,8 +725,13 @@ def _get_attributes_from_usage(
     yield LLM_TOKEN_COUNT_COMPLETION, obj.output_tokens
     yield LLM_TOKEN_COUNT_PROMPT, obj.input_tokens
     yield LLM_TOKEN_COUNT_TOTAL, obj.total_tokens
-    yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
-    yield LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, obj.output_tokens_details.reasoning_tokens
+    if obj.input_tokens_details:
+        yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, obj.input_tokens_details.cached_tokens
+    if obj.output_tokens_details:
+        yield (
+            LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            obj.output_tokens_details.reasoning_tokens,
+        )
 
 
 def _get_span_status(obj: Span[Any]) -> Status:
