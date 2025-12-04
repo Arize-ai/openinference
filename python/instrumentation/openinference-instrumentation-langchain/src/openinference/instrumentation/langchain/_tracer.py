@@ -662,7 +662,7 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
             message_class_name = id_[-1]
             role = _map_class_name_to_role(message_class_name, message_data)
             logger.debug("Extracted message role from id field: %s", role)
-        except (IndexError, KeyError, ValueError) as e:
+        except (IndexError, KeyError, ValueError, TypeError) as e:
             logger.debug("Failed to extract role from id field: %s", e)
 
     # Strategy 2: Try the type field (alternative serialization format)

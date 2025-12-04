@@ -182,3 +182,52 @@ def test_raw_dict_message_with_different_roles() -> None:
         result = dict(_extract_message_role(raw_message_data))
         assert MESSAGE_ROLE in result
         assert result[MESSAGE_ROLE] == expected_role
+
+
+def test_chat_message_with_none_kwargs_fallback() -> None:
+    """
+    Test that ChatMessage with None kwargs falls back to alternative strategies.
+
+    This tests the fix for the bug where TypeError wasn't caught when
+    accessing message_data["kwargs"]["role"] raises TypeError if kwargs is None.
+    The function should fall back to Strategy 2 (type field) instead of raising.
+    """
+    from openinference.instrumentation.langchain._tracer import MESSAGE_ROLE, _extract_message_role
+
+    # Simulate a ChatMessage where kwargs is None
+    # This would cause TypeError in _map_class_name_to_role without proper handling
+    message_data = {
+        "id": ["langchain_core", "messages", "chat", "ChatMessage"],
+        "kwargs": None,  # This causes TypeError when accessing ["kwargs"]["role"]
+        "type": "human",  # Fallback to Strategy 2
+    }
+
+    # This should NOT raise TypeError, should fall back to type field
+    result = dict(_extract_message_role(message_data))
+
+    # Should successfully extract role from type field (Strategy 2)
+    assert MESSAGE_ROLE in result
+    assert result[MESSAGE_ROLE] == "user"
+
+
+def test_chat_message_with_none_kwargs_fallback_to_role_field() -> None:
+    """
+    Test ChatMessage with None kwargs falls back to direct role field.
+
+    Tests fallback to Strategy 3 (direct role field) when both Strategy 1
+    (id field with kwargs) and Strategy 2 (type field) are unavailable.
+    """
+    from openinference.instrumentation.langchain._tracer import MESSAGE_ROLE, _extract_message_role
+
+    # ChatMessage with None kwargs and no type field
+    message_data = {
+        "id": ["langchain_core", "messages", "chat", "ChatMessage"],
+        "kwargs": None,  # Causes TypeError in Strategy 1
+        "role": "assistant",  # Fallback to Strategy 3
+    }
+
+    # Should fall back to direct role field
+    result = dict(_extract_message_role(message_data))
+
+    assert MESSAGE_ROLE in result
+    assert result[MESSAGE_ROLE] == "assistant"
