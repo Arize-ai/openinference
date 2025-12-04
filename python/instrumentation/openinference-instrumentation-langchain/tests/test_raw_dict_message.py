@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Any, Iterator
 import pytest
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
+from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
