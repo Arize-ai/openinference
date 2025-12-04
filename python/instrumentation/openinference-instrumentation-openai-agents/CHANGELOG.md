@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.1...python-openinference-instrumentation-openai-agents-v1.4.0) (2025-12-04)
+
+
+### Features
+
+* Added support py314 ([#2470](https://github.com/Arize-ai/openinference/issues/2470)) ([1399bcb](https://github.com/Arize-ai/openinference/commit/1399bcba260cc33c07328406c0b6c74466d315ce))
+
+
+### Bug Fixes
+
+* Openai CI Failures ([#2461](https://github.com/Arize-ai/openinference/issues/2461)) ([e2b4dbc](https://github.com/Arize-ai/openinference/commit/e2b4dbc32ee797ae89f0814a5c1e48107ccf4dd0))
+* **openai-agents:** handle None token details from providers ([#2496](https://github.com/Arize-ai/openinference/issues/2496)) ([aa31202](https://github.com/Arize-ai/openinference/commit/aa3120275c228af163bb2d8cba23eca0124610cd))
+* **openai-agents:** serialize complex output types to JSON for AttributeValue compatibility ([dc9b1ae](https://github.com/Arize-ai/openinference/commit/dc9b1aee75fd2362bf4501bf6f6d267e379d0819))
+
 ## [1.3.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-agents-v1.3.0...python-openinference-instrumentation-openai-agents-v1.3.1) (2025-11-18)
 
 
