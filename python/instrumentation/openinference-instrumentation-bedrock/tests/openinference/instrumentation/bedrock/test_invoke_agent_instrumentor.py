@@ -168,6 +168,18 @@ def test_tool_calls_with_input_params(
     )
     assert not action_group_span_attributes
 
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "edfe2c05-729a-4768-b930-602aece156b0"
+    assert orchestration_metadata_dict["endTime"] == 1.747821025600372e18
+    assert orchestration_metadata_dict["startTime"] == 1.7478210192442092e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 2106
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -292,6 +304,18 @@ def test_tool_calls_without_input_params(
     assert action_group_span_attributes.pop("tool.parameters") == "[]"
     assert not action_group_span_attributes
 
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "58119a54-8c3d-48cd-b1bb-abfa37fe0273"
+    assert orchestration_metadata_dict["endTime"] == 1.747821176860278e18
+    assert orchestration_metadata_dict["startTime"] == 1.7478211724546808e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 1686
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -399,6 +423,18 @@ def test_knowledge_base_results(
     assert "customDocumentLocation" in metadata["location"]
     assert not data
 
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "54f4e68d-1438-4047-9cf7-b36761082931"
+    assert orchestration_metadata_dict["endTime"] == 1.747819414189043e18
+    assert orchestration_metadata_dict["startTime"] == 1.747819403187111e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 9462
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -446,6 +482,15 @@ def test_preprocessing_trace(
     assert "This input is a straightforward" in str(
         preprocessing_span_attributes.pop("output.value")
     )
+    # Check metadata
+    preprocessing_metadata = preprocessing_span_attributes.pop("metadata")
+    assert preprocessing_metadata is not None
+    assert isinstance(preprocessing_metadata, str)
+    preprocessing_metadata_dict = json.loads(preprocessing_metadata)
+    assert preprocessing_metadata_dict["clientRequestId"] == "a95170b0-6fff-4fed-822b-9fc50106d62f"
+    assert preprocessing_metadata_dict["endTime"] == 1.747820692253238e18
+    assert preprocessing_metadata_dict["startTime"] == 1.747820688908223e18
+    assert preprocessing_metadata_dict["totalTimeMs"] == 3345
     assert not preprocessing_span_attributes
 
     initial_span = [span for span in spans if span.name == "bedrock_agent.invoke_agent"][-1]
@@ -458,6 +503,18 @@ def test_preprocessing_trace(
     )
     assert starts_with(initial_span_attributes.pop("input.value"), "What is best time to visit")
     assert not initial_span_attributes
+
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "44fd16db-acba-4367-9fc6-43bc6f659a36"
+    assert orchestration_metadata_dict["endTime"] == 1.747820699799308e18
+    assert orchestration_metadata_dict["startTime"] == 1.74782068866962e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 7466
 
 
 @pytest.mark.vcr(
@@ -504,7 +561,28 @@ def test_post_processing_trace(
         postprocessing_span_attributes.pop("output.value"),
         "Based on the information I've gathered about the Taj Mahal",
     )
+    # Check metadata
+    postprocessing_metadata = postprocessing_span_attributes.pop("metadata")
+    assert postprocessing_metadata is not None
+    assert isinstance(postprocessing_metadata, str)
+    postprocessing_metadata_dict = json.loads(postprocessing_metadata)
+    assert postprocessing_metadata_dict["clientRequestId"] == "06197ad1-c5f8-4623-a22f-955dba53872e"
+    assert postprocessing_metadata_dict["endTime"] == 1.7478208125485809e18
+    assert postprocessing_metadata_dict["startTime"] == 1.747820807276065e18
+    assert postprocessing_metadata_dict["totalTimeMs"] == 5272
     assert not postprocessing_span_attributes
+
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "671c03ac-aaff-4c9f-ba27-b175caa2d366"
+    assert orchestration_metadata_dict["endTime"] == 1.7478208125825938e18
+    assert orchestration_metadata_dict["startTime"] == 1.7478208000723679e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 6839
 
 
 @pytest.mark.vcr(
@@ -641,6 +719,20 @@ def test_multi_agent_collaborator(
     )
     assert not math_agent_span_attributes
 
+    # Check orchestrationTrace span metadata (checking first one)
+    orchestration_spans = [span for span in spans if span.name == "orchestrationTrace"]
+    assert len(orchestration_spans) == 3
+    orchestration_span = orchestration_spans[0]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "7d9debef-72ab-4cc7-80cb-8e35fe0d1afe"
+    assert orchestration_metadata_dict["endTime"] == 1.74782095450601e18
+    assert orchestration_metadata_dict["startTime"] == 1.7478209469743741e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 1938
+
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
@@ -671,34 +763,105 @@ def test_streaming_with_guardrails(in_memory_span_exporter: InMemorySpanExporter
     events = [event for event in response["completion"]]
     assert len(events) == 15
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5
+    assert len(spans) == 7
     span_names = [span.name for span in spans]
     assert span_names == [
         "Guardrails",
-        "guardrailTrace",
+        "preGuardrailTrace",
         "LLM",
         "orchestrationTrace",
+        "Guardrails",
+        "postGuardrailTrace",
         "bedrock_agent.invoke_agent",
     ]
-    guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
-    guardrail_span_attributes = dict(guardrail_span.attributes or {})
-    assert guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
-    guardrail_metadata = guardrail_span_attributes.pop("metadata")
-    assert isinstance(guardrail_metadata, str)
-    guardrail_metadata = json.loads(guardrail_metadata)
-    assert isinstance(guardrail_metadata, dict)
-    guardrails = guardrail_metadata.pop("non_intervening_guardrails", [])
-    assert isinstance(guardrails, list)
-    assert len(guardrails) == 6
-    assert guardrails[0].pop("action") == "NONE"
-    assert guardrails[0].pop("clientRequestId") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
-    assert guardrails[0].pop("startTime") == 1.755127229666712e18
-    assert guardrails[0].pop("endTime") == 1.755127229981549e18
-    assert guardrails[0].pop("totalTimeMs") == 315
-    assert guardrails[0].pop("inputAssessments") == [{}]
-    assert not guardrails[0]
-    assert guardrail_span.status.status_code == StatusCode.OK
-    assert not guardrail_span_attributes
+    # Check pre-guardrail span (first Guardrails span)
+    guardrail_spans = [span for span in spans if span.name == "Guardrails"]
+    assert len(guardrail_spans) == 2
+    pre_guardrail_span = guardrail_spans[0]
+    pre_guardrail_span_attributes = dict(pre_guardrail_span.attributes or {})
+    assert pre_guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
+    pre_guardrail_metadata = pre_guardrail_span_attributes.pop("metadata")
+    assert isinstance(pre_guardrail_metadata, str)
+    pre_guardrail_metadata = json.loads(pre_guardrail_metadata)
+    assert isinstance(pre_guardrail_metadata, dict)
+    pre_guardrails = pre_guardrail_metadata.pop("non_intervening_guardrails", [])
+    assert isinstance(pre_guardrails, list)
+    assert len(pre_guardrails) == 1
+    assert pre_guardrails[0].pop("action") == "NONE"
+    assert pre_guardrails[0].pop("clientRequestId") == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
+    assert pre_guardrails[0].pop("startTime") == 1.755127229666712e18
+    assert pre_guardrails[0].pop("endTime") == 1.755127229981549e18
+    assert pre_guardrails[0].pop("totalTimeMs") == 315
+    assert pre_guardrails[0].pop("inputAssessments") == [{}]
+    assert not pre_guardrails[0]
+    assert pre_guardrail_span.status.status_code == StatusCode.OK
+    assert not pre_guardrail_span_attributes
+
+    # Check post-guardrail span (last Guardrails span)
+    post_guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
+    post_guardrail_span_attributes = dict(post_guardrail_span.attributes or {})
+    assert post_guardrail_span_attributes.pop("openinference.span.kind") == "GUARDRAIL"
+    post_guardrail_metadata = post_guardrail_span_attributes.pop("metadata")
+    assert isinstance(post_guardrail_metadata, str)
+    post_guardrail_metadata = json.loads(post_guardrail_metadata)
+    assert isinstance(post_guardrail_metadata, dict)
+    post_guardrails = post_guardrail_metadata.pop("non_intervening_guardrails", [])
+    assert isinstance(post_guardrails, list)
+    assert len(post_guardrails) == 5
+    assert post_guardrails[0].pop("action") == "NONE"
+    assert post_guardrails[0].pop("clientRequestId") == "1ba128ca-af9b-4503-acef-a47864c98f01"
+    assert post_guardrails[0].pop("startTime") == 1.755127232193671e18
+    assert post_guardrails[0].pop("endTime") == 1.75512723246755e18
+    assert post_guardrails[0].pop("totalTimeMs") == 274
+    assert post_guardrails[0].pop("outputAssessments") == [{}]
+    assert not post_guardrails[0]
+    assert post_guardrail_span.status.status_code == StatusCode.OK
+    assert not post_guardrail_span_attributes
+
+    # Check preGuardrailTrace span metadata
+    pre_guardrail_trace_span = [span for span in spans if span.name == "preGuardrailTrace"][0]
+    pre_guardrail_trace_attributes = dict(pre_guardrail_trace_span.attributes or {})
+    pre_guardrail_trace_metadata = pre_guardrail_trace_attributes.pop("metadata")
+    assert pre_guardrail_trace_metadata is not None
+    assert isinstance(pre_guardrail_trace_metadata, str)
+    pre_guardrail_trace_metadata_dict = json.loads(pre_guardrail_trace_metadata)
+    assert (
+        pre_guardrail_trace_metadata_dict["clientRequestId"]
+        == "cda4b843-f95a-4ab8-bfab-2173baf50ead"
+    )
+    assert pre_guardrail_trace_metadata_dict["endTime"] == 1.755127229981549e18
+    assert pre_guardrail_trace_metadata_dict["startTime"] == 1.755127229666712e18
+    assert pre_guardrail_trace_metadata_dict["totalTimeMs"] == 315
+
+    # Check postGuardrailTrace span metadata
+    post_guardrail_trace_span = [span for span in spans if span.name == "postGuardrailTrace"][0]
+    post_guardrail_trace_attributes = dict(post_guardrail_trace_span.attributes or {})
+    post_guardrail_trace_metadata = post_guardrail_trace_attributes.pop("metadata")
+    assert post_guardrail_trace_metadata is not None
+    assert isinstance(post_guardrail_trace_metadata, str)
+    post_guardrail_trace_metadata_dict = json.loads(post_guardrail_trace_metadata)
+    assert (
+        post_guardrail_trace_metadata_dict["clientRequestId"]
+        == "a67b3c2c-0795-4c73-814f-89c751a47db8"
+    )
+    assert post_guardrail_trace_metadata_dict["endTime"] == 1.755127233484257e18
+    assert post_guardrail_trace_metadata_dict["startTime"] == 1.755127233249065e18
+    assert post_guardrail_trace_metadata_dict["totalTimeMs"] == 235
+
+    # Check orchestrationTrace span metadata
+    orchestration_span_guardrails = [span for span in spans if span.name == "orchestrationTrace"][0]
+    orchestration_attributes_guardrails = dict(orchestration_span_guardrails.attributes or {})
+    orchestration_metadata_guardrails = orchestration_attributes_guardrails.pop("metadata")
+    assert orchestration_metadata_guardrails is not None
+    assert isinstance(orchestration_metadata_guardrails, str)
+    orchestration_metadata_dict_guardrails = json.loads(orchestration_metadata_guardrails)
+    assert (
+        orchestration_metadata_dict_guardrails["clientRequestId"]
+        == "5cffa67a-0c78-4cd9-a760-a0d5e289c7ca"
+    )
+    assert orchestration_metadata_dict_guardrails["endTime"] == 1.755127233527085e18
+    assert orchestration_metadata_dict_guardrails["startTime"] == 1.7551272294398848e18
+    assert orchestration_metadata_dict_guardrails["totalTimeMs"] == 3454
 
 
 @pytest.mark.vcr(
@@ -733,7 +896,7 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     span_names = [span.name for span in spans]
     assert span_names == [
         "Guardrails",
-        "guardrailTrace",
+        "preGuardrailTrace",
         "bedrock_agent.invoke_agent",
     ]
     guardrail_span = [span for span in spans if span.name == "Guardrails"][-1]
@@ -748,6 +911,110 @@ def test_guardrail_intervention(in_memory_span_exporter: InMemorySpanExporter) -
     assert len(guardrails) == 1
     assert guardrail_span.status.status_code == StatusCode.ERROR
     assert not guardrail_span_attributes
+
+    # Check preGuardrailTrace span metadata
+    pre_guardrail_trace_span = [span for span in spans if span.name == "preGuardrailTrace"][0]
+    pre_guardrail_trace_attributes = dict(pre_guardrail_trace_span.attributes or {})
+    pre_guardrail_trace_metadata = pre_guardrail_trace_attributes.pop("metadata")
+    assert pre_guardrail_trace_metadata is not None
+    assert isinstance(pre_guardrail_trace_metadata, str)
+    pre_guardrail_trace_metadata_dict = json.loads(pre_guardrail_trace_metadata)
+    assert (
+        pre_guardrail_trace_metadata_dict["clientRequestId"]
+        == "f0f32997-9379-478e-ac07-7ce59cb83d79"
+    )
+    assert pre_guardrail_trace_metadata_dict["endTime"] == 1.755127258141102e18
+    assert pre_guardrail_trace_metadata_dict["startTime"] == 1.7551272578677732e18
+    assert pre_guardrail_trace_metadata_dict["totalTimeMs"] == 274
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_routing_classifier_trace(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    agent_id = "U8REJ2SB9J"
+    agent_alias_id = "HLEKFY36LK"
+    session_id = "12345680"
+
+    client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+
+    attributes = dict(
+        inputText="What is 1 + 1?",
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        enableTrace=True,
+    )
+
+    response = client.invoke_agent(**attributes)
+
+    assert isinstance(response["completion"], EventStream)
+    events = [event for event in response["completion"]]
+    assert len(events) == 7
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 5
+    span_names = [span.name for span in spans]
+    assert span_names == [
+        "LLM",
+        "routingClassifierTrace",
+        "LLM",
+        "orchestrationTrace",
+        "bedrock_agent.invoke_agent",
+    ]
+
+    # Check routingClassifierTrace span
+    routing_classifier_span = [span for span in spans if span.name == "routingClassifierTrace"][0]
+    routing_classifier_attributes = dict(routing_classifier_span.attributes or {})
+
+    assert routing_classifier_attributes.pop("input.mime_type") == "text/plain"
+    assert starts_with(
+        routing_classifier_attributes.pop("input.value"),
+        "[{text=Here is a list of agents for handling user's requests:",
+    )
+    assert routing_classifier_attributes.pop("openinference.span.kind") == "CHAIN"
+    assert routing_classifier_attributes.pop("output.mime_type") == "application/json"
+    assert starts_with(
+        routing_classifier_attributes.pop("output.value"), '[{"text": "<a>undecidable</a>"'
+    )
+    # Check metadata
+    routing_metadata = routing_classifier_attributes.pop("metadata")
+    assert routing_metadata is not None
+    assert isinstance(routing_metadata, str)
+    routing_metadata_dict = json.loads(routing_metadata)
+    assert routing_metadata_dict["clientRequestId"] == "3bec9883-f1f5-49e0-b7b8-1074bf32ceab"
+    assert routing_metadata_dict["endTime"] == 1.7611725054718659e18
+    assert routing_metadata_dict["startTime"] == 1.761172505103877e18
+    assert routing_metadata_dict["totalTimeMs"] == 368
+    assert not routing_classifier_attributes
+
+    # Check the final response
+    initial_span = [span for span in spans if span.name == "bedrock_agent.invoke_agent"][-1]
+    initial_span_attributes = dict(initial_span.attributes or {})
+    assert initial_span_attributes.pop("llm.provider") == "aws"
+    assert initial_span_attributes.pop("openinference.span.kind") == "AGENT"
+    assert initial_span_attributes.pop("output.mime_type") == "text/plain"
+    assert initial_span_attributes.pop("output.value") == "The answer is 2."
+    assert initial_span_attributes.pop("input.value") == "What is 1 + 1?"
+    assert not initial_span_attributes
+
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][-1]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "2d660351-05f8-46ee-9b1f-fe6c5a13608e"
+    assert orchestration_metadata_dict["endTime"] == 1.76117250680449e18
+    assert orchestration_metadata_dict["startTime"] == 1.761172504912566e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 1233
 
 
 @pytest.mark.vcr(
@@ -814,3 +1081,15 @@ def test_invoke_inline_agent(
     assert llm_attributes.pop("openinference.span.kind") == "LLM"
     assert llm_attributes.pop("metadata") is not None
     assert not llm_attributes
+
+    # Check orchestrationTrace span metadata
+    orchestration_span = [span for span in spans if span.name == "orchestrationTrace"][0]
+    orchestration_attributes = dict(orchestration_span.attributes or {})
+    orchestration_metadata = orchestration_attributes.pop("metadata")
+    assert orchestration_metadata is not None
+    assert isinstance(orchestration_metadata, str)
+    orchestration_metadata_dict = json.loads(orchestration_metadata)
+    assert orchestration_metadata_dict["clientRequestId"] == "1a7e5220-a416-4d18-8bbb-e118770866b7"
+    assert orchestration_metadata_dict["endTime"] == 1.75932754584537e18
+    assert orchestration_metadata_dict["startTime"] == 1.759327542812453e18
+    assert orchestration_metadata_dict["totalTimeMs"] == 2918

@@ -369,13 +369,16 @@ class AttributeExtractor:
         # Create message
         messages = [Message(content=content, role="assistant")]
 
-        # Create metadata
-        metadata = {
-            "invocation_type": "agent_collaborator_invocation",
-            "agent_collaborator_name": collaborator_input.get("agentCollaboratorName"),
-            "agent_collaborator_alias_arn": collaborator_input.get("agentCollaboratorAliasArn"),
-            "input_type": input_type,
-        }
+        # Create metadata - merge invocation metadata with agent-specific fields
+        metadata = cls.get_metadata_attributes(collaborator_input.get("metadata", {}))
+        metadata.update(
+            {
+                "invocation_type": "agent_collaborator_invocation",
+                "agent_collaborator_name": collaborator_input.get("agentCollaboratorName"),
+                "agent_collaborator_alias_arn": collaborator_input.get("agentCollaboratorAliasArn"),
+                "input_type": input_type,
+            }
+        )
 
         return {
             **get_span_kind_attributes(OpenInferenceSpanKindValues.AGENT),
@@ -444,12 +447,17 @@ class AttributeExtractor:
         # Create message
         messages = [Message(role="assistant", content=output_value)]
 
-        # Create metadata
-        metadata = {
-            "agent_collaborator_name": collaborator_output.get("agentCollaboratorName"),
-            "agent_collaborator_alias_arn": collaborator_output.get("agentCollaboratorAliasArn"),
-            "output_type": output_type,
-        }
+        # Create metadata - merge observation metadata with agent-specific fields
+        metadata = cls.get_metadata_attributes(collaborator_output.get("metadata", {}))
+        metadata.update(
+            {
+                "agent_collaborator_name": collaborator_output.get("agentCollaboratorName"),
+                "agent_collaborator_alias_arn": collaborator_output.get(
+                    "agentCollaboratorAliasArn"
+                ),
+                "output_type": output_type,
+            }
+        )
 
         return {
             **get_output_attributes(output_value),
@@ -542,6 +550,7 @@ class AttributeExtractor:
             "guardrailTrace",
             "postProcessingTrace",
             "failureTrace",
+            "routingClassifierTrace",
         ]
         for trace_event in trace_events:
             if trace_event in trace_data:
