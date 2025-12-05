@@ -1,5 +1,11 @@
 # @arizeai/openinference-instrumentation-langchain
 
+## 4.0.1
+
+### Patch Changes
+
+- 371a664: fix: Ensure esm builds are emitted correctly
+
 ## 4.0.0
 
 ### Major Changes
