@@ -109,3 +109,6 @@ Thumbs.db
 
 # Scratch files
 .scratch/
+
+# Workspace Definitions
+*.code-workspace
