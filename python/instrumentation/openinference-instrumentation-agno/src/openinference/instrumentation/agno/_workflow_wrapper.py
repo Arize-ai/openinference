@@ -1,5 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
 from typing import (
     Any,
     Awaitable,
@@ -796,15 +794,8 @@ class _ParallelWrapper:
             with trace_api.use_span(span, end_on_exit=False):
                 parallel_token = _setup_parallel_context(node_id)
 
-                # CRITICAL: Capture context AFTER setting up parallel context
-                # This ensures worker threads get the context WITH parallel node ID
-                current_context = context_api.get_current()
-
-                # Execute with context propagation to worker threads
-                # Pass both context AND span so worker threads join the same trace
-                result = self._execute_with_context_propagation(
-                    wrapped, args, kwargs, current_context, span
-                )
+                # Context propagation is now handled by Agno's copy_context().run
+                result = wrapped(*args, **kwargs)
 
                 # Check if result is a sync iterator (streaming mode)
                 is_streaming = hasattr(result, "__iter__") and not isinstance(result, (str, bytes))
@@ -937,13 +928,7 @@ class _ParallelWrapper:
         with trace_api.use_span(span, end_on_exit=False):
             parallel_token = _setup_parallel_context(node_id)
 
-            # CRITICAL: Capture context AFTER setting up parallel context
-            current_context = context_api.get_current()
-
-            # Execute with context propagation - this returns a coroutine or async iterator
-            result = self._execute_with_context_propagation(
-                wrapped, args, kwargs, current_context, span
-            )
+            result = wrapped(*args, **kwargs)
 
         # Check if result is an async iterator (streaming)
         if hasattr(result, "__aiter__"):
@@ -1030,73 +1015,6 @@ class _ParallelWrapper:
                     pass
             span.end()
 
-    def _execute_with_context_propagation(
-        self,
-        wrapped: Callable[..., Any],
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-        parent_context: Any,
-        parent_span: Any = None,
-    ) -> Any:
-        """
-        Execute the parallel steps with context propagation to worker threads.
-
-        This method temporarily patches ThreadPoolExecutor.submit to wrap each
-        submitted function with context attachment logic.
-        """
-
-        def context_propagating_wrapper(fn: Callable[..., Any]) -> Callable[..., Any]:
-            """Wrap a function to run with parent context in worker thread"""
-
-            @wraps(fn)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
-                # CRITICAL: Set the parent span in context so child spans join same trace
-                # We need to explicitly set the span in context, not just attach context
-                if parent_span:
-                    # Create context with both span and our custom values
-                    ctx_with_span = trace_api.set_span_in_context(parent_span, parent_context)
-                    token = context_api.attach(ctx_with_span)
-                else:
-                    token = context_api.attach(parent_context)
-
-                try:
-                    return fn(*args, **kwargs)
-                finally:
-                    context_api.detach(token)
-
-            return wrapper
-
-        # Store original submit method
-        original_submit = ThreadPoolExecutor.submit
-
-        def patched_submit(self: Any, fn: Any, /, *args: Any, **kwargs: Any) -> Any:
-            """Patched submit that wraps functions with context propagation"""
-            wrapped_fn = context_propagating_wrapper(fn)
-            return original_submit(self, wrapped_fn, *args, **kwargs)
-
-        # Monkey-patch ThreadPoolExecutor for this execution
-        ThreadPoolExecutor.submit = patched_submit  # type: ignore[method-assign]
-
-        result = wrapped(*args, **kwargs)
-
-        # Check if result is a generator (lazy evaluation)
-        # If so, we need to keep the monkey-patch active until the generator is exhausted
-        import types
-
-        if isinstance(result, types.GeneratorType):
-            # Wrap the generator to restore the patch when exhausted
-            def generator_wrapper() -> Any:
-                try:
-                    yield from result
-                finally:
-                    # Restore after generator is exhausted
-                    ThreadPoolExecutor.submit = original_submit  # type: ignore[method-assign]
-
-            return generator_wrapper()
-        else:
-            # Non-generator result - restore immediately
-            ThreadPoolExecutor.submit = original_submit  # type: ignore[method-assign]
-            return result
 
 
 def _setup_parallel_context(node_id: str) -> Any:
