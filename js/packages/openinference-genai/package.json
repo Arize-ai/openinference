@@ -2,28 +2,33 @@
   "name": "@arizeai/openinference-genai",
   "version": "0.1.0",
   "private": false,
-  "type": "module",
-  "types": "dist/esm/index.d.ts",
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/src/index.d.ts",
   "description": "OpenInference utilities for converting OpenTelemetry GenAI span attributes to OpenInference span attributes",
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "build": "tsc --build tsconfig.commonjs.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test dist/examples",
     "type:check": "tsc --noEmit",
     "test": "vitest"
   },
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js"
+      "import": "./dist/esm/index.js",
+      "require": "./dist/commonjs/index.js"
     },
     "./attributes": {
-      "import": "./dist/esm/attributes.js"
+      "import": "./dist/esm/attributes.js",
+      "require": "./dist/commonjs/attributes.js"
     },
     "./utils": {
-      "import": "./dist/esm/utils.js"
+      "import": "./dist/esm/utils.js",
+      "require": "./dist/commonjs/utils.js"
     },
     "./types": {
-      "types": "./dist/esm/types.d.ts"
+      "types": "./dist/esm/types.d.ts",
+      "require": "./dist/commonjs/types.d.ts"
     }
   },
   "files": [

@@ -1,7 +1,6 @@
 {
-  "extends": "../../tsconfig.base.esm.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
     "rootDir": ".",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -9,7 +8,8 @@
     "lib": ["ESNext"],
     "resolveJsonModule": true,
     "strictNullChecks": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true
   },
   "files": [],
   "include": [
