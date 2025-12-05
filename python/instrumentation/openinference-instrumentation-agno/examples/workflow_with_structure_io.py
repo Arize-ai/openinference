@@ -10,16 +10,14 @@ pip install openinference-instrumentation-agno
 import os
 from typing import List
 
-from phoenix.otel import register
-from pydantic import BaseModel, Field
-
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.hackernews import HackerNewsTools
 from agno.workflow.step import Step
 from agno.workflow.workflow import Workflow
-
+from phoenix.otel import register
+from pydantic import BaseModel, Field
 
 os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={os.getenv('ARIZE_PHOENIX_API_KEY')}"
 os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = ""

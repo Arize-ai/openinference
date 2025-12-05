@@ -10,8 +10,6 @@ pip install openinference-instrumentation-agno
 import os
 from textwrap import dedent
 
-from phoenix.otel import register
-
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIChat
@@ -20,7 +18,7 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.hackernews import HackerNewsTools
 from agno.workflow.types import StepInput, StepOutput
 from agno.workflow.workflow import Workflow
-
+from phoenix.otel import register
 
 os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={os.getenv('ARIZE_PHOENIX_API_KEY')}"
 os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = ""
