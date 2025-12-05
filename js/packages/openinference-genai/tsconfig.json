@@ -2,14 +2,15 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "types": ["vitest/globals"],
     "lib": ["ESNext"],
     "resolveJsonModule": true,
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
-    "noEmit": true
+    "noEmit": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "files": [],
   "include": [
