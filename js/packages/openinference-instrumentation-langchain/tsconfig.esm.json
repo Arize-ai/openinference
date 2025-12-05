@@ -4,8 +4,8 @@
     "outDir": "dist/esm",
     "rootDir": "src",
     "tsBuildInfoFile": "dist/esm/tsconfig.esm.tsbuildinfo",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "module": "preserve",
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*.ts"],
   "references": []
