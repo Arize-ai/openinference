@@ -2,17 +2,20 @@
 This example shows how to instrument your agno agent with OpenInference
 and send traces to Arize Phoenix.
 
-Install dependencies: pip install openai langfuse opentelemetry-sdk opentelemetry-exporter-otlp openinference-instrumentation-agno
+Install dependencies:
+pip install openai opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-agno
 """
 
 import os
+
+from phoenix.otel import register
 
 from agno.agent import Agent
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.hackernews import HackerNewsTools
 from agno.workflow import Step, Workflow
 from agno.workflow.parallel import Parallel
-from phoenix.otel import register
 
 
 os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={os.getenv('ARIZE_PHOENIX_API_KEY')}"
