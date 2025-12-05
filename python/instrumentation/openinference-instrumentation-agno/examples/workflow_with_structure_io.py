@@ -28,6 +28,7 @@ tracer_provider = register(
     auto_instrument=True,  # Automatically use the installed OpenInference instrumentation
 )
 
+
 # Define structured models for each step
 class ResearchFindings(BaseModel):
     """Structured research findings with key insights"""

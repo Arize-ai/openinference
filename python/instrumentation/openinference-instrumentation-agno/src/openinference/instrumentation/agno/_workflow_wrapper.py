@@ -1016,7 +1016,6 @@ class _ParallelWrapper:
             span.end()
 
 
-
 def _setup_parallel_context(node_id: str) -> Any:
     """Set up context for parallel container to propagate to child steps."""
     parallel_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
