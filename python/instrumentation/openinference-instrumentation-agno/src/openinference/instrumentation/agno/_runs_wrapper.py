@@ -346,9 +346,9 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
-                yield_run_output_set = True
+            if "yield_run_output" not in kwargs and "yield_run_response" not in kwargs:
                 kwargs["yield_run_output"] = True  # type: ignore
+                yield_run_output_set = True
 
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
@@ -503,7 +503,7 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if "yield_run_output" not in kwargs and "yield_run_response" not in kwargs:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
