@@ -115,6 +115,8 @@ class PydanticAgentName:
 
 class PydanticTools:
     TOOLS = "tools"
+    TOOL_ARGUMENTS = "tool_arguments"
+    TOOL_RESPONSE = "tool_response"
 
 
 class PydanticGenAIAttribute:
@@ -169,8 +171,6 @@ def get_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]
     Returns:
         Iterator of (key, value) pairs for OpenInference attributes
     """
-
-    print("GENAI Attributes================= ", dict(gen_ai_attrs))
     yield from _extract_agent_attributes(gen_ai_attrs)
     yield from _extract_common_attributes(gen_ai_attrs)
     yield from _extract_llm_attributes(gen_ai_attrs)
@@ -339,6 +339,13 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
 
     if GEN_AI_TOOL_CALL_ID in gen_ai_attrs:
         yield ToolCallAttributes.TOOL_CALL_ID, gen_ai_attrs[GEN_AI_TOOL_CALL_ID]
+    if PydanticTools.TOOL_ARGUMENTS in gen_ai_attrs:
+        yield (
+            SpanAttributes.TOOL_PARAMETERS,
+            gen_ai_attrs[PydanticTools.TOOL_ARGUMENTS],
+        )
+    if PydanticTools.TOOL_RESPONSE in gen_ai_attrs:
+        yield SpanAttributes.OUTPUT_VALUE, gen_ai_attrs[PydanticTools.TOOL_RESPONSE]
 
     if OTELConventions.EVENTS in gen_ai_attrs:
         events = _parse_events(gen_ai_attrs[OTELConventions.EVENTS])
@@ -610,7 +617,7 @@ def _find_llm_output_value(output_messages: List[Dict[str, Any]]) -> Optional[st
                         args = tool_call[ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON]
                         if isinstance(args, str):
                             return args
-                        return None
+                        return safe_json_dumps(args)
     return None
 
 
@@ -704,7 +711,7 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         )
                                         yield (
                                             f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
-                                            "text"
+                                            "text",
                                         )
 
                                         # Set INPUT_VALUE for the last user message found
@@ -724,9 +731,14 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                                 part[GenAIFunctionFields.NAME],
                                             )
                                         if GenAIFunctionFields.ARGUMENTS in part:
+                                            args = part[GenAIFunctionFields.ARGUMENTS]
+                                            if not isinstance(args, str):
+                                                args_str = safe_json_dumps(args)
+                                            else:
+                                                args_str = args
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{part_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                                                part[GenAIFunctionFields.ARGUMENTS],
+                                                args_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (
@@ -741,11 +753,6 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                         if GenAIMessagePartFields.RESULT in part:
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                                                part[GenAIMessagePartFields.RESULT],
-                                            )
-                                        if GenAIMessagePartFields.NAME in part:
-                                            yield (
-                                                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESS}",
                                                 part[GenAIMessagePartFields.RESULT],
                                             )
                                         if GenAIToolCallFields.ID in part:
@@ -816,11 +823,18 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                                 part.get(GenAIFunctionFields.NAME)
                                                 == PydanticFinalResult.FINAL_RESULT
                                             ):
-                                                output_value = safe_json_dumps(part[GenAIFunctionFields.ARGUMENTS])
+                                                output_value = safe_json_dumps(
+                                                    part[GenAIFunctionFields.ARGUMENTS]
+                                                )
                                         if GenAIFunctionFields.ARGUMENTS in part:
+                                            args = part[GenAIFunctionFields.ARGUMENTS]
+                                            if not isinstance(args, str):
+                                                args_str = safe_json_dumps(args)
+                                            else:
+                                                args_str = args
                                             yield (
                                                 f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{index}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{parts_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                                                safe_json_dumps(part[GenAIFunctionFields.ARGUMENTS]),
+                                                args_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (

@@ -19,6 +19,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -122,32 +123,21 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
 
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
-        == "system"
-    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
     assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
         == "Use the weather tool\nUse the calculator tool"
     )
 
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}")
-        == "system"
-    )
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}")
-        == "You are a weather assistant"
-    )
+    attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    assert attributes.get(attribute) == "You are a weather assistant"
 
+    assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}") == "user"
     assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}")
-        == "user"
-    )
-    assert (
-        attributes.get(f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_CONTENT}")
+        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
         == "The windy city in the US of A."
     )
 
@@ -273,3 +263,10 @@ def _test_openai_agent_and_llm_spans_message_history(
     assert input_value == "third message", (
         f"Expected INPUT_VALUE to be 'third message', but got '{input_value}'"
     )
+
+
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
