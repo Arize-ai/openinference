@@ -422,7 +422,7 @@ def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
             params[PydanticModelRequestParameters.TOOLS], list
         ):
             tools.extend(_extract_tools(params[PydanticModelRequestParameters.TOOLS]))
-        if PydanticModelRequestParameters.TOOLS in params and isinstance(
+        if PydanticModelRequestParameters.FUNCTION_TOOLS in params and isinstance(
             params[PydanticModelRequestParameters.FUNCTION_TOOLS], list
         ):
             tools.extend(_extract_tools(params[PydanticModelRequestParameters.FUNCTION_TOOLS]))
@@ -849,7 +849,6 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                                 part[GenAIToolCallFields.ID],
                                             )
             except json.JSONDecodeError:
-                print("Failed to decode output messages")
                 pass
     if output_value is not None:
         yield SpanAttributes.OUTPUT_VALUE, output_value
