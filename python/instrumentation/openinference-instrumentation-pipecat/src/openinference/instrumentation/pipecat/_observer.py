@@ -27,16 +27,40 @@ from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
     CancelFrame,
     EndFrame,
+    ErrorFrame,
     Frame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    TTSStartedFrame,
+    TTSStoppedFrame,
     LLMContextFrame,
     StartFrame,
     TranscriptionFrame,
     TTSTextFrame,
     UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
+    MetricsFrame,
+    LLMTextFrame,
+    VADUserStartedSpeakingFrame,
+    VADUserStoppedSpeakingFrame,
 )
+from pipecat.metrics.metrics import (
+    LLMUsageMetricsData,
+    ProcessingMetricsData,
+    TTFBMetricsData,
+    TTSUsageMetricsData,
+)
+
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.transports.base_output import BaseOutputTransport
+
+from pipecat.services.llm_service import LLMService
+from pipecat.services.stt_service import STTService
+from pipecat.services.tts_service import TTSService
+
+from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
+from pipecat.observers.loggers.user_bot_latency_log_observer import UserBotLatencyLogObserver
 
 # Suppress OpenTelemetry context detach errors - these are expected in async code
 # where contexts may be created and detached in different async contexts
@@ -45,7 +69,7 @@ logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class OpenInferenceObserver(BaseObserver):
+class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
     """
     Observer that creates OpenInference spans for Pipecat frame processing.
 
@@ -63,6 +87,7 @@ class OpenInferenceObserver(BaseObserver):
         max_frames: int = 100,
         turn_end_timeout_secs: float = 2.5,
         verbose: bool = False,
+        **kwargs,
     ):
         """
         Initialize the observer.
@@ -76,8 +101,9 @@ class OpenInferenceObserver(BaseObserver):
                 duplicate detection. Defaults to 100.
             turn_end_timeout_secs: Timeout in seconds after bot stops speaking
                 before automatically ending the turn. Defaults to 2.5.
+            verbose: Optional verbose logging. Defaults to False
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._tracer = tracer
         self._config = config
         self._additional_span_attributes: Dict[str, str] = {}
@@ -99,26 +125,19 @@ class OpenInferenceObserver(BaseObserver):
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
 
-        # Track processed frames to avoid duplicates
-        self._processed_frames: Set[int] = set()
-        self._frame_history: Deque[int] = deque(maxlen=max_frames)
         self._active_spans: Dict[int, Dict[str, Any]] = {}
 
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
 
-        # Turn tracking state (based on TurnTrackingObserver pattern)
-        self._turn_active = False
+        # Turn tracking state
         self._turn_span: Optional[Span] = None
         self._turn_context_token: Optional[Token[Context]] = None
-        self._turn_number: int = 0
-        self._turn_start_time: int = 0
         self._turn_user_text: List[str] = []
         self._turn_bot_text: List[str] = []
-        self._bot_speaking: bool = False
-        self._has_bot_spoken: bool = False
-        self._turn_end_timeout_secs: float = turn_end_timeout_secs
-        self._end_turn_timer: Optional[asyncio.TimerHandle] = None
+
+        self._tts_includes_inter_frame_spaces = False
+        self._seen_vad_user_stopped_speaking_frame = False
 
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
@@ -140,33 +159,6 @@ class OpenInferenceObserver(BaseObserver):
                 logger.error(f"Error closing debug log file: {e}")
                 pass
 
-    def _schedule_turn_end(self, data: FramePushed) -> None:
-        """Schedule turn end with a timeout."""
-        # Cancel any existing timer
-        self._cancel_turn_end_timer()
-
-        # Create a new timer
-        loop = asyncio.get_running_loop()
-        self._end_turn_timer = loop.call_later(
-            self._turn_end_timeout_secs,
-            lambda: asyncio.create_task(self._end_turn_after_timeout(data)),
-        )
-        self._log_debug(f"  Scheduled turn end timer ({self._turn_end_timeout_secs}s)")
-
-    def _cancel_turn_end_timer(self) -> None:
-        """Cancel the turn end timer if it exists."""
-        if self._end_turn_timer:
-            self._end_turn_timer.cancel()
-            self._end_turn_timer = None
-            self._log_debug("  Cancelled turn end timer")
-
-    async def _end_turn_after_timeout(self, data: FramePushed) -> None:
-        """End turn after timeout has expired."""
-        if self._turn_active and not self._bot_speaking:
-            self._log_debug(f"  Turn {self._turn_number} ending due to timeout")
-            await self._finish_turn(interrupted=False)
-            self._end_turn_timer = None
-
     async def on_push_frame(self, data: FramePushed) -> None:
         """
         Called when a frame is pushed between processors.
@@ -174,131 +166,112 @@ class OpenInferenceObserver(BaseObserver):
         Args:
             data: FramePushed event data with source, destination, frame, direction
         """
+        await super().on_push_frame(data)
+        # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
+        await UserBotLatencyLogObserver.on_push_frame(self, data)
+
         try:
+            timestamp = data.timestamp
+            src = data.source
+            dst = data.destination
             frame = data.frame
             frame_type = frame.__class__.__name__
             source_name = data.source.__class__.__name__ if data.source else "Unknown"
 
-            # Skip already processed frames to avoid duplicates from propagation
-            if frame.id in self._processed_frames:
-                self._log_debug(f"FRAME (DUPLICATE SKIPPED): {frame_type} from {source_name}")
+            if not isinstance(
+                frame,
+                (
+                    StartFrame,
+                    BotStartedSpeakingFrame,
+                    BotStoppedSpeakingFrame,
+                    LLMFullResponseEndFrame,
+                    LLMFullResponseStartFrame,
+                    TTSStartedFrame,
+                    TTSStoppedFrame,
+                    VADUserStartedSpeakingFrame,
+                    VADUserStoppedSpeakingFrame,
+                    TTSTextFrame,
+                    TranscriptionFrame,
+                    UserStartedSpeakingFrame,
+                    UserStoppedSpeakingFrame,
+                    MetricsFrame,
+                    LLMUsageMetricsData,
+                    LLMContextFrame,
+                    LLMTextFrame,
+                ),
+            ):
                 return
-
-            # Mark frame as processed
-            self._processed_frames.add(int(frame.id))
-            self._frame_history.append(frame.id)
-
-            # If we've exceeded our history size, rebuild the set from deque
-            if len(self._processed_frames) > len(self._frame_history):
-                self._processed_frames = set(self._frame_history)
 
             # Log every frame
             self._log_debug(f"FRAME: {frame_type} from {source_name}")
 
-            # Turn tracking based on TurnTrackingObserver pattern
-            # Use generic speaking frames for turn boundaries
             if isinstance(frame, StartFrame):
                 # Start the first turn immediately when pipeline starts
-                if self._turn_number == 0:
+                if self._turn_count == 0:
                     self._log_debug("  Starting first turn via StartFrame")
-                    await self._start_turn(data)
-
-            elif isinstance(frame, UserStartedSpeakingFrame):
-                await self._handle_user_started_speaking(data)
-
-            elif isinstance(frame, BotStartedSpeakingFrame):
-                await self._handle_bot_started_speaking(data)
-
-            elif isinstance(frame, BotStoppedSpeakingFrame) and self._bot_speaking:
-                await self._handle_bot_stopped_speaking(data)
-
-            elif isinstance(frame, (EndFrame, CancelFrame)):
-                await self._handle_pipeline_end(data)
 
             # Collect conversation text (separate concern from turn boundaries)
             # Only collect from final/complete frames to avoid duplication
-            if isinstance(frame, TranscriptionFrame):
-                # Collect user text from STT output
-                if self._turn_active and frame.text:
-                    self._turn_user_text.append(frame.text)
-                    self._log_debug(f"  Collected user text: {frame.text[:50]}...")
+            # if isinstance(src, TTSService):
 
-            elif isinstance(frame, TTSTextFrame):
-                # Collect bot text from TTS input (final complete sentences)
-                # Only collect if the frame comes from an actual TTS service, not transport
-                # This prevents duplication when frames propagate through the pipeline
-                service_type = detect_service_type(data.source)
-                if self._turn_active and frame.text and service_type == "tts":
-                    self._turn_bot_text.append(frame.text)
-                    self._log_debug(f"  Collected bot text from TTS: {frame.text[:50]}...")
-
-            # Handle service frames for creating service spans
-            # Check both source (frames emitted BY service)
-            # and destination (frames received BY service)
-            source_service_type = detect_service_type(data.source)
-            dest_service_type = detect_service_type(data.destination)
-
-            # Handle frames emitted by a service (outputs)
-            if source_service_type:
+            if isinstance(frame, (EndFrame, CancelFrame, ErrorFrame)):
                 await self._handle_service_frame(data, is_input=False)
 
-            # Handle frames received by a service (inputs)
-            # Only process if destination is different from source to avoid double-counting
-            if dest_service_type and data.destination != data.source:
-                await self._handle_service_frame(data, is_input=True)
+            # STT
+            if isinstance(frame, TranscriptionFrame):
+                print(
+                    f"______observer.py * TranscriptionFrame: ....1 {self._is_turn_active}, {frame.text}"
+                )
+                # Collect user text from STT output
+                if self._is_turn_active and frame.text:
+                    self._turn_user_text.append(frame.text)
+                    print(f"______observer.py * TranscriptionFrame:   2 {self._turn_user_text}")
+                    self._log_debug(f"  Collected user text: {frame.text[:50]}...")
+                    await self._handle_service_frame(data, is_input=False)
+
+            if isinstance(frame, VADUserStartedSpeakingFrame):
+                await self._handle_service_frame(data, is_input=False)
+
+            # TTS
+            if isinstance(src, TTSService):
+                # if isinstance(frame, TTSStartedFrame):
+                #     await self._handle_service_frame(data, is_input=False)
+                if isinstance(frame, TTSTextFrame):
+                    # Collect bot text from TTS input (final complete sentences)
+                    # Only collect if the frame comes from an actual TTS service, not transport
+                    # This prevents duplication when frames propagate through the pipeline
+                    if self._is_turn_active and frame.text:
+                        # service_type = detect_service_type(data.source)
+                        # if self._turn_active and frame.text and service_type == "tts":
+                        self._turn_bot_text.append(frame.text)
+                        self._log_debug(f"  Collected bot text from TTS: {frame.text[:50]}...")
+                        await self._handle_service_frame(data, is_input=False)
+
+            if isinstance(src, BaseOutputTransport):
+                if isinstance(frame, TTSStartedFrame):
+                    await self._handle_service_frame(data, is_input=False)
+
+            if isinstance(frame, MetricsFrame):
+                await self._handle_service_frame(data, is_input=False)
+
+            # LLM
+            if isinstance(src, LLMService):
+                if isinstance(frame, LLMFullResponseStartFrame):
+                    print(f"_______________________🟢_LLMFullResponseStartFrame_________________:")
+                    await self._handle_service_frame(data, is_input=False)
+                if isinstance(frame, LLMFullResponseEndFrame):
+                    print(f"_______________________🔴_LLMFullResponseEndFrame_________________:")
+                    await self._handle_service_frame(data, is_input=False)
+
+                if isinstance(frame, LLMTextFrame):
+                    await self._handle_service_frame(data, is_input=False)
+
+            if isinstance(frame, LLMContextFrame):
+                print(f"_______________________🟡_LLMContextFrame_________________: src: {src}")
+                await self._handle_service_frame(data, is_input=False)
 
         except Exception as e:
             logger.debug(f"Error in observer: {e}")
-
-    async def _handle_user_started_speaking(self, data: FramePushed) -> None:
-        """Handle user speaking events, including interruptions."""
-        if self._bot_speaking:
-            # Handle interruption - end current turn and start a new one
-            self._log_debug("  User interruption detected - ending current turn")
-            self._cancel_turn_end_timer()
-            await self._finish_turn(interrupted=True)
-            self._bot_speaking = False  # Bot is considered interrupted
-            self._log_debug("  Starting new turn after interruption")
-            await self._start_turn(data)
-        elif self._turn_active and self._has_bot_spoken:
-            # User started speaking during the turn_end_timeout_secs period after bot speech
-            self._log_debug("  User speaking after bot - ending turn and starting new one")
-            self._cancel_turn_end_timer()
-            await self._finish_turn(interrupted=False)
-            await self._start_turn(data)
-        elif not self._turn_active:
-            # Start a new turn after previous one ended
-            self._log_debug("  Starting new turn (user speaking)")
-            await self._start_turn(data)
-        else:
-            # User is speaking within the same turn (before bot has responded)
-            self._log_debug(f"  User is already speaking in Turn {self._turn_number}")
-
-    async def _handle_bot_started_speaking(self, data: FramePushed) -> None:
-        """Handle bot speaking events."""
-        self._bot_speaking = True
-        self._has_bot_spoken = True
-        # Cancel any pending turn end timer when bot starts speaking again
-        self._cancel_turn_end_timer()
-        self._log_debug("  Bot started speaking")
-
-    async def _handle_bot_stopped_speaking(self, data: FramePushed) -> None:
-        """Handle bot stopped speaking events."""
-        self._bot_speaking = False
-        self._log_debug("  Bot stopped speaking")
-        # Schedule turn end with timeout
-        # This is needed to handle cases where the bot's speech ends and then resumes
-        # This can happen with HTTP TTS services or function calls
-        self._schedule_turn_end(data)
-
-    async def _handle_pipeline_end(self, data: FramePushed) -> None:
-        """Handle pipeline end or cancellation by flushing any active turn."""
-        if self._turn_active:
-            self._log_debug("  Pipeline ending - finishing active turn")
-            # Cancel any pending turn end timer
-            self._cancel_turn_end_timer()
-            # End the current turn
-            await self._finish_turn(interrupted=True)
 
     async def _handle_service_frame(self, data: FramePushed, is_input: bool = False) -> None:
         """
@@ -310,197 +283,120 @@ class OpenInferenceObserver(BaseObserver):
             is_input: True if this frame is being received by the service (input),
                      False if being emitted by the service (output)
         """
-        from pipecat.frames.frames import (
-            EndFrame,
-            ErrorFrame,
-        )
-
         # Use destination for input frames, source for output frames
         service = data.destination if is_input else data.source
         service_id = id(service)
         frame = data.frame
         service_type = detect_service_type(service)
 
-        if service_type != "unknown":
-            # Check if we need to create a new span
-            # For LLM services, LLMContextFrame signals a new invocation
-            # finish previous span if exists
-            if isinstance(frame, LLMContextFrame) and service_id in self._active_spans:
-                self._log_debug(
-                    f"  New LLM invocation detected"
-                    f"  Finishing previous span for service {service_id}"
-                )
-                self._finish_span(service_id)
-
-            # Check if we already have a span for this service
-            if service_id not in self._active_spans:
-                # If no turn is active yet, start one automatically
-                # This ensures we capture initialization frames with proper context
-                if not self._turn_active or self._turn_span is None:
-                    self._log_debug(
-                        f"  No active turn - auto-starting turn for {service_id} initialization"
-                    )
-                    await self._start_turn(data)
-
-                # Create new span directly under turn (no nesting logic)
-                # All service spans are siblings under the turn span
-                span = self._create_service_span(service, service_type)
-                self._active_spans[service_id] = {
-                    "span": span,
-                    "service_type": service_type,  # Track service type for later use
-                    "frame_count": 0,
-                    "accumulated_input": "",  # Deduplicated accumulated input text
-                    "accumulated_output": "",  # Deduplicated accumulated output text
-                    "start_time_ns": time.time_ns(),  # Store start time in nanoseconds (Unix epoch)
-                    "processing_time_seconds": None,  # Will be set from metrics
-                }
-
-            # Check if span still exists (it might have been ended by a previous call)
-            if service_id not in self._active_spans:
-                self._log_debug(f"  Span for service {service_id} already ended, skipping frame")
-                return
-
-            # Increment frame count for this service
-            span_info = self._active_spans[service_id]
-            span_info["frame_count"] += 1
-
-            # Extract and add attributes from this frame to the span
-            span = span_info["span"]
-            frame_attrs = extract_attributes_from_frame(frame)
-
-            # Log frame direction for debugging
-            direction = "INPUT" if is_input else "OUTPUT"
-            self._log_debug(
-                f"  Processing {direction} frame: {frame.__class__.__name__} for {service_type}"
-            )
-            if frame_attrs:
-                self._log_debug(
-                    f"    Extracted {len(frame_attrs)} attributes: {list(frame_attrs.keys())}"
-                )
-            else:
-                self._log_debug("    No attributes extracted from this frame")
-
-            # Handle text chunk accumulation with deduplication
-            # IMPORTANT: Only collect INPUT chunks when frame is received by service (is_input=True)
-            # and only collect OUTPUT chunks when frame is emitted by service (is_input=False)
-
-            # Check for streaming text chunks
-            text_chunk: str = frame_attrs.get("text.chunk", "")
-            accumulated: str = ""
-            if text_chunk:
-                # For TTS input frames, only accumulate if going to output transport
-                # This ensures we only capture complete sentences being sent to the user
-                if is_input and service_type == "tts":
-                    # Check if destination is the final output transport
-                    if not isinstance(data.destination, BaseOutputTransport):
-                        self._log_debug("    Skipping TTS chunk (not going to output transport)")
-                        text_chunk = ""  # Skip this chunk
-
-                if text_chunk and is_input:
-                    # Input chunk - check if this extends our accumulated text
-                    accumulated = span_info["accumulated_input"]
-                    if not accumulated:
-                        # First chunk
-                        span_info["accumulated_input"] = text_chunk
-                        self._log_debug(f"    Accumulated INPUT chunk (first): {text_chunk}...")
-                    elif text_chunk.startswith(accumulated):
-                        # New chunk contains all previous text plus more (redundant pattern)
-                        # Extract only the new part
-                        new_part = text_chunk[len(accumulated) :]
-                        if new_part:
-                            span_info["accumulated_input"] = text_chunk
-                            self._log_debug(f"    Accumulated INPUT (new part): {new_part}...")
-                        else:
-                            self._log_debug("    Skipped fully redundant INPUT chunk")
-                    elif accumulated and accumulated in text_chunk:
-                        # Current accumulated text is contained in new chunk
-                        # This means we're getting the full text again with more added
-                        span_info["accumulated_input"] = text_chunk if text_chunk else ""
-                        new_part = text_chunk.replace(accumulated, "", 1) if text_chunk else ""
-                        self._log_debug(f"    Accumulated INPUT (replaced): {new_part}...")
-                    else:
-                        # Non-overlapping chunk - just append
-                        span_info["accumulated_input"] = accumulated + text_chunk
-                        self._log_debug(f"    Accumulated INPUT chunk (append): {text_chunk}...")
-                else:
-                    # Output chunk - same logic
-                    accumulated = span_info["accumulated_output"]
-                    if not accumulated:
-                        span_info["accumulated_output"] = text_chunk
-                        self._log_debug(f"    Accumulated OUTPUT chunk (first): {text_chunk}...")
-                    elif text_chunk.startswith(accumulated):
-                        new_part = text_chunk[len(accumulated) :]
-                        if new_part:
-                            span_info["accumulated_output"] = text_chunk
-                            self._log_debug(f"    Accumulated OUTPUT (new part): {new_part}...")
-                        else:
-                            self._log_debug("    Skipped fully redundant OUTPUT chunk")
-                    elif accumulated in text_chunk:
-                        span_info["accumulated_output"] = text_chunk
-                        new_part = text_chunk.replace(accumulated, "", 1)
-                        self._log_debug(f"    Accumulated OUTPUT (replaced): {new_part}...")
-                    elif accumulated and text_chunk:
-                        span_info["accumulated_output"] = accumulated + text_chunk
-                        self._log_debug(f"    Accumulated OUTPUT chunk (append): {text_chunk}...")
-                    else:
-                        self._log_debug("    Skipped OUTPUT chunk (no accumulated text)")
-
-            # Process all other attributes
-            for key, value in frame_attrs.items():
-                # Skip text.chunk since we handled it above
-                if key == "text.chunk":
-                    continue
-
-                # Skip input-related attributes if this is an output frame
-                if not is_input and (
-                    key in (SpanAttributes.INPUT_VALUE, SpanAttributes.LLM_INPUT_MESSAGES)
-                    or key.startswith("llm.input_messages.")
-                ):
-                    self._log_debug(
-                        f"    Skipping INPUT attribute {key} (frame is OUTPUT from service)"
-                    )
-                    continue
-
-                # Skip output-related attributes if this is an input frame
-                if is_input and (
-                    key in (SpanAttributes.OUTPUT_VALUE, SpanAttributes.LLM_OUTPUT_MESSAGES)
-                    or key.startswith("llm.output_messages.")
-                ):
-                    self._log_debug(
-                        f"    Skipping OUTPUT attribute {key} (frame is INPUT to service)"
-                    )
-                    continue
-
-                # Handle complete (non-streaming) INPUT_VALUE (e.g., from TranscriptionFrame)
-                # Special case for STT: TranscriptionFrame is OUTPUT from STT but represents the
-                # transcribed text which should be recorded as INPUT to the span for observability
-                if key == SpanAttributes.INPUT_VALUE and value:
-                    if is_input or service_type == "stt":
-                        # This is a complete input, not streaming - set immediately
-                        # For STT, we capture output transcriptions as input values
-                        span.set_attribute(SpanAttributes.INPUT_VALUE, value)
-                        self._log_debug(f"    Set complete INPUT_VALUE: {str(value)[:100]}...")
-
-                # Handle complete (non-streaming) OUTPUT_VALUE
-                elif key == SpanAttributes.OUTPUT_VALUE and value and not is_input:
-                    # This is a complete output, not streaming - set immediately
-                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, value)
-                    self._log_debug(f"    Set complete OUTPUT_VALUE: {str(value)}...")
-
-                elif key == "service.processing_time_seconds":
-                    # Store processing time for use in _finish_span to calculate proper end_time
-                    span_info["processing_time_seconds"] = value
-                    span.set_attribute("service.processing_time_seconds", value)
-                else:
-                    # For all other attributes, just set them (may overwrite)
-                    span.set_attribute(key, value)
-
-            # Store this as the last frame from this service
-            self._last_frames[service_id] = frame
-
-        # Finish span only on completion frames (EndFrame or ErrorFrame)
-        if isinstance(frame, (EndFrame, ErrorFrame)):
+        # Finish span only on completion frames (EndFrame, CancelFrame, or ErrorFrame)
+        if isinstance(frame, (EndFrame, CancelFrame, ErrorFrame)):
+            print(f"______observer.py * finishing span bc _finish_span:::: {frame}")
             self._finish_span(service_id)
+            return
+
+        # print(f"_____________________________________________observer.py * _handle_service_frame::::::::", service_type)
+        if service_type == "unknown":
+            print(f"__unknown____observer.py * frame: {frame}; {service}")
+
+        if service_type in ("llm", "stt", "tts"):
+            # only these frame types will start a span:
+            ## VADUserStartedSpeakingFrame (STT)
+            ## LLMFullResponseStartFrame (LLM)
+            ## TTSStartedFrame (TTS)
+
+            # New Span
+            if service_id not in self._active_spans:
+                if isinstance(
+                    frame, (VADUserStartedSpeakingFrame, LLMFullResponseStartFrame, TTSStartedFrame)
+                ):
+                    self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
+
+                    # If no turn is active yet, start one automatically
+                    # This ensures we capture initialization frames with proper context
+                    if not self._is_turn_active or self._turn_span is None:
+                        self._log_debug(
+                            f"  No active turn - auto-starting turn for {service_id} initialization"
+                        )
+                        await self._start_turn(data)
+
+                    # Create new span directly under turn (no nesting logic)
+                    # All service spans are siblings under the turn span
+                    self._log_debug(f"  CREATING new SPAN for {service_type}: {service_id}")
+                    span = self._create_service_span(service, service_type)
+                    self._active_spans[service_id] = {
+                        "span": span,
+                        "service_type": service_type,  # Track service type for later use
+                        "frame_count": 0,
+                        "accumulated_input": "",  # Deduplicated accumulated input text
+                        "accumulated_output": "",  # Deduplicated accumulated output text
+                        "start_time_ns": time.time_ns(),  # Store start time in nanoseconds (Unix epoch)
+                        "processing_time_seconds": None,  # Will be set from metrics
+                    }
+                    # Increment frame count for this service
+                    span_info = self._active_spans[service_id]
+                    span_info["frame_count"] += 1
+
+            # Update Existing Span
+            else:
+                # Extract and add attributes from this frame to the span
+                frame_attrs = extract_attributes_from_frame(frame)
+                # print(f"______observer.py * frame_attrs: {frame_attrs}")
+
+                # LLM
+                if isinstance(frame, LLMFullResponseEndFrame):
+                    self._log_debug(f"  LLM response ended  Finish span for service {service_id}")
+                    self._finish_span(service_id)
+                    return
+
+                active_span = self._active_spans[service_id]["span"]
+                span_info = self._active_spans[service_id]
+
+                if isinstance(frame, LLMTextFrame):
+                    self._tts_includes_inter_frame_spaces = frame.includes_inter_frame_spaces
+
+                    span_info["accumulated_output"] += frame.text
+
+                if isinstance(frame, LLMContextFrame):
+                    print(f"___😈LLMContextFrame___observer.py * frame.context: {frame.context}")
+
+                    text_chunk: str = frame_attrs.get("text.chunk", "")
+                    print(f"______observer.py * text_chunk: {text_chunk}")
+                    span_info["accumulated_output"] += text_chunk
+
+                # TTS
+                if isinstance(frame, BotStoppedSpeakingFrame):
+                    span_info["accumulated_output"] += text_chunk
+                    self._log_debug(f"  TTS response ended  Finish span for service {service_id}")
+                    self._finish_span(service_id)
+                    return
+
+                # STT
+                if isinstance(frame, VADUserStoppedSpeakingFrame):
+                    self._seen_vad_user_stopped_speaking_frame = True
+
+                if isinstance(frame, TranscriptionFrame):
+                    if self._seen_vad_user_stopped_speaking_frame:
+                        self._log_debug(
+                            f"  STT response ended  Finish span for service {service_id}"
+                        )
+                        self._finish_span(service_id)
+                        return
+
+                # Metrics
+                if isinstance(frame, MetricsFrame):
+                    print(f"___🐠🐠🔵🐠🐠___observer.py * frame.data: {frame.data}")
+                    for key, value in frame_attrs.items():
+                        if key == "service.processing_time_seconds":
+                            # Store processing time for use in _finish_span to calculate proper end_time
+                            span_info["processing_time_seconds"] = value
+                            span.set_attribute("service.processing_time_seconds", value)
+                        # print(f"______observer.py * key: {key}")
+                        # print(f"______observer.py * value: {value}")
+                        active_span.set_attribute(key, value)
+
+                if isinstance(frame, TTSTextFrame):
+                    span_info["accumulated_output"] += frame.text
 
     def _create_service_span(
         self,
@@ -523,13 +419,13 @@ class OpenInferenceObserver(BaseObserver):
 
         # Create span under the turn context
         # Explicitly set the turn span as parent to avoid context issues in async code
-        if self._turn_span and self._turn_active:
+        if self._turn_span and self._is_turn_active:
             turn_context = trace_api.set_span_in_context(self._turn_span)
             span = self._tracer.start_span(
                 name=span_name,
                 context=turn_context,
             )
-            self._log_debug(f"  Created service span under turn #{self._turn_number}")
+            self._log_debug(f"  Created service span under turn #{self._turn_count}")
         else:
             # No active turn, create as root span (will be in new trace)
             self._log_debug(f"  WARNING: No active turn! Creating root span for {service_type}")
@@ -554,6 +450,8 @@ class OpenInferenceObserver(BaseObserver):
         Args:
             service_id: The id() of the service instance
         """
+        print(f"______observer.py * _finish_span:...........")
+        print(f"______observer.py * self._active_spans: {self._active_spans}")
         if service_id not in self._active_spans:
             return
 
@@ -572,6 +470,8 @@ class OpenInferenceObserver(BaseObserver):
         # These were deduplicated during accumulation
         accumulated_input = span_info.get("accumulated_input", "")
         accumulated_output = span_info.get("accumulated_output", "")
+        print(f"______observer.py * accumulated_input: {accumulated_input}")
+        print(f"______observer.py * accumulated_output: {accumulated_output}")
 
         if accumulated_input:
             span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
@@ -593,17 +493,19 @@ class OpenInferenceObserver(BaseObserver):
 
         span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
         span.end(end_time=int(end_time_ns))
+        print(f"___<>___observer.py * end finish <><>><><><><><: <><><><><><>")
         return
 
     async def _start_turn(self, data: FramePushed) -> None:
         """Start a new conversation turn and set it as parent context."""
-        self._turn_active = True
-        self._has_bot_spoken = False
-        self._turn_number += 1
+
+        await super()._start_turn(data)
+
         self._turn_start_time = time.time_ns()  # Use our own clock for consistency
 
         self._log_debug(f"\n{'=' * 60}")
-        self._log_debug(f">>> STARTING TURN #{self._turn_number}")
+        self._log_debug(f">>> STARTING TURN #{self._turn_count}")
+        print(f">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STARTING TURN #{self._turn_count}")
         self._log_debug(f"  Conversation ID: {self._conversation_id}")
 
         # Create turn span as root (no parent)
@@ -611,8 +513,9 @@ class OpenInferenceObserver(BaseObserver):
         # Use an empty context to ensure no ambient parent span is picked up
         span_attributes = {
             SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
-            "conversation.turn_number": self._turn_number,
+            "conversation.turn_number": self._turn_count,
         }
+
         if self._additional_span_attributes:
             span_attributes.update(self._additional_span_attributes)
         self._turn_span = self._tracer.start_span(
@@ -631,49 +534,72 @@ class OpenInferenceObserver(BaseObserver):
         self._turn_bot_text = []
         return
 
-    async def _finish_turn(self, interrupted: bool = False) -> None:
+    async def _end_turn(self, data: FramePushed, was_interrupted: bool = False) -> None:
         """
         Finish the current conversation turn and detach context.
 
         Args:
-            interrupted: Whether the turn was interrupted
+            was_interrupted: Whether the turn was interrupted
         """
-        if not self._turn_active or not self._turn_span:
+        await super()._end_turn(data, was_interrupted)
+
+        if not self._turn_span:
             self._log_debug("  Skipping finish_turn - no active turn")
             return
 
         # Calculate turn duration
         duration = 0.0
         current_time_ns = time.time_ns()
+        print(f"______observer.py *       current_time_ns: {current_time_ns}")
+        print(f"______observer.py * self._turn_start_time: {self._turn_start_time}")
+        print(f"______    current_time_ns / 1_000_000_000: {current_time_ns / 1_000_000_000}")
         duration = (current_time_ns - self._turn_start_time) / 1_000_000_000  # Convert to seconds
+        print(f"______observer.py * duration: {duration}")
+        self._seen_vad_user_stopped_speaking_frame = False
 
         self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
-            f">>> FINISHING TURN #{self._turn_number}"
-            + f" (interrupted={interrupted}, duration={duration:.2f}s)"
+            f">>> FINISHING TURN #{self._turn_count}"
+            + f" (interrupted={was_interrupted}, duration={duration:.2f}s)"
         )
         self._log_debug(f"  Active service spans: {len(self._active_spans)}")
 
         # Set input/output attributes
+        print(f"____end_turn___observer.py * self._turn_user_text: {self._turn_user_text}")
         if self._turn_user_text:
             user_input = " ".join(self._turn_user_text)
             self._turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)  #
 
+        print(f"____end_turn___observer.py * self._turn_BOT_text: {self._turn_bot_text}")
         if self._turn_bot_text:
-            bot_output = " ".join(self._turn_bot_text)
+            print(
+                f"______observer.py * self._tts_includes_inter_frame_spaces: {self._tts_includes_inter_frame_spaces}"
+            )
+            if self._tts_includes_inter_frame_spaces:
+                join_space = ""
+            else:
+                join_space = " "
+            bot_output = join_space.join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)  #
+
+        print(f"______observer.py * self._latencies: {self._latencies}")
+        if len(self._latencies):  # from UserBotLatencyLogObserver
+            self._turn_span.set_attribute("conversation.user_to_bot_latency", self._latencies[-1])
 
         # Finish all active service spans BEFORE ending the turn span
         # This ensures child spans are ended before the parent
         service_ids_to_finish = list(self._active_spans.keys())
+        print(
+            f"_____________________________________________observer.py * service_ids_to_finish: {service_ids_to_finish}"
+        )
         for service_id in service_ids_to_finish:
             self._finish_span(service_id)
 
         # Set turn metadata
-        end_reason = "interrupted" if interrupted else "completed"
+        end_reason = "interrupted" if was_interrupted else "completed"
         self._turn_span.set_attribute("conversation.end_reason", end_reason)  #
         self._turn_span.set_attribute("conversation.turn_duration_seconds", duration)
-        self._turn_span.set_attribute("conversation.was_interrupted", interrupted)
+        self._turn_span.set_attribute("conversation.was_interrupted", was_interrupted)
 
         # Finish turn span (parent) last
         self._turn_span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
@@ -681,6 +607,6 @@ class OpenInferenceObserver(BaseObserver):
 
         # Clear turn state
         self._log_debug("  Clearing turn state")
-        self._turn_active = False
+        self._is_turn_active = False
         self._turn_span = None
         self._turn_context_token = None

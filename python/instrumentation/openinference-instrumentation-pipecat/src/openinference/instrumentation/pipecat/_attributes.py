@@ -747,7 +747,8 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
+        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "_full_model_name", None)
+        or getattr(service, "model_name", None)
         or getattr(service, "model", None),
         SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         # GenAI semantic conventions (dual attributes)
