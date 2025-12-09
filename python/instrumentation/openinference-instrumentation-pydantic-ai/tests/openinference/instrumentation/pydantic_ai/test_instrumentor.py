@@ -107,12 +107,12 @@ def _test_openai_agent_and_llm_spans(
     llm_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
     agent_span = get_span_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
 
-    _verify_llm_span(llm_span)
+    _verify_llm_span(llm_span, instrumentation.version)
 
     _verify_agent_span(agent_span)
 
 
-def _verify_llm_span(span: ReadableSpan) -> None:
+def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     """Verify the LLM span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
@@ -133,14 +133,13 @@ def _verify_llm_span(span: ReadableSpan) -> None:
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
     attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    attribute = f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_CONTENT}" if version == 1 else attribute
     assert attributes.get(attribute) == "You are a weather assistant"
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}") == "user"
-    assert (
-        attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
-        == "The windy city in the US of A."
-    )
-
+    attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}"
+    attribute_name = f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_CONTENT}" if version == 1 else attribute_name
+    assert attributes.get(attribute_name) == "The windy city in the US of A."
     assert (
         attributes.get(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
         == "assistant"

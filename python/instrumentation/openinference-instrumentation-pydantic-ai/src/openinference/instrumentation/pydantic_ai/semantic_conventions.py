@@ -132,7 +132,7 @@ class PydanticCustomAttributes:
 
 
 class PydanticModelRequestParameters:
-    TOOLS = "function_tools"
+    TOOLS = "output_tools"
     FUNCTION_TOOLS = "function_tools"
     NAME = "name"
     DESCRIPTION = "description"
@@ -382,6 +382,31 @@ def _extract_tool_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[
                                 )
 
 
+def _extract_tools(output_tools: List[Dict[str, Any]]) -> Any:
+    tools = []
+    for tool in output_tools:
+        if not isinstance(tool, dict):
+            continue
+
+        tool_info: Dict[str, Any] = {}
+        if PydanticModelRequestParametersTool.NAME in tool:
+            tool_info[SpanAttributes.TOOL_NAME] = tool[PydanticModelRequestParametersTool.NAME]
+        if PydanticModelRequestParametersTool.DESCRIPTION in tool:
+            tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
+                PydanticModelRequestParametersTool.DESCRIPTION
+            ]
+        if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
+            tool[PydanticModelRequestParametersTool.PARAMETERS], dict
+        ):
+            tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
+                tool[PydanticModelRequestParametersTool.PARAMETERS]
+            )
+
+        if tool_info:
+            tools.append(tool_info)
+    return tools
+
+
 def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     """Extract tool definitions from model request parameters."""
     if PydanticCustomAttributes.MODEL_REQUEST_PARAMETERS not in gen_ai_attrs:
@@ -396,29 +421,11 @@ def _extract_tools_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tuple
         if PydanticModelRequestParameters.TOOLS in params and isinstance(
             params[PydanticModelRequestParameters.TOOLS], list
         ):
-            for tool in params[PydanticModelRequestParameters.TOOLS]:
-                if not isinstance(tool, dict):
-                    continue
-
-                tool_info: Dict[str, Any] = {}
-                if PydanticModelRequestParametersTool.NAME in tool:
-                    tool_info[SpanAttributes.TOOL_NAME] = tool[
-                        PydanticModelRequestParametersTool.NAME
-                    ]
-                if PydanticModelRequestParametersTool.DESCRIPTION in tool:
-                    tool_info[SpanAttributes.TOOL_DESCRIPTION] = tool[
-                        PydanticModelRequestParametersTool.DESCRIPTION
-                    ]
-                if PydanticModelRequestParametersTool.PARAMETERS in tool and isinstance(
-                    tool[PydanticModelRequestParametersTool.PARAMETERS], dict
-                ):
-                    tool_info[ToolAttributes.TOOL_JSON_SCHEMA] = safe_json_dumps(
-                        tool[PydanticModelRequestParametersTool.PARAMETERS]
-                    )
-
-                if tool_info:
-                    tools.append(tool_info)
-
+            tools.extend(_extract_tools(params[PydanticModelRequestParameters.TOOLS]))
+        if PydanticModelRequestParameters.TOOLS in params and isinstance(
+            params[PydanticModelRequestParameters.FUNCTION_TOOLS], list
+        ):
+            tools.extend(_extract_tools(params[PydanticModelRequestParameters.FUNCTION_TOOLS]))
         for idx, tool in enumerate(tools):
             for key, value in tool.items():
                 yield f"{SpanAttributes.LLM_TOOLS}.{idx}.{key}", value
