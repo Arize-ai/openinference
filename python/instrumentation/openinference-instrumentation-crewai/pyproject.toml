@@ -83,6 +83,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "crewai",
+  "crewai.*",
   "wrapt",
 ]
 

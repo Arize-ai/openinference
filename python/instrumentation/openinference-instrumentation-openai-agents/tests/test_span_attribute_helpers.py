@@ -38,6 +38,9 @@ from openai.types.responses import (
     ResponseUsage,
     Tool,
 )
+from openai.types.responses.response_custom_tool_call_output_param import (
+    ResponseCustomToolCallOutputParam,
+)
 from openai.types.responses.response_function_web_search_param import ActionSearch
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
@@ -265,6 +268,51 @@ from openinference.instrumentation.openai_agents._processor import (
             },
             id="item_reference",
         ),
+        pytest.param(
+            [
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="custom-123",
+                    output="simple result",
+                )
+            ],
+            {
+                "llm.input_messages.1.message.content": "simple result",
+                "llm.input_messages.1.message.role": "tool",
+                "llm.input_messages.1.message.tool_call_id": "custom-123",
+            },
+            id="custom_tool_call_output_string",
+        ),
+        pytest.param(
+            [
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="custom-123",
+                    output=["item1", "item2"],  # type: ignore[typeddict-item,list-item]
+                )
+            ],
+            {
+                "llm.input_messages.1.message.content": '["item1", "item2"]',
+                "llm.input_messages.1.message.role": "tool",
+                "llm.input_messages.1.message.tool_call_id": "custom-123",
+            },
+            id="custom_tool_call_output_list",
+        ),
+        pytest.param(
+            [
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id="custom-123",
+                    output={"status": "success", "data": 42},  # type: ignore
+                )
+            ],
+            {
+                "llm.input_messages.1.message.content": '{"status": "success", "data": 42}',
+                "llm.input_messages.1.message.role": "tool",
+                "llm.input_messages.1.message.tool_call_id": "custom-123",
+            },
+            id="custom_tool_call_output_dict",
+        ),
     ],
 )
 def test_get_attributes_from_input(
@@ -409,8 +457,8 @@ def test_get_attributes_from_response_function_tool_call_param(
                 "output": "",
             },
             {
-                "message.role": "tool",
                 "message.content": "",
+                "message.role": "tool",
                 "message.tool_call_id": "123",
             },
             id="empty_output",
@@ -429,14 +477,26 @@ def test_get_attributes_from_response_function_tool_call_param(
         pytest.param(
             {
                 "call_id": "123",
-                "output": [{"type": "input_text", "text": "result"}],
+                "output": [{"type": "text", "text": "result"}],
             },
             {
+                "message.content": '[{"type": "text", "text": "result"}]',
                 "message.role": "tool",
-                "message.contents.0.message_content.text": "result",
                 "message.tool_call_id": "123",
             },
-            id="functional_call_output",
+            id="list_output",
+        ),
+        pytest.param(
+            {
+                "call_id": "123",
+                "output": {"result": "success", "value": 42},
+            },
+            {
+                "message.content": '{"result": "success", "value": 42}',
+                "message.role": "tool",
+                "message.tool_call_id": "123",
+            },
+            id="dict_output",
         ),
     ],
 )
@@ -2093,6 +2153,21 @@ def test_get_attributes_from_message(
                 "llm.token_count.total": 1500,
             },
             id="large_token_counts",
+        ),
+        pytest.param(
+            ResponseUsage.model_construct(
+                input_tokens=100,
+                output_tokens=50,
+                total_tokens=150,
+                input_tokens_details=None,
+                output_tokens_details=None,
+            ),
+            {
+                "llm.token_count.prompt": 100,
+                "llm.token_count.completion": 50,
+                "llm.token_count.total": 150,
+            },
+            id="none_token_details",
         ),
     ],
 )

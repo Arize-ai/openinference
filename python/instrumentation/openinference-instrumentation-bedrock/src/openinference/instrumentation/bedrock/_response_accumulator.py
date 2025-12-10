@@ -317,6 +317,30 @@ class _ResponseAccumulator:
         if not isinstance(trace_span, TraceNode):
             return
 
+        # First check the node's own chunks (for agent-collaborator nodes)
+        for trace_data in trace_span.chunks:
+            trace_event = AttributeExtractor.get_event_type(trace_data)
+            event_data = trace_data.get(trace_event, {})
+
+            # Extract from invocation input in node chunks
+            if "invocationInput" in event_data:
+                invocation_input = event_data.get("invocationInput", {})
+                # For agent-collaborator nodes, get full attributes including LLM messages
+                if trace_span.node_type == "agent-collaborator":
+                    attrs = AttributeExtractor.get_attributes_from_invocation_input(
+                        invocation_input
+                    )
+                else:
+                    attrs = AttributeExtractor.get_parent_input_attributes_from_invocation_input(
+                        invocation_input
+                    )
+                if attrs:
+                    input_attributes.update(attrs)
+                    input_attributes.update(attributes.request_attributes)
+                    attributes.request_attributes = input_attributes
+                    return
+
+        # Then check spans
         for span in trace_span.spans:
             for trace_data in span.chunks:
                 trace_event = AttributeExtractor.get_event_type(trace_data)
@@ -341,10 +365,11 @@ class _ResponseAccumulator:
                     attrs = AttributeExtractor.get_parent_input_attributes_from_invocation_input(
                         invocation_input
                     )
-                    input_attributes.update(attrs)
-                    input_attributes.update(attributes.request_attributes)
-                    attributes.request_attributes = input_attributes
-                    return
+                    if attrs:
+                        input_attributes.update(attrs)
+                        input_attributes.update(attributes.request_attributes)
+                        attributes.request_attributes = input_attributes
+                        return
 
             # Recursively check nested nodes
             if isinstance(span, TraceNode):
@@ -363,6 +388,26 @@ class _ResponseAccumulator:
         if not isinstance(trace_span, TraceNode):
             return
 
+        # First check the node's own chunks (for agent-collaborator nodes)
+        for trace_data in trace_span.chunks[::-1]:
+            trace_event = AttributeExtractor.get_event_type(trace_data)
+            event_data = trace_data.get(trace_event, {})
+
+            # Extract from observation in node chunks
+            if "observation" in event_data:
+                observation = event_data.get("observation", {})
+                # For agent-collaborator nodes, get full output attributes including LLM messages
+                if trace_span.node_type == "agent-collaborator":
+                    attrs = AttributeExtractor.get_attributes_from_observation(observation)
+                    if attrs:
+                        attributes.request_attributes.update(attrs)
+                    return
+                elif final_response := observation.get("finalResponse"):
+                    if text := final_response.get("text", ""):
+                        attributes.request_attributes.update(get_output_attributes(text))
+                    return
+
+        # Then check spans
         for span in trace_span.spans[::-1]:
             for trace_data in span.chunks[::-1]:
                 trace_event = AttributeExtractor.get_event_type(trace_data)
@@ -382,6 +427,30 @@ class _ResponseAccumulator:
                         return attributes.request_attributes.update(
                             get_output_attributes(output_text)
                         )
+                    # For Routing classifier events, the output is in rawResponse.content
+                    if parsed_response == {}:
+                        raw_response = model_invocation_output.get("rawResponse", {})
+                        if raw_response_content := raw_response.get("content"):
+                            try:
+                                response_content_json = json.loads(raw_response_content)
+                                if (
+                                    output_content := response_content_json.get("output", {})
+                                    .get("message", {})
+                                    .get("content")
+                                ):
+                                    return attributes.request_attributes.update(
+                                        get_output_attributes(output_content)
+                                    )
+                                # Return full parsed json if output isn't found
+                                return attributes.request_attributes.update(
+                                    get_output_attributes(response_content_json)
+                                )
+                            except Exception:
+                                pass
+                            # Fallback to raw response if content was not valid JSON
+                            return attributes.request_attributes.update(
+                                get_output_attributes(raw_response_content)
+                            )
 
                 # Extract from invocation input
                 if "observation" in event_data:
@@ -468,7 +537,13 @@ class _ResponseAccumulator:
 
         # Set name from node type if it's a TraceNode
         if isinstance(trace_span_data, TraceNode):
-            _attributes.name = trace_span_data.node_type
+            if trace_span_data.node_type == "guardrailTrace":
+                pre_or_post = trace_span_data.node_trace_id.split("-")[-1]
+                _attributes.name = pre_or_post + "GuardrailTrace"
+            else:
+                _attributes.name = trace_span_data.node_type
+            cls._process_trace_node(trace_span_data, _attributes)
+            return _attributes
 
         # Process each chunk in the trace span
         for trace_data in trace_span_data.chunks:
@@ -501,6 +576,57 @@ class _ResponseAccumulator:
             if trace_event == "failureTrace":
                 cls._process_failure_trace(event_data, _attributes)
         return _attributes
+
+    @classmethod
+    def _process_trace_node(cls, trace_node: TraceNode, attributes: _Attributes) -> None:
+        """
+        Process trace node data. This extracts metadata attributes and adds them
+        to the trace node span. This includes routingClassifierTrace, orchestrationTrace,
+        guardrailTrace, etc.
+        """
+        for trace_data in trace_node.chunks:
+            trace_event = AttributeExtractor.get_event_type(trace_data)
+            event_data = trace_data.get(trace_event, {})
+
+            # Extract agent collaborator name for agent-collaborator nodes
+            if trace_node.node_type == "agent-collaborator" and "invocationInput" in event_data:
+                invocation_input = event_data.get("invocationInput", {})
+                if "agentCollaboratorInvocationInput" in invocation_input:
+                    agent_collaborator_name = invocation_input.get(
+                        "agentCollaboratorInvocationInput", {}
+                    ).get("agentCollaboratorName", "")
+                    invocation_type = invocation_input.get("invocationType", "")
+                    if agent_collaborator_name:
+                        attributes.name = f"{invocation_type.lower()}[{agent_collaborator_name}]"
+
+            # Extract child-level metadata first (will be overridden by trace-level metadata)
+            if "modelInvocationOutput" in event_data:
+                model_invocation_output = event_data.get("modelInvocationOutput", {})
+                attributes.metadata.update(
+                    AttributeExtractor.get_metadata_attributes(
+                        model_invocation_output.get("metadata")
+                    )
+                )
+            if observation := event_data.get("observation"):
+                # For agent-collaborator nodes, extract metadata from the observation itself
+                if trace_node.node_type == "agent-collaborator":
+                    if observation_metadata := observation.get("metadata"):
+                        attributes.metadata.update(
+                            AttributeExtractor.get_observation_metadata_attributes(
+                                observation_metadata
+                            )
+                        )
+                # For other nodes, extract from finalResponse if present
+                if final_response := observation.get("finalResponse"):
+                    if final_response_metadata := final_response.get("metadata"):
+                        attributes.metadata.update(
+                            AttributeExtractor.get_metadata_attributes(final_response_metadata)
+                        )
+
+            # Extract trace-level metadata last so it takes precedence
+            # (for orchestrationTrace, guardrailTrace, etc.)
+            if metadata := event_data.get("metadata"):
+                attributes.metadata.update(AttributeExtractor.get_metadata_attributes(metadata))
 
     @classmethod
     def _process_model_invocation_input(

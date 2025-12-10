@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.30...python-openinference-instrumentation-dspy-v0.1.31) (2025-12-04)
+
+
+### Bug Fixes
+
+* dspy ci test failures ([#2466](https://github.com/Arize-ai/openinference/issues/2466)) ([d8b3cbc](https://github.com/Arize-ai/openinference/commit/d8b3cbc0ac46bc069be371fa82ddd54611fafa2f))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.29...python-openinference-instrumentation-dspy-v0.1.30) (2025-10-10)
 
 

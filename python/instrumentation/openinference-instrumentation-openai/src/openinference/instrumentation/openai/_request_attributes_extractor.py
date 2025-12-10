@@ -32,10 +32,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS after
-# https://github.com/Arize-ai/openinference/pull/2162 is merged
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
-
 if TYPE_CHECKING:
     from openai.types import Completion, CreateEmbeddingResponse
     from openai.types.chat import ChatCompletion
@@ -253,7 +249,7 @@ def _get_attributes_from_embedding_create_param(
         return
     invocation_params = dict(params)
     invocation_params.pop("input", None)
-    yield _EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+    yield SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
 
     # Extract text from embedding input - only records text, not token IDs
     embedding_input = params.get("input")

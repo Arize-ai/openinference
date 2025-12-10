@@ -131,12 +131,12 @@ class _ComponentRunWrapper:
 
         component = instance
         component_class_name = _get_component_class_name(component)
+        component_type = _get_component_type(component)
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
 
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name, wrapped)
+            name=_get_component_span_name(component_class_name, wrapped, component_type)
         ) as span:
-            component_type = _get_component_type(component)
             span.set_attributes(_set_component_runner_request_attributes(bound_arguments, instance))
             try:
                 response = wrapped(*args, **kwargs)
@@ -170,7 +170,7 @@ class _AsyncComponentRunWrapper:
         bound_arguments = _get_bound_arguments(wrapped, *args, **kwargs)
         component_type = _get_component_type(instance)
         with self._tracer.start_as_current_span(
-            name=_get_component_span_name(component_class_name, wrapped),
+            name=_get_component_span_name(component_class_name, wrapped, component_type),
             attributes=_set_component_runner_request_attributes(bound_arguments, instance),
         ) as span:
             result = await wrapped(*args, **kwargs)
@@ -325,10 +325,14 @@ def _get_component_class_name(component: "Component") -> str:
     return str(component.__class__.__name__)
 
 
-def _get_component_span_name(component_class_name: str, wrapped: Callable[..., Any]) -> str:
+def _get_component_span_name(
+    component_class_name: str, wrapped: Callable[..., Any], component_type: ComponentType
+) -> str:
     """
     Gets the name of the span for a component.
     """
+    if component_type is ComponentType.EMBEDDER:
+        return "CreateEmbeddings"
     return f"{component_class_name}.{wrapped.__name__}"
 
 
@@ -718,6 +722,17 @@ def _get_embedding_model_attributes(component: "Component") -> Iterator[Tuple[st
         yield EMBEDDING_MODEL_NAME, model
 
 
+def _get_embedding_invocation_parameters(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+    keys_to_exclude = {"text", "texts", "documents", "api_key", "token"}
+
+    invocation_params = {
+        k: v for k, v in arguments.items() if k not in keys_to_exclude and not k.startswith("_")
+    }
+
+    if invocation_params:
+        yield SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+
+
 def _get_embedding_attributes(
     arguments: Mapping[str, Any], response: Mapping[str, Any]
 ) -> Iterator[Tuple[str, Any]]:
@@ -853,6 +868,7 @@ def _set_component_runner_request_attributes(
             {
                 **dict(_get_span_kind_attributes(EMBEDDING)),
                 **dict(_get_embedding_model_attributes(component)),
+                **dict(_get_embedding_invocation_parameters(bound_arguments.arguments)),
             }
         )
     elif component_type is ComponentType.RANKER:

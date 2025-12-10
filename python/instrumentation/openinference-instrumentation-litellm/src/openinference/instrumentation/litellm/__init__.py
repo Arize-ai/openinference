@@ -61,9 +61,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
-
 # Skip capture
 KEYS_TO_REDACT = ["api_key", "messages"]
 
@@ -278,7 +275,7 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     }
     if invocation_params:
         _set_span_attribute(
-            span, _EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+            span, SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
         )
 
     # Extract text from embedding input - only records text, not token IDs
