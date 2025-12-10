@@ -1,3 +1,4 @@
+import importlib
 import json
 from abc import ABC
 from copy import copy, deepcopy
@@ -55,6 +56,31 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     OpenInference Instrumentor for DSPy
     """
 
+    _originals: Dict[Tuple[str, str, str], Any] = {}
+
+    def _wrap_object(
+        self,
+        module: str,
+        name: str,
+        factory: Callable[..., Any],
+        args: Tuple[Any, ...] = (),
+        kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        module_obj = importlib.import_module(module)
+        class_name, method_name = name.split(".")
+        cls = getattr(module_obj, class_name)
+        original_attr = getattr(cls, method_name)
+        key = (module, class_name, method_name)
+        if key not in self._originals:
+            self._originals[key] = original_attr
+        wrap_object(
+            module=module,
+            name=name,
+            factory=factory,
+            args=args,
+            kwargs=kwargs or {},
+        )
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
@@ -72,14 +98,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         from dspy import Predict
 
-        wrap_object(
+        self._wrap_object(
             module="dspy",
             name="LM.__call__",
             factory=CopyableFunctionWrapper,
             args=(_LMCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module="dspy",
             name="LM.acall",
             factory=CopyableFunctionWrapper,
@@ -90,14 +116,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # It is used for unit testing and does not typically get used in
         # production, however it is helpful to instrument it to understand
         # program flow within testing scenarios.
-        wrap_object(
+        self._wrap_object(
             module="dspy.utils",
             name="DummyLM.__call__",
             factory=CopyableFunctionWrapper,
             args=(_LMCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module="dspy.utils",
             name="DummyLM.acall",
             factory=CopyableFunctionWrapper,
@@ -108,13 +134,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # directly, but DSPy also has subclasses of Predict that override the
         # forward method. We instrument both the forward methods of the base
         # class and all subclasses.
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
             args=(_PredictForwardWrapper(self._tracer),),
         )
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.aforward",
             factory=CopyableFunctionWrapper,
@@ -123,27 +149,27 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         predict_subclasses = Predict.__subclasses__()
         for predict_subclass in predict_subclasses:
-            wrap_object(
+            self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
                 args=(_PredictForwardWrapper(self._tracer),),
             )
-            wrap_object(
+            self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".aforward",
                 factory=CopyableFunctionWrapper,
                 args=(_PredictAforwardWrapper(self._tracer),),
             )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
             args=(_RetrieverForwardWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             # At this time, dspy.Module does not have an abstract forward
             # method, but assumes that user-defined subclasses implement the
@@ -153,7 +179,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_ModuleForwardWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             # At this time, dspy.Module does not have an abstract forward
             # method, but assumes that user-defined subclasses implement the
@@ -166,35 +192,35 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # At this time, there is no common parent class for retriever models as
         # there is for language models. We instrument the retriever models on a
         # case-by-case basis.
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
             args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.__call__",
             factory=CopyableFunctionWrapper,
             args=(_AdapterCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.acall",
             factory=CopyableFunctionWrapper,
             args=(_AdapterAcallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.__call__",
             factory=CopyableFunctionWrapper,
             args=(_ToolCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.acall",
             factory=CopyableFunctionWrapper,
@@ -207,6 +233,11 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         if hasattr(Predict.forward, "__wrapped__"):
             Predict.forward = Predict.forward.__wrapped__
+        for (module_name, class_name, method_name), original in self._originals.items():
+            module = importlib.import_module(module_name)
+            cls = getattr(module, class_name)
+            setattr(cls, method_name, original)
+        self._originals.clear()
 
 
 class CopyableBoundFunctionWrapper(BoundFunctionWrapper):  # type: ignore
