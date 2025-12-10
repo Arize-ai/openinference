@@ -83,6 +83,15 @@ SERVICE_TYPE_MAP = {
 }
 
 
+def get_model_name(service: FrameProcessor) -> str:
+    """Get the model name from a service."""
+    return (
+        getattr(service, "_full_model_name", None)
+        or getattr(service, "model_name", None)
+        or getattr(service, "model", "unknown")
+    )
+
+
 def safe_extract(extractor: Callable[[], Any], default: Any = None) -> Any:
     """
     Safely execute an extractor function, returning default value on error.
@@ -747,13 +756,11 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
         SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         # GenAI semantic conventions (dual attributes)
         "gen_ai.system": lambda service: detect_provider_from_service(service),
-        "gen_ai.request.model": lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        "gen_ai.request.model": lambda service: get_model_name(service),
         "gen_ai.operation.name": lambda service: "chat",
         "gen_ai.output.type": lambda service: "text",
         # Streaming flag
@@ -785,11 +792,9 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
         SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
-        "service.model": lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        "service.model": lambda service: get_model_name(service),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
         "audio.user_id": lambda service: getattr(service, "_user_id", None),
@@ -807,11 +812,9 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.LLM.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
         SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
-        "service.model": lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        "service.model": lambda service: get_model_name(service),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
         "audio.voice": lambda service: getattr(service, "_voice_id", None),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
@@ -829,8 +832,7 @@ class ImageGenServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        "service.model": lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        "service.model": lambda service: get_model_name(service),
     }
 
 
@@ -845,8 +847,7 @@ class VisionServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.CHAIN.value
         ),
-        "service.model": lambda service: getattr(service, "model_name", None)
-        or getattr(service, "model", None),
+        "service.model": lambda service: get_model_name(service),
     }
 
 
