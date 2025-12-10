@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.23...python-openinference-instrumentation-agno-v0.1.24) (2025-12-08)
+
+
+### Features
+
+* **agno:** add workflow wrapper for instrumentation ([#2450](https://github.com/Arize-ai/openinference/issues/2450)) ([89699cd](https://github.com/Arize-ai/openinference/commit/89699cdc66399e9f61c0880c1fdd62f0101e723d))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.22...python-openinference-instrumentation-agno-v0.1.23) (2025-11-12)
 
 
