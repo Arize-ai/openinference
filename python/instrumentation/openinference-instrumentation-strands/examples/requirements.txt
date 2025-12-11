@@ -1,0 +1,6 @@
+strands-agents>=0.1.0
+openinference-instrumentation-strands
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+openai  # For OpenAIModel
+
