@@ -38,6 +38,11 @@ dependencies = [
 instruments = [
     "strands-agents >= 0.1.0",
 ]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "strands-agents >= 0.1.0",
+]
 
 [project.entry-points.opentelemetry_instrumentor]
 strands = "openinference.instrumentation.strands:StrandsInstrumentor"
