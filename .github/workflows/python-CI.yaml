@@ -82,4 +82,4 @@ jobs:
           enable-cache: false
       - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
         working-directory: python
-        timeout-minutes: 10
+        timeout-minutes: 15

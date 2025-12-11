@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.13...python-openinference-instrumentation-beeai-v0.1.14) (2025-12-04)
+
+
+### Features
+
+* **beeai:** align embedding spans with OpenAI/LiteLLM patterns ([#2438](https://github.com/Arize-ai/openinference/issues/2438)) ([9cb15d4](https://github.com/Arize-ai/openinference/commit/9cb15d433556a0e7a2e8631e14f3f97b5009a05f))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.12...python-openinference-instrumentation-beeai-v0.1.13) (2025-10-10)
 
 

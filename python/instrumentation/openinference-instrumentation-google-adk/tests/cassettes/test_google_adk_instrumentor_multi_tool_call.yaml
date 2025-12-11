@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York and
+      London?"}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You
+      must use the available tools to find an answer.\n\nYou are an agent. Your internal
+      name is \"_9178fbe0\".\n\n The description about you is \"Agent to answer questions
+      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
+      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
+      status and result or error msg.\n        ", "name": "get_weather", "parameters":
+      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
+      "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
+        \             \"args\": {\n                \"city\": \"New York\"\n              }\n
+        \           },\n            \"thoughtSignature\": \"CpcCAXLI2nym9A9mfB+/0M8eA/AdxCso65WHwnFFVR+4t9XwhUGhkiEC/gyeFaAnTwqT3MnPU14NMqAB+JMVBWFSY1qjQAhlOhG9nYaw3omurZDePSSBgWXC9YebUZYdkCsTauDJHOYa8J+wXGb7YEpny7+bFwUUNS2WkPbYRv3iSWJVwSKNamc8YBFEq9Yl9rQaSIDoF9HnaotPT8uhmSw5ccgv7B1q9wxC0O9RD2HT0LUul/unvK+XxINMa2Bi/DZg8ThdJmWx+QNq3Qbaatfi6x+xbKpphARqa35ttj121RDPYnYBO4MlMR4sIxGvz2NnjOIFMyDi4XZMnhhbkliyzrayeIbqbCiZDlaqOmvXRbfR0wMBqgOk\"\n
+        \         },\n          {\n            \"functionCall\": {\n              \"name\":
+        \"get_weather\",\n              \"args\": {\n                \"city\": \"London\"\n
+        \             }\n            }\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0,\n
+        \     \"finishMessage\": \"Model generated function call(s).\"\n    }\n  ],\n
+        \ \"usageMetadata\": {\n    \"promptTokenCount\": 139,\n    \"candidatesTokenCount\":
+        31,\n    \"totalTokenCount\": 229,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 139\n      }\n    ],\n
+        \   \"thoughtsTokenCount\": 59\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"responseId\": \"N0wpaY-VJ6HOjuMP29rkqAk\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York and
+      London?"}], "role": "user"}, {"parts": [{"functionCall": {"args": {"city": "New
+      York"}, "name": "get_weather"}, "thoughtSignature": "CpcCAXLI2nym9A9mfB-_0M8eA_AdxCso65WHwnFFVR-4t9XwhUGhkiEC_gyeFaAnTwqT3MnPU14NMqAB-JMVBWFSY1qjQAhlOhG9nYaw3omurZDePSSBgWXC9YebUZYdkCsTauDJHOYa8J-wXGb7YEpny7-bFwUUNS2WkPbYRv3iSWJVwSKNamc8YBFEq9Yl9rQaSIDoF9HnaotPT8uhmSw5ccgv7B1q9wxC0O9RD2HT0LUul_unvK-XxINMa2Bi_DZg8ThdJmWx-QNq3Qbaatfi6x-xbKpphARqa35ttj121RDPYnYBO4MlMR4sIxGvz2NnjOIFMyDi4XZMnhhbkliyzrayeIbqbCiZDlaqOmvXRbfR0wMBqgOk"},
+      {"functionCall": {"args": {"city": "London"}, "name": "get_weather"}}], "role":
+      "model"}, {"parts": [{"functionResponse": {"name": "get_weather", "response":
+      {"status": "success", "report": "The weather in New York is sunny with a temperature
+      of 25 degrees Celsius (77 degrees Fahrenheit)."}}}, {"functionResponse": {"name":
+      "get_weather", "response": {"status": "success", "report": "The weather in London
+      is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}}}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
+      available tools to find an answer.\n\nYou are an agent. Your internal name is
+      \"_9178fbe0\".\n\n The description about you is \"Agent to answer questions
+      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
+      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
+      status and result or error msg.\n        ", "name": "get_weather", "parameters":
+      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
+      "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The weather in New York is sunny with
+        a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in
+        London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\",\n
+        \           \"thoughtSignature\": \"CsIBAXLI2nwg4jII6RTqU03jyYnJHWZrqicKXsweBnyiL8HtRD/easjEYoK6x3Oj1ofTexFZ7oXx3NBZyax0xUYK5m7EYDYiIrbs1HQqy6bgmuJO5fIivQl7ykyZFUPb5WZDg36Ocew5Mz5oaP546ynEAiR7RqlNqYfUcJDU9MwqgSgRODNhrTApSVuLU7ZmtWbqTXxzj4Fkl1DFIp6wkaim/KsQ8/DOogTtJXKKZ1UCDjyB40JtIDC/aHhomJ1EfIFhp1E=\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        251,\n    \"candidatesTokenCount\": 43,\n    \"totalTokenCount\": 331,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 251\n
+        \     }\n    ],\n    \"thoughtsTokenCount\": 37\n  },\n  \"modelVersion\":
+        \"gemini-2.5-flash\",\n  \"responseId\": \"OUwpadLEAoi64-EP_u6bqQk\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

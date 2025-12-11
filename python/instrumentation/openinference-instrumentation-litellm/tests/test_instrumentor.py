@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import litellm
 import pytest
-from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
+from litellm import OpenAIChatCompletion  # type: ignore[attr-defined, unused-ignore]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
