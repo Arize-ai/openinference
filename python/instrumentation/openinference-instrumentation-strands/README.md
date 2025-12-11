@@ -128,7 +128,7 @@ StrandsInstrumentor().instrument(tracer_provider=tracer_provider)
 ## Compatibility
 
 This instrumentation is compatible with:
-- Strands >= 0.1.0
+- strands-agents >= 0.1.0
 - Python >= 3.10
 
 ## Examples
