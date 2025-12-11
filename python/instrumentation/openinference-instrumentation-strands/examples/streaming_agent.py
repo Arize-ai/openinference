@@ -13,11 +13,11 @@ import asyncio
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from strands import Agent, tool
+from strands.models.openai import OpenAIModel
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.strands import StrandsInstrumentor
-from strands import Agent, tool
-from strands.models.openai import OpenAIModel
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
@@ -66,4 +66,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

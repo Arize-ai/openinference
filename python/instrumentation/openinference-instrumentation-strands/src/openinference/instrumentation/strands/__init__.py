@@ -133,7 +133,7 @@ class StrandsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         # Instrument AgentTool.stream for individual tool tracing
         try:
-            from strands.tools.tools import AgentTool
+            from strands.tools.tools import AgentTool  # type: ignore[attr-defined]
 
             self._original_agent_tool_stream = AgentTool.stream
             wrap_function_wrapper(
@@ -160,7 +160,7 @@ class StrandsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             from strands.event_loop import event_loop
 
             if self._original_event_loop_cycle is not None:
-                event_loop.event_loop_cycle = self._original_event_loop_cycle  # type: ignore[assignment]
+                event_loop.event_loop_cycle = self._original_event_loop_cycle
         except Exception as e:
             logger.warning("failed to uninstrument event_loop_cycle: %s", e)
 
@@ -173,7 +173,7 @@ class StrandsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             logger.warning("failed to uninstrument ToolExecutor._execute: %s", e)
 
         try:
-            from strands.tools.tools import AgentTool
+            from strands.tools.tools import AgentTool  # type: ignore[attr-defined]
 
             if self._original_agent_tool_stream is not None:
                 AgentTool.stream = self._original_agent_tool_stream  # type: ignore[method-assign]
@@ -182,4 +182,3 @@ class StrandsInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
 
 __all__ = ["StrandsInstrumentor"]
-

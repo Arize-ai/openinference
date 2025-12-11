@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
-from typing import Any, AsyncGenerator, Callable, Iterator, Mapping, Tuple
+from typing import Any, AsyncGenerator, Callable, Dict, Mapping, Tuple
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
-    MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -39,11 +38,9 @@ class _AgentInvokeAsyncWrapper(_WithTracer):
         # Extract agent information
         agent = instance
         agent_name = getattr(agent, "name", "unknown")
-        agent_id = getattr(agent, "agent_id", "unknown")
 
         # Extract prompt from args/kwargs
         prompt = args[0] if args else kwargs.get("prompt")
-        invocation_state = kwargs.get("invocation_state", {})
 
         # Build span attributes
         attributes = dict(
@@ -240,7 +237,7 @@ class _ToolExecutorExecuteWrapper(_WithTracer):
 
         # Create a parent span for all tool executions
         agent_name = getattr(agent, "name", "unknown") if agent else "unknown"
-        attributes = {
+        attributes: Dict[str, AttributeValue] = {
             OPENINFERENCE_SPAN_KIND: CHAIN,
             "tool_execution.count": len(tool_uses),
         }
@@ -249,7 +246,7 @@ class _ToolExecutorExecuteWrapper(_WithTracer):
         span_name = f"{agent_name}.tool_execution"
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=attributes,
+            attributes=dict(attributes),
             record_exception=False,
             set_status_on_exception=False,
         ) as parent_span:
@@ -257,9 +254,7 @@ class _ToolExecutorExecuteWrapper(_WithTracer):
                 async for event in wrapped(*args, **kwargs):
                     yield event
             except Exception as exception:
-                parent_span.set_status(
-                    trace_api.Status(trace_api.StatusCode.ERROR, str(exception))
-                )
+                parent_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 parent_span.record_exception(exception)
                 raise
 
@@ -412,9 +407,7 @@ def _add_message_attributes(span: trace_api.Span, message: Any, prefix: str = "o
         # Add content blocks
         for idx, content_block in enumerate(content):
             if "text" in content_block:
-                span.set_attribute(
-                    f"{prefix}.message.content.{idx}.text", content_block["text"]
-                )
+                span.set_attribute(f"{prefix}.message.content.{idx}.text", content_block["text"])
             elif "toolUse" in content_block:
                 tool_use = content_block["toolUse"]
                 span.set_attribute(
@@ -460,4 +453,3 @@ OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 
 TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
-

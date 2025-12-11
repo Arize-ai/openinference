@@ -8,22 +8,23 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 
 @pytest.fixture
-def tracer_provider():
+def tracer_provider() -> trace_sdk.TracerProvider:
     """Create a tracer provider with in-memory span exporter for testing."""
     tracer_provider = trace_sdk.TracerProvider()
     return tracer_provider
 
 
 @pytest.fixture
-def in_memory_span_exporter():
+def in_memory_span_exporter() -> InMemorySpanExporter:
     """Create an in-memory span exporter for testing."""
     return InMemorySpanExporter()
 
 
 @pytest.fixture
-def instrumented_tracer_provider(tracer_provider, in_memory_span_exporter):
+def instrumented_tracer_provider(
+    tracer_provider: trace_sdk.TracerProvider, in_memory_span_exporter: InMemorySpanExporter
+) -> trace_sdk.TracerProvider:
     """Create an instrumented tracer provider with in-memory exporter."""
     tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     trace_api.set_tracer_provider(tracer_provider)
     return tracer_provider
-

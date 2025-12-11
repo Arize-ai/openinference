@@ -11,11 +11,11 @@ Before running:
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from strands import Agent, tool
+from strands.models.openai import OpenAIModel
 
 from openinference.instrumentation import using_attributes
 from openinference.instrumentation.strands import StrandsInstrumentor
-from strands import Agent, tool
-from strands.models.openai import OpenAIModel
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
@@ -23,7 +23,6 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 StrandsInstrumentor().instrument(tracer_provider=tracer_provider)
-
 
 
 @tool
@@ -52,7 +51,6 @@ def get_weather(city: str) -> dict:
     }
 
 
-
 if __name__ == "__main__":
     model = OpenAIModel(model_id="gpt-4o-mini")
     agent = Agent(
@@ -73,4 +71,3 @@ if __name__ == "__main__":
     ):
         result = agent("What's the weather in San Francisco?")
         print(result.message)
-

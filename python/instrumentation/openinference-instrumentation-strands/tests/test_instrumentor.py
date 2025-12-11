@@ -1,25 +1,31 @@
 """Tests for Strands instrumentor."""
 
+from typing import Any
+
 import pytest
-from openinference.instrumentation.strands import StrandsInstrumentor
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation.strands import StrandsInstrumentor
 
 
 class TestStrandsInstrumentor:
     """Test cases for StrandsInstrumentor."""
 
-    def test_instrumentor_can_be_instantiated(self):
+    def test_instrumentor_can_be_instantiated(self) -> None:
         """Test that the instrumentor can be instantiated."""
         instrumentor = StrandsInstrumentor()
         assert instrumentor is not None
 
-    def test_instrumentor_has_correct_instrumentation_dependencies(self):
+    def test_instrumentor_has_correct_instrumentation_dependencies(self) -> None:
         """Test that the instrumentor declares correct dependencies."""
         instrumentor = StrandsInstrumentor()
         dependencies = instrumentor.instrumentation_dependencies()
         assert "strands" in str(dependencies)
 
-    def test_instrumentor_can_be_instrumented(self, instrumented_tracer_provider):
+    def test_instrumentor_can_be_instrumented(
+        self, instrumented_tracer_provider: trace_api.TracerProvider
+    ) -> None:
         """Test that the instrumentor can instrument Strands."""
         instrumentor = StrandsInstrumentor()
 
@@ -35,7 +41,9 @@ class TestStrandsInstrumentor:
         # Uninstrument
         instrumentor.uninstrument()
 
-    def test_instrumentor_can_be_uninstrumented(self, instrumented_tracer_provider):
+    def test_instrumentor_can_be_uninstrumented(
+        self, instrumented_tracer_provider: trace_api.TracerProvider
+    ) -> None:
         """Test that the instrumentor can uninstrument Strands."""
         instrumentor = StrandsInstrumentor()
 
@@ -53,7 +61,10 @@ class TestStrandsInstrumentor:
 
 
 @pytest.mark.asyncio
-async def test_agent_invocation_creates_spans(instrumented_tracer_provider, in_memory_span_exporter):
+async def test_agent_invocation_creates_spans(
+    instrumented_tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
     """Test that agent invocations create spans."""
     from strands import Agent, tool
 
@@ -67,7 +78,7 @@ async def test_agent_invocation_creates_spans(instrumented_tracer_provider, in_m
     try:
         # Define a simple tool
         @tool
-        def echo(message: str) -> dict:
+        def echo(message: str) -> dict[str, Any]:
             """Echo a message back.
 
             Args:
@@ -81,8 +92,8 @@ async def test_agent_invocation_creates_spans(instrumented_tracer_provider, in_m
         # Note: This might fail if Strands SDK is not installed or configured
         # In a real test, you'd need proper mocking or a test environment
         try:
-            result = agent("Echo hello")
-            
+            _ = agent("Echo hello")
+
             # Get exported spans
             spans = in_memory_span_exporter.get_finished_spans()
 
@@ -95,6 +106,7 @@ async def test_agent_invocation_creates_spans(instrumented_tracer_provider, in_m
 
             # Verify span attributes
             agent_span = agent_spans[0]
+            assert agent_span.attributes is not None
             assert "openinference.span.kind" in agent_span.attributes
             assert agent_span.attributes["openinference.span.kind"] == "AGENT"
 
@@ -108,7 +120,10 @@ async def test_agent_invocation_creates_spans(instrumented_tracer_provider, in_m
 
 
 @pytest.mark.asyncio
-async def test_tool_execution_creates_spans(instrumented_tracer_provider, in_memory_span_exporter):
+async def test_tool_execution_creates_spans(
+    instrumented_tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
     """Test that tool executions create spans."""
     from strands import Agent, tool
 
@@ -122,7 +137,7 @@ async def test_tool_execution_creates_spans(instrumented_tracer_provider, in_mem
     try:
         # Define a simple tool
         @tool
-        def add(a: int, b: int) -> dict:
+        def add(a: int, b: int) -> dict[str, Any]:
             """Add two numbers.
 
             Args:
@@ -136,7 +151,7 @@ async def test_tool_execution_creates_spans(instrumented_tracer_provider, in_mem
         agent = Agent(name="MathAgent", tools=[add])
 
         try:
-            result = agent("What is 5 plus 3?")
+            _ = agent("What is 5 plus 3?")
 
             # Get exported spans
             spans = in_memory_span_exporter.get_finished_spans()
@@ -148,6 +163,7 @@ async def test_tool_execution_creates_spans(instrumented_tracer_provider, in_mem
             # Verify span attributes
             if tool_spans:
                 tool_span = tool_spans[0]
+                assert tool_span.attributes is not None
                 assert "openinference.span.kind" in tool_span.attributes
                 assert tool_span.attributes["openinference.span.kind"] == "TOOL"
 
@@ -157,4 +173,3 @@ async def test_tool_execution_creates_spans(instrumented_tracer_provider, in_mem
     finally:
         # Uninstrument
         instrumentor.uninstrument()
-
