@@ -3,7 +3,7 @@
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
@@ -23,7 +23,7 @@ def in_memory_span_exporter():
 @pytest.fixture
 def instrumented_tracer_provider(tracer_provider, in_memory_span_exporter):
     """Create an instrumented tracer provider with in-memory exporter."""
-    tracer_provider.add_span_processor(SimpleSpanExporter(in_memory_span_exporter))
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
     trace_api.set_tracer_provider(tracer_provider)
     return tracer_provider
 
