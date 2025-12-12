@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openinference-instrumentation-strands"
 dynamic = ["version"]
-description = "OpenInference Strands Instrumentation"
+description = "OpenInference span processor for Strands Agents - transforms native OpenTelemetry spans to OpenInference format"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10, <3.15"
@@ -25,36 +25,29 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "opentelemetry-api",
-    "opentelemetry-instrumentation",
-    "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.27",
+    "opentelemetry-api>=1.39.0",
+    "opentelemetry-sdk>=1.39.0",
     "openinference-semantic-conventions>=0.1.17",
-    "wrapt",
     "typing-extensions",
 ]
 
 [project.optional-dependencies]
 instruments = [
-    "strands-agents >= 0.1.0",
+    "strands-agents >= 1.19.0",
 ]
 test = [
     "pytest",
     "pytest-asyncio",
-    "strands-agents >= 0.1.0",
+    "strands-agents >= 1.19.0",
+    "openai",
 ]
-
-[project.entry-points.opentelemetry_instrumentor]
-strands = "openinference.instrumentation.strands:StrandsInstrumentor"
-
-[project.entry-points.openinference_instrumentor]
-strands = "openinference.instrumentation.strands:StrandsInstrumentor"
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-strands"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/strands/version.py"
+path = "src/openinference/instrumentation/strands/__init__.py"
+pattern = '__version__ = "(?P<version>[^"]+)"'
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -84,8 +77,6 @@ exclude = [
 ignore_missing_imports = true
 module = [
     "strands.*",
-    "openinference.instrumentation.strands.*",
-    "wrapt",
 ]
 
 [tool.ruff]

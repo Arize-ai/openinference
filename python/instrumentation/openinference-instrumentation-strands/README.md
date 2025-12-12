@@ -1,143 +1,94 @@
 # OpenInference Strands Instrumentation
 
-Python auto-instrumentation library for the [Strands Agents](https://strandsagents.com/) framework.
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-strands.svg)](https://pypi.org/project/openinference-instrumentation-strands/)
 
-This package provides automatic tracing for Strands Agents applications, capturing detailed telemetry about agent invocations, event loops, tool executions, and multi-agent interactions.
+Python instrumentation library for Strands Agents.
+
+This package provides a span processor that transforms Strands' native OpenTelemetry spans to OpenInference format. The traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
 ## Installation
 
-```bash
+```shell
 pip install openinference-instrumentation-strands
 ```
 
 ## Quickstart
 
-Install packages needed for this quickstart.
+In this example we will instrument a small Strands agent program and observe the traces via [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 
-```bash
-pip install openinference-instrumentation-strands strands opentelemetry-sdk opentelemetry-exporter-otlp openai
+Install packages.
+
+```shell
+pip install openinference-instrumentation-strands strands-agents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
-Set up `StrandsInstrumentor` to trace your Strands Agents application and sends them to an OpenTelemetry collector or endpoint.
+Start the phoenix server so that it is ready to collect traces.
+The Phoenix server runs entirely on your machine and does not send data over the internet.
+
+```shell
+python -m phoenix.server.main serve
+```
+
+In a python file, setup the Strands telemetry and add the `StrandsToOpenInferenceProcessor` to transform spans.
 
 ```python
 import os
-from openinference.instrumentation.strands import StrandsInstrumentor
-from opentelemetry import trace as trace_api
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-# Configure OpenTelemetry to export to a collector
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = trace_sdk.TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-trace_api.set_tracer_provider(tracer_provider)
-
-# Instrument Strands
-StrandsInstrumentor().instrument()
-
-# Use Strands as normal
 from strands import Agent, tool
 from strands.models.openai import OpenAIModel
+from strands.telemetry import StrandsTelemetry
+
+from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+
+# Setup Strands native telemetry
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter(endpoint="http://127.0.0.1:6006/v1/traces")
+
+# Add OpenInference processor to transform spans
+telemetry.tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+
 
 @tool
 def get_weather(city: str) -> dict:
-    """Get the weather for a city.
-    
+    """Get the current weather for a city.
+
     Args:
-        city: The city to get weather for
+        city: The name of the city
     """
     return {
         "status": "success",
-        "content": [{"text": f"The weather in {city} is sunny!"}]
+        "content": [{"text": f"The weather in {city} is sunny and 72°F."}],
     }
 
-# Create agent with OpenAI model (requires OPENAI_API_KEY environment variable)
-model = OpenAIModel(model_id="gpt-4o-mini")
-agent = Agent(model=model, tools=[get_weather])
-result = agent("What's the weather in San Francisco?")
-print(result.message)
+
+if __name__ == "__main__":
+    # Create and run agent
+    model = OpenAIModel(model_id="gpt-4o-mini")
+    agent = Agent(
+        name="WeatherAgent",
+        model=model,
+        tools=[get_weather],
+        system_prompt="You are a helpful weather assistant.",
+    )
+
+    result = agent("What's the weather in San Francisco?")
+    print(result)
 ```
 
-## What Gets Traced
+Since we are using OpenAI, we must set the `OPENAI_API_KEY` environment variable to authenticate with the OpenAI API.
 
-The Strands instrumentation automatically captures:
-
-### Agent Invocations
-- Agent name and ID
-- Input prompts (text, content blocks, or messages)
-- Output messages and stop reasons
-- Token usage and metrics
-- Available tools
-
-### Event Loop Cycles
-- Cycle IDs and execution flow
-- Stop reasons (end_turn, tool_use, max_tokens, etc.)
-- Messages exchanged during cycles
-
-### Tool Executions
-- Tool names and IDs
-- Input parameters
-- Output results
-- Execution status (success/error)
-
-### Multi-Agent Interactions
-- Agent-to-agent communication
-- Swarm orchestration
-- Graph-based workflows
-
-## Span Kinds
-
-The instrumentation uses the following OpenInference span kinds:
-
-- **AGENT**: Agent invocations (`agent.invoke()`, `agent.stream()`)
-- **CHAIN**: Event loop cycles and multi-agent orchestration
-- **TOOL**: Individual tool executions
-- **LLM**: Model calls (when model instrumentation is also enabled)
-
-## Configuration
-
-### TraceConfig
-
-You can configure the instrumentation behavior using `TraceConfig`:
-
-```python
-from openinference.instrumentation import TraceConfig
-
-config = TraceConfig(
-    # Configuration options
-)
-
-StrandsInstrumentor().instrument(config=config)
+```shell
+export OPENAI_API_KEY=your-api-key
 ```
 
-### Custom Tracer Provider
+Now simply run the python file and observe the traces in Phoenix.
 
-You can provide a custom tracer provider:
-
-```python
-from opentelemetry.sdk.trace import TracerProvider
-
-tracer_provider = TracerProvider()
-# ... configure tracer provider ...
-
-StrandsInstrumentor().instrument(tracer_provider=tracer_provider)
+```shell
+python your_file.py
 ```
-
-## Compatibility
-
-This instrumentation is compatible with:
-- strands-agents >= 0.1.0
-- Python >= 3.10
-
-## Examples
-
-See the [examples](./examples) directory for complete examples of using the Strands instrumentation.
 
 ## More Info
 
-- [Strands Agents Documentation](https://strandsagents.com/)
-- [OpenInference](https://github.com/Arize-ai/openinference)
-- [Phoenix - Open-source LLM Observability](https://docs.arize.com/phoenix)
-
+* [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
+* [How to customize spans to track sessions, metadata, etc.](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#customizing-spans)
+* [How to account for private information and span payload customization](https://github.com/Arize-ai/openinference/tree/main/python/openinference-instrumentation#tracing-configuration)

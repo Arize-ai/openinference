@@ -1,28 +1,16 @@
-"""
-Basic example of using Strands instrumentation.
+"""Basic example of using Strands with OpenInference instrumentation.
 
-This example demonstrates how to instrument a simple Strands agent
-using OpenAI and export traces to an OpenTelemetry collector.
-
-Before running:
-    export OPENAI_API_KEY='your-api-key-here'
+This example demonstrates how to use the StrandsToOpenInferenceProcessor
+to transform Strands' native OpenTelemetry spans into OpenInference format.
 """
 
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+import os
+
 from strands import Agent, tool
 from strands.models.openai import OpenAIModel
+from strands.telemetry import StrandsTelemetry
 
-from openinference.instrumentation import using_attributes
-from openinference.instrumentation.strands import StrandsInstrumentor
-
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = trace_sdk.TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-
-StrandsInstrumentor().instrument(tracer_provider=tracer_provider)
+from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
 
 
 @tool
@@ -30,44 +18,70 @@ def get_weather(city: str) -> dict:
     """Get the current weather for a city.
 
     Args:
-        city: The name of the city to get weather for
-
-    Returns:
-        Weather information for the city
+        city: The name of the city
     """
-    # Simulate weather lookup
-    weather_data = {
-        "San Francisco": "sunny, 72°F",
-        "New York": "cloudy, 65°F",
-        "London": "rainy, 58°F",
-        "Tokyo": "clear, 68°F",
-    }
-
-    weather = weather_data.get(city, "unknown")
-
     return {
         "status": "success",
-        "content": [{"text": f"The weather in {city} is {weather}"}],
+        "content": [{"text": f"The weather in {city} is sunny and 72°F."}],
     }
 
 
-if __name__ == "__main__":
+def main():
+    """Run the basic agent example."""
+    # Check for API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("Error: OPENAI_API_KEY environment variable not set")
+        print("Please run: export OPENAI_API_KEY='your-api-key-here'")
+        return
+
+    print("=" * 60)
+    print("Basic Strands Agent with OpenInference Instrumentation")
+    print("=" * 60)
+    print()
+
+    # Setup Strands' native telemetry
+    print("📡 Setting up telemetry...")
+    telemetry = StrandsTelemetry()
+
+    # Export to Phoenix (or other OTLP endpoint)
+    telemetry.setup_otlp_exporter(endpoint="http://127.0.0.1:6006/v1/traces")
+
+    # Optional: Also log to console for debugging
+    # telemetry.setup_console_exporter()
+
+    # Add OpenInference processor to transform spans
+    telemetry.tracer_provider.add_span_processor(
+        StrandsToOpenInferenceProcessor(debug=False)  # Set debug=True for verbose output
+    )
+
+    print("✅ Telemetry configured")
+    print()
+
+    # Create agent
+    print("🤖 Creating agent...")
     model = OpenAIModel(model_id="gpt-4o-mini")
     agent = Agent(
-        name="Weather Assistant",
+        name="WeatherAssistant",
         model=model,
         tools=[get_weather],
         system_prompt="You are a helpful weather assistant.",
     )
+    print("✅ Agent created")
+    print()
 
-    with using_attributes(
-        session_id="my-test-session",
-        user_id="my-test-user",
-        metadata={
-            "example": "basic_agent",
-            "framework": "strands",
-        },
-        tags=["weather", "demo"],
-    ):
-        result = agent("What's the weather in San Francisco?")
-        print(result.message)
+    # Run agent
+    print("💬 Running agent query: 'What's the weather in San Francisco?'")
+    print()
+
+    result = agent("What's the weather in San Francisco?")
+
+    print("=" * 60)
+    print("Result:")
+    print("=" * 60)
+    print(result)
+    print()
+    print("✨ Done! Check Phoenix at http://127.0.0.1:6006 to see traces")
+
+
+if __name__ == "__main__":
+    main()
