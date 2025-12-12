@@ -38,7 +38,9 @@ def get_weather(city: str) -> str:
     return weather_data.get(city, f"Weather data not available for {city}")
 
 
-def calculate(operation: Literal["add", "subtract", "multiply", "divide"], a: float, b: float) -> float:
+def calculate(
+    operation: Literal["add", "subtract", "multiply", "divide"], a: float, b: float
+) -> float:
     """Perform a mathematical calculation."""
     if operation == "add":
         return a + b
@@ -63,7 +65,7 @@ if __name__ == "__main__":
     if not os.environ.get("OPENAI_API_KEY"):
         print("Please set OPENAI_API_KEY environment variable")
         exit(1)
-    
+
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     agent = create_agent(
         model=model,
@@ -73,13 +75,13 @@ if __name__ == "__main__":
             "a calculator, and web search. Use these tools to help answer questions."
         ),
     )
-    
+
     queries = [
         "What's the weather in San Francisco?",
         "Calculate 234 * 567",
         "What's the weather in Tokyo and multiply the temperature by 2?",
     ]
-    
+
     for query in queries:
         print(f"\nQuery: {query}")
         result = agent.invoke({"messages": [{"role": "user", "content": query}]})
@@ -87,4 +89,3 @@ if __name__ == "__main__":
         if messages:
             print(f"Response: {messages[-1].content}")
         print()
-

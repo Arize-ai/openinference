@@ -366,28 +366,30 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
 def _is_json_parseable(value: str) -> bool:
     """
     Check if a string value is valid JSON (object or array).
-    
+
     This function is performance-optimized to avoid unnecessary parsing:
     - Returns early if the string doesn't look like JSON (no braces/brackets)
     - Only attempts parsing for strings that structurally resemble JSON
-    
+
     Args:
         value: String to check for JSON parseability.
-        
+
     Returns:
         `True` if the string is valid JSON (dict/list), `False` otherwise.
     """
     if not value:
         return False
-    
+
     stripped = value.strip()
     if not stripped:
         return False
-    
-    if not ((stripped.startswith("{") and stripped.endswith("}"))
-            or (stripped.startswith("[") and stripped.endswith("]"))):
+
+    if not (
+        (stripped.startswith("{") and stripped.endswith("}"))
+        or (stripped.startswith("[") and stripped.endswith("]"))
+    ):
         return False
-    
+
     try:
         parsed = json.loads(value)
         return isinstance(parsed, (dict, list))
@@ -642,7 +644,9 @@ def _infer_role_from_context(message_data: Mapping[str, Any]) -> Optional[str]:
     return None
 
 
-def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, Any]) -> Optional[str]:
+def _map_class_name_to_role(
+    message_class_name: str, message_data: Mapping[str, Any]
+) -> Optional[str]:
     """
     Map a LangChain message class name to its corresponding role.
 
@@ -667,7 +671,8 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
     elif message_class_name.startswith("ToolMessage"):
         return "tool"
     elif message_class_name.startswith("ChatMessage"):
-        return message_data["kwargs"]["role"]
+        role = message_data["kwargs"]["role"]
+        return str(role) if role is not None else None
     elif message_class_name.startswith("RemoveMessage"):
         # RemoveMessage is a special message type used by LangGraph to mark messages for removal
         # It doesn't have a traditional role, so we skip adding a role attribute
@@ -1379,7 +1384,7 @@ def _get_attributes_from_message_content(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     content = dict(content)
     type_ = content.pop("type", None)
-    
+
     if type_ is None:
         return
     if type_ == "text":
