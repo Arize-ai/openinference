@@ -1,0 +1,66 @@
+{
+  "name": "@arizeai/openinference-instrumentation-google-genai",
+  "version": "0.1.0",
+  "description": "OpenInference instrumentation for Google Gen AI SDK (@google/genai)",
+  "private": false,
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "esnext": "dist/esnext/index.js",
+  "types": "dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "scripts": {
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
+    "version:update": "../../scripts/version-update.js",
+    "type:check": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
+  },
+  "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1",
+    "@opentelemetry/instrumentation": "^0.46.0"
+  },
+  "keywords": [
+    "google",
+    "gemini",
+    "google-genai",
+    "generative-ai",
+    "openinference",
+    "opentelemetry",
+    "instrumentation",
+    "tracing",
+    "ai",
+    "llm",
+    "multimodal",
+    "image-generation",
+    "video-generation"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "author": "oss-devs@arize.com",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@google/genai": "^1.0.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-node": "^1.25.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
+    "vitest": "^2.1.8"
+  }
+}
+

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.esnext.json",
+  "compilerOptions": {
+    "outDir": "dist/esnext",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test/**/*"]
+}
+
