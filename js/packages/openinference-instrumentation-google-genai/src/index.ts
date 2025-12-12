@@ -1,7 +1,8 @@
 export { GoogleGenAIInstrumentation, isPatched } from "./instrumentation";
 
-import { GoogleGenAI, GoogleGenAIOptions } from "@google/genai";
 import { GoogleGenAIInstrumentation } from "./instrumentation";
+
+import { GoogleGenAI, GoogleGenAIOptions } from "@google/genai";
 
 // Singleton instance for the helper function
 let _globalInstrumentation: GoogleGenAIInstrumentation | null = null;

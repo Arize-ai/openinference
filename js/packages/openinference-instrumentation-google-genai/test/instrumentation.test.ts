@@ -5,9 +5,10 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { beforeEach, describe, expect, it } from "vitest";
 
 import { GoogleGenAIInstrumentation } from "../src/instrumentation";
+
+import { beforeEach, describe, expect, it } from "vitest";
 
 describe("GoogleGenAIInstrumentation", () => {
   let instrumentation: GoogleGenAIInstrumentation;
@@ -43,7 +44,6 @@ describe("GoogleGenAIInstrumentation", () => {
   describe("with manual mock modules", () => {
     it("should create span for generateContent when called", async () => {
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContent(_params: unknown) {
           return {
             candidates: [
@@ -64,14 +64,12 @@ describe("GoogleGenAIInstrumentation", () => {
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_message: unknown) {
           return { text: "Response" };
         }
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }
@@ -103,21 +101,18 @@ describe("GoogleGenAIInstrumentation", () => {
 
     it("should suppress tracing when context is suppressed", async () => {
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContent(_params: unknown) {
           return { candidates: [], usageMetadata: {} };
         }
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_message: unknown) {
           return { text: "Response" };
         }
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }
@@ -146,7 +141,6 @@ describe("GoogleGenAIInstrumentation", () => {
 
     it("should handle streaming responses", async () => {
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContentStream(_params: unknown) {
           async function* mockStream() {
             yield {
@@ -180,14 +174,12 @@ describe("GoogleGenAIInstrumentation", () => {
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_message: unknown) {
           return { text: "Response" };
         }
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }
@@ -224,14 +216,12 @@ describe("GoogleGenAIInstrumentation", () => {
 
     it("should handle Chat sendMessage", async () => {
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContent(_params: unknown) {
           return { candidates: [], usageMetadata: {} };
         }
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_params: unknown) {
           return {
             candidates: [
@@ -247,7 +237,6 @@ describe("GoogleGenAIInstrumentation", () => {
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }
@@ -275,7 +264,6 @@ describe("GoogleGenAIInstrumentation", () => {
 
     it("should handle Batches createEmbeddings", async () => {
       class Batches {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async createEmbeddings(_params: unknown) {
           return {
             name: "batch-job-123",
@@ -309,21 +297,18 @@ describe("GoogleGenAIInstrumentation", () => {
 
     it.skip("should handle errors gracefully", async () => {
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContent(_params: unknown): Promise<never> {
           throw new Error("API Error");
         }
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_message: unknown) {
           return { text: "Response" };
         }
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }
@@ -378,7 +363,6 @@ describe("GoogleGenAIInstrumentation", () => {
       instrumentationWithConfig.enable();
 
       class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async generateContent(_params: unknown) {
           return {
             candidates: [
@@ -394,14 +378,12 @@ describe("GoogleGenAIInstrumentation", () => {
       }
 
       class Chat {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async sendMessage(_message: unknown) {
           return { text: "Response" };
         }
       }
 
       class Chats {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         create(_config: unknown) {
           return new Chat();
         }

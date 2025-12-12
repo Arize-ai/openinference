@@ -190,8 +190,9 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
   /**
    * Patches methods on a Models instance
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private patchModelsInstance(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     models: any,
     instrumentation: GoogleGenAIInstrumentation,
   ) {
@@ -245,25 +246,27 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           },
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise
-          .then((result: any) => {
-            span.setAttributes({
-              [SemanticConventions.OUTPUT_VALUE]:
-                safelyJSONStringify(result) || "",
-              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-              ...getOutputMessagesAttributes(result),
-              ...getUsageAttributes(result),
-            });
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.end();
-            return result;
-          })
-          .catch((error: Error) => {
-            // Span is already ended in safeExecuteInTheMiddle error callback
-            // Just re-throw the error
-            throw error;
-          });
+        return (
+          execPromise
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((result: any) => {
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]:
+                  safelyJSONStringify(result) || "",
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                ...getOutputMessagesAttributes(result),
+                ...getUsageAttributes(result),
+              });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              return result;
+            })
+            .catch((error: Error) => {
+              // Span is already ended in safeExecuteInTheMiddle error callback
+              // Just re-throw the error
+              throw error;
+            })
+        );
       };
     }
 
@@ -415,8 +418,9 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
   /**
    * Patches methods on a Chats instance and its created Chat sessions
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private patchChatsInstance(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     chats: any,
     instrumentation: GoogleGenAIInstrumentation,
   ) {
@@ -438,8 +442,9 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
   /**
    * Patches methods on a Chat instance
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private patchChatInstance(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     chat: any,
     instrumentation: GoogleGenAIInstrumentation,
   ) {
@@ -575,8 +580,9 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
   /**
    * Patches methods on a Batches instance
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private patchBatchesInstance(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     batches: any,
     instrumentation: GoogleGenAIInstrumentation,
   ) {
