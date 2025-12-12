@@ -390,6 +390,7 @@ describe("GoogleGenAIInstrumentation", () => {
         },
       });
       instrumentationWithConfig.setTracerProvider(provider);
+      instrumentationWithConfig.enable();
 
       class Models {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -421,11 +422,15 @@ describe("GoogleGenAIInstrumentation", () => {
         }
       }
 
-      const mockModule = { Models, Chat, Chats };
-      instrumentationWithConfig.manuallyInstrument(mockModule);
+      // Create a mock GoogleGenAI instance
+      const mockGoogleGenAI = {
+        models: new Models(),
+        chats: new Chats(),
+      };
 
-      const models = new Models();
-      await models.generateContent({
+      instrumentationWithConfig.instrumentInstance(mockGoogleGenAI);
+
+      await mockGoogleGenAI.models.generateContent({
         model: "gemini-2.0-flash",
         contents: "Test input",
       });
