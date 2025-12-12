@@ -383,7 +383,7 @@ class TestLM:
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-@pytest.mark.parametrize("is_async", [True])
+@pytest.mark.parametrize("is_async", [False, True])
 async def test_rag_module(
     in_memory_span_exporter: InMemorySpanExporter,
     is_async: bool,
@@ -419,7 +419,7 @@ async def test_rag_module(
             return dspy.Prediction(context=context, answer=prediction.answer)
 
     with dspy.context(
-        lm=dspy.LM("openai/gpt-4.1", cache=False),
+        lm=dspy.LM("openai/gpt-4", cache=False),
         rm=dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts"),
     ):
         rag = RAG()
@@ -532,9 +532,13 @@ async def test_rag_module(
     )
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    output_value_json = json.loads(output_value)
-    assert output_value_json["answer"] == "Washington, D.C."
-    assert output_value_json["reasoning"].startswith("The capital of")
+    expected_output_value = (
+        '{"reasoning": "The capital of a country is a well-established fact.'
+        " The capital of the United States is a widely known piece of "
+        'information.", "answer": "Washington, D.C."}'
+    )
+
+    assert output_value == expected_output_value
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(OUTPUT_MIME_TYPE))
         == OpenInferenceMimeTypeValues.JSON
@@ -597,7 +601,7 @@ async def test_rag_module(
     )
     assert "Washington, D.C." in message_content_0
     assert attributes.pop(LLM_PROVIDER) == "openai"
-    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
     assert not attributes
 
 
