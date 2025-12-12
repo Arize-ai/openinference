@@ -46,7 +46,7 @@ test = [
   "pytest-recording",
   "litellm",
   "urllib3<3.0",
-  "vcrpy>=5.0.0",
+  "vcrpy==7.0.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
