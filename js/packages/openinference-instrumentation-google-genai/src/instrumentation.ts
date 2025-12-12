@@ -244,18 +244,24 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
               );
 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise.then((result: any) => {
-                span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]:
-                    safelyJSONStringify(result) || "",
-                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                  ...getOutputMessagesAttributes(result),
-                  ...getUsageAttributes(result),
+              return execPromise
+                .then((result: any) => {
+                  span.setAttributes({
+                    [SemanticConventions.OUTPUT_VALUE]:
+                      safelyJSONStringify(result) || "",
+                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                    ...getOutputMessagesAttributes(result),
+                    ...getUsageAttributes(result),
+                  });
+                  span.setStatus({ code: SpanStatusCode.OK });
+                  span.end();
+                  return result;
+                })
+                .catch((error: Error) => {
+                  // Span is already ended in safeExecuteInTheMiddle error callback
+                  // Just re-throw the error
+                  throw error;
                 });
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-                return result;
-              });
           };
     }
 
