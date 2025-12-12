@@ -642,7 +642,7 @@ def _infer_role_from_context(message_data: Mapping[str, Any]) -> Optional[str]:
     return None
 
 
-def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, Any]) -> str:
+def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, Any]) -> Optional[str]:
     """
     Map a LangChain message class name to its corresponding role.
 
@@ -651,7 +651,7 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
         message_data: The full message data (needed for ChatMessage role lookup)
 
     Returns:
-        The role string
+        The role string, or None for message types without roles (e.g., RemoveMessage)
 
     Raises:
         ValueError: If the message class name is not recognized
@@ -667,12 +667,12 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
     elif message_class_name.startswith("ToolMessage"):
         return "tool"
     elif message_class_name.startswith("ChatMessage"):
-        role = message_data["kwargs"]["role"]
+        return message_data["kwargs"]["role"]
     elif message_class_name.startswith("RemoveMessage"):
         # RemoveMessage is a special message type used by LangGraph to mark messages for removal
         # It doesn't have a traditional role, so we skip adding a role attribute
         # This prevents ValueError while allowing RemoveMessage to be processed
-        return
+        return None
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
 
