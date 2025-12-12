@@ -1,0 +1,146 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You must route the
+      user''s request to the appropriate agent.\n\nYou are an agent. Your internal
+      name is \"root_agent\".\n\n The description about you is \"Agent that
+      routes the user''s request to the appropriate agent.\"\n\n\nYou have a list
+      of other agents to transfer to:\n\n\nAgent name: addition_agent\nAgent
+      description: Agent to add two numbers together.\n\n\nAgent name: weather_agent\nAgent
+      description: Agent to answer questions using tools.\n\n\nIf you are the best
+      to answer the question according to your description, you\ncan answer it.\n\nIf
+      another agent is better for answering the question according to its\ndescription,
+      call `transfer_to_agent` function to transfer the\nquestion to that agent. When
+      transferring, do not generate any text other than\nthe function call.\n"}],
+      "role": "user"}, "tools": [{"functionDeclarations": [{"description": "Transfer
+      the question to another agent.\n\n  This tool hands off control to another agent
+      when it''s more suitable to\n  answer the user''s question according to the
+      agent''s description.\n\n  Args:\n    agent_name: the agent name to transfer
+      to.\n  ", "name": "transfer_to_agent", "parameters": {"properties": {"agent_name":
+      {"type": "STRING"}}, "required": ["agent_name"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"transfer_to_agent\",\n
+        \             \"args\": {\n                \"agent_name\": \"weather_agent\"\n
+        \             }\n            }\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
+        -0.062862771749496463\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        273,\n    \"candidatesTokenCount\": 20,\n    \"totalTokenCount\": 293,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 273\n
+        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
+        \"TEXT\",\n        \"tokenCount\": 20\n      }\n    ]\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"H3g5adKIKqC04-EP99a5iQk\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
+      "role": "user"}, {"parts": [{"text": "For context:"}, {"text": "[root_agent]
+      called tool `transfer_to_agent` with parameters: {''agent_name'': ''weather_agent''}"}],
+      "role": "user"}, {"parts": [{"text": "For context:"}, {"text": "[root_agent]
+      `transfer_to_agent` tool returned result: {''result'': None}"}], "role": "user"}],
+      "systemInstruction": {"parts": [{"text": "You must use the available tools to
+      find an answer.\n\nYou are an agent. Your internal name is \"weather_agent\".\n\n
+      The description about you is \"Agent to answer questions using tools.\"\n\n\nYou
+      have a list of other agents to transfer to:\n\n\nAgent name: root_agent\nAgent
+      description: Agent that routes the user''s request to the appropriate agent.\n\n\nAgent
+      name: addition_agent\nAgent description: Agent to add two numbers together.\n\n\nIf
+      you are the best to answer the question according to your description, you\ncan
+      answer it.\n\nIf another agent is better for answering the question according
+      to its\ndescription, call `transfer_to_agent` function to transfer the\nquestion
+      to that agent. When transferring, do not generate any text other than\nthe function
+      call.\n\nYour parent agent is root_agent. If neither the other agents
+      nor\nyou are best for answering the question according to the descriptions,
+      transfer\nto your parent agent.\n"}], "role": "user"}, "tools": [{"functionDeclarations":
+      [{"description": "Transfer the question to another agent.\n\n  This tool hands
+      off control to another agent when it''s more suitable to\n  answer the user''s
+      question according to the agent''s description.\n\n  Args:\n    agent_name:
+      the agent name to transfer to.\n  ", "name": "transfer_to_agent", "parameters":
+      {"properties": {"agent_name": {"type": "STRING"}}, "required": ["agent_name"],
+      "type": "OBJECT"}}, {"description": "Retrieves the current weather report for
+      a specified city.\n\n        Args:\n            city (str): The name of the
+      city for which to retrieve the weather report.\n\n        Returns:\n            dict:
+      status and result or error msg.\n        ", "name": "get_weather", "parameters":
+      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
+      "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
+        \             \"args\": {\n                \"city\": \"New York\"\n              }\n
+        \           }\n          }\n        ],\n        \"role\": \"model\"\n      },\n
+        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -0.085917333761851\n
+        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 451,\n    \"candidatesTokenCount\":
+        6,\n    \"totalTokenCount\": 457,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 451\n      }\n    ],\n
+        \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n
+        \ \"responseId\": \"IHg5aZaEMNzXjuMPtpbf8Ag\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
+      "role": "user"}, {"parts": [{"text": "For context:"}, {"text": "[root_agent]
+      called tool `transfer_to_agent` with parameters: {''agent_name'': ''weather_agent''}"}],
+      "role": "user"}, {"parts": [{"text": "For context:"}, {"text": "[root_agent]
+      `transfer_to_agent` tool returned result: {''result'': None}"}], "role": "user"},
+      {"parts": [{"functionCall": {"args": {"city": "New York"}, "name": "get_weather"}}],
+      "role": "model"}, {"parts": [{"functionResponse": {"name": "get_weather", "response":
+      {"status": "success", "report": "The weather in New York is sunny with a temperature
+      of 25 degrees Celsius (77 degrees Fahrenheit)."}}}], "role": "user"}], "systemInstruction":
+      {"parts": [{"text": "You must use the available tools to find an answer.\n\nYou
+      are an agent. Your internal name is \"weather_agent\".\n\n The description
+      about you is \"Agent to answer questions using tools.\"\n\n\nYou have a list
+      of other agents to transfer to:\n\n\nAgent name: root_agent\nAgent
+      description: Agent that routes the user''s request to the appropriate agent.\n\n\nAgent
+      name: addition_agent\nAgent description: Agent to add two numbers together.\n\n\nIf
+      you are the best to answer the question according to your description, you\ncan
+      answer it.\n\nIf another agent is better for answering the question according
+      to its\ndescription, call `transfer_to_agent` function to transfer the\nquestion
+      to that agent. When transferring, do not generate any text other than\nthe function
+      call.\n\nYour parent agent is root_agent. If neither the other agents
+      nor\nyou are best for answering the question according to the descriptions,
+      transfer\nto your parent agent.\n"}], "role": "user"}, "tools": [{"functionDeclarations":
+      [{"description": "Transfer the question to another agent.\n\n  This tool hands
+      off control to another agent when it''s more suitable to\n  answer the user''s
+      question according to the agent''s description.\n\n  Args:\n    agent_name:
+      the agent name to transfer to.\n  ", "name": "transfer_to_agent", "parameters":
+      {"properties": {"agent_name": {"type": "STRING"}}, "required": ["agent_name"],
+      "type": "OBJECT"}}, {"description": "Retrieves the current weather report for
+      a specified city.\n\n        Args:\n            city (str): The name of the
+      city for which to retrieve the weather report.\n\n        Returns:\n            dict:
+      status and result or error msg.\n        ", "name": "get_weather", "parameters":
+      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
+      "generationConfig": {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"OK. The weather in New York is sunny
+        with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\\n\"\n          }\n
+        \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.00060540802776813511\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 485,\n    \"candidatesTokenCount\": 25,\n    \"totalTokenCount\":
+        510,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 485\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 25\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"IXg5acGXLtfKjuMPmPCcoQY\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

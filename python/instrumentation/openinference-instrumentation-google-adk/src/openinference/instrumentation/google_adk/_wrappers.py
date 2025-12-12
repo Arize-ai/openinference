@@ -159,6 +159,7 @@ class _BaseAgentRunAsync(_WithTracer):
         name = f"agent_run [{instance.name}]"
         attributes = dict(get_attributes_from_context())
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
+        attributes[SpanAttributes.AGENT_NAME] = instance.name
 
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
             __wrapped__: AsyncGenerator[Event, None]
