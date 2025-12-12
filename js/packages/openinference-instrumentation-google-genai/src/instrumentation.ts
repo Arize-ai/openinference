@@ -187,12 +187,14 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
     return module;
   }
 
-
   /**
    * Patches methods on a Models instance
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private patchModelsInstance(models: any, instrumentation: GoogleGenAIInstrumentation) {
+  private patchModelsInstance(
+    models: any,
+    instrumentation: GoogleGenAIInstrumentation,
+  ) {
     // Wrap generateContent
     if (models.generateContent) {
       const originalGenerateContent = models.generateContent.bind(models);
@@ -200,210 +202,212 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...genArgs: any[]
       ) {
-              const params = genArgs[0];
-              const modelName = params?.model || "unknown";
+        const params = genArgs[0];
+        const modelName = params?.model || "unknown";
 
-              const span = instrumentation.oiTracer.startSpan(
-                `Google GenAI Generate Content`,
-                {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                      OpenInferenceSpanKind.LLM,
-                    [SemanticConventions.LLM_MODEL_NAME]: modelName,
-                    [SemanticConventions.INPUT_VALUE]:
-                      safelyJSONStringify(params) || "",
-                    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                    [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                      safelyJSONStringify(params?.config) || "{}",
-                    [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
-                    [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
-                    ...getInputMessagesAttributes(params),
-                    ...getToolsJSONSchema(params),
-                  },
-                },
-              );
+        const span = instrumentation.oiTracer.startSpan(
+          `Google GenAI Generate Content`,
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: modelName,
+              [SemanticConventions.INPUT_VALUE]:
+                safelyJSONStringify(params) || "",
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                safelyJSONStringify(params?.config) || "{}",
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
+              [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
+              ...getInputMessagesAttributes(params),
+              ...getToolsJSONSchema(params),
+            },
+          },
+        );
 
-              const execContext = getExecContext(span);
-              const execPromise = safeExecuteInTheMiddle(
-                () => {
-                  return context.with(trace.setSpan(execContext, span), () => {
-                    return originalGenerateContent(...genArgs);
-                  });
-                },
-                (error: Error | undefined) => {
-                  if (error) {
-                    span.recordException(error);
-                    span.setStatus({
-                      code: SpanStatusCode.ERROR,
-                      message: error.message,
-                    });
-                    span.end();
-                  }
-                },
-              );
+        const execContext = getExecContext(span);
+        const execPromise = safeExecuteInTheMiddle(
+          () => {
+            return context.with(trace.setSpan(execContext, span), () => {
+              return originalGenerateContent(...genArgs);
+            });
+          },
+          (error: Error | undefined) => {
+            if (error) {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+            }
+          },
+        );
 
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise
-                .then((result: any) => {
-                  span.setAttributes({
-                    [SemanticConventions.OUTPUT_VALUE]:
-                      safelyJSONStringify(result) || "",
-                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                    ...getOutputMessagesAttributes(result),
-                    ...getUsageAttributes(result),
-                  });
-                  span.setStatus({ code: SpanStatusCode.OK });
-                  span.end();
-                  return result;
-                })
-                .catch((error: Error) => {
-                  // Span is already ended in safeExecuteInTheMiddle error callback
-                  // Just re-throw the error
-                  throw error;
-                });
-          };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return execPromise
+          .then((result: any) => {
+            span.setAttributes({
+              [SemanticConventions.OUTPUT_VALUE]:
+                safelyJSONStringify(result) || "",
+              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              ...getOutputMessagesAttributes(result),
+              ...getUsageAttributes(result),
+            });
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+            return result;
+          })
+          .catch((error: Error) => {
+            // Span is already ended in safeExecuteInTheMiddle error callback
+            // Just re-throw the error
+            throw error;
+          });
+      };
     }
 
     // Wrap generateContentStream
     if (models.generateContentStream) {
-      const originalGenerateContentStream = models.generateContentStream.bind(models);
-      models.generateContentStream = async function patchedGenerateContentStream(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              ...genArgs: any[]
-            ) {
-              const params = genArgs[0];
-              const modelName = params?.model || "unknown";
+      const originalGenerateContentStream =
+        models.generateContentStream.bind(models);
+      models.generateContentStream =
+        async function patchedGenerateContentStream(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...genArgs: any[]
+        ) {
+          const params = genArgs[0];
+          const modelName = params?.model || "unknown";
 
-              const span = instrumentation.oiTracer.startSpan(
-                `Google GenAI Generate Content Stream`,
-                {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                      OpenInferenceSpanKind.LLM,
-                    [SemanticConventions.LLM_MODEL_NAME]: modelName,
-                    [SemanticConventions.INPUT_VALUE]:
-                      safelyJSONStringify(params) || "",
-                    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                    [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                      safelyJSONStringify(params?.config) || "{}",
-                    [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
-                    [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
-                    ...getInputMessagesAttributes(params),
-                    ...getToolsJSONSchema(params),
-                  },
-                },
-              );
+          const span = instrumentation.oiTracer.startSpan(
+            `Google GenAI Generate Content Stream`,
+            {
+              kind: SpanKind.INTERNAL,
+              attributes: {
+                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                  OpenInferenceSpanKind.LLM,
+                [SemanticConventions.LLM_MODEL_NAME]: modelName,
+                [SemanticConventions.INPUT_VALUE]:
+                  safelyJSONStringify(params) || "",
+                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
+                  safelyJSONStringify(params?.config) || "{}",
+                [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
+                [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
+                ...getInputMessagesAttributes(params),
+                ...getToolsJSONSchema(params),
+              },
+            },
+          );
 
-              const execContext = getExecContext(span);
-              const execPromise = safeExecuteInTheMiddle(
-                () => {
-                  return context.with(trace.setSpan(execContext, span), () => {
-                    return originalGenerateContentStream(...genArgs);
-                  });
-                },
-                (error: Error | undefined) => {
-                  if (error) {
-                    span.recordException(error);
-                    span.setStatus({
-                      code: SpanStatusCode.ERROR,
-                      message: error.message,
-                    });
-                    span.end();
-                  }
-                },
-              );
-
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise.then(async (stream: any) => {
-                const chunks = [];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let lastChunk: any;
-                for await (const chunk of stream) {
-                  chunks.push(chunk);
-                  lastChunk = chunk;
-                }
-
-                if (lastChunk) {
-                  span.setAttributes({
-                    [SemanticConventions.OUTPUT_VALUE]:
-                      safelyJSONStringify(lastChunk) || "",
-                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                    ...getOutputMessagesAttributes(lastChunk),
-                    ...getUsageAttributes(lastChunk),
-                  });
-                }
-
-                span.setStatus({ code: SpanStatusCode.OK });
+          const execContext = getExecContext(span);
+          const execPromise = safeExecuteInTheMiddle(
+            () => {
+              return context.with(trace.setSpan(execContext, span), () => {
+                return originalGenerateContentStream(...genArgs);
+              });
+            },
+            (error: Error | undefined) => {
+              if (error) {
+                span.recordException(error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: error.message,
+                });
                 span.end();
+              }
+            },
+          );
 
-                return (async function* () {
-                  for (const chunk of chunks) {
-                    yield chunk;
-                  }
-                })();
-            });
-      };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return execPromise.then(async (stream: any) => {
+            const chunks = [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let lastChunk: any;
+            for await (const chunk of stream) {
+              chunks.push(chunk);
+              lastChunk = chunk;
+            }
+
+            if (lastChunk) {
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]:
+                  safelyJSONStringify(lastChunk) || "",
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                ...getOutputMessagesAttributes(lastChunk),
+                ...getUsageAttributes(lastChunk),
+              });
+            }
+
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+
+            return (async function* () {
+              for (const chunk of chunks) {
+                yield chunk;
+              }
+            })();
+          });
+        };
     }
 
     // Wrap generateImages if it exists
     if (models.generateImages) {
       const originalGenerateImages = models.generateImages.bind(models);
       models.generateImages = async function patchedGenerateImages(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              ...genArgs: any[]
-            ) {
-              const params = genArgs[0];
-              const modelName = params?.model || "unknown";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...genArgs: any[]
+      ) {
+        const params = genArgs[0];
+        const modelName = params?.model || "unknown";
 
-              const span = instrumentation.oiTracer.startSpan(
-                `Google GenAI Generate Images`,
-                {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                      OpenInferenceSpanKind.LLM,
-                    [SemanticConventions.LLM_MODEL_NAME]: modelName,
-                    [SemanticConventions.INPUT_VALUE]:
-                      safelyJSONStringify(params) || "",
-                    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                    [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
-                    [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
-                  },
-                },
-              );
+        const span = instrumentation.oiTracer.startSpan(
+          `Google GenAI Generate Images`,
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: modelName,
+              [SemanticConventions.INPUT_VALUE]:
+                safelyJSONStringify(params) || "",
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.VERTEXAI,
+              [SemanticConventions.LLM_PROVIDER]: LLMProvider.GOOGLE,
+            },
+          },
+        );
 
-              const execContext = getExecContext(span);
-              const execPromise = safeExecuteInTheMiddle(
-                () => {
-                  return context.with(trace.setSpan(execContext, span), () => {
-                    return originalGenerateImages(...genArgs);
-                  });
-                },
-                (error: Error | undefined) => {
-                  if (error) {
-                    span.recordException(error);
-                    span.setStatus({
-                      code: SpanStatusCode.ERROR,
-                      message: error.message,
-                    });
-                    span.end();
-                  }
-                },
-              );
-
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise.then((result: any) => {
-                span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]:
-                    safelyJSONStringify(result) || "",
-                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                });
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-                return result;
+        const execContext = getExecContext(span);
+        const execPromise = safeExecuteInTheMiddle(
+          () => {
+            return context.with(trace.setSpan(execContext, span), () => {
+              return originalGenerateImages(...genArgs);
             });
+          },
+          (error: Error | undefined) => {
+            if (error) {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+            }
+          },
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return execPromise.then((result: any) => {
+          span.setAttributes({
+            [SemanticConventions.OUTPUT_VALUE]:
+              safelyJSONStringify(result) || "",
+            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+          });
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+          return result;
+        });
       };
     }
   }
@@ -412,17 +416,20 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
    * Patches methods on a Chats instance and its created Chat sessions
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private patchChatsInstance(chats: any, instrumentation: GoogleGenAIInstrumentation) {
+  private patchChatsInstance(
+    chats: any,
+    instrumentation: GoogleGenAIInstrumentation,
+  ) {
     // Wrap the create method to patch Chat instances
     if (chats.create) {
       const originalCreate = chats.create.bind(chats);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chats.create = function patchedCreate(...args: any[]) {
         const chatSession = originalCreate(...args);
-        
+
         // Patch the chat session methods
         instrumentation.patchChatInstance(chatSession, instrumentation);
-        
+
         return chatSession;
       };
     }
@@ -432,132 +439,135 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
    * Patches methods on a Chat instance
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private patchChatInstance(chat: any, instrumentation: GoogleGenAIInstrumentation) {
+  private patchChatInstance(
+    chat: any,
+    instrumentation: GoogleGenAIInstrumentation,
+  ) {
     // Wrap sendMessage
     if (chat.sendMessage) {
       const originalSendMessage = chat.sendMessage.bind(chat);
       chat.sendMessage = async function patchedSendMessage(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...sendArgs: any[]
-        ) {
-              const params = sendArgs[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...sendArgs: any[]
+      ) {
+        const params = sendArgs[0];
 
-              const span = instrumentation.oiTracer.startSpan(
-                `Google GenAI Chat Send Message`,
-                {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                      OpenInferenceSpanKind.CHAIN,
-                    [SemanticConventions.INPUT_VALUE]:
-                      safelyJSONStringify(params?.message || params) || "",
-                    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                  },
-                },
-              );
+        const span = instrumentation.oiTracer.startSpan(
+          `Google GenAI Chat Send Message`,
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.CHAIN,
+              [SemanticConventions.INPUT_VALUE]:
+                safelyJSONStringify(params?.message || params) || "",
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+            },
+          },
+        );
 
-              const execContext = getExecContext(span);
-              const execPromise = safeExecuteInTheMiddle(
-                () => {
-                  return context.with(trace.setSpan(execContext, span), () => {
-                    return originalSendMessage(...sendArgs);
-                  });
-                },
-                (error: Error | undefined) => {
-                  if (error) {
-                    span.recordException(error);
-                    span.setStatus({
-                      code: SpanStatusCode.ERROR,
-                      message: error.message,
-                    });
-                    span.end();
-                  }
-                },
-              );
-
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise.then((result: any) => {
-                span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]:
-                    safelyJSONStringify(result) || "",
-                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                });
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-                return result;
+        const execContext = getExecContext(span);
+        const execPromise = safeExecuteInTheMiddle(
+          () => {
+            return context.with(trace.setSpan(execContext, span), () => {
+              return originalSendMessage(...sendArgs);
+            });
+          },
+          (error: Error | undefined) => {
+            if (error) {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
               });
-          };
+              span.end();
+            }
+          },
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return execPromise.then((result: any) => {
+          span.setAttributes({
+            [SemanticConventions.OUTPUT_VALUE]:
+              safelyJSONStringify(result) || "",
+            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+          });
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+          return result;
+        });
+      };
     }
 
     // Wrap sendMessageStream
     if (chat.sendMessageStream) {
       const originalSendMessageStream = chat.sendMessageStream.bind(chat);
       chat.sendMessageStream = async function patchedSendMessageStream(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              ...sendArgs: any[]
-            ) {
-              const params = sendArgs[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...sendArgs: any[]
+      ) {
+        const params = sendArgs[0];
 
-              const span = instrumentation.oiTracer.startSpan(
-                `Google GenAI Chat Send Message Stream`,
-                {
-                  kind: SpanKind.INTERNAL,
-                  attributes: {
-                    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                      OpenInferenceSpanKind.CHAIN,
-                    [SemanticConventions.INPUT_VALUE]:
-                      safelyJSONStringify(params?.message || params) || "",
-                    [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                  },
-                },
-              );
+        const span = instrumentation.oiTracer.startSpan(
+          `Google GenAI Chat Send Message Stream`,
+          {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+                OpenInferenceSpanKind.CHAIN,
+              [SemanticConventions.INPUT_VALUE]:
+                safelyJSONStringify(params?.message || params) || "",
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+            },
+          },
+        );
 
-              const execContext = getExecContext(span);
-              const execPromise = safeExecuteInTheMiddle(
-                () => {
-                  return context.with(trace.setSpan(execContext, span), () => {
-                    return originalSendMessageStream(...sendArgs);
-                  });
-                },
-                (error: Error | undefined) => {
-                  if (error) {
-                    span.recordException(error);
-                    span.setStatus({
-                      code: SpanStatusCode.ERROR,
-                      message: error.message,
-                    });
-                    span.end();
-                  }
-                },
-              );
-
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              return execPromise.then(async (stream: any) => {
-                const chunks = [];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let lastChunk: any;
-                for await (const chunk of stream) {
-                  chunks.push(chunk);
-                  lastChunk = chunk;
-                }
-
-                if (lastChunk) {
-                  span.setAttributes({
-                    [SemanticConventions.OUTPUT_VALUE]:
-                      safelyJSONStringify(lastChunk) || "",
-                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                  });
-                }
-
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-
-                return (async function* () {
-                  for (const chunk of chunks) {
-                    yield chunk;
-                  }
-                })();
+        const execContext = getExecContext(span);
+        const execPromise = safeExecuteInTheMiddle(
+          () => {
+            return context.with(trace.setSpan(execContext, span), () => {
+              return originalSendMessageStream(...sendArgs);
             });
+          },
+          (error: Error | undefined) => {
+            if (error) {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+            }
+          },
+        );
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return execPromise.then(async (stream: any) => {
+          const chunks = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let lastChunk: any;
+          for await (const chunk of stream) {
+            chunks.push(chunk);
+            lastChunk = chunk;
+          }
+
+          if (lastChunk) {
+            span.setAttributes({
+              [SemanticConventions.OUTPUT_VALUE]:
+                safelyJSONStringify(lastChunk) || "",
+              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+            });
+          }
+
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+
+          return (async function* () {
+            for (const chunk of chunks) {
+              yield chunk;
+            }
+          })();
+        });
       };
     }
   }
@@ -566,7 +576,10 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
    * Patches methods on a Batches instance
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private patchBatchesInstance(batches: any, instrumentation: GoogleGenAIInstrumentation) {
+  private patchBatchesInstance(
+    batches: any,
+    instrumentation: GoogleGenAIInstrumentation,
+  ) {
     // Wrap createEmbeddings
     if (batches.createEmbeddings) {
       const originalCreateEmbeddings = batches.createEmbeddings.bind(batches);
@@ -662,33 +675,44 @@ function getInputMessagesAttributes(params: any): Attributes {
     ? params.contents
     : [params.contents];
 
-  contents.forEach((content: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-any, index: number) => {
-    const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
+  contents.forEach(
+    (
+      content: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      any,
+      index: number,
+    ) => {
+      const indexPrefix = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.`;
 
-    if (typeof content === "string") {
-      attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = "user";
-      attributes[`${indexPrefix}${SemanticConventions.MESSAGE_CONTENT}`] =
-        content;
-    } else if (content.role) {
-      attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
-        content.role;
-      if (content.parts) {
-        content.parts.forEach((part: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-any, partIndex: number) => {
-          const partPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}.`;
-          if (part.text) {
-            attributes[
-              `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-            ] = "text";
-            attributes[
-              `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-            ] = part.text;
-          }
-        });
+      if (typeof content === "string") {
+        attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
+          "user";
+        attributes[`${indexPrefix}${SemanticConventions.MESSAGE_CONTENT}`] =
+          content;
+      } else if (content.role) {
+        attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
+          content.role;
+        if (content.parts) {
+          content.parts.forEach(
+            (
+              part: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              any,
+              partIndex: number,
+            ) => {
+              const partPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}.`;
+              if (part.text) {
+                attributes[
+                  `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+                ] = "text";
+                attributes[
+                  `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+                ] = part.text;
+              }
+            },
+          );
+        }
       }
-    }
-  });
+    },
+  );
 
   return attributes;
 }
@@ -701,15 +725,20 @@ function getToolsJSONSchema(params: any): Attributes {
   const attributes: Attributes = {};
 
   if (params?.config?.tools && Array.isArray(params.config.tools)) {
-    params.config.tools.forEach((tool: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-any, index: number) => {
-      const toolJsonSchema = safelyJSONStringify(tool);
-      if (toolJsonSchema) {
-        attributes[
-          `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`
-        ] = toolJsonSchema;
-      }
-    });
+    params.config.tools.forEach(
+      (
+        tool: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        any,
+        index: number,
+      ) => {
+        const toolJsonSchema = safelyJSONStringify(tool);
+        if (toolJsonSchema) {
+          attributes[
+            `${SemanticConventions.LLM_TOOLS}.${index}.${SemanticConventions.TOOL_JSON_SCHEMA}`
+          ] = toolJsonSchema;
+        }
+      },
+    );
   }
 
   return attributes;
@@ -731,29 +760,34 @@ function getOutputMessagesAttributes(response: any): Attributes {
         candidate.content.role || "model";
 
       if (candidate.content.parts) {
-        candidate.content.parts.forEach((part: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-any, partIndex: number) => {
-          const partPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}.`;
+        candidate.content.parts.forEach(
+          (
+            part: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            any,
+            partIndex: number,
+          ) => {
+            const partPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${partIndex}.`;
 
-          if (part.text) {
-            attributes[
-              `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-            ] = "text";
-            attributes[
-              `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-            ] = part.text;
-          }
+            if (part.text) {
+              attributes[
+                `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
+              ] = "text";
+              attributes[
+                `${partPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
+              ] = part.text;
+            }
 
-          if (part.functionCall) {
-            const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${partIndex}.`;
-            attributes[
-              `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-            ] = part.functionCall.name;
-            attributes[
-              `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-            ] = safelyJSONStringify(part.functionCall.args) || "{}";
-          }
-        });
+            if (part.functionCall) {
+              const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${partIndex}.`;
+              attributes[
+                `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+              ] = part.functionCall.name;
+              attributes[
+                `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
+              ] = safelyJSONStringify(part.functionCall.args) || "{}";
+            }
+          },
+        );
       }
     }
   }
@@ -769,8 +803,7 @@ function getUsageAttributes(response: any): Attributes {
   if (response?.usageMetadata) {
     const usage = response.usageMetadata;
     return {
-      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]:
-        usage.promptTokenCount || 0,
+      [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: usage.promptTokenCount || 0,
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
         usage.candidatesTokenCount || 0,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: usage.totalTokenCount || 0,

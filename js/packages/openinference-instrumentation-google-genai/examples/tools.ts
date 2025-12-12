@@ -51,12 +51,17 @@ async function main() {
   if (response.functionCalls && response.functionCalls.length > 0) {
     console.log("Function call requested:");
     console.log("Name:", response.functionCalls[0].name);
-    console.log("Arguments:", JSON.stringify(response.functionCalls[0].args, null, 2));
-    
+    console.log(
+      "Arguments:",
+      JSON.stringify(response.functionCalls[0].args, null, 2),
+    );
+
     // In a real application, you would:
     // 1. Execute the function with the provided arguments
     // 2. Send the result back to the model for a final response
-    console.log("\n--- In production, you would execute the function and send results back ---");
+    console.log(
+      "\n--- In production, you would execute the function and send results back ---",
+    );
   } else {
     console.log("Response:", response.text);
   }
@@ -66,4 +71,3 @@ main().catch((error) => {
   console.error("Error:", error);
   process.exit(1);
 });
-

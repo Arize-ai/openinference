@@ -29,7 +29,10 @@ pnpm add @arizeai/openinference-instrumentation-google-genai
 Due to ESM module limitations, the recommended approach is to use the `createInstrumentedGoogleGenAI` helper function:
 
 ```typescript
-import { NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import {
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { Resource } from "@opentelemetry/resources";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
@@ -46,8 +49,8 @@ provider.addSpanProcessor(
   new SimpleSpanProcessor(
     new OTLPTraceExporter({
       url: "http://localhost:6006/v1/traces", // Phoenix or your OTLP endpoint
-    })
-  )
+    }),
+  ),
 );
 
 provider.register();
@@ -102,12 +105,15 @@ const response = await ai.models.generateContent({
 You can configure trace behavior to mask sensitive information:
 
 ```typescript
-import { createInstrumentedGoogleGenAI, GoogleGenAIInstrumentation } from "@arizeai/openinference-instrumentation-google-genai";
+import {
+  createInstrumentedGoogleGenAI,
+  GoogleGenAIInstrumentation,
+} from "@arizeai/openinference-instrumentation-google-genai";
 
 // Create instrumentation with config
 const instrumentation = new GoogleGenAIInstrumentation({
   traceConfig: {
-    hideInputs: true,  // Mask input content
+    hideInputs: true, // Mask input content
     hideOutputs: true, // Mask output content
   },
 });
@@ -117,7 +123,7 @@ const ai = createInstrumentedGoogleGenAI(
   {
     apiKey: process.env.GOOGLE_API_KEY,
   },
-  instrumentation
+  instrumentation,
 );
 ```
 
@@ -126,11 +132,13 @@ const ai = createInstrumentedGoogleGenAI(
 This instrumentation automatically traces the following Google GenAI SDK operations:
 
 ### Models
+
 - `models.generateContent()` - Text generation
 - `models.generateContentStream()` - Streaming text generation
 - `models.generateImages()` - Image generation
 
 ### Chats
+
 - `chats.create()` - Create chat session
 - `chat.sendMessage()` - Send message in chat
 - `chat.sendMessageStream()` - Send message with streaming response
@@ -165,11 +173,13 @@ See the [examples](./examples) directory for complete working examples:
 ### With Phoenix (Recommended)
 
 1. Install Phoenix:
+
 ```bash
 pip install arize-phoenix
 ```
 
 2. Start Phoenix:
+
 ```bash
 python -m phoenix.server.main serve
 ```
@@ -185,7 +195,7 @@ Configure the `OTLPTraceExporter` to point to your collector:
 ```typescript
 new OTLPTraceExporter({
   url: "http://your-collector:4318/v1/traces",
-})
+});
 ```
 
 ## Troubleshooting

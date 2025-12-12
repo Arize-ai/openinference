@@ -8,19 +8,19 @@ let _globalInstrumentation: GoogleGenAIInstrumentation | null = null;
 
 /**
  * Creates an instrumented GoogleGenAI instance
- * 
+ *
  * @param options - GoogleGenAI configuration options
  * @param instrumentation - Optional instrumentation instance. If not provided, uses a global singleton
  * @returns An instrumented GoogleGenAI instance
- * 
+ *
  * @example
  * ```typescript
  * import { createInstrumentedGoogleGenAI } from "@arizeai/openinference-instrumentation-google-genai";
- * 
+ *
  * const ai = createInstrumentedGoogleGenAI({
  *   apiKey: process.env.GOOGLE_API_KEY,
  * });
- * 
+ *
  * // Use ai as normal - all calls are automatically traced
  * const response = await ai.models.generateContent({
  *   model: "gemini-2.5-flash",
@@ -36,8 +36,11 @@ export function createInstrumentedGoogleGenAI(
   const ai = new GoogleGenAI(options);
 
   // Use provided instrumentation or create/reuse global singleton
-  const inst = instrumentation || _globalInstrumentation || new GoogleGenAIInstrumentation();
-  
+  const inst =
+    instrumentation ||
+    _globalInstrumentation ||
+    new GoogleGenAIInstrumentation();
+
   // Store as global if we created it
   if (!instrumentation && !_globalInstrumentation) {
     _globalInstrumentation = inst;
@@ -48,4 +51,3 @@ export function createInstrumentedGoogleGenAI(
 
   return ai;
 }
-
