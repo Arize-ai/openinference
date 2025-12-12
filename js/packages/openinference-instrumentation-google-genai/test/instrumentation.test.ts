@@ -41,7 +41,6 @@ describe("GoogleGenAIInstrumentation", () => {
   });
 
   describe("with manual mock modules", () => {
-
     it("should create span for generateContent when called", async () => {
       class Models {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -86,7 +85,10 @@ describe("GoogleGenAIInstrumentation", () => {
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
-      await mockGoogleGenAI.models.generateContent({ model: "gemini-2.0-flash", contents: "Hello" });
+      await mockGoogleGenAI.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: "Hello",
+      });
 
       const spans = memoryExporter.getFinishedSpans();
       expect(spans.length).toBeGreaterThan(0);
@@ -132,7 +134,10 @@ describe("GoogleGenAIInstrumentation", () => {
       const ctx = suppressTracing(context.active());
 
       await context.with(ctx, async () => {
-        await mockGoogleGenAI.models.generateContent({ model: "gemini-pro", contents: "Hello" });
+        await mockGoogleGenAI.models.generateContent({
+          model: "gemini-pro",
+          contents: "Hello",
+        });
       });
 
       const spans = memoryExporter.getFinishedSpans();
@@ -297,7 +302,9 @@ describe("GoogleGenAIInstrumentation", () => {
       const span = spans[0];
       expect(span.name).toBe("Google GenAI Batch Create Embeddings");
       expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
-      expect(span.attributes["embedding.model_name"]).toBe("text-embedding-004");
+      expect(span.attributes["embedding.model_name"]).toBe(
+        "text-embedding-004",
+      );
     });
 
     it.skip("should handle errors gracefully", async () => {
@@ -339,7 +346,10 @@ describe("GoogleGenAIInstrumentation", () => {
 
       // Call the method and catch the error
       try {
-        await mockGoogleGenAI.models.generateContent({ model: "gemini-2.0-flash", contents: "Hello" });
+        await mockGoogleGenAI.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: "Hello",
+        });
         // Should not reach here
         expect.fail("Expected an error to be thrown");
       } catch (error: unknown) {

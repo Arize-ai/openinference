@@ -16,7 +16,9 @@ async function main() {
     model: "gemini-2.5-flash",
     config: {
       systemInstruction: {
-        parts: [{ text: "You are a helpful assistant that speaks like a pirate." }],
+        parts: [
+          { text: "You are a helpful assistant that speaks like a pirate." },
+        ],
       },
     },
   });
@@ -58,4 +60,3 @@ main().catch((error) => {
   console.error("Error:", error);
   process.exit(1);
 });
-

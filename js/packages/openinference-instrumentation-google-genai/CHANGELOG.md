@@ -25,6 +25,7 @@
 ### Implementation Details
 
 This instrumentation works by wrapping the `GoogleGenAI` constructor to intercept instance creation. When a new `GoogleGenAI` instance is created, the instrumentation automatically wraps methods on:
+
 - `ai.models.*` - Content generation methods
 - `ai.chats.*` - Chat session methods
 
