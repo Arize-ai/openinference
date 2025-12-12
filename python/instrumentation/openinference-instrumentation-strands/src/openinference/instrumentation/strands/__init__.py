@@ -7,20 +7,20 @@ with Arize AI.
 Usage:
     from strands.telemetry import StrandsTelemetry
     from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
-    
+
     # Setup Strands native telemetry
     telemetry = StrandsTelemetry()
     telemetry.setup_otlp_exporter(endpoint="http://localhost:6006/v1/traces")
-    
+
     # Add OpenInference processor to transform spans
     telemetry.tracer_provider.add_span_processor(
         StrandsToOpenInferenceProcessor(debug=False)
     )
-    
+
     # Now use your Strands agents normally - spans will be automatically transformed
     from strands import Agent
     from strands.models.openai import OpenAIModel
-    
+
     model = OpenAIModel(model_id="gpt-4o-mini")
     agent = Agent(name="MyAgent", model=model)
     result = agent("Hello!")
