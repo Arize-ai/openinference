@@ -1,4 +1,3 @@
-import importlib
 import json
 from abc import ABC
 from copy import copy, deepcopy
@@ -24,7 +23,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
+from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
     OITracer,
@@ -56,7 +55,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     OpenInference Instrumentor for DSPy
     """
 
-    _originals: Dict[Tuple[str, str, str], Any] = {}
+    _originals: list[tuple[str, str]] = []
 
     def _wrap_object(
         self,
@@ -66,13 +65,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         args: Tuple[Any, ...] = (),
         kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        module_obj = importlib.import_module(module)
-        class_name, method_name = name.split(".")
-        cls = getattr(module_obj, class_name)
-        original_attr = getattr(cls, method_name)
-        key = (module, class_name, method_name)
-        if key not in self._originals:
-            self._originals[key] = original_attr
         wrap_object(
             module=module,
             name=name,
@@ -80,6 +72,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=args,
             kwargs=kwargs or {},
         )
+        self._originals.append((module, name))
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -228,15 +221,8 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        # Restore DSPy constructs
-        from dspy import Predict
-
-        if hasattr(Predict.forward, "__wrapped__"):
-            Predict.forward = Predict.forward.__wrapped__
-        for (module_name, class_name, method_name), original in self._originals.items():
-            module = importlib.import_module(module_name)
-            cls = getattr(module, class_name)
-            setattr(cls, method_name, original)
+        for module, name in self._originals[::-1]:
+            unwrap_object(module, name)
         self._originals.clear()
 
 
@@ -1129,6 +1115,38 @@ def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict
     else:
         output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
     return output_attributes
+
+
+def unwrap_object(module: Any, name: str) -> Optional[Any]:
+    """
+    Undo wrapt-style wrapping by restoring the original method
+    that lives under the __wrapped__ chain.
+
+    Args:
+        module: class, instance, or module where the method was wrapped.
+        name: attribute name to unwrap.
+
+    Returns:
+        The restored original attribute, or None if not wrapped.
+    """
+    parent, attribute_name, wrapped = resolve_path(module, name)
+
+    if wrapped is None:
+        logger.warning(f"{module}.{name} not found")
+        return None
+
+    # Start from the wrapped attribute
+    original: Optional[Any] = getattr(wrapped, "__wrapped__", None)
+
+    # Walk through chain: wrapper -> wrapper -> original
+    while original is not None and hasattr(original, "__wrapped__"):
+        original = getattr(original, "__wrapped__", None)
+    if original is not None:
+        # apply_patch(parent, attribute_name, original)
+        apply_patch(parent, attribute_name, original)
+    else:
+        logger.warning(f"module: {module}, method: {name} not wrapped")
+    return original
 
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
