@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.28...python-openinference-instrumentation-haystack-v0.1.29) (2025-12-04)
+
+
+### Features
+
+* **haystack:** align embedding spans with OpenAI/LiteLLM patterns ([#2437](https://github.com/Arize-ai/openinference/issues/2437)) ([4e9685d](https://github.com/Arize-ai/openinference/commit/4e9685d375e43c40ccc494514cd71746d60d5d10))
+
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.27...python-openinference-instrumentation-haystack-v0.1.28) (2025-11-18)
+
+
+### Features
+
+* **haystack:** Added Components instrumentation ([#2383](https://github.com/Arize-ai/openinference/issues/2383)) ([f22d546](https://github.com/Arize-ai/openinference/commit/f22d54638a655078b6919e5e05b1678b613931e3))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.26...python-openinference-instrumentation-haystack-v0.1.27) (2025-10-29)
 
 

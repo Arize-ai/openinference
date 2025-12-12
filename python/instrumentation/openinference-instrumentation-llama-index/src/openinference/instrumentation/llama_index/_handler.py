@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from functools import singledispatch, singledispatchmethod
 from importlib.metadata import version
+from io import IOBase
 from queue import SimpleQueue
 from threading import RLock, Thread
 from time import sleep, time, time_ns
@@ -55,6 +56,10 @@ except ImportError:
     except ImportError:
         BaseAgent = None  # type: ignore[misc,assignment]
         BaseAgentWorker = None  # type: ignore[misc,assignment]
+try:
+    from llama_index.core.base.llms.types import ToolCallBlock  # type: ignore
+except ImportError:
+    ToolCallBlock = None  # type: ignore
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.llms.base import BaseLLM
@@ -733,10 +738,13 @@ class _Span(BaseSpan):
         for i, message in enumerate(messages):
             self[f"{prefix}.{i}.{MESSAGE_ROLE}"] = message.role.value
             blocks = message.blocks
+            tool_calls = []
             if len(blocks) == 1 and isinstance(blocks[0], TextBlock):
                 self[f"{prefix}.{i}.{MESSAGE_CONTENT}"] = blocks[0].text
             else:
                 for j, block in enumerate(blocks):
+                    if ToolCallBlock is not None and isinstance(block, ToolCallBlock):
+                        tool_calls.append(block)
                     for k, v in _get_attributes_from_content_block(
                         block,
                         prefix=f"{prefix}.{i}.{MESSAGE_CONTENTS}.{j}.",
@@ -745,7 +753,7 @@ class _Span(BaseSpan):
             additional_kwargs = message.additional_kwargs
             if name := additional_kwargs.get("name"):
                 self[f"{prefix}.{i}.{MESSAGE_NAME}"] = name
-            if tool_calls := additional_kwargs.get("tool_calls"):
+            if tool_calls := (additional_kwargs.get("tool_calls") or tool_calls):
                 for j, tool_call in enumerate(tool_calls):
                     for k, v in _get_tool_call(tool_call):
                         self[f"{prefix}.{i}.{MESSAGE_TOOL_CALLS}.{j}.{k}"] = v
@@ -843,9 +851,17 @@ def _get_attributes_from_image_block(
     prefix: str = "",
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if obj.image and obj.image_mimetype:
-        url = f"data:{obj.image_mimetype};base64,{obj.image.decode()}"
-        yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
-        yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
+        url = None
+        if isinstance(obj.image, bytes):
+            image_bytes = obj.image
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        elif isinstance(obj.image, IOBase):
+            obj.image.seek(0)
+            image_bytes = obj.image.read()
+            url = f"data:{obj.image_mimetype};base64,{image_bytes.decode()}"
+        if url:
+            yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", url
+            yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
     elif obj.url:
         yield f"{prefix}{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}", str(obj.url)
         yield f"{prefix}{MESSAGE_CONTENT_TYPE}", "image"
@@ -1062,6 +1078,18 @@ def _get_tool_call(tool_call: object) -> Iterator[Tuple[str, Any]]:
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, arguments
             elif isinstance(arguments, dict):
                 yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, safe_json_dumps(arguments)
+    elif ToolCallBlock is not None and isinstance(tool_call, ToolCallBlock):
+        if tool_call_id := getattr(tool_call, "tool_call_id", None):
+            yield TOOL_CALL_ID, tool_call_id
+        if name := getattr(tool_call, "tool_name", None):
+            yield TOOL_CALL_FUNCTION_NAME, name
+        if isinstance(getattr(tool_call, "tool_kwargs", None), str):
+            yield TOOL_CALL_FUNCTION_ARGUMENTS_JSON, getattr(tool_call, "tool_kwargs", None)
+        else:
+            yield (
+                TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
+                safe_json_dumps(getattr(tool_call, "tool_kwargs", None)),
+            )
     elif function := getattr(tool_call, "function", None):
         if tool_call_id := getattr(tool_call, "id", None):
             yield TOOL_CALL_ID, tool_call_id

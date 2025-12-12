@@ -2,14 +2,17 @@ import json
 import os
 from typing import Any, Mapping, Sequence, Tuple, cast
 
+import crewai
 import pytest
 from crewai import LLM, Agent, Crew, Task
+from crewai.crews import CrewOutput
 from crewai.flow.flow import Flow, listen, start  # type: ignore[import-untyped, unused-ignore]
 from crewai.tools import BaseTool  # type: ignore[import-untyped, unused-ignore]
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
+from packaging import version
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
@@ -20,6 +23,7 @@ from openinference.semconv.trace import (
 
 # Don't record or send telemetry to CrewAI during tests
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
+os.environ["CREWAI_TESTING"] = "true"
 
 
 class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc, unused-ignore]
@@ -60,7 +64,9 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 5, f"Expected 5 spans (2 tool + 2 agent + 1 crew), got {len(spans)}"
+    crewai_version = version.parse(crewai.__version__)
+    expected_spans = 5 if crewai_version <= version.parse("1.4.0") else 4
+    assert len(spans) == expected_spans, f"Expected {expected_spans} spans, got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
     assert len(crew_spans) == 1
@@ -115,6 +121,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
         goal="Extract quotes from text",
         backstory="You extract quotes from text",
         llm=llm,
+        tools=[],
         max_iter=1,
         max_retry_limit=0,
         verbose=True,
@@ -138,9 +145,11 @@ def kickoff_crew() -> Tuple[Task, Task]:
         agents=[scraper_agent, analyzer_agent],
         tasks=[scrape_task, analyze_task],
     )
-    result = crew.kickoff().raw
+    crew_output = crew.kickoff()
+    result = ""
+    if isinstance(crew_output, CrewOutput):
+        result = crew_output.raw
     assert isinstance(result, str)
-
     expected = "Albert Einstein"
     assert expected in result, "Expected quote not found in result"
     return analyze_task, scrape_task

@@ -45,6 +45,7 @@ test = [
   "openai",
   "ddgs",
   "yfinance",
+  "fastapi",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

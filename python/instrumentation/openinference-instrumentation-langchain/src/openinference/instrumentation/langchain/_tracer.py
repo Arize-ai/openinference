@@ -606,24 +606,66 @@ def _output_messages(
         yield LLM_OUTPUT_MESSAGES, parsed_messages
 
 
-@stop_on_exception
-def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
-    if not message_data:
-        return
-    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
-    id_ = message_data.get("id")
-    assert isinstance(id_, List), f"expected list, found {type(id_)}"
-    message_class_name = id_[-1]
+def _infer_role_from_context(message_data: Mapping[str, Any]) -> Optional[str]:
+    """
+    Infer message role from context when the id field is unavailable.
+
+    This is a fallback strategy used when LangGraph streaming produces messages
+    without the standard id field (e.g., when message["id"] is None).
+
+    Args:
+        message_data: The message data mapping
+
+    Returns:
+        The inferred role string, or None if role cannot be determined
+    """
+    # Check for tool_call_id in kwargs - indicates a tool message
+    if kwargs := message_data.get("kwargs"):
+        if isinstance(kwargs, Mapping):
+            if kwargs.get("tool_call_id"):
+                return "tool"
+
+            # Check for tool_calls - indicates an assistant message
+            if kwargs.get("tool_calls"):
+                return "assistant"
+
+            # Check for explicit role in kwargs (e.g., ChatMessage)
+            if role := kwargs.get("role"):
+                if isinstance(role, str):
+                    return role
+
+    # Check for tool_calls at the top level (LangGraph style)
+    if message_data.get("tool_calls"):
+        return "assistant"
+
+    # Unable to infer role from context
+    return None
+
+
+def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, Any]) -> str:
+    """
+    Map a LangChain message class name to its corresponding role.
+
+    Args:
+        message_class_name: The class name from the message id
+        message_data: The full message data (needed for ChatMessage role lookup)
+
+    Returns:
+        The role string
+
+    Raises:
+        ValueError: If the message class name is not recognized
+    """
     if message_class_name.startswith("HumanMessage"):
-        role = "user"
+        return "user"
     elif message_class_name.startswith("AIMessage"):
-        role = "assistant"
+        return "assistant"
     elif message_class_name.startswith("SystemMessage"):
-        role = "system"
+        return "system"
     elif message_class_name.startswith("FunctionMessage"):
-        role = "function"
+        return "function"
     elif message_class_name.startswith("ToolMessage"):
-        role = "tool"
+        return "tool"
     elif message_class_name.startswith("ChatMessage"):
         role = message_data["kwargs"]["role"]
     elif message_class_name.startswith("RemoveMessage"):
@@ -633,7 +675,77 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
         return
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
-    yield MESSAGE_ROLE, role
+
+
+@stop_on_exception
+def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, Any]]:
+    """
+    Extract the message role from message data with multiple fallback strategies.
+
+    This function handles cases where the standard id field may be missing or None,
+    which can occur in LangGraph streaming scenarios.
+
+    Fallback strategies:
+    1. Try extracting from id field (standard LangChain serialization)
+    2. Try extracting from type field
+    3. Try inferring from message context (tool_calls, tool_call_id, etc.)
+    4. If all fail, log warning and skip role (span continues without role attribute)
+    """
+    if not message_data:
+        return
+    assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
+
+    role = None
+
+    # Strategy 1: Try the standard id field approach
+    id_ = message_data.get("id")
+    if id_ is not None and isinstance(id_, List) and len(id_) > 0:
+        try:
+            message_class_name = id_[-1]
+            role = _map_class_name_to_role(message_class_name, message_data)
+            logger.debug("Extracted message role from id field: %s", role)
+        except (IndexError, KeyError, ValueError, TypeError, AttributeError) as e:
+            logger.debug("Failed to extract role from id field: %s", e)
+
+    # Strategy 2: Try the type field (alternative serialization format)
+    if role is None:
+        type_field = message_data.get("type")
+        if isinstance(type_field, str):
+            # Map common type values to roles
+            type_to_role = {
+                "human": "user",
+                "ai": "assistant",
+                "system": "system",
+                "function": "function",
+                "tool": "tool",
+            }
+            role = type_to_role.get(type_field.lower())
+            if role:
+                logger.debug("Extracted message role from type field: %s", role)
+
+    # Strategy 3: Try direct role field (for raw dict messages)
+    if role is None:
+        direct_role = message_data.get("role")
+        if isinstance(direct_role, str):
+            logger.debug("Extracted message role from direct role field: %s", direct_role)
+            role = direct_role
+
+    # Strategy 4: Try inferring from context
+    if role is None:
+        role = _infer_role_from_context(message_data)
+        if role:
+            logger.debug("Inferred message role from context: %s", role)
+
+    # If we found a role through any strategy, yield it
+    if role:
+        yield MESSAGE_ROLE, role
+    else:
+        # Log warning but don't fail - span will continue without role attribute
+        logger.warning(
+            "Unable to determine message role. Message data keys: %s. "
+            "Span will continue without role attribute.",
+            list(message_data.keys()),
+        )
 
 
 @stop_on_exception
