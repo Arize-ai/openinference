@@ -41,47 +41,6 @@ describe("GoogleGenAIInstrumentation", () => {
   });
 
   describe("with manual mock modules", () => {
-    it("should patch Models class methods", () => {
-      // Create a mock Models class with generateContent
-      class Models {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        async generateContent(_params: unknown) {
-          return {
-            candidates: [
-              {
-                content: {
-                  role: "model",
-                  parts: [{ text: "Hello! How can I help you?" }],
-                },
-              },
-            ],
-            usageMetadata: {
-              promptTokenCount: 10,
-              candidatesTokenCount: 20,
-              totalTokenCount: 30,
-            },
-          };
-        }
-      }
-
-      const mockModule = { Models };
-      
-      // Store original method
-      const originalMethod = Models.prototype.generateContent;
-
-      instrumentation.manuallyInstrument(mockModule);
-
-      // Verify the method is wrapped by checking if it's different
-      const wrappedMethod = Models.prototype.generateContent;
-      
-      // The wrapped method should be different from the original
-      // console.log("Original:", originalMethod.toString());
-      // console.log("Wrapped:", wrappedMethod.toString());
-      
-      expect(wrappedMethod).toBeDefined();
-      // If wrapping worked, the function reference should be different
-      // Note: This might not always be true depending on how _wrap works
-    });
 
     it("should create span for generateContent when called", async () => {
       class Models {
@@ -371,9 +330,18 @@ describe("GoogleGenAIInstrumentation", () => {
 
       instrumentation.instrumentInstance(mockGoogleGenAI);
 
-      await expect(
-        mockGoogleGenAI.models.generateContent({ model: "gemini-2.0-flash", contents: "Hello" }),
-      ).rejects.toThrow("API Error");
+      // Call the method and catch the error
+      try {
+        await mockGoogleGenAI.models.generateContent({ model: "gemini-2.0-flash", contents: "Hello" });
+        // Should not reach here
+        expect.fail("Expected an error to be thrown");
+      } catch (error: unknown) {
+        // Verify the error was thrown
+        expect((error as Error).message).toBe("API Error");
+      }
+
+      // Flush the span processor to ensure spans are exported
+      await provider.forceFlush();
 
       const spans = memoryExporter.getFinishedSpans();
       expect(spans.length).toBeGreaterThan(0);
