@@ -1,5 +1,15 @@
 # @arizeai/openinference-mastra
 
+## 3.0.4
+
+### Patch Changes
+
+- 006a685: signed publishing
+- Updated dependencies [006a685]
+  - @arizeai/openinference-core@2.0.1
+  - @arizeai/openinference-semantic-conventions@2.1.3
+  - @arizeai/openinference-vercel@2.5.1
+
 ## 3.0.3
 
 ### Patch Changes
