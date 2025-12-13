@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-bedrock
 
+## 0.4.7
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+- Updated dependencies [a4eead1]
+- Updated dependencies [a4eead1]
+  - @arizeai/openinference-core@2.0.4
+  - @arizeai/openinference-semantic-conventions@2.1.6
+
 ## 0.4.6
 
 ### Patch Changes
