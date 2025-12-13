@@ -1,5 +1,15 @@
 # @arizeai/openinference-genai
 
+## 0.1.4
+
+### Patch Changes
+
+- a4eead1: force publish
+- a4eead1: signed publishing
+- Updated dependencies [a4eead1]
+- Updated dependencies [a4eead1]
+  - @arizeai/openinference-semantic-conventions@2.1.6
+
 ## 0.1.3
 
 ### Patch Changes
