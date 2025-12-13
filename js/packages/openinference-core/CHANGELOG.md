@@ -1,5 +1,15 @@
 # @arizeai/openinference-core
 
+## 2.0.2
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+- Updated dependencies [fe61379]
+- Updated dependencies [fe61379]
+  - @arizeai/openinference-semantic-conventions@2.1.4
+
 ## 2.0.1
 
 ### Patch Changes

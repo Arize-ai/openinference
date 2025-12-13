@@ -1,5 +1,12 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.1.4
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+
 ## 2.1.3
 
 ### Patch Changes

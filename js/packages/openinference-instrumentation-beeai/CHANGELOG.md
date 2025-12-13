@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.7
+
+### Patch Changes
+
+- fe61379: force publish
+- fe61379: signed publishing
+- Updated dependencies [fe61379]
+- Updated dependencies [fe61379]
+  - @arizeai/openinference-core@2.0.2
+  - @arizeai/openinference-semantic-conventions@2.1.4
+
 ## 1.5.6
 
 ### Patch Changes
