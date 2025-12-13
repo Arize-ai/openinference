@@ -1,5 +1,15 @@
 # @arizeai/openinference-genai
 
+## 0.1.3
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+- Updated dependencies [74f278c]
+- Updated dependencies [74f278c]
+  - @arizeai/openinference-semantic-conventions@2.1.5
+
 ## 0.1.2
 
 ### Patch Changes

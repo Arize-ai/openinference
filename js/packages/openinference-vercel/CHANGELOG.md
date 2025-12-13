@@ -1,5 +1,16 @@
 # @arizeai/openinference-vercel
 
+## 2.5.3
+
+### Patch Changes
+
+- 74f278c: force publish
+- 74f278c: signed publishing
+- Updated dependencies [74f278c]
+- Updated dependencies [74f278c]
+  - @arizeai/openinference-core@2.0.3
+  - @arizeai/openinference-semantic-conventions@2.1.5
+
 ## 2.5.2
 
 ### Patch Changes
