@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-mcp
 
+## 0.2.12
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-core@2.0.5
+  - @arizeai/openinference-semantic-conventions@2.1.7
+
 ## 0.2.11
 
 ### Patch Changes
