@@ -20,11 +20,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: setup node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/
           scope: "@arizeai"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
         with:
@@ -34,6 +36,13 @@ jobs:
       - name: Install Dependencies
         working-directory: ./js
         run: pnpm install --frozen-lockfile
+      - name: Creating .npmrc
+        run: |
+          cat << EOF > "$HOME/.npmrc"
+            //registry.npmjs.org/:_authToken=$NPM_TOKEN
+          EOF
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: create and publish versions
         uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
         with:
@@ -43,4 +52,6 @@ jobs:
           publish: pnpm ci:publish
           cwd: "./js"
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
