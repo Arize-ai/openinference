@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-anthropic",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "OpenInference instrumentation for Anthropic",
   "private": false,
   "main": "dist/src/index.js",

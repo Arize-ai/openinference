@@ -1,5 +1,16 @@
 # @arizeai/openinference-instrumentation-beeai
 
+## 1.5.10
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-core@2.0.5
+  - @arizeai/openinference-semantic-conventions@2.1.7
+
 ## 1.5.9
 
 ### Patch Changes

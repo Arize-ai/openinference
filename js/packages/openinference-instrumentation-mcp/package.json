@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-mcp",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "OpenInference instrumentation for MCP",
   "private": false,
   "main": "dist/src/index.js",

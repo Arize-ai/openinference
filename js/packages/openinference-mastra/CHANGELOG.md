@@ -1,5 +1,17 @@
 # @arizeai/openinference-mastra
 
+## 3.0.8
+
+### Patch Changes
+
+- c79c564: force publish
+- c79c564: signed publishing
+- Updated dependencies [c79c564]
+- Updated dependencies [c79c564]
+  - @arizeai/openinference-core@2.0.5
+  - @arizeai/openinference-semantic-conventions@2.1.7
+  - @arizeai/openinference-vercel@2.5.5
+
 ## 3.0.7
 
 ### Patch Changes
