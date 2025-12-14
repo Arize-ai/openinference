@@ -174,7 +174,7 @@ def test_team_spans_have_required_attributes(instrumented_team):
     attributes = dict(team_span.attributes or {})
     
     assert "openinference.span.kind" in attributes, "Missing openinference.span.kind"
-    assert attributes["openinference.span.kind"] == "AGENT", "Wrong span kind (expected uppercase AGENT)"
+    assert attributes["openinference.span.kind"] == "AGENT"
     assert "graph.node.id" in attributes, "Team span missing graph.node.id attribute"
 
 
