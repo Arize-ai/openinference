@@ -5,23 +5,21 @@ create separate top-level traces instead of nesting.
 These tests should FAIL before the fix is applied and PASS after.
 """
 
+from typing import Iterator, Sequence, Tuple
+
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.team import Team
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.agno import AgnoInstrumentor
 
-# Skip if agno is not available
-pytest.importorskip("agno", minversion="2.3.0")
-
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
-from agno.team import Team
-
 
 @pytest.fixture
-def instrumented_team():
+def instrumented_team() -> Iterator[Tuple[Team, InMemorySpanExporter]]:
     """Set up instrumentation and return a Team with an Agent."""
     # Create tracer provider with in-memory exporter
     tracer_provider = TracerProvider()
@@ -54,23 +52,26 @@ def instrumented_team():
     exporter.clear()
 
 
-def _get_team_spans(spans):
+def _get_team_spans(spans: Sequence[ReadableSpan]) -> list[ReadableSpan]:
     """Get all Team spans using attributes, not name strings."""
-    team_spans = []
+    team_spans: list[ReadableSpan] = []
     for span in spans:
         attributes = dict(span.attributes or {})
         # Identify Team spans by checking for agno.team.id or graph.node.name containing team
-        if ("agno.team.id" in attributes or 
-            (attributes.get("graph.node.name") and "Team" in str(attributes.get("graph.node.name")))):
+        if "agno.team.id" in attributes or (
+            attributes.get("graph.node.name") and "Team" in str(attributes.get("graph.node.name"))
+        ):
             team_spans.append(span)
     return team_spans
 
 
-def test_multiple_team_runs_create_separate_traces(instrumented_team):
+def test_multiple_team_runs_create_separate_traces(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that multiple team.run() calls create separate top-level traces,
     not nested traces.
-    
+
     This is the key test that should FAIL before the fix.
     """
     team, exporter = instrumented_team
@@ -111,10 +112,12 @@ def test_multiple_team_runs_create_separate_traces(instrumented_team):
         )
 
 
-def test_multiple_sequential_calls_without_nesting(instrumented_team):
+def test_multiple_sequential_calls_without_nesting(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that the fix resolves nesting for sequential team calls.
-    
+
     Before the fix, subsequent team.run() calls would nest under previous ones.
     After the fix, each should be a separate top-level trace.
     """
@@ -139,20 +142,22 @@ def test_multiple_sequential_calls_without_nesting(instrumented_team):
     # Verify neither span has the other as parent
     if len(team_spans) >= 2:
         span1, span2 = team_spans[0], team_spans[1]
-        
+
         # Span 2 should NOT have Span 1 as parent
         if span2.parent and span2.parent.is_valid:
-            span2_parent_id = str(span2.parent.span_id)
-            span1_id = format(span1.context.span_id, "016x")
+            span2_parent_id = span2.parent.span_id
+            span1_id = span1.context.span_id
             assert span2_parent_id != span1_id, (
                 "Second team call has first team call as parent - nesting detected!"
             )
 
 
-def test_team_spans_have_required_attributes(instrumented_team):
+def test_team_spans_have_required_attributes(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that team spans have required OpenInference attributes.
-    
+
     This ensures our fix doesn't break attribute collection.
     """
     team, exporter = instrumented_team
@@ -172,17 +177,19 @@ def test_team_spans_have_required_attributes(instrumented_team):
     # Check required attributes on first team span
     team_span = team_spans[0]
     attributes = dict(team_span.attributes or {})
-    
+
     assert "openinference.span.kind" in attributes, "Missing openinference.span.kind"
     assert attributes["openinference.span.kind"] == "AGENT"
     assert "graph.node.id" in attributes, "Team span missing graph.node.id attribute"
 
 
 @pytest.mark.asyncio
-async def test_multiple_async_team_runs_create_separate_traces(instrumented_team):
+async def test_multiple_async_team_runs_create_separate_traces(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that multiple team.arun() calls create separate top-level traces.
-    
+
     Same as the sync test but for async execution.
     """
     team, exporter = instrumented_team
@@ -212,12 +219,13 @@ async def test_multiple_async_team_runs_create_separate_traces(instrumented_team
     for team_span in team_spans:
         parent_span_context = team_span.parent
         assert parent_span_context is None or not parent_span_context.is_valid, (
-            f"Async team span has a parent span! "
-            f"Parent: {parent_span_context}"
+            f"Async team span has a parent span! Parent: {parent_span_context}"
         )
 
 
-def test_sequential_team_runs_have_different_trace_ids(instrumented_team):
+def test_sequential_team_runs_have_different_trace_ids(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that sequential team.run() calls have different trace IDs,
     confirming they are truly separate traces.
@@ -257,10 +265,12 @@ def test_sequential_team_runs_have_different_trace_ids(instrumented_team):
     )
 
 
-def test_team_context_cleanup_between_runs(instrumented_team):
+def test_team_context_cleanup_between_runs(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that context is properly cleaned up between team runs.
-    
+
     This verifies that internal context state doesn't leak between calls.
     """
     team, exporter = instrumented_team
@@ -292,8 +302,8 @@ def test_team_context_cleanup_between_runs(instrumented_team):
 
     # Second span should NOT reference first span as parent
     if second_team_span.parent is not None and second_team_span.parent.is_valid:
-        second_parent_id = str(second_team_span.parent.span_id)
-        first_span_id = format(first_team_span.context.span_id, "016x")
+        second_parent_id = second_team_span.parent.span_id
+        first_span_id = first_team_span.context.span_id
 
         assert second_parent_id != first_span_id, (
             "Second team run incorrectly has first team run as parent! "
@@ -302,7 +312,9 @@ def test_team_context_cleanup_between_runs(instrumented_team):
 
 
 @pytest.mark.asyncio
-async def test_mixed_sync_async_team_runs_create_separate_traces(instrumented_team):
+async def test_mixed_sync_async_team_runs_create_separate_traces(
+    instrumented_team: Tuple[Team, InMemorySpanExporter],
+) -> None:
     """
     Test that mixing sync and async team runs still creates separate traces.
     """
