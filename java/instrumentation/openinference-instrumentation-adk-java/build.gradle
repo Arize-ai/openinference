@@ -1,5 +1,7 @@
 plugins {
     id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'maven-publish'
 }
 
 group = 'com.arize'
@@ -8,23 +10,59 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    // upgrade openinference-instrumentation
-    api project(':openinference-instrumentation')
-
-    // Spring AI
-    implementation 'io.micrometer:micrometer-observation:1.15.1'
-    implementation 'io.micrometer:micrometer-tracing-bridge-brave:1.5.1'
-    implementation 'org.springframework.ai:spring-ai-model:1.0.1'
-
-    // OpenTelemetry
-    api "io.opentelemetry:opentelemetry-api"
-    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api"
-    api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:${openTelemetryInstrumentationAlphaVersion}"
-    testImplementation platform('org.junit:junit-bom:5.9.1')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+ext {
+    adkVersion = '0.4.0'
+    openTelemetryVersion = '1.55.0'
+    byteBuddyVersion = '1.17.8'
+    jacksonVersion = '3.0.2'
 }
 
-test {
-    useJUnitPlatform()
+dependencies {
+    implementation("com.google.adk:google-adk:${adkVersion}") {
+        exclude group: 'com.github.docker-java', module: 'docker-java'
+        exclude group: 'com.github.docker-java', module: 'docker-java-transport-httpclient5'
+    }
+    implementation "com.arize:openinference-semantic-conventions:0.1.9"
+    implementation "com.arize:openinference-instrumentation:0.1.7"
+    implementation "net.bytebuddy:byte-buddy:${byteBuddyVersion}"
+    implementation "net.bytebuddy:byte-buddy-agent:${byteBuddyVersion}"
+    implementation "tools.jackson.core:jackson-core:${jacksonVersion}"
+    implementation "tools.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk-logs:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk-trace:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-exporter-otlp:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-exporter-logging:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-api:${openTelemetryVersion}"
+    implementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:${openTelemetryVersion}"
+}
+
+java {
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += '-parameters'
+    options.verbose = true
+}
+
+shadowJar {
+    archiveBaseName.set(project.name)
+    archiveClassifier.set(null)
+    archiveVersion.set(project.version)
+
+    relocate 'org.slf4j', 'agent.shaded.org.slf4j'
+
+    manifest {
+        attributes 'Premain-Class': 'com.arize.instrumentation.adk.TelemetryAgent'
+    }
+
+    exclude('META-INF/*.SF')
+    exclude('META-INF/*.DSA')
+    exclude('META-INF/*.RSA')
+}
+
+jar {
+    enabled = false
 }
