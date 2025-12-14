@@ -214,6 +214,14 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # For Teams, create span with no parent to ensure top-level traces
+        # For Agents, use current context to maintain parent-child relationships
+        is_team = isinstance(instance, Team)
+        span_context = None
+        if is_team:
+            # Create a root context with no active span for top-level Team runs
+            span_context = trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -221,6 +229,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -284,12 +293,21 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # For Teams, create span with no parent to ensure top-level traces
+        # For Agents, use current context to maintain parent-child relationships
+        is_team = isinstance(instance, Team)
+        span_context = None
+        if is_team:
+            # Create a root context with no active span for top-level Team runs
+            span_context = trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -371,6 +389,14 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # For Teams, create span with no parent to ensure top-level traces
+        # For Agents, use current context to maintain parent-child relationships
+        is_team = isinstance(instance, Team)
+        span_context = None
+        if is_team:
+            # Create a root context with no active span for top-level Team runs
+            span_context = trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -378,6 +404,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -441,6 +468,14 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # For Teams, create span with no parent to ensure top-level traces
+        # For Agents, use current context to maintain parent-child relationships
+        is_team = isinstance(instance, Team)
+        span_context = None
+        if is_team:
+            # Create a root context with no active span for top-level Team runs
+            span_context = trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -448,6 +483,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
