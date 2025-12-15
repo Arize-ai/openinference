@@ -55,8 +55,6 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     OpenInference Instrumentor for DSPy
     """
 
-    _originals: list[tuple[str, str]] = []
-
     def _wrap_object(
         self,
         module: str,
@@ -78,6 +76,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        self._originals: list[tuple[str, str]] = []
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):

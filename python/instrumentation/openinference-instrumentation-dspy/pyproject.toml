@@ -46,6 +46,9 @@ test = [
   "pytest-recording",
   "litellm",
   "urllib3<3.0",
+  # A recent vcrpy update introduced an issue where a future is not properly awaited,
+  # causing: "RuntimeError: await wasn't used with future".
+  # Pinning vcrpy to the last known working version until the issue is resolved.
   "vcrpy==7.0.0",
 ]
 
