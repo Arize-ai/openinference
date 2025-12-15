@@ -29,9 +29,7 @@ class TestInstrumentor:
         """Test that instrumentor uses OITracer from common package."""
         assert isinstance(PipecatInstrumentor()._tracer, OITracer)
 
-    def test_instrument_wraps_pipeline_task(
-        self, tracer_provider: TracerProvider
-    ) -> None:
+    def test_instrument_wraps_pipeline_task(self, tracer_provider: TracerProvider) -> None:
         """Test that instrument() wraps PipelineTask.__init__."""
         # Ensure not already instrumented
         PipecatInstrumentor().uninstrument()
@@ -48,9 +46,7 @@ class TestInstrumentor:
         # Clean up
         PipecatInstrumentor().uninstrument()
 
-    def test_uninstrument_restores_original(
-        self, tracer_provider: TracerProvider
-    ) -> None:
+    def test_uninstrument_restores_original(self, tracer_provider: TracerProvider) -> None:
         """Test that uninstrument() restores original PipelineTask.__init__."""
         # Ensure clean state
         PipecatInstrumentor().uninstrument()
@@ -98,9 +94,7 @@ class TestInstrumentor:
         with pytest.raises(RuntimeError, match="must be instrumented"):
             instrumentor.create_observer()
 
-    def test_create_observer_after_instrument(
-        self, tracer_provider: TracerProvider
-    ) -> None:
+    def test_create_observer_after_instrument(self, tracer_provider: TracerProvider) -> None:
         """Test manual observer creation after instrumentation."""
         instrumentor = PipecatInstrumentor()
         instrumentor.instrument(tracer_provider=tracer_provider)
@@ -111,9 +105,7 @@ class TestInstrumentor:
         finally:
             instrumentor.uninstrument()
 
-    def test_instrument_with_custom_config(
-        self, tracer_provider: TracerProvider
-    ) -> None:
+    def test_instrument_with_custom_config(self, tracer_provider: TracerProvider) -> None:
         """Test instrumentation with custom TraceConfig."""
         custom_config = TraceConfig()
         instrumentor = PipecatInstrumentor()
@@ -126,16 +118,12 @@ class TestInstrumentor:
         finally:
             instrumentor.uninstrument()
 
-    def test_instrument_with_debug_log_filename(
-        self, tracer_provider: TracerProvider
-    ) -> None:
+    def test_instrument_with_debug_log_filename(self, tracer_provider: TracerProvider) -> None:
         """Test instrumentation with debug log filename."""
         debug_log = "test_debug.log"
         instrumentor = PipecatInstrumentor()
 
-        instrumentor.instrument(
-            tracer_provider=tracer_provider, debug_log_filename=debug_log
-        )
+        instrumentor.instrument(tracer_provider=tracer_provider, debug_log_filename=debug_log)
 
         try:
             # Verify the debug log filename is stored

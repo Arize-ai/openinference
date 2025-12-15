@@ -140,7 +140,10 @@ class TestServiceAttributeExtraction:
         """Test LLM service attribute extraction."""
         attributes = extract_service_attributes(mock_llm_service)
 
-        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4"
         assert attributes[SpanAttributes.LLM_PROVIDER] == "openai"
         assert attributes["gen_ai.system"] == "openai"
@@ -153,7 +156,10 @@ class TestServiceAttributeExtraction:
         """Test STT service attribute extraction."""
         attributes = extract_service_attributes(mock_stt_service)
 
-        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "nova-2"
         assert attributes[SpanAttributes.LLM_PROVIDER] == "deepgram"
         assert attributes["service.model"] == "nova-2"
@@ -163,7 +169,10 @@ class TestServiceAttributeExtraction:
         """Test TTS service attribute extraction."""
         attributes = extract_service_attributes(mock_tts_service)
 
-        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "sonic-english"
         assert attributes[SpanAttributes.LLM_PROVIDER] == "cartesia"
         assert attributes["service.model"] == "sonic-english"
@@ -355,6 +364,7 @@ class TestSafeExtraction:
 
     def test_safe_extract_failure_returns_default(self) -> None:
         """Test extraction failure returns default value."""
+
         def failing_extractor() -> None:
             raise ValueError("Extraction failed")
 
@@ -363,6 +373,7 @@ class TestSafeExtraction:
 
     def test_safe_extract_failure_returns_none(self) -> None:
         """Test extraction failure returns None by default."""
+
         def failing_extractor() -> None:
             raise AttributeError("Missing attribute")
 

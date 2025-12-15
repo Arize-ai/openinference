@@ -68,6 +68,7 @@ def setup_pipecat_instrumentation(
 @pytest.fixture()
 def mock_llm_service() -> Mock:
     """Create a mock LLM service for testing."""
+
     # Create a real subclass to get proper MRO for service type detection
     class TestLLMService(LLMService):
         pass
@@ -83,6 +84,7 @@ def mock_llm_service() -> Mock:
 @pytest.fixture()
 def mock_stt_service() -> Mock:
     """Create a mock STT service for testing."""
+
     # Create a real subclass to get proper MRO for service type detection
     class TestSTTService(STTService):
         pass
@@ -98,6 +100,7 @@ def mock_stt_service() -> Mock:
 @pytest.fixture()
 def mock_tts_service() -> Mock:
     """Create a mock TTS service for testing."""
+
     # Create a real subclass to get proper MRO for service type detection
     class TestTTSService(TTSService):
         pass

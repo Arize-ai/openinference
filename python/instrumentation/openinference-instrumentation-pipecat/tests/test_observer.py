@@ -37,7 +37,7 @@ def create_frame_pushed(source, destination, frame, direction="down"):
         destination=destination,
         frame=frame,
         direction=direction,
-        timestamp=time.time()
+        timestamp=time.time(),
     )
 
 
@@ -57,9 +57,7 @@ class TestObserverInitialization:
         """Test observer initialization with conversation ID."""
         conversation_id = "test-conversation-123"
         observer = OpenInferenceObserver(
-            tracer=tracer,
-            config=config,
-            conversation_id=conversation_id
+            tracer=tracer, config=config, conversation_id=conversation_id
         )
 
         assert observer._conversation_id == conversation_id
@@ -70,28 +68,22 @@ class TestObserverInitialization:
         """Test observer with additional span attributes."""
         additional_attrs = {"user.id": "user123", "session.type": "test"}
         observer = OpenInferenceObserver(
-            tracer=tracer,
-            config=config,
-            additional_span_attributes=additional_attrs
+            tracer=tracer, config=config, additional_span_attributes=additional_attrs
         )
 
         assert observer._additional_span_attributes == {
             "user.id": "user123",
-            "session.type": "test"
+            "session.type": "test",
         }
 
-    def test_observer_with_debug_logging(
-        self, tracer: OITracer, config: TraceConfig
-    ) -> None:
+    def test_observer_with_debug_logging(self, tracer: OITracer, config: TraceConfig) -> None:
         """Test observer debug logging to file."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".log") as f:
             log_filename = f.name
 
         try:
             observer = OpenInferenceObserver(
-                tracer=tracer,
-                config=config,
-                debug_log_filename=log_filename
+                tracer=tracer, config=config, debug_log_filename=log_filename
             )
 
             assert observer._debug_log_file is not None
@@ -101,7 +93,7 @@ class TestObserverInitialization:
 
             # Verify log file was created and written to
             assert os.path.exists(log_filename)
-            with open(log_filename, 'r') as f:
+            with open(log_filename, "r") as f:
                 content = f.read()
                 assert "Observer initialized" in content
         finally:
@@ -142,28 +134,20 @@ class TestTurnTracking:
         """Test turn span has correct attributes."""
         conversation_id = "test-conv-456"
         observer = OpenInferenceObserver(
-            tracer=tracer,
-            config=config,
-            conversation_id=conversation_id
+            tracer=tracer, config=config, conversation_id=conversation_id
         )
 
         # Start turn
         frame = VADUserStartedSpeakingFrame()
         data = create_frame_pushed(
-            source=mock_stt_service,
-            destination=None,
-            frame=frame,
-            direction="down"
+            source=mock_stt_service, destination=None, frame=frame, direction="down"
         )
         await observer.on_push_frame(data)
 
         # End turn (simulate bot stopped speaking)
         end_frame = VADUserStoppedSpeakingFrame()
         end_data = create_frame_pushed(
-            source=mock_stt_service,
-            destination=None,
-            frame=end_frame,
-            direction="down"
+            source=mock_stt_service, destination=None, frame=end_frame, direction="down"
         )
 
         # Need to trigger _end_turn manually or via timeout
@@ -180,7 +164,10 @@ class TestTurnTracking:
         turn_span = turn_spans[0]
         attributes = dict(turn_span.attributes or {})
 
-        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.CHAIN.value
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.CHAIN.value
+        )
         assert attributes["conversation.turn_number"] == 1
         assert attributes[SpanAttributes.SESSION_ID] == conversation_id
         assert attributes["conversation.end_reason"] == "completed"
@@ -201,30 +188,21 @@ class TestServiceSpanCreation:
         # Start turn first
         start_frame = VADUserStartedSpeakingFrame()
         start_data = create_frame_pushed(
-            source=mock_stt_service,
-            destination=None,
-            frame=start_frame,
-            direction="down"
+            source=mock_stt_service, destination=None, frame=start_frame, direction="down"
         )
         await observer.on_push_frame(start_data)
 
         # Process transcription
         transcription = TranscriptionFrame(text="Hello world", user_id="test_user", timestamp=0)
         trans_data = create_frame_pushed(
-            source=mock_stt_service,
-            destination=None,
-            frame=transcription,
-            direction="down"
+            source=mock_stt_service, destination=None, frame=transcription, direction="down"
         )
         await observer.on_push_frame(trans_data)
 
         # End STT
         stop_frame = VADUserStoppedSpeakingFrame()
         stop_data = create_frame_pushed(
-            source=mock_stt_service,
-            destination=None,
-            frame=stop_frame,
-            direction="down"
+            source=mock_stt_service, destination=None, frame=stop_frame, direction="down"
         )
         await observer.on_push_frame(stop_data)
 
@@ -246,10 +224,7 @@ class TestServiceSpanCreation:
         context._messages = [{"role": "user", "content": "Hello"}]
         context_frame = LLMContextFrame(context=context)
         context_data = create_frame_pushed(
-            source=None,
-            destination=mock_llm_service,
-            frame=context_frame,
-            direction="down"
+            source=None, destination=mock_llm_service, frame=context_frame, direction="down"
         )
         await observer.on_push_frame(context_data)
 
@@ -260,10 +235,7 @@ class TestServiceSpanCreation:
         # End LLM
         end_frame = LLMFullResponseEndFrame()
         end_data = create_frame_pushed(
-            source=mock_llm_service,
-            destination=None,
-            frame=end_frame,
-            direction="down"
+            source=mock_llm_service, destination=None, frame=end_frame, direction="down"
         )
         await observer.on_push_frame(end_data)
 
@@ -280,10 +252,7 @@ class TestServiceSpanCreation:
         # Start TTS
         tts_start = TTSStartedFrame()
         start_data = create_frame_pushed(
-            source=mock_tts_service,
-            destination=None,
-            frame=tts_start,
-            direction="down"
+            source=mock_tts_service, destination=None, frame=tts_start, direction="down"
         )
         await observer.on_push_frame(start_data)
 
@@ -307,7 +276,9 @@ class TestTextAccumulation:
         context = LLMContext()
         context_frame = LLMContextFrame(context=context)
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=mock_llm_service, frame=context_frame, direction="down")
+            create_frame_pushed(
+                source=None, destination=mock_llm_service, frame=context_frame, direction="down"
+            )
         )
 
         service_id = id(mock_llm_service)
@@ -317,7 +288,9 @@ class TestTextAccumulation:
         for chunk in chunks:
             text_frame = LLMTextFrame(text=chunk)
             await observer.on_push_frame(
-                create_frame_pushed(source=mock_llm_service, destination=None, frame=text_frame, direction="down")
+                create_frame_pushed(
+                    source=mock_llm_service, destination=None, frame=text_frame, direction="down"
+                )
             )
 
         # Check accumulated output
@@ -335,7 +308,9 @@ class TestTextAccumulation:
         # Start STT
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_stt_service, destination=None, frame=start_frame, direction="down")
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
         )
 
         service_id = id(mock_stt_service)
@@ -345,7 +320,9 @@ class TestTextAccumulation:
         for chunk in chunks:
             trans_frame = TranscriptionFrame(text=chunk, user_id="test_user", timestamp=0)
             await observer.on_push_frame(
-                create_frame_pushed(source=mock_stt_service, destination=None, frame=trans_frame, direction="down")
+                create_frame_pushed(
+                    source=mock_stt_service, destination=None, frame=trans_frame, direction="down"
+                )
             )
 
         # Check accumulated input
@@ -369,7 +346,9 @@ class TestMetricsHandling:
         context = LLMContext()
         context_frame = LLMContextFrame(context=context)
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=mock_llm_service, frame=context_frame, direction="down")
+            create_frame_pushed(
+                source=None, destination=mock_llm_service, frame=context_frame, direction="down"
+            )
         )
 
         service_id = id(mock_llm_service)
@@ -377,13 +356,13 @@ class TestMetricsHandling:
         # Send metrics
         token_usage = LLMTokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30)
         metrics_data = LLMUsageMetricsData(
-            processor="TestLLMService",
-            model="gpt-4",
-            value=token_usage
+            processor="TestLLMService", model="gpt-4", value=token_usage
         )
         metrics_frame = MetricsFrame(data=[metrics_data])
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_llm_service, destination=None, frame=metrics_frame, direction="down")
+            create_frame_pushed(
+                source=mock_llm_service, destination=None, frame=metrics_frame, direction="down"
+            )
         )
 
         # Verify metrics are stored (in the span_info)
@@ -398,7 +377,9 @@ class TestMetricsHandling:
         # Start STT
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_stt_service, destination=None, frame=start_frame, direction="down")
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
         )
 
         service_id = id(mock_stt_service)
@@ -407,11 +388,13 @@ class TestMetricsHandling:
         processing_metrics = ProcessingMetricsData(
             processor="TestSTTService",
             model="nova-2",
-            value=1.5  # 1.5 seconds
+            value=1.5,  # 1.5 seconds
         )
         metrics_frame = MetricsFrame(data=[processing_metrics])
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_stt_service, destination=None, frame=metrics_frame, direction="down")
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=metrics_frame, direction="down"
+            )
         )
 
         # Verify processing time is stored
@@ -435,14 +418,18 @@ class TestSpanHierarchy:
         # Start turn
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_stt_service, destination=None, frame=start_frame, direction="down")
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
         )
 
         # Start LLM (within turn)
         context = LLMContext()
         context_frame = LLMContextFrame(context=context)
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=mock_llm_service, frame=context_frame, direction="down")
+            create_frame_pushed(
+                source=None, destination=mock_llm_service, frame=context_frame, direction="down"
+            )
         )
 
         # Verify both turn and LLM spans exist
@@ -468,21 +455,30 @@ class TestEdgeCases:
         """Test multiple service spans within a single turn."""
         # Start turn with STT
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_stt_service, destination=None,
-                       frame=VADUserStartedSpeakingFrame(), direction="down")
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            )
         )
 
         # Start LLM
         context = LLMContext()
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=mock_llm_service,
-                       frame=LLMContextFrame(context=context), direction="down")
+            create_frame_pushed(
+                source=None,
+                destination=mock_llm_service,
+                frame=LLMContextFrame(context=context),
+                direction="down",
+            )
         )
 
         # Start TTS
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_tts_service, destination=None,
-                       frame=TTSStartedFrame(), direction="down")
+            create_frame_pushed(
+                source=mock_tts_service, destination=None, frame=TTSStartedFrame(), direction="down"
+            )
         )
 
         # Verify all three services have active spans
@@ -499,16 +495,21 @@ class TestEdgeCases:
         # Start LLM
         context = LLMContext()
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=mock_llm_service,
-                       frame=LLMContextFrame(context=context), direction="down")
+            create_frame_pushed(
+                source=None,
+                destination=mock_llm_service,
+                frame=LLMContextFrame(context=context),
+                direction="down",
+            )
         )
 
         # Send text with inter_frame_spaces flag
         text_frame = LLMTextFrame(text="test")
         text_frame.includes_inter_frame_spaces = True
         await observer.on_push_frame(
-            create_frame_pushed(source=mock_llm_service, destination=None,
-                       frame=text_frame, direction="down")
+            create_frame_pushed(
+                source=mock_llm_service, destination=None, frame=text_frame, direction="down"
+            )
         )
 
         # Verify flag is tracked
