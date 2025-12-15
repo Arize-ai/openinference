@@ -113,6 +113,7 @@ target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"tests/**/*.py" = ["E501"]  # Ignore line length in tests
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
