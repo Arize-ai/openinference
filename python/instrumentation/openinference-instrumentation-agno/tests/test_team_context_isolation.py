@@ -81,7 +81,7 @@ def test_multiple_team_runs_create_separate_traces(
     for team_span in team_spans:
         parent_span_context = team_span.parent
         assert parent_span_context is None or not parent_span_context.is_valid, (
-            f"Team span has parent - traces are nesting instead of being separate"
+            "Team span has parent - traces are nesting instead of being separate"
         )
 
 
