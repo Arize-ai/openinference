@@ -8,10 +8,11 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
-from openinference.instrumentation.pipecat.package import _instruments
-from openinference.instrumentation.pipecat.version import __version__
 from pipecat.pipeline.task import PipelineTask
+
+from ._observer import OpenInferenceObserver
+from .package import _instruments
+from .version import __version__
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

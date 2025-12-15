@@ -4,28 +4,19 @@ import logging
 import time
 from contextvars import Token
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TextIO
 
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.pipecat._attributes import (
-    detect_service_type,
-    detect_service_type_from_class_string,
-    extract_attributes_from_frame,
-    extract_service_attributes,
-)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 from pipecat.frames.frames import (
     Frame,
-    LLMFullResponseEndFrame,
-    LLMFullResponseStartFrame,
-    TTSStartedFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
@@ -39,19 +30,21 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
 )
 from pipecat.observers.base_observer import FramePushed
-from pipecat.observers.loggers.user_bot_latency_log_observer import UserBotLatencyLogObserver
+from pipecat.observers.loggers.user_bot_latency_log_observer import (
+    UserBotLatencyLogObserver,
+)
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.llm_service import LLMService
 from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
 
-from pipecat.services.llm_service import LLMService
-from pipecat.services.stt_service import STTService
-from pipecat.services.tts_service import TTSService
-
-from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
-from pipecat.observers.loggers.user_bot_latency_log_observer import UserBotLatencyLogObserver
+from ._attributes import (  # noqa: F401
+    detect_service_type,
+    detect_service_type_from_class_string,
+    extract_attributes_from_frame,
+    extract_service_attributes,
+)
 
 # Suppress OpenTelemetry context detach errors - these are expected in async code
 # where contexts may be created and detached in different async contexts
@@ -60,7 +53,7 @@ logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
+class OpenInferenceObserver(TurnTrackingObserver):
     """
     Observer that creates OpenInference spans for Pipecat frame processing.
 
@@ -78,7 +71,7 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
         max_frames: int = 100,
         turn_end_timeout_secs: float = 2.5,
         verbose: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Initialize the observer.
@@ -86,27 +79,33 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
         Args:
             tracer: OpenInference tracer
             config: Trace configuration
+            additional_span_attributes: Optional additional span attributes to add to all spans
             conversation_id: Optional conversation/session ID to link all spans
             debug_log_filename: Optional filename for debug logging
-            max_frames: Maximum number of frame IDs to keep in history for
-                duplicate detection. Defaults to 100.
-            turn_end_timeout_secs: Timeout in seconds after bot stops speaking
-                before automatically ending the turn. Defaults to 2.5.
-            verbose: Optional verbose logging. Defaults to False
+            max_frames: Maximum number of frame IDs to keep in history for duplicate detection
+            turn_end_timeout_secs: Timeout in seconds after bot stops speaking before automatically
+                ending the turn
+            verbose: Optional verbose logging
+            kwargs: Additional keyword arguments to pass to the base class
         """
-        super().__init__(**kwargs)
-        self._tracer = tracer
-        self._config = config
+        super(TurnTrackingObserver, self).__init__(
+            max_frames=max_frames,
+            turn_end_timeout_secs=turn_end_timeout_secs,
+            **kwargs,
+        )
+        self._latency_observer: UserBotLatencyLogObserver = UserBotLatencyLogObserver()  # type: ignore
+        self._tracer: OITracer = tracer
+        self._config: TraceConfig = config
         self._additional_span_attributes: Dict[str, str] = {}
         if additional_span_attributes and isinstance(additional_span_attributes, dict):
             for k, v in additional_span_attributes.items():
                 self._additional_span_attributes[str(k)] = str(v)
         # Session management
-        self._conversation_id = conversation_id
+        self._conversation_id: Optional[str] = conversation_id
 
         # Debug logging to file
-        self._debug_log_file = None
-        self._verbose = verbose
+        self._debug_log_file: Optional[TextIO] = None
+        self._verbose: bool = verbose
         if debug_log_filename:
             # Write log to current working directory (where the script is running)
             try:
@@ -127,10 +126,10 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
         self._turn_user_text: List[str] = []
         self._turn_bot_text: List[str] = []
 
-        self._stt_includes_inter_frame_spaces = False
-        self._llm_includes_inter_frame_spaces = False
-        self._tts_includes_inter_frame_spaces = False
-        self._seen_vad_user_stopped_speaking_frame = False
+        self._stt_includes_inter_frame_spaces: bool = False
+        self._llm_includes_inter_frame_spaces: bool = False
+        self._tts_includes_inter_frame_spaces: bool = False
+        self._seen_vad_user_stopped_speaking_frame: bool = False
 
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
@@ -161,7 +160,7 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
         """
         await super().on_push_frame(data)
         # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
-        await UserBotLatencyLogObserver.on_push_frame(self, data)
+        await self._latency_observer.on_push_frame(data)
 
         try:
             src = data.source
@@ -246,12 +245,11 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
             # New Span
             if service_id not in self._active_spans:
                 if isinstance(
-                    frame, (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame)
+                    frame,
+                    (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame),
                 ):
                     self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
-                    self._log_debug(
-                        f"   >>>>  {service_type.upper()} response STARTED. ({frame})"
-                    )
+                    self._log_debug(f"   >>>>  {service_type.upper()} response STARTED. ({frame})")
 
                     # If no turn is active yet, start one automatically
                     # This ensures we capture initialization frames with proper context
@@ -271,7 +269,7 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
                         "frame_count": 0,
                         "accumulated_input": "",  # Deduplicated accumulated input text
                         "accumulated_output": "",  # Deduplicated accumulated output text
-                        "start_time_ns": time.time_ns(),  # Store start time in nanoseconds (Unix epoch)
+                        "start_time_ns": time.time_ns(),  # Store start time in nanoseconds
                         "processing_time_seconds": None,  # Will be set from metrics
                     }
                     # Increment frame count for this service
@@ -282,9 +280,10 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
                     if isinstance(frame, LLMContextFrame):
                         index = 0
                         for ctx in frame.context.messages:
-                            for key, value in ctx.items():
+                            for key, value in ctx.items():  # type: ignore[union-attr]
                                 span.set_attribute(
-                                    f"llm.input_messages.{index}.message.{key}", value
+                                    f"llm.input_messages.{index}.message.{key}",
+                                    value,  # type: ignore[arg-type]
                                 )
                             index += 1
 
@@ -365,7 +364,7 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
                         self._log_debug(f"setting span attribute - {key} : {value}")
 
                         if key == "service.processing_time_seconds":
-                            # Store processing time for use in _finish_span to calculate proper end_time
+                            # Store processing time for use in _finish_span to calculate end_time
                             span_info["processing_time_seconds"] = value
                         active_span.set_attribute(key, value)
 
@@ -521,15 +520,14 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
         # reset _seen_vad_user_stopped_speaking_frame
         self._seen_vad_user_stopped_speaking_frame = False
 
-        self._log_debug(f"\n{'=' * 60}")
         self._log_debug(
-            f">>> FINISHING TURN #{self._turn_count}"
-            + f" (interrupted={was_interrupted}, duration={duration:.2f}s)"
+            f"\n{'=' * 60}\n"
+            + f">>> FINISHING TURN #{self._turn_count}\n"
+            + f" (interrupted={was_interrupted}, duration={duration:.2f}s)\n"
+            + f"  Active service spans: {len(self._active_spans)}\n"
         )
-        self._log_debug(f"  Active service spans: {len(self._active_spans)}")
 
         # Set input/output attributes
-        print(f"____end_turn___observer.py * self._turn_user_text: {self._turn_user_text}")
         if self._turn_user_text:
             user_input = " ".join(self._turn_user_text)
             self._turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
@@ -541,11 +539,17 @@ class OpenInferenceObserver(TurnTrackingObserver, UserBotLatencyLogObserver):
             bot_output = join_space.join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
 
-        if len(self._latencies):  # from UserBotLatencyLogObserver
-            self._turn_span.set_attribute("conversation.user_to_bot_latency", self._latencies[-1])
-        if len(self._latencies):  # from UserBotLatencyLogObserver
-            self._turn_span.set_attribute("conversation.user_to_bot_latency", self._latencies[-1])
-
+        if len(self._latency_observer._latencies):  # from UserBotLatencyLogObserver
+            self._turn_span.set_attribute(
+                "conversation.user_to_bot_latency",
+                self._latency_observer._latencies[-1],
+            )
+            self._log_debug(
+                f"  Set user_to_bot_latency attribute: {self._latency_observer._latencies[-1]}"
+            )
+            self._log_debug(
+                f"  UserBotLatencyLogObserver latencies: {self._latency_observer._latencies}"
+            )
         # Finish all active service spans BEFORE ending the turn span
         # This ensures child spans are ended before the parent
         service_ids_to_finish = list(self._active_spans.keys())
