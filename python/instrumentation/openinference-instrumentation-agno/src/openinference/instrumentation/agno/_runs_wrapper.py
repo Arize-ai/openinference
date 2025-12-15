@@ -182,6 +182,34 @@ def _setup_team_context(
     return None, None
 
 
+def _get_team_span_context(instance: Any) -> Optional[Context]:
+    """
+    Determine the appropriate span context for Team instances.
+
+    Returns:
+        - INVALID_SPAN context if this is a top-level Team (no parent team)
+        - None if this is a nested Team or not a Team at all
+
+    This ensures:
+    - Sequential team.run() calls create separate top-level traces
+    - Nested teams (teams as members) properly nest under parent teams
+    """
+    if not isinstance(instance, Team):
+        return None
+
+    # Check if we're inside a parent Team context
+    # This is more reliable than get_current_span() when Agno uses thread pools
+    parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Only force root span if we're NOT inside a parent Team
+    if parent_team_node_id is None:
+        # No parent team context - create root span for top-level Team
+        return trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
+    # Inside parent team - let it nest naturally
+    return None
+
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -214,6 +242,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -221,6 +252,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -284,12 +316,16 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -371,6 +407,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -378,6 +417,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -441,6 +481,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -448,6 +491,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
