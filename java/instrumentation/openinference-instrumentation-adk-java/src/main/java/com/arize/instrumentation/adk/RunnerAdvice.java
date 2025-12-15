@@ -17,7 +17,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public class RunnerAdvice {
 
-    public static final Logger log = LoggerFactory.getLogger(TelemetryAdvice.class);
+    public static final Logger log = LoggerFactory.getLogger(RunnerAdvice.class);
 
     public static final JsonMapper JSON_MAPPER = new JsonMapper();
 
