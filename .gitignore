@@ -16,6 +16,7 @@ sdist
 .python-version
 .safety-project.ini
 .mastra
+uv.lock
 
 # Generated docs
 js/**/docs
