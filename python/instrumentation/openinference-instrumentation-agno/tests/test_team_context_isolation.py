@@ -69,10 +69,7 @@ def test_multiple_team_runs_create_separate_traces(
     instrumented_team: Tuple[Team, InMemorySpanExporter],
 ) -> None:
     """
-    Test that multiple team.run() calls create separate top-level traces,
-    not nested traces.
-
-    This is the key test that should FAIL before the fix.
+    Test that multiple team.run() calls create separate top-level traces
     """
     team, exporter = instrumented_team
 
@@ -101,8 +98,6 @@ def test_multiple_team_runs_create_separate_traces(
     # Should have 3 team spans
     assert len(team_spans) >= 3, f"Expected at least 3 team spans, got {len(team_spans)}"
 
-    # CRITICAL: Each team span should have NO parent span
-    # (parent_id should be None or invalid)
     for team_span in team_spans:
         parent_span_context = team_span.parent
         assert parent_span_context is None or not parent_span_context.is_valid, (
@@ -115,12 +110,6 @@ def test_multiple_team_runs_create_separate_traces(
 def test_multiple_sequential_calls_without_nesting(
     instrumented_team: Tuple[Team, InMemorySpanExporter],
 ) -> None:
-    """
-    Test that the fix resolves nesting for sequential team calls.
-
-    Before the fix, subsequent team.run() calls would nest under previous ones.
-    After the fix, each should be a separate top-level trace.
-    """
     team, exporter = instrumented_team
 
     # Make sequential calls
@@ -157,8 +146,6 @@ def test_team_spans_have_required_attributes(
 ) -> None:
     """
     Test that team spans have required OpenInference attributes.
-
-    This ensures our fix doesn't break attribute collection.
     """
     team, exporter = instrumented_team
 
@@ -189,8 +176,6 @@ async def test_multiple_async_team_runs_create_separate_traces(
 ) -> None:
     """
     Test that multiple team.arun() calls create separate top-level traces.
-
-    Same as the sync test but for async execution.
     """
     team, exporter = instrumented_team
 
@@ -227,8 +212,7 @@ def test_sequential_team_runs_have_different_trace_ids(
     instrumented_team: Tuple[Team, InMemorySpanExporter],
 ) -> None:
     """
-    Test that sequential team.run() calls have different trace IDs,
-    confirming they are truly separate traces.
+    Test that sequential team.run() calls have different trace IDs
     """
     team, exporter = instrumented_team
 
@@ -258,7 +242,7 @@ def test_sequential_team_runs_have_different_trace_ids(
     # Collect all unique trace IDs
     trace_ids = {format(s.context.trace_id, "032x") for s in team_spans}
 
-    # All team spans should have DIFFERENT trace IDs (separate traces)
+    # All team spans should have different trace IDs (separate traces)
     assert len(trace_ids) == len(team_spans), (
         f"Expected {len(team_spans)} unique trace IDs, but got {len(trace_ids)}. "
         f"This means some team runs are sharing the same trace (nesting)!"
@@ -270,8 +254,6 @@ def test_team_context_cleanup_between_runs(
 ) -> None:
     """
     Test that context is properly cleaned up between team runs.
-
-    This verifies that internal context state doesn't leak between calls.
     """
     team, exporter = instrumented_team
 
@@ -300,7 +282,7 @@ def test_team_context_cleanup_between_runs(
     assert len(team_spans_second) >= 1, "No team span found after second run"
     second_team_span = team_spans_second[0]
 
-    # Second span should NOT reference first span as parent
+    # Second span should not reference first span as parent
     if second_team_span.parent is not None and second_team_span.parent.is_valid:
         second_parent_id = second_team_span.parent.span_id
         first_span_id = first_team_span.context.span_id
