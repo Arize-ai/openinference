@@ -18,13 +18,14 @@ public class TelemetryAgent {
 
     public static void premain(String agentArgs, Instrumentation inst) {
         new AgentBuilder.Default()
+                // Rule 1: Instrument com.google.adk.Telemetry
                 .type(named("com.google.adk.Telemetry"))
-                .transform((builder, typeDescription, classLoader, javaModule, protectionDomain) -> builder.method(
-                                named("traceToolCall")
-                                        .or(named("traceToolResponse"))
-                                        .or(named("traceCallLlm"))
-                                        .or(named("traceFlowable")))
+                .transform((builder, typeDescription, classLoader, javaModule, protectionDomain) -> builder
+                        .method(named("traceFlowable"))
                         .intercept(Advice.to(TelemetryAdvice.class)))
+                .transform((builder, typeDescription, classLoader, javaModule, protectionDomain) -> builder
+                        .method(named("traceToolCall").or(named("traceCallLlm")))
+                        .intercept(Advice.to(TelemetryVoidAdvice.class)))
                 // Rule 2: Instrument com.google.adk.runner.Runner
                 .type(named("com.google.adk.runner.Runner"))
                 .transform((builder, typeDescription, classLoader, javaModule, protectionDomain) -> builder.method(

@@ -40,19 +40,8 @@ public class TelemetryAdvice {
 
         log.info("Enhancing method {} onExit.", method.getName());
 
-        switch (method.getName()) {
-            case "traceToolCall":
-                handleTraceToolCall(args);
-                break;
-            case "traceCallLlm":
-                handleTraceCallLlm(args);
-                break;
-            case "traceFlowable":
-                // This case modifies the return value, so we re-assign it.
-                returnValue = handleTraceFlowable(returnValue, args);
-                break;
-            default:
-                break;
+        if (method.getName().equals("traceFlowable")) {// This case modifies the return value, so we re-assign it.
+            returnValue = handleTraceFlowable(returnValue, args);
         }
     }
 
