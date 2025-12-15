@@ -17,6 +17,7 @@ from beeai_framework.context import RunContext, RunContextStartEvent
 from beeai_framework.emitter import EventMeta
 from beeai_framework.tools import AnyTool
 from beeai_framework.utils.lists import remove_falsy
+from openinference.instrumentation import safe_json_dumps
 from typing_extensions import override
 
 from openinference.instrumentation.beeai._utils import (
@@ -34,6 +35,20 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
+
+def get_tools(tools):
+    for index, tool in enumerate(tools):
+        function = {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+            }
+        }
+        yield f"{SpanAttributes.LLM_TOOLS}.{index}.{SpanAttributes.TOOL_NAME}", tool.name
+        yield f"{SpanAttributes.LLM_TOOLS}.{index}.{SpanAttributes.TOOL_DESCRIPTION}", tool.description
+        yield f"{SpanAttributes.LLM_TOOLS}.{index}.{ToolAttributes.TOOL_JSON_SCHEMA}", safe_json_dumps(function)
 
 
 class ChatModelProcessor(Processor):
@@ -80,7 +95,7 @@ class ChatModelProcessor(Processor):
                 )
                 self.span.set_attributes(
                     {
-                        SpanAttributes.LLM_TOOLS: [t.name for t in (event.input.tools or [])],
+                        **dict(get_tools(event.input.tools or [])),
                         SpanAttributes.LLM_INVOCATION_PARAMETERS: stringify(
                             meta.creator.parameters.model_dump(
                                 exclude_none=True, exclude_unset=True
