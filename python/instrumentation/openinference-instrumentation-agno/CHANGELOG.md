@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.24...python-openinference-instrumentation-agno-v0.1.25) (2025-12-15)
+
+
+### Bug Fixes
+
+* **agno:** multi team runs coming as nested subtraces ([#2533](https://github.com/Arize-ai/openinference/issues/2533)) ([ac6576d](https://github.com/Arize-ai/openinference/commit/ac6576d6e8c9e69fcf5c0d421770b35ee611b1c9))
+
 ## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.23...python-openinference-instrumentation-agno-v0.1.24) (2025-12-08)
 
 
