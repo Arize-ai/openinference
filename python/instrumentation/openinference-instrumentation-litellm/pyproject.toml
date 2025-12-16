@@ -37,7 +37,9 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "litellm",
+  # Required by LiteLLM for internal FastAPI imports during responses
   "fastapi",
+  # Required by LiteLLM for JSON serialization/deserialization
   "orjson",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
