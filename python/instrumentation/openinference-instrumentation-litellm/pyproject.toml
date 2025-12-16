@@ -37,6 +37,8 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "litellm",
+  "fastapi",
+  "orjson",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "pytest-vcr",
