@@ -1,7 +1,8 @@
 """Strands to OpenInference Span Processor.
 
 This module provides a span processor that converts Strands' native OpenTelemetry spans
-(using GenAI semantic conventions) to OpenInference format for compatibility with Arize AI.
+(using GenAI semantic conventions) to OpenInference format for compatibility with
+OpenInference-compliant backends.
 
 The processor transforms:
 - GenAI attributes (gen_ai.*) to OpenInference attributes (llm.*, tool.*, agent.*)
@@ -12,9 +13,9 @@ The processor transforms:
 
 import json
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from openinference.instrumentation import safe_json_dumps
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExportResult
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class StrandsToOpenInferenceProcessor(SpanProcessor):
     """
     SpanProcessor that converts Strands telemetry attributes to OpenInference format
-    for compatibility with Arize AI, updated for new OpenTelemetry GenAI conventions.
+    for compatibility with OpenInference-compliant backends.
     """
 
     def __init__(self, debug: bool = False) -> None:
@@ -36,26 +37,10 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         """
         super().__init__()
         self.debug = debug
-        self.processed_spans: set[int] = set()
-        self.current_cycle_id: Optional[str] = None
-        self.span_hierarchy: Dict[int, Dict[str, Any]] = {}
 
     def on_start(self, span: ReadableSpan, parent_context: Any = None) -> None:
-        """Called when a span is started. Track span hierarchy."""
-        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
-        parent_id = None
-
-        if parent_context and hasattr(parent_context, "span_id"):
-            parent_id = parent_context.span_id
-        elif span.parent and hasattr(span.parent, "span_id"):
-            parent_id = span.parent.span_id
-
-        self.span_hierarchy[span_id] = {
-            "name": span.name,
-            "span_id": span_id,
-            "parent_id": parent_id,
-            "start_time": datetime.now().isoformat(),
-        }
+        """Called when a span is started."""
+        pass
 
     def on_end(self, span: ReadableSpan) -> None:
         """
@@ -66,18 +51,8 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             return
 
         original_attrs = dict(span._attributes)
-        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
-
-        if span_id in self.span_hierarchy:
-            self.span_hierarchy[span_id]["attributes"] = original_attrs
 
         try:
-            if "event_loop.cycle_id" in original_attrs:
-                cycle_id_value = original_attrs.get("event_loop.cycle_id")
-                if isinstance(cycle_id_value, str):
-                    self.current_cycle_id = cycle_id_value
-
-            # Extract events if available
             events: List[Any] = []
             if hasattr(span, "_events"):
                 events = list(span._events)
@@ -87,7 +62,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
             span._attributes.clear()  # type: ignore[attr-defined]
             span._attributes.update(transformed_attrs)  # type: ignore[attr-defined]
-            self.processed_spans.add(span_id)
 
             if self.debug:
                 logger.info(
@@ -109,16 +83,15 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         """
         Transform Strands attributes to OpenInference format, including event processing.
         """
-        result = {}
+        result: Dict[str, Any] = {}
         span_kind = self._determine_span_kind(span, attrs)
         result["openinference.span.kind"] = span_kind
-        self._set_graph_node_attributes(span, attrs, result)
+        result.update(self._set_graph_node_attributes(span, attrs, span_kind))
 
         # Extract messages from events if available, otherwise fall back to attributes
         if events and len(events) > 0:
             input_messages, output_messages = self._extract_messages_from_events(events)
         else:
-            # Fallback to attribute-based extraction
             prompt = attrs.get("gen_ai.prompt")
             completion = attrs.get("gen_ai.completion")
             if prompt or completion:
@@ -139,20 +112,16 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             result["llm.system"] = "strands-agents"
             result["llm.provider"] = "strands-agents"
 
-        # Handle tags (both Strands arize.tags and standard tag.tags)
         self._handle_tags(attrs, result)
 
-        # Handle different span types
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
             self._handle_llm_span(attrs, result, input_messages, output_messages)
         elif span_kind == "TOOL":
             self._handle_tool_span(attrs, result, events)
 
-        # Handle token usage
         self._map_token_usage(attrs, result)
 
-        # Important attributes
-        important_attrs = [
+        passthrough_attrs = [
             "session.id",
             "user.id",
             "llm.prompt_template.template",
@@ -162,7 +131,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             "gen_ai.event.end_time",
         ]
 
-        for key in important_attrs:
+        for key in passthrough_attrs:
             if key in attrs:
                 result[key] = attrs[key]
 
@@ -199,18 +168,15 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                     output_messages.append(message)
 
             elif event_name == "gen_ai.choice":
-                # Final response from the agent
                 message_content = event_attrs.get("message", "")
                 if message_content:
                     message = self._parse_message_content(message_content, "assistant")
                     if message:
-                        # Set finish reason if available
                         if "finish_reason" in event_attrs:
                             message["message.finish_reason"] = event_attrs["finish_reason"]
                         output_messages.append(message)
 
             elif event_name == "gen_ai.tool.message":
-                # Tool messages - treat as user messages with tool role
                 content = event_attrs.get("content", "")
                 tool_id = event_attrs.get("id", "")
                 if content:
@@ -238,7 +204,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             if normalized.get("message.role") == "user":
                                 input_messages.append(normalized)
                 except json.JSONDecodeError:
-                    # Simple string prompt
                     input_messages.append({"message.role": "user", "message.content": str(prompt)})
 
         if completion:
@@ -246,12 +211,31 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 try:
                     completion_data = json.loads(completion)
                     if isinstance(completion_data, list):
-                        # Handle Strands completion format
                         message = self._parse_strands_completion(completion_data)
                         if message:
                             output_messages.append(message)
+                    elif isinstance(completion_data, dict):
+                        # Handle dict completions (e.g., {"text": "hello"})
+                        if "text" in completion_data:
+                            output_messages.append(
+                                {
+                                    "message.role": "assistant",
+                                    "message.content": str(completion_data["text"]),
+                                }
+                            )
+                        else:
+                            output_messages.append(
+                                {
+                                    "message.role": "assistant",
+                                    "message.content": safe_json_dumps(completion_data),
+                                }
+                            )
+                    else:
+                        # Handle other JSON types (string, number, etc.)
+                        output_messages.append(
+                            {"message.role": "assistant", "message.content": str(completion_data)}
+                        )
                 except json.JSONDecodeError:
-                    # Simple string completion
                     output_messages.append(
                         {"message.role": "assistant", "message.content": str(completion)}
                     )
@@ -264,18 +248,13 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             return None
 
         try:
-            # Try to parse as JSON first
             content_data = json.loads(content) if isinstance(content, str) else content
 
             if isinstance(content_data, list):
-                # New Strands format: [{"text": "..."}, {"toolUse": {...}}, {"toolResult": {...}}]
-                message: Dict[str, Any] = {
-                    "message.role": role,
-                    "message.content": "",
-                    "message.tool_calls": [],
-                }
+                message: Dict[str, Any] = {"message.role": role}
 
-                text_parts = []
+                text_parts: List[str] = []
+                tool_calls: List[Dict[str, Any]] = []
                 for item in content_data:
                     if isinstance(item, dict):
                         if "text" in item:
@@ -285,13 +264,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             tool_call = {
                                 "tool_call.id": tool_use.get("toolUseId", ""),
                                 "tool_call.function.name": tool_use.get("name", ""),
-                                "tool_call.function.arguments": json.dumps(
+                                "tool_call.function.arguments": safe_json_dumps(
                                     tool_use.get("input", {})
                                 ),
                             }
-                            message["message.tool_calls"].append(tool_call)
+                            tool_calls.append(tool_call)
                         elif "toolResult" in item:
-                            # Handle tool results - extract text content
                             tool_result = item["toolResult"]
                             if "content" in tool_result:
                                 if isinstance(tool_result["content"], list):
@@ -300,41 +278,33 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                                             text_parts.append(str(tr_content["text"]))
                                 elif isinstance(tool_result["content"], str):
                                     text_parts.append(tool_result["content"])
-                            # Set role to tool for tool results and include tool call ID
                             message["message.role"] = "tool"
                             if "toolUseId" in tool_result:
                                 message["message.tool_call_id"] = tool_result["toolUseId"]
 
-                message["message.content"] = " ".join(text_parts) if text_parts else ""
+                if text_parts:
+                    message["message.content"] = " ".join(text_parts)
 
-                # Clean up empty tool_calls
-                if not message["message.tool_calls"]:
-                    del message["message.tool_calls"]
+                if tool_calls:
+                    message["message.tool_calls"] = tool_calls
 
                 return message
             elif isinstance(content_data, dict):
-                # Handle single dict format (like tool messages)
                 if "text" in content_data:
                     return {"message.role": role, "message.content": str(content_data["text"])}
                 else:
                     return {"message.role": role, "message.content": str(content_data)}
             else:
-                # Simple string content
                 return {"message.role": role, "message.content": str(content_data)}
 
         except (json.JSONDecodeError, TypeError):
-            # Fallback to string content
             return {"message.role": role, "message.content": str(content)}
 
     def _parse_strands_completion(self, completion_data: List[Any]) -> Optional[Dict[str, Any]]:
-        """Parse Strands completion format into a message."""
-        message: Dict[str, Any] = {
-            "message.role": "assistant",
-            "message.content": "",
-            "message.tool_calls": [],
-        }
+        message: Dict[str, Any] = {"message.role": "assistant"}
 
-        text_parts = []
+        text_parts: List[str] = []
+        tool_calls: List[Dict[str, Any]] = []
         for item in completion_data:
             if isinstance(item, dict):
                 if "text" in item:
@@ -344,17 +314,20 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                     tool_call = {
                         "tool_call.id": tool_use.get("toolUseId", ""),
                         "tool_call.function.name": tool_use.get("name", ""),
-                        "tool_call.function.arguments": json.dumps(tool_use.get("input", {})),
+                        "tool_call.function.arguments": safe_json_dumps(tool_use.get("input", {})),
                     }
-                    message["message.tool_calls"].append(tool_call)
+                    tool_calls.append(tool_call)
 
-        message["message.content"] = " ".join(text_parts) if text_parts else ""
+        if text_parts:
+            message["message.content"] = " ".join(text_parts)
 
-        # Clean up empty arrays
-        if not message["message.tool_calls"]:
-            del message["message.tool_calls"]
+        if tool_calls:
+            message["message.tool_calls"] = tool_calls
 
-        return message if message["message.content"] or "message.tool_calls" in message else None
+        if "message.content" not in message and "message.tool_calls" not in message:
+            return None
+
+        return message
 
     def _handle_llm_span(
         self,
@@ -365,36 +338,30 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
     ) -> None:
         """Handle LLM/Agent span with extracted messages."""
 
-        # Create message arrays
         if input_messages:
-            result["llm.input_messages"] = json.dumps(input_messages, separators=(",", ":"))
+            result["llm.input_messages"] = safe_json_dumps(input_messages)
             self._flatten_messages(input_messages, "llm.input_messages", result)
 
         if output_messages:
-            result["llm.output_messages"] = json.dumps(output_messages, separators=(",", ":"))
+            result["llm.output_messages"] = safe_json_dumps(output_messages)
             self._flatten_messages(output_messages, "llm.output_messages", result)
 
-        # Handle agent tools
         if tools := (attrs.get("gen_ai.agent.tools") or attrs.get("agent.tools")):
             self._map_tools(tools, result)
 
-        # Create input/output values
         self._create_input_output_values(attrs, result, input_messages, output_messages)
 
-        # Map invocation parameters
         self._map_invocation_parameters(attrs, result)
 
     def _flatten_messages(
         self, messages: List[Dict[str, Any]], key_prefix: str, result: Dict[str, Any]
     ) -> None:
-        """Flatten message structure for OpenInference."""
         for idx, msg in enumerate(messages):
             for key, value in msg.items():
                 clean_key = key.replace("message.", "") if key.startswith("message.") else key
                 dotted_key = f"{key_prefix}.{idx}.message.{clean_key}"
 
                 if clean_key == "tool_calls" and isinstance(value, list):
-                    # Handle tool calls
                     for tool_idx, tool_call in enumerate(value):
                         if isinstance(tool_call, dict):
                             for tool_key, tool_val in tool_call.items():
@@ -412,12 +379,10 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         input_messages: List[Dict[str, Any]],
         output_messages: List[Dict[str, Any]],
     ) -> None:
-        """Create input.value and output.value for Arize compatibility."""
         span_kind = result.get("openinference.span.kind")
         model_name = result.get("llm.model_name") or attrs.get("gen_ai.request.model") or "unknown"
 
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
-            # Create input.value
             if input_messages:
                 if len(input_messages) == 1 and input_messages[0].get("message.role") == "user":
                     # Simple user message
@@ -426,16 +391,14 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 else:
                     # Complex conversation
                     input_structure = {"messages": input_messages, "model": model_name}
-                    result["input.value"] = json.dumps(input_structure, separators=(",", ":"))
+                    result["input.value"] = safe_json_dumps(input_structure)
                     result["input.mime_type"] = "application/json"
 
-            # Create output.value
             if output_messages:
                 last_message = output_messages[-1]
                 content = last_message.get("message.content", "")
 
                 if span_kind == "LLM":
-                    # LLM format
                     output_structure = {
                         "choices": [
                             {
@@ -454,18 +417,15 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             "total_tokens": result.get("llm.token_count.total"),
                         },
                     }
-                    result["output.value"] = json.dumps(output_structure, separators=(",", ":"))
+                    result["output.value"] = safe_json_dumps(output_structure)
                     result["output.mime_type"] = "application/json"
                 else:
-                    # Simple text output for AGENT/CHAIN
                     result["output.value"] = content
                     result["output.mime_type"] = "text/plain"
 
     def _handle_tags(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """Handle both Strands arize.tags and standard tag.tags formats."""
         tags = None
 
-        # Check for Strands format first
         if "arize.tags" in attrs:
             tags = attrs["arize.tags"]
         elif "tag.tags" in attrs:
@@ -478,10 +438,8 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 result["tag.tags"] = [tags]
 
     def _determine_span_kind(self, span: ReadableSpan, attrs: Dict[str, Any]) -> str:
-        """Determine the OpenInference span kind with updated naming conventions."""
         span_name = span.name
 
-        # Handle new span naming conventions
         if span_name == "chat":
             return "LLM"
         elif span_name.startswith("execute_tool "):
@@ -490,7 +448,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             return "CHAIN"
         elif span_name.startswith("invoke_agent"):
             return "AGENT"
-        # Legacy support for old naming
         elif "Model invoke" in span_name:
             return "LLM"
         elif span_name.startswith("Tool:"):
@@ -503,61 +460,48 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         return "CHAIN"
 
     def _set_graph_node_attributes(
-        self, span: ReadableSpan, attrs: Dict[str, Any], result: Dict[str, Any]
-    ) -> None:
-        """Set graph node attributes for Arize visualization with updated span names."""
+        self, span: ReadableSpan, attrs: Dict[str, Any], span_kind: str
+    ) -> Dict[str, Any]:
+        """
+        Set graph node attributes for visualization.
+
+        Returns a dict of graph node attributes to be merged into the result.
+        Parent IDs are only set when reliably determinable without state tracking.
+        """
+        graph_attrs: Dict[str, Any] = {}
         span_name = span.name
-        span_kind = result["openinference.span.kind"]
         span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
 
-        # Get parent information from span hierarchy
-        span_info = self.span_hierarchy.get(span_id, {})
-        parent_id = span_info.get("parent_id")
-        parent_info = self.span_hierarchy.get(parent_id, {}) if parent_id else {}
-        parent_name = parent_info.get("name", "")
-
         if span_kind == "AGENT":
-            result["graph.node.id"] = "strands_agent"
+            graph_attrs["graph.node.id"] = "strands_agent"
         elif span_kind == "CHAIN":
+            # execute_event_loop_cycle: Strands' agentic loop iteration where the LLM
+            # reasons, plans, and optionally selects tools. Each cycle is a child of
+            # the agent span.
             if span_name == "execute_event_loop_cycle":
                 cycle_id = attrs.get("event_loop.cycle_id", f"cycle_{span_id}")
-                result["graph.node.id"] = f"cycle_{cycle_id}"
-                result["graph.node.parent_id"] = "strands_agent"
+                graph_attrs["graph.node.id"] = f"cycle_{cycle_id}"
+                graph_attrs["graph.node.parent_id"] = "strands_agent"
             elif "Cycle " in span_name:  # Legacy support
                 cycle_id = span_name.replace("Cycle ", "").strip()
-                result["graph.node.id"] = f"cycle_{cycle_id}"
-                result["graph.node.parent_id"] = "strands_agent"
+                graph_attrs["graph.node.id"] = f"cycle_{cycle_id}"
+                graph_attrs["graph.node.parent_id"] = "strands_agent"
         elif span_kind == "LLM":
-            result["graph.node.id"] = f"llm_{span_id}"
-            if parent_name == "execute_event_loop_cycle" or parent_name.startswith("Cycle"):
-                parent_cycle_id = parent_info.get("attributes", {}).get("event_loop.cycle_id")
-                if parent_cycle_id:
-                    result["graph.node.parent_id"] = f"cycle_{parent_cycle_id}"
-                else:
-                    result["graph.node.parent_id"] = "strands_agent"
-            else:
-                result["graph.node.parent_id"] = "strands_agent"
+            graph_attrs["graph.node.id"] = f"llm_{span_id}"
         elif span_kind == "TOOL":
             tool_name = (
                 span_name.replace("execute_tool ", "")
                 if span_name.startswith("execute_tool ")
                 else "unknown_tool"
             )
-            result["graph.node.id"] = f"tool_{tool_name}_{span_id}"
-            if parent_name == "execute_event_loop_cycle" or parent_name.startswith("Cycle"):
-                parent_cycle_id = parent_info.get("attributes", {}).get("event_loop.cycle_id")
-                if parent_cycle_id:
-                    result["graph.node.parent_id"] = f"cycle_{parent_cycle_id}"
-                else:
-                    result["graph.node.parent_id"] = "strands_agent"
-            else:
-                result["graph.node.parent_id"] = "strands_agent"
+            graph_attrs["graph.node.id"] = f"tool_{tool_name}_{span_id}"
+
+        return graph_attrs
 
     def _handle_tool_span(
         self, attrs: Dict[str, Any], result: Dict[str, Any], events: Optional[List[Any]] = None
     ) -> None:
         """Handle tool-specific attributes with enhanced event processing."""
-        # Extract tool information
         tool_name = attrs.get("gen_ai.tool.name")
         tool_call_id = attrs.get("gen_ai.tool.call.id")
         tool_status = attrs.get("tool.status")
@@ -571,7 +515,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         if tool_status:
             result["tool.status"] = tool_status
 
-        # Extract tool parameters and input/output from events if available
         if events:
             tool_parameters = None
             tool_output = None
@@ -587,7 +530,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 )
 
                 if event_name == "gen_ai.tool.message":
-                    # Tool input - extract parameters for tool.parameters attribute
                     content = event_attrs.get("content", "")
                     if content:
                         try:
@@ -602,7 +544,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             tool_parameters = {"input": str(content)}
 
                 elif event_name == "gen_ai.choice":
-                    # Tool output
                     message = event_attrs.get("message", "")
                     if message:
                         try:
@@ -622,11 +563,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                         except (json.JSONDecodeError, TypeError):
                             tool_output = str(message)
 
-            # Set the crucial tool.parameters attribute as JSON string
             if tool_parameters:
-                result["tool.parameters"] = json.dumps(tool_parameters, separators=(",", ":"))
+                result["tool.parameters"] = safe_json_dumps(tool_parameters)
 
-                # Create input messages showing the tool call that triggered this tool execution
                 if tool_name and tool_call_id:
                     input_messages = [
                         {
@@ -636,25 +575,23 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                                 {
                                     "tool_call.id": tool_call_id,
                                     "tool_call.function.name": tool_name,
-                                    "tool_call.function.arguments": json.dumps(
-                                        tool_parameters, separators=(",", ":")
+                                    "tool_call.function.arguments": safe_json_dumps(
+                                        tool_parameters
                                     ),
                                 }
                             ],
                         }
                     ]
 
-                    # Set the flattened input messages for proper display in Arize
-                    result["llm.input_messages"] = json.dumps(input_messages, separators=(",", ":"))
+                    result["llm.input_messages"] = safe_json_dumps(input_messages)
                     self._flatten_messages(input_messages, "llm.input_messages", result)
 
-                # Also set input.value for display purposes
                 if isinstance(tool_parameters, dict):
                     if "text" in tool_parameters:
                         result["input.value"] = tool_parameters["text"]
                         result["input.mime_type"] = "text/plain"
                     else:
-                        result["input.value"] = json.dumps(tool_parameters, separators=(",", ":"))
+                        result["input.value"] = safe_json_dumps(tool_parameters)
                         result["input.mime_type"] = "application/json"
 
             if tool_output:
@@ -672,27 +609,23 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         if not isinstance(tools_data, list):
             return
 
-        # Handle tool names as strings (Strands format)
         for idx, tool in enumerate(tools_data):
             if isinstance(tool, str):
-                # Simple tool name
                 result[f"llm.tools.{idx}.tool.name"] = tool
                 result[f"llm.tools.{idx}.tool.description"] = f"Tool: {tool}"
             elif isinstance(tool, dict):
-                # Full tool definition
                 result[f"llm.tools.{idx}.tool.name"] = tool.get("name", "")
                 result[f"llm.tools.{idx}.tool.description"] = tool.get("description", "")
                 if "parameters" in tool or "input_schema" in tool:
                     schema = tool.get("parameters") or tool.get("input_schema")
-                    result[f"llm.tools.{idx}.tool.json_schema"] = json.dumps(schema)
+                    result[f"llm.tools.{idx}.tool.json_schema"] = safe_json_dumps(schema)
 
     def _map_token_usage(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """Map token usage metrics."""
         token_mappings = [
             ("gen_ai.usage.prompt_tokens", "llm.token_count.prompt"),
-            ("gen_ai.usage.input_tokens", "llm.token_count.prompt"),  # Alternative name
+            ("gen_ai.usage.input_tokens", "llm.token_count.prompt"),
             ("gen_ai.usage.completion_tokens", "llm.token_count.completion"),
-            ("gen_ai.usage.output_tokens", "llm.token_count.completion"),  # Alternative name
+            ("gen_ai.usage.output_tokens", "llm.token_count.completion"),
             ("gen_ai.usage.total_tokens", "llm.token_count.total"),
         ]
 
@@ -701,7 +634,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 result[openinf_key] = value
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """Map invocation parameters."""
         params = {}
         param_mappings = {
             "max_tokens": "max_tokens",
@@ -714,10 +646,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 params[param_key] = attrs[key]
 
         if params:
-            result["llm.invocation_parameters"] = json.dumps(params, separators=(",", ":"))
+            result["llm.invocation_parameters"] = safe_json_dumps(params)
 
     def _normalize_message(self, msg: Any) -> Dict[str, Any]:
-        """Normalize a single message to OpenInference format."""
         if not isinstance(msg, dict):
             return {"message.role": "user", "message.content": str(msg)}
 
@@ -725,11 +656,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         if "role" in msg:
             result["message.role"] = msg["role"]
 
-        # Handle content
         if "content" in msg:
             content = msg["content"]
             if isinstance(content, list):
-                # Extract text from content array
                 text_parts = []
                 for item in content:
                     if isinstance(item, dict) and "text" in item:
@@ -741,7 +670,6 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         return result
 
     def _add_metadata(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """Add remaining attributes to metadata."""
         metadata = {}
         skip_keys = {"gen_ai.prompt", "gen_ai.completion", "gen_ai.agent.tools", "agent.tools"}
 
@@ -750,34 +678,22 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 metadata[key] = self._serialize_value(value)
 
         if metadata:
-            result["metadata"] = json.dumps(metadata, separators=(",", ":"))
+            result["metadata"] = safe_json_dumps(metadata)
 
     def _serialize_value(self, value: Any) -> Any:
-        """Ensure a value is serializable."""
         if isinstance(value, (str, int, float, bool)) or value is None:
             return value
 
-        try:
-            return json.dumps(value, separators=(",", ":"))
-        except (TypeError, OverflowError):
-            return str(value)
+        return safe_json_dumps(value)
 
     def shutdown(self) -> SpanExportResult:  # type: ignore[override]
-        """Called when the processor is shutdown."""
         return SpanExportResult.SUCCESS
 
     def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
-        """Called to force flush."""
         return True
 
     @staticmethod
     def get_migration_guide() -> Dict[str, str]:
-        """
-        Returns a migration guide for updating from deprecated GenAI attributes.
-
-        Returns:
-            Dict mapping deprecated attributes to their replacements or migration guidance.
-        """
         return {
             # Deprecated attributes with replacements
             "gen_ai.usage.prompt_tokens": "gen_ai.usage.input_tokens",
@@ -797,19 +713,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         }
 
     def get_processor_info(self) -> Dict[str, Any]:
-        """
-        Returns information about the processor's capabilities and status.
-
-        Returns:
-            Dict containing processor information.
-        """
         return {
             "processor_name": "StrandsToOpenInferenceProcessor",
-            "version": "2.1.0",
+            "version": "0.1.0",
             "supports_events": True,
             "supports_deprecated_attributes": True,
             "supports_new_semantic_conventions": True,
-            "processed_spans": len(self.processed_spans),
             "debug_enabled": self.debug,
             "migration_guide": self.get_migration_guide(),
             "supported_span_kinds": ["LLM", "AGENT", "CHAIN", "TOOL"],
