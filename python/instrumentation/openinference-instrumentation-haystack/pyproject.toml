@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "opentelemetry-api",
@@ -42,7 +43,8 @@ test = [
     "haystack-ai==2.18.0",
     "cohere-haystack",
     "opentelemetry-sdk",
-    "vcrpy>=7.0.0",
+    # Temporary vcrpy pin to avoid async future await regression
+    "vcrpy>=7.0.0,<8.0.0",
     "pytest-recording",
     "pytest-asyncio"
 ]
