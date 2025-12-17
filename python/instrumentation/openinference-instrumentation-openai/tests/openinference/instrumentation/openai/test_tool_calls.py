@@ -104,8 +104,26 @@ def test_tool_calls(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
+
+    # Find the primary OpenAI response span (v1: one span, v2: one of many)
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get("llm.system") == "openai"
+    ]
+
+    # Fallback to pick the span that actually has tool attributes
+    if len(llm_spans) != 1:
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes
+            and any(k.startswith("llm.tools.") for k in span.attributes)
+        ]
+
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
     attributes = dict(span.attributes or {})
     for i in range(len(input_tools)):
         json_schema = attributes.pop(f"llm.tools.{i}.tool.json_schema")
@@ -201,8 +219,26 @@ def test_cached_tokens(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2
-    span = spans[1]
+
+    # Find the primary OpenAI response span (v1: one span, v2: one of many)
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get("llm.system") == "openai"
+    ]
+
+    # Fallback to pick the span that actually has tool attributes
+    if len(llm_spans) != 2:
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes
+            and any(k.startswith("llm.token_count.") for k in span.attributes)
+        ]
+
+    assert len(llm_spans) == 2
+    span = llm_spans[1]
     attributes = dict(span.attributes or {})
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
 
