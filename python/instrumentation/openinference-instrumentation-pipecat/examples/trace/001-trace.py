@@ -1,10 +1,8 @@
 import os
 from datetime import datetime
 
-from arize.otel import register as register_arize
 from dotenv import load_dotenv
-from loguru import logger
-from phoenix.otel import register as register_phoenix
+from logging import getLogger
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -30,8 +28,14 @@ from openinference.instrumentation.pipecat import PipecatInstrumentor
 
 load_dotenv(override=True)
 
+# Conversation ID for the conversation (used for session tracking in Arize or Phoenix)
 conversation_id = f"test-conversation-001_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+# Debug log filename for the conversation (used for viewing the frames in the conversation)
 debug_log_filename = os.path.join(os.getcwd(), f"pipecat_frames_{conversation_id}.log")
+
+# Logger for the conversation (used for logging)
+logger = getLogger(__name__)
 
 
 def setup_tracer_provider():
@@ -39,22 +43,32 @@ def setup_tracer_provider():
     Setup the tracer provider.
     """
     project_name = os.getenv("PROJECT_NAME", "pipecat-voice-agent")
-    if os.getenv("ARIZE_SPACE_ID") and os.getenv("ARIZE_API_KEY"):
+    space_id = os.getenv("ARIZE_SPACE_ID", None)
+    api_key = os.getenv("ARIZE_API_KEY", None)
+    if space_id and api_key:
+        # Register the Arize tracer provider
+        from arize.otel import register as register_arize
+
         return register_arize(
-            space_id=os.getenv("ARIZE_SPACE_ID"),
-            api_key=os.getenv("ARIZE_API_KEY"),
+            space_id=space_id,
+            api_key=api_key,
             project_name=project_name,
         )
     else:
+        # Register the Phoenix tracer provider
+        from phoenix.otel import register as register_phoenix
+
         return register_phoenix(project_name=project_name)
 
 
+# Auto-instrument the Pipecat pipeline
 tracer_provider = setup_tracer_provider()
 PipecatInstrumentor().instrument(
     tracer_provider=tracer_provider,
     debug_log_filename=debug_log_filename,
 )
 
+# Transport parameters for the Pipecat pipeline
 transport_params = {
     "daily": lambda: DailyParams(
         audio_in_enabled=True,
@@ -78,6 +92,9 @@ transport_params = {
 
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
+    """
+    Run the Pipecat pipeline.
+    """
     logger.info("Starting bot")
 
     ### STT ###
@@ -101,6 +118,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         ),
     )
 
+    # LLM prompt for the conversation
     messages = [
         {
             "role": "system",
@@ -129,7 +147,6 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     )
 
     ### TASK ###
-
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
@@ -142,18 +159,28 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
+        """
+        Handle the client connected event.
+        """
         logger.info("Client connected")
         # Kick off the conversation.
-        messages.append({"role": "system", "content": "Please introduce yourself to the user."})
+        messages.append(
+            {"role": "system", "content": "Please introduce yourself to the user."}
+        )
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
+        """
+        Handle the client disconnected event.
+        """
         logger.info("Client disconnected")
         await task.cancel()
 
+    # Create the Pipecat pipeline runner
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
 
+    # Run the Pipecat pipeline
     await runner.run(task)
 
 
