@@ -310,7 +310,7 @@ def _get_attributes_from_input(
             # TODO: Handle patch call output
             continue
         elif TYPE_CHECKING and item["type"] is not None:
-            assert_never(item["type"])
+            assert_never(item["type"])  # type: ignore[arg-type]
 
 
 def _get_attributes_from_message_param(
@@ -664,7 +664,7 @@ def _get_attributes_from_response_output(
         elif item.type == "apply_patch_call_output":
             ...  # TODO
         elif TYPE_CHECKING:
-            assert_never(item)
+            assert_never(item)  # type: ignore[arg-type]
 
 
 def _get_attributes_from_response_instruction(
