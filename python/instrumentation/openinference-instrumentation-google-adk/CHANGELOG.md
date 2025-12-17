@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.7...python-openinference-instrumentation-google-adk-v0.1.8) (2025-12-11)
+
+
+### Features
+
+* **google-adk:** Add agent.name attribute to agent run spans and add multi-agent test ([#2510](https://github.com/Arize-ai/openinference/issues/2510)) ([d08f500](https://github.com/Arize-ai/openinference/commit/d08f5002a13e11cee6e230dbe56a6667a5101fca))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.6...python-openinference-instrumentation-google-adk-v0.1.7) (2025-12-04)
 
 

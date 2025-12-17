@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.20...python-openinference-instrumentation-smolagents-v0.1.21) (2025-12-10)
+
+
+### Bug Fixes
+
+* **smolagents:** give agent run span as more descriptive span name ([#2454](https://github.com/Arize-ai/openinference/issues/2454)) ([6ffccce](https://github.com/Arize-ai/openinference/commit/6ffccce7e41892a9f2e1151c1337002e67b40119))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.19...python-openinference-instrumentation-smolagents-v0.1.20) (2025-11-18)
 
 
