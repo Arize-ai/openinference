@@ -107,10 +107,7 @@ def test_tool_calls(
 
     # Find the primary OpenAI response span (v1: one span, v2: one of many)
     llm_spans = [
-        span
-        for span in spans
-        if span.attributes
-        and span.attributes.get("llm.system") == "openai"
+        span for span in spans if span.attributes and span.attributes.get("llm.system") == "openai"
     ]
 
     # Fallback to pick the span that actually has tool attributes
@@ -118,8 +115,7 @@ def test_tool_calls(
         llm_spans = [
             span
             for span in spans
-            if span.attributes
-            and any(k.startswith("llm.tools.") for k in span.attributes)
+            if span.attributes and any(k.startswith("llm.tools.") for k in span.attributes)
         ]
 
     assert len(llm_spans) == 1
@@ -222,10 +218,7 @@ def test_cached_tokens(
 
     # Find the primary OpenAI response span (v1: one span, v2: one of many)
     llm_spans = [
-        span
-        for span in spans
-        if span.attributes
-        and span.attributes.get("llm.system") == "openai"
+        span for span in spans if span.attributes and span.attributes.get("llm.system") == "openai"
     ]
 
     # Fallback to pick the span that actually has tool attributes
@@ -233,8 +226,7 @@ def test_cached_tokens(
         llm_spans = [
             span
             for span in spans
-            if span.attributes
-            and any(k.startswith("llm.token_count.") for k in span.attributes)
+            if span.attributes and any(k.startswith("llm.token_count.") for k in span.attributes)
         ]
 
     assert len(llm_spans) == 2
