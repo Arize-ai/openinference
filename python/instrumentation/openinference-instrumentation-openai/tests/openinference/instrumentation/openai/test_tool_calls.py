@@ -3,11 +3,14 @@ import random
 import string
 from importlib import import_module
 from importlib.metadata import version
-from typing import Tuple, cast
+from typing import List, Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
 @pytest.mark.vcr(
@@ -104,20 +107,7 @@ def test_tool_calls(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-
-    # Find the primary OpenAI response span (v1: one span, v2: one of many)
-    llm_spans = [
-        span for span in spans if span.attributes and span.attributes.get("llm.system") == "openai"
-    ]
-
-    # Fallback to pick the span that actually has tool attributes
-    if len(llm_spans) != 1:
-        llm_spans = [
-            span
-            for span in spans
-            if span.attributes and any(k.startswith("llm.tools.") for k in span.attributes)
-        ]
-
+    llm_spans = get_openai_llm_spans(spans, 1)
     assert len(llm_spans) == 1
     span = llm_spans[0]
     attributes = dict(span.attributes or {})
@@ -215,20 +205,7 @@ def test_cached_tokens(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-
-    # Find the primary OpenAI response span (v1: one span, v2: one of many)
-    llm_spans = [
-        span for span in spans if span.attributes and span.attributes.get("llm.system") == "openai"
-    ]
-
-    # Fallback to pick the span that actually has tool attributes
-    if len(llm_spans) != 2:
-        llm_spans = [
-            span
-            for span in spans
-            if span.attributes and any(k.startswith("llm.token_count.") for k in span.attributes)
-        ]
-
+    llm_spans = get_openai_llm_spans(spans, 2)
     assert len(llm_spans) == 2
     span = llm_spans[1]
     attributes = dict(span.attributes or {})
@@ -237,3 +214,25 @@ def test_cached_tokens(
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
+
+
+def get_openai_llm_spans(spans: List[ReadableSpan], fallback_count: int = 1) -> List[ReadableSpan]:
+    """Return all OpenAI LLM spans, fallback to OpenAI TOOL spans if needed."""
+    # Find the primary OpenAI response span (v1: one span, v2: one of many)
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.LLM_SYSTEM)
+        == OpenInferenceLLMProviderValues.OPENAI.value
+    ]
+    # Fallback to pick the span that actually has tool attributes
+    if len(llm_spans) != fallback_count:
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes and any(k.startswith("llm.tools.") for k in span.attributes)
+        ]
+    if not llm_spans:
+        raise ValueError("No OpenAI LLM spans found in spans.")
+    return llm_spans
