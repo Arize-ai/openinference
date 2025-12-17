@@ -217,8 +217,8 @@ def _openai_version() -> Tuple[int, int, int]:
 
 
 def get_openai_llm_spans(
-    spans: Tuple[ReadableSpan], fallback_count: int = 1
-) -> Tuple[ReadableSpan]:
+    spans: Tuple[ReadableSpan, ...], fallback_count: int = 1
+) -> Tuple[ReadableSpan, ...]:
     """Return all OpenAI LLM spans, fallback to OpenAI TOOL spans if needed."""
     # Find the primary OpenAI response span (v1: one span, v2: one of many)
     llm_spans = [
