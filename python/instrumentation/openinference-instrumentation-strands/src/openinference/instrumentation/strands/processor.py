@@ -15,9 +15,10 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from openinference.instrumentation import safe_json_dumps
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExportResult
+
+from openinference.instrumentation import safe_json_dumps
 
 logger = logging.getLogger(__name__)
 
