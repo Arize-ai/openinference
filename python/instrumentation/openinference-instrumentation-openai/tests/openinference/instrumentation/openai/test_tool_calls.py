@@ -7,7 +7,10 @@ from typing import Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
 @pytest.mark.vcr(
@@ -104,8 +107,9 @@ def test_tool_calls(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    span = spans[0]
+    llm_spans = get_openai_llm_spans(spans, 1)
+    assert len(llm_spans) == 1
+    span = llm_spans[0]
     attributes = dict(span.attributes or {})
     for i in range(len(input_tools)):
         json_schema = attributes.pop(f"llm.tools.{i}.tool.json_schema")
@@ -201,11 +205,36 @@ def test_cached_tokens(
         ],
     )
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 2
-    span = spans[1]
+    llm_spans = get_openai_llm_spans(spans, 2)
+    assert len(llm_spans) == 2
+    span = llm_spans[1]
     attributes = dict(span.attributes or {})
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 1280
 
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
+
+
+def get_openai_llm_spans(
+    spans: Tuple[ReadableSpan], fallback_count: int = 1
+) -> Tuple[ReadableSpan]:
+    """Return all OpenAI LLM spans, fallback to OpenAI TOOL spans if needed."""
+    # Find the primary OpenAI response span (v1: one span, v2: one of many)
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.LLM_SYSTEM)
+        == OpenInferenceLLMProviderValues.OPENAI.value
+    ]
+    # Fallback to pick the span that actually has tool attributes
+    if len(llm_spans) != fallback_count:
+        llm_spans = [
+            span
+            for span in spans
+            if span.attributes and any(k.startswith("llm.tools.") for k in span.attributes)
+        ]
+    if not llm_spans:
+        raise ValueError("No OpenAI LLM spans found in spans.")
+    return tuple(llm_spans)
