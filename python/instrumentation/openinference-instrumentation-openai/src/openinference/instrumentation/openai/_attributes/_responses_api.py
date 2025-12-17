@@ -459,7 +459,7 @@ class _ResponsesApiAttributes:
             # TODO: Handle patch call output
             pass
         elif TYPE_CHECKING and obj["type"] is not None:
-            assert_never(obj["type"])  # type: ignore[arg-type]
+            assert_never(obj["type"])  # type: ignore[arg-type,unused-ignore]
 
     @classmethod
     @stop_on_exception
@@ -597,7 +597,7 @@ class _ResponsesApiAttributes:
             # TODO: Handle patch call output
             pass
         elif TYPE_CHECKING:
-            assert_never(obj.type)  # type: ignore[arg-type]
+            assert_never(obj.type)  # type: ignore[arg-type,unused-ignore]
 
     @classmethod
     @stop_on_exception
