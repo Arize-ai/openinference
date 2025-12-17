@@ -3,7 +3,7 @@ import random
 import string
 from importlib import import_module
 from importlib.metadata import version
-from typing import List, Tuple, cast
+from typing import Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -216,7 +216,9 @@ def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
 
 
-def get_openai_llm_spans(spans: List[ReadableSpan], fallback_count: int = 1) -> List[ReadableSpan]:
+def get_openai_llm_spans(
+    spans: Tuple[ReadableSpan], fallback_count: int = 1
+) -> Tuple[ReadableSpan]:
     """Return all OpenAI LLM spans, fallback to OpenAI TOOL spans if needed."""
     # Find the primary OpenAI response span (v1: one span, v2: one of many)
     llm_spans = [
@@ -235,4 +237,4 @@ def get_openai_llm_spans(spans: List[ReadableSpan], fallback_count: int = 1) -> 
         ]
     if not llm_spans:
         raise ValueError("No OpenAI LLM spans found in spans.")
-    return llm_spans
+    return tuple(llm_spans)
