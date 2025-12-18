@@ -18,7 +18,15 @@ from typing import Any, Dict, List, Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import (
+    GEN_AI_REQUEST_MODEL,
+    GEN_AI_TOOL_NAME,
+    GEN_AI_USAGE_INPUT_TOKENS,
+    GEN_AI_USAGE_OUTPUT_TOKENS,
+    GenAIAttributes,
+    GenAIEventNames,
+    safe_json_dumps,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +69,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 events = list(span.events)
 
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
-            span._attributes.clear()  # type: ignore[attr-defined]
-            span._attributes.update(transformed_attrs)  # type: ignore[attr-defined]
+            span._attributes = transformed_attrs
 
             if self.debug:
                 logger.info(
@@ -75,8 +82,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
         except Exception as e:
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
-            span._attributes.clear()  # type: ignore[attr-defined]
-            span._attributes.update(original_attrs)  # type: ignore[attr-defined]
+            span._attributes = original_attrs
 
     def _transform_attributes(
         self, attrs: Dict[str, Any], span: ReadableSpan, events: Optional[List[Any]] = None
@@ -93,8 +99,8 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         if events and len(events) > 0:
             input_messages, output_messages = self._extract_messages_from_events(events)
         else:
-            prompt = attrs.get("gen_ai.prompt")
-            completion = attrs.get("gen_ai.completion")
+            prompt = attrs.get(GenAIAttributes.PROMPT)
+            completion = attrs.get(GenAIAttributes.COMPLETION)
             if prompt or completion:
                 input_messages, output_messages = self._extract_messages_from_attributes(
                     prompt, completion
@@ -102,12 +108,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             else:
                 input_messages, output_messages = [], []
 
-        model_id = attrs.get("gen_ai.request.model")
-        agent_name = attrs.get("agent.name") or attrs.get("gen_ai.agent.name")
+        model_id = attrs.get(GEN_AI_REQUEST_MODEL)
+        agent_name = attrs.get("agent.name") or attrs.get(GenAIAttributes.AGENT_NAME)
 
         if model_id:
             result["llm.model_name"] = model_id
-            result["gen_ai.request.model"] = model_id
+            result[GEN_AI_REQUEST_MODEL] = model_id
 
         if agent_name:
             result["llm.system"] = "strands-agents"
@@ -156,19 +162,19 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 else event.get("attributes", {})
             )
 
-            if event_name == "gen_ai.user.message":
+            if event_name == GenAIEventNames.USER_MESSAGE:
                 content = event_attrs.get("content", "")
                 message = self._parse_message_content(content, "user")
                 if message:
                     input_messages.append(message)
 
-            elif event_name == "gen_ai.assistant.message":
+            elif event_name == GenAIEventNames.ASSISTANT_MESSAGE:
                 content = event_attrs.get("content", "")
                 message = self._parse_message_content(content, "assistant")
                 if message:
                     output_messages.append(message)
 
-            elif event_name == "gen_ai.choice":
+            elif event_name == GenAIEventNames.CHOICE:
                 message_content = event_attrs.get("message", "")
                 if message_content:
                     message = self._parse_message_content(message_content, "assistant")
@@ -177,7 +183,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             message["message.finish_reason"] = event_attrs["finish_reason"]
                         output_messages.append(message)
 
-            elif event_name == "gen_ai.tool.message":
+            elif event_name == GenAIEventNames.TOOL_MESSAGE:
                 content = event_attrs.get("content", "")
                 tool_id = event_attrs.get("id", "")
                 if content:
@@ -204,6 +210,15 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             normalized = self._normalize_message(msg)
                             if normalized.get("message.role") == "user":
                                 input_messages.append(normalized)
+                    elif isinstance(prompt_data, dict):
+                        # Handle single dict prompt (e.g., {"role": "user", "content": "Hello"})
+                        normalized = self._normalize_message(prompt_data)
+                        input_messages.append(normalized)
+                    else:
+                        # Handle other JSON types (string, number, etc.)
+                        input_messages.append(
+                            {"message.role": "user", "message.content": str(prompt_data)}
+                        )
                 except json.JSONDecodeError:
                     input_messages.append({"message.role": "user", "message.content": str(prompt)})
 
@@ -347,7 +362,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             result["llm.output_messages"] = safe_json_dumps(output_messages)
             self._flatten_messages(output_messages, "llm.output_messages", result)
 
-        if tools := (attrs.get("gen_ai.agent.tools") or attrs.get("agent.tools")):
+        if tools := (attrs.get(GenAIAttributes.AGENT_TOOLS) or attrs.get("agent.tools")):
             self._map_tools(tools, result)
 
         self._create_input_output_values(attrs, result, input_messages, output_messages)
@@ -381,7 +396,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         output_messages: List[Dict[str, Any]],
     ) -> None:
         span_kind = result.get("openinference.span.kind")
-        model_name = result.get("llm.model_name") or attrs.get("gen_ai.request.model") or "unknown"
+        model_name = result.get("llm.model_name") or attrs.get(GEN_AI_REQUEST_MODEL) or "unknown"
 
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
             if input_messages:
@@ -455,7 +470,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             return "TOOL"
         elif "Cycle" in span_name:
             return "CHAIN"
-        elif attrs.get("gen_ai.agent.name") or attrs.get("agent.name"):
+        elif attrs.get(GenAIAttributes.AGENT_NAME) or attrs.get("agent.name"):
             return "AGENT"
 
         return "CHAIN"
@@ -503,8 +518,8 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         self, attrs: Dict[str, Any], result: Dict[str, Any], events: Optional[List[Any]] = None
     ) -> None:
         """Handle tool-specific attributes with enhanced event processing."""
-        tool_name = attrs.get("gen_ai.tool.name")
-        tool_call_id = attrs.get("gen_ai.tool.call.id")
+        tool_name = attrs.get(GEN_AI_TOOL_NAME)
+        tool_call_id = attrs.get(GenAIAttributes.TOOL_CALL_ID)
         tool_status = attrs.get("tool.status")
 
         if tool_name:
@@ -530,7 +545,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                     else event.get("attributes", {})
                 )
 
-                if event_name == "gen_ai.tool.message":
+                if event_name == GenAIEventNames.TOOL_MESSAGE:
                     content = event_attrs.get("content", "")
                     if content:
                         try:
@@ -544,7 +559,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                         except (json.JSONDecodeError, TypeError):
                             tool_parameters = {"input": str(content)}
 
-                elif event_name == "gen_ai.choice":
+                elif event_name == GenAIEventNames.CHOICE:
                     message = event_attrs.get("message", "")
                     if message:
                         try:
@@ -623,15 +638,16 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
     def _map_token_usage(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         token_mappings = [
-            ("gen_ai.usage.prompt_tokens", "llm.token_count.prompt"),
-            ("gen_ai.usage.input_tokens", "llm.token_count.prompt"),
-            ("gen_ai.usage.completion_tokens", "llm.token_count.completion"),
-            ("gen_ai.usage.output_tokens", "llm.token_count.completion"),
-            ("gen_ai.usage.total_tokens", "llm.token_count.total"),
+            (GenAIAttributes.USAGE_PROMPT_TOKENS, "llm.token_count.prompt"),
+            (GEN_AI_USAGE_INPUT_TOKENS, "llm.token_count.prompt"),
+            (GenAIAttributes.USAGE_COMPLETION_TOKENS, "llm.token_count.completion"),
+            (GEN_AI_USAGE_OUTPUT_TOKENS, "llm.token_count.completion"),
+            (GenAIAttributes.USAGE_TOTAL_TOKENS, "llm.token_count.total"),
         ]
 
         for strands_key, openinf_key in token_mappings:
-            if value := attrs.get(strands_key):
+            value = attrs.get(strands_key)
+            if value is not None:
                 result[openinf_key] = value
 
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
@@ -672,7 +688,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
     def _add_metadata(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         metadata = {}
-        skip_keys = {"gen_ai.prompt", "gen_ai.completion", "gen_ai.agent.tools", "agent.tools"}
+        skip_keys = {
+            GenAIAttributes.PROMPT,
+            GenAIAttributes.COMPLETION,
+            GenAIAttributes.AGENT_TOOLS,
+            "agent.tools",
+        }
 
         for key, value in attrs.items():
             if key not in skip_keys and key not in result:
@@ -697,15 +718,17 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
     def get_migration_guide() -> Dict[str, str]:
         return {
             # Deprecated attributes with replacements
-            "gen_ai.usage.prompt_tokens": "gen_ai.usage.input_tokens",
-            "gen_ai.usage.completion_tokens": "gen_ai.usage.output_tokens",
+            GenAIAttributes.USAGE_PROMPT_TOKENS: GEN_AI_USAGE_INPUT_TOKENS,
+            GenAIAttributes.USAGE_COMPLETION_TOKENS: GEN_AI_USAGE_OUTPUT_TOKENS,
             "gen_ai.openai.request.seed": "gen_ai.request.seed",
             "gen_ai.openai.request.response_format": "gen_ai.output.type",
             # Deprecated attributes without direct replacements
-            "gen_ai.prompt": "Migrate to event-based messaging using gen_ai.user.message events",
-            "gen_ai.completion": (
-                "Migrate to event-based messaging using gen_ai.assistant.message "
-                "and gen_ai.choice events"
+            GenAIAttributes.PROMPT: (
+                f"Migrate to event-based messaging using {GenAIEventNames.USER_MESSAGE} events"
+            ),
+            GenAIAttributes.COMPLETION: (
+                f"Migrate to event-based messaging using {GenAIEventNames.ASSISTANT_MESSAGE} "
+                f"and {GenAIEventNames.CHOICE} events"
             ),
             # Span naming changes
             "Model invoke": "chat",
@@ -733,10 +756,10 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 "Tool: [name]",
             ],
             "supported_event_types": [
-                "gen_ai.user.message",
-                "gen_ai.assistant.message",
-                "gen_ai.choice",
-                "gen_ai.tool.message",
+                GenAIEventNames.USER_MESSAGE,
+                GenAIEventNames.ASSISTANT_MESSAGE,
+                GenAIEventNames.CHOICE,
+                GenAIEventNames.TOOL_MESSAGE,
             ],
             "features": [
                 "Event-based message extraction",
