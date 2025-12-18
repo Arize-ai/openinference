@@ -423,6 +423,26 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
+def _stringify_dict_keys(obj: Any) -> Any:
+    """
+    Recursively convert all dictionary keys to strings to ensure JSON-safe serialization.
+    """
+    if isinstance(obj, dict):
+        # Convert all dict keys to strings
+        return {str(key): _stringify_dict_keys(value) for key, value in obj.items()}
+
+    if isinstance(obj, (list, tuple)):
+        # Recursively process lists and tuples
+        return obj.__class__(_stringify_dict_keys(item) for item in obj)
+
+    if isinstance(obj, set):
+        # Convert sets to lists to make JSON-serializable
+        return [_stringify_dict_keys(item) for item in obj]
+
+    # Return other types unchanged
+    return obj
+
+
 class _OpenInferenceJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for OpenInference with comprehensive type support."""
 
@@ -477,8 +497,10 @@ def _json_dumps(obj: Any) -> str:
     It handles most common types while falling back to safe_json_dumps for edge cases.
     """
     try:
+        # Normalize object for JSON safety
+        normalized_obj = _stringify_dict_keys(obj)
         # Use standard json.dumps with our custom encoder
-        return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
+        return json.dumps(normalized_obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
     except (TypeError, ValueError, OverflowError):
         # Fallback to safe_json_dumps for any unsupported types or circular references
         return safe_json_dumps(obj)
