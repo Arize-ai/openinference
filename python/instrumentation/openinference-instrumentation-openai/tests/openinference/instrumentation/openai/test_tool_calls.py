@@ -220,7 +220,7 @@ def get_openai_llm_spans(spans: Tuple[ReadableSpan, ...]) -> Tuple[ReadableSpan,
         span
         for span in spans
         if span.attributes
-        and span.attributes.get(SpanAttributes.LLM_SYSTEM)
+        and span.attributes.get(SpanAttributes.LLM_PROVIDER)
         == OpenInferenceLLMProviderValues.OPENAI.value
     ]
     if not llm_spans:
