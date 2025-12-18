@@ -39,7 +39,10 @@ instruments = [
 test = [
   "beeai-framework >= 0.1.51",
   "opentelemetry-sdk",
-  "opentelemetry-exporter-otlp"
+  "opentelemetry-exporter-otlp",
+    "pytest-recording",
+    "vcrpy>=5.0.0,<8.0.0",
+  "beeai-framework[wikipedia]"
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
