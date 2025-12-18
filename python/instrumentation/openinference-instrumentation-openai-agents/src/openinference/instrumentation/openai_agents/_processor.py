@@ -309,8 +309,11 @@ def _get_attributes_from_input(
         elif item["type"] == "apply_patch_call_output":
             # TODO: Handle patch call output
             continue
+        elif item["type"] == "compaction":
+            # TODO: Handle compaction response
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
-            assert_never(item["type"])  # type: ignore[arg-type,unused-ignore]
+            assert_never(item["type"])
 
 
 def _get_attributes_from_message_param(
@@ -663,8 +666,10 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "apply_patch_call_output":
             ...  # TODO
+        elif item.type == "compaction":
+            ...  # TODO
         elif TYPE_CHECKING:
-            assert_never(item)  # type: ignore[arg-type,unused-ignore]
+            assert_never(item)
 
 
 def _get_attributes_from_response_instruction(
