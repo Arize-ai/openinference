@@ -45,7 +45,6 @@ test = [
   "beeai-framework[duckduckgo]",
   "pytest-asyncio",
   "pytest",
-  "pydantic<2.10",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
