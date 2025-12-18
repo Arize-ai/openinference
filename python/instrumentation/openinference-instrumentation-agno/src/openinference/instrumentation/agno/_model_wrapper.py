@@ -503,16 +503,18 @@ class _ModelWrapper:
             },
         )
 
-        try:
-            with trace_api.use_span(span, end_on_exit=False):
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attribute(LLM_MODEL_NAME, model.id)
-                span.set_attribute(LLM_PROVIDER, model.provider)
+        # Manually attach context (instead of using use_span context manager)
+        token = context_api.attach(trace_api.set_span_in_context(span))
 
-                responses = []
-                async for chunk in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
-                    responses.append(chunk)
-                    yield chunk
+        try:
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attribute(LLM_MODEL_NAME, model.id)
+            span.set_attribute(LLM_PROVIDER, model.provider)
+
+            responses = []
+            async for chunk in wrapped(*args, **kwargs):  # type: ignore[attr-defined]
+                responses.append(chunk)
+                yield chunk
 
             output_message_dict = _parse_model_output_stream(responses)
             output_message = json.dumps(output_message_dict)
@@ -552,6 +554,11 @@ class _ModelWrapper:
             raise
 
         finally:
+            # Wrap detach in try/except to handle context mismatch on cancellation
+            try:
+                context_api.detach(token)
+            except Exception:
+                pass
             span.end()
 
 
