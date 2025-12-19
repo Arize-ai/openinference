@@ -48,7 +48,7 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps as _original_safe_json_dumps
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -424,9 +424,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
 
 
 def _stringify_dict_keys(obj: Any) -> Any:
-    """
-    Recursively convert all dictionary keys to strings to ensure JSON-safe serialization.
-    """
+    """Recursively convert all dictionary keys to strings to ensure JSON-safe serialization."""
     if isinstance(obj, dict):
         # Convert all dict keys to strings
         return {str(key): _stringify_dict_keys(value) for key, value in obj.items()}
@@ -441,6 +439,14 @@ def _stringify_dict_keys(obj: Any) -> Any:
 
     # Return other types unchanged
     return obj
+
+
+def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
+    """A convenience wrapper around the original `safe_json_dumps` that normalizes the object first."""
+    # Normalize object for JSON safety
+    normalized_obj = _stringify_dict_keys(obj)
+    # Serialize normalized object using the original safe_json_dumps
+    return _original_safe_json_dumps(normalized_obj, **kwargs)
 
 
 class _OpenInferenceJSONEncoder(json.JSONEncoder):
