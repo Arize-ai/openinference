@@ -520,7 +520,7 @@ def _json_dumps(obj: Any) -> str:
         normalized_obj = _stringify_dict_keys(obj)
         # Use standard json.dumps with our custom encoder
         return json.dumps(normalized_obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError, RecursionError):
         # Fallback to safe_json_dumps for any unsupported types or circular references
         return safe_json_dumps(obj)
 
