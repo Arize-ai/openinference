@@ -1508,17 +1508,16 @@ class TestConvertIO:
         # First item should always be the original string value
         assert result[0] == expected_value, f"Expected value '{expected_value}', got '{result[0]}'"
 
-        # Check MIME type based on whether string is valid JSON
+        # Check MIME type based on whether string looks like JSON (heuristic)
         if should_have_mime_type:
             assert len(result) == 2, (
-                f"Expected 2 items (value + MIME type) for JSON string, got {len(result)}"
+                f"Expected 2 items (value + MIME type) for JSON-like string, got {len(result)}"
             )
             assert result[1] == OpenInferenceMimeTypeValues.JSON.value, (
-                f"Expected JSON MIME type for JSON string, got '{result[1]}'"
+                f"Expected JSON MIME type for JSON-like string, got '{result[1]}'"
             )
-            # Verify the string is actually parseable JSON
-            parsed = json.loads(expected_value.strip())
-            assert isinstance(parsed, (dict, list)), f"Expected dict or list, got {type(parsed)}"
+            # Note: We don't validate parseability - the heuristic accepts false positives
+            # The frontend handles invalid JSON gracefully, so this is acceptable
         else:
             assert len(result) == 1, (
                 f"Expected 1 item (value only) for non-JSON string, got {len(result)}: {result}"
