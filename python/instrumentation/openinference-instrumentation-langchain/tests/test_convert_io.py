@@ -1460,8 +1460,8 @@ class TestConvertIO:
             pytest.param(
                 {"input": "{not valid json}"},
                 "{not valid json}",
-                False,
-                id="malformed_json",
+                True,  # Heuristic: starts with {, ends with } → tagged as JSON (acceptable false positive)
+                id="malformed_json_heuristic_match",
             ),
             pytest.param(
                 {"input": "[1, 2, missing bracket"},
@@ -1496,10 +1496,12 @@ class TestConvertIO:
         should_have_mime_type: bool,
     ) -> None:
         """
-        Test that JSON strings are properly detected and tagged with JSON MIME type.
+        Test that JSON-like strings are detected using a fast heuristic.
 
-        This validates the fix for stringified JSON payloads being correctly identified
-        so the frontend can render them as pretty JSON instead of plain text.
+        Uses startswith/endswith check for performance. False positives (strings that
+        look like JSON but aren't valid) are acceptable since the frontend handles
+        invalid JSON gracefully. This validates that stringified JSON payloads are
+        identified so the frontend can render them as pretty JSON instead of plain text.
         """
         result = list(_convert_io(input_obj))
 
@@ -1632,10 +1634,11 @@ class TestConvertIO:
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
         # JSON with special number values (NaN, Infinity not in strings)
-        # Note: These are NOT valid JSON, so should not be detected
+        # Note: These are NOT strictly valid JSON, but heuristic will match them
+        # (starts with {, ends with }) - acceptable false positive
         invalid_json_numbers = '{"value": NaN}'
         result = list(_convert_io({"input": invalid_json_numbers}))
-        assert len(result) == 1  # Not valid JSON
+        assert len(result) == 2  # Heuristic matches, frontend will handle gracefully
 
         # JSON array with mixed types
         mixed_array = '[1, "string", true, null, {"nested": "object"}]'

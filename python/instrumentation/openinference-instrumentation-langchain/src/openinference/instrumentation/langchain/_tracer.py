@@ -365,17 +365,17 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
 
 def _is_json_parseable(value: str) -> bool:
     """
-    Check if a string value is valid JSON (object or array).
+    Check if a string value looks like JSON (object or array).
 
-    This function is performance-optimized to avoid unnecessary parsing:
-    - Returns early if the string doesn't look like JSON (no braces/brackets)
-    - Only attempts parsing for strings that structurally resemble JSON
+    Uses a simple heuristic (startswith/endswith check) to avoid the performance
+    overhead of actual JSON parsing. False positives are rare and harmless - the
+    frontend will handle invalid JSON gracefully.
 
     Args:
-        value: String to check for JSON parseability.
+        value: String to check for JSON-like structure.
 
     Returns:
-        `True` if the string is valid JSON (dict/list), `False` otherwise.
+        `True` if the string looks like JSON (starts/ends with braces/brackets), `False` otherwise.
     """
     if not value:
         return False
@@ -697,17 +697,16 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
 
     role = None
-    is_remove_message = False
 
     # Strategy 1: Try the standard id field approach
     id_ = message_data.get("id")
     if id_ is not None and isinstance(id_, List) and len(id_) > 0:
         try:
             message_class_name = id_[-1]
+            # RemoveMessage intentionally has no role - exit early without warning
             if message_class_name.startswith("RemoveMessage"):
-                is_remove_message = True
                 logger.debug("Encountered RemoveMessage - no role attribute needed")
-                return  # RemoveMessage doesn't need a role, exit early
+                return
             role = _map_class_name_to_role(message_class_name, message_data)
             logger.debug("Extracted message role from id field: %s", role)
         except (IndexError, KeyError, ValueError, TypeError, AttributeError) as e:
@@ -717,8 +716,8 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     if role is None:
         type_field = message_data.get("type")
         if isinstance(type_field, str):
+            # RemoveMessage via type field - exit early without warning
             if type_field.lower() == "remove":
-                is_remove_message = True
                 logger.debug("Encountered RemoveMessage via type field - no role attribute needed")
                 return
             # Map common type values to roles
@@ -749,9 +748,9 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     # If we found a role through any strategy, yield it
     if role:
         yield MESSAGE_ROLE, role
-    elif not is_remove_message:
-        # Only log warning if this is NOT a RemoveMessage
-        # RemoveMessage intentionally has no role and is expected behavior
+    else:
+        # No role found - log warning
+        # Note: RemoveMessage returns early above, so won't trigger this warning
         logger.warning(
             "Unable to determine message role. Message data keys: %s. "
             "Span will continue without role attribute.",
