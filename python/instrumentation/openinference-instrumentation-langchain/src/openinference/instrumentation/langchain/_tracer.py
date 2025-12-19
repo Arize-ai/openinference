@@ -445,9 +445,17 @@ def _stringify_dict_keys(obj: Any) -> Any:
 
 
 def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
-    """A convenience wrapper around the original `safe_json_dumps` that normalizes the object first."""
-    # Normalize object for JSON safety
-    normalized_obj = _stringify_dict_keys(obj)
+    """
+    A convenience wrapper around the original `safe_json_dumps` that ensures
+    that any object can be safely normalized first.
+    """
+    try:
+        # Normalize object for JSON safety
+        normalized_obj = _stringify_dict_keys(obj)
+    except Exception:
+        # Fallback to the original object if normalization fails
+        normalized_obj = obj
+
     # Serialize normalized object using the original safe_json_dumps
     return _original_safe_json_dumps(normalized_obj, **kwargs)
 
