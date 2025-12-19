@@ -41,7 +41,7 @@ def get_tool_parameters(tool: AnyTool) -> Dict[str, Any]:
     tool_dict = tool.to_json_safe()
     if "input_schema" in tool_dict:
         input_schema = tool_dict.pop("input_schema")
-        tool_dict["parameters"] = input_schema
+        tool_dict["parameters"] = input_schema or {}
         tool_dict["parameters"]["type"] = "object"
     return tool_dict
 

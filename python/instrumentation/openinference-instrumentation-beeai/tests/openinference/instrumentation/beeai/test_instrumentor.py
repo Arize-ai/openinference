@@ -1,4 +1,3 @@
-import os
 from typing import Any, Generator
 
 import pytest
@@ -27,8 +26,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-
-os.environ["OPENAI_API_KEY"] = "sk-proj-ubPK"
 
 
 @pytest.fixture(scope="module")
