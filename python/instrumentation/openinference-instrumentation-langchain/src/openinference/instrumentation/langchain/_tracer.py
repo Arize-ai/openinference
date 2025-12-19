@@ -48,7 +48,10 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps as _original_safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    safe_json_dumps as _original_safe_json_dumps,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
