@@ -1144,7 +1144,6 @@ def unwrap_object(module: Any, name: str) -> Optional[Any]:
     while original is not None and hasattr(original, "__wrapped__"):
         original = getattr(original, "__wrapped__", None)
     if original is not None:
-        # apply_patch(parent, attribute_name, original)
         apply_patch(parent, attribute_name, original)
     else:
         logger.warning(f"module: {module}, method: {name} not wrapped")
