@@ -688,18 +688,26 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     2. Try extracting from type field
     3. Try inferring from message context (tool_calls, tool_call_id, etc.)
     4. If all fail, log warning and skip role (span continues without role attribute)
+    
+    Special handling:
+    - RemoveMessage intentionally has no role and will not trigger a warning
     """
     if not message_data:
         return
     assert hasattr(message_data, "get"), f"expected Mapping, found {type(message_data)}"
 
     role = None
+    is_remove_message = False
 
     # Strategy 1: Try the standard id field approach
     id_ = message_data.get("id")
     if id_ is not None and isinstance(id_, List) and len(id_) > 0:
         try:
             message_class_name = id_[-1]
+            if message_class_name.startswith("RemoveMessage"):
+                is_remove_message = True
+                logger.debug("Encountered RemoveMessage - no role attribute needed")
+                return  # RemoveMessage doesn't need a role, exit early
             role = _map_class_name_to_role(message_class_name, message_data)
             logger.debug("Extracted message role from id field: %s", role)
         except (IndexError, KeyError, ValueError, TypeError, AttributeError) as e:
@@ -709,6 +717,10 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     if role is None:
         type_field = message_data.get("type")
         if isinstance(type_field, str):
+            if type_field.lower() == "remove":
+                is_remove_message = True
+                logger.debug("Encountered RemoveMessage via type field - no role attribute needed")
+                return
             # Map common type values to roles
             type_to_role = {
                 "human": "user",
@@ -737,8 +749,9 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     # If we found a role through any strategy, yield it
     if role:
         yield MESSAGE_ROLE, role
-    else:
-        # Log warning but don't fail - span will continue without role attribute
+    elif not is_remove_message:
+        # Only log warning if this is NOT a RemoveMessage
+        # RemoveMessage intentionally has no role and is expected behavior
         logger.warning(
             "Unable to determine message role. Message data keys: %s. "
             "Span will continue without role attribute.",
