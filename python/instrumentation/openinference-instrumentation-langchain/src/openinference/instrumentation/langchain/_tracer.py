@@ -384,9 +384,8 @@ def _is_json_parseable(value: str) -> bool:
     if not stripped:
         return False
 
-    return (
-        (stripped.startswith("{") and stripped.endswith("}"))
-        or (stripped.startswith("[") and stripped.endswith("]"))
+    return (stripped.startswith("{") and stripped.endswith("}")) or (
+        stripped.startswith("[") and stripped.endswith("]")
     )
 
 
@@ -688,7 +687,7 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     2. Try extracting from type field
     3. Try inferring from message context (tool_calls, tool_call_id, etc.)
     4. If all fail, log warning and skip role (span continues without role attribute)
-    
+
     Special handling:
     - RemoveMessage intentionally has no role and will not trigger a warning
     """
