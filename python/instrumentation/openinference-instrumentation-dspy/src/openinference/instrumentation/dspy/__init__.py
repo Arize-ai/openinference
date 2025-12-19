@@ -220,6 +220,9 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        # Handle case where _uninstrument is called on fresh instance
+        if not hasattr(self, "_originals"):
+            return
         for module, name in self._originals[::-1]:
             unwrap_object(module, name)
         self._originals.clear()
