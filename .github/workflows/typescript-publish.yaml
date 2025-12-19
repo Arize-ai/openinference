@@ -15,43 +15,35 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
-      - name: checkout code repository
-        uses: actions/checkout@v3
+      - name: Checkout code repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: setup node.js
-        uses: actions/setup-node@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: lts/*
           registry-url: https://registry.npmjs.org/
           scope: "@arizeai"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
         with:
-          version: 9.8.0
-      - name: setup pnpm config
+          version: 10.2.0
+      - name: Setup pnpm config
         run: pnpm config set store-dir $PNPM_CACHE_FOLDER
-      - name: Install Dependencies
+
+      - name: Install dependencies
         working-directory: ./js
         run: pnpm install --frozen-lockfile
-      - name: Creating .npmrc
-        run: |
-          cat << EOF > "$HOME/.npmrc"
-            //registry.npmjs.org/:_authToken=$NPM_TOKEN
-          EOF
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: create and publish versions
+      - name: Create and publish versions
         uses: changesets/action@06245a4e0a36c064a573d4150030f5ec548e4fcc
         with:
           version: pnpm ci:version
           commit: "chore(js): update versions"
           title: "chore(js): update versions"
           publish: pnpm ci:publish
+          createGithubReleases: true
           cwd: "./js"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MY_CHANGESET_TOKEN }}
