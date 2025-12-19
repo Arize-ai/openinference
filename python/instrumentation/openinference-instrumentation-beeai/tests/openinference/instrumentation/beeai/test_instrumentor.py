@@ -71,14 +71,6 @@ def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def rebuild_beeai_pydantic_models() -> None:
-    from beeai_framework.backend.chat import _ChatModelKwargsAdapter
-
-    # Required for Python 3.14 + Pydantic v2
-    _ChatModelKwargsAdapter.rebuild(force=True)
-
-
 @pytest.fixture()
 async def tracer_provider(
     in_memory_span_exporter: InMemorySpanExporter,
