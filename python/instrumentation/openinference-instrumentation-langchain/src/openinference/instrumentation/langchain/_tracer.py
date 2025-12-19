@@ -384,23 +384,10 @@ def _is_json_parseable(value: str) -> bool:
     if not stripped:
         return False
 
-    if not (
+    return (
         (stripped.startswith("{") and stripped.endswith("}"))
         or (stripped.startswith("[") and stripped.endswith("]"))
-    ):
-        return False
-
-    try:
-        # Use parse_constant to reject NaN, Infinity, -Infinity (not valid JSON per spec)
-        parsed = json.loads(
-            value,
-            parse_constant=lambda x: (_ for _ in ()).throw(
-                ValueError(f"Invalid JSON constant: {x}")
-            ),
-        )
-        return isinstance(parsed, (dict, list))
-    except (json.JSONDecodeError, ValueError, TypeError):
-        return False
+    )
 
 
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
