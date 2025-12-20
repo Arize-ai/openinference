@@ -6,21 +6,26 @@ interactions:
       \ }\n}"
     headers: {}
     method: POST
-    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent?%24alt=json%3Benum-encoding%3Dint
+    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:streamGenerateContent?%24alt=json%3Benum-encoding%3Dint
   response:
     body:
-      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
-        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"I used
-        to play piano by ear, but now I use my hands.\"\n          }\n        ]\n
-        \     },\n      \"finishReason\": 1,\n      \"avgLogprobs\": -1.2769529978434244\n
-        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\":
-        15,\n    \"totalTokenCount\": 56,\n    \"trafficType\": 1,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 11\n      }\n
-        \   ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        1,\n        \"tokenCount\": 15\n      }\n    ],\n    \"thoughtsTokenCount\":
-        30\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"createTime\": \"2025-12-16T16:58:23.948260Z\",\n
-        \ \"responseId\": \"r49BaaTwOe6bqMgP_su8kAg\"\n}\n"
-    headers: {}
+      string: "[{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
+        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"I told
+        my wife she was drawing her eyebrows too high. She looked surprised.\"\n          }\n
+        \       ]\n      },\n      \"finishReason\": 1\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\": 16,\n    \"totalTokenCount\":
+        259,\n    \"trafficType\": 1,\n    \"promptTokensDetails\": [\n      {\n        \"modality\":
+        1,\n        \"tokenCount\": 11\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 16\n      }\n
+        \   ],\n    \"thoughtsTokenCount\": 232\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"createTime\": \"2025-12-19T23:45:33.943266Z\",\n  \"responseId\": \"neNFaaLJOd68gLUP2eiwkQE\"\n}\n]"
+    headers: 
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Transfer-Encoding:
+      - chunked
     status:
       code: 200
       message: OK

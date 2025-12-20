@@ -620,9 +620,12 @@ def test_gemini_token_counts_streaming(
                 api_transport="rest",
                 project="test-project",
                 model_name="gemini-2.5-flash",
-                streaming=streaming,
             )
-            llm.invoke("Tell me a funny joke, a one-liner.")
+            if streaming:
+                for _ in llm.stream("Tell me a funny joke, a one-liner."):
+                    pass
+            else:
+                llm.invoke("Tell me a funny joke, a one-liner.")
             spans = in_memory_span_exporter.get_finished_spans()
             assert len(spans) == 1
             span = spans[0]

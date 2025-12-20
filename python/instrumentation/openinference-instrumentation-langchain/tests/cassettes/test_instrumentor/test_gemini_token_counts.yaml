@@ -10,16 +10,16 @@ interactions:
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"role\":
-        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"I told
-        my wife she was drawing her eyebrows too high. She looked surprised.\"\n          }\n
-        \       ]\n      },\n      \"finishReason\": 1,\n      \"avgLogprobs\": -0.511005699634552\n
-        \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\":
-        16,\n    \"totalTokenCount\": 55,\n    \"trafficType\": 1,\n    \"promptTokensDetails\":
+        \"model\",\n        \"parts\": [\n          {\n            \"text\": \"I'm
+        on a seafood diet. I see food, and I eat it.\"\n          }\n        ]\n      },\n
+        \     \"finishReason\": 1,\n      \"avgLogprobs\": -4.1875125660615806\n    }\n
+        \ ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 11,\n    \"candidatesTokenCount\":
+        17,\n    \"totalTokenCount\": 218,\n    \"trafficType\": 1,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": 1,\n        \"tokenCount\": 11\n      }\n
         \   ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
-        1,\n        \"tokenCount\": 16\n      }\n    ],\n    \"thoughtsTokenCount\":
-        28\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"createTime\": \"2025-12-16T16:58:24.907777Z\",\n
-        \ \"responseId\": \"sI9BaYG0N-ntlb4PhOefyQY\"\n}\n"
+        1,\n        \"tokenCount\": 17\n      }\n    ],\n    \"thoughtsTokenCount\":
+        190\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"createTime\": \"2025-12-19T23:45:36.565494Z\",\n
+        \ \"responseId\": \"oONFafbBIrrygLUP36rmIA\"\n}\n"
     headers: {}
     status:
       code: 200
