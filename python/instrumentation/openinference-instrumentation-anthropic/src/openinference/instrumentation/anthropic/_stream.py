@@ -161,16 +161,29 @@ class _MessagesStream(ObjectProxy):  # type: ignore
         "_response_accumulator",
         "_with_span",
         "_is_finished",
+        "_manager",
     )
 
     def __init__(
         self,
         stream: "Stream[RawMessageStreamEvent]",
         with_span: _WithSpan,
+        manager: Any = None,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _MessageResponseAccumulator()
         self._with_span = with_span
+        self._manager = manager
+
+    def __exit__(
+        self,
+        exc_type: Any,
+        exc_val: Any,
+        exc_tb: Any,
+    ) -> None:
+        # Delegate to the manager's __exit__ to ensure proper cleanup
+        if self._manager is not None and hasattr(self._manager, "__exit__"):
+            self._manager.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self) -> Iterator["RawMessageStreamEvent"]:
         try:
