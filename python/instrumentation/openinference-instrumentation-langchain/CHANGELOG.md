@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.56...python-openinference-instrumentation-langchain-v0.1.57) (2025-12-22)
+
+
+### Bug Fixes
+
+* Fix Langchain ([#2457](https://github.com/Arize-ai/openinference/issues/2457)) ([870bf16](https://github.com/Arize-ai/openinference/commit/870bf1678a2cfd0f2f77255c24b7899e2b6d3886))
+
 ## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.55...python-openinference-instrumentation-langchain-v0.1.56) (2025-12-04)
 
 
