@@ -1,0 +1,61 @@
+{
+  "name": "@arizeai/openinference-instrumentation-openai-agents",
+  "version": "0.1.0",
+  "description": "OpenInference instrumentation for OpenAI Agents SDK",
+  "private": false,
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "scripts": {
+    "prebuild": "rimraf dist && pnpm run version:update",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
+    "version:update": "../../scripts/version-update.js",
+    "type:check": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
+  },
+  "dependencies": {
+    "@arizeai/openinference-core": "workspace:*",
+    "@arizeai/openinference-semantic-conventions": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/core": "^1.25.1"
+  },
+  "keywords": [
+    "openai",
+    "agents",
+    "openinference",
+    "opentelemetry",
+    "instrumentation",
+    "tracing",
+    "ai",
+    "llm"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "author": "oss-devs@arize.com",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@openai/agents": "^0.0.11",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-node": "^1.25.1",
+    "vitest": "^2.1.8",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "@openai/agents": ">=0.0.5"
+  }
+}
