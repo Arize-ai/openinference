@@ -1,0 +1,92 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-agentspec"
+dynamic = ["version"]
+description = "OpenInference Open Agent Spec Instrumentation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10, <3.15"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "Oracle", email = "" },
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.21",
+  "typing-extensions",
+  "wrapt",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "opentelemetry-sdk",
+  "pyagentspec >= 26.1.0",
+]
+
+[project.entry-points.opentelemetry_instrumentor]
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
+
+[project.entry-points.openinference_instrumentor]
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agentspec"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/agentspec/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+"examples/*" = ["E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
