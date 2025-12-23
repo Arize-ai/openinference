@@ -1427,3 +1427,197 @@ def test_generate_content_with_automatic_tool_calling(
     # We may or may not see explicit tool call attributes in the span depending on
     # how Google GenAI implements it internally. The key difference is that we get
     # a complete text response that incorporates the function results.
+
+
+def test_inline_data_and_file_data_part_handling():
+    """Test that inline_data and file_data Part types are handled correctly without errors."""
+    from unittest.mock import Mock
+
+    from openinference.instrumentation.google_genai._request_attributes_extractor import (
+        _RequestAttributesExtractor,
+    )
+    from openinference.semconv.trace import (
+        ImageAttributes,
+        MessageAttributes,
+        MessageContentAttributes,
+    )
+
+    extractor = _RequestAttributesExtractor()
+
+    # Test 1: inline_data with image (should use proper semantic conventions)
+    mock_inline_data_image = Mock()
+    mock_inline_data_image.mime_type = "image/png"
+    mock_inline_data_image.data = b"fake_image_data"
+
+    mock_part_image = Mock()
+    mock_part_image.text = None
+    mock_part_image.function_call = None
+    mock_part_image.function_response = None
+    mock_part_image.inline_data = mock_inline_data_image
+    mock_part_image.file_data = None
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_image, 0))
+    assert len(attributes) == 1, (
+        f"Expected 1 attribute for image inline_data, got {len(attributes)}"
+    )
+
+    attr_key, attr_value = attributes[0]
+    expected_key = f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    assert attr_key == expected_key, f"Expected key {expected_key}, got {attr_key}"
+    assert attr_value.startswith("data:image/png;base64,"), (
+        f"Expected base64 data URL, got {attr_value}"
+    )
+
+    # Test 2: inline_data with PDF (should use descriptive text)
+    mock_inline_data_pdf = Mock()
+    mock_inline_data_pdf.mime_type = "application/pdf"
+    mock_inline_data_pdf.data = b"fake_pdf_data_12345"
+
+    mock_part_pdf = Mock()
+    mock_part_pdf.text = None
+    mock_part_pdf.function_call = None
+    mock_part_pdf.function_response = None
+    mock_part_pdf.inline_data = mock_inline_data_pdf
+    mock_part_pdf.file_data = None
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_pdf, 0))
+    assert len(attributes) == 1, f"Expected 1 attribute for PDF inline_data, got {len(attributes)}"
+
+    attr_key, attr_value = attributes[0]
+    assert attr_key == MessageAttributes.MESSAGE_CONTENT, (
+        f"Expected MESSAGE_CONTENT key, got {attr_key}"
+    )
+    assert attr_value == "[File: application/pdf, 19 bytes]", (
+        f"Expected file description, got {attr_value}"
+    )
+
+    # Test 3: file_data with image (should use proper semantic conventions)
+    mock_file_data_image = Mock()
+    mock_file_data_image.mime_type = "image/jpeg"
+    mock_file_data_image.file_uri = "gs://bucket/image.jpg"
+
+    mock_part_file_image = Mock()
+    mock_part_file_image.text = None
+    mock_part_file_image.function_call = None
+    mock_part_file_image.function_response = None
+    mock_part_file_image.inline_data = None
+    mock_part_file_image.file_data = mock_file_data_image
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_file_image, 0))
+    assert len(attributes) == 1, f"Expected 1 attribute for image file_data, got {len(attributes)}"
+
+    attr_key, attr_value = attributes[0]
+    expected_key = f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    assert attr_key == expected_key, f"Expected key {expected_key}, got {attr_key}"
+    assert attr_value == "gs://bucket/image.jpg", f"Expected file URI, got {attr_value}"
+
+    # Test 4: file_data with PDF (should use descriptive text)
+    mock_file_data_pdf = Mock()
+    mock_file_data_pdf.mime_type = "application/pdf"
+    mock_file_data_pdf.file_uri = "https://example.com/document.pdf"
+
+    mock_part_file_pdf = Mock()
+    mock_part_file_pdf.text = None
+    mock_part_file_pdf.function_call = None
+    mock_part_file_pdf.function_response = None
+    mock_part_file_pdf.inline_data = None
+    mock_part_file_pdf.file_data = mock_file_data_pdf
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_file_pdf, 0))
+    assert len(attributes) == 1, f"Expected 1 attribute for PDF file_data, got {len(attributes)}"
+
+    attr_key, attr_value = attributes[0]
+    assert attr_key == MessageAttributes.MESSAGE_CONTENT, (
+        f"Expected MESSAGE_CONTENT key, got {attr_key}"
+    )
+    assert attr_value == "[File: application/pdf from https://example.com/document.pdf]", (
+        f"Expected file description, got {attr_value}"
+    )
+
+    # Test 5: Unknown part type (should not raise exception, return no attributes)
+    mock_part_unknown = Mock()
+    mock_part_unknown.text = None
+    mock_part_unknown.function_call = None
+    mock_part_unknown.function_response = None
+    mock_part_unknown.inline_data = None
+    mock_part_unknown.file_data = None
+
+    # This should not raise an exception
+    attributes = list(extractor._get_attributes_from_part(mock_part_unknown, 0))
+    assert len(attributes) == 0, (
+        f"Expected 0 attributes for unknown part type, got {len(attributes)}"
+    )
+
+    # Test 6: inline_data with missing data (edge case)
+    mock_inline_data_no_data = Mock()
+    mock_inline_data_no_data.mime_type = "image/png"
+    mock_inline_data_no_data.data = None
+
+    mock_part_no_data = Mock()
+    mock_part_no_data.text = None
+    mock_part_no_data.function_call = None
+    mock_part_no_data.function_response = None
+    mock_part_no_data.inline_data = mock_inline_data_no_data
+    mock_part_no_data.file_data = None
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_no_data, 0))
+    assert len(attributes) == 1, (
+        f"Expected 1 attribute for image with no data, got {len(attributes)}"
+    )
+
+    attr_key, attr_value = attributes[0]
+    assert attr_key == MessageAttributes.MESSAGE_CONTENT, (
+        f"Expected MESSAGE_CONTENT key, got {attr_key}"
+    )
+    assert attr_value == "[Image: image/png]", (
+        f"Expected image fallback description, got {attr_value}"
+    )
+
+
+def test_part_handling_preserves_existing_functionality():
+    """Test that existing Part handling (text, function_call, function_response) still works."""
+    from unittest.mock import Mock
+
+    from openinference.instrumentation.google_genai._request_attributes_extractor import (
+        _RequestAttributesExtractor,
+    )
+    from openinference.semconv.trace import MessageAttributes
+
+    extractor = _RequestAttributesExtractor()
+
+    # Test text part (existing functionality)
+    mock_part_text = Mock()
+    mock_part_text.text = "Hello, world!"
+    mock_part_text.function_call = None
+    mock_part_text.function_response = None
+    mock_part_text.inline_data = None
+    mock_part_text.file_data = None
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_text, 0))
+    assert len(attributes) == 1, f"Expected 1 attribute for text part, got {len(attributes)}"
+
+    attr_key, attr_value = attributes[0]
+    assert attr_key == MessageAttributes.MESSAGE_CONTENT, (
+        f"Expected MESSAGE_CONTENT key, got {attr_key}"
+    )
+    assert attr_value == "Hello, world!", f"Expected text content, got {attr_value}"
+
+    # Test that inline_data and file_data don't interfere with text
+    mock_part_text_priority = Mock()
+    mock_part_text_priority.text = "Text takes priority"
+    mock_part_text_priority.function_call = None
+    mock_part_text_priority.function_response = None
+    # These should be ignored since text has priority
+    mock_part_text_priority.inline_data = Mock()
+    mock_part_text_priority.file_data = Mock()
+
+    attributes = list(extractor._get_attributes_from_part(mock_part_text_priority, 0))
+    assert len(attributes) == 1, (
+        f"Expected 1 attribute for text part with other data, got {len(attributes)}"
+    )
+
+    attr_key, attr_value = attributes[0]
+    assert attr_key == MessageAttributes.MESSAGE_CONTENT, (
+        f"Expected MESSAGE_CONTENT key, got {attr_key}"
+    )
+    assert attr_value == "Text takes priority", f"Expected text content, got {attr_value}"
