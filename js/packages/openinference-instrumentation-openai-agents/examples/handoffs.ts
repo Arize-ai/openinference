@@ -52,7 +52,7 @@ async function main() {
 
   try {
     // Test Spanish handoff
-    console.log('Request: "Translate \'Hello, how are you?\' to Spanish"\n');
+    console.log("Request: \"Translate 'Hello, how are you?' to Spanish\"\n");
     const spanishResult = await agentsSdk.run(
       triageAgent,
       "Translate 'Hello, how are you?' to Spanish",
@@ -61,7 +61,7 @@ async function main() {
     console.log("\n---\n");
 
     // Test French handoff
-    console.log('Request: "Translate \'Good morning!\' to French"\n');
+    console.log("Request: \"Translate 'Good morning!' to French\"\n");
     const frenchResult = await agentsSdk.run(
       triageAgent,
       "Translate 'Good morning!' to French",

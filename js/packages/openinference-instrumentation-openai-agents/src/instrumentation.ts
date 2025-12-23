@@ -1,5 +1,6 @@
 import { TraceConfigOptions } from "@arizeai/openinference-core";
-import { Tracer, TracerProvider, trace } from "@opentelemetry/api";
+
+import { trace, Tracer, TracerProvider } from "@opentelemetry/api";
 
 import {
   OpenInferenceTracingProcessor,

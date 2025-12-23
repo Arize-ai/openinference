@@ -33,7 +33,9 @@ async function main() {
 
   try {
     // Run with streaming enabled
-    const stream = await agentsSdk.run(jokeAgent, "Tell me some jokes!", { stream: true });
+    const stream = await agentsSdk.run(jokeAgent, "Tell me some jokes!", {
+      stream: true,
+    });
 
     // Process the text stream as it arrives
     for await (const chunk of stream.toTextStream()) {

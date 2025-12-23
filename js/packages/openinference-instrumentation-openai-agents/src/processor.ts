@@ -9,10 +9,11 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
+
 import {
   Attributes,
-  context,
   Context,
+  context,
   Span as OTelSpan,
   SpanStatusCode,
   trace,
@@ -562,10 +563,7 @@ export class OpenInferenceTracingProcessor {
   /**
    * Add attributes for custom spans
    */
-  private addCustomAttributes(
-    data: SDKSpanData,
-    attributes: Attributes,
-  ): void {
+  private addCustomAttributes(data: SDKSpanData, attributes: Attributes): void {
     if (data.data) {
       attributes[SemanticConventions.OUTPUT_VALUE] =
         safelyJSONStringify(data.data) || "";
@@ -698,8 +696,9 @@ export class OpenInferenceTracingProcessor {
       | Record<string, unknown>
       | undefined;
     if (inputDetails?.cached_tokens !== undefined) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
-        Number(inputDetails.cached_tokens);
+      attributes[
+        SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
+      ] = Number(inputDetails.cached_tokens);
     }
 
     // Handle output token details
@@ -795,9 +794,8 @@ export class OpenInferenceTracingProcessor {
         const tcPrefix = `${msgPrefix}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIdx}`;
 
         if (item.call_id) {
-          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] = String(
-            item.call_id,
-          );
+          attributes[`${tcPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
+            String(item.call_id);
         }
         if (item.name) {
           attributes[

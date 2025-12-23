@@ -15,9 +15,9 @@
 
 import { instrumentation, provider } from "./instrumentation";
 
+import type { Agent, Usage } from "@openai/agents";
 // IMPORTANT: Import the SDK as a namespace so we can pass it to instrument()
 import * as agentsSdk from "@openai/agents";
-import type { Usage, Agent } from "@openai/agents";
 import { z } from "zod";
 
 // Helper to format usage info
