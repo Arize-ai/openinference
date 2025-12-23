@@ -1,6 +1,6 @@
 import json
 from typing import Any, Generator, Optional
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry import trace as trace_api
