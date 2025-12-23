@@ -96,9 +96,13 @@ async function main() {
     // Turn 3: Recall information
     console.log("--- Turn 3 ---");
     console.log('User: "What is my favorite color?"\n');
-    const turn3 = await agentsSdk.run(memoryAgent, "What is my favorite color?", {
-      previousResponseId: turn2.lastResponseId,
-    });
+    const turn3 = await agentsSdk.run(
+      memoryAgent,
+      "What is my favorite color?",
+      {
+        previousResponseId: turn2.lastResponseId,
+      },
+    );
     console.log("Assistant:", turn3.finalOutput);
     console.log("\n");
 

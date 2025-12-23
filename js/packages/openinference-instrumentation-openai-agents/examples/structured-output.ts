@@ -35,7 +35,9 @@ const MovieRecommendations = z.object({
     .array(MovieRecommendation)
     .length(3)
     .describe("Exactly 3 movie recommendations"),
-  theme: z.string().describe("The common theme connecting these recommendations"),
+  theme: z
+    .string()
+    .describe("The common theme connecting these recommendations"),
 });
 
 // Create an agent with structured output
@@ -49,9 +51,17 @@ const movieAgent = new agentsSdk.Agent({
 
 // Define a structured output for analysis
 const SentimentAnalysis = z.object({
-  sentiment: z.enum(["positive", "negative", "neutral"]).describe("Overall sentiment"),
-  confidence: z.number().min(0).max(1).describe("Confidence score between 0 and 1"),
-  keyPhrases: z.array(z.string()).describe("Key phrases that influenced the analysis"),
+  sentiment: z
+    .enum(["positive", "negative", "neutral"])
+    .describe("Overall sentiment"),
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe("Confidence score between 0 and 1"),
+  keyPhrases: z
+    .array(z.string())
+    .describe("Key phrases that influenced the analysis"),
   explanation: z.string().describe("Brief explanation of the analysis"),
 });
 
@@ -81,7 +91,9 @@ async function main() {
     );
 
     // Access the structured output
-    const movies = movieResult.finalOutput as z.infer<typeof MovieRecommendations>;
+    const movies = movieResult.finalOutput as z.infer<
+      typeof MovieRecommendations
+    >;
     console.log("Theme:", movies.theme);
     console.log("\nRecommendations:");
     movies.recommendations.forEach((movie, index) => {
@@ -101,10 +113,15 @@ async function main() {
       "I absolutely loved the new restaurant! The food was incredible, the service was top-notch, and the atmosphere was perfect. I can't wait to go back!";
     console.log(`Text: "${textToAnalyze}"\n`);
 
-    const sentimentResult = await agentsSdk.run(sentimentAgent, `Analyze: "${textToAnalyze}"`);
+    const sentimentResult = await agentsSdk.run(
+      sentimentAgent,
+      `Analyze: "${textToAnalyze}"`,
+    );
 
     // Access the structured output
-    const analysis = sentimentResult.finalOutput as z.infer<typeof SentimentAnalysis>;
+    const analysis = sentimentResult.finalOutput as z.infer<
+      typeof SentimentAnalysis
+    >;
     console.log("Analysis Results:");
     console.log(`  Sentiment: ${analysis.sentiment}`);
     console.log(`  Confidence: ${(analysis.confidence * 100).toFixed(1)}%`);

@@ -3,9 +3,10 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OpenInferenceTracingProcessor } from "../src/processor";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("OpenInferenceTracingProcessor", () => {
   let processor: OpenInferenceTracingProcessor;
@@ -326,10 +327,14 @@ describe("OpenInferenceTracingProcessor", () => {
 
     expect(genSpan).toBeDefined();
     expect(
-      genSpan?.attributes["llm.input_messages.0.message.contents.0.message_content.type"],
+      genSpan?.attributes[
+        "llm.input_messages.0.message.contents.0.message_content.type"
+      ],
     ).toBe("text");
     expect(
-      genSpan?.attributes["llm.input_messages.0.message.contents.0.message_content.text"],
+      genSpan?.attributes[
+        "llm.input_messages.0.message.contents.0.message_content.text"
+      ],
     ).toBe("What is in this image?");
   });
 
@@ -382,13 +387,19 @@ describe("OpenInferenceTracingProcessor", () => {
 
     expect(genSpan).toBeDefined();
     expect(
-      genSpan?.attributes["llm.output_messages.0.message.tool_calls.0.tool_call.id"],
+      genSpan?.attributes[
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id"
+      ],
     ).toBe("call_123");
     expect(
-      genSpan?.attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"],
+      genSpan?.attributes[
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name"
+      ],
     ).toBe("get_weather");
     expect(
-      genSpan?.attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"],
+      genSpan?.attributes[
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+      ],
     ).toBe('{"location": "New York"}');
   });
 });

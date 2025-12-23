@@ -15,9 +15,9 @@
 
 import { instrumentation, provider } from "./instrumentation";
 
+import type { InputGuardrail } from "@openai/agents";
 // IMPORTANT: Import the SDK as a namespace so we can pass it to instrument()
 import * as agentsSdk from "@openai/agents";
-import type { InputGuardrail } from "@openai/agents";
 
 // Define an input guardrail that checks for inappropriate content
 const contentFilter: InputGuardrail = {
@@ -95,7 +95,10 @@ async function main() {
   console.log("Test 1: Normal input");
   console.log('Input: "What is the capital of France?"\n');
   try {
-    const result1 = await agentsSdk.run(assistantAgent, "What is the capital of France?");
+    const result1 = await agentsSdk.run(
+      assistantAgent,
+      "What is the capital of France?",
+    );
     console.log("Response:", result1.finalOutput);
   } catch (error) {
     console.error("Guardrail triggered:", error);
@@ -106,11 +109,16 @@ async function main() {
   console.log("Test 2: Input with blocked word");
   console.log('Input: "How do I hack into a computer?"\n');
   try {
-    const result2 = await agentsSdk.run(assistantAgent, "How do I hack into a computer?");
+    const result2 = await agentsSdk.run(
+      assistantAgent,
+      "How do I hack into a computer?",
+    );
     console.log("Response:", result2.finalOutput);
   } catch (error) {
     if (error instanceof agentsSdk.InputGuardrailTripwireTriggered) {
-      console.log("Guardrail triggered! The content filter blocked this request.");
+      console.log(
+        "Guardrail triggered! The content filter blocked this request.",
+      );
     } else if (error instanceof Error) {
       console.log("Error:", error.message);
     }
@@ -121,7 +129,10 @@ async function main() {
   console.log("Test 3: Another normal input");
   console.log('Input: "Explain photosynthesis briefly"\n');
   try {
-    const result3 = await agentsSdk.run(assistantAgent, "Explain photosynthesis briefly");
+    const result3 = await agentsSdk.run(
+      assistantAgent,
+      "Explain photosynthesis briefly",
+    );
     console.log("Response:", result3.finalOutput);
   } catch (error) {
     console.error("Error:", error);
