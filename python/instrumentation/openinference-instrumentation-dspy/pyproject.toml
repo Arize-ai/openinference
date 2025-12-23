@@ -45,7 +45,6 @@ test = [
   "pytest-recording",
   "litellm",
   "urllib3<3.0",
-  # Temporary vcrpy pin to avoid async future await regression
   "vcrpy>=5.0.0,<8.0.0",
 ]
 
