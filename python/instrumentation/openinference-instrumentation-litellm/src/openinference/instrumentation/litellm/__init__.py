@@ -349,7 +349,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 if raw_vector is None or index is None:
                     continue
 
-                vector = None
+                vector: Union[Tuple[Any, ...], str, None] = None
                 # Record numeric vectors as tuples
                 if isinstance(raw_vector, (list, tuple)):
                     if all(isinstance(x, (int, float)) for x in raw_vector):
@@ -360,7 +360,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 else:
                     continue
 
-                if vector:
+                if vector is not None:
                     _set_span_attribute(
                         span,
                         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
