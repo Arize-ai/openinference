@@ -1,5 +1,6 @@
 import json
-from typing import Iterator
+from typing import Generator, Iterator
+from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
@@ -16,6 +17,17 @@ def instrument(
 ) -> Iterator[None]:
     LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
+
+
+@pytest.fixture
+def patch_tiktoken_encoding() -> Generator[None, None, None]:
+    """Patch `tiktoken.get_encoding` for LiteLLM to avoid network calls."""
+
+    with patch("tiktoken.get_encoding") as mock_get_encoding:
+        mock_encoding = MagicMock()
+        mock_encoding.encode.return_value = [1, 2, 3]
+        mock_get_encoding.return_value = mock_encoding
+        yield
 
 
 class TestTokenCounts:
@@ -79,6 +91,7 @@ class TestTokenCounts:
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
+        patch_tiktoken_encoding: None,
     ) -> None:
         messages = [{"role": "user", "content": "Hello!"}]
         resp = litellm.completion(

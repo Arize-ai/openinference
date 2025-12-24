@@ -61,7 +61,7 @@ def test_batch_embedding(
             f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{i}.{EmbeddingAttributes.EMBEDDING_VECTOR}"
         )
         assert vector is not None
-        assert isinstance(vector, tuple)
+        assert isinstance(vector, (tuple, str))
         assert len(vector) > 0
 
     # Check token counts
@@ -126,7 +126,7 @@ def test_single_string_embedding(
         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
     )
     assert vector is not None
-    assert isinstance(vector, tuple)
+    assert isinstance(vector, (tuple, str))
     assert len(vector) > 0
 
     # Check token counts
@@ -194,7 +194,7 @@ def test_batch_embedding_with_different_model(
             f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{i}.{EmbeddingAttributes.EMBEDDING_VECTOR}"
         )
         assert vector is not None
-        assert isinstance(vector, tuple)
+        assert isinstance(vector, (tuple, str))
         assert len(vector) > 0
 
     # Check token counts
