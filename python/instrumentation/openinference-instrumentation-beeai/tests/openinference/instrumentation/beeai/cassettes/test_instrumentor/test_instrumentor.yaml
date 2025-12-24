@@ -1,0 +1,219 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"type": "text", "text": "Hello,
+      How are you?"}]}], "model": "gpt-4o", "max_tokens": 10, "temperature": 0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '151'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CoC0HdP9jy2YycE8oFdM1BiK5Wf4N\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1766078577,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Hello! I'm just a computer program,
+        so I\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"length\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 13,\n    \"completion_tokens\": 10,\n
+        \   \"total_tokens\": 23,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_ff5f7093b3\"\n}\n"
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b005865faa07c75-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:22:58 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=j9ZVfTZaZm0xStwYRFumWUfGAt3OnemxIOnq6MYpwR0-1766078578-1.0.1.1-WkW5MGKgoIHAglGstyEVwpVXqb1a3S33qGcJqJqP8tvR1uZES20U4Btqx035pUrju251ZJRokKFmiVk1gaZEuh8O0yx4cFsTTNhmYtAAaJE;
+        path=/; expires=Thu, 18-Dec-25 17:52:58 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=uF33G2.eNA2Yr9axp0x0HXfwnA4ndrFGgwmt5aJYwEc-1766078578507-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '844'
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '415'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '435'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29993'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 14ms
+      x-request-id:
+      - req_2392797890f947809cdfea06e1ac55ba
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"type": "text", "text": "Hello,
+      How are you?"}]}], "model": "gpt-4o", "max_tokens": 10, "temperature": 0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '151'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: ''
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b005865faa07c75-HYD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:22:58 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=j9ZVfTZaZm0xStwYRFumWUfGAt3OnemxIOnq6MYpwR0-1766078578-1.0.1.1-WkW5MGKgoIHAglGstyEVwpVXqb1a3S33qGcJqJqP8tvR1uZES20U4Btqx035pUrju251ZJRokKFmiVk1gaZEuh8O0yx4cFsTTNhmYtAAaJE;
+        path=/; expires=Thu, 18-Dec-25 17:52:58 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=uF33G2.eNA2Yr9axp0x0HXfwnA4ndrFGgwmt5aJYwEc-1766078578507-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '0'
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '415'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '435'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29993'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 14ms
+      x-request-id:
+      - req_2392797890f947809cdfea06e1ac55ba
+    status:
+      code: 200
+      message: OK
+version: 1
