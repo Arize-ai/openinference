@@ -1,1 +1,1 @@
-_instruments = ("strands-agents >= 0.1.0",)
+_instruments = ("strands-agents >= 1.19.0",)

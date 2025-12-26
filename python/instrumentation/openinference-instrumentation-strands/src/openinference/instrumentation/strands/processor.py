@@ -28,6 +28,11 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 
+# GenAI request parameter attribute keys (semantic convention names)
+GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
+GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
+GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
+
 logger = logging.getLogger(__name__)
 
 
@@ -570,7 +575,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                                 text_parts = []
                                 for item in message_data:
                                     if isinstance(item, dict) and "text" in item:
-                                        text_parts.append(item["text"])
+                                        text_parts.append(str(item["text"]))
                                 tool_output = (
                                     " ".join(text_parts) if text_parts else str(message_data)
                                 )
@@ -653,9 +658,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
     def _map_invocation_parameters(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         params = {}
         param_mappings = {
-            "max_tokens": "max_tokens",
-            "temperature": "temperature",
-            "top_p": "top_p",
+            GEN_AI_REQUEST_MAX_TOKENS: "max_tokens",
+            GEN_AI_REQUEST_TEMPERATURE: "temperature",
+            GEN_AI_REQUEST_TOP_P: "top_p",
         }
 
         for key, param_key in param_mappings.items():
@@ -669,9 +674,8 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         if not isinstance(msg, dict):
             return {"message.role": "user", "message.content": str(msg)}
 
-        result = {}
-        if "role" in msg:
-            result["message.role"] = msg["role"]
+        result: Dict[str, Any] = {}
+        result["message.role"] = msg.get("role", "user")
 
         if "content" in msg:
             content = msg["content"]
