@@ -216,9 +216,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             if normalized.get("message.role") == "user":
                                 input_messages.append(normalized)
                     elif isinstance(prompt_data, dict):
-                        # Handle single dict prompt (e.g., {"role": "user", "content": "Hello"})
                         normalized = self._normalize_message(prompt_data)
-                        input_messages.append(normalized)
+                        if normalized.get("message.role") == "user":
+                            input_messages.append(normalized)
                     else:
                         # Handle other JSON types (string, number, etc.)
                         input_messages.append(
@@ -308,6 +308,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
                 if tool_calls:
                     message["message.tool_calls"] = tool_calls
+
+                if "message.content" not in message and "message.tool_calls" not in message:
+                    return None
 
                 return message
             elif isinstance(content_data, dict):
