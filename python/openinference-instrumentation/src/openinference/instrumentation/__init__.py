@@ -53,26 +53,6 @@ from .context_attributes import (
     using_tags,
     using_user,
 )
-from .gen_ai_attributes import (
-    GEN_AI_OPERATION_NAME,
-    GEN_AI_REQUEST_FREQUENCY_PENALTY,
-    GEN_AI_REQUEST_MAX_TOKENS,
-    GEN_AI_REQUEST_MODEL,
-    GEN_AI_REQUEST_PRESENCE_PENALTY,
-    GEN_AI_REQUEST_SEED,
-    GEN_AI_REQUEST_STOP_SEQUENCES,
-    GEN_AI_REQUEST_TEMPERATURE,
-    GEN_AI_REQUEST_TOP_K,
-    GEN_AI_REQUEST_TOP_P,
-    GEN_AI_SYSTEM,
-    GEN_AI_TOOL_CALL_ID,
-    GEN_AI_TOOL_DESCRIPTION,
-    GEN_AI_TOOL_NAME,
-    GEN_AI_USAGE_INPUT_TOKENS,
-    GEN_AI_USAGE_OUTPUT_TOKENS,
-    GenAIAttributes,
-    GenAIEventNames,
-)
 from .helpers import safe_json_dumps
 
 # The following line is needed to ensure that other modules using the
@@ -129,23 +109,4 @@ __all__ = [
     "Tool",
     "ToolCall",
     "ToolCallFunction",
-    # GenAI constants
-    "GEN_AI_OPERATION_NAME",
-    "GEN_AI_REQUEST_FREQUENCY_PENALTY",
-    "GEN_AI_REQUEST_MAX_TOKENS",
-    "GEN_AI_REQUEST_MODEL",
-    "GEN_AI_REQUEST_PRESENCE_PENALTY",
-    "GEN_AI_REQUEST_SEED",
-    "GEN_AI_REQUEST_STOP_SEQUENCES",
-    "GEN_AI_REQUEST_TEMPERATURE",
-    "GEN_AI_REQUEST_TOP_K",
-    "GEN_AI_REQUEST_TOP_P",
-    "GEN_AI_SYSTEM",
-    "GEN_AI_TOOL_CALL_ID",
-    "GEN_AI_TOOL_DESCRIPTION",
-    "GEN_AI_TOOL_NAME",
-    "GEN_AI_USAGE_INPUT_TOKENS",
-    "GEN_AI_USAGE_OUTPUT_TOKENS",
-    "GenAIAttributes",
-    "GenAIEventNames",
 ]
