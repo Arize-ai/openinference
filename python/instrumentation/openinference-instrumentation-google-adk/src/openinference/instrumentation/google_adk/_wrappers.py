@@ -481,8 +481,10 @@ def _get_attributes_from_parts(
             # and `.mime_type` (str). Encode the bytes as base64 and record
             # it as an image content attribute, along with the mime type.
             try:
-                if (data := inline_data.data) is not None and "image" in inline_data.mime_type:
+                mime_type = inline_data.mime_type
+                if mime_type and (data := inline_data.data) is not None and "image" in mime_type:
                     prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
+
                     image_url = (
                         f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
                     )

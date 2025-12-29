@@ -1307,8 +1307,8 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.invocation_parameters", None)
     assert call_llm_attributes.pop("llm.model_name", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes.pop(
-        "llm.output_messages.0.message.contents.0.message_content.text", None
+    assert str(
+        call_llm_attributes.pop("llm.output_messages.0.message.contents.0.message_content.text", "")
     ).startswith("The image shows an aerial")
     assert (
         call_llm_attributes.pop(
