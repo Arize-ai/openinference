@@ -349,6 +349,10 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
                 if raw_vector is None or index is None:
                     continue
 
+                # Skip empty embeddings to avoid recording invalid vectors
+                if raw_vector == [] or raw_vector == "":
+                    continue
+
                 vector: Union[Tuple[Any, ...], str, None] = None
                 # Record numeric vectors as tuples
                 if isinstance(raw_vector, (list, tuple)):
