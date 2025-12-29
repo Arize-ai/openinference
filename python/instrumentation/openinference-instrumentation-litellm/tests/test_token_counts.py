@@ -30,6 +30,7 @@ def patch_tiktoken_encoding() -> Generator[None, None, None]:
         yield
 
 
+@pytest.mark.usefixtures("patch_tiktoken_encoding")
 class TestTokenCounts:
     @pytest.mark.vcr(
         decode_compressed_response=True,
@@ -91,7 +92,6 @@ class TestTokenCounts:
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
-        patch_tiktoken_encoding: None,
     ) -> None:
         messages = [{"role": "user", "content": "Hello!"}]
         resp = litellm.completion(
