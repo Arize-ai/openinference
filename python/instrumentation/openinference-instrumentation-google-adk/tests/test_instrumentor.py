@@ -4,8 +4,10 @@ from secrets import token_hex
 from typing import Any, cast
 
 import pytest
+import requests
 from google.adk import Agent, __version__
 from google.adk.runners import InMemoryRunner
+from google.adk.tools import ToolContext, load_artifacts
 from google.genai import types
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -1121,3 +1123,290 @@ async def test_google_adk_instrumentor_multi_agent(
         assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) is not None
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes2
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+    decode_compressed_response=True,
+)
+async def test_google_adk_instrumentor_image_artifacts(
+    instrument: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    async def load_remote_image(file_url: str, tool_context: ToolContext) -> str:
+        """
+        Reads a local image file and registers it as an ADK artifact.
+        Args:
+            tool_context:
+            file_url: Remote location of file.
+        """
+        response = requests.get(file_url)
+        image_part = types.Part.from_bytes(data=response.content, mime_type="image/png")
+        filename = "test_image.png"
+        await tool_context.save_artifact(filename=filename, artifact=image_part)
+        return f"Success! Image '{filename}' is now available as an artifact."
+
+    agent_name = "poet_agent"
+    agent = Agent(
+        name=agent_name,
+        model="gemini-2.0-flash",
+        instruction=(
+            "You are a creative poet and visual analyst. "
+            "1. First, use 'load_local_image_artifact' to get the file into the system. "
+            "2. Then, use 'load_artifacts' to see the image content. "
+            "3. Describe the image in detail. "
+            "4. Write a beautiful poem based on that description."
+        ),
+        tools=[load_remote_image, load_artifacts],
+    )
+
+    app_name = token_hex(4)
+    user_id = token_hex(4)
+    session_id = token_hex(4)
+    runner = InMemoryRunner(agent=agent, app_name=app_name)
+    session_service = runner.session_service
+    await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
+    file_path = "https://picsum.photos/200/300"
+    user_query = f"Please process the file at '{file_path}', describe it."
+    content = types.Content(role="user", parts=[types.Part(text=user_query)])
+    async for _ in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
+        ...
+
+    spans = sorted(in_memory_span_exporter.get_finished_spans(), key=lambda s: s.start_time or 0)
+    spans_by_name: dict[str, list[ReadableSpan]] = defaultdict(list)
+    for span in spans:
+        spans_by_name[span.name].append(span)
+    assert len(spans) == 7
+
+    invocation_span = spans_by_name[f"invocation [{app_name}]"][0]
+    assert invocation_span.status.is_ok
+    assert not invocation_span.parent
+    invocation_attributes = dict(invocation_span.attributes or {})
+    assert invocation_attributes.pop("user.id", None) == user_id
+    assert invocation_attributes.pop("session.id", None) == session_id
+    assert invocation_attributes.pop("openinference.span.kind", None) == "CHAIN"
+    assert invocation_attributes.pop("output.mime_type", None) == "application/json"
+    assert invocation_attributes.pop("output.value", None)
+    assert invocation_attributes.pop("input.mime_type", None) == "application/json"
+    assert invocation_attributes.pop("input.value", None)
+    assert not invocation_attributes
+
+    agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
+    assert agent_run_span.status.is_ok
+    assert agent_run_span.parent
+    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    agent_run_attributes = dict(agent_run_span.attributes or {})
+    assert agent_run_attributes.pop("user.id", None) == user_id
+    assert agent_run_attributes.pop("session.id", None) == session_id
+    assert agent_run_attributes.pop("openinference.span.kind", None) == "AGENT"
+    assert agent_run_attributes.pop("agent.name", None) == agent_name
+    assert agent_run_attributes.pop("output.mime_type", None) == "application/json"
+    assert agent_run_attributes.pop("output.value", None)
+    # GenAI attributes set by google-adk library
+    agent_run_attributes.pop("gen_ai.agent.description", None)
+    agent_run_attributes.pop("gen_ai.agent.name", None)
+    agent_run_attributes.pop("gen_ai.conversation.id", None)
+    agent_run_attributes.pop("gen_ai.operation.name", None)
+    assert not agent_run_attributes
+
+    call_llm_span = spans_by_name["call_llm"][-1]
+    assert call_llm_span.status.is_ok
+    assert call_llm_span.parent
+    assert call_llm_span.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    call_llm_attributes = dict(call_llm_span.attributes or {})
+    assert call_llm_attributes.pop("user.id", None) == user_id
+    assert call_llm_attributes.pop("session.id", None) == session_id
+    assert call_llm_attributes.pop("openinference.span.kind", None) == "LLM"
+    assert call_llm_attributes.pop("output.mime_type", None) == "application/json"
+    assert call_llm_attributes.pop("output.value", None)
+    assert call_llm_attributes.pop("input.mime_type", None) == "application/json"
+    assert call_llm_attributes.pop("input.value", None)
+    assert call_llm_attributes.pop("llm.input_messages.0.message.content", None)
+    assert call_llm_attributes.pop("llm.input_messages.0.message.role", None) == "system"
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.1.message.contents.0.message_content.text", None
+        )
+        == "Please process the file at 'https://picsum.photos/200/300', describe it."
+    )
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.1.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes.pop("llm.input_messages.1.message.role", None) == "user"
+
+    assert call_llm_attributes.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", "load_remote_image"
+    )
+    assert call_llm_attributes.pop(
+        "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments",
+        '{"file_url": "https://picsum.photos/200/300"}',
+    )
+    assert call_llm_attributes.pop("llm.input_messages.2.message.role", None) == "model"
+
+    assert call_llm_attributes.pop("llm.input_messages.3.message.name", None) == "load_remote_image"
+    assert call_llm_attributes.pop("llm.input_messages.3.message.content", None)
+    assert call_llm_attributes.pop("llm.input_messages.3.message.role", None) == "tool"
+
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.4.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes.pop(
+        "llm.input_messages.4.message.contents.0.message_content.text", None
+    )
+    assert call_llm_attributes.pop("llm.input_messages.4.message.role", None) == "model"
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.4.message.tool_calls.1.tool_call.function.name", None
+        )
+        == "load_artifacts"
+    )
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.4.message.tool_calls.1.tool_call.function.arguments", None
+        )
+        == '{"artifact_names": ["test_image.png"]}'
+    )
+
+    assert call_llm_attributes.pop("llm.input_messages.5.message.name", None) == "load_artifacts"
+    assert (
+        call_llm_attributes.pop("llm.input_messages.5.message.content", None)
+        == '{"artifact_names": ["test_image.png"]}'
+    )
+    assert call_llm_attributes.pop("llm.input_messages.5.message.role", None) == "tool"
+
+    assert call_llm_attributes.pop("llm.input_messages.6.message.role", None) == "user"
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.6.message.contents.0.message_content.text", None
+        )
+        == "Artifact test_image.png is:"
+    )
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.6.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes.pop(
+        "llm.input_messages.6.message.contents.1.message_content.image.image.url", None
+    )
+    assert (
+        call_llm_attributes.pop(
+            "llm.input_messages.6.message.contents.1.message_content.type", None
+        )
+        == "image"
+    )
+
+    assert call_llm_attributes.pop("llm.invocation_parameters", None)
+    assert call_llm_attributes.pop("llm.model_name", None) == "gemini-2.0-flash"
+    assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
+    assert call_llm_attributes.pop(
+        "llm.output_messages.0.message.contents.0.message_content.text", None
+    ).startswith("The image shows an aerial")
+    assert (
+        call_llm_attributes.pop(
+            "llm.output_messages.0.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes.pop("llm.token_count.completion", None) == 208
+    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 595
+    assert call_llm_attributes.pop("llm.token_count.total", None) == 803
+    assert call_llm_attributes.pop("llm.tools.0.tool.json_schema", None)
+    assert call_llm_attributes.pop("llm.provider", None) == "google"
+    assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
+    assert call_llm_attributes.pop("gcp.vertex.agent.invocation_id", None)
+    assert call_llm_attributes.pop("gcp.vertex.agent.llm_request", None)
+    assert call_llm_attributes.pop("gcp.vertex.agent.llm_response", None)
+    assert call_llm_attributes.pop("gcp.vertex.agent.session_id", None)
+    assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
+    assert call_llm_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    if _VERSION >= (1, 5, 0):
+        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) is not None
+        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) is not None
+    call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes.pop("llm.tools.1.tool.json_schema", None)
+    print(call_llm_attributes)
+    assert not call_llm_attributes
+    #
+
+    print(spans_by_name)
+    tool_span = spans_by_name["execute_tool load_remote_image"][0]
+    assert tool_span.status.is_ok
+    assert tool_span.parent
+    tool_attributes = dict(tool_span.attributes or {})
+    assert tool_attributes.pop("user.id", None) == user_id
+    assert tool_attributes.pop("session.id", None) == session_id
+    assert tool_attributes.pop("openinference.span.kind", None) == "TOOL"
+    assert tool_attributes.pop("input.mime_type", None) == "application/json"
+    assert (
+        tool_attributes.pop("input.value", None) == '{"file_url": "https://picsum.photos/200/300"}'
+    )
+    assert tool_attributes.pop("output.mime_type", None) == "application/json"
+    assert tool_attributes.pop("output.value", None)
+    assert tool_attributes.pop("tool.description", None)
+    assert tool_attributes.pop("tool.name", None) == "load_remote_image"
+    assert (
+        tool_attributes.pop("tool.parameters", None)
+        == '{"file_url": "https://picsum.photos/200/300"}'
+    )
+    assert tool_attributes.pop("gcp.vertex.agent.event_id", None)
+    assert tool_attributes.pop("gcp.vertex.agent.llm_request", None) == "{}"
+    assert tool_attributes.pop("gcp.vertex.agent.llm_response", None) == "{}"
+    assert (
+        tool_attributes.pop("gcp.vertex.agent.tool_call_args", None)
+        == '{"file_url": "https://picsum.photos/200/300"}'
+    )
+    assert tool_attributes.pop("gcp.vertex.agent.tool_response", None)
+    # GenAI attributes set by google-adk library
+    tool_attributes.pop("gen_ai.operation.name", None)
+    tool_attributes.pop("gen_ai.system", None)
+    tool_attributes.pop("gen_ai.tool.call.id", None)
+    tool_attributes.pop("gen_ai.tool.description", None)
+    tool_attributes.pop("gen_ai.tool.name", None)
+    tool_attributes.pop("gen_ai.tool.type", None)
+    assert not tool_attributes
+
+    tool_span1 = spans_by_name["execute_tool load_artifacts"][0]
+    assert tool_span1.status.is_ok
+    assert tool_span1.parent
+    tool_attributes1 = dict(tool_span1.attributes or {})
+    assert tool_attributes1.pop("user.id", None) == user_id
+    assert tool_attributes1.pop("session.id", None) == session_id
+    assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
+    assert tool_attributes1.pop("input.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("input.value", None) == '{"artifact_names": ["test_image.png"]}'
+    assert tool_attributes1.pop("output.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("output.value", None)
+    assert (
+        tool_attributes1.pop("tool.description", None)
+        == "Loads the artifacts and adds them to the session."
+    )
+    assert tool_attributes1.pop("tool.name", None) == "load_artifacts"
+    assert tool_attributes1.pop("tool.parameters", None) == '{"artifact_names": ["test_image.png"]}'
+    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
+    assert (
+        tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None)
+        == '{"artifact_names": ["test_image.png"]}'
+    )
+    assert (
+        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+        == '{"artifact_names": ["test_image.png"]}'
+    )
+    # GenAI attributes set by google-adk library
+    tool_attributes1.pop("gen_ai.operation.name", None)
+    tool_attributes1.pop("gen_ai.system", None)
+    tool_attributes1.pop("gen_ai.tool.call.id", None)
+    tool_attributes1.pop("gen_ai.tool.description", None)
+    tool_attributes1.pop("gen_ai.tool.name", None)
+    tool_attributes1.pop("gen_ai.tool.type", None)
+    assert not tool_attributes1

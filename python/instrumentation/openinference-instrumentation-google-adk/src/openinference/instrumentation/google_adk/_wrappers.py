@@ -39,6 +39,7 @@ from openinference.instrumentation import (
     using_user,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -475,6 +476,24 @@ def _get_attributes_from_parts(
                     safe_json_dumps(function_response.response),
                 )
             message_index += 1
+        elif inline_data := part.inline_data:
+            # inline_data is typically a Blob-like object with `.data` (bytes)
+            # and `.mime_type` (str). Encode the bytes as base64 and record
+            # it as an image content attribute, along with the mime type.
+            try:
+                if (data := inline_data.data) is not None and "image" in inline_data.mime_type:
+                    prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
+                    image_url = (
+                        f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
+                    )
+                    yield (
+                        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                        image_url,
+                    )
+                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+            except Exception as e:
+                print("Excepton eeee", e)
+                logger.debug("Failed to extract file data attributes.")
 
 
 @stop_on_exception
@@ -555,3 +574,6 @@ def _default(obj: Any) -> Any:
     if isinstance(obj, bytes):
         return base64.b64encode(obj).decode()
     return str(obj)
+
+
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
