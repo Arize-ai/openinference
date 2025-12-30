@@ -419,7 +419,6 @@ def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
         >>> _extract_llm_content_from_output(obj)
         "Hello!"
     """
-    # Check for 'generations' key which indicates LLM output structure
     if not isinstance(obj, dict):
         return None
 
@@ -427,7 +426,6 @@ def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
     if not generations or not isinstance(generations, (list, tuple)):
         return None
 
-    # Get the first set of generations (there may be multiple for batch requests)
     first_generation_set = None
     try:
         first_generation_set = generations[0] if generations else None
@@ -437,7 +435,6 @@ def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
     if not first_generation_set or not isinstance(first_generation_set, (list, tuple)):
         return None
 
-    # Extract content from each generation in the set
     contents: List[str] = []
     for gen in first_generation_set:
         if not isinstance(gen, dict):
@@ -445,14 +442,12 @@ def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
 
         content = None
 
-        # Try chat model format first: message.content
         message = gen.get("message")
         if isinstance(message, dict):
             msg_content = message.get("content")
             if isinstance(msg_content, str) and msg_content.strip():
                 content = msg_content
 
-        # Fall back to text generation format: text
         if content is None:
             text = gen.get("text")
             if isinstance(text, str) and text.strip():
@@ -461,7 +456,6 @@ def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
         if content:
             contents.append(content)
 
-    # Return joined content if we found any, otherwise None
     if contents:
         return "\n\n".join(contents)
 
