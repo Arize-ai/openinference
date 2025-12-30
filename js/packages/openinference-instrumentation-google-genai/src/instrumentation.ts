@@ -262,8 +262,12 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
               return result;
             })
             .catch((error: Error) => {
-              // Span is already ended in safeExecuteInTheMiddle error callback
-              // Just re-throw the error
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
               throw error;
             })
         );
@@ -406,17 +410,29 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           },
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise.then((result: any) => {
-          span.setAttributes({
-            [SemanticConventions.OUTPUT_VALUE]:
-              safelyJSONStringify(result) || "",
-            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          return result;
-        });
+        return (
+          execPromise
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((result: any) => {
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]:
+                  safelyJSONStringify(result) || "",
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              return result;
+            })
+            .catch((error: Error) => {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+              throw error;
+            })
+        );
       };
     }
   }
@@ -496,17 +512,29 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           },
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise.then((result: any) => {
-          span.setAttributes({
-            [SemanticConventions.OUTPUT_VALUE]:
-              safelyJSONStringify(result) || "",
-            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          return result;
-        });
+        return (
+          execPromise
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((result: any) => {
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]:
+                  safelyJSONStringify(result) || "",
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              return result;
+            })
+            .catch((error: Error) => {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+              throw error;
+            })
+        );
       };
     }
 
@@ -644,17 +672,29 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           },
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise.then((result: any) => {
-          span.setAttributes({
-            [SemanticConventions.OUTPUT_VALUE]:
-              safelyJSONStringify(result) || "",
-            [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          return result;
-        });
+        return (
+          execPromise
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((result: any) => {
+              span.setAttributes({
+                [SemanticConventions.OUTPUT_VALUE]:
+                  safelyJSONStringify(result) || "",
+                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+              });
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+              return result;
+            })
+            .catch((error: Error) => {
+              span.recordException(error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              span.end();
+              throw error;
+            })
+        );
       };
     }
   }
