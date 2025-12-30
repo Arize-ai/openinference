@@ -1650,3 +1650,360 @@ class TestConvertIO:
         assert len(list(_convert_io({"input": "["}))) == 1
         assert len(list(_convert_io({"input": "}"}))) == 1
         assert len(list(_convert_io({"input": "]"}))) == 1
+
+
+class TestExtractLLMContentFromOutput:
+    """Tests for LLM content extraction from LangChain outputs.
+
+    These tests verify that the _convert_io function properly extracts
+    plain text content from LangChain LLM outputs instead of dumping
+    the full JSON structure.
+    """
+
+    def test_chat_model_output_extracts_message_content(self) -> None:
+        """Test that chat model outputs extract message.content as plain text."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "",
+                        "generation_info": {"finish_reason": "stop"},
+                        "type": "ChatGeneration",
+                        "message": {
+                            "content": "Hello! How can I assist you today?",
+                            "additional_kwargs": {"refusal": None},
+                            "response_metadata": {
+                                "token_usage": {
+                                    "completion_tokens": 12,
+                                    "prompt_tokens": 3961,
+                                    "total_tokens": 3973,
+                                },
+                                "model_name": "gpt-4o-mini-2024-07-18",
+                            },
+                            "type": "ai",
+                            "name": None,
+                            "id": "test-id",
+                        },
+                    }
+                ]
+            ],
+            "llm_output": {"model_name": "gpt-4o-mini-2024-07-18"},
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Hello! How can I assist you today?"
+
+    def test_text_generation_output_extracts_text(self) -> None:
+        """Test that text generation outputs extract the 'text' field."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "The quick brown fox jumps over the lazy dog.",
+                        "generation_info": {"finish_reason": "stop"},
+                    }
+                ]
+            ],
+            "llm_output": {"model_name": "text-davinci-003"},
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "The quick brown fox jumps over the lazy dog."
+
+    def test_multiple_generations_joins_with_newlines(self) -> None:
+        """Test that multiple generations are joined with double newlines."""
+        llm_output = {
+            "generations": [
+                [
+                    {"text": "", "message": {"content": "First response"}},
+                    {"text": "", "message": {"content": "Second response"}},
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "First response\n\nSecond response"
+
+    def test_empty_generations_falls_back_to_json(self) -> None:
+        """Test that empty generations fall back to JSON output."""
+        llm_output = {
+            "generations": [],
+            "llm_output": {"model_name": "test"},
+        }
+
+        result = list(_convert_io(llm_output))
+
+        # Should fall back to JSON since no content can be extracted
+        assert len(result) == 2
+        assert "generations" in result[0]
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_empty_generation_set_falls_back_to_json(self) -> None:
+        """Test that empty generation set falls back to JSON output."""
+        llm_output = {
+            "generations": [[]],  # Empty first generation set
+            "llm_output": {"model_name": "test"},
+        }
+
+        result = list(_convert_io(llm_output))
+
+        # Should fall back to JSON since no content can be extracted
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_generation_with_empty_content_falls_back_to_json(self) -> None:
+        """Test that generations with empty/whitespace content fall back to JSON."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "",
+                        "message": {"content": "   "},  # Only whitespace
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        # Should fall back to JSON since content is only whitespace
+        assert len(result) == 2
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_message_content_preferred_over_text(self) -> None:
+        """Test that message.content is preferred over text field."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "This is the text field",
+                        "message": {"content": "This is the message content"},
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        # message.content should be preferred over text
+        assert result[0] == "This is the message content"
+
+    def test_falls_back_to_text_when_message_empty(self) -> None:
+        """Test fallback to text field when message content is empty."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "This is the text field",
+                        "message": {"content": ""},  # Empty content
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "This is the text field"
+
+    def test_non_llm_output_preserves_json(self) -> None:
+        """Test that non-LLM outputs are preserved as JSON."""
+        non_llm_output = {"output": {"key": "value", "nested": {"data": 123}}}
+
+        result = list(_convert_io(non_llm_output))
+
+        assert len(result) == 2
+        assert '"key": "value"' in result[0]
+        assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_preserves_unicode_and_emoji(self) -> None:
+        """Test that Unicode and emoji are preserved in extracted content."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "",
+                        "message": {"content": "Hello! 世界 🌍 How can I help? 🎉"},
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Hello! 世界 🌍 How can I help? 🎉"
+
+    def test_preserves_newlines_in_content(self) -> None:
+        """Test that newlines in content are preserved."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "",
+                        "message": {"content": "Line 1\nLine 2\n\nParagraph 2"},
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Line 1\nLine 2\n\nParagraph 2"
+
+    def test_handles_missing_message_key(self) -> None:
+        """Test handling of generation without message key."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "Only text field present",
+                        "generation_info": {"finish_reason": "stop"},
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Only text field present"
+
+    def test_handles_non_dict_message(self) -> None:
+        """Test handling of generation with non-dict message."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "Fallback text",
+                        "message": "not a dict",  # Should be ignored
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Fallback text"
+
+    def test_handles_non_string_content(self) -> None:
+        """Test handling of generation with non-string content."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "Fallback text",
+                        "message": {"content": 12345},  # Not a string
+                    }
+                ]
+            ]
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Fallback text"
+
+    def test_real_world_openai_response_format(self) -> None:
+        """Test with a realistic OpenAI response format."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "I am Claude, an AI assistant created by Anthropic.",
+                        "generation_info": {
+                            "finish_reason": "stop",
+                            "logprobs": None,
+                        },
+                        "type": "ChatGeneration",
+                        "message": {
+                            "content": "I am Claude, an AI assistant created by Anthropic.",
+                            "additional_kwargs": {},
+                            "response_metadata": {
+                                "token_usage": {
+                                    "completion_tokens": 15,
+                                    "prompt_tokens": 10,
+                                    "total_tokens": 25,
+                                },
+                                "model_name": "gpt-4o",
+                                "system_fingerprint": "fp_abc123",
+                                "prompt_filter_results": [],
+                                "finish_reason": "stop",
+                            },
+                            "type": "ai",
+                            "name": None,
+                            "id": "run-abc123",
+                            "example": False,
+                            "tool_calls": [],
+                            "invalid_tool_calls": [],
+                            "usage_metadata": {
+                                "input_tokens": 10,
+                                "output_tokens": 15,
+                                "total_tokens": 25,
+                            },
+                        },
+                    }
+                ]
+            ],
+            "llm_output": {
+                "token_usage": {
+                    "completion_tokens": 15,
+                    "prompt_tokens": 10,
+                    "total_tokens": 25,
+                },
+                "model_name": "gpt-4o",
+                "system_fingerprint": "fp_abc123",
+            },
+            "run": None,
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "I am Claude, an AI assistant created by Anthropic."
+
+    def test_anthropic_response_format(self) -> None:
+        """Test with a realistic Anthropic response format."""
+        llm_output = {
+            "generations": [
+                [
+                    {
+                        "text": "Hello! I'm Claude, an AI assistant by Anthropic.",
+                        "generation_info": None,
+                        "type": "ChatGeneration",
+                        "message": {
+                            "content": "Hello! I'm Claude, an AI assistant by Anthropic.",
+                            "additional_kwargs": {},
+                            "response_metadata": {
+                                "id": "msg_abc123",
+                                "model": "claude-3-sonnet-20240229",
+                                "stop_reason": "end_turn",
+                                "stop_sequence": None,
+                                "usage": {
+                                    "input_tokens": 10,
+                                    "output_tokens": 15,
+                                },
+                            },
+                            "type": "ai",
+                            "id": "run-xyz789",
+                        },
+                    }
+                ]
+            ],
+            "llm_output": None,
+            "run": None,
+        }
+
+        result = list(_convert_io(llm_output))
+
+        assert len(result) == 1
+        assert result[0] == "Hello! I'm Claude, an AI assistant by Anthropic."

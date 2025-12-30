@@ -389,18 +389,98 @@ def _is_json_parseable(value: str) -> bool:
     )
 
 
+def _extract_llm_content_from_output(obj: Mapping[str, Any]) -> Optional[str]:
+    """
+    Extract plain text content from LangChain LLM outputs.
+
+    LangChain LLM outputs have a specific structure with 'generations' containing
+    message content. This function extracts just the readable text content from
+    that structure, making the output much more user-friendly.
+
+    The function handles two main formats:
+    1. Chat model outputs: generations[0][*].message.content
+    2. Text generation outputs: generations[0][*].text
+
+    Args:
+        obj: The LLM output mapping to extract content from
+
+    Returns:
+        The extracted plain text content if successful, None if the structure
+        doesn't match the expected LLM output format.
+
+    Examples:
+        # Chat model output
+        >>> obj = {"generations": [[{"message": {"content": "Hello!"}}]]}
+        >>> _extract_llm_content_from_output(obj)
+        "Hello!"
+
+        # Text generation output
+        >>> obj = {"generations": [[{"text": "Hello!"}]]}
+        >>> _extract_llm_content_from_output(obj)
+        "Hello!"
+    """
+    # Check for 'generations' key which indicates LLM output structure
+    if not isinstance(obj, dict):
+        return None
+
+    generations = obj.get("generations")
+    if not generations or not isinstance(generations, (list, tuple)):
+        return None
+
+    # Get the first set of generations (there may be multiple for batch requests)
+    first_generation_set = None
+    try:
+        first_generation_set = generations[0] if generations else None
+    except (IndexError, TypeError):
+        return None
+
+    if not first_generation_set or not isinstance(first_generation_set, (list, tuple)):
+        return None
+
+    # Extract content from each generation in the set
+    contents: List[str] = []
+    for gen in first_generation_set:
+        if not isinstance(gen, dict):
+            continue
+
+        content = None
+
+        # Try chat model format first: message.content
+        message = gen.get("message")
+        if isinstance(message, dict):
+            msg_content = message.get("content")
+            if isinstance(msg_content, str) and msg_content.strip():
+                content = msg_content
+
+        # Fall back to text generation format: text
+        if content is None:
+            text = gen.get("text")
+            if isinstance(text, str) and text.strip():
+                content = text
+
+        if content:
+            contents.append(content)
+
+    # Return joined content if we found any, otherwise None
+    if contents:
+        return "\n\n".join(contents)
+
+    return None
+
+
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
 
     This function handles different cases with increasing complexity:
     1. Empty/None objects: return nothing
-    2. Single string values: return the string directly
+    2. LLM outputs with 'generations': extract plain text content for readability
+    3. Single string values: return the string directly
        - If the string is parseable JSON (object/array), also yield JSON MIME type
        - Otherwise, no MIME type (defaults to text/plain)
-    3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
+    4. Single input/output key with non-string: use custom JSON formatting via _json_dumps
        - Conditional MIME type: only for structured data (objects/arrays), not primitives
-    4. Multiple keys or other cases: use _json_dumps for consistent formatting
+    5. Multiple keys or other cases: use _json_dumps for consistent formatting
        - Always includes JSON MIME type since these are always structured objects
 
     Args:
@@ -413,6 +493,14 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if not obj:
         return
     assert isinstance(obj, dict), f"expected dict, found {type(obj)}"
+
+    # Check if this is an LLM output with 'generations' - extract plain text content
+    # This makes LLM outputs much more readable by showing just the message content
+    # instead of the full JSON structure with metadata
+    llm_content = _extract_llm_content_from_output(obj)
+    if llm_content is not None:
+        yield llm_content
+        return
 
     # Handle single-key dictionaries (most common case)
     if len(obj) == 1:
