@@ -334,23 +334,37 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         if model_name := getattr(result, "model", None):
             _set_span_attribute(span, SpanAttributes.EMBEDDING_MODEL_NAME, model_name)
 
-        if result_data := result.data:
-            # Extract embedding vectors directly (litellm uses enumeration, not explicit index)
-            for index, embedding_item in enumerate(result_data):
-                # LiteLLM returns dicts with 'embedding' key
-                raw_vector = (
-                    embedding_item.get("embedding") if hasattr(embedding_item, "get") else None
-                )
-                if not raw_vector:
+        if result_data := getattr(result, "data", None):
+            # Extract embedding vectors directly
+            for embedding_item in result_data:
+                # LiteLLM may return embedding items as dicts or OpenAIObject instances
+                if isinstance(embedding_item, dict):
+                    raw_vector = embedding_item.get("embedding")
+                    index = embedding_item.get("index")
+                else:
+                    raw_vector = getattr(embedding_item, "embedding", None)
+                    index = getattr(embedding_item, "index", None)
+
+                # Skip entries without a usable vector or explicit index
+                if raw_vector is None or index is None:
                     continue
 
-                vector = None
-                # Check if it's a list of floats
-                if isinstance(raw_vector, (list, tuple)) and raw_vector:
+                # Skip empty embeddings to avoid recording invalid vectors
+                if raw_vector == [] or raw_vector == "":
+                    continue
+
+                vector: Union[Tuple[Any, ...], str, None] = None
+                # Record numeric vectors as tuples
+                if isinstance(raw_vector, (list, tuple)):
                     if all(isinstance(x, (int, float)) for x in raw_vector):
                         vector = tuple(raw_vector)
+                # Record base64-encoded vectors directly
+                elif isinstance(raw_vector, str):
+                    vector = raw_vector
+                else:
+                    continue
 
-                if vector:
+                if vector is not None:
                     _set_span_attribute(
                         span,
                         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
