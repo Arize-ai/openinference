@@ -494,7 +494,6 @@ def _get_attributes_from_parts(
                     )
                     yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
             except Exception as e:
-                print("Excepton eeee", e)
                 logger.debug("Failed to extract file data attributes.")
 
 
