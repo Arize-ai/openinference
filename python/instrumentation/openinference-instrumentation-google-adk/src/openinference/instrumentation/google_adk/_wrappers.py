@@ -25,6 +25,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.genai import types
+from google.genai.types import Blob
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -441,6 +442,27 @@ def _get_attributes_from_content(
         )
 
 
+def _get_attributes_from_inline_data(
+    inline_data: Blob, prefix: str = ""
+) -> Iterator[tuple[str, AttributeValue]]:
+    # inline_data is typically a Blob-like object with `.data` (bytes)
+    # and `.mime_type` (str). Encode the bytes as base64 and record
+    # it as an image content attribute, along with the mime type.
+    try:
+        mime_type = inline_data.mime_type
+        data = inline_data.data
+        if mime_type and "image" in mime_type and data is not None:
+            image_url = f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                image_url,
+            )
+            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+
+    except Exception:
+        logger.debug("Failed to extract file data attributes.")
+
+
 @stop_on_exception
 def _get_attributes_from_parts(
     obj: Iterable[types.Part],
@@ -477,24 +499,8 @@ def _get_attributes_from_parts(
                 )
             message_index += 1
         elif inline_data := part.inline_data:
-            # inline_data is typically a Blob-like object with `.data` (bytes)
-            # and `.mime_type` (str). Encode the bytes as base64 and record
-            # it as an image content attribute, along with the mime type.
-            try:
-                mime_type = inline_data.mime_type
-                if mime_type and (data := inline_data.data) is not None and "image" in mime_type:
-                    prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
-
-                    image_url = (
-                        f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
-                    )
-                    yield (
-                        f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
-                        image_url,
-                    )
-                    yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-            except Exception:
-                logger.debug("Failed to extract file data attributes.")
+            prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
+            yield from _get_attributes_from_inline_data(inline_data, prefix)
 
 
 @stop_on_exception

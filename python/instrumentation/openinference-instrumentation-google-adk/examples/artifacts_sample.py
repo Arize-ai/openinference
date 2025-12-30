@@ -25,7 +25,7 @@ USER_ID = "12345"
 SESSION_ID = "123344"
 
 
-async def load_remote_image(file_path: str, tool_context: ToolContext) -> str:
+async def load_local_image_artifact(file_path: str, tool_context: ToolContext) -> str:
     """
     Reads a local image file and registers it as an ADK artifact.
     Args:
@@ -53,7 +53,7 @@ agent = Agent(
         "2. Then, use 'load_artifacts' to see the image content. "
         "3. Describe the image. "
     ),
-    tools=[load_remote_image, load_artifacts],
+    tools=[load_local_image_artifact, load_artifacts],
 )
 
 
