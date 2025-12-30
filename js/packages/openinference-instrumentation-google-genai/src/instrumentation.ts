@@ -323,31 +323,37 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           );
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return execPromise.then(async (stream: any) => {
-            const chunks = [];
+          return execPromise.then((stream: any) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let lastChunk: any;
-            for await (const chunk of stream) {
-              chunks.push(chunk);
-              lastChunk = chunk;
-            }
-
-            if (lastChunk) {
-              span.setAttributes({
-                [SemanticConventions.OUTPUT_VALUE]:
-                  safelyJSONStringify(lastChunk) || "",
-                [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                ...getOutputMessagesAttributes(lastChunk),
-                ...getUsageAttributes(lastChunk),
-              });
-            }
-
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.end();
 
             return (async function* () {
-              for (const chunk of chunks) {
-                yield chunk;
+              try {
+                for await (const chunk of stream) {
+                  lastChunk = chunk;
+                  yield chunk;
+                }
+
+                if (lastChunk) {
+                  span.setAttributes({
+                    [SemanticConventions.OUTPUT_VALUE]:
+                      safelyJSONStringify(lastChunk) || "",
+                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                    ...getOutputMessagesAttributes(lastChunk),
+                    ...getUsageAttributes(lastChunk),
+                  });
+                }
+
+                span.setStatus({ code: SpanStatusCode.OK });
+                span.end();
+              } catch (error) {
+                span.recordException(error as Error);
+                span.setStatus({
+                  code: SpanStatusCode.ERROR,
+                  message: (error as Error).message,
+                });
+                span.end();
+                throw error;
               }
             })();
           });
@@ -547,29 +553,35 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
         );
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise.then(async (stream: any) => {
-          const chunks = [];
+        return execPromise.then((stream: any) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let lastChunk: any;
-          for await (const chunk of stream) {
-            chunks.push(chunk);
-            lastChunk = chunk;
-          }
-
-          if (lastChunk) {
-            span.setAttributes({
-              [SemanticConventions.OUTPUT_VALUE]:
-                safelyJSONStringify(lastChunk) || "",
-              [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-            });
-          }
-
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
 
           return (async function* () {
-            for (const chunk of chunks) {
-              yield chunk;
+            try {
+              for await (const chunk of stream) {
+                lastChunk = chunk;
+                yield chunk;
+              }
+
+              if (lastChunk) {
+                span.setAttributes({
+                  [SemanticConventions.OUTPUT_VALUE]:
+                    safelyJSONStringify(lastChunk) || "",
+                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                });
+              }
+
+              span.setStatus({ code: SpanStatusCode.OK });
+              span.end();
+            } catch (error) {
+              span.recordException(error as Error);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: (error as Error).message,
+              });
+              span.end();
+              throw error;
             }
           })();
         });
