@@ -80,6 +80,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "requests",
 ]
 
 [tool.ruff]
