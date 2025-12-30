@@ -446,7 +446,7 @@ def test_callback_llm(
         if status_code == 200:
             assert oai_span.status.status_code == trace_api.StatusCode.OK
             assert oai_attributes.pop(OUTPUT_VALUE, None) is not None
-            assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == JSON.value
+            assert oai_attributes.pop(OUTPUT_MIME_TYPE, None) == TEXT.value
             assert (
                 oai_attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", None)
                 == output_messages[0]["role"]
@@ -1244,6 +1244,7 @@ LLM = OpenInferenceSpanKindValues.LLM
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
 
 JSON = OpenInferenceMimeTypeValues.JSON
+TEXT = OpenInferenceMimeTypeValues.TEXT
 SESSION_ID = SpanAttributes.SESSION_ID
 USER_ID = SpanAttributes.USER_ID
 TAG_TAGS = SpanAttributes.TAG_TAGS

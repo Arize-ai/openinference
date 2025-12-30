@@ -31,7 +31,7 @@ def test_image_in_message(
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None)
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE, None)
     assert attributes.pop(SpanAttributes.INPUT_VALUE, None)
-    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE, None)
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE, None) == "text/plain"
     assert attributes.pop(SpanAttributes.OUTPUT_VALUE, None)
     assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == "gpt-4o"
     assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS, None)

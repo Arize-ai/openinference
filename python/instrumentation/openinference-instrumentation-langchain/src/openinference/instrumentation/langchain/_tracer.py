@@ -488,7 +488,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
 
     Yields:
         str: The converted string representation
-        str: JSON MIME type (when applicable - see cases above)
+        str: MIME type (text/plain for extracted LLM content, application/json for structured data)
     """
     if not obj:
         return
@@ -500,6 +500,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     llm_content = _extract_llm_content_from_output(obj)
     if llm_content is not None:
         yield llm_content
+        yield OpenInferenceMimeTypeValues.TEXT.value
         return
 
     # Handle single-key dictionaries (most common case)

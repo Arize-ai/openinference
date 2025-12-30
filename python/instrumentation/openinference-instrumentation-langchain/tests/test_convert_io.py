@@ -1692,8 +1692,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Hello! How can I assist you today?"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_text_generation_output_extracts_text(self) -> None:
         """Test that text generation outputs extract the 'text' field."""
@@ -1711,8 +1712,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "The quick brown fox jumps over the lazy dog."
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_multiple_generations_joins_with_newlines(self) -> None:
         """Test that multiple generations are joined with double newlines."""
@@ -1727,8 +1729,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "First response\n\nSecond response"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_empty_generations_falls_back_to_json(self) -> None:
         """Test that empty generations fall back to JSON output."""
@@ -1791,9 +1794,10 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         # message.content should be preferred over text
         assert result[0] == "This is the message content"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_falls_back_to_text_when_message_empty(self) -> None:
         """Test fallback to text field when message content is empty."""
@@ -1810,8 +1814,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "This is the text field"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_non_llm_output_preserves_json(self) -> None:
         """Test that non-LLM outputs are preserved as JSON."""
@@ -1838,8 +1843,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Hello! 世界 🌍 How can I help? 🎉"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_preserves_newlines_in_content(self) -> None:
         """Test that newlines in content are preserved."""
@@ -1856,8 +1862,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Line 1\nLine 2\n\nParagraph 2"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_handles_missing_message_key(self) -> None:
         """Test handling of generation without message key."""
@@ -1874,8 +1881,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Only text field present"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_handles_non_dict_message(self) -> None:
         """Test handling of generation with non-dict message."""
@@ -1892,8 +1900,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Fallback text"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_handles_non_string_content(self) -> None:
         """Test handling of generation with non-string content."""
@@ -1910,8 +1919,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Fallback text"
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_real_world_openai_response_format(self) -> None:
         """Test with a realistic OpenAI response format."""
@@ -1968,8 +1978,9 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "I am Claude, an AI assistant created by Anthropic."
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
 
     def test_anthropic_response_format(self) -> None:
         """Test with a realistic Anthropic response format."""
@@ -2005,5 +2016,6 @@ class TestExtractLLMContentFromOutput:
 
         result = list(_convert_io(llm_output))
 
-        assert len(result) == 1
+        assert len(result) == 2
         assert result[0] == "Hello! I'm Claude, an AI assistant by Anthropic."
+        assert result[1] == OpenInferenceMimeTypeValues.TEXT.value
