@@ -1,10 +1,10 @@
 from langchain.chat_models.base import _SUPPORTED_PROVIDERS
-from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceLLMSystemValues
 
 from openinference.instrumentation.langchain._tracer import (
     _LANGCHAIN_PROVIDER_MAP,
     _PROVIDER_TO_SYSTEM,
 )
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceLLMSystemValues
 
 
 def test_provider_map() -> None:

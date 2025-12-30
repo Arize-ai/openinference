@@ -9,11 +9,11 @@ from typing import Any, Optional, Union
 from uuid import UUID
 
 import pytest
-from openinference.semconv.trace import OpenInferenceMimeTypeValues
 from pydantic import BaseModel
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.langchain._tracer import _convert_io
+from openinference.semconv.trace import OpenInferenceMimeTypeValues
 
 
 class TestConvertIO:

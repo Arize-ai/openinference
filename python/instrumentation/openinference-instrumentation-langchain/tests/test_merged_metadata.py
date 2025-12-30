@@ -1,11 +1,11 @@
 import json
 
 from langchain_core.runnables import RunnableConfig, RunnableLambda
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
 from openinference.instrumentation import using_metadata
+from openinference.semconv.trace import SpanAttributes
 
 
 async def test_merged_metadata(

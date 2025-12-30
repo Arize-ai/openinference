@@ -1,7 +1,6 @@
 from typing import Any
 
 import pytest
-from openinference.semconv.trace import SpanAttributes
 
 from openinference.instrumentation.langchain._tracer import (
     _is_lc_usage_metadata,
@@ -9,6 +8,7 @@ from openinference.instrumentation.langchain._tracer import (
     _token_counts_from_lc_usage_metadata,
     _token_counts_from_raw_anthropic_usage_with_cache_read_or_write,
 )
+from openinference.semconv.trace import SpanAttributes
 
 
 @pytest.mark.parametrize(
