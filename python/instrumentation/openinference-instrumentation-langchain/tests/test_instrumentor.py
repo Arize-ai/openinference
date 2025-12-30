@@ -45,6 +45,17 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnableSerializable
 from langchain_google_vertexai import VertexAI
 from langchain_openai import ChatOpenAI
+from openinference.semconv.trace import (
+    DocumentAttributes,
+    EmbeddingAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -59,17 +70,6 @@ from openinference.instrumentation.langchain import (
     LangChainInstrumentor,
     get_ancestor_spans,
     get_current_span,
-)
-from openinference.semconv.trace import (
-    DocumentAttributes,
-    EmbeddingAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
 )
 
 for name, logger in logging.root.manager.loggerDict.items():

@@ -1,9 +1,8 @@
 import json
 
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
 from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
 def test_chat_prompt_template(
