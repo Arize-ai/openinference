@@ -433,10 +433,7 @@ def _serialize_enum_dict_keys(obj: Any) -> Any:
     if not isinstance(obj, dict):
         return obj
 
-    return {
-        (key.value if isinstance(key, Enum) else key): value
-        for key, value in obj.items()
-    }
+    return {(key.value if isinstance(key, Enum) else key): value for key, value in obj.items()}
 
 
 def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
