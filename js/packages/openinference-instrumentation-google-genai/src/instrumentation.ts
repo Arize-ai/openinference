@@ -326,41 +326,72 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
             },
           );
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return execPromise.then((stream: any) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let lastChunk: any;
+          return (
+            execPromise
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .then((stream: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let lastChunk: any;
+                let streamError: Error | undefined;
+                let streamCompleted = false;
 
-            return (async function* () {
-              try {
-                for await (const chunk of stream) {
-                  lastChunk = chunk;
-                  yield chunk;
-                }
+                return (async function* () {
+                  try {
+                    for await (const chunk of stream) {
+                      lastChunk = chunk;
+                      yield chunk;
+                    }
+                    streamCompleted = true;
 
-                if (lastChunk) {
-                  span.setAttributes({
-                    [SemanticConventions.OUTPUT_VALUE]:
-                      safelyJSONStringify(lastChunk) || "",
-                    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                    ...getOutputMessagesAttributes(lastChunk),
-                    ...getUsageAttributes(lastChunk),
-                  });
-                }
+                    if (lastChunk) {
+                      span.setAttributes({
+                        [SemanticConventions.OUTPUT_VALUE]:
+                          safelyJSONStringify(lastChunk) || "",
+                        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                        ...getOutputMessagesAttributes(lastChunk),
+                        ...getUsageAttributes(lastChunk),
+                      });
+                    }
 
-                span.setStatus({ code: SpanStatusCode.OK });
-                span.end();
-              } catch (error) {
-                span.recordException(error as Error);
+                    span.setStatus({ code: SpanStatusCode.OK });
+                  } catch (error) {
+                    streamError = error as Error;
+                    span.recordException(streamError);
+                    span.setStatus({
+                      code: SpanStatusCode.ERROR,
+                      message: streamError.message,
+                    });
+                    throw error;
+                  } finally {
+                    // Always end the span, even if consumer breaks early
+                    if (!streamCompleted && !streamError) {
+                      // Consumer broke out early (break/return in for-await-of)
+                      if (lastChunk) {
+                        span.setAttributes({
+                          [SemanticConventions.OUTPUT_VALUE]:
+                            safelyJSONStringify(lastChunk) || "",
+                          [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                          ...getOutputMessagesAttributes(lastChunk),
+                          ...getUsageAttributes(lastChunk),
+                        });
+                      }
+                      span.setStatus({ code: SpanStatusCode.OK });
+                    }
+                    span.end();
+                  }
+                })();
+              })
+              .catch((error: Error) => {
+                // Handle errors from the initial API call (before stream iteration)
+                span.recordException(error);
                 span.setStatus({
                   code: SpanStatusCode.ERROR,
-                  message: (error as Error).message,
+                  message: error.message,
                 });
                 span.end();
                 throw error;
-              }
-            })();
-          });
+              })
+          );
         };
     }
 
@@ -580,39 +611,68 @@ export class GoogleGenAIInstrumentation extends InstrumentationBase {
           },
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return execPromise.then((stream: any) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          let lastChunk: any;
+        return (
+          execPromise
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((stream: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              let lastChunk: any;
+              let streamError: Error | undefined;
+              let streamCompleted = false;
 
-          return (async function* () {
-            try {
-              for await (const chunk of stream) {
-                lastChunk = chunk;
-                yield chunk;
-              }
+              return (async function* () {
+                try {
+                  for await (const chunk of stream) {
+                    lastChunk = chunk;
+                    yield chunk;
+                  }
+                  streamCompleted = true;
 
-              if (lastChunk) {
-                span.setAttributes({
-                  [SemanticConventions.OUTPUT_VALUE]:
-                    safelyJSONStringify(lastChunk) || "",
-                  [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-                });
-              }
+                  if (lastChunk) {
+                    span.setAttributes({
+                      [SemanticConventions.OUTPUT_VALUE]:
+                        safelyJSONStringify(lastChunk) || "",
+                      [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                    });
+                  }
 
-              span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
-            } catch (error) {
-              span.recordException(error as Error);
+                  span.setStatus({ code: SpanStatusCode.OK });
+                } catch (error) {
+                  streamError = error as Error;
+                  span.recordException(streamError);
+                  span.setStatus({
+                    code: SpanStatusCode.ERROR,
+                    message: streamError.message,
+                  });
+                  throw error;
+                } finally {
+                  // Always end the span, even if consumer breaks early
+                  if (!streamCompleted && !streamError) {
+                    // Consumer broke out early (break/return in for-await-of)
+                    if (lastChunk) {
+                      span.setAttributes({
+                        [SemanticConventions.OUTPUT_VALUE]:
+                          safelyJSONStringify(lastChunk) || "",
+                        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+                      });
+                    }
+                    span.setStatus({ code: SpanStatusCode.OK });
+                  }
+                  span.end();
+                }
+              })();
+            })
+            .catch((error: Error) => {
+              // Handle errors from the initial API call (before stream iteration)
+              span.recordException(error);
               span.setStatus({
                 code: SpanStatusCode.ERROR,
-                message: (error as Error).message,
+                message: error.message,
               });
               span.end();
               throw error;
-            }
-          })();
-        });
+            })
+        );
       };
     }
   }
