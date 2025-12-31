@@ -501,7 +501,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             # reasons, plans, and optionally selects tools. Each cycle is a child of
             # the agent span.
             if span_name == "execute_event_loop_cycle":
-                cycle_id = attrs.get("event_loop.cycle_id", f"cycle_{span_id}")
+                cycle_id = attrs.get("event_loop.cycle_id", span_id)
                 graph_attrs["graph.node.id"] = f"cycle_{cycle_id}"
                 graph_attrs["graph.node.parent_id"] = "strands_agent"
             elif "Cycle " in span_name:  # Legacy support
