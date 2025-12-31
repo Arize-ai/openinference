@@ -48,7 +48,12 @@ from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
 from wrapt import ObjectProxy
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+)
+from openinference.instrumentation import (
+    safe_json_dumps as _original_safe_json_dumps,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -455,6 +460,30 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
+def _serialize_enum_dict_keys(obj: Any) -> Any:
+    """Convert Enum dictionary keys to their values for JSON serialization."""
+    if not isinstance(obj, dict):
+        return obj
+
+    return {(key.value if isinstance(key, Enum) else key): value for key, value in obj.items()}
+
+
+def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
+    """
+    A convenience wrapper around the original `safe_json_dumps` that ensures
+    that any object can be safely normalized first.
+    """
+    try:
+        # Normalize object for JSON safety
+        normalized_obj = _serialize_enum_dict_keys(obj)
+    except Exception:
+        # Fallback to the original object if normalization fails
+        normalized_obj = obj
+
+    # Serialize normalized object using the original safe_json_dumps
+    return _original_safe_json_dumps(normalized_obj, **kwargs)
+
+
 class _OpenInferenceJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for OpenInference with comprehensive type support."""
 
@@ -509,8 +538,10 @@ def _json_dumps(obj: Any) -> str:
     It handles most common types while falling back to safe_json_dumps for edge cases.
     """
     try:
+        # Normalize object for JSON safety
+        normalized_obj = _serialize_enum_dict_keys(obj)
         # Use standard json.dumps with our custom encoder
-        return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
+        return json.dumps(normalized_obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
     except (TypeError, ValueError, OverflowError):
         # Fallback to safe_json_dumps for any unsupported types or circular references
         return safe_json_dumps(obj)
