@@ -18,8 +18,11 @@ from typing import Any, Dict, List, Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from openinference.instrumentation import (
+from openinference.instrumentation.strands.semantic_conventions import (
+    GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
+    GEN_AI_REQUEST_TEMPERATURE,
+    GEN_AI_REQUEST_TOP_P,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
@@ -27,11 +30,6 @@ from openinference.instrumentation import (
     GenAIEventNames,
     safe_json_dumps,
 )
-
-# GenAI request parameter attribute keys (semantic convention names)
-GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
-GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
-GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
 
 logger = logging.getLogger(__name__)
 

@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
-    "openinference-instrumentation",
+    "opentelemetry-semantic-conventions>=0.52b0",
     "openinference-semantic-conventions>=0.1.17",
     "typing-extensions",
 ]
