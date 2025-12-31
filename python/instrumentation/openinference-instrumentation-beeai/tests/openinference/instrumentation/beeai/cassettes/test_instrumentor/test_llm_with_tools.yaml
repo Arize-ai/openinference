@@ -1,0 +1,240 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer the user''s question using
+      the available tools."},{"role":"user","content":[{"type":"text","text":"What''s
+      the current weather in Las Vegas?"}]}],"model":"gpt-4o","max_tokens":100,"parallel_tool_calls":false,"temperature":0.0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"DuckDuckGo","description":"Search
+      for online trends, news, current events, real-time information, or research
+      topics.","parameters":{"properties":{"query":{"description":"The search query.","title":"Query","type":"string"}},"required":["query"],"title":"DuckDuckGoSearchToolInput","type":"object","additionalProperties":false},"strict":true}},{"type":"function","function":{"name":"OpenMeteoTool","description":"Retrieve
+      current, past, or future weather forecasts for a location.","parameters":{"properties":{"location_name":{"description":"The
+      name of the location to retrieve weather information.","title":"Location Name","type":"string"},"country":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Country
+      name.","title":"Country"},"start_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"Start
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"Start
+      Date"},"end_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"End
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"End Date"},"temperature_unit":{"default":"celsius","description":"The
+      unit to express temperature","enum":["celsius","fahrenheit"],"title":"Temperature
+      Unit","type":"string"}},"required":["location_name","country","start_date","end_date","temperature_unit"],"title":"OpenMeteoToolInput","type":"object","additionalProperties":false},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '1777'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        A1ECAMQv1fa9m2rn1WcuZHXADyGY0Qhpzye+0rfWkP3/v9rxcRzREdv3doFwve3vZGP5stGcqJOG
+        31op0MALKGxRb77AqL7q9z40RPAOimCPRmwsoT3P5zt/9vn89M8qf45xOZ6+7Psdy8eX8uodJg0R
+        8uUVW6F0TpIYVH1OKErO5Sx2UDTfbjaz7X4+mwFfiNlxgCL0RdpVbhezxaqd7drZhph5zN5yhaK/
+        DRHRw9scEZq/X4EiVuJfJTFGCoX4IyIMOTAUwdTqq5gkmCBA6XWFitIYAvCY5By0NSEIl2704RvM
+        6q8mBB2Wx3P+b9NPE+zL5fm+f72WfZnfyJTYh3dFUWpCjIE4KmyWEthEhGQi/fc+Fk7vWTh/yzkw
+        aRDBrg+HIjx0iN3xtE4mcgfV4Z2p9IN7UztMOmT8bt5BK9+/nv5XMqlv0c4Id1AmtK8DJ7czhWPh
+        wcg4sB6TFwGfWg7Vj7XDEzRBn/7ARi/sBHoCgMcE8Afial9wcJ7s8zSE3JchX9bTQdF6RFdjNg9l
+        u06jGFEZeYwO6CzKkGMRLfkfC64u1gvOBO4bMOLlfoHuKADYosV+PuHp6NIAaXWvRbDGHtmRg+Pe
+        NqPzGSgqUtb/EBUN5S+Zwao+9foCYI+1XISdLk+yX9eAKmzgK7ZOY9Lck1oIYrcWzwMUIdiWEFh3
+        VTjqg089D2Xw3vMCHIp2bKxz68PmgOapMQAD
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b0065284ce00fac-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:31:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Zz_rKCESKx3ppK.nwqvKHo.pquTiGyEF2XtmF150kFs-1766079102-1.0.1.1-xv3CdLOQDpN.ihUbZsghf0hPZO0Uv.qF22Ph5OliqRpUER26uoPm9zlxz1AU2yR_Z5Xud6yopPun8DkZz0SaQsOP.tUd.aqDmH2CdNv62A8;
+        path=/; expires=Thu, 18-Dec-25 18:01:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=E9R_neXjCG2fYprKE4Ig.qQh.8JXDu8fEGWAwdYtyWk-1766079102229-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '1470'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1714'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29973'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 54ms
+      x-request-id:
+      - req_89d44c5539424e02b030915cfe609943
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"Answer the user''s question using
+      the available tools."},{"role":"user","content":[{"type":"text","text":"What''s
+      the current weather in Las Vegas?"}]}],"model":"gpt-4o","max_tokens":100,"parallel_tool_calls":false,"temperature":0.0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"DuckDuckGo","description":"Search
+      for online trends, news, current events, real-time information, or research
+      topics.","parameters":{"properties":{"query":{"description":"The search query.","title":"Query","type":"string"}},"required":["query"],"title":"DuckDuckGoSearchToolInput","type":"object","additionalProperties":false},"strict":true}},{"type":"function","function":{"name":"OpenMeteoTool","description":"Retrieve
+      current, past, or future weather forecasts for a location.","parameters":{"properties":{"location_name":{"description":"The
+      name of the location to retrieve weather information.","title":"Location Name","type":"string"},"country":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Country
+      name.","title":"Country"},"start_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"Start
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"Start
+      Date"},"end_date":{"anyOf":[{"format":"date","type":"string"},{"type":"null"}],"description":"End
+      date for the weather forecast in the format YYYY-MM-DD (UTC)","title":"End Date"},"temperature_unit":{"default":"celsius","description":"The
+      unit to express temperature","enum":["celsius","fahrenheit"],"title":"Temperature
+      Unit","type":"string"}},"required":["location_name","country","start_date","end_date","temperature_unit"],"title":"OpenMeteoToolInput","type":"object","additionalProperties":false},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '1777'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 2.12.0
+      x-stainless-arch:
+      - x64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.6
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: ''
+    headers:
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      CF-RAY:
+      - 9b0065284ce00fac-HYD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 18 Dec 2025 17:31:42 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Zz_rKCESKx3ppK.nwqvKHo.pquTiGyEF2XtmF150kFs-1766079102-1.0.1.1-xv3CdLOQDpN.ihUbZsghf0hPZO0Uv.qF22Ph5OliqRpUER26uoPm9zlxz1AU2yR_Z5Xud6yopPun8DkZz0SaQsOP.tUd.aqDmH2CdNv62A8;
+        path=/; expires=Thu, 18-Dec-25 18:01:42 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=E9R_neXjCG2fYprKE4Ig.qQh.8JXDu8fEGWAwdYtyWk-1766079102229-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - srinivas-hccy17
+      openai-processing-ms:
+      - '1470'
+      openai-project:
+      - proj_x5LLjFdNo3H4SzrhUGbdNmUz
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1714'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '500'
+      x-ratelimit-limit-tokens:
+      - '30000'
+      x-ratelimit-remaining-requests:
+      - '499'
+      x-ratelimit-remaining-tokens:
+      - '29973'
+      x-ratelimit-reset-requests:
+      - 120ms
+      x-ratelimit-reset-tokens:
+      - 54ms
+      x-request-id:
+      - req_89d44c5539424e02b030915cfe609943
+    status:
+      code: 200
+      message: OK
+version: 1
