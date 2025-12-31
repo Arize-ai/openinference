@@ -1,4 +1,5 @@
-langchain >=0.2.11
+langchain >=1.0.0
+langchain-classic >=1.0.0
 langchain-experimental >=0.0.63
 langchain_community >=0.2.10
 langchain-openai >=0.1.19

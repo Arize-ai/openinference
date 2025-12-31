@@ -368,13 +368,41 @@ def _as_output(values: Iterable[str]) -> Iterator[Tuple[str, str]]:
     return zip((OUTPUT_VALUE, OUTPUT_MIME_TYPE), values)
 
 
+def _is_json_parseable(value: str) -> bool:
+    """
+    Check if a string value looks like JSON (object or array).
+
+    Uses a simple heuristic (startswith/endswith check) to avoid the performance
+    overhead of actual JSON parsing. False positives are rare and harmless - the
+    frontend will handle invalid JSON gracefully.
+
+    Args:
+        value: String to check for JSON-like structure.
+
+    Returns:
+        `True` if the string looks like JSON (starts/ends with braces/brackets), `False` otherwise.
+    """
+    if not value:
+        return False
+
+    stripped = value.strip()
+    if not stripped:
+        return False
+
+    return (stripped.startswith("{") and stripped.endswith("}")) or (
+        stripped.startswith("[") and stripped.endswith("]")
+    )
+
+
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
 
     This function handles different cases with increasing complexity:
     1. Empty/None objects: return nothing
-    2. Single string values: return the string directly (performance optimization, no MIME type)
+    2. Single string values: return the string directly
+       - If the string is parseable JSON (object/array), also yield JSON MIME type
+       - Otherwise, no MIME type (defaults to text/plain)
     3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
        - Conditional MIME type: only for structured data (objects/arrays), not primitives
     4. Multiple keys or other cases: use _json_dumps for consistent formatting
@@ -395,10 +423,14 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if len(obj) == 1:
         value = next(iter(obj.values()))
 
-        # Optimization: Single string values are returned as-is without processing
-        # This is the most common case in LangChain runs (e.g., {"input": "user message"})
+        # Handle string values: check if they contain JSON
+        # This is a common case when producers pass stringified JSON
         if isinstance(value, str):
             yield value
+            # Check if the string is parseable JSON (object or array)
+            # If so, tag it with JSON MIME type for proper frontend rendering
+            if _is_json_parseable(value):
+                yield OpenInferenceMimeTypeValues.JSON.value
             return
 
         key = next(iter(obj.keys()))
@@ -635,7 +667,9 @@ def _infer_role_from_context(message_data: Mapping[str, Any]) -> Optional[str]:
     return None
 
 
-def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, Any]) -> str:
+def _map_class_name_to_role(
+    message_class_name: str, message_data: Mapping[str, Any]
+) -> Optional[str]:
     """
     Map a LangChain message class name to its corresponding role.
 
@@ -644,7 +678,7 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
         message_data: The full message data (needed for ChatMessage role lookup)
 
     Returns:
-        The role string
+        The role string, or None for message types without roles (e.g., RemoveMessage)
 
     Raises:
         ValueError: If the message class name is not recognized
@@ -660,8 +694,13 @@ def _map_class_name_to_role(message_class_name: str, message_data: Mapping[str, 
     elif message_class_name.startswith("ToolMessage"):
         return "tool"
     elif message_class_name.startswith("ChatMessage"):
-        role: str = cast(str, message_data["kwargs"]["role"])
-        return role
+        role = message_data["kwargs"]["role"]
+        return str(role) if role is not None else None
+    elif message_class_name.startswith("RemoveMessage"):
+        # RemoveMessage is a special message type used by LangGraph to mark messages for removal
+        # It doesn't have a traditional role, so we skip adding a role attribute
+        # This prevents ValueError while allowing RemoveMessage to be processed
+        return None
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
 
@@ -679,6 +718,9 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     2. Try extracting from type field
     3. Try inferring from message context (tool_calls, tool_call_id, etc.)
     4. If all fail, log warning and skip role (span continues without role attribute)
+
+    Special handling:
+    - RemoveMessage intentionally has no role and will not trigger a warning
     """
     if not message_data:
         return
@@ -691,6 +733,10 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     if id_ is not None and isinstance(id_, List) and len(id_) > 0:
         try:
             message_class_name = id_[-1]
+            # RemoveMessage intentionally has no role - exit early without warning
+            if message_class_name.startswith("RemoveMessage"):
+                logger.debug("Encountered RemoveMessage - no role attribute needed")
+                return
             role = _map_class_name_to_role(message_class_name, message_data)
             logger.debug("Extracted message role from id field: %s", role)
         except (IndexError, KeyError, ValueError, TypeError, AttributeError) as e:
@@ -700,6 +746,10 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     if role is None:
         type_field = message_data.get("type")
         if isinstance(type_field, str):
+            # RemoveMessage via type field - exit early without warning
+            if type_field.lower() == "remove":
+                logger.debug("Encountered RemoveMessage via type field - no role attribute needed")
+                return
             # Map common type values to roles
             type_to_role = {
                 "human": "user",
@@ -729,7 +779,8 @@ def _extract_message_role(message_data: Optional[Mapping[str, Any]]) -> Iterator
     if role:
         yield MESSAGE_ROLE, role
     else:
-        # Log warning but don't fail - span will continue without role attribute
+        # No role found - log warning
+        # Note: RemoveMessage returns early above, so won't trigger this warning
         logger.warning(
             "Unable to determine message role. Message data keys: %s. "
             "Span will continue without role attribute.",
@@ -1367,7 +1418,10 @@ def _get_attributes_from_message_content(
     content: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
     content = dict(content)
-    type_ = content.pop("type")
+    type_ = content.pop("type", None)
+
+    if type_ is None:
+        return
     if type_ == "text":
         yield f"{MESSAGE_CONTENT_TYPE}", "text"
         if text := content.pop("text"):

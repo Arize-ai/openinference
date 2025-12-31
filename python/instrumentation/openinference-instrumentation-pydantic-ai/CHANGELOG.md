@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.9...python-openinference-instrumentation-pydantic-ai-v0.1.10) (2025-12-18)
+
+
+### Features
+
+* **pydentic_ai:** tools & multiple input/output messages support ([#2508](https://github.com/Arize-ai/openinference/issues/2508)) ([16c6ef2](https://github.com/Arize-ai/openinference/commit/16c6ef20d714f37e109df2873718f4777eaebfc6))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.8...python-openinference-instrumentation-pydantic-ai-v0.1.9) (2025-10-15)
 
 
