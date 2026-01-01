@@ -19,7 +19,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 # Make sure to set the GEMINI_API_KEY environment variable
 
 
-def generate_content_sync(model_name: str = "gemini-2.0-flash-001") -> str:
+def generate_content_sync(model_name: str = "gemini-2.0-flash") -> str:
     try:
         client = genai.Client(
             api_key=os.getenv("GEMINI_API_KEY"),
@@ -51,7 +51,7 @@ def generate_content_sync(model_name: str = "gemini-2.0-flash-001") -> str:
         return f"Error generating response: {str(e)}"
 
 
-async def generate_content_async(model_name: str = "gemini-2.0-flash-001") -> str:
+async def generate_content_async(model_name: str = "gemini-2.0-flash") -> str:
     try:
         client = genai.Client(
             api_key=os.getenv("GEMINI_API_KEY"),
@@ -80,8 +80,8 @@ async def generate_content_async(model_name: str = "gemini-2.0-flash-001") -> st
 
 if __name__ == "__main__":
     GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    response = generate_content_sync("gemini-2.0-flash-001")
+    response = generate_content_sync("gemini-2.5-flash")
     print(response)
 
-    async_response = asyncio.run(generate_content_async("gemini-2.0-flash-001"))
+    async_response = asyncio.run(generate_content_async("gemini-2.5-flash"))
     print(async_response)
