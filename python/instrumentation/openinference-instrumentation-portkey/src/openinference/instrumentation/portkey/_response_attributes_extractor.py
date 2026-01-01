@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
@@ -8,6 +8,36 @@ from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def infer_llm_provider_from_model(model_name: Optional[str]) -> Optional[str]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return "openai"
+
+    if model.startswith("claude-"):
+        return "anthropic"
+
+    if model.startswith(("mistral", "mixtral")):
+        return "mistralai"
+
+    if model.startswith("command"):
+        return "cohere"
+
+    if model.startswith("gemini"):
+        return "google"
+
+    if model.startswith("grok"):
+        return "xai"
+
+    if model.startswith("deepseek"):
+        return "deepseek"
+
+    return None
 
 
 class _ResponseAttributesExtractor:
@@ -33,6 +63,8 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
+            if provider := infer_llm_provider_from_model(model):
+                yield SpanAttributes.LLM_PROVIDER, provider
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):
