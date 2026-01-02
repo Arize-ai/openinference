@@ -88,7 +88,7 @@ class _ResponseAttributesExtractor:
         for index, part in enumerate(content_parts):
             if text := getattr(part, "text", None):
                 yield from _get_attributes_from_content_text(
-                    text, index, len(list(content_parts)) == 0
+                    text, index, len(list(content_parts)) == 1
                 )
             elif function_call := getattr(part, "function_call", None):
                 yield from self._get_attributes_from_function_call(function_call, index)

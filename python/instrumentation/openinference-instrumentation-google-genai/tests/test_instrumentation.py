@@ -633,7 +633,7 @@ def test_generate_content_with_tool(
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
-        or "",
+        or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
@@ -789,7 +789,7 @@ def test_generate_content_with_raw_json_tool(
         SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text
-        or "",
+        or None,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
     }
 
