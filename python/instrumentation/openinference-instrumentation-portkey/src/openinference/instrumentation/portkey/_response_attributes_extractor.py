@@ -4,38 +4,40 @@ from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import MessageAttributes, OpenInferenceLLMProviderValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def infer_llm_provider_from_model(model_name: Optional[str]) -> Optional[str]:
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
     if not model_name:
         return None
 
     model = model_name.lower()
 
     if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return "openai"
+        return OpenInferenceLLMProviderValues.OPENAI.value
 
-    if model.startswith("claude-"):
-        return "anthropic"
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
 
     if model.startswith(("mistral", "mixtral")):
-        return "mistralai"
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
 
-    if model.startswith("command"):
-        return "cohere"
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
 
     if model.startswith("gemini"):
-        return "google"
+        return OpenInferenceLLMProviderValues.GOOGLE.value
 
     if model.startswith("grok"):
-        return "xai"
+        return OpenInferenceLLMProviderValues.XAI.value
 
     if model.startswith("deepseek"):
-        return "deepseek"
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
 
     return None
 

@@ -110,10 +110,19 @@ This section covers **Python OpenInference instrumentation packages**.
 - **Guardrails**
   No provider or system attributes are emitted. Library may not expose enough runtime data yet.
 
-- **Autogen / Autogen AgentChat / CrewAI**
-  Agent frameworks do not currently emit provider or system attributes.
+- **Autogen**
+  Add LLM_PROVIDER only when model is explicitly available. Do not add LLM_SYSTEM (no reliable data).
 
-- **Haystack / Instructor / Portkey**
+- **Autogen AgentChat**
+  Treat AgentChat LLM spans as OpenAI-only. Keep LLM_PROVIDER/LLM_SYSTEM explicit, not inferred.
+
+- **CrewAI**
+  Agent framework does not currently emit provider or system attributes.
+
+- **Portkey**
+  Add LLM_PROVIDER only when model is explicitly available. Do not add LLM_SYSTEM (no reliable data).
+
+- **Haystack / Instructor**
   Model information may exist, but provider and system are not currently extracted.
 
 ---
