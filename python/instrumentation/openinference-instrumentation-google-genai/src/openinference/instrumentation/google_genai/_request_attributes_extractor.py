@@ -9,7 +9,10 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_input_attributes,
+    _get_attributes_from_artifacts,
+    _get_attributes_from_content_text,
     _io_value_and_type,
+    get_attribute,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -323,7 +326,7 @@ class _RequestAttributesExtractor:
         elif isinstance(input_contents, Content) or isinstance(input_contents, UserContent):
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
-            yield from self._get_attributes_from_part(input_contents, 0)
+            yield from self._get_attributes_from_part(input_contents, 0, True)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
@@ -384,25 +387,9 @@ class _RequestAttributesExtractor:
             )
 
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
-        content_values = []
-        tool_call_index = 0
-        for part in parts:
-            for attr, value in self._get_attributes_from_part(part, tool_call_index):
-                if attr.startswith(MessageAttributes.MESSAGE_TOOL_CALLS):
-                    # Increment tool call index if there happens to be multiple tool calls
-                    # across parts
-                    tool_call_index = self._extract_tool_call_index(attr) + 1
-                    yield (attr, value)
-                elif attr == MessageAttributes.MESSAGE_TOOL_CALL_ID:
-                    yield (attr, value)
-                elif isinstance(value, str):
-                    # Flatten all other string values into a single message content
-                    content_values.append(value)
-                else:
-                    # TODO: Handle other types of parts
-                    logger.debug(f"Non-text part encountered: {part}")
-        if content_values:
-            yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_values))
+        for index, part in enumerate(parts):
+            for attr, value in self._get_attributes_from_part(part, index, len(parts) == 1):
+                yield attr, value
 
     def _extract_tool_call_index(self, attr: str) -> int:
         """Extract tool call index from message tool call attribute key.
@@ -415,20 +402,19 @@ class _RequestAttributesExtractor:
         return 0
 
     def _get_attributes_from_part(
-        self, part: Part, tool_call_index: int
+        self, part: Part, index: int, is_single_part: bool = False
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
         if text := get_attribute(part, "text"):
-            yield (
-                MessageAttributes.MESSAGE_CONTENT,
-                text,
-            )
+            yield from _get_attributes_from_content_text(text, index, is_single_part)
         elif function_call := get_attribute(part, "function_call"):
-            yield from self._get_attributes_from_function_call(function_call, tool_call_index)
+            yield from self._get_attributes_from_function_call(function_call, index)
         elif function_response := get_attribute(part, "function_response"):
             yield from self._get_attributes_from_function_response(function_response)
+        elif inline_data := get_attribute(part, "inline_data"):
+            yield from _get_attributes_from_artifacts(inline_data, index)
         else:
-            logger.exception("Other field types of parts are not supported yet")
+            logger.debug("Other field types of parts are not supported yet")
 
 
 T = TypeVar("T", bound=type)
@@ -436,9 +422,3 @@ T = TypeVar("T", bound=type)
 
 def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
     return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)
-
-
-def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(attr_name, default)
-    return getattr(obj, attr_name, default)
