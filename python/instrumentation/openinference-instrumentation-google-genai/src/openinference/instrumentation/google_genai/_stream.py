@@ -24,6 +24,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_attributes_from_content_text,
     _ValueAndType,
 )
 from openinference.instrumentation.google_genai._with_span import _WithSpan
@@ -174,36 +175,35 @@ class _ResponseExtractor:
                 yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
+                prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
                 if content := candidate.get("content"):
                     if role := content.get("role"):
                         yield (
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+                            f"{prefix}.{MessageAttributes.MESSAGE_ROLE}",
                             role,
                         )
                     if parts := content.get("parts"):
-                        text_parts = []
-                        tool_call_index = 0
-                        for part in parts:
+                        text_only = len(parts) == 1
+                        for index, part in enumerate(parts):
                             if text := part.get("text"):
-                                text_parts.append(text)
+                                for key, value in _get_attributes_from_content_text(
+                                    text,
+                                    idx,
+                                    text_only,
+                                ):
+                                    yield f"{prefix}.{key}", value
                             elif function_call := part.get("function_call"):
                                 # Handle function calls in streaming responses
                                 if function_name := function_call.get("name"):
                                     yield (
-                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                        f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                                         function_name,
                                     )
                                 if function_args := function_call.get("args"):
                                     yield (
-                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                        f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                         safe_json_dumps(function_args),
                                     )
-                                tool_call_index += 1
-                        if text_parts:
-                            yield (
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
-                                "".join(text_parts),
-                            )
 
 
 class _ValuesAccumulator:
@@ -309,9 +309,9 @@ class _IndexedAccumulator:
             return self
         if isinstance(values, Mapping):
             values = [values]
-        for v in values:
+        for index, v in enumerate(values):
             if v and hasattr(v, "get"):
-                self._indexed[v.get("index") or 0] += v
+                self._indexed[v.get("index") or index] += v
         return self
 
 

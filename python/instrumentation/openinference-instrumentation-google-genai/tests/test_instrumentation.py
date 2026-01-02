@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator
 
 import pytest
 from google import genai
+from google.genai import types
 from google.genai.types import (
     Content,
     FunctionCall,
@@ -1023,6 +1024,341 @@ def test_streaming_content_with_tool(
             }
         )
 
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_response_with_multiple_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = "dummy-key"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Define a tool/function for weather information
+    weather_tool = Tool(
+        function_declarations=[
+            FunctionDeclaration(
+                name="get_weather",
+                description="Get current weather information for a given location",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state/country for weather information",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "Temperature unit",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            )
+        ]
+    )
+
+    # Create content for the request
+    user_message = "What is the weather like in Boston & new Delhi?"
+    content = Content(
+        role="user",
+        parts=[Part.from_text(text=user_message)],
+    )
+
+    # Create config with tools
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[weather_tool],
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    # Make the streaming API call
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=content, config=config
+    )
+
+    # Collect all chunks from the stream
+    full_response = response.text or ""
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_instruction,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Only add message content if there was actual text (not just tool calls)
+    if full_response:
+        expected_attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        ] = full_response
+
+    # Verify tool schema is recorded (same as non-streaming)
+    tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
+    tool_schema_json = attributes.get(tool_schema_key)
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
+
+    # Parse and validate the tool schema matches what we provided
+    tool_schema = json.loads(tool_schema_json)
+
+    # Verify tool matches flattened format
+    expected_tool_schema = {
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        },
+    }
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
+
+    expected_locations = ["boston", "new delhi"]
+    for i in range(2):
+        # Check if the model decided to call the tool in streaming response
+        tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+
+        # For this test, we expect a tool call since we're testing tool calling functionality
+        assert tool_call_name_key in attributes, (
+            f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
+        )
+
+        # Model decided to call the tool, verify the tool call details
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
+
+        tool_call_args = attributes.get(tool_call_args_key)
+        assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
+
+        # Parse and validate tool call arguments
+        args = json.loads(tool_call_args)
+        assert "location" in args, "Tool call should include 'location' parameter"
+        # The location should be something reasonable for San Francisco
+        assert expected_locations[i] in args["location"].lower(), (
+            "Tool call location should reference San Francisco"
+        )
+
+    # Check if token counts are available in the response from the last chunk
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_response_stream_with_multiple_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    api_key = "dummy-key"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Define a tool/function for weather information
+    weather_tool = Tool(
+        function_declarations=[
+            FunctionDeclaration(
+                name="get_weather",
+                description="Get current weather information for a given location",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state/country for weather information",
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "Temperature unit",
+                        },
+                    },
+                    "required": ["location"],
+                },
+            )
+        ]
+    )
+
+    # Create content for the request
+    user_message = "What is the weather like in Boston & new Delhi?"
+    content = Content(
+        role="user",
+        parts=[Part.from_text(text=user_message)],
+    )
+
+    # Create config with tools
+    system_instruction = "You are a helpful assistant that can answer questions and help with tasks. Use the available tools when appropriate."
+    config = GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[weather_tool],
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    # Make the streaming API call
+    stream = client.models.generate_content_stream(
+        model="gemini-2.0-flash", contents=content, config=config
+    )
+    chunks = []
+    full_response = ""
+    for chunk in stream:
+        chunks.append(chunk)
+        full_response += chunk.text or ""
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": system_instruction,
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": user_message,
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Only add message content if there was actual text (not just tool calls)
+    if full_response:
+        expected_attributes[
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"
+        ] = full_response
+
+    # Verify tool schema is recorded (same as non-streaming)
+    tool_schema_key = f"{SpanAttributes.LLM_TOOLS}.0.{ToolAttributes.TOOL_JSON_SCHEMA}"
+    assert tool_schema_key in attributes, "Tool schema not found in attributes"
+    tool_schema_json = attributes.get(tool_schema_key)
+    assert isinstance(tool_schema_json, str), "Tool schema should be a JSON string"
+
+    # Parse and validate the tool schema matches what we provided
+    tool_schema = json.loads(tool_schema_json)
+
+    # Verify tool matches flattened format
+    expected_tool_schema = {
+        "name": "get_weather",
+        "description": "Get current weather information for a given location",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "location": {
+                    "type": "STRING",
+                    "description": "The city and state/country for weather information",
+                },
+                "unit": {
+                    "type": "STRING",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit",
+                },
+            },
+            "required": ["location"],
+        },
+    }
+    assert tool_schema == expected_tool_schema, (
+        f"Tool schema does not match expected schema. Expected: {expected_tool_schema}, Got: {tool_schema}"
+    )
+
+    expected_locations = ["boston", "new delhi"]
+    for i in range(2):
+        # Check if the model decided to call the tool in streaming response
+        tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+
+        # For this test, we expect a tool call since we're testing tool calling functionality
+        assert tool_call_name_key in attributes, (
+            f"Expected a tool call in the streaming response, but none found. Available keys: {list(attributes.keys())}"
+        )
+
+        # Model decided to call the tool, verify the tool call details
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            "Expected tool call to be 'get_weather'"
+        )
+
+        tool_call_args = attributes.get(tool_call_args_key)
+        assert isinstance(tool_call_args, str), "Tool call arguments should be a JSON string"
+
+        # Parse and validate tool call arguments
+        args = json.loads(tool_call_args)
+        assert "location" in args, "Tool call should include 'location' parameter"
+        # The location should be something reasonable for San Francisco
+        assert expected_locations[i] in args["location"].lower(), (
+            f"Tool call location should reference {expected_locations[i]}"
+        )
+
+    # Check if token counts are available in the response from the last chunk
+    if chunks and hasattr(chunks[-1], "usage_metadata") and chunks[-1].usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: chunks[-1].usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: chunks[-1].usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: chunks[
+                    -1
+                ].usage_metadata.candidates_token_count,
+            }
+        )
     # Verify attributes
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
