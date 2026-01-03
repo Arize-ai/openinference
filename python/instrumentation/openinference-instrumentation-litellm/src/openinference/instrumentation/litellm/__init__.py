@@ -1,5 +1,6 @@
 from enum import Enum
 from functools import wraps
+from types import SimpleNamespace
 from typing import (
     Any,
     Callable,
@@ -526,7 +527,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrap
                 )
 
         if usage_stats:
-            _set_token_counts_from_usage(span, usage_stats)
+            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
         raise
@@ -567,10 +568,12 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWra
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
                 )
         if usage_stats:
-            _set_token_counts_from_usage(span, usage_stats)
+            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
         raise
+    else:
+        _set_span_status(span, aggregated_output)
     finally:
         span.end()
 
