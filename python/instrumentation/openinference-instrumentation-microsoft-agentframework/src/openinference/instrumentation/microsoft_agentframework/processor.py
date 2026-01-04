@@ -163,14 +163,14 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
 
         input_messages, output_messages = self._extract_messages(attrs)
 
+        self._map_token_usage(attrs, result)
+
         if span_kind in ["LLM", "AGENT"]:
             self._handle_llm_agent_span(attrs, result, input_messages, output_messages)
         elif span_kind == "TOOL":
             self._handle_tool_span(attrs, result)
         elif span_kind == "CHAIN":
             self._handle_chain_span(attrs, result, input_messages, output_messages)
-
-        self._map_token_usage(attrs, result)
         self._map_session_info(attrs, result)
         self._map_invocation_parameters(attrs, result)
         self._add_metadata(attrs, result)
@@ -233,7 +233,7 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
             Dictionary of graph node attributes
         """
         graph_attrs: Dict[str, Any] = {}
-        span_id = span.get_span_context().span_id
+        span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
 
         if span_kind == "AGENT":
             agent_id = attrs.get(AGENT_ID, span_id)
@@ -608,12 +608,15 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
                     # Handle function schema
                     if "function" in tool:
                         func = tool["function"]
-                        if fname := func.get("name"):
-                            result[f"llm.tools.{idx}.tool.name"] = fname
-                        if fdesc := func.get("description"):
-                            result[f"llm.tools.{idx}.tool.description"] = fdesc
-                        if params := func.get("parameters"):
-                            result[f"llm.tools.{idx}.tool.json_schema"] = safe_json_dumps(params)
+                        if isinstance(func, dict):
+                            if fname := func.get("name"):
+                                result[f"llm.tools.{idx}.tool.name"] = fname
+                            if fdesc := func.get("description"):
+                                result[f"llm.tools.{idx}.tool.description"] = fdesc
+                            if params := func.get("parameters"):
+                                result[f"llm.tools.{idx}.tool.json_schema"] = safe_json_dumps(
+                                    params
+                                )
                     elif params := tool.get("parameters"):
                         result[f"llm.tools.{idx}.tool.json_schema"] = safe_json_dumps(params)
                     elif input_schema := tool.get("input_schema"):

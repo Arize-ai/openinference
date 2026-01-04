@@ -76,6 +76,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
     "agent_framework.*",
+    "openinference.instrumentation.microsoft_agentframework.*",
 ]
 
 [tool.ruff]

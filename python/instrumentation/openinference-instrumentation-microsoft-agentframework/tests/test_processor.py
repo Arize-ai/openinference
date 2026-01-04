@@ -4,8 +4,6 @@ import json
 from typing import Any, Dict
 from unittest.mock import MagicMock
 
-import pytest
-
 from openinference.instrumentation.microsoft_agentframework import (
     MicrosoftAgentFrameworkToOpenInferenceProcessor,
 )
@@ -193,7 +191,10 @@ class TestMessageExtraction:
             span._attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
             == "get_weather"
         )
-        assert span._attributes["llm.output_messages.0.message.tool_calls.0.tool_call.id"] == "call_123"
+        assert (
+            span._attributes["llm.output_messages.0.message.tool_calls.0.tool_call.id"]
+            == "call_123"
+        )
 
 
 class TestToolSpanHandling:
