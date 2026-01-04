@@ -352,7 +352,7 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
             Parsed message in OpenInference format or None
         """
         role = msg.get("role", "user")
-        parts = msg.get("parts", [])
+        parts = msg.get("parts") or []
 
         result: Dict[str, Any] = {"message.role": role}
 
@@ -559,9 +559,11 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
 
     def _map_token_usage(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         """Map token usage from GenAI format to OpenInference format."""
-        if input_tokens := attrs.get(INPUT_TOKENS):
+        input_tokens = attrs.get(INPUT_TOKENS)
+        if input_tokens is not None:
             result["llm.token_count.prompt"] = input_tokens
-        if output_tokens := attrs.get(OUTPUT_TOKENS):
+        output_tokens = attrs.get(OUTPUT_TOKENS)
+        if output_tokens is not None:
             result["llm.token_count.completion"] = output_tokens
         if "llm.token_count.prompt" in result and "llm.token_count.completion" in result:
             result["llm.token_count.total"] = (
