@@ -49,6 +49,7 @@ from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
 from pipecat.services.vision_service import VisionService
 from pipecat.services.websocket_service import WebsocketService
+from pipecat.transports.base_output import BaseOutputTransport
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -81,6 +82,7 @@ SERVICE_TYPE_MAP = {
     VisionService.__name__: "vision",
     WebsocketService.__name__: "websocket",
     AIService.__name__: "ai",
+    BaseOutputTransport.__name__: "tts",
 }
 
 
@@ -812,10 +814,8 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.LLM.value
+            OpenInferenceSpanKindValues.TOOL.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: get_model_name(service),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
@@ -832,10 +832,8 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.LLM.value
+            OpenInferenceSpanKindValues.TOOL.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: get_model_name(service),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
         "audio.voice": lambda service: getattr(service, "_voice_id", None),
