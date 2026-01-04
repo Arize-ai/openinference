@@ -121,6 +121,7 @@ def _agent_run_attributes(
         # Set graph attributes for team
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
+            yield SpanAttributes.AGENT_NAME, agent.name
 
         if hasattr(agent, "id") and agent.id:
             yield "agno.team.id", agent.id
@@ -134,13 +135,12 @@ def _agent_run_attributes(
 
         # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
-        for member in agent.members:
-            yield from _agent_run_attributes(member, f".{member.name}")
 
     elif isinstance(agent, Agent):
         # Set graph attributes for agent
         if agent.name:
             yield GRAPH_NODE_NAME, agent.name
+            yield SpanAttributes.AGENT_NAME, agent.name
 
         if hasattr(agent, "id") and agent.id:
             yield "agno.agent.id", agent.id
