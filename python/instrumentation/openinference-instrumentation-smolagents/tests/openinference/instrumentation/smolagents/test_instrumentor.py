@@ -371,7 +371,6 @@ class TestModels:
         )
         assert not attributes
 
-
 class TestRuns:
     def test_streaming_and_non_streaming_code_agent_runs(
         self, in_memory_span_exporter: InMemorySpanExporter

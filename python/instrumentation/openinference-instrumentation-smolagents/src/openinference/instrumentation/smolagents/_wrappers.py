@@ -378,7 +378,15 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
 
 def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, output.model_dump_json()
+    if hasattr(output, "model_dump_json") and callable(output.model_dump_json):
+        try:
+            yield OUTPUT_VALUE, output.model_dump_json()
+        except Exception:
+            # Fallback when model_dump_json() fails (e.g., non-serializable nested objects)
+            yield OUTPUT_VALUE, safe_json_dumps(output)
+    else:
+        yield OUTPUT_VALUE, safe_json_dumps(output)
+
 
 
 def _llm_invocation_parameters(
