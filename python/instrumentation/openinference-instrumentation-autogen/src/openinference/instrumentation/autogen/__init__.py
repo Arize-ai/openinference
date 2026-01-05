@@ -7,7 +7,7 @@ from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 from autogen import ConversableAgent  # type: ignore
 
 from openinference.instrumentation.autogen._utils import (
-    extract_model_from_autogen_agent,
+    extract_llm_model_name_from_agent,
     infer_llm_provider_from_model,
 )
 
@@ -70,7 +70,7 @@ class AutogenInstrumentor:
                     )
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
 
-                    if model_name := extract_model_from_autogen_agent(agent_self):
+                    if model_name := extract_llm_model_name_from_agent(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):
@@ -124,7 +124,7 @@ class AutogenInstrumentor:
 
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
 
-                    if model_name := extract_model_from_autogen_agent(agent_self):
+                    if model_name := extract_llm_model_name_from_agent(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):

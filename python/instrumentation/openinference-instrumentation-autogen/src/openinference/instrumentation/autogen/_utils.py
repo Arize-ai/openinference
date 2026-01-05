@@ -37,7 +37,7 @@ def infer_llm_provider_from_model(
     return None
 
 
-def extract_model_from_autogen_agent(agent: ConversableAgent) -> Optional[str]:
+def extract_llm_model_name_from_agent(agent: ConversableAgent) -> Optional[str]:
     llm_config = getattr(agent, "llm_config", None)
     if not isinstance(llm_config, dict):
         return None

@@ -108,22 +108,25 @@ This section covers **Python OpenInference instrumentation packages**.
   Provider is read from the model configuration. No system information is available.
 
 - **Guardrails**
-  No provider or system attributes are emitted. Library may not expose enough runtime data yet.
+  Inside `_PromptCallableWrapper` (wrapping `PromptCallableBase.__call__`), I check the `PromptCallableBase` instance for a `model` or `model_name` and use `infer_llm_provider_from_model` to populate the `LLM_MODEL_NAME` and `LLM_PROVIDER` on the span.
 
 - **Autogen**
-  Add LLM_PROVIDER only when model is explicitly available. Do not add LLM_SYSTEM (no reliable data).
+  Whenever an agent or client instance (e.g., `BaseChatAgent` or `BaseOpenAIChatCompletionClient`) exposes a `model` or `model_name`, I capture it and infer the provider to annotate the span with `LLM_MODEL_NAME` and `LLM_PROVIDER`.
 
 - **Autogen AgentChat**
-  Treat AgentChat LLM spans as OpenAI-only. Keep LLM_PROVIDER/LLM_SYSTEM explicit, not inferred.
+  In the `_BaseOpenAIChatCompletionClientCreateWrapper` and `_BaseOpenAIChatCompletionClientCreateStreamWrapper`, I explicitly set `LLM_PROVIDER` to `openai` and `LLM_SYSTEM`, since these wrappers always run OpenAI requests.
 
 - **CrewAI**
-  Agent framework does not currently emit provider or system attributes.
+  In the `_ExecuteCoreWrapper` wrapping `Task._execute_core`, I check the agent or task instance for a `model` attribute and use `infer_llm_provider_from_model` to populate `LLM_MODEL_NAME` and `LLM_PROVIDER` span attributes.
 
-- **Portkey**
-  Add LLM_PROVIDER only when model is explicitly available. Do not add LLM_SYSTEM (no reliable data).
+- **Haystack**
+  Wrappers like `_ComponentRunWrapper` and `_AsyncComponentRunWrapper` inspect the component instance. When a `model` is exposed, I record its name and infer the provider to annotate the span with `LLM_MODEL_NAME` and `LLM_PROVIDER`.
 
-- **Haystack / Instructor**
-  Model information may exist, but provider and system are not currently extracted.
+- **Instructor**
+  The `_HandleResponseWrapper` wrapping `handle_response_model` inspects the instance for `model` or `model_name` and sets `LLM_MODEL_NAME` and `LLM_PROVIDER` on the span using `infer_llm_provider_from_model`.
+
+- **PortKey**
+  Wrappers check the client or tool instance for `model` or `model_name` and use `infer_llm_provider_from_model` to set `LLM_MODEL_NAME` and `LLM_PROVIDER` in spans. System attributes are skipped since they are not reliably exposed.
 
 ---
 

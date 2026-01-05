@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -38,6 +39,58 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from haystack import Document, Pipeline
     from haystack.core.component import Component
+
+
+def extract_llm_model_name_from_component(component: Any) -> Optional[str]:
+    for attr in ("model", "model_name"):
+        value = getattr(component, attr, None)
+        if isinstance(value, str) and value:
+            return value
+
+    generation_kwargs = getattr(component, "generation_kwargs", None)
+    if isinstance(generation_kwargs, dict):
+        model = generation_kwargs.get("model")
+        if isinstance(model, str) and model:
+            return model
+
+    client = getattr(component, "client", None)
+    model = getattr(client, "model", None)
+    if isinstance(model, str) and model:
+        return model
+
+    return None
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI.value
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI.value
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+
+    return None
 
 
 class _PipelineRunComponentWrapper:
@@ -138,6 +191,13 @@ class _ComponentRunWrapper:
             name=_get_component_span_name(component_class_name, wrapped, component_type)
         ) as span:
             span.set_attributes(_set_component_runner_request_attributes(bound_arguments, instance))
+
+            if model_name := extract_llm_model_name_from_component(instance):
+                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                if provider := infer_llm_provider_from_model(model_name):
+                    span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -173,6 +233,13 @@ class _AsyncComponentRunWrapper:
             name=_get_component_span_name(component_class_name, wrapped, component_type),
             attributes=_set_component_runner_request_attributes(bound_arguments, instance),
         ) as span:
+
+            if model_name := extract_llm_model_name_from_component(instance):
+                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                if provider := infer_llm_provider_from_model(model_name):
+                    span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+
             result = await wrapped(*args, **kwargs)
             span.set_attributes(
                 _set_component_runner_response_attributes(bound_arguments, component_type, result)

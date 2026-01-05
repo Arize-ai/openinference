@@ -12,6 +12,7 @@ from instructor.utils import is_async
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -83,6 +84,54 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         },
         cls=SafeJSONEncoder,
     )
+
+
+def extract_llm_model_name_from_response(kwargs: Mapping[str, Any], response: Any) -> Optional[str]:
+    model_name = kwargs.get("model")
+    if isinstance(model_name, str) and model_name:
+        return model_name
+
+    if isinstance(response, tuple) and len(response) > 1:
+        raw = response[1]
+        if isinstance(raw, dict):
+            model_name = raw.get("model")
+        else:
+            model_name = getattr(raw, "model", None)
+        return model_name
+
+    return None
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI.value
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI.value
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+
+    return None
 
 
 class _PatchWrapper:
@@ -303,6 +352,13 @@ class _HandleResponseWrapper:
                     span.set_attribute(OUTPUT_VALUE, response[1])
                 elif response_model is None:
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
+
+                if model_name := extract_llm_model_name_from_response(kwargs, response):
+                    span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                    if provider := infer_llm_provider_from_model(model_name):
+                        span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)

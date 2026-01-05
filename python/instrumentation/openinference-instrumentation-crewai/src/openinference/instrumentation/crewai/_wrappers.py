@@ -14,7 +14,7 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -185,6 +185,54 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
     span.set_attributes(prefixed_attributes)
 
 
+def extract_llm_model_name_from_agent(agent: Any) -> Optional[str]:
+    if not agent:
+        return None
+
+    llm = getattr(agent, "llm", None)
+    if not llm:
+        return None
+
+    return (
+        getattr(llm, "model", None)
+        or getattr(llm, "model_name", None)
+        or getattr(llm, "model_id", None)
+        or getattr(llm, "deployment_name", None)
+    )
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI.value
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI.value
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+
+    return None
+
+
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -225,6 +273,13 @@ class _ExecuteCoreWrapper:
             # Conditionally set attributes for the agent, crew, and task
             if agent:
                 span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
+
+                if model_name := extract_llm_model_name_from_agent(agent):
+                    span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                    if provider := infer_llm_provider_from_model(model_name):
+                        span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+
                 crew = agent.crew
                 if crew:
                     span.set_attribute("crew_key", crew.key)

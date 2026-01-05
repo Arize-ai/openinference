@@ -9,7 +9,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceSpanKindValues, SpanAttributes
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -78,6 +78,38 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         },
         cls=SafeJSONEncoder,
     )
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI.value
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI.value
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+
+    return None
 
 
 class _WithTracer(ABC):
@@ -159,6 +191,13 @@ class _PromptCallableWrapper(_WithTracer):
             ),
         ) as span:
             span.set_attributes(dict(get_attributes_from_context()))
+
+            if model_name := getattr(instance, "model", None) or getattr(instance, "model_name", None):
+                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                if provider := infer_llm_provider_from_model(model_name):
+                    span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
