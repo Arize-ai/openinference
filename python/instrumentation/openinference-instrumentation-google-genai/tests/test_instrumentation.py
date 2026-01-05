@@ -23,7 +23,9 @@ from pydantic import BaseModel
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -172,6 +174,91 @@ def test_generate_content(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value"
         )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda r: {
+        **r,
+        "headers": {
+            k: v
+            for k, v in r["headers"].items()
+            if k.lower() in ("content-encoding", "content-type")
+        },
+    },
+)
+@pytest.mark.parametrize("streaming", [False, True])
+def test_generate_content_describe_image(
+    streaming: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = "REDACTED"
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    config = GenerateContentConfig(
+        system_instruction=(
+            "You are a helpful assistant that can answer questions and help with tasks."
+        )
+    )
+    image_bytes = b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+    content = Content(
+        role="user",
+        parts=[
+            Part.from_text(text="Describe Image."),
+            image_part,
+        ],
+    )
+    if streaming:
+        response = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        for res in response:
+            ...
+    else:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        assert response.text
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": "Describe Image.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+    key = f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    assert attributes.get(key), "Image Url should be present in span attributes"
 
 
 @pytest.mark.vcr(
@@ -1036,7 +1123,9 @@ def test_streaming_content_with_tool(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
+@pytest.mark.parametrize("streaming", [False, True])
 def test_response_with_multiple_tool_calls(
+    streaming: bool,
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
@@ -1087,12 +1176,20 @@ def test_response_with_multiple_tool_calls(
     )
 
     # Make the streaming API call
-    response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=content, config=config
-    )
-
-    # Collect all chunks from the stream
-    full_response = response.text or ""
+    if streaming:
+        response = client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents=content, config=config
+        )
+        for rec in response:
+            ...
+        # Collect all chunks from the stream
+        full_response = ""
+    else:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", contents=content, config=config
+        )
+        # Collect all chunks from the stream
+        full_response = response.text or ""
 
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()

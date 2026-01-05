@@ -3,8 +3,8 @@ from typing import Any
 import pytest
 from google.genai import types
 
-from openinference.instrumentation.google_genai._response_attributes_extractor import (
-    _ResponseAttributesExtractor,
+from openinference.instrumentation.google_genai._utils import (
+    _get_attributes_from_generate_content_usage,
 )
 
 
@@ -42,7 +42,5 @@ def test_get_attributes_from_generate_content_usage(
     usage_metadata: types.GenerateContentResponseUsageMetadata,
     expected: dict[str, Any],
 ) -> None:
-    actual = dict(
-        _ResponseAttributesExtractor()._get_attributes_from_generate_content_usage(usage_metadata)
-    )
+    actual = dict(_get_attributes_from_generate_content_usage(usage_metadata))
     assert actual == expected

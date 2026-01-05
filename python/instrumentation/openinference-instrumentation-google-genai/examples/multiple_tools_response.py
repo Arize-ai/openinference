@@ -27,7 +27,7 @@ def get_current_weather(location: str) -> str:
 
 def run_weather_example() -> None:
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    response = client.models.generate_content(
+    response = client.models.generate_content_stream(
         model="gemini-2.5-flash",
         contents="What is the weather like in Boston & new Delhi?",
         config=types.GenerateContentConfig(
@@ -35,7 +35,7 @@ def run_weather_example() -> None:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         ),
     )
-    print(response)
+    print(list(response))
 
 
 if __name__ == "__main__":

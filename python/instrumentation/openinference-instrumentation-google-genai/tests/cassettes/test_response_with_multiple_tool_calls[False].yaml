@@ -1,0 +1,35 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the weather like in Boston &
+      new Delhi?"}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You
+      are a helpful assistant that can answer questions and help with tasks. Use the
+      available tools when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations":
+      [{"description": "Get current weather information for a given location", "name":
+      "get_weather", "parameters": {"properties": {"location": {"description": "The
+      city and state/country for weather information", "type": "STRING"}, "unit":
+      {"description": "Temperature unit", "enum": ["celsius", "fahrenheit"], "type":
+      "STRING"}}, "required": ["location"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
+        \             \"args\": {\n                \"location\": \"Boston\"\n              }\n
+        \           }\n          },\n          {\n            \"functionCall\": {\n
+        \             \"name\": \"get_weather\",\n              \"args\": {\n                \"location\":
+        \"New Delhi\"\n              }\n            }\n          }\n        ],\n        \"role\":
+        \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
+        -0.0099561532790010624\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        64,\n    \"candidatesTokenCount\": 11,\n    \"totalTokenCount\": 75,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 64\n
+        \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
+        \"TEXT\",\n        \"tokenCount\": 11\n      }\n    ]\n  },\n  \"modelVersion\":
+        \"gemini-2.0-flash\",\n  \"responseId\": \"fvZbaYr4NcKmjuMP2OOM6AQ\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
