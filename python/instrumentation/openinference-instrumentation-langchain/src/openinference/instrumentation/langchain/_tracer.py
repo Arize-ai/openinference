@@ -460,12 +460,12 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     yield OpenInferenceMimeTypeValues.JSON.value  # Always included for structured objects
 
 
-def _serialize_enum_dict_keys(obj: Any) -> Any:
-    """Convert Enum dictionary keys to their values for JSON serialization."""
+def _serialize_dict_keys(obj: Any) -> Any:
+    """Convert dictionary keys to strings for JSON serialization."""
     if not isinstance(obj, dict):
         return obj
 
-    return {(key.value if isinstance(key, Enum) else key): value for key, value in obj.items()}
+    return {str(key): value for key, value in obj.items()}
 
 
 def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
@@ -475,7 +475,7 @@ def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
     """
     try:
         # Normalize object for JSON safety
-        normalized_obj = _serialize_enum_dict_keys(obj)
+        normalized_obj = _serialize_dict_keys(obj)
     except Exception:
         # Fallback to the original object if normalization fails
         normalized_obj = obj
@@ -539,7 +539,7 @@ def _json_dumps(obj: Any) -> str:
     """
     try:
         # Normalize object for JSON safety
-        normalized_obj = _serialize_enum_dict_keys(obj)
+        normalized_obj = _serialize_dict_keys(obj)
         # Use standard json.dumps with our custom encoder
         return json.dumps(normalized_obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)
     except (TypeError, ValueError, OverflowError):
