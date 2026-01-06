@@ -382,8 +382,15 @@ def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
         try:
             yield OUTPUT_VALUE, output.model_dump_json()
         except Exception:
-            # Fallback when model_dump_json() fails (e.g., non-serializable nested objects)
-            yield OUTPUT_VALUE, safe_json_dumps(output)
+            # model_dump_json() failed so convert to dict first then use safe_json_dumps
+            # This handles Pydantic models with non-serializable nested objects
+            if hasattr(output, "model_dump") and callable(output.model_dump):
+                yield OUTPUT_VALUE, safe_json_dumps(output.model_dump())
+            elif hasattr(output, "dict") and callable(output.dict):
+                # Pydantic v1 compatibility
+                yield OUTPUT_VALUE, safe_json_dumps(output.dict())
+            else:
+                yield OUTPUT_VALUE, safe_json_dumps(output)
     else:
         yield OUTPUT_VALUE, safe_json_dumps(output)
 
