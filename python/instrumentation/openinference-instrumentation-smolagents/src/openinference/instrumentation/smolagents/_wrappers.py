@@ -388,7 +388,6 @@ def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
         yield OUTPUT_VALUE, safe_json_dumps(output)
 
 
-
 def _llm_invocation_parameters(
     model: Any, arguments: Mapping[str, Any]
 ) -> Iterator[Tuple[str, Any]]:
