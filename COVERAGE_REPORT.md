@@ -128,6 +128,21 @@ This section covers **Python OpenInference instrumentation packages**.
 - **PortKey**
   Wrappers check the client or tool instance for `model` or `model_name` and use `infer_llm_provider_from_model` to set `LLM_MODEL_NAME` and `LLM_PROVIDER` in spans. System attributes are skipped since they are not reliably exposed.
 
+- **Groq**
+  In the `_CompletionsWrapper` and `_AsyncCompletionsWrapper`, I added `LLM_PROVIDER` and `LLM_MODEL_NAME` using the request parameters extracted from the wrapped call.
+
+- **MistralAI**
+  In the `_SyncChatWrapper`, `_AsyncChatWrapper`, and `_AsyncStreamChatWrapper`, I added `LLM_PROVIDER`, `LLM_SYSTEM` and `LLM_MODEL_NAME` in the span attributes extracted from the Mistral Chat and Agents requests.
+
+- **MCP**
+  MCP does not have explicit LLM calls. It enables tracing of agent-like interactions in MCP streams.
+
+- **Prompt Flow**
+  In the `ChatFlow` class, prompt call is traced via `@trace`, capturing the model configuration and chat context. The `LLM_PROVIDER`, `LLM_SYSTEM` and `LLM_MODEL_NAME` attributes are inferred from the `AzureOpenAIModelConfiguration`.
+
+- **Pydantic AI**
+  In the `_extract_common_attributes` method, I added `LLM_PROVIDER` inference based on `GEN_AI_SYSTEM` using `_SYSTEM_TO_PROVIDER` mapping.
+
 ---
 
 ## JavaScript – LLM Provider & System Support

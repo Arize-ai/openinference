@@ -29,6 +29,8 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolAttributes,
@@ -37,6 +39,14 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+_SYSTEM_TO_PROVIDER = {
+    OpenInferenceLLMSystemValues.OPENAI.value: OpenInferenceLLMProviderValues.OPENAI.value,
+    OpenInferenceLLMSystemValues.ANTHROPIC.value: OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    OpenInferenceLLMSystemValues.COHERE.value: OpenInferenceLLMProviderValues.COHERE.value,
+    OpenInferenceLLMSystemValues.MISTRALAI.value: OpenInferenceLLMProviderValues.MISTRALAI.value,
+    OpenInferenceLLMSystemValues.VERTEXAI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
+}
 
 
 # Many event related conventions are not in the opentelemetry-python package yet
@@ -200,7 +210,11 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
 
     if GEN_AI_SYSTEM in gen_ai_attrs:
-        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
+        system = gen_ai_attrs[GEN_AI_SYSTEM].lower()
+        yield SpanAttributes.LLM_SYSTEM, system
+
+        if provider := _SYSTEM_TO_PROVIDER.get(system, None):
+            yield SpanAttributes.LLM_PROVIDER, provider
 
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]

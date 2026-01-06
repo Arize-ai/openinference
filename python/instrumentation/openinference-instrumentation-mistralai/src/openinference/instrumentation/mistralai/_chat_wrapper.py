@@ -40,6 +40,8 @@ from openinference.instrumentation.mistralai._utils import (
 )
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -222,6 +224,11 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
+            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
+            if model_name := request_parameters.get("model"):
+                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -229,7 +236,7 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
             span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
-            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
+            extra_attributes=extra_attributes,
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -271,6 +278,11 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
             return await wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
+            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
+            if model_name := request_parameters.get("model"):
+                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
@@ -278,7 +290,7 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
             span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
-            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
+            extra_attributes=extra_attributes,
         ) as with_span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -320,6 +332,11 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
+            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
+            if model_name := request_parameters.get("model"):
+                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -327,7 +344,7 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
             span_name=self._span_name,
             attributes=self._get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
-            extra_attributes=self._get_extra_attributes_from_request(request_parameters),
+            extra_attributes=extra_attributes,
         ) as with_span:
             try:
                 response = wrapped(*args, **kwargs)
