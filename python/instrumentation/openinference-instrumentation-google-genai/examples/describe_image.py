@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 
@@ -41,8 +42,38 @@ def run() -> None:
         contents=content,
         config=config,
     )
-    print(response.text)
+    print(list(response))
+
+
+async def generate_content_async() -> str:
+    try:
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")).aio
+        file_path = "img.png"
+        path = Path(file_path)
+        image_bytes = path.read_bytes()
+        image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+        content = Content(
+            role="user",
+            parts=[
+                Part.from_text(text="Describe Image and write a poem about it."),
+                image_part,
+            ],
+        )
+        config = GenerateContentConfig(
+            system_instruction=(
+                "You are a helpful assistant that can answer questions and help with tasks."
+            )
+        )
+        async_response = await client.models.generate_content_stream(
+            model="gemini-2.0-flash", contents=content, config=config
+        )
+        async for res in async_response:
+            print(res)
+        return ""
+    except Exception as e:
+        return f"Error generating response: {str(e)}"
 
 
 if __name__ == "__main__":
     run()
+    async_response = asyncio.run(generate_content_async())

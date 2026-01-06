@@ -28,7 +28,7 @@ class _WithSpan:
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
-            logger.exception("Failed to check if span is recording")
+            logger.debug("Failed to check if span is recording")
             self._is_finished = True
 
     @property
@@ -41,7 +41,7 @@ class _WithSpan:
         try:
             self._span.record_exception(exception)
         except Exception:
-            logger.exception("Failed to record exception on span")
+            logger.debug("Failed to record exception on span")
 
     def add_event(self, name: str) -> None:
         if self._is_finished:
@@ -49,7 +49,7 @@ class _WithSpan:
         try:
             self._span.add_event(name)
         except Exception:
-            logger.exception("Failed to add event to span")
+            logger.debug("Failed to add event to span")
 
     def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
         if self._is_finished:
@@ -57,7 +57,7 @@ class _WithSpan:
         try:
             self._span.set_attributes(attributes)
         except Exception:
-            logger.exception("Failed to set attributes on span")
+            logger.debug("Failed to set attributes on span")
 
     def finish_tracing(
         self,
@@ -81,14 +81,14 @@ class _WithSpan:
                 try:
                     self._span.set_attribute(key, value)
                 except Exception:
-                    logger.exception("Failed to set attribute on span")
+                    logger.debug("Failed to set attribute on span")
         if status is not None:
             try:
                 self._span.set_status(status=status)
             except Exception:
-                logger.exception("Failed to set status code on span")
+                logger.debug("Failed to set status code on span")
         try:
             self._span.end()
         except Exception:
-            logger.exception("Failed to end span")
+            logger.debug("Failed to end span")
         self._is_finished = True

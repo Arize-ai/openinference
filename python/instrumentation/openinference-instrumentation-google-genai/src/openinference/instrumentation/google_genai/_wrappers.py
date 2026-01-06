@@ -73,7 +73,7 @@ class _WithTracer(ABC):
         try:
             span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
         except Exception:
-            logger.exception("Failed to start span")
+            logger.debug("Failed to start span")
             span = INVALID_SPAN
         with trace_api.use_span(
             span,
@@ -168,7 +168,7 @@ class _SyncGenerateContent(_WithTracer):
                     ),
                 )
             except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
+                logger.warning(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
         return response
 
@@ -225,7 +225,7 @@ class _SyncGenerateContentStream(_WithTracer):
                     with_span=span,
                 )
             except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
+                logger.debug(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
                 return response
 
@@ -288,7 +288,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
                     ),
                 )
             except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
+                logger.debug(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
         return response
 
@@ -345,7 +345,7 @@ class _AsyncGenerateContentStream(_WithTracer):
                     with_span=span,
                 )
             except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
+                logger.debug(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
                 return response
 

@@ -55,14 +55,14 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
                 value = obj.model_dump_json(exclude_unset=True)
             assert isinstance(value, str)
         except Exception:
-            logger.exception("Failed to get model dump json")
+            logger.debug("Failed to get model dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
             value = safe_json_dumps(obj)
         except Exception:
-            logger.exception("Failed to dump json")
+            logger.debug("Failed to dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
 
@@ -100,11 +100,11 @@ def _finish_tracing(
     try:
         attributes_dict = dict(attributes)
     except Exception:
-        logger.exception("Failed to get attributes")
+        logger.debug("Failed to get attributes")
     try:
         extra_attributes_dict = dict(extra_attributes)
     except Exception:
-        logger.exception("Failed to get extra attributes")
+        logger.debug("Failed to get extra attributes")
     try:
         with_span.finish_tracing(
             status=status,
@@ -112,7 +112,7 @@ def _finish_tracing(
             extra_attributes=extra_attributes_dict,
         )
     except Exception:
-        logger.exception("Failed to finish tracing")
+        logger.debug("Failed to finish tracing")
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
@@ -184,7 +184,7 @@ def _convert_tool_to_dict(tool: Any) -> Dict[str, Any]:
             # Fallback: convert all attributes to dict
             return {k: v for k, v in tool.__dict__.items() if not k.startswith("_")}
     except Exception:
-        logger.exception(f"Failed to convert tool to dict: {tool}")
+        logger.debug(f"Failed to convert tool to dict: {tool}")
         return {}
 
 
@@ -304,7 +304,7 @@ def _get_attributes_from_artifacts(
         and (data := get_attribute(inline_data, "data")) is not None
     ):
         prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{tool_call_index}."
-        image_url = f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
+        image_url = f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
         yield (
             f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
             image_url,
@@ -376,7 +376,7 @@ def _get_tools_from_config(config: Any) -> Iterator[Tuple[str, AttributeValue]]:
                 tool_index += 1
 
         except Exception:
-            logger.exception(f"Failed to serialize tool: {tool}")
+            logger.debug(f"Failed to serialize tool: {tool}")
 
 
 def _get_attributes_from_content(content: Content) -> Iterator[Tuple[str, AttributeValue]]:
@@ -451,10 +451,8 @@ def _get_attributes_from_part(
         yield from _get_attributes_from_function_call(function_call, index)
     elif function_response := get_attribute(part, "function_response"):
         yield from _get_attributes_from_function_response(function_response)
-    elif inline_data := get_attribute(part, "inline_data"):
+    if inline_data := get_attribute(part, "inline_data"):
         yield from _get_attributes_from_artifacts(inline_data, index)
-    else:
-        logger.debug("Other field types of parts are not supported yet")
 
 
 def _get_attributes_from_message_param(
@@ -473,7 +471,7 @@ def _get_attributes_from_message_param(
         yield from _get_attributes_from_part(input_contents, 0, True)
     else:
         # TODO: Implement for File, PIL_Image
-        logger.exception(f"Unexpected input contents type: {type(input_contents)}")
+        logger.debug(f"Unexpected input contents type: {type(input_contents)}")
 
 
 def _get_attributes_from_generate_content_usage(

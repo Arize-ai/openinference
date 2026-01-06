@@ -24,6 +24,8 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_attributes_from_artifacts,
+    _get_attributes_from_automatic_function_calling_history,
     _get_attributes_from_content_text,
     _ValueAndType,
 )
@@ -188,7 +190,7 @@ class _ResponseExtractor:
                             if text := part.get("text"):
                                 for key, value in _get_attributes_from_content_text(
                                     text,
-                                    idx,
+                                    index,
                                     text_only,
                                 ):
                                     yield f"{prefix}.{key}", value
@@ -204,6 +206,13 @@ class _ResponseExtractor:
                                         f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                         safe_json_dumps(function_args),
                                     )
+                            if inline_data := part.get("inline_data"):
+                                for key, value in _get_attributes_from_artifacts(
+                                    inline_data, index
+                                ):
+                                    yield f"{prefix}.{key}", value
+        if automatic_history := result.get("automatic_function_calling_history", None):
+            yield from _get_attributes_from_automatic_function_calling_history(automatic_history)
 
 
 class _ValuesAccumulator:
