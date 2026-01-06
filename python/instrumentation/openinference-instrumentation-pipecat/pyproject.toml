@@ -61,6 +61,9 @@ examples = [
 [project.entry-points.opentelemetry_instrumentor]
 pipecat = "openinference.instrumentation.pipecat:PipecatInstrumentor"
 
+[project.entry-points.openinference_instrumentor]
+pipecat = "openinference.instrumentation.pipecat:PipecatInstrumentor"
+
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-pipecat"
 
