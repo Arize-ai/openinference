@@ -1,7 +1,8 @@
+import json
 from enum import Enum
 from typing import Any
 
-from openinference.instrumentation.langchain._tracer import _serialize_dict_keys
+from openinference.instrumentation.langchain._tracer import _json_dumps
 
 
 class TelemetryAttribute(Enum):
@@ -9,7 +10,7 @@ class TelemetryAttribute(Enum):
     REQUEST_ID = "request.id"
 
 
-def test_serialize_dict_keys_converts_all_keys_to_strings() -> None:
+def test_json_dumps_converts_dict_keys_to_strings() -> None:
     """Converts all dictionary keys to strings to ensure JSON compatibility."""
     input_attributes: dict[Any, Any] = {
         TelemetryAttribute.USER_EMAIL: "alice@example.com",
@@ -31,13 +32,17 @@ def test_serialize_dict_keys_converts_all_keys_to_strings() -> None:
         "already_string": "ok",
     }
 
-    serialized_attributes = _serialize_dict_keys(input_attributes)
+    result = _json_dumps(input_attributes)
+    parsed = json.loads(result)
 
-    assert serialized_attributes == expected_attributes
+    assert parsed == expected_attributes
 
 
-def test_serialize_dict_keys_leaves_non_dict_input_unchanged() -> None:
-    """Returns non-dictionary inputs without modification."""
+def test_json_dumps_handles_non_dict_input() -> None:
+    """Handles non-dictionary inputs correctly."""
     non_dict_input = ["unexpected", "list", "value"]
 
-    assert _serialize_dict_keys(non_dict_input) is non_dict_input
+    result = _json_dumps(non_dict_input)
+    parsed = json.loads(result)
+
+    assert parsed == non_dict_input
