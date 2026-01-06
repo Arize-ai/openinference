@@ -4,7 +4,7 @@
     "python/instrumentation/openinference-instrumentation-openai": "0.1.41",
     "python/instrumentation/openinference-instrumentation-llama-index": "4.3.9",
     "python/instrumentation/openinference-instrumentation-dspy": "0.1.32",
-    "python/instrumentation/openinference-instrumentation-langchain": "0.1.57",
+    "python/instrumentation/openinference-instrumentation-langchain": "0.1.58",
     "python/instrumentation/openinference-instrumentation-bedrock": "0.1.32",
     "python/instrumentation/openinference-instrumentation-mistralai": "1.3.4",
     "python/openinference-instrumentation": "0.1.42",
