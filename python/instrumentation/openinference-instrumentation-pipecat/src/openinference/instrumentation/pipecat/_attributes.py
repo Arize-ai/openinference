@@ -814,10 +814,8 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.LLM.value
+            OpenInferenceSpanKindValues.TOOL.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: get_model_name(service),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
@@ -834,10 +832,8 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
 
     attributes: Dict[str, Any] = {
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
-            OpenInferenceSpanKindValues.LLM.value
+            OpenInferenceSpanKindValues.TOOL.value
         ),
-        SpanAttributes.LLM_MODEL_NAME: lambda service: get_model_name(service),
-        SpanAttributes.LLM_PROVIDER: lambda service: detect_provider_from_service(service),
         "service.model": lambda service: get_model_name(service),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
         "audio.voice": lambda service: getattr(service, "_voice_id", None),
