@@ -94,7 +94,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
-| [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)              | pipecat application examples                                                                    | Intermediate     |
+| [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)              | Pipecat application examples                                                                    | Intermediate     |
 
 ## JavaScript
 
