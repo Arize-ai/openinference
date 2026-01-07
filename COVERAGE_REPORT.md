@@ -143,6 +143,16 @@ This section covers **Python OpenInference instrumentation packages**.
 - **Pydantic AI**
   In the `_extract_common_attributes` method, I added `LLM_PROVIDER` inference based on `GEN_AI_SYSTEM` using `_SYSTEM_TO_PROVIDER` mapping.
 
+- **Smolagents**
+  In the `_ModelWrapper`, I added `LLM_SYSTEM` using `infer_llm_system_from_model` method and `LLM_PROVIDER` using `_SYSTEM_TO_PROVIDER` mapping.
+
+- **VertexAI**
+  In the `_Wrapper`, I added update where `LLM_SYSTEM` is always set to `vertexai` and `LLM_PROVIDER` is always set to `google`.
+
+- **OpenLLMetry**
+  In the `OpenInferenceSpanProcessor`, I added checks to only allow known OpenInference values for `LLM_SYSTEM` and `LLM_PROVIDER` attributes.
+
+
 ---
 
 ## JavaScript – LLM Provider & System Support
