@@ -59,6 +59,7 @@ languages.
 | [`openinference-instrumentation-autogen-agentchat`](./python/instrumentation/openinference-instrumentation-autogen-agentchat) | OpenInference Instrumentation for Microsoft Autogen AgentChat.                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-autogen-agentchat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-autogen-agentchat) |
 | [`openinference-instrumentation-pydantic-ai`](./python/instrumentation/openinference-instrumentation-pydantic-ai)             | OpenInference Instrumentation for PydanticAI.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pydantic-ai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pydantic-ai)             |
 | [`openinference-instrumentation-smolagents`](./python/instrumentation/openinference-instrumentation-smolagents)               | OpenInference Instrumentation for smolagents.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-smolagents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-smolagents)               |
+OpenInference Instrumentation for pipecat.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pipecat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pipecat)               |
 
 ## Span Processors
 
@@ -93,6 +94,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
+| [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)              | Pipecat application examples                                                                    | Intermediate     |
 
 ## JavaScript
 
