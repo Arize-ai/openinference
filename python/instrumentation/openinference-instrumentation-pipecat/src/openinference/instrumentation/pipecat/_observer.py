@@ -35,9 +35,11 @@ from pipecat.observers.loggers.user_bot_latency_log_observer import (
 )
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
 from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.services.ai_service import AIService
 from pipecat.services.llm_service import LLMService
 from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
+from pipecat.transports.base_output import BaseOutputTransport
 
 from ._attributes import (  # noqa: F401
     detect_service_type,
@@ -210,30 +212,35 @@ class OpenInferenceObserver(TurnTrackingObserver):
             # LLM (destination)
             elif isinstance(dst, LLMService):
                 if isinstance(frame, LLMContextFrame):
-                    await self._handle_service_frame(data, dst_is_service=True)
+                    await self._handle_service_frame(data, override_service=dst)
 
             # TTS
             elif isinstance(src, TTSService):
                 if isinstance(frame, (TTSTextFrame, TTSStartedFrame, MetricsFrame)):
                     await self._handle_service_frame(data)
 
+            elif isinstance(src, BaseOutputTransport):
+                if isinstance(frame, (TTSTextFrame)):
+                    await self._handle_service_frame(data)
+
         except Exception as e:
             logger.debug(f"Error in observer on_push_frame: {e}")
 
-    async def _handle_service_frame(self, data: FramePushed, dst_is_service: bool = False) -> None:
+    async def _handle_service_frame(
+        self, data: FramePushed, override_service: Optional[AIService] = None
+    ) -> None:
         """
         Handle frame from an LLM, TTS, or STT service.
 
         Args:
             data: FramePushed event data
-            dst_is_service: True if the service is determined by the destination;
-                False if the source of the frame determines the service (default)
+            override_service: Don't use src service (default); explicitly use the passed in service
         """
-
-        service = data.destination if dst_is_service else data.source
+        service = override_service if override_service else data.source
+        service_type = detect_service_type(service)
         service_id = id(service)
         frame = data.frame
-        service_type = detect_service_type(service)
+
         self._log_debug(f"FRAME: {frame}, service_type: {service_type}")
 
         if service_type in ("llm", "stt", "tts"):
@@ -242,7 +249,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             ## LLMFullResponseStartFrame (LLM)
             ## TTSStartedFrame (TTS)
 
-            # New Span
+            # New Span (or add to self._turn_bot_text)
             if service_id not in self._active_spans:
                 if isinstance(
                     frame,
@@ -287,6 +294,15 @@ class OpenInferenceObserver(TurnTrackingObserver):
                                 )
                             index += 1
 
+                # BaseOutputTransport's service_id isn't in self._active_spans but that's ok;
+                # just collect text for the turn, not the span
+                elif isinstance(frame, TTSTextFrame) and isinstance(
+                    data.source, BaseOutputTransport
+                ):
+                    # Collect bot text from transport output for conversation turn
+                    if frame.text and not frame.skip_tts:
+                        self._turn_bot_text.append(frame.text)
+
             # Update Existing Span
             else:
                 # Extract and add attributes from this frame to the span
@@ -312,11 +328,15 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         span_info["accumulated_input"] += " "
 
                     if self._seen_vad_user_stopped_speaking_frame:
-                        self._log_debug(
-                            f"  STT response ended  Finish span for service {service_id}"
+                        duration = 0.0
+                        current_time_ns = time.time_ns()
+                        duration = (current_time_ns - span_info["start_time_ns"]) / 1_000_000_000
+                        active_span.set_attribute(
+                            "stt.time_to_last_transcription_seconds", duration
                         )
-                        # Finish STT Span
-                        self._finish_span(service_id)
+                        ### let _end_turn finish STT Span
+                        # # Finish STT Span
+                        # self._finish_span(service_id)
 
                 # LLM
                 elif isinstance(frame, LLMFullResponseEndFrame):
@@ -341,14 +361,11 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 elif isinstance(frame, TTSTextFrame):
                     self._tts_includes_inter_frame_spaces = frame.includes_inter_frame_spaces
 
-                    # Collect user text from STT output for conversation turn
-                    if self._is_turn_active and frame.text and not frame.skip_tts:
-                        self._turn_bot_text.append(frame.text)
-
-                    # Collect user text from STT output for TTS span
-                    span_info["accumulated_output"] += frame.text
-                    if not self._tts_includes_inter_frame_spaces:
-                        span_info["accumulated_output"] += " "
+                    if isinstance(data.source, TTSService):
+                        # Collect full bot text from TTS output for TTS span
+                        span_info["accumulated_output"] += frame.text
+                        if not self._tts_includes_inter_frame_spaces:
+                            span_info["accumulated_output"] += " "
 
                 # Metrics
                 elif isinstance(frame, MetricsFrame):
@@ -428,6 +445,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         span_info = self._active_spans.pop(service_id)
         span: Span = span_info["span"]
         start_time_ns = span_info["start_time_ns"]
+        service_type = span_info.get("service_type")
 
         # Calculate end time (use processing time if available, otherwise use current time)
         processing_time_seconds = span_info.get("processing_time_seconds")
@@ -454,10 +472,18 @@ class OpenInferenceObserver(TurnTrackingObserver):
             )
 
             # For LLM spans, also set flattened output messages format
-            service_type = span_info.get("service_type")
             if service_type == "llm":
                 span.set_attribute("llm.output_messages.0.message.role", "assistant")
                 span.set_attribute("llm.output_messages.0.message.content", accumulated_output)
+
+        # For STT spans, minutes used is entirety of the turn, because it is always "listening"
+        if service_type == "stt":
+            duration = 0.0
+            current_time_ns = time.time_ns()
+            duration = (
+                (current_time_ns - self._turn_start_time) / 1_000_000_000 / 60
+            )  # Convert to minutes
+            span.set_attribute("stt.minutes", duration)
 
         span.set_status(trace_api.Status(trace_api.StatusCode.OK))  #
         span.end(end_time=int(end_time_ns))
