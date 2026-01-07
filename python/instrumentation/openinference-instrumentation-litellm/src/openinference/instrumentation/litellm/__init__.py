@@ -91,7 +91,7 @@ def _get_oi_provider_from_litellm_model_name(
     model_name: str,
 ) -> Optional[OpenInferenceLLMProviderValues]:
     try:
-        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)  # type: ignore[attr-defined]
+        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)
     except Exception:
         return None
     return _LITELLM_TO_OPENINFERENCE_PROVIDERS.get(litellm_provider)
