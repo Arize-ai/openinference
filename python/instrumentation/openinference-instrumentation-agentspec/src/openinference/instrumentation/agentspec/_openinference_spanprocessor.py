@@ -56,7 +56,7 @@ def _get_tool_json_schema(tool: AgentSpecTool) -> Dict[str, Any]:
 def _to_open_inference_format_tracing_info(
     span: AgentSpecSpan, mask_sensitive_information: bool = True
 ) -> Dict[str, Any]:
-    # See https://arize.com/docs/ax/concepts/tracing/semantic-conventions for naming conventions
+    # See https://arize-ai.github.io/openinference/spec/ for naming conventions
     trace = span._trace
     tracing_info: Dict[str, Any] = span.model_dump(mask_sensitive_information=mask_sensitive_information)
     tracing_info[SpanAttributes.SESSION_ID] = trace.id if trace else None
