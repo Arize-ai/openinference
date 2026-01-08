@@ -1,6 +1,4 @@
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from phoenix.otel import register
 from pyagentspec.adapters.langgraph import AgentSpecLoader
 from pyagentspec.agent import Agent
 from pyagentspec.llms import OpenAiConfig
@@ -57,19 +55,21 @@ tool_registry = {
 }
 langgraph_agent = AgentSpecLoader(tool_registry=tool_registry).load_component(agent)
 
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
+tracer_provider = register(batch=True, project_name="calculator-app")
 
 with AgentSpecInstrumentor().instrument_context(
     skip_dep_check=True, tracer_provider=tracer_provider
 ):
+    messages = []
     while True:
         user_input = input("USER  >>> ")
         if user_input.lower() in ["exit", "quit"]:
             break
+        messages.append({"role": "user", "content": user_input})
         response = langgraph_agent.invoke(
-            input={"messages": [{"role": "user", "content": user_input}]},
+            input={"messages": messages},
             config={"configurable": {"thread_id": "1"}},
         )
-        print("AGENT >>>", response["messages"][-1].content.strip())
+        agent_answer = response["messages"][-1].content.strip()
+        print("AGENT >>>", agent_answer)
+        messages.append({"role": "assistant", "content": agent_answer})

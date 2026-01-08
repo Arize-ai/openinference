@@ -59,16 +59,11 @@ agent = Agent(
 
 langgraph_agent = AgentSpecLoader().load_component(agent)
 
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from phoenix.otel import register
 
 from openinference.instrumentation.agentspec import AgentSpecInstrumentor
 
-endpoint = "http://127.0.0.1:6006/v1/traces"
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-
+tracer_provider = register(batch=True, project_name="hello-world-app")
 AgentSpecInstrumentor().instrument(tracer_provider=tracer_provider)
 
 while True:
