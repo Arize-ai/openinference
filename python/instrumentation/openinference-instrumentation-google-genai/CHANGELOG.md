@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.8...python-openinference-instrumentation-google-genai-v0.1.9) (2026-01-08)
+
+
+### Bug Fixes
+
+* **google-genai:** including tool_use_prompt_token_count into prompt token count ([#2597](https://github.com/Arize-ai/openinference/issues/2597)) ([b067ecb](https://github.com/Arize-ai/openinference/commit/b067ecb133dd7dcf7eccf15d20450817a71953dd))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.7...python-openinference-instrumentation-google-genai-v0.1.8) (2025-10-10)
 
 
