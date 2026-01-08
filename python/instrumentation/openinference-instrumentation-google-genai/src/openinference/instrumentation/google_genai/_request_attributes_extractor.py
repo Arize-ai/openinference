@@ -10,9 +10,12 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_input_attributes,
     _io_value_and_type,
+    _ValueAndType,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -37,7 +40,7 @@ class _RequestAttributesExtractor:
         yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
         try:
             yield from _as_input_attributes(
-                _io_value_and_type(request_parameters),
+                self._get_phoenix_friendly_input_value(request_parameters),
             )
         except Exception:
             logger.exception(
@@ -383,6 +386,62 @@ class _RequestAttributesExtractor:
                 id,
             )
 
+    def _get_attributes_from_inline_data(
+        self, inline_data: Any
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Handle inline data (base64 encoded content) from Part.from_bytes()"""
+        mime_type = get_attribute(inline_data, "mime_type", "unknown") or "unknown"
+        data = get_attribute(inline_data, "data")
+
+        if mime_type.startswith("image/"):
+            # Use proper semantic conventions for images
+            if data:
+                import base64
+
+                # Handle both bytes and string data properly
+                if isinstance(data, bytes):
+                    base64_data = base64.b64encode(data).decode()
+                elif isinstance(data, str):
+                    # Assume it's already base64 encoded
+                    base64_data = data
+                else:
+                    # Convert other types to string and base64 encode
+                    base64_data = base64.b64encode(str(data).encode()).decode()
+                data_url = f"data:{mime_type};base64,{base64_data}"
+                yield (
+                    f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                    data_url,
+                )
+            else:
+                # Fallback for images without data
+                yield (MessageAttributes.MESSAGE_CONTENT, f"[Image: {mime_type}]")
+        else:
+            # For non-image files, use descriptive text (no specific semantic convention available)
+            try:
+                data_size_value = len(data) if data else 0
+                data_size_str = str(data_size_value)
+            except (TypeError, AttributeError):
+                # data doesn't support len() (e.g., int, object, etc.)
+                data_size_str = "unknown"
+            yield (MessageAttributes.MESSAGE_CONTENT, f"[File: {mime_type}, {data_size_str} bytes]")
+
+    def _get_attributes_from_file_data(
+        self, file_data: Any
+    ) -> Iterator[Tuple[str, AttributeValue]]:
+        """Handle file data (URI references) from Part.from_uri()"""
+        file_uri = get_attribute(file_data, "file_uri", "unknown") or "unknown"
+        mime_type = get_attribute(file_data, "mime_type", "unknown") or "unknown"
+
+        if mime_type.startswith("image/"):
+            # Use proper semantic conventions for images
+            yield (
+                f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                file_uri,
+            )
+        else:
+            # For non-image files, use descriptive text (no specific semantic convention available)
+            yield (MessageAttributes.MESSAGE_CONTENT, f"[File: {mime_type} from {file_uri}]")
+
     def _flatten_parts(self, parts: list[Part]) -> Iterator[Tuple[str, AttributeValue]]:
         content_values = []
         tool_call_index = 0
@@ -395,14 +454,138 @@ class _RequestAttributesExtractor:
                     yield (attr, value)
                 elif attr == MessageAttributes.MESSAGE_TOOL_CALL_ID:
                     yield (attr, value)
+                elif attr.startswith(MessageContentAttributes.MESSAGE_CONTENT_IMAGE):
+                    # Preserve image attributes (don't flatten)
+                    yield (attr, value)
                 elif isinstance(value, str):
                     # Flatten all other string values into a single message content
                     content_values.append(value)
-                else:
-                    # TODO: Handle other types of parts
-                    logger.debug(f"Non-text part encountered: {part}")
+            else:
+                # TODO: Handle other types of parts
+                logger.debug(f"Non-text part encountered: {part}")
         if content_values:
             yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_values))
+
+    def _get_phoenix_friendly_input_value(self, request_parameters: Any) -> _ValueAndType:
+        """
+        Create a Phoenix-friendly input value by replacing binary data with descriptive text.
+        This ensures the Phoenix UI shows readable content instead of binary data.
+        """
+        try:
+            # First try the standard approach for non-binary content
+            if not isinstance(request_parameters, Mapping):
+                return _io_value_and_type(request_parameters)
+
+            # Check if this request contains binary data (images/files)
+            contents = request_parameters.get("contents")
+            if not contents:
+                return _io_value_and_type(request_parameters)
+
+            # Create a copy of request parameters to modify
+            cleaned_params = dict(request_parameters)
+
+            # Process contents to replace binary data with descriptive text
+            if hasattr(contents, "parts"):
+                # Single Content object
+                cleaned_params["contents"] = self._clean_content_for_display(contents)
+            elif isinstance(contents, (list, tuple)):
+                # List of Content objects
+                cleaned_params["contents"] = [
+                    self._clean_content_for_display(content)
+                    if hasattr(content, "parts")
+                    else content
+                    for content in contents
+                ]
+
+            # Use the standard processing on the cleaned parameters
+            return _io_value_and_type(cleaned_params)
+
+        except Exception:
+            logger.exception(
+                "Failed to create Phoenix-friendly input value, falling back to default"
+            )
+            return _io_value_and_type(request_parameters)
+
+    def _clean_content_for_display(self, content: Any) -> Dict[str, Any]:
+        """Clean a Content object by replacing binary data with descriptive text."""
+        try:
+            # Create a simplified representation
+            result = {"role": get_attribute(content, "role", "user"), "parts": []}
+
+            parts = get_attribute(content, "parts", [])
+            for part in parts:
+                if text := get_attribute(part, "text"):
+                    result["parts"].append({"text": text})
+                elif inline_data := get_attribute(part, "inline_data"):
+                    mime_type = get_attribute(inline_data, "mime_type", "unknown") or "unknown"
+                    data = get_attribute(inline_data, "data")
+
+                    if mime_type.startswith("image/"):
+                        # For images, include the actual data URL so Phoenix can display them
+                        if data:
+                            import base64
+
+                            # Handle both bytes and string data properly
+                            if isinstance(data, bytes):
+                                base64_data = base64.b64encode(data).decode()
+                            elif isinstance(data, str):
+                                # Assume it's already base64 encoded
+                                base64_data = data
+                            else:
+                                # Convert other types to string and base64 encode
+                                base64_data = base64.b64encode(str(data).encode()).decode()
+
+                            data_url = f"data:{mime_type};base64,{base64_data}"
+                            result["parts"].append(
+                                {
+                                    "inline_data": {
+                                        "mime_type": mime_type,
+                                        "data_url": data_url,  # Phoenix-friendly image URL
+                                        "description": f"Image ({mime_type})",
+                                    }
+                                }
+                            )
+                        else:
+                            result["parts"].append(
+                                {
+                                    "inline_data": {
+                                        "mime_type": mime_type,
+                                        "description": f"[Image: {mime_type}, no data]",
+                                    }
+                                }
+                            )
+                    else:
+                        try:
+                            data_size_value = len(data) if data else 0
+                            data_size_str = str(data_size_value)
+                        except (TypeError, AttributeError):
+                            data_size_str = "unknown"
+                        result["parts"].append(
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "description": f"[File data: {mime_type}, {data_size_str} bytes]",  # noqa: E501
+                                }
+                            }
+                        )
+                elif file_data := get_attribute(part, "file_data"):
+                    file_uri = get_attribute(file_data, "file_uri", "unknown") or "unknown"
+                    mime_type = get_attribute(file_data, "mime_type", "unknown") or "unknown"
+                    result["parts"].append(
+                        {"file_data": {"file_uri": file_uri, "mime_type": mime_type}}
+                    )
+                elif function_call := get_attribute(part, "function_call"):
+                    result["parts"].append({"function_call": str(function_call)})
+                elif function_response := get_attribute(part, "function_response"):
+                    result["parts"].append({"function_response": str(function_response)})
+                else:
+                    result["parts"].append({"unknown_part": str(type(part))})
+
+            return result
+
+        except Exception:
+            logger.exception("Failed to clean content for display")
+            return {"role": "user", "parts": [{"error": "Failed to process content"}]}
 
     def _extract_tool_call_index(self, attr: str) -> int:
         """Extract tool call index from message tool call attribute key.
@@ -427,8 +610,15 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_function_call(function_call, tool_call_index)
         elif function_response := get_attribute(part, "function_response"):
             yield from self._get_attributes_from_function_response(function_response)
+        elif inline_data := get_attribute(part, "inline_data"):
+            # Handle base64 encoded content (Part.from_bytes())
+            yield from self._get_attributes_from_inline_data(inline_data)
+        elif file_data := get_attribute(part, "file_data"):
+            # Handle URI-referenced files (Part.from_uri())
+            yield from self._get_attributes_from_file_data(file_data)
         else:
-            logger.exception("Other field types of parts are not supported yet")
+            # Change from exception to debug log for unknown part types
+            logger.debug(f"Unsupported part type encountered, skipping: {type(part)}")
 
 
 T = TypeVar("T", bound=type)
