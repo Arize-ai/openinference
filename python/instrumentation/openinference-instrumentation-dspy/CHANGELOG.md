@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.32...python-openinference-instrumentation-dspy-v0.1.33) (2026-01-08)
+
+
+### Bug Fixes
+
+* Dspy Uninstrumenting instrumented methods ([#2511](https://github.com/Arize-ai/openinference/issues/2511)) ([b9860ed](https://github.com/Arize-ai/openinference/commit/b9860ed0d4289a179805dcc196d94031414f6883))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-dspy-v0.1.31...python-openinference-instrumentation-dspy-v0.1.32) (2025-12-16)
 
 
