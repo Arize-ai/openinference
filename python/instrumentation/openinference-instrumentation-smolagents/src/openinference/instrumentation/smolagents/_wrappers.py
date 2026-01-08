@@ -380,7 +380,7 @@ def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
     if hasattr(output, "model_dump_json") and callable(output.model_dump_json):
         try:
-            yield OUTPUT_VALUE, output.model_dump_json()
+            yield OUTPUT_VALUE, output.model_dump_json(exclude_unset=True)
         except Exception:
             # model_dump_json() failed so convert to dict first then use safe_json_dumps
             # This handles Pydantic models with non-serializable nested objects
