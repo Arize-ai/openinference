@@ -166,7 +166,12 @@ class _ResponseExtractor:
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := result.get("usage_metadata"):
-            if prompt_token_count := usage_metadata.get("prompt_token_count"):
+            prompt_token_count = 0
+            if tool_token_count := usage_metadata.get("tool_use_prompt_token_count"):
+                prompt_token_count += tool_token_count
+            if prompt_tokens := usage_metadata.get("prompt_token_count"):
+                prompt_token_count += prompt_tokens
+            if prompt_token_count:
                 yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
             if candidates_token_count := usage_metadata.get("candidates_token_count"):
                 yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)

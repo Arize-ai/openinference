@@ -146,7 +146,12 @@ class _ResponseAttributesExtractor:
                     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
                     prompt_details_audio,
                 )
-        if prompt := obj.prompt_token_count:
+        prompt = 0
+        if obj.prompt_token_count:
+            prompt += obj.prompt_token_count
+        if obj.tool_use_prompt_token_count:
+            prompt += obj.tool_use_prompt_token_count
+        if prompt:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
         if obj.candidates_tokens_details:
             completion_details_audio = 0
