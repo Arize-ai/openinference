@@ -32,10 +32,8 @@ def _get_token_count_attributes_from_usage_metadata(
         prompt_details_audio = 0
         for modality_token_count in prompt_tokens_details:
             modality = modality_token_count.get("modality")
-            # Handle both enum (via .value or .name) and string representations
-            modality_str = (
-                getattr(modality, "value", None) or getattr(modality, "name", None) or modality
-            )
+            # Handle both enum (via .value) and string representations
+            modality_str = getattr(modality, "value", None) or modality
             if modality_str == _AUDIO_MODALITY and modality_token_count.get("token_count"):
                 prompt_details_audio += modality_token_count["token_count"]
         if prompt_details_audio:
@@ -55,9 +53,7 @@ def _get_token_count_attributes_from_usage_metadata(
         completion_details_audio = 0
         for modality_token_count in candidates_tokens_details:
             modality = modality_token_count.get("modality")
-            modality_str = (
-                getattr(modality, "value", None) or getattr(modality, "name", None) or modality
-            )
+            modality_str = getattr(modality, "value", None) or modality
             if modality_str == _AUDIO_MODALITY and modality_token_count.get("token_count"):
                 completion_details_audio += modality_token_count["token_count"]
         if completion_details_audio:
