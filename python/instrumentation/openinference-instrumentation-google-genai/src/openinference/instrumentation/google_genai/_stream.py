@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -37,6 +38,9 @@ from openinference.semconv.trace import (
 
 if TYPE_CHECKING:
     from google.genai.types import GenerateContentResponse
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class _Stream(ObjectProxy):  # type: ignore
@@ -167,7 +171,16 @@ class _ResponseExtractor:
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := result.get("usage_metadata"):
-            yield from _get_token_count_attributes_from_usage_metadata(usage_metadata)
+            from google.genai import types
+
+            try:
+                usage_metadata_obj = types.GenerateContentResponseUsageMetadata.model_validate(
+                    usage_metadata
+                )
+            except Exception:
+                logger.exception(f"Failed to validate usage metadata: {usage_metadata}")
+            else:
+                yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
                 if content := candidate.get("content"):

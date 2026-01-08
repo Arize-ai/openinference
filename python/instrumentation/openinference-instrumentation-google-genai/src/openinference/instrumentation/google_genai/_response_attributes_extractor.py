@@ -132,9 +132,7 @@ class _ResponseAttributesExtractor:
         self,
         obj: types.GenerateContentResponseUsageMetadata,
     ) -> Iterator[Tuple[str, AttributeValue]]:
-        # Convert typed object to dict for shared extraction logic
-        usage_dict = obj.model_dump(exclude_unset=True)
-        yield from _get_token_count_attributes_from_usage_metadata(usage_dict)
+        yield from _get_token_count_attributes_from_usage_metadata(obj)
 
     def _get_attributes_from_automatic_function_calling_history(
         self,
