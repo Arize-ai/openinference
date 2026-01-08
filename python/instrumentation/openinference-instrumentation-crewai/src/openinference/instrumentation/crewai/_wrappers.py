@@ -14,7 +14,11 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):

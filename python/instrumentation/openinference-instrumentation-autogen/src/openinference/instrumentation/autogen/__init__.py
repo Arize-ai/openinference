@@ -5,7 +5,6 @@ from opentelemetry import trace
 from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 
 from autogen import ConversableAgent  # type: ignore
-
 from openinference.instrumentation.autogen._utils import (
     extract_llm_model_name_from_agent,
     infer_llm_provider_from_model,

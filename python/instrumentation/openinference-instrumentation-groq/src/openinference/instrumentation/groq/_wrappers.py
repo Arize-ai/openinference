@@ -4,7 +4,7 @@ from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
@@ -24,7 +24,6 @@ from openinference.instrumentation.groq._with_span import _WithSpan
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
-    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -48,38 +47,6 @@ def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]
             if isinstance(value, Enum):
                 value = value.value
             yield key, value
-
-
-def infer_llm_provider_from_model(
-    model_name: Optional[str],
-) -> Optional[OpenInferenceLLMProviderValues]:
-    if not model_name:
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI.value
-
-    if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC.value
-
-    if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI.value
-
-    if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE.value
-
-    if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE.value
-
-    if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI.value
-
-    if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK.value
-
-    return None
 
 
 class _WithTracer(ABC):
@@ -180,12 +147,6 @@ class _CompletionsWrapper(_WithTracer):
                 request_parameters
             ),
         ) as span:
-            if model_name := request_parameters.get("model"):
-                span.set_attribute(LLM_MODEL_NAME, model_name)
-
-                if provider := infer_llm_provider_from_model(model_name):
-                    span.set_attribute(LLM_PROVIDER, provider)
-
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -249,12 +210,6 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 request_parameters
             ),
         ) as span:
-            if model_name := request_parameters.get("model"):
-                span.set_attribute(LLM_MODEL_NAME, model_name)
-
-                if provider := infer_llm_provider_from_model(model_name):
-                    span.set_attribute(LLM_PROVIDER, provider)
-
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
@@ -290,5 +245,3 @@ MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
-LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
-LLM_PROVIDER = SpanAttributes.LLM_PROVIDER

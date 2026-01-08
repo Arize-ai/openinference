@@ -284,6 +284,9 @@ def _verify_agent_span(
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert isinstance(output_value, str)
 
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == "gpt-4.1-nano"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
+
 
 def _verify_context_attributes(span: ReadableSpan) -> None:
     """Verify that context attributes are present on a span."""

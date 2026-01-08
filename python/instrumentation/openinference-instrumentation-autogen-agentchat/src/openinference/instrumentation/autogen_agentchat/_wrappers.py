@@ -509,8 +509,12 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                         )
                     )
                 )
-                span.set_attribute(SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value)
-                span.set_attribute(SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
+                span.set_attribute(
+                    SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+                )
+                span.set_attribute(
+                    SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+                )
 
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -585,8 +589,12 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
                                 )
                             )
                         )
-                        span.set_attribute(SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value)
-                        span.set_attribute(SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
+                        span.set_attribute(
+                            SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
+                        )
+                        span.set_attribute(
+                            SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+                        )
                     yield res
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))

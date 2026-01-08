@@ -1,8 +1,8 @@
 from typing import Optional
 
-from autogen import ConversableAgent  # type: ignore
-
 from openinference.semconv.trace import OpenInferenceLLMProviderValues
+
+from autogen import ConversableAgent  # type: ignore
 
 
 def infer_llm_provider_from_model(

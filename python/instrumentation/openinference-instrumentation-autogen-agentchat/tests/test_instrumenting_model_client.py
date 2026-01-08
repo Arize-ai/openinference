@@ -61,4 +61,6 @@ async def test_instrumenting_model_client(
     assert attrs.pop("llm.token_count.completion") == 7
     assert attrs.pop("llm.token_count.prompt") == 15
     assert attrs.pop("llm.token_count.total") == 22
+    assert attrs.pop("llm.provider", None) == "openai"
+    assert attrs.pop("llm.system", None) == "openai"
     assert not attrs

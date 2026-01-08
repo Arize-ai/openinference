@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple, TypeVar
 
 from opentelemetry.util.types import AttributeValue
 
@@ -8,6 +8,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -43,6 +44,13 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
+
+        if model_name := request_parameters.get("model"):
+            yield SpanAttributes.LLM_MODEL_NAME, model_name
+
+            if provider := infer_llm_provider_from_model(model_name):
+                yield SpanAttributes.LLM_PROVIDER, provider
+
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)  # Remove LLM input messages
         invocation_params.pop("functions", None)
@@ -129,3 +137,35 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI.value
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI.value
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE.value
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE.value
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI.value
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+
+    return None
