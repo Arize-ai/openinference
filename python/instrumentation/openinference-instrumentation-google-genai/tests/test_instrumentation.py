@@ -1456,11 +1456,13 @@ def test_validate_token_counts(
     expected_attributes = {
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1457,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 767,
+        # Completion includes candidates (587) + thoughts/reasoning (103)
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 690,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 103,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
+            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
 
 
@@ -1492,9 +1494,11 @@ def test_validate_token_counts_stream(
     expected_attributes = {
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1620,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 850,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 602,
+        # Completion includes candidates (602) + thoughts/reasoning (168)
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 770,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 168,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
+            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )

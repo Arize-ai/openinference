@@ -166,17 +166,54 @@ class _ResponseExtractor:
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := result.get("usage_metadata"):
-            prompt_token_count = 0
-            if tool_token_count := usage_metadata.get("tool_use_prompt_token_count"):
-                prompt_token_count += tool_token_count
-            if prompt_tokens := usage_metadata.get("prompt_token_count"):
-                prompt_token_count += prompt_tokens
-            if prompt_token_count:
-                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
-            if candidates_token_count := usage_metadata.get("candidates_token_count"):
-                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
             if total_token_count := usage_metadata.get("total_token_count"):
                 yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
+            # Extract prompt details audio tokens
+            if prompt_tokens_details := usage_metadata.get("prompt_tokens_details"):
+                prompt_details_audio = 0
+                for modality_token_count in prompt_tokens_details:
+                    if modality_token_count.get("modality") == "AUDIO" and modality_token_count.get(
+                        "token_count"
+                    ):
+                        prompt_details_audio += modality_token_count["token_count"]
+                if prompt_details_audio:
+                    yield (
+                        SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+                        int(prompt_details_audio),
+                    )
+            # Calculate total prompt tokens (base + tool use)
+            prompt_token_count = 0
+            if base_prompt_tokens := usage_metadata.get("prompt_token_count"):
+                prompt_token_count += base_prompt_tokens
+            if tool_use_prompt_tokens := usage_metadata.get("tool_use_prompt_token_count"):
+                prompt_token_count += tool_use_prompt_tokens
+            if prompt_token_count:
+                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
+            # Extract completion details audio tokens
+            if candidates_tokens_details := usage_metadata.get("candidates_tokens_details"):
+                completion_details_audio = 0
+                for modality_token_count in candidates_tokens_details:
+                    if modality_token_count.get("modality") == "AUDIO" and modality_token_count.get(
+                        "token_count"
+                    ):
+                        completion_details_audio += modality_token_count["token_count"]
+                if completion_details_audio:
+                    yield (
+                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+                        int(completion_details_audio),
+                    )
+            # Calculate total completion tokens (candidates + thoughts/reasoning)
+            completion_token_count = 0
+            if candidates_token_count := usage_metadata.get("candidates_token_count"):
+                completion_token_count += candidates_token_count
+            if thoughts_token_count := usage_metadata.get("thoughts_token_count"):
+                yield (
+                    SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+                    int(thoughts_token_count),
+                )
+                completion_token_count += thoughts_token_count
+            if completion_token_count:
+                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(completion_token_count)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
                 if content := candidate.get("content"):
