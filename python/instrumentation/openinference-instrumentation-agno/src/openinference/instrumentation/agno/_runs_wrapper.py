@@ -1,15 +1,10 @@
-from enum import Enum
-from inspect import signature
-from secrets import token_hex
 from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
     Iterator,
     Mapping,
     Optional,
-    OrderedDict,
     Tuple,
     Union,
     cast,
@@ -29,14 +24,18 @@ from agno.team import Team
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation.agno.utils import (
+    _AGNO_PARENT_NODE_CONTEXT_KEY,
+    _bind_arguments,
+    _flatten,
+    _generate_node_id,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-
-_AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
@@ -47,25 +46,6 @@ def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
         return obj.get(key, default)
     else:  # It's an object with attributes
         return getattr(obj, key, default)
-
-
-def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
-    if not mapping:
-        return
-    for key, value in mapping.items():
-        if value is None:
-            continue
-        if isinstance(value, Mapping):
-            for sub_key, sub_value in _flatten(value):
-                yield f"{key}.{sub_key}", sub_value
-        elif isinstance(value, list) and any(isinstance(item, Mapping) for item in value):
-            for index, sub_mapping in enumerate(value):
-                for sub_key, sub_value in _flatten(sub_mapping):
-                    yield f"{key}.{index}.{sub_key}", sub_value
-        else:
-            if isinstance(value, Enum):
-                value = value.value
-            yield key, value
 
 
 def _get_user_message_content(method: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
@@ -112,23 +92,8 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
     return ""
 
 
-def _bind_arguments(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Dict[str, Any]:
-    method_signature = signature(method)
-    bound_args = method_signature.bind(*args, **kwargs)
-    bound_args.apply_defaults()
-    arguments = bound_args.arguments
-    arguments = OrderedDict(
-        {key: value for key, value in arguments.items() if value is not None and value != {}}
-    )
-    return arguments
-
-
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in ("self", "cls")}
-
-
-def _generate_node_id() -> str:
-    return token_hex(8)  # Generates 16 hex characters (8 bytes)
 
 
 def _run_arguments(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -217,6 +182,34 @@ def _setup_team_context(
     return None, None
 
 
+def _get_team_span_context(instance: Any) -> Optional[Context]:
+    """
+    Determine the appropriate span context for Team instances.
+
+    Returns:
+        - INVALID_SPAN context if this is a top-level Team (no parent team)
+        - None if this is a nested Team or not a Team at all
+
+    This ensures:
+    - Sequential team.run() calls create separate top-level traces
+    - Nested teams (teams as members) properly nest under parent teams
+    """
+    if not isinstance(instance, Team):
+        return None
+
+    # Check if we're inside a parent Team context
+    # This is more reliable than get_current_span() when Agno uses thread pools
+    parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
+
+    # Only force root span if we're NOT inside a parent Team
+    if parent_team_node_id is None:
+        # No parent team context - create root span for top-level Team
+        return trace_api.set_span_in_context(trace_api.INVALID_SPAN)
+
+    # Inside parent team - let it nest naturally
+    return None
+
+
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -249,6 +242,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -256,6 +252,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -319,12 +316,16 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -346,7 +347,7 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
 
@@ -367,10 +368,11 @@ class _RunWrapper:
                     yield response
 
             if run_response is not None:
-                if run_response.content is not None:
-                    span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                span.set_status(trace_api.StatusCode.OK)
+                output = _extract_run_response_output(run_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            span.set_status(trace_api.StatusCode.OK)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))
@@ -405,6 +407,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -412,6 +417,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -475,6 +481,9 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
+        # Get appropriate span context for Team instances
+        span_context = _get_team_span_context(instance)
+
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -482,6 +491,7 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
+            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -503,7 +513,7 @@ class _RunWrapper:
         try:
             current_run_id = None
             yield_run_output_set = False
-            if "yield_run_output" not in kwargs:
+            if kwargs.get("yield_run_output") is not True:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
@@ -523,10 +533,11 @@ class _RunWrapper:
                     yield response
 
             if run_response is not None:
-                if run_response.content is not None:
-                    span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
-                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
-                span.set_status(trace_api.StatusCode.OK)
+                output = _extract_run_response_output(run_response)
+                if output:
+                    span.set_attribute(OUTPUT_VALUE, output)
+                    span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            span.set_status(trace_api.StatusCode.OK)
 
         except Exception as e:
             span.set_status(trace_api.StatusCode.ERROR, str(e))

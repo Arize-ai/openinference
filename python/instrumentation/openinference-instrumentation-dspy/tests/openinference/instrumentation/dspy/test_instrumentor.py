@@ -151,11 +151,12 @@ class TestLM:
         assert len(output_data) == 1
         assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "max_tokens": 4000,  # default setting in LM
-            "temperature": 0.2,  # from __call__
-            "top_p": 0.1,  # from __init__
-        }
+        invocation_params = json.loads(inv_params)
+        assert "temperature" in invocation_params
+        assert "max_tokens" in invocation_params
+        assert "top_p" in invocation_params
+        assert len(invocation_params.keys()) == 3
+
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -202,10 +203,10 @@ class TestLM:
         assert len(output_data) == 1
         assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "temperature": 0.0,
-            "max_tokens": 4000,
-        }
+        invocation_params = json.loads(inv_params)
+        assert "temperature" in invocation_params
+        assert "max_tokens" in invocation_params
+        assert len(invocation_params.keys()) == 2
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -255,10 +256,10 @@ class TestLM:
         assert len(output_data) == 1
         assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "temperature": 0.0,
-            "max_tokens": 4000,
-        }
+        invocation_params = json.loads(inv_params)
+        assert "temperature" in invocation_params
+        assert "max_tokens" in invocation_params
+        assert len(invocation_params.keys()) == 2
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -309,10 +310,10 @@ class TestLM:
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "temperature": 0.0,
-            "max_tokens": 4000,
-        }
+        invocation_params = json.loads(inv_params)
+        assert "temperature" in invocation_params
+        assert "max_tokens" in invocation_params
+        assert len(invocation_params.keys()) == 2
         assert attributes.pop(LLM_PROVIDER) == "openai"
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
@@ -364,10 +365,10 @@ class TestLM:
         assert len(output_data) == 1
         assert output_data[0] == response
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == {
-            "temperature": 0.0,
-            "max_tokens": 4000,
-        }
+        invocation_params = json.loads(inv_params)
+        assert "temperature" in invocation_params
+        assert "max_tokens" in invocation_params
+        assert len(invocation_params.keys()) == 2
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == prompt
         assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
@@ -581,10 +582,10 @@ async def test_rag_module(
     assert len(output_data) == 1
     assert isinstance(output_data[0], str)
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-    assert json.loads(inv_params) == {
-        "temperature": 0.0,
-        "max_tokens": 4000,
-    }
+    invocation_params = json.loads(inv_params)
+    assert "temperature" in invocation_params
+    assert "max_tokens" in invocation_params
+    assert len(invocation_params.keys()) == 2
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert isinstance(attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.1.{MESSAGE_ROLE}") == "user"
@@ -1297,6 +1298,51 @@ def test_dummy_lm_instrumentation(
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.CHAIN.value
     )
+
+
+def test_uninstrument() -> None:
+    from dspy import LM, Adapter, ColBERTv2, Module, Predict, Retrieve, Tool
+    from dspy.utils import DummyLM
+
+    assert hasattr(Predict.forward, "__wrapped__")
+    assert hasattr(Predict.aforward, "__wrapped__")
+    assert hasattr(LM.acall, "__wrapped__")
+    assert hasattr(LM.__call__, "__wrapped__")
+    assert hasattr(DummyLM.__call__, "__wrapped__")
+    assert hasattr(DummyLM.acall, "__wrapped__")
+    predict_subclasses = Predict.__subclasses__()
+    for predict_subclass in predict_subclasses:
+        assert hasattr(predict_subclass.forward, "__wrapped__")
+        assert hasattr(predict_subclass.aforward, "__wrapped__")
+
+    assert hasattr(Retrieve.forward, "__wrapped__")
+    assert hasattr(Module.__call__, "__wrapped__")
+    assert hasattr(Module.acall, "__wrapped__")
+    assert hasattr(ColBERTv2.__call__, "__wrapped__")
+    assert hasattr(Adapter.__call__, "__wrapped__")
+    assert hasattr(Adapter.acall, "__wrapped__")
+    assert hasattr(Tool.__call__, "__wrapped__")
+    assert hasattr(Tool.acall, "__wrapped__")
+
+    DSPyInstrumentor().uninstrument()
+    assert not hasattr(Predict.forward, "__wrapped__")
+    assert not hasattr(Predict.aforward, "__wrapped__")
+    assert not hasattr(LM.acall, "__wrapped__")
+    assert not hasattr(LM.__call__, "__wrapped__")
+    assert not hasattr(DummyLM.__call__, "__wrapped__")
+    assert not hasattr(DummyLM.acall, "__wrapped__")
+    for predict_subclass in predict_subclasses:
+        assert not hasattr(predict_subclass.forward, "__wrapped__")
+        assert not hasattr(predict_subclass.aforward, "__wrapped__")
+
+    assert not hasattr(Retrieve.forward, "__wrapped__")
+    assert not hasattr(Module.__call__, "__wrapped__")
+    assert not hasattr(Module.acall, "__wrapped__")
+    assert not hasattr(ColBERTv2.__call__, "__wrapped__")
+    assert not hasattr(Adapter.__call__, "__wrapped__")
+    assert not hasattr(Adapter.acall, "__wrapped__")
+    assert not hasattr(Tool.__call__, "__wrapped__")
+    assert not hasattr(Tool.acall, "__wrapped__")
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value

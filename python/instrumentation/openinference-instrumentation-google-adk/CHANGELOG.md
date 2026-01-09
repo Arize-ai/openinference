@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.7...python-openinference-instrumentation-google-adk-v0.1.8) (2025-12-11)
+
+
+### Features
+
+* **google-adk:** Add agent.name attribute to agent run spans and add multi-agent test ([#2510](https://github.com/Arize-ai/openinference/issues/2510)) ([d08f500](https://github.com/Arize-ai/openinference/commit/d08f5002a13e11cee6e230dbe56a6667a5101fca))
+
+## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.6...python-openinference-instrumentation-google-adk-v0.1.7) (2025-12-04)
+
+
+### Bug Fixes
+
+* Google adk ci failures ([#2484](https://github.com/Arize-ai/openinference/issues/2484)) ([2d9864c](https://github.com/Arize-ai/openinference/commit/2d9864ce6cd41419dbf02e009e19d1c3fa626e46))
+* **google-adk:** Capture all tool results when LLM makes multiple parallel tool calls ([#2483](https://github.com/Arize-ai/openinference/issues/2483)) ([5fc74e4](https://github.com/Arize-ai/openinference/commit/5fc74e4fcb8f9e322b067233aaa8605e672d53b4))
+
 ## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.5...python-openinference-instrumentation-google-adk-v0.1.6) (2025-10-10)
 
 

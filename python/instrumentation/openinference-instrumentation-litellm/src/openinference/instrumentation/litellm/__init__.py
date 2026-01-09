@@ -1,5 +1,6 @@
 from enum import Enum
 from functools import wraps
+from types import SimpleNamespace
 from typing import (
     Any,
     Callable,
@@ -61,9 +62,6 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
-
 # Skip capture
 KEYS_TO_REDACT = ["api_key", "messages"]
 
@@ -94,7 +92,7 @@ def _get_oi_provider_from_litellm_model_name(
     model_name: str,
 ) -> Optional[OpenInferenceLLMProviderValues]:
     try:
-        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)  # type: ignore[attr-defined]
+        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)
     except Exception:
         return None
     return _LITELLM_TO_OPENINFERENCE_PROVIDERS.get(litellm_provider)
@@ -278,7 +276,7 @@ def _instrument_func_type_embedding(span: trace_api.Span, kwargs: Dict[str, Any]
     }
     if invocation_params:
         _set_span_attribute(
-            span, _EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
+            span, SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS, safe_json_dumps(invocation_params)
         )
 
     # Extract text from embedding input - only records text, not token IDs
@@ -337,23 +335,37 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         if model_name := getattr(result, "model", None):
             _set_span_attribute(span, SpanAttributes.EMBEDDING_MODEL_NAME, model_name)
 
-        if result_data := result.data:
-            # Extract embedding vectors directly (litellm uses enumeration, not explicit index)
-            for index, embedding_item in enumerate(result_data):
-                # LiteLLM returns dicts with 'embedding' key
-                raw_vector = (
-                    embedding_item.get("embedding") if hasattr(embedding_item, "get") else None
-                )
-                if not raw_vector:
+        if result_data := getattr(result, "data", None):
+            # Extract embedding vectors directly
+            for embedding_item in result_data:
+                # LiteLLM may return embedding items as dicts or OpenAIObject instances
+                if isinstance(embedding_item, dict):
+                    raw_vector = embedding_item.get("embedding")
+                    index = embedding_item.get("index")
+                else:
+                    raw_vector = getattr(embedding_item, "embedding", None)
+                    index = getattr(embedding_item, "index", None)
+
+                # Skip entries without a usable vector or explicit index
+                if raw_vector is None or index is None:
                     continue
 
-                vector = None
-                # Check if it's a list of floats
-                if isinstance(raw_vector, (list, tuple)) and raw_vector:
+                # Skip empty embeddings to avoid recording invalid vectors
+                if raw_vector == [] or raw_vector == "":
+                    continue
+
+                vector: Union[Tuple[Any, ...], str, None] = None
+                # Record numeric vectors as tuples
+                if isinstance(raw_vector, (list, tuple)):
                     if all(isinstance(x, (int, float)) for x in raw_vector):
                         vector = tuple(raw_vector)
+                # Record base64-encoded vectors directly
+                elif isinstance(raw_vector, str):
+                    vector = raw_vector
+                else:
+                    continue
 
-                if vector:
+                if vector is not None:
                     _set_span_attribute(
                         span,
                         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{index}.{EmbeddingAttributes.EMBEDDING_VECTOR}",
@@ -515,7 +527,7 @@ def _finalize_sync_streaming_span(span: trace_api.Span, stream: CustomStreamWrap
                 )
 
         if usage_stats:
-            _set_token_counts_from_usage(span, usage_stats)
+            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
         raise
@@ -556,10 +568,12 @@ async def _finalize_streaming_span(span: trace_api.Span, stream: CustomStreamWra
                     span, f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{key}", value
                 )
         if usage_stats:
-            _set_token_counts_from_usage(span, usage_stats)
+            _set_token_counts_from_usage(span, SimpleNamespace(usage=usage_stats))
     except Exception as e:
         span.record_exception(e)
         raise
+    else:
+        _set_span_status(span, aggregated_output)
     finally:
         span.end()
 

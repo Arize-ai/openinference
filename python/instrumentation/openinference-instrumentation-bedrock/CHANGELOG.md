@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.31...python-openinference-instrumentation-bedrock-v0.1.32) (2025-12-08)
+
+
+### Features
+
+* **bedrock:** Add Routing Classifier Trace event ([#2495](https://github.com/Arize-ai/openinference/issues/2495)) ([e878e1c](https://github.com/Arize-ai/openinference/commit/e878e1cdb7bf82601caf90ae8e7b66fbff23e02e))
+
 ## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.30...python-openinference-instrumentation-bedrock-v0.1.31) (2025-10-10)
 
 

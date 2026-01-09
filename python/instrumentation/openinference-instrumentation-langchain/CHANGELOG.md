@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.57...python-openinference-instrumentation-langchain-v0.1.58) (2026-01-06)
+
+
+### Bug Fixes
+
+* **langchain:** Handle Non-String Dictionary Keys ([#2555](https://github.com/Arize-ai/openinference/issues/2555)) ([d0f8f8c](https://github.com/Arize-ai/openinference/commit/d0f8f8c2ed09913cdc45c86d3bd6dec78d10b700))
+
+## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.56...python-openinference-instrumentation-langchain-v0.1.57) (2025-12-22)
+
+
+### Bug Fixes
+
+* Fix Langchain ([#2457](https://github.com/Arize-ai/openinference/issues/2457)) ([870bf16](https://github.com/Arize-ai/openinference/commit/870bf1678a2cfd0f2f77255c24b7899e2b6d3886))
+
+## [0.1.56](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.55...python-openinference-instrumentation-langchain-v0.1.56) (2025-12-04)
+
+
+### Bug Fixes
+
+* **langchain:** handle None message id fields ([#2412](https://github.com/Arize-ai/openinference/issues/2412)) ([0df5bf0](https://github.com/Arize-ai/openinference/commit/0df5bf0cf7873d87e578ce7433c8642225b74597))
+
 ## [0.1.55](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.54...python-openinference-instrumentation-langchain-v0.1.55) (2025-11-10)
 
 

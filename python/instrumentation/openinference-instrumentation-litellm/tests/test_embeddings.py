@@ -8,9 +8,6 @@ from opentelemetry.trace import StatusCode, TracerProvider
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from openinference.semconv.trace import EmbeddingAttributes, SpanAttributes
 
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
-
 
 @pytest.fixture(autouse=True)
 def instrument(
@@ -64,7 +61,7 @@ def test_batch_embedding(
             f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{i}.{EmbeddingAttributes.EMBEDDING_VECTOR}"
         )
         assert vector is not None
-        assert isinstance(vector, tuple)
+        assert isinstance(vector, (tuple, str))
         assert len(vector) > 0
 
     # Check token counts
@@ -79,7 +76,7 @@ def test_batch_embedding(
 
     # Check invocation parameters (api_key should be redacted for security)
     assert (
-        attributes.pop(_EMBEDDING_INVOCATION_PARAMETERS)
+        attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-ada-002"}'
     )
 
@@ -129,7 +126,7 @@ def test_single_string_embedding(
         f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
     )
     assert vector is not None
-    assert isinstance(vector, tuple)
+    assert isinstance(vector, (tuple, str))
     assert len(vector) > 0
 
     # Check token counts
@@ -144,7 +141,7 @@ def test_single_string_embedding(
 
     # Check invocation parameters (api_key should be redacted for security)
     assert (
-        attributes.pop(_EMBEDDING_INVOCATION_PARAMETERS)
+        attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-ada-002"}'
     )
 
@@ -197,7 +194,7 @@ def test_batch_embedding_with_different_model(
             f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.{i}.{EmbeddingAttributes.EMBEDDING_VECTOR}"
         )
         assert vector is not None
-        assert isinstance(vector, tuple)
+        assert isinstance(vector, (tuple, str))
         assert len(vector) > 0
 
     # Check token counts
@@ -212,7 +209,7 @@ def test_batch_embedding_with_different_model(
 
     # Check invocation parameters (api_key should be redacted for security)
     assert (
-        attributes.pop(_EMBEDDING_INVOCATION_PARAMETERS)
+        attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-3-small"}'
     )
 

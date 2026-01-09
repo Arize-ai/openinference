@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.5...python-openinference-instrumentation-autogen-agentchat-v0.1.6) (2025-11-18)
+
+
+### Bug Fixes
+
+* autogent-agentchat modelname fix ([#2436](https://github.com/Arize-ai/openinference/issues/2436)) ([1547025](https://github.com/Arize-ai/openinference/commit/1547025474eef190d1ae85b49faa8f9c3329db08))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-agentchat-v0.1.4...python-openinference-instrumentation-autogen-agentchat-v0.1.5) (2025-10-10)
 
 

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import litellm
 import pytest
-from litellm import OpenAIChatCompletion  # type: ignore[attr-defined]
+from litellm import OpenAIChatCompletion  # type: ignore[attr-defined, unused-ignore]
 from litellm.types.utils import EmbeddingResponse, ImageObject, ImageResponse, Usage
 from litellm.types.utils import Message as LitellmMessage
 from opentelemetry.sdk.resources import Resource
@@ -26,9 +26,6 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-
-# TODO: Update to use SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS when released in semconv
-_EMBEDDING_INVOCATION_PARAMETERS = "embedding.invocation_parameters"
 
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 
@@ -660,6 +657,153 @@ async def test_acompletion(
         )
 
 
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_acompletion_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="Beijing",
+                stream=True,
+            )
+            async for chunk in response:
+                print(chunk)
+    else:
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="Beijing",
+            stream=True,
+        )
+        async for chunk in response:
+            print(chunk)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert span.status.status_code == StatusCode.OK
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
+@pytest.mark.parametrize("use_context_attributes", [False, True])
+async def test_acompletion_stream_token_count(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+    use_context_attributes: bool,
+    session_id: str,
+    user_id: str,
+    metadata: Dict[str, Any],
+    tags: List[str],
+    prompt_template: str,
+    prompt_template_version: str,
+    prompt_template_variables: Dict[str, Any],
+) -> None:
+    in_memory_span_exporter.clear()
+
+    input_messages = [{"content": "What's the capital of China?", "role": "user"}]
+    if use_context_attributes:
+        with using_attributes(
+            session_id=session_id,
+            user_id=user_id,
+            metadata=metadata,
+            tags=tags,
+            prompt_template=prompt_template,
+            prompt_template_version=prompt_template_version,
+            prompt_template_variables=prompt_template_variables,
+        ):
+            response = await litellm.acompletion(
+                model="gpt-3.5-turbo",
+                messages=input_messages,
+                mock_response="Beijing",
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            async for chunk in response:
+                print(chunk)
+    else:
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            mock_response="Beijing",
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in response:
+            print(chunk)
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-3.5-turbo"
+    assert attributes.get(SpanAttributes.INPUT_VALUE) == safe_json_dumps(
+        {"messages": input_messages}
+    )
+    assert attributes.get(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+
+    assert "Beijing" == attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 14
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 2
+    assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 16
+    assert span.status.status_code == StatusCode.OK
+
+    if use_context_attributes:
+        _check_context_attributes(
+            attributes,
+            session_id,
+            user_id,
+            metadata,
+            tags,
+            prompt_template,
+            prompt_template_version,
+            prompt_template_variables,
+        )
+
+
 async def test_acompletion_with_invalid_model_triggers_exception_event(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_litellm_instrumentation: None,
@@ -827,7 +971,10 @@ def test_embedding(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
-    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
     assert (
         attributes.get(
@@ -937,7 +1084,10 @@ async def test_aembedding(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME) == "text-embedding-ada-002"
     assert attributes.get(SpanAttributes.INPUT_VALUE) == str(["good morning from litellm"])
-    assert attributes.get(_EMBEDDING_INVOCATION_PARAMETERS) == '{"model": "text-embedding-ada-002"}'
+    assert (
+        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
+        == '{"model": "text-embedding-ada-002"}'
+    )
 
     assert (
         attributes.get(

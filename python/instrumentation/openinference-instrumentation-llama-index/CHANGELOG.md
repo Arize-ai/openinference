@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.8...python-openinference-instrumentation-llama-index-v4.3.9) (2025-11-18)
+
+
+### Bug Fixes
+
+* Llama Index CI issues ([#2455](https://github.com/Arize-ai/openinference/issues/2455)) ([d8957a2](https://github.com/Arize-ai/openinference/commit/d8957a2d65c5a23b58e6f3decac76f1bc9e4d624))
+
 ## [4.3.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-llama-index-v4.3.7...python-openinference-instrumentation-llama-index-v4.3.8) (2025-10-23)
 
 

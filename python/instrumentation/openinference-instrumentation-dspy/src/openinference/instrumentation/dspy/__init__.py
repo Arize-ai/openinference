@@ -23,7 +23,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-from wrapt import BoundFunctionWrapper, FunctionWrapper, wrap_object
+from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
     OITracer,
@@ -55,10 +55,28 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
     OpenInference Instrumentor for DSPy
     """
 
+    def _wrap_object(
+        self,
+        module: str,
+        name: str,
+        factory: Callable[..., Any],
+        args: Tuple[Any, ...] = (),
+        kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        wrap_object(
+            module=module,
+            name=name,
+            factory=factory,
+            args=args,
+            kwargs=kwargs or {},
+        )
+        self._originals.append((module, name))
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        self._originals: list[tuple[str, str]] = []
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
@@ -72,14 +90,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         from dspy import Predict
 
-        wrap_object(
+        self._wrap_object(
             module="dspy",
             name="LM.__call__",
             factory=CopyableFunctionWrapper,
             args=(_LMCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module="dspy",
             name="LM.acall",
             factory=CopyableFunctionWrapper,
@@ -90,14 +108,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # It is used for unit testing and does not typically get used in
         # production, however it is helpful to instrument it to understand
         # program flow within testing scenarios.
-        wrap_object(
+        self._wrap_object(
             module="dspy.utils",
             name="DummyLM.__call__",
             factory=CopyableFunctionWrapper,
             args=(_LMCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module="dspy.utils",
             name="DummyLM.acall",
             factory=CopyableFunctionWrapper,
@@ -108,13 +126,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # directly, but DSPy also has subclasses of Predict that override the
         # forward method. We instrument both the forward methods of the base
         # class and all subclasses.
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
             args=(_PredictForwardWrapper(self._tracer),),
         )
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.aforward",
             factory=CopyableFunctionWrapper,
@@ -123,27 +141,27 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
 
         predict_subclasses = Predict.__subclasses__()
         for predict_subclass in predict_subclasses:
-            wrap_object(
+            self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
                 args=(_PredictForwardWrapper(self._tracer),),
             )
-            wrap_object(
+            self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".aforward",
                 factory=CopyableFunctionWrapper,
                 args=(_PredictAforwardWrapper(self._tracer),),
             )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
             args=(_RetrieverForwardWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             # At this time, dspy.Module does not have an abstract forward
             # method, but assumes that user-defined subclasses implement the
@@ -153,7 +171,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             args=(_ModuleForwardWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             # At this time, dspy.Module does not have an abstract forward
             # method, but assumes that user-defined subclasses implement the
@@ -166,35 +184,35 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         # At this time, there is no common parent class for retriever models as
         # there is for language models. We instrument the retriever models on a
         # case-by-case basis.
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
             args=(_RetrieverModelCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.__call__",
             factory=CopyableFunctionWrapper,
             args=(_AdapterCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.acall",
             factory=CopyableFunctionWrapper,
             args=(_AdapterAcallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.__call__",
             factory=CopyableFunctionWrapper,
             args=(_ToolCallWrapper(self._tracer),),
         )
 
-        wrap_object(
+        self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.acall",
             factory=CopyableFunctionWrapper,
@@ -202,11 +220,12 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        # Restore DSPy constructs
-        from dspy import Predict
-
-        if hasattr(Predict.forward, "__wrapped__"):
-            Predict.forward = Predict.forward.__wrapped__
+        # Handle case where _uninstrument is called on fresh instance
+        if not hasattr(self, "_originals"):
+            return
+        for module, name in self._originals[::-1]:
+            unwrap_object(module, name)
+        self._originals.clear()
 
 
 class CopyableBoundFunctionWrapper(BoundFunctionWrapper):  # type: ignore
@@ -1098,6 +1117,37 @@ def _module_prediction_output_attributes(prediction: Any, instance: Any) -> Dict
     else:
         output_attributes[OUTPUT_VALUE] = safe_json_dumps(prediction, cls=DSPyJSONEncoder)
     return output_attributes
+
+
+def unwrap_object(module: Any, name: str) -> Optional[Any]:
+    """
+    Undo wrapt-style wrapping by restoring the original method
+    that lives under the __wrapped__ chain.
+
+    Args:
+        module: class, instance, or module where the method was wrapped.
+        name: attribute name to unwrap.
+
+    Returns:
+        The restored original attribute, or None if not wrapped.
+    """
+    parent, attribute_name, wrapped = resolve_path(module, name)
+
+    if wrapped is None:
+        logger.warning(f"{module}.{name} not found")
+        return None
+
+    # Start from the wrapped attribute
+    original: Optional[Any] = getattr(wrapped, "__wrapped__", None)
+
+    # Walk through chain: wrapper -> wrapper -> original
+    while original is not None and hasattr(original, "__wrapped__"):
+        original = getattr(original, "__wrapped__", None)
+    if original is not None:
+        apply_patch(parent, attribute_name, original)
+    else:
+        logger.warning(f"module: {module}, method: {name} not wrapped")
+    return original
 
 
 JSON = OpenInferenceMimeTypeValues.JSON.value
