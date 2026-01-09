@@ -2,7 +2,7 @@
 
 This package provides a span processor that transforms Strands' native OpenTelemetry
 spans (using GenAI semantic conventions) into OpenInference format for compatibility
-with Arize AI.
+with OpenInference-supported OTEL backends (Phoenix, Arize, etc.).
 
 Usage:
     from strands.telemetry import StrandsTelemetry

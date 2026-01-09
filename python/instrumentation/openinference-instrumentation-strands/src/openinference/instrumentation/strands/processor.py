@@ -16,7 +16,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
-from opentelemetry.sdk.trace.export import SpanExportResult
 
 from openinference.instrumentation.strands.semantic_conventions import (
     GEN_AI_REQUEST_MAX_TOKENS,
@@ -29,6 +28,11 @@ from openinference.instrumentation.strands.semantic_conventions import (
     GenAIAttributes,
     GenAIEventNames,
     safe_json_dumps,
+)
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,11 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
             span._attributes = transformed_attrs
 
+            # Strip gen_ai.* events after transformation since their content has been
+            # extracted into OpenInference attributes. Keeping them would show empty
+            # events in the UI (Arize/Phoenix only display exception events).
+            self._strip_genai_events(span)
+
             if self.debug:
                 logger.info(
                     "span_name=<%s>, orig_attrs=<%d>, trans_attrs=<%d> | transformed span",
@@ -87,6 +96,22 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             logger.error(f"Failed to transform span '{span.name}': {e}", exc_info=True)
             span._attributes = original_attrs
 
+    def _strip_genai_events(self, span: ReadableSpan) -> None:
+        """Remove gen_ai.* prefixed events from the span after transformation.
+
+        These events have already been processed into OpenInference attributes,
+        so keeping them would be redundant and clutter the UI.
+        """
+        if hasattr(span, "_events") and span._events:
+            filtered_events = [
+                event
+                for event in span._events
+                if not (
+                    hasattr(event, "name") and event.name.startswith("gen_ai.")  # type: ignore
+                )
+            ]
+            span._events = filtered_events  # type: ignore
+
     def _transform_attributes(
         self, attrs: Dict[str, Any], span: ReadableSpan, events: Optional[List[Any]] = None
     ) -> Dict[str, Any]:
@@ -95,7 +120,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         """
         result: Dict[str, Any] = {}
         span_kind = self._determine_span_kind(span, attrs)
-        result["openinference.span.kind"] = span_kind
+        result[SpanAttributes.OPENINFERENCE_SPAN_KIND] = span_kind
         result.update(self._set_graph_node_attributes(span, attrs, span_kind))
 
         # Extract messages from events if available, otherwise fall back to attributes
@@ -112,15 +137,16 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 input_messages, output_messages = [], []
 
         model_id = attrs.get(GEN_AI_REQUEST_MODEL)
-        agent_name = attrs.get("agent.name") or attrs.get(GenAIAttributes.AGENT_NAME)
+        # Check gen_ai.agent.name first (standard GenAI convention), then fall back to agent.name
+        agent_name = attrs.get(GenAIAttributes.AGENT_NAME) or attrs.get("agent.name")
 
         if model_id:
-            result["llm.model_name"] = model_id
+            result[SpanAttributes.LLM_MODEL_NAME] = model_id
             result[GEN_AI_REQUEST_MODEL] = model_id
 
         if agent_name:
-            result["llm.system"] = "strands-agents"
-            result["llm.provider"] = "strands-agents"
+            result[SpanAttributes.LLM_SYSTEM] = "strands-agents"
+            result[SpanAttributes.LLM_PROVIDER] = "strands-agents"
 
         self._handle_tags(attrs, result)
 
@@ -132,11 +158,11 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         self._map_token_usage(attrs, result)
 
         passthrough_attrs = [
-            "session.id",
-            "user.id",
-            "llm.prompt_template.template",
-            "llm.prompt_template.version",
-            "llm.prompt_template.variables",
+            SpanAttributes.SESSION_ID,
+            SpanAttributes.USER_ID,
+            SpanAttributes.LLM_PROMPT_TEMPLATE,
+            SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION,
+            SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES,
             "gen_ai.event.start_time",
             "gen_ai.event.end_time",
         ]
@@ -361,12 +387,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         """Handle LLM/Agent span with extracted messages."""
 
         if input_messages:
-            result["llm.input_messages"] = safe_json_dumps(input_messages)
-            self._flatten_messages(input_messages, "llm.input_messages", result)
+            result[SpanAttributes.LLM_INPUT_MESSAGES] = safe_json_dumps(input_messages)
+            self._flatten_messages(input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result)
 
         if output_messages:
-            result["llm.output_messages"] = safe_json_dumps(output_messages)
-            self._flatten_messages(output_messages, "llm.output_messages", result)
+            result[SpanAttributes.LLM_OUTPUT_MESSAGES] = safe_json_dumps(output_messages)
+            self._flatten_messages(output_messages, SpanAttributes.LLM_OUTPUT_MESSAGES, result)
 
         if tools := (attrs.get(GenAIAttributes.AGENT_TOOLS) or attrs.get("agent.tools")):
             self._map_tools(tools, result)
@@ -401,20 +427,22 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         input_messages: List[Dict[str, Any]],
         output_messages: List[Dict[str, Any]],
     ) -> None:
-        span_kind = result.get("openinference.span.kind")
-        model_name = result.get("llm.model_name") or attrs.get(GEN_AI_REQUEST_MODEL) or "unknown"
+        span_kind = result.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        model_name = (
+            result.get(SpanAttributes.LLM_MODEL_NAME) or attrs.get(GEN_AI_REQUEST_MODEL) or "unknown"
+        )
 
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
             if input_messages:
                 if len(input_messages) == 1 and input_messages[0].get("message.role") == "user":
                     # Simple user message
-                    result["input.value"] = input_messages[0].get("message.content", "")
-                    result["input.mime_type"] = "text/plain"
+                    result[SpanAttributes.INPUT_VALUE] = input_messages[0].get("message.content", "")
+                    result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
                 else:
                     # Complex conversation
                     input_structure = {"messages": input_messages, "model": model_name}
-                    result["input.value"] = safe_json_dumps(input_structure)
-                    result["input.mime_type"] = "application/json"
+                    result[SpanAttributes.INPUT_VALUE] = safe_json_dumps(input_structure)
+                    result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
 
             if output_messages:
                 last_message = output_messages[-1]
@@ -434,30 +462,25 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                         ],
                         "model": model_name,
                         "usage": {
-                            "completion_tokens": result.get("llm.token_count.completion"),
-                            "prompt_tokens": result.get("llm.token_count.prompt"),
-                            "total_tokens": result.get("llm.token_count.total"),
+                            "completion_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION),
+                            "prompt_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
+                            "total_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
                         },
                     }
-                    result["output.value"] = safe_json_dumps(output_structure)
-                    result["output.mime_type"] = "application/json"
+                    result[SpanAttributes.OUTPUT_VALUE] = safe_json_dumps(output_structure)
+                    result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.JSON.value
                 else:
-                    result["output.value"] = content
-                    result["output.mime_type"] = "text/plain"
+                    result[SpanAttributes.OUTPUT_VALUE] = content
+                    result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
 
     def _handle_tags(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
-        tags = None
-
-        if "arize.tags" in attrs:
-            tags = attrs["arize.tags"]
-        elif "tag.tags" in attrs:
-            tags = attrs["tag.tags"]
+        tags = attrs.get(SpanAttributes.TAG_TAGS)
 
         if tags:
             if isinstance(tags, list):
-                result["tag.tags"] = tags
+                result[SpanAttributes.TAG_TAGS] = tags
             elif isinstance(tags, str):
-                result["tag.tags"] = [tags]
+                result[SpanAttributes.TAG_TAGS] = [tags]
 
     def _determine_span_kind(self, span: ReadableSpan, attrs: Dict[str, Any]) -> str:
         span_name = span.name
@@ -529,7 +552,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         tool_status = attrs.get("tool.status")
 
         if tool_name:
-            result["tool.name"] = tool_name
+            result[SpanAttributes.TOOL_NAME] = tool_name
 
         if tool_call_id:
             result["tool.call_id"] = tool_call_id
@@ -586,9 +609,11 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                             tool_output = str(message)
 
             if tool_parameters:
-                result["tool.parameters"] = safe_json_dumps(tool_parameters)
+                result[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
 
                 if tool_name and tool_call_id:
+                    # For tool spans, the assistant message contains only tool_calls (no text content)
+                    # The empty content is intentional as the tool call itself IS the message payload
                     input_messages = [
                         {
                             "message.role": "assistant",
@@ -605,20 +630,26 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                         }
                     ]
 
-                    result["llm.input_messages"] = safe_json_dumps(input_messages)
-                    self._flatten_messages(input_messages, "llm.input_messages", result)
+                    result[SpanAttributes.LLM_INPUT_MESSAGES] = safe_json_dumps(input_messages)
+                    self._flatten_messages(
+                        input_messages, SpanAttributes.LLM_INPUT_MESSAGES, result
+                    )
 
                 if isinstance(tool_parameters, dict):
                     if "text" in tool_parameters:
-                        result["input.value"] = tool_parameters["text"]
-                        result["input.mime_type"] = "text/plain"
+                        result[SpanAttributes.INPUT_VALUE] = tool_parameters["text"]
+                        result[SpanAttributes.INPUT_MIME_TYPE] = (
+                            OpenInferenceMimeTypeValues.TEXT.value
+                        )
                     else:
-                        result["input.value"] = safe_json_dumps(tool_parameters)
-                        result["input.mime_type"] = "application/json"
+                        result[SpanAttributes.INPUT_VALUE] = safe_json_dumps(tool_parameters)
+                        result[SpanAttributes.INPUT_MIME_TYPE] = (
+                            OpenInferenceMimeTypeValues.JSON.value
+                        )
 
             if tool_output:
-                result["output.value"] = tool_output
-                result["output.mime_type"] = "text/plain"
+                result[SpanAttributes.OUTPUT_VALUE] = tool_output
+                result[SpanAttributes.OUTPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
 
     def _map_tools(self, tools_data: Any, result: Dict[str, Any]) -> None:
         """Map tools from Strands to OpenInference format."""
@@ -644,11 +675,11 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
     def _map_token_usage(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
         token_mappings = [
-            (GenAIAttributes.USAGE_PROMPT_TOKENS, "llm.token_count.prompt"),
-            (GEN_AI_USAGE_INPUT_TOKENS, "llm.token_count.prompt"),
-            (GenAIAttributes.USAGE_COMPLETION_TOKENS, "llm.token_count.completion"),
-            (GEN_AI_USAGE_OUTPUT_TOKENS, "llm.token_count.completion"),
-            (GenAIAttributes.USAGE_TOTAL_TOKENS, "llm.token_count.total"),
+            (GenAIAttributes.USAGE_PROMPT_TOKENS, SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
+            (GEN_AI_USAGE_INPUT_TOKENS, SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
+            (GenAIAttributes.USAGE_COMPLETION_TOKENS, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION),
+            (GEN_AI_USAGE_OUTPUT_TOKENS, SpanAttributes.LLM_TOKEN_COUNT_COMPLETION),
+            (GenAIAttributes.USAGE_TOTAL_TOKENS, SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
         ]
 
         for strands_key, openinf_key in token_mappings:
@@ -669,7 +700,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 params[param_key] = attrs[key]
 
         if params:
-            result["llm.invocation_parameters"] = safe_json_dumps(params)
+            result[SpanAttributes.LLM_INVOCATION_PARAMETERS] = safe_json_dumps(params)
 
     def _normalize_message(self, msg: Any) -> Dict[str, Any]:
         if not isinstance(msg, dict):
@@ -692,7 +723,17 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         return result
 
     def _add_metadata(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """Add remaining attributes as metadata.
+
+        Args:
+            attrs: Original span attributes from Strands
+            result: Transformed OpenInference attributes being built
+        """
         metadata = {}
+        # Skip keys that have already been processed into OpenInference format:
+        # - gen_ai.prompt/completion → llm.input_messages/llm.output_messages
+        # - gen_ai.agent.tools/agent.tools → llm.tools.{idx}.*
+        # Including these in metadata would be redundant and bloat span data.
         skip_keys = {
             GenAIAttributes.PROMPT,
             GenAIAttributes.COMPLETION,
@@ -705,7 +746,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 metadata[key] = self._serialize_value(value)
 
         if metadata:
-            result["metadata"] = safe_json_dumps(metadata)
+            result[SpanAttributes.METADATA] = safe_json_dumps(metadata)
 
     def _serialize_value(self, value: Any) -> Any:
         if isinstance(value, (str, int, float, bool)) or value is None:
@@ -713,8 +754,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
         return safe_json_dumps(value)
 
-    def shutdown(self) -> SpanExportResult:  # type: ignore[override]
-        return SpanExportResult.SUCCESS
+    def shutdown(self) -> None:
+        """Shutdown the processor. No-op for this processor."""
+        pass
 
     def force_flush(self, timeout_millis: Optional[int] = None) -> bool:
         return True
@@ -741,42 +783,3 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             "Tool: [name]": "execute_tool [name]",
         }
 
-    def get_processor_info(self) -> Dict[str, Any]:
-        return {
-            "processor_name": "StrandsToOpenInferenceProcessor",
-            "version": "0.1.0",
-            "supports_events": True,
-            "supports_deprecated_attributes": True,
-            "supports_new_semantic_conventions": True,
-            "debug_enabled": self.debug,
-            "migration_guide": self.get_migration_guide(),
-            "supported_span_kinds": ["LLM", "AGENT", "CHAIN", "TOOL"],
-            "supported_span_names": [
-                "chat",
-                "execute_event_loop_cycle",
-                "execute_tool [name]",
-                "invoke_agent [name]",
-                "Model invoke",
-                "Cycle [UUID]",
-                "Tool: [name]",
-            ],
-            "supported_event_types": [
-                GenAIEventNames.USER_MESSAGE,
-                GenAIEventNames.ASSISTANT_MESSAGE,
-                GenAIEventNames.CHOICE,
-                GenAIEventNames.TOOL_MESSAGE,
-            ],
-            "features": [
-                "Event-based message extraction",
-                "Enhanced JSON content parsing",
-                "Tool result processing",
-                "Updated span naming conventions",
-                "Deprecated attribute handling with warnings",
-                "OpenInference semantic convention compliance",
-                "Strands-specific format parsing",
-                "Graph node hierarchy mapping",
-                "Token usage tracking",
-                "Tool call processing",
-                "Multi-format content support",
-            ],
-        }
