@@ -71,7 +71,7 @@ def _to_open_inference_format_tracing_info(
     elif isinstance(span, AgentSpecLlmGenerationSpan):
         llm_info = tracing_info.pop("llm_config")
         tracing_info[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-        tracing_info[SpanAttributes.LLM_MODEL_NAME] = llm_info.get("model_id", "name")
+        tracing_info[SpanAttributes.LLM_MODEL_NAME] = llm_info.get("model_id") or llm_info.get("name") or "unknown"
         tracing_info[SpanAttributes.LLM_INVOCATION_PARAMETERS] = _try_json_serialization(
             {
                 k: v

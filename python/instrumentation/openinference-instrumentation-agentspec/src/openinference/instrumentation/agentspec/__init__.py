@@ -78,9 +78,11 @@ class AgentSpecInstrumentor(BaseInstrumentor):  # type: ignore
     def instrument_context(self, **kwargs: Any) -> Generator[None, Any, None]:
         """Context manager to instrument and uninstrument the library"""
         self.instrument(**kwargs)
-        yield
-        if self.is_instrumented_by_opentelemetry:
-            self.uninstrument(**kwargs)
+        try:
+            yield
+        finally:
+            if self.is_instrumented_by_opentelemetry:
+                self.uninstrument(**kwargs)
 
 
 __all__ = ["AgentSpecInstrumentor", "OpenInferenceSpanProcessor"]

@@ -122,14 +122,14 @@ class _OtelSdkSpan(OtelSdkSpan):
     from creating a span without a tracer provider, but we need more flexibility.
     """
 
-    def update_events(self, events: list[AgentSpecEvent]) -> None:
+    def update_events(self, events: list[AgentSpecEvent], mask_sensitive_information: bool) -> None:
         # We update the events list by adding the missing ones
         # These events should all be _OtelSdkEvent that contain an ID
         # If they are not, we can ignore them because they don't come from us
         current_event_ids = {event.id for event in self.events if hasattr(event, "id")}
         for event in events:
             if event.id not in current_event_ids:
-                self._add_event(convert_agentspec_event_into_otel_event(event))
+                self._add_event(convert_agentspec_event_into_otel_event(event, mask_sensitive_information))
 
 
 def convert_agentspec_event_into_otel_event(
@@ -232,7 +232,7 @@ def convert_agentspec_span_into_otel_span(
     span_attributes = _serialize_attribute_values(span_attributes)
     if span_to_update:
         span_to_update.set_attributes(span_attributes)
-        span_to_update.update_events(span.events)
+        span_to_update.update_events(span.events, mask_sensitive_information)
         return span_to_update
     else:
         return _OtelSdkSpan(
@@ -255,7 +255,13 @@ def convert_agentspec_span_into_otel_span(
             ),
             resource=resource,
             attributes=span_attributes,
-            events=[convert_agentspec_event_into_otel_event(event) for event in span.events],
+            events=[
+                convert_agentspec_event_into_otel_event(
+                    event,
+                    mask_sensitive_information=mask_sensitive_information
+                )
+                for event in span.events
+            ],
         )
 
 
@@ -372,6 +378,8 @@ class _OtelSpanProcessor(AgentSpecSpanProcessor, ABC):
                 otel_span.start(start_time=span.start_time)
             otel_span.end(end_time=span.end_time)
             self.span_processor.on_end(span=otel_span)
+            # We remove the span from the registry, since now it's closed
+            self._span_registry.pop(span.id, None)
         except Exception as e:
             # Whatever happens we do not crash the execution of the assistant,
             # but we warn the user
@@ -387,6 +395,7 @@ class _OtelSpanProcessor(AgentSpecSpanProcessor, ABC):
     def shutdown(self) -> None:
         try:
             self.span_processor.shutdown()
+            self._span_registry = {}
         except Exception as e:
             # Whatever happens we do not crash the execution of the assistant,
             # but we warn the user
