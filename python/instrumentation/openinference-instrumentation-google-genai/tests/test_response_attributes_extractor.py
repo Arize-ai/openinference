@@ -4,7 +4,7 @@ import pytest
 from google.genai import types
 
 from openinference.instrumentation.google_genai._utils import (
-    _get_attributes_from_generate_content_usage,
+    _get_token_count_attributes_from_usage_metadata,
 )
 
 
@@ -42,5 +42,5 @@ def test_get_attributes_from_generate_content_usage(
     usage_metadata: types.GenerateContentResponseUsageMetadata,
     expected: dict[str, Any],
 ) -> None:
-    actual = dict(_get_attributes_from_generate_content_usage(usage_metadata))
+    actual = dict(_get_token_count_attributes_from_usage_metadata(usage_metadata))
     assert actual == expected

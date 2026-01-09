@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from copy import deepcopy
 from typing import (
@@ -25,8 +26,8 @@ from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
     _get_attributes_from_artifacts,
-    _get_attributes_from_automatic_function_calling_history,
     _get_attributes_from_content_text,
+    _get_token_count_attributes_from_usage_metadata,
     _ValueAndType,
 )
 from openinference.instrumentation.google_genai._with_span import _WithSpan
@@ -39,6 +40,9 @@ from openinference.semconv.trace import (
 
 if TYPE_CHECKING:
     from google.genai.types import GenerateContentResponse
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class _Stream(ObjectProxy):  # type: ignore
@@ -169,12 +173,16 @@ class _ResponseExtractor:
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := result.get("usage_metadata"):
-            if prompt_token_count := usage_metadata.get("prompt_token_count"):
-                yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, int(prompt_token_count)
-            if candidates_token_count := usage_metadata.get("candidates_token_count"):
-                yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, int(candidates_token_count)
-            if total_token_count := usage_metadata.get("total_token_count"):
-                yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
+            from google.genai import types
+
+            try:
+                usage_metadata_obj = types.GenerateContentResponseUsageMetadata.model_validate(
+                    usage_metadata
+                )
+            except Exception:
+                logger.warning(f"Failed to validate usage metadata: {usage_metadata}")
+            else:
+                yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
                 prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
@@ -211,8 +219,6 @@ class _ResponseExtractor:
                                     inline_data, index
                                 ):
                                     yield f"{prefix}.{key}", value
-        if automatic_history := result.get("automatic_function_calling_history", None):
-            yield from _get_attributes_from_automatic_function_calling_history(automatic_history)
 
 
 class _ValuesAccumulator:

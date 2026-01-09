@@ -4,6 +4,7 @@ import logging
 import warnings
 from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -35,10 +36,69 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+if TYPE_CHECKING:
+    from google.genai import types
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 T = TypeVar("T", bound=type)
+
+
+def _get_token_count_attributes_from_usage_metadata(
+    usage_metadata: "types.GenerateContentResponseUsageMetadata",
+) -> Iterator[Tuple[str, AttributeValue]]:
+    """Extract token count attributes from usage metadata."""
+    from google.genai import types
+
+    if usage_metadata.total_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_metadata.total_token_count
+
+    # Extract prompt details audio tokens
+    if usage_metadata.prompt_tokens_details:
+        prompt_details_audio = 0
+        for modality_token_count in usage_metadata.prompt_tokens_details:
+            if (
+                modality_token_count.modality is types.MediaModality.AUDIO
+                and modality_token_count.token_count
+            ):
+                prompt_details_audio += modality_token_count.token_count
+        if prompt_details_audio:
+            yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
+
+    # Calculate total prompt tokens (base + tool use)
+    prompt_token_count = 0
+    if usage_metadata.prompt_token_count:
+        prompt_token_count += usage_metadata.prompt_token_count
+    if usage_metadata.tool_use_prompt_token_count:
+        prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    if prompt_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
+
+    # Extract completion details audio tokens
+    if usage_metadata.candidates_tokens_details:
+        completion_details_audio = 0
+        for modality_token_count in usage_metadata.candidates_tokens_details:
+            if (
+                modality_token_count.modality is types.MediaModality.AUDIO
+                and modality_token_count.token_count
+            ):
+                completion_details_audio += modality_token_count.token_count
+        if completion_details_audio:
+            yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, completion_details_audio
+
+    # Calculate total completion tokens (candidates + thoughts/reasoning)
+    completion_token_count = 0
+    if usage_metadata.candidates_token_count:
+        completion_token_count += usage_metadata.candidates_token_count
+    if usage_metadata.thoughts_token_count:
+        yield (
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+            usage_metadata.thoughts_token_count,
+        )
+        completion_token_count += usage_metadata.thoughts_token_count
+    if completion_token_count:
+        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_token_count
 
 
 class _ValueAndType(NamedTuple):
@@ -474,49 +534,6 @@ def _get_attributes_from_message_param(
         logger.debug(f"Unexpected input contents type: {type(input_contents)}")
 
 
-def _get_attributes_from_generate_content_usage(
-    obj: types.GenerateContentResponseUsageMetadata,
-) -> Iterator[Tuple[str, AttributeValue]]:
-    if total := obj.total_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total
-    if obj.prompt_tokens_details:
-        prompt_details_audio = 0
-        for modality_token_count in obj.prompt_tokens_details:
-            if (
-                modality_token_count.modality is types.MediaModality.AUDIO
-                and modality_token_count.token_count
-            ):
-                prompt_details_audio += modality_token_count.token_count
-        if prompt_details_audio:
-            yield (
-                SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
-                prompt_details_audio,
-            )
-    if prompt := obj.prompt_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt
-    if obj.candidates_tokens_details:
-        completion_details_audio = 0
-        for modality_token_count in obj.candidates_tokens_details:
-            if (
-                modality_token_count.modality is types.MediaModality.AUDIO
-                and modality_token_count.token_count
-            ):
-                completion_details_audio += modality_token_count.token_count
-        if completion_details_audio:
-            yield (
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
-                completion_details_audio,
-            )
-    completion = 0
-    if candidates := obj.candidates_token_count:
-        completion += candidates
-    if thoughts := obj.thoughts_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING, thoughts
-        completion += thoughts
-    if completion:
-        yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion
-
-
 def _get_attributes_from_automatic_function_calling_history(
     history: Iterable[object],
 ) -> Iterator[Tuple[str, AttributeValue]]:
@@ -547,7 +564,7 @@ def _get_attributes_from_generate_content(response: Any) -> Iterator[Tuple[str, 
     if model_version := getattr(response, "model_version", None):
         yield SpanAttributes.LLM_MODEL_NAME, model_version
     if usage_metadata := getattr(response, "usage_metadata", None):
-        yield from _get_attributes_from_generate_content_usage(usage_metadata)
+        yield from _get_token_count_attributes_from_usage_metadata(usage_metadata)
     if (candidates := getattr(response, "candidates", None)) and isinstance(candidates, Iterable):
         index = -1
         for candidate in candidates:

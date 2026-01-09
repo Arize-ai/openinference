@@ -1,5 +1,6 @@
 import json
-from typing import Iterator
+from typing import Generator, Iterator
+from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
@@ -18,6 +19,18 @@ def instrument(
     yield
 
 
+@pytest.fixture
+def patch_tiktoken_encoding() -> Generator[None, None, None]:
+    """Patch `tiktoken.get_encoding` for LiteLLM to avoid network calls."""
+
+    with patch("tiktoken.get_encoding") as mock_get_encoding:
+        mock_encoding = MagicMock()
+        mock_encoding.encode.return_value = [1, 2, 3]
+        mock_get_encoding.return_value = mock_encoding
+        yield
+
+
+@pytest.mark.usefixtures("patch_tiktoken_encoding")
 class TestTokenCounts:
     @pytest.mark.vcr(
         decode_compressed_response=True,

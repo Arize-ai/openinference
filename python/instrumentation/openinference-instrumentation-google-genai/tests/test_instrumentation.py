@@ -14,6 +14,7 @@ from google.genai.types import (
     GenerateContentConfig,
     Part,
     Tool,
+    ToolCodeExecution,
 )
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -1860,3 +1861,77 @@ def test_generate_content_with_automatic_tool_calling(
     # We may or may not see explicit tool call attributes in the span depending on
     # how Google GenAI implements it internally. The key difference is that we get
     # a complete text response that incorporates the function results.
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_validate_token_counts(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="GEMINI_API_KEY")
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="What is the sum of the first 50 prime numbers? "
+        "Generate and run code for the calculation, and make sure you get all 50.",
+        config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
+    )
+    assert response is not None
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    expected_attributes = {
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1457,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 767,
+        # Completion includes candidates (587) + thoughts/reasoning (103)
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 690,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 103,
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
+        )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_validate_token_counts_stream(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    client = genai.Client(api_key="GEMINI_API_KEY")
+    response = client.models.generate_content_stream(
+        model="gemini-2.5-flash",
+        contents="What is the sum of the first 50 prime numbers? "
+        "Generate and run code for the calculation, and make sure you get all 50.",
+        config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
+    )
+    for _ in response:
+        ...
+    assert response is not None
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    expected_attributes = {
+        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1620,
+        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 850,
+        # Completion includes candidates (602) + thoughts/reasoning (168)
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 770,
+        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 168,
+    }
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
+        )

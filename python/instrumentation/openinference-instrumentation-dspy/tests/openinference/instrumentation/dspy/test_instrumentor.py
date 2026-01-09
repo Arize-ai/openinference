@@ -1300,6 +1300,51 @@ def test_dummy_lm_instrumentation(
     )
 
 
+def test_uninstrument() -> None:
+    from dspy import LM, Adapter, ColBERTv2, Module, Predict, Retrieve, Tool
+    from dspy.utils import DummyLM
+
+    assert hasattr(Predict.forward, "__wrapped__")
+    assert hasattr(Predict.aforward, "__wrapped__")
+    assert hasattr(LM.acall, "__wrapped__")
+    assert hasattr(LM.__call__, "__wrapped__")
+    assert hasattr(DummyLM.__call__, "__wrapped__")
+    assert hasattr(DummyLM.acall, "__wrapped__")
+    predict_subclasses = Predict.__subclasses__()
+    for predict_subclass in predict_subclasses:
+        assert hasattr(predict_subclass.forward, "__wrapped__")
+        assert hasattr(predict_subclass.aforward, "__wrapped__")
+
+    assert hasattr(Retrieve.forward, "__wrapped__")
+    assert hasattr(Module.__call__, "__wrapped__")
+    assert hasattr(Module.acall, "__wrapped__")
+    assert hasattr(ColBERTv2.__call__, "__wrapped__")
+    assert hasattr(Adapter.__call__, "__wrapped__")
+    assert hasattr(Adapter.acall, "__wrapped__")
+    assert hasattr(Tool.__call__, "__wrapped__")
+    assert hasattr(Tool.acall, "__wrapped__")
+
+    DSPyInstrumentor().uninstrument()
+    assert not hasattr(Predict.forward, "__wrapped__")
+    assert not hasattr(Predict.aforward, "__wrapped__")
+    assert not hasattr(LM.acall, "__wrapped__")
+    assert not hasattr(LM.__call__, "__wrapped__")
+    assert not hasattr(DummyLM.__call__, "__wrapped__")
+    assert not hasattr(DummyLM.acall, "__wrapped__")
+    for predict_subclass in predict_subclasses:
+        assert not hasattr(predict_subclass.forward, "__wrapped__")
+        assert not hasattr(predict_subclass.aforward, "__wrapped__")
+
+    assert not hasattr(Retrieve.forward, "__wrapped__")
+    assert not hasattr(Module.__call__, "__wrapped__")
+    assert not hasattr(Module.acall, "__wrapped__")
+    assert not hasattr(ColBERTv2.__call__, "__wrapped__")
+    assert not hasattr(Adapter.__call__, "__wrapped__")
+    assert not hasattr(Adapter.acall, "__wrapped__")
+    assert not hasattr(Tool.__call__, "__wrapped__")
+    assert not hasattr(Tool.acall, "__wrapped__")
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 LLM = OpenInferenceSpanKindValues.LLM.value
 TEXT = OpenInferenceMimeTypeValues.TEXT.value

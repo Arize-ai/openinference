@@ -1,5 +1,6 @@
 import json
 from typing import Any, Generator, Optional
+from unittest.mock import MagicMock, patch
 
 import pytest
 from opentelemetry import trace as trace_api
@@ -101,6 +102,17 @@ def anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
     api_key = "sk-0123456789"
     monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
     return api_key
+
+
+@pytest.fixture
+def patch_tiktoken_encoding() -> Generator[None, None, None]:
+    """Patch `tiktoken.get_encoding` for LiteLLM to avoid network calls."""
+
+    with patch("tiktoken.get_encoding") as mock_get_encoding:
+        mock_encoding = MagicMock()
+        mock_encoding.encode.return_value = [1, 2, 3]
+        mock_get_encoding.return_value = mock_encoding
+        yield
 
 
 class TestInstrumentor:
@@ -296,6 +308,7 @@ class TestModels:
         self,
         anthropic_api_key: str,
         in_memory_span_exporter: InMemorySpanExporter,
+        patch_tiktoken_encoding: None,
     ) -> None:
         model_params = {"thinking": {"type": "enabled", "budget_tokens": 4000}}
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.57...python-openinference-instrumentation-langchain-v0.1.58) (2026-01-06)
+
+
+### Bug Fixes
+
+* **langchain:** Handle Non-String Dictionary Keys ([#2555](https://github.com/Arize-ai/openinference/issues/2555)) ([d0f8f8c](https://github.com/Arize-ai/openinference/commit/d0f8f8c2ed09913cdc45c86d3bd6dec78d10b700))
+
 ## [0.1.57](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.56...python-openinference-instrumentation-langchain-v0.1.57) (2025-12-22)
 
 
