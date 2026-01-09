@@ -31,7 +31,6 @@ from openinference.instrumentation.strands.semantic_conventions import (
 )
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
@@ -106,11 +105,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             filtered_events = [
                 event
                 for event in span._events
-                if not (
-                    hasattr(event, "name") and event.name.startswith("gen_ai.")  # type: ignore
-                )
+                if not (hasattr(event, "name") and event.name.startswith("gen_ai."))
             ]
-            span._events = filtered_events  # type: ignore
+            span._events = filtered_events
 
     def _transform_attributes(
         self, attrs: Dict[str, Any], span: ReadableSpan, events: Optional[List[Any]] = None
@@ -429,14 +426,17 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
     ) -> None:
         span_kind = result.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         model_name = (
-            result.get(SpanAttributes.LLM_MODEL_NAME) or attrs.get(GEN_AI_REQUEST_MODEL) or "unknown"
+            result.get(SpanAttributes.LLM_MODEL_NAME)
+            or attrs.get(GEN_AI_REQUEST_MODEL)
+            or "unknown"
         )
 
         if span_kind in ["LLM", "AGENT", "CHAIN"]:
             if input_messages:
                 if len(input_messages) == 1 and input_messages[0].get("message.role") == "user":
                     # Simple user message
-                    result[SpanAttributes.INPUT_VALUE] = input_messages[0].get("message.content", "")
+                    input_content = input_messages[0].get("message.content", "")
+                    result[SpanAttributes.INPUT_VALUE] = input_content
                     result[SpanAttributes.INPUT_MIME_TYPE] = OpenInferenceMimeTypeValues.TEXT.value
                 else:
                     # Complex conversation
@@ -462,7 +462,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                         ],
                         "model": model_name,
                         "usage": {
-                            "completion_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION),
+                            "completion_tokens": result.get(
+                                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+                            ),
                             "prompt_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT),
                             "total_tokens": result.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL),
                         },
@@ -612,8 +614,9 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 result[SpanAttributes.TOOL_PARAMETERS] = safe_json_dumps(tool_parameters)
 
                 if tool_name and tool_call_id:
-                    # For tool spans, the assistant message contains only tool_calls (no text content)
-                    # The empty content is intentional as the tool call itself IS the message payload
+                    # For tool spans, the assistant message contains only tool_calls
+                    # (no text content). The empty content is intentional as the
+                    # tool call itself IS the message payload.
                     input_messages = [
                         {
                             "message.role": "assistant",
@@ -782,4 +785,3 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             "Cycle [UUID]": "execute_event_loop_cycle",
             "Tool: [name]": "execute_tool [name]",
         }
-

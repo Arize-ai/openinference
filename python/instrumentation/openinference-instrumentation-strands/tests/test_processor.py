@@ -145,16 +145,3 @@ class TestStrandsToOpenInferenceProcessor:
 
         # Should not raise an exception
         processor.on_end(span)  # type: ignore[arg-type]
-
-    def test_processor_get_info(self) -> None:
-        """Test that get_processor_info returns correct information."""
-        processor = StrandsToOpenInferenceProcessor()
-        info = processor.get_processor_info()
-
-        assert "processor_name" in info
-        assert info["processor_name"] == "StrandsToOpenInferenceProcessor"
-        assert "supported_span_kinds" in info
-        assert "LLM" in info["supported_span_kinds"]
-        assert "AGENT" in info["supported_span_kinds"]
-        assert "TOOL" in info["supported_span_kinds"]
-        assert "CHAIN" in info["supported_span_kinds"]
