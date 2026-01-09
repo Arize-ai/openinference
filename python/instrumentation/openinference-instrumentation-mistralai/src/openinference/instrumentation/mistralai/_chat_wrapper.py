@@ -225,10 +225,12 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             extra_attributes = self._get_extra_attributes_from_request(request_parameters)
-            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
-            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
-            if model_name := request_parameters.get("model"):
-                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = (
+                OpenInferenceLLMProviderValues.MISTRALAI.value
+            )
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = (
+                OpenInferenceLLMSystemValues.MISTRALAI.value
+            )
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)
@@ -279,10 +281,12 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             extra_attributes = self._get_extra_attributes_from_request(request_parameters)
-            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
-            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
-            if model_name := request_parameters.get("model"):
-                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = (
+                OpenInferenceLLMProviderValues.MISTRALAI.value
+            )
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = (
+                OpenInferenceLLMSystemValues.MISTRALAI.value
+            )
         except Exception:
             logger.exception("Failed to parse request args")
             return await wrapped(*args, **kwargs)
@@ -333,10 +337,12 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
             extra_attributes = self._get_extra_attributes_from_request(request_parameters)
-            extra_attributes[SpanAttributes.LLM_PROVIDER] = OpenInferenceLLMProviderValues.MISTRALAI.value
-            extra_attributes[SpanAttributes.LLM_SYSTEM] = OpenInferenceLLMSystemValues.MISTRALAI.value
-            if model_name := request_parameters.get("model"):
-                extra_attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+            extra_attributes[SpanAttributes.LLM_PROVIDER] = (
+                OpenInferenceLLMProviderValues.MISTRALAI.value
+            )
+            extra_attributes[SpanAttributes.LLM_SYSTEM] = (
+                OpenInferenceLLMSystemValues.MISTRALAI.value
+            )
         except Exception:
             logger.exception("Failed to parse request args")
             return wrapped(*args, **kwargs)

@@ -151,4 +151,6 @@ class TestAssistantAgent:
         assert attributes.pop("llm.token_count.completion") == 0
         assert attributes.pop("llm.token_count.prompt") == 0
         assert attributes.pop("llm.token_count.total") == 0
+        assert attributes.pop("llm.provider", None) == "openai"
+        assert attributes.pop("llm.system", None) == "openai"
         assert not attributes

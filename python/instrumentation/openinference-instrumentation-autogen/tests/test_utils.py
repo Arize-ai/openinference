@@ -28,7 +28,7 @@ from openinference.instrumentation.autogen._utils import (
     ],
 )
 def test_infer_llm_provider_from_model_known(model_name, expected):
-    assert infer_llm_provider_from_model(model_name) == expected
+    assert infer_llm_provider_from_model(model_name).value == expected
 
 
 @pytest.mark.parametrize(
@@ -46,8 +46,7 @@ def test_infer_llm_provider_from_model_unknown(model_name):
 
 def test_infer_llm_provider_is_case_insensitive():
     assert (
-        infer_llm_provider_from_model("GPT-4O")
-        == OpenInferenceLLMProviderValues.OPENAI.value
+        infer_llm_provider_from_model("GPT-4O").value == OpenInferenceLLMProviderValues.OPENAI.value
     )
 
 

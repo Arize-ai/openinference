@@ -108,7 +108,7 @@ This section covers **Python OpenInference instrumentation packages**.
   Provider is read from the model configuration. No system information is available.
 
 - **Guardrails**
-  Inside `_PromptCallableWrapper` (wrapping `PromptCallableBase.__call__`), I check the `PromptCallableBase` instance for a `model` or `model_name` and use `infer_llm_provider_from_model` to populate the `LLM_MODEL_NAME` and `LLM_PROVIDER` on the span.
+  Inside `_PromptCallableWrapper` (wrapping `PromptCallableBase.__call__`), I check the `PromptCallableBase` / `ArbitraryCallable` instance for a `model` info but they don't expose model metadata, so provider inference is correctly skipped and tests remain unchanged.
 
 - **Autogen**
   Whenever an agent or client instance (e.g., `BaseChatAgent` or `BaseOpenAIChatCompletionClient`) exposes a `model`, I capture it and infer the provider to populate `LLM_MODEL_NAME` and `LLM_PROVIDER`.
@@ -120,7 +120,7 @@ This section covers **Python OpenInference instrumentation packages**.
   In the `_ExecuteCoreWrapper` wrapping `Task._execute_core`, I check the agent or task instance for a `model` attribute and use `infer_llm_provider_from_model` to populate `LLM_MODEL_NAME` and `LLM_PROVIDER`.
 
 - **Haystack**
-  Wrappers like `_ComponentRunWrapper` and `_AsyncComponentRunWrapper` inspect the component instance. When a `model` is exposed, I record its name and infer the provider to annotate the span with `LLM_MODEL_NAME` and `LLM_PROVIDER`.
+  Wrappers like `_ComponentRunWrapper` and `_AsyncComponentRunWrapper` inspect the component instance. When a `model` is exposed, I use `_get_llm_model_and_provider_attributes` to record its name and infer the provider to annotate the span with `LLM_MODEL_NAME` and `LLM_PROVIDER`.
 
 - **Instructor**
   The `_HandleResponseWrapper` wrapping `handle_response_model` inspects the instance for `model` or `model_name` and sets `LLM_MODEL_NAME` and `LLM_PROVIDER` on the span using `infer_llm_provider_from_model`.
@@ -132,7 +132,7 @@ This section covers **Python OpenInference instrumentation packages**.
   In the `_CompletionsWrapper` and `_AsyncCompletionsWrapper`, I added `LLM_PROVIDER` and `LLM_MODEL_NAME` using the request parameters in `get_extra_attributes_from_request`.
 
 - **MistralAI**
-  In the `_SyncChatWrapper`, `_AsyncChatWrapper`, and `_AsyncStreamChatWrapper`, I added `LLM_PROVIDER`, `LLM_SYSTEM` and `LLM_MODEL_NAME` in the span attributes extracted from the Mistral Chat and Agents requests.
+  In the `_SyncChatWrapper`, `_AsyncChatWrapper`, and `_AsyncStreamChatWrapper`, I explicitly set `LLM_PROVIDER` to `mistralai` and `LLM_SYSTEM` to `mistralai`, since these wrappers always run MistralAI requests.
 
 - **MCP**
   MCP does not have explicit LLM calls. It enables tracing of agent-like interactions in MCP streams.

@@ -41,26 +41,6 @@ if TYPE_CHECKING:
     from haystack.core.component import Component
 
 
-def extract_llm_model_name_from_component(component: Any) -> Optional[str]:
-    for attr in ("model", "model_name"):
-        value = getattr(component, attr, None)
-        if isinstance(value, str) and value:
-            return value
-
-    generation_kwargs = getattr(component, "generation_kwargs", None)
-    if isinstance(generation_kwargs, dict):
-        model = generation_kwargs.get("model")
-        if isinstance(model, str) and model:
-            return model
-
-    client = getattr(component, "client", None)
-    model = getattr(client, "model", None)
-    if isinstance(model, str) and model:
-        return model
-
-    return None
-
-
 def infer_llm_provider_from_model(
     model_name: Optional[str],
 ) -> Optional[OpenInferenceLLMProviderValues]:
@@ -70,25 +50,25 @@ def infer_llm_provider_from_model(
     model = model_name.lower()
 
     if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI.value
+        return OpenInferenceLLMProviderValues.OPENAI
 
     if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+        return OpenInferenceLLMProviderValues.ANTHROPIC
 
     if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI.value
+        return OpenInferenceLLMProviderValues.MISTRALAI
 
     if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE.value
+        return OpenInferenceLLMProviderValues.COHERE
 
     if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE.value
+        return OpenInferenceLLMProviderValues.GOOGLE
 
     if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI.value
+        return OpenInferenceLLMProviderValues.XAI
 
     if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+        return OpenInferenceLLMProviderValues.DEEPSEEK
 
     return None
 
@@ -191,13 +171,6 @@ class _ComponentRunWrapper:
             name=_get_component_span_name(component_class_name, wrapped, component_type)
         ) as span:
             span.set_attributes(_set_component_runner_request_attributes(bound_arguments, instance))
-
-            if model_name := extract_llm_model_name_from_component(instance):
-                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
-
-                if provider := infer_llm_provider_from_model(model_name):
-                    span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
-
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -233,13 +206,6 @@ class _AsyncComponentRunWrapper:
             name=_get_component_span_name(component_class_name, wrapped, component_type),
             attributes=_set_component_runner_request_attributes(bound_arguments, instance),
         ) as span:
-
-            if model_name := extract_llm_model_name_from_component(instance):
-                span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
-
-                if provider := infer_llm_provider_from_model(model_name):
-                    span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
-
             result = await wrapped(*args, **kwargs)
             span.set_attributes(
                 _set_component_runner_response_attributes(bound_arguments, component_type, result)
@@ -618,25 +584,30 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
 
 
-def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_model_and_provider_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
-    Extracts LLM model attributes from response.
+    Extracts LLM model and provider attributes from response.
     """
     from haystack.dataclasses.chat_message import ChatMessage
 
-    if (
-        isinstance(response_meta := response.get("meta"), Sequence)
-        and response_meta
-        and (model := response_meta[0].get("model")) is not None
-    ):
-        yield LLM_MODEL_NAME, model
-    elif (
-        isinstance(replies := response.get("replies"), Sequence)
-        and replies
-        and isinstance(reply := replies[0], ChatMessage)
-        and (model := reply.meta.get("model")) is not None
-    ):
-        yield LLM_MODEL_NAME, model
+    model: Optional[str] = None
+
+    if isinstance(meta := response.get("meta"), Sequence) and meta:
+        model = meta[0].get("model")
+    elif isinstance(replies := response.get("replies"), Sequence) and replies:
+        reply = replies[0]
+        if isinstance(reply, ChatMessage):
+            model = reply.meta.get("model")
+
+    if not model:
+        return
+
+    yield LLM_MODEL_NAME, model
+
+    if provider := infer_llm_provider_from_model(model):
+        yield LLM_PROVIDER, provider.value
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -979,7 +950,7 @@ def _set_component_runner_response_attributes(
     if component_type is ComponentType.GENERATOR:
         attributes.update(
             {
-                **dict(_get_llm_model_attributes(response)),
+                **dict(_get_llm_model_and_provider_attributes(response)),
                 **dict(_get_llm_output_message_attributes(response)),
                 **dict(_get_llm_token_count_attributes(response)),
             }
@@ -1024,6 +995,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

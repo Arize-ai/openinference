@@ -19,25 +19,25 @@ def infer_llm_provider_from_model(
     model = model_name.lower()
 
     if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI.value
+        return OpenInferenceLLMProviderValues.OPENAI
 
     if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC.value
+        return OpenInferenceLLMProviderValues.ANTHROPIC
 
     if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI.value
+        return OpenInferenceLLMProviderValues.MISTRALAI
 
     if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE.value
+        return OpenInferenceLLMProviderValues.COHERE
 
     if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE.value
+        return OpenInferenceLLMProviderValues.GOOGLE
 
     if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI.value
+        return OpenInferenceLLMProviderValues.XAI
 
     if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK.value
+        return OpenInferenceLLMProviderValues.DEEPSEEK
 
     return None
 
@@ -66,7 +66,7 @@ class _ResponseAttributesExtractor:
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
             if provider := infer_llm_provider_from_model(model):
-                yield SpanAttributes.LLM_PROVIDER, provider
+                yield SpanAttributes.LLM_PROVIDER, provider.value
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):

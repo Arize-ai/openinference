@@ -73,7 +73,7 @@ class AutogenInstrumentor:
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):
-                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
 
                     return response
             except Exception as e:
@@ -127,7 +127,7 @@ class AutogenInstrumentor:
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):
-                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider)
+                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
 
                     return result
             except Exception as e:
