@@ -816,6 +816,7 @@ class STTServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.TOOL.value
         ),
+        "service.name": lambda service: service.__class__.__name__,
         "service.model": lambda service: get_model_name(service),
         "audio.sample_rate": lambda service: getattr(service, "sample_rate", None),
         "audio.is_muted": lambda service: getattr(service, "is_muted", None),
@@ -834,6 +835,7 @@ class TTSServiceAttributeExtractor(ServiceAttributeExtractor):
         SpanAttributes.OPENINFERENCE_SPAN_KIND: lambda service: (
             OpenInferenceSpanKindValues.TOOL.value
         ),
+        "service.name": lambda service: service.__class__.__name__,
         "service.model": lambda service: get_model_name(service),
         "audio.voice_id": lambda service: getattr(service, "_voice_id", None),
         "audio.voice": lambda service: getattr(service, "_voice_id", None),

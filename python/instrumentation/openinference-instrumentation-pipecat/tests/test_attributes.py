@@ -158,10 +158,9 @@ class TestServiceAttributeExtraction:
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-            == OpenInferenceSpanKindValues.LLM.value
+            == OpenInferenceSpanKindValues.TOOL.value
         )
-        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "nova-2"
-        assert attributes[SpanAttributes.LLM_PROVIDER] == "deepgram"
+        assert attributes["service.name"] == "DeepgramSTTService"
         assert attributes["service.model"] == "nova-2"
         assert attributes["audio.sample_rate"] == 16000
 
@@ -171,10 +170,9 @@ class TestServiceAttributeExtraction:
 
         assert (
             attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-            == OpenInferenceSpanKindValues.LLM.value
+            == OpenInferenceSpanKindValues.TOOL.value
         )
-        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "sonic-english"
-        assert attributes[SpanAttributes.LLM_PROVIDER] == "cartesia"
+        assert attributes["service.name"] == "CartesiaTTSService"
         assert attributes["service.model"] == "sonic-english"
         assert attributes["audio.voice_id"] == "female-1"
         assert attributes["audio.voice"] == "female-1"
