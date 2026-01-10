@@ -124,7 +124,7 @@ def test_chat_with_config_hiding_inputs(
     assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE, None), str)
     assert (
         OpenInferenceMimeTypeValues(attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE, None))
-        == OpenInferenceMimeTypeValues.JSON
+        == OpenInferenceMimeTypeValues.TEXT
     )
 
     # Output messages
@@ -227,7 +227,7 @@ def test_chat_with_config_hiding_outputs(
         assert isinstance(output_value, str)
         assert (
             OpenInferenceMimeTypeValues(attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE, None))
-            == OpenInferenceMimeTypeValues.JSON
+            == OpenInferenceMimeTypeValues.TEXT
         )
 
     # Output messages
