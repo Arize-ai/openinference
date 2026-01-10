@@ -92,6 +92,7 @@ def mock_stt_service() -> Mock:
     service = Mock(spec=TestSTTService)
     service.__class__ = TestSTTService
     service.__class__.__module__ = "pipecat.services.deepgram"
+    service.__class__.__name__ = "DeepgramSTTService"
     service.model_name = "nova-2"
     service.sample_rate = 16000
     return service
@@ -108,6 +109,7 @@ def mock_tts_service() -> Mock:
     service = Mock(spec=TestTTSService)
     service.__class__ = TestTTSService
     service.__class__.__module__ = "pipecat.services.cartesia"
+    service.__class__.__name__ = "CartesiaTTSService"
     service.model_name = "sonic-english"
     service._voice_id = "female-1"
     service.sample_rate = 22050

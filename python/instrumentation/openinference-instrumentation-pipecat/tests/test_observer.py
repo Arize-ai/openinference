@@ -207,7 +207,8 @@ class TestServiceSpanCreation:
         await observer.on_push_frame(stop_data)
 
         # Verify STT span was created and is active
-        service_id = id(mock_stt_service)
+        # Note: service_id is id(service_type) where service_type is the string "stt"
+        service_id = id("stt")
         assert service_id in observer._active_spans
         # Verify it has accumulated the transcription
         assert observer._active_spans[service_id]["accumulated_input"] == "Hello world "
@@ -229,7 +230,8 @@ class TestServiceSpanCreation:
         await observer.on_push_frame(context_data)
 
         # Verify LLM span was created
-        service_id = id(mock_llm_service)
+        # Note: service_id is id(service_type) where service_type is the string "llm"
+        service_id = id("llm")
         assert service_id in observer._active_spans
 
         # End LLM
@@ -257,7 +259,8 @@ class TestServiceSpanCreation:
         await observer.on_push_frame(start_data)
 
         # Verify TTS span was created
-        service_id = id(mock_tts_service)
+        # Note: service_id is id(service_type) where service_type is the string "tts"
+        service_id = id("tts")
         assert service_id in observer._active_spans
 
 
@@ -281,7 +284,8 @@ class TestTextAccumulation:
             )
         )
 
-        service_id = id(mock_llm_service)
+        # Note: service_id is id(service_type) where service_type is the string "llm"
+        service_id = id("llm")
 
         # Stream LLM text chunks
         chunks = ["Hello", " ", "world", "!"]
@@ -313,7 +317,8 @@ class TestTextAccumulation:
             )
         )
 
-        service_id = id(mock_stt_service)
+        # Note: service_id is id(service_type) where service_type is the string "stt"
+        service_id = id("stt")
 
         # Stream transcription chunks
         chunks = ["This", "is", "a", "test"]
@@ -351,7 +356,8 @@ class TestMetricsHandling:
             )
         )
 
-        service_id = id(mock_llm_service)
+        # Note: service_id is id(service_type) where service_type is the string "llm"
+        service_id = id("llm")
 
         # Send metrics
         token_usage = LLMTokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30)
@@ -382,7 +388,8 @@ class TestMetricsHandling:
             )
         )
 
-        service_id = id(mock_stt_service)
+        # Note: service_id is id(service_type) where service_type is the string "stt"
+        service_id = id("stt")
 
         # Send processing time metrics
         processing_metrics = ProcessingMetricsData(
@@ -434,7 +441,8 @@ class TestSpanHierarchy:
 
         # Verify both turn and LLM spans exist
         assert observer._turn_span is not None
-        llm_service_id = id(mock_llm_service)
+        # Note: service_id is id(service_type) where service_type is the string "llm"
+        llm_service_id = id("llm")
         assert llm_service_id in observer._active_spans
 
         # The service span should have the turn span as its parent
@@ -482,9 +490,10 @@ class TestEdgeCases:
         )
 
         # Verify all three services have active spans
-        assert id(mock_stt_service) in observer._active_spans
-        assert id(mock_llm_service) in observer._active_spans
-        assert id(mock_tts_service) in observer._active_spans
+        # Note: service_id is id(service_type) where service_type is the string "stt"/"llm"/"tts"
+        assert id("stt") in observer._active_spans
+        assert id("llm") in observer._active_spans
+        assert id("tts") in observer._active_spans
 
     async def test_inter_frame_spaces_handling(
         self,
