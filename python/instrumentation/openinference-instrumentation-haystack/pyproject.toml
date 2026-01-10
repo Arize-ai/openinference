@@ -44,7 +44,7 @@ test = [
     "cohere-haystack",
     "opentelemetry-sdk",
     # Temporary vcrpy pin to avoid async future await regression
-    "vcrpy>=7.0.0,<8.0.0",
+    "vcrpy>=7.0.0,<9.0.0",
     "pytest-recording",
     "pytest-asyncio"
 ]
