@@ -1,13 +1,45 @@
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import MessageAttributes, OpenInferenceLLMProviderValues, SpanAttributes
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
 
 
 class _ResponseAttributesExtractor:
@@ -33,6 +65,8 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
+            if provider := infer_llm_provider_from_model(model):
+                yield SpanAttributes.LLM_PROVIDER, provider.value
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):

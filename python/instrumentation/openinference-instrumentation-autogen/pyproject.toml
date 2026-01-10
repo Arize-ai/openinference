@@ -38,6 +38,7 @@ instruments = [
   "autogen >= 0.5.0",
 ]
 test = [
+  "pytest",
   "autogen>=0.5.0",
 ]
 

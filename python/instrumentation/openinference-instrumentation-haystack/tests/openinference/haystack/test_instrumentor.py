@@ -166,6 +166,8 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -266,6 +268,8 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -460,6 +464,8 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -552,6 +558,8 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -665,8 +673,10 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert not attributes
 
 
@@ -739,8 +749,10 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert not attributes
 
 
@@ -777,8 +789,10 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     input_value_data = json.loads(input_value)
     assert input_value_data.get("prompt") == "Who won the World Cup in 2022? Answer in one word."
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
@@ -1250,8 +1264,10 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     tool_prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
     assert attributes.pop(f"{tool_prefix}.{TOOL_CALL_FUNCTION_NAME}") == "search"
     assert isinstance(
@@ -1290,8 +1306,10 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert "openai" in llm_provider
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -1478,6 +1496,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

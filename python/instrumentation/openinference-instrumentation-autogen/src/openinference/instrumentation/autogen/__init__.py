@@ -5,6 +5,10 @@ from opentelemetry import trace
 from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 
 from autogen import ConversableAgent  # type: ignore
+from openinference.instrumentation.autogen._utils import (
+    extract_llm_model_name_from_agent,
+    infer_llm_provider_from_model,
+)
 
 
 class AutogenInstrumentor:
@@ -65,6 +69,12 @@ class AutogenInstrumentor:
                     )
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
 
+                    if model_name := extract_llm_model_name_from_agent(agent_self):
+                        span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                        if provider := infer_llm_provider_from_model(model_name):
+                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
+
                     return response
             except Exception as e:
                 if span is not None:
@@ -112,6 +122,12 @@ class AutogenInstrumentor:
                         )
 
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
+
+                    if model_name := extract_llm_model_name_from_agent(agent_self):
+                        span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+
+                        if provider := infer_llm_provider_from_model(model_name):
+                            span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
 
                     return result
             except Exception as e:
@@ -233,3 +249,6 @@ class SpanAttributes:
     TOOL_PARAMETERS: str = "tool.parameters"
     TOOL_CALL_FUNCTION_ARGUMENTS: str = "tool_call.function.arguments"
     TOOL_CALL_FUNCTION_NAME: str = "tool_call.function.name"
+    LLM_MODEL_NAME = "llm.model_name"
+    LLM_PROVIDER = "llm.provider"
+    LLM_SYSTEM = "llm.system"

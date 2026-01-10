@@ -100,6 +100,8 @@ async def test_async_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+            assert attributes.get("llm.provider") == "openai"
             assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -139,6 +141,8 @@ async def test_streaming_instrumentation(
     for span in spans:
         attributes = dict(span.attributes or dict())
         assert attributes.get("openinference.span.kind") in ["TOOL"]
+        assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+        assert attributes.get("llm.provider") == "openai"
         assert span.status.status_code == trace_api.StatusCode.OK
 
 
@@ -166,6 +170,8 @@ def test_instructor_instrumentation(
         for span in spans:
             attributes = dict(span.attributes or dict())
             assert attributes.get("openinference.span.kind") in ["TOOL"]
+            assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
+            assert attributes.get("llm.provider") == "openai"
             assert span.status.status_code == trace_api.StatusCode.OK
 
             # Validate invocation parameters handling

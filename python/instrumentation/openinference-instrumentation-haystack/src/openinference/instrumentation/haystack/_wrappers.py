@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -38,6 +39,38 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from haystack import Document, Pipeline
     from haystack.core.component import Component
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str],
+) -> Optional[OpenInferenceLLMProviderValues]:
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    if model.startswith(("mistral", "mixtral")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    if model.startswith(("command", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    if model.startswith("gemini"):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    if model.startswith("grok"):
+        return OpenInferenceLLMProviderValues.XAI
+
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
 
 
 class _PipelineRunComponentWrapper:
@@ -551,25 +584,30 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
 
 
-def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_model_and_provider_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
-    Extracts LLM model attributes from response.
+    Extracts LLM model and provider attributes from response.
     """
     from haystack.dataclasses.chat_message import ChatMessage
 
-    if (
-        isinstance(response_meta := response.get("meta"), Sequence)
-        and response_meta
-        and (model := response_meta[0].get("model")) is not None
-    ):
-        yield LLM_MODEL_NAME, model
-    elif (
-        isinstance(replies := response.get("replies"), Sequence)
-        and replies
-        and isinstance(reply := replies[0], ChatMessage)
-        and (model := reply.meta.get("model")) is not None
-    ):
-        yield LLM_MODEL_NAME, model
+    model: Optional[str] = None
+
+    if isinstance(meta := response.get("meta"), Sequence) and meta:
+        model = meta[0].get("model")
+    elif isinstance(replies := response.get("replies"), Sequence) and replies:
+        reply = replies[0]
+        if isinstance(reply, ChatMessage):
+            model = reply.meta.get("model")
+
+    if not model:
+        return
+
+    yield LLM_MODEL_NAME, model
+
+    if provider := infer_llm_provider_from_model(model):
+        yield LLM_PROVIDER, provider.value
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -912,7 +950,7 @@ def _set_component_runner_response_attributes(
     if component_type is ComponentType.GENERATOR:
         attributes.update(
             {
-                **dict(_get_llm_model_attributes(response)),
+                **dict(_get_llm_model_and_provider_attributes(response)),
                 **dict(_get_llm_output_message_attributes(response)),
                 **dict(_get_llm_token_count_attributes(response)),
             }
@@ -957,6 +995,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

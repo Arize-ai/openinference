@@ -12,6 +12,8 @@ import openinference.instrumentation as oi
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -21,6 +23,14 @@ from openinference.semconv.trace import (
 
 if TYPE_CHECKING:
     from smolagents.tools import Tool  # type: ignore[import-untyped]
+
+_SYSTEM_TO_PROVIDER = {
+    OpenInferenceLLMSystemValues.OPENAI.value: OpenInferenceLLMProviderValues.OPENAI.value,
+    OpenInferenceLLMSystemValues.ANTHROPIC.value: OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    OpenInferenceLLMSystemValues.COHERE.value: OpenInferenceLLMProviderValues.COHERE.value,
+    OpenInferenceLLMSystemValues.MISTRALAI.value: OpenInferenceLLMProviderValues.MISTRALAI.value,
+    OpenInferenceLLMSystemValues.VERTEXAI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
+}
 
 
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
@@ -93,6 +103,36 @@ def _smolagent_run_attributes(
                 f"smolagents.managed_agents.{managed_agent_index}.tools_names",
                 list(managed_agent.agent.tools.keys()),
             )
+
+
+def infer_llm_system_from_model(model: Any) -> Optional[str]:
+    if not model:
+        return None
+
+    sources = [type(model).__name__]
+
+    model_name = getattr(model, "model_id", None)
+    if isinstance(model_name, str):
+        sources.append(model_name)
+
+    text = " ".join(sources).lower()
+
+    if "openai" in text or "gpt-" in text:
+        return OpenInferenceLLMSystemValues.OPENAI.value
+
+    if "anthropic" in text or "claude" in text:
+        return OpenInferenceLLMSystemValues.ANTHROPIC.value
+
+    if "mistral" in text:
+        return OpenInferenceLLMSystemValues.MISTRALAI.value
+
+    if "cohere" in text or "command-" in text:
+        return OpenInferenceLLMSystemValues.COHERE.value
+
+    if "vertex" in text or "gemini" in text:
+        return OpenInferenceLLMSystemValues.VERTEXAI.value
+
+    return None
 
 
 class _RunWrapper:
@@ -461,6 +501,13 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
+
+            if system := infer_llm_system_from_model(model):
+                span.set_attribute(LLM_SYSTEM, system)
+
+            if provider := _SYSTEM_TO_PROVIDER.get(system, None):
+                span.set_attribute(LLM_PROVIDER, provider)
+
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -542,6 +589,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
