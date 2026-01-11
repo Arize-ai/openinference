@@ -335,7 +335,7 @@ class _IndexedAccumulator:
             values = [values]
         for index, v in enumerate(values):
             if v and hasattr(v, "get"):
-                self._indexed[v.get("index") or index] += v
+                self._indexed[v.get("index") or 0] += v
         return self
 
 

@@ -10,7 +10,7 @@ from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 endpoint = "http://0.0.0.0:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter(endpoint)))
+tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
 
 def generate_image() -> None:
@@ -20,8 +20,11 @@ def generate_image() -> None:
         contents="Create a simple flat illustration of a red apple on a white background. No text."
         " Minimal detail. Low complexity.",
     )
-    for res in response:
-        print(res)
+    with open("stream_file.txt", "w") as f:
+        for res in response:
+            print(res)
+            f.write(f"{res}\n")
+
     # print(response)
 
 
