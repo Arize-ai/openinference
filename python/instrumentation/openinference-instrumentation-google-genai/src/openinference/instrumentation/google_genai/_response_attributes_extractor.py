@@ -86,18 +86,18 @@ class _ResponseAttributesExtractor:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
         tool_call_index = 0
         content_index = 0
-        for part in content_parts:
+        parts = list(content_parts)
+        is_single_part = len(parts) == 1
+        for part in parts:
             increment_content_index = False
             if text := getattr(part, "text", None):
-                yield from _get_attributes_from_content_text(
-                    text, content_index, len(list(content_parts)) == 1
-                )
+                yield from _get_attributes_from_content_text(text, content_index, is_single_part)
                 increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
                 # Handle tool/function calls
                 yield from self._get_attributes_from_function_call(function_call, tool_call_index)
                 tool_call_index += 1
-            if inline_data := getattr(part, "inline_data"):
+            if inline_data := getattr(part, "inline_data", None):
                 yield from _get_attributes_from_inline_data(inline_data, content_index)
                 increment_content_index = True
             if increment_content_index:

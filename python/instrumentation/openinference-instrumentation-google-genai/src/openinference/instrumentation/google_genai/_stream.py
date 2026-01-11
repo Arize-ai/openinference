@@ -195,13 +195,13 @@ class _ResponseExtractor:
                     if parts := content.get("parts"):
                         tool_call_index = 0
                         content_index = 0
-                        text_only = len(parts) == 1
+                        is_single_part = len(parts) == 1
                         for part in parts:
                             if text := part.get("text"):
                                 for key, value in _get_attributes_from_content_text(
                                     text,
                                     content_index,
-                                    text_only,
+                                    is_single_part,
                                 ):
                                     yield f"{prefix}.{key}", value
 
@@ -224,6 +224,8 @@ class _ResponseExtractor:
                                 ):
                                     yield f"{prefix}.{key}", value
                             # Either image or text increments the content index
+                            # there are cases where both text and inline data are
+                            # present in single part
                             if part.get("text") or part.get("inline_data"):
                                 content_index += 1
 
