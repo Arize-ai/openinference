@@ -15,6 +15,7 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
 )
+from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
 from pipecat.services.openai.llm import OpenAILLMService
@@ -133,10 +134,13 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     context = LLMContext(messages)
     context_aggregator = LLMContextAggregatorPair(context)
 
+    rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
+
     ### PIPELINE ###
     pipeline = Pipeline(
         [
             transport.input(),  # Transport user input
+            rtvi,  # RTVI processor
             stt,
             context_aggregator.user(),  # User responses
             llm,  # LLM
@@ -155,6 +159,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         ),
         conversation_id=conversation_id,  # Use dynamic conversation ID for session tracking
         idle_timeout_secs=runner_args.pipeline_idle_timeout_secs,
+        observers=[RTVIObserver(rtvi)],
     )
 
     @transport.event_handler("on_client_connected")
