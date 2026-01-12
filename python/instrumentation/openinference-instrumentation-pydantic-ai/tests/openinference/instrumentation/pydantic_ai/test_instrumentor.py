@@ -120,8 +120,9 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.LLM.value
     )
-    assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
     assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+    assert attributes.get(SpanAttributes.LLM_PROVIDER) == "openai"
+    assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic

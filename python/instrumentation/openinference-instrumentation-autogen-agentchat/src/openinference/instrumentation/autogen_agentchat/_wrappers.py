@@ -509,13 +509,8 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                         )
                     )
                 )
-                span.set_attribute(
-                    SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-                )
-                span.set_attribute(
-                    SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
-                )
-
+                span.set_attribute(LLM_PROVIDER, OPENAI_PROVIDER)
+                span.set_attribute(LLM_SYSTEM, OPENAI_SYSTEM)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
@@ -589,12 +584,8 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
                                 )
                             )
                         )
-                        span.set_attribute(
-                            SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-                        )
-                        span.set_attribute(
-                            SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
-                        )
+                        span.set_attribute(LLM_PROVIDER, OPENAI_PROVIDER)
+                        span.set_attribute(LLM_SYSTEM, OPENAI_SYSTEM)
                     yield res
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -750,10 +741,10 @@ def _llm_model_name(
         return attributes
     if hasattr(instance, "_resolved_model"):
         model_name = getattr(instance, "_resolved_model", "")
-        attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+        attributes[LLM_MODEL_NAME] = model_name
     elif model_info := getattr(instance, "model_info", None):
         if model_name := model_info.get("family"):
-            attributes[SpanAttributes.LLM_MODEL_NAME] = model_name
+            attributes[LLM_MODEL_NAME] = model_name
     return attributes
 
 
@@ -922,7 +913,12 @@ OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+OPENAI_PROVIDER = OpenInferenceLLMProviderValues.OPENAI.value
+OPENAI_SYSTEM = OpenInferenceLLMSystemValues.OPENAI.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE

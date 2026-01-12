@@ -145,12 +145,12 @@ class TestAssistantAgent:
         assert "73 degrees" in content_lower
         assert "sunny" in content_lower
         assert attributes.pop("llm.model_name") == "gpt-3.5-turbo-0125"
+        assert attributes.pop("llm.provider", None) == "openai"
+        assert attributes.pop("llm.system", None) == "openai"
         expected_content = "The weather in New York is currently 73 degrees and sunny."
         assert attributes.pop("llm.output_messages.0.message.content") == expected_content
         assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
         assert attributes.pop("llm.token_count.completion") == 0
         assert attributes.pop("llm.token_count.prompt") == 0
         assert attributes.pop("llm.token_count.total") == 0
-        assert attributes.pop("llm.provider", None) == "openai"
-        assert attributes.pop("llm.system", None) == "openai"
         assert not attributes

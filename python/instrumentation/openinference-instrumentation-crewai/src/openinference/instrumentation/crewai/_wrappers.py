@@ -279,10 +279,10 @@ class _ExecuteCoreWrapper:
                 span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
 
                 if model_name := extract_llm_model_name_from_agent(agent):
-                    span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+                    span.set_attribute(LLM_MODEL_NAME, model_name)
 
                     if provider := infer_llm_provider_from_model(model_name):
-                        span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
+                        span.set_attribute(LLM_PROVIDER, provider.value)
 
                 crew = agent.crew
                 if crew:
@@ -706,3 +706,6 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM

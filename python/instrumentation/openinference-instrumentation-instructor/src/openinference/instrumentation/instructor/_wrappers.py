@@ -86,8 +86,17 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
-def extract_llm_model_name_from_response(kwargs: Mapping[str, Any], response: Any) -> Optional[str]:
-    model_name = kwargs.get("model")
+def extract_llm_model_name_from_response(
+    instance: Any,
+    kwargs: Mapping[str, Any],
+    response: Any
+) -> Optional[str]:
+    model_name = (
+        getattr(instance, "model", None)
+        or getattr(instance, "_model", None)
+        or kwargs.get("model")
+    )
+
     if isinstance(model_name, str) and model_name:
         return model_name
 
@@ -353,7 +362,7 @@ class _HandleResponseWrapper:
                 elif response_model is None:
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
 
-                if model_name := extract_llm_model_name_from_response(kwargs, response):
+                if model_name := extract_llm_model_name_from_response(instance, kwargs, response):
                     span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                     if provider := infer_llm_provider_from_model(model_name):

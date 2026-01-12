@@ -224,7 +224,9 @@ class _SyncChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes = dict(
+                self._get_extra_attributes_from_request(request_parameters)
+            )
             extra_attributes[SpanAttributes.LLM_PROVIDER] = (
                 OpenInferenceLLMProviderValues.MISTRALAI.value
             )
@@ -280,7 +282,9 @@ class _AsyncChatWrapper(_WithTracer, _WithMistralAI):
             return await wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes = dict(
+                self._get_extra_attributes_from_request(request_parameters)
+            )
             extra_attributes[SpanAttributes.LLM_PROVIDER] = (
                 OpenInferenceLLMProviderValues.MISTRALAI.value
             )
@@ -336,7 +340,9 @@ class _AsyncStreamChatWrapper(_WithTracer, _WithMistralAI):
             return wrapped(*args, **kwargs)
         try:
             request_parameters = self._parse_args(signature(wrapped), instance, *args, **kwargs)
-            extra_attributes = self._get_extra_attributes_from_request(request_parameters)
+            extra_attributes = dict(
+                self._get_extra_attributes_from_request(request_parameters)
+            )
             extra_attributes[SpanAttributes.LLM_PROVIDER] = (
                 OpenInferenceLLMProviderValues.MISTRALAI.value
             )

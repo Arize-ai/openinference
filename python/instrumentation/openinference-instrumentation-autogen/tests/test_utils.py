@@ -1,12 +1,12 @@
 from types import SimpleNamespace
 
 import pytest
-from openinference.semconv.trace import OpenInferenceLLMProviderValues
 
 from openinference.instrumentation.autogen._utils import (
     extract_llm_model_name_from_agent,
     infer_llm_provider_from_model,
 )
+from openinference.semconv.trace import OpenInferenceLLMProviderValues
 
 
 @pytest.mark.parametrize(

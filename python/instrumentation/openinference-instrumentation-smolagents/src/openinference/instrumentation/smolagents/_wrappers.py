@@ -505,8 +505,8 @@ class _ModelWrapper:
             if system := infer_llm_system_from_model(model):
                 span.set_attribute(LLM_SYSTEM, system)
 
-            if provider := _SYSTEM_TO_PROVIDER.get(system, None):
-                span.set_attribute(LLM_PROVIDER, provider)
+                if provider := _SYSTEM_TO_PROVIDER.get(system, None):
+                    span.set_attribute(LLM_PROVIDER, provider)
 
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
@@ -589,8 +589,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
-LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

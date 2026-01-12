@@ -51,6 +51,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -97,7 +99,7 @@ async def test_instrumentor(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert isinstance(metadata_json_str := attributes.pop(METADATA, None), str)
     assert json.loads(metadata_json_str) == metadata
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM
     assert isinstance(attributes.pop(INPUT_VALUE, None), str)
     assert attributes.pop(INPUT_MIME_TYPE, None) == JSON
     assert (invocation_parameters := cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None)))
@@ -124,6 +126,8 @@ async def test_instrumentor(
     assert isinstance(response_json_str, str)
     assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == GOOGLE
+    assert attributes.pop(LLM_SYSTEM, None) == VERTEXAI
     status = span.status
     if has_error:
         assert not status.is_ok
@@ -224,8 +228,10 @@ async def test_instrumentor_config_hiding_inputs(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert isinstance(metadata_json_str := attributes.pop(METADATA, None), str)
     assert json.loads(metadata_json_str) == metadata
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == GOOGLE
+    assert attributes.pop(LLM_SYSTEM, None) == VERTEXAI
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -351,8 +357,10 @@ async def test_instrumentor_config_hiding_outputs(
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
     assert isinstance(metadata_json_str := attributes.pop(METADATA, None), str)
     assert json.loads(metadata_json_str) == metadata
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == LLM
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == GOOGLE
+    assert attributes.pop(LLM_SYSTEM, None) == VERTEXAI
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -959,10 +967,15 @@ EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 IMAGE_URL = ImageAttributes.IMAGE_URL
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
+GOOGLE = OpenInferenceLLMProviderValues.GOOGLE.value
+VERTEXAI = OpenInferenceLLMSystemValues.VERTEXAI.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
+LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

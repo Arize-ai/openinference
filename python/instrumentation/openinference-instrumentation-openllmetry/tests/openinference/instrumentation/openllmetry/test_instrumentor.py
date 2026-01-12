@@ -118,3 +118,5 @@ class TestOpenLLMetryInstrumentor:
             )
             assert model_name_attr is not None, "Model name attribute not found"
             assert "gpt-4" in str(attributes[model_name_attr])
+            assert SpanAttributes.LLM_PROVIDER in attributes
+            assert SpanAttributes.LLM_SYSTEM in attributes
