@@ -23,6 +23,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_async_generate_content",
         "_original_generate_content_stream",
         "_original_async_generate_content_stream",
+        "_original_create_interactions",
         "_tracer",
     )
 
@@ -43,16 +44,30 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         try:
             from google.genai.models import AsyncModels, Models
+            from google.genai._interactions.resources import InteractionsResource
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
             ) from err
-
         from openinference.instrumentation.google_genai._wrappers import (
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
+            _SyncCreateInteraction
+        )
+
+        self._original_generate_content = Models.generate_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="Models.generate_content",
+            wrapper=_SyncGenerateContent(tracer=self._tracer),
+        )
+
+        wrap_function_wrapper(
+            module="google.genai._interactions.resources",
+            name="InteractionsResource.create",
+            wrapper=_SyncCreateInteraction(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content

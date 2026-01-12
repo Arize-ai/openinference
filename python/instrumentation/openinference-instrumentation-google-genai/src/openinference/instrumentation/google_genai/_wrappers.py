@@ -28,6 +28,9 @@ from openinference.semconv.trace import (
     SpanAttributes,
 )
 
+from openinference.instrumentation.google_genai.interactions_attributes import get_attributes_from_request, \
+    get_attributes_from_response
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -170,6 +173,53 @@ class _SyncGenerateContent(_WithTracer):
             except Exception:
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
+        return response
+
+
+class _SyncCreateInteraction(_WithTracer):
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        # Prepare invocation parameters by merging args and kwargs
+        invocation_parameters = {}
+        for arg in args:
+            if arg and isinstance(arg, dict):
+                invocation_parameters.update(arg)
+        invocation_parameters.update(kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "interactions.create"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes={}
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+                span.set_attributes(get_attributes_from_response(response))
+                status  = trace_api.Status(
+                    status_code=trace_api.StatusCode.OK
+                )
+                span.finish_tracing(status=status)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
         return response
 
 
