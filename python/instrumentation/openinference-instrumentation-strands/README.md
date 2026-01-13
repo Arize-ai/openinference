@@ -87,6 +87,23 @@ Now simply run the python file and observe the traces in Phoenix.
 python your_file.py
 ```
 
+## Important: Processor Ordering
+
+The `StrandsToOpenInferenceProcessor` **mutates spans in-place**. This means the order in which you add span processors matters.
+
+Add the `StrandsToOpenInferenceProcessor` **before** any exporters that should receive the transformed OpenInference spans:
+
+```python
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+# Correct order: processor first, then exporter
+telemetry.tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+telemetry.tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+```
+
+If you need to export both the original GenAI spans and transformed OpenInference spans to different destinations, you'll need to set up the processors carefully or consider using separate tracer providers.
+
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)

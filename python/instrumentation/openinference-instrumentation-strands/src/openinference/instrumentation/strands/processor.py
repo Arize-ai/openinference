@@ -41,6 +41,14 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
     """
     SpanProcessor that converts Strands telemetry attributes to OpenInference format
     for compatibility with OpenInference-compliant backends.
+
+    Important: This processor mutates spans in-place. Add it BEFORE any span
+    processors/exporters that should receive the transformed OpenInference spans.
+
+    Example:
+        # Correct order: processor first, then exporter
+        tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+        tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     """
 
     def __init__(self, debug: bool = False) -> None:
