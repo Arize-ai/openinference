@@ -1,0 +1,12 @@
+# Strands Agents framework
+strands-agents>=1.19.0
+
+# OpenInference instrumentation for Strands
+openinference-instrumentation-strands
+
+# OpenTelemetry dependencies
+opentelemetry-sdk>=1.39.0
+opentelemetry-exporter-otlp-proto-http>=1.39.0
+
+# Optional: For specific examples
+# openai  # If using OpenAI models
