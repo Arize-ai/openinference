@@ -1,17 +1,15 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Repository Overview
 
-OpenInference is a multi-language monorepo providing OpenTelemetry-based instrumentation for AI/ML applications. The repository contains:
+OpenInference is a multi-language monorepo providing OpenTelemetry-based instrumentation for AI/ML applications:
 
-- **Python**: Instrumentation for popular frameworks (OpenAI, LangChain, LlamaIndex, DSPy, etc.)
+- **Python**: Instrumentation for OpenAI, LangChain, LlamaIndex, DSPy, etc.
 - **JavaScript/TypeScript**: Node.js instrumentations with pnpm workspaces
 - **Java**: Instrumentation for LangChain4j and Spring AI
-- **Specification**: OpenInference semantic conventions in the `spec/` directory
-
-Each language workspace has its own development workflow and tools. See language-specific sections below.
+- **Specification**: OpenInference semantic conventions in `spec/`
 
 ## Repository Structure
 
@@ -70,9 +68,9 @@ tox run -e ruff-mypy-test-openai
 ```
 
 **Key Tools:**
-- [tox](https://github.com/tox-dev/tox) for automation
-- [ruff](https://github.com/astral-sh/ruff) for formatting and linting
-- [mypy](https://github.com/python/mypy) for type checking
+- tox for automation
+- ruff for formatting and linting
+- mypy for type checking
 
 ### JavaScript/TypeScript
 
@@ -128,104 +126,51 @@ cd java && ./gradlew build
 
 ## Development Workflow
 
-### Working on Issues
-
-1. **Understand the Issue**: Read the issue description and any linked documentation
-2. **Explore the Codebase**: Use appropriate tools (Grep, Glob, Read) to understand existing patterns
-3. **Follow Language Conventions**: Check the language-specific guide (especially `js/CLAUDE.md` for JavaScript work)
-4. **Test Your Changes**: Run tests using the appropriate command for your language
-5. **Format and Lint**: Ensure code passes all quality checks before committing
+1. Explore the codebase to understand existing patterns
+2. Check language-specific guides (`js/CLAUDE.md`, `python/DEVELOPMENT.md`)
+3. Run tests using the appropriate command for your language
+4. Ensure code passes all quality checks before committing
 
 ### Creating New Instrumentors
 
-Each language has specific patterns for creating instrumentors:
-
-**Python**: See `python/DEVELOPMENT.md` for detailed guidance on:
-- Minimal feature set (suppress tracing, customizing spans, trace configuration)
-- Using `OITracer` wrapper
-- Testing with tox
-- Publishing to PyPI and Conda-Forge
-
-**JavaScript**: See `js/CLAUDE.md` for:
-- Extending `InstrumentationBase`
-- Using `OITracer` from core
-- Required features (suppress tracing, context attributes, trace config)
-- Testing patterns with Vite
-
-**Java**: Follow existing patterns in `java/instrumentation/` directory
+See language-specific documentation:
+- **Python**: `python/DEVELOPMENT.md`
+- **JavaScript**: `js/CLAUDE.md`
+- **Java**: Existing patterns in `java/instrumentation/`
 
 ## Release Management
 
-This repository uses [release-please](https://github.com/googleapis/release-please) for automated version management and releases.
+This repository uses release-please for automated version management.
 
-**Configuration Files:**
-- `.release-please-manifest.json`: Package versions
-- `release-please-config.json`: Release configuration
+**Configuration:** `.release-please-manifest.json` and `release-please-config.json`
 
-**Adding New Packages:**
-Add your package to both config files to enable automated releases.
-
-**Release Process:**
+**Process:**
 1. Release-please creates PRs with version bumps and changelogs
-2. Merge the PR to trigger a GitHub release
-3. Packages are automatically published to their respective registries (PyPI, npm, Maven Central)
+2. Merge the PR to trigger releases to PyPI, npm, and Maven Central
 
-## Contributing Guidelines
+## Contributing
 
-See `CONTRIBUTING` for detailed contribution guidelines, including:
-
-- Code of conduct
-- Branch organization (submit to `main`)
-- Pull request requirements and best practices
-- Code review standards
-- CLA requirements
-
-**Key Points:**
+See `CONTRIBUTING` for detailed guidelines. Key points:
 - Keep PRs small and focused
 - Follow conventional commit format for PR titles
-- Reference issues in PR descriptions
 - Include tests for new features and bug fixes
 - Run all quality checks before submitting
 
-## Important Notes
+## Requirements
 
-### Cross-Language Consistency
-
-All instrumentors across languages should:
+### All Instrumentors Must:
 1. Support suppressing tracing
-2. Propagate context attributes (session ID, user ID, metadata, tags, etc.)
+2. Propagate context attributes (session ID, user ID, metadata, tags)
 3. Respect trace configuration for masking sensitive data
 4. Follow OpenInference semantic conventions
 5. Include comprehensive tests
 
-### Testing Requirements
-
-- **Python**: Use tox for consistent environments
-- **JavaScript**: Use Vite with manual module mocking for instrumentation timing
-- **Java**: Use Gradle test tasks
-
-### Documentation
-
-- Update README files when adding new instrumentors
-- Include examples in the appropriate `examples/` directory
-- Update the main README.md table when adding new packages
-
 ### Security
+- Never commit sensitive data (.env files, credentials)
+- Use trace configuration for masking PII
 
-- Never commit sensitive data (.env files, credentials, etc.)
-- Be cautious with PII and use trace configuration for masking
-- Follow security best practices for instrumentation code
+## Additional Documentation
 
-## Helpful Resources
-
-- [OpenInference Specification](https://arize-ai.github.io/openinference/spec/)
-- [JavaScript Documentation](https://arize-ai.github.io/openinference/js/)
-- [Arize Phoenix](https://github.com/Arize-ai/phoenix) - Native OpenInference backend
-- [Community Slack](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A)
-
-## Language-Specific Details
-
-For more detailed language-specific guidance:
-- **JavaScript/TypeScript**: See `js/CLAUDE.md`
-- **Python**: See `python/DEVELOPMENT.md`
-- **Java**: See `java/README.md`
+- **JavaScript/TypeScript**: `js/CLAUDE.md`
+- **Python**: `python/DEVELOPMENT.md`
+- **Java**: `java/README.md`
