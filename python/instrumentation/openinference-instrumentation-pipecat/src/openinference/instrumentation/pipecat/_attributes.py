@@ -49,6 +49,7 @@ from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
 from pipecat.services.vision_service import VisionService
 from pipecat.services.websocket_service import WebsocketService
+from pipecat.transports.base_output import BaseOutputTransport
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -81,6 +82,7 @@ SERVICE_TYPE_MAP = {
     VisionService.__name__: "vision",
     WebsocketService.__name__: "websocket",
     AIService.__name__: "ai",
+    BaseOutputTransport.__name__: "tts",
 }
 
 
