@@ -180,51 +180,6 @@ def test_agent_context_propagation_to_llm_spans(
         )
 
 
-def test_agent_context_propagation_unit(
-    tracer_provider: TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-    setup_agno_instrumentation: Any,
-) -> None:
-    """
-    Unit test for agent context propagation without VCR cassettes.
-    Tests that context keys are properly set and retrieved.
-    """
-    from opentelemetry import context as context_api
-
-    from openinference.instrumentation.agno.utils import (
-        _AGNO_AGENT_ID_CONTEXT_KEY,
-        _AGNO_AGENT_NAME_CONTEXT_KEY,
-    )
-
-    # Test that context keys can be set and retrieved
-    test_agent_name = "Test Agent"
-    test_agent_id = "test-agent-123"
-
-    # Set values in context
-    ctx = context_api.get_current()
-    ctx = context_api.set_value(_AGNO_AGENT_NAME_CONTEXT_KEY, test_agent_name, ctx)
-    ctx = context_api.set_value(_AGNO_AGENT_ID_CONTEXT_KEY, test_agent_id, ctx)
-
-    # Attach and verify
-    token = context_api.attach(ctx)
-    try:
-        retrieved_name = context_api.get_value(_AGNO_AGENT_NAME_CONTEXT_KEY)
-        retrieved_id = context_api.get_value(_AGNO_AGENT_ID_CONTEXT_KEY)
-
-        assert retrieved_name == test_agent_name, (
-            f"Agent name should be '{test_agent_name}', got '{retrieved_name}'"
-        )
-        assert retrieved_id == test_agent_id, (
-            f"Agent ID should be '{test_agent_id}', got '{retrieved_id}'"
-        )
-    finally:
-        context_api.detach(token)
-
-    # After detach, values should not be present
-    assert context_api.get_value(_AGNO_AGENT_NAME_CONTEXT_KEY) is None
-    assert context_api.get_value(_AGNO_AGENT_ID_CONTEXT_KEY) is None
-
-
 def test_agno_team_coordinate_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -341,3 +296,53 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_agent_name_and_id_propagated_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agno.agent.name and agno.agent.id are propagated to child LLM spans."""
+    with test_vcr.use_cassette("agent_run.yaml", filter_headers=["authorization", "X-API-KEY"]):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="News Agent",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
+        )
+        agent.run("What's trending on Twitter?", session_id="test_session")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find agent span and LLM spans
+    agent_span = None
+    llm_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span_kind == "AGENT":
+            agent_span = span
+        elif span_kind == "LLM":
+            llm_spans.append(span)
+
+    # Verify agent span exists and has the expected attributes
+    assert agent_span is not None, "Agent span should exist"
+    agent_attrs = dict(agent_span.attributes or {})
+    agent_id = agent_attrs.get("agno.agent.id")
+    assert agent_id is not None, "Agent span should have agno.agent.id"
+
+    # Verify LLM spans have agent name and ID propagated
+    assert len(llm_spans) > 0, "At least one LLM span should exist"
+    for llm_span in llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get("agno.agent.name") == "News Agent", (
+            f"LLM span should have agno.agent.name='News Agent', got: {llm_attrs.get('agno.agent.name')}"
+        )
+        assert llm_attrs.get("agno.agent.id") == agent_id, (
+            f"LLM span should have agno.agent.id={agent_id}, got: {llm_attrs.get('agno.agent.id')}"
+        )
