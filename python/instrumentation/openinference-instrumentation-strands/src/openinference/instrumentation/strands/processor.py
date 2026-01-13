@@ -725,12 +725,12 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
         return result
 
-    def _add_metadata(self, attrs: Dict[str, Any], result: Dict[str, Any]) -> None:
+    def _add_metadata(self, attrs: Dict[str, Any], final_attrs: Dict[str, Any]) -> None:
         """Add remaining attributes as metadata.
 
         Args:
             attrs: Original span attributes from Strands
-            result: Transformed OpenInference attributes being built
+            final_attrs: Transformed OpenInference attributes being built
         """
         metadata = {}
         # Skip keys that have already been processed into OpenInference format:
@@ -745,11 +745,11 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
         }
 
         for key, value in attrs.items():
-            if key not in skip_keys and key not in result:
+            if key not in skip_keys and key not in final_attrs:
                 metadata[key] = self._serialize_value(value)
 
         if metadata:
-            result[SpanAttributes.METADATA] = safe_json_dumps(metadata)
+            final_attrs[SpanAttributes.METADATA] = safe_json_dumps(metadata)
 
     def _serialize_value(self, value: Any) -> Any:
         if isinstance(value, (str, int, float, bool)) or value is None:
