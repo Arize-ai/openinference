@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Any, Generator
 
 import pytest
@@ -17,9 +19,12 @@ from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
 from openinference.semconv.trace import SpanAttributes
 
+# Use absolute path for cassette library to work regardless of where pytest is run from
+_FIXTURES_DIR = Path(__file__).parent / "openinference" / "instrumentation" / "agno" / "fixtures"
+
 test_vcr = vcr.VCR(
     serializer="yaml",
-    cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
+    cassette_library_dir=str(_FIXTURES_DIR),
     record_mode="never",
     match_on=["uri", "method"],
 )
@@ -121,6 +126,108 @@ def test_agno_instrumentation(
             assert attributes.get("llm.provider") == "OpenAI"
             assert span.status.is_ok
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
+
+
+def test_agent_context_propagation_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agent name and ID are propagated to child LLM spans"""
+    with test_vcr.use_cassette("agent_run.yaml", filter_headers=["authorization", "X-API-KEY"]):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="News Agent",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
+        )
+        agent.run("What's trending on Twitter?", session_id="test_session")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find agent, LLM, and tool spans
+    agent_span = None
+    llm_spans = []
+    tool_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span_kind == "AGENT":
+            agent_span = attributes
+        elif span_kind == "LLM":
+            llm_spans.append(attributes)
+        elif span_kind == "TOOL":
+            tool_spans.append(attributes)
+
+    # Verify agent span exists
+    assert agent_span is not None, "Agent span should exist"
+
+    # Verify LLM spans have agent context attributes
+    assert len(llm_spans) > 0, "At least one LLM span should exist"
+    for llm_span in llm_spans:
+        assert llm_span.get("agno.agent.name") == "News Agent", (
+            f"LLM span should have agent name, got: {llm_span.get('agno.agent.name')}"
+        )
+        # Agent ID should be present if the agent has an ID
+        # (agno.agent.id on LLM span comes from context propagation)
+
+    # Verify tool spans do NOT have agent context attributes
+    for tool_span in tool_spans:
+        assert tool_span.get("agno.agent.name") is None, (
+            "Tool span should NOT have agno.agent.name attribute"
+        )
+        assert tool_span.get("agno.agent.id") is None, (
+            "Tool span should NOT have agno.agent.id attribute (from context propagation)"
+        )
+
+
+def test_agent_context_propagation_unit(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """
+    Unit test for agent context propagation without VCR cassettes.
+    Tests that context keys are properly set and retrieved.
+    """
+    from opentelemetry import context as context_api
+
+    from openinference.instrumentation.agno.utils import (
+        _AGNO_AGENT_ID_CONTEXT_KEY,
+        _AGNO_AGENT_NAME_CONTEXT_KEY,
+    )
+
+    # Test that context keys can be set and retrieved
+    test_agent_name = "Test Agent"
+    test_agent_id = "test-agent-123"
+
+    # Set values in context
+    ctx = context_api.get_current()
+    ctx = context_api.set_value(_AGNO_AGENT_NAME_CONTEXT_KEY, test_agent_name, ctx)
+    ctx = context_api.set_value(_AGNO_AGENT_ID_CONTEXT_KEY, test_agent_id, ctx)
+
+    # Attach and verify
+    token = context_api.attach(ctx)
+    try:
+        retrieved_name = context_api.get_value(_AGNO_AGENT_NAME_CONTEXT_KEY)
+        retrieved_id = context_api.get_value(_AGNO_AGENT_ID_CONTEXT_KEY)
+
+        assert retrieved_name == test_agent_name, (
+            f"Agent name should be '{test_agent_name}', got '{retrieved_name}'"
+        )
+        assert retrieved_id == test_agent_id, (
+            f"Agent ID should be '{test_agent_id}', got '{retrieved_id}'"
+        )
+    finally:
+        context_api.detach(token)
+
+    # After detach, values should not be present
+    assert context_api.get_value(_AGNO_AGENT_NAME_CONTEXT_KEY) is None
+    assert context_api.get_value(_AGNO_AGENT_ID_CONTEXT_KEY) is None
 
 
 def test_agno_team_coordinate_instrumentation(

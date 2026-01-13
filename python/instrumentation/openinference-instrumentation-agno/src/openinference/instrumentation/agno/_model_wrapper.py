@@ -19,6 +19,46 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+
+# Attribute keys for agent/team context on LLM spans
+AGNO_AGENT_NAME = "agno.agent.name"
+AGNO_AGENT_ID = "agno.agent.id"
+AGNO_TEAM_NAME = "agno.team.name"
+AGNO_TEAM_ID = "agno.team.id"
+
+
+def _get_parent_agent_attributes() -> Iterator[Tuple[str, Any]]:
+    """
+    Get agent/team name and ID from the parent span for propagation to LLM spans.
+    This reads directly from the parent span's attributes, avoiding context manipulation.
+    """
+    current_span = trace_api.get_current_span()
+    if current_span and hasattr(current_span, "attributes") and current_span.attributes:
+        attrs = current_span.attributes
+
+        # Check if parent is a Team or Agent based on attributes
+        team_id = attrs.get("agno.team.id")
+        agent_id = attrs.get("agno.agent.id")
+
+        if team_id:
+            # Parent is a Team
+            team_name = attrs.get("graph.node.name")
+            if team_name:
+                yield AGNO_TEAM_NAME, team_name
+            yield AGNO_TEAM_ID, team_id
+        elif agent_id:
+            # Parent is an Agent
+            agent_name = attrs.get("graph.node.name")
+            if agent_name:
+                yield AGNO_AGENT_NAME, agent_name
+            yield AGNO_AGENT_ID, agent_id
+        else:
+            # Fallback: just use graph.node.name as agent name if available
+            node_name = attrs.get("graph.node.name")
+            if node_name:
+                yield AGNO_AGENT_NAME, node_name
+
+
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
@@ -302,6 +342,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke"
 
+        # Get parent agent attributes before creating new span
+        parent_agent_attrs = dict(_get_parent_agent_attributes())
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -310,6 +353,7 @@ class _ModelWrapper:
                 **dict(_llm_input_messages(arguments)),
                 **dict(_llm_invocation_parameters(model, arguments)),
                 **dict(get_attributes_from_context()),
+                **parent_agent_attrs,
             },
         ) as span:
             span.set_status(trace_api.StatusCode.OK)
@@ -359,6 +403,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.invoke_stream"
 
+        # Get parent agent attributes before creating new span
+        parent_agent_attrs = dict(_get_parent_agent_attributes())
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -367,6 +414,7 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
+                **parent_agent_attrs,
             },
         ) as span:
             span.set_status(trace_api.StatusCode.OK)
@@ -429,6 +477,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke"
 
+        # Get parent agent attributes before creating new span
+        parent_agent_attrs = dict(_get_parent_agent_attributes())
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -437,6 +488,7 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
+                **parent_agent_attrs,
             },
         ) as span:
             span.set_status(trace_api.StatusCode.OK)
@@ -492,6 +544,9 @@ class _ModelWrapper:
         model_name = model.name
         span_name = f"{model_name}.ainvoke_stream"
 
+        # Get parent agent attributes before creating new span
+        parent_agent_attrs = dict(_get_parent_agent_attributes())
+
         with self._tracer.start_as_current_span(
             span_name,
             attributes={
@@ -500,6 +555,7 @@ class _ModelWrapper:
                 **dict(_llm_invocation_parameters(model)),
                 **dict(_llm_input_messages(arguments)),
                 **dict(get_attributes_from_context()),
+                **parent_agent_attrs,
             },
         ) as span:
             span.set_status(trace_api.StatusCode.OK)
