@@ -1,3 +1,4 @@
+
 import asyncio
 import os
 
@@ -22,14 +23,27 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 if __name__ == "__main__":
     client = genai.Client()
-
-    interaction = client.interactions.create(
-        model="gemini-3-flash-preview",
-        input="Tell me a short joke about programming.",
-        generation_config={
-            "temperature": 0.7,
-            "max_output_tokens": 500,
-            "thinking_level": "low",
+    conversation_history = [
+        {
+            "role": "user",
+            "content": "What are the three largest cities in Spain?"
         }
+    ]
+
+    interaction1 = client.interactions.create(
+        model="gemini-3-flash-preview",
+        input=conversation_history
     )
-    print(interaction.outputs[-1].text)
+    print(f"Model: {interaction1.outputs[-1].text}")
+    conversation_history.append({"role": "model", "content": interaction1.outputs})
+    conversation_history.append({
+        "role": "user",
+        "content": "What is the most famous landmark in the second one?"
+    })
+
+    interaction2 = client.interactions.create(
+        model="gemini-3-flash-preview",
+        input=conversation_history
+    )
+
+    print(f"Model: {interaction2.outputs[-1].text}")
