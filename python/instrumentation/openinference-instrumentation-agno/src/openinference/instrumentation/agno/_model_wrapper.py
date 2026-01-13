@@ -19,6 +19,14 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+    ToolAttributes,
+    ToolCallAttributes,
+)
 
 # Attribute keys for agent/team context on LLM spans
 AGNO_AGENT_NAME = "agno.agent.name"
@@ -57,16 +65,6 @@ def _get_parent_agent_attributes() -> Iterator[Tuple[str, Any]]:
             node_name = attrs.get("graph.node.name")
             if node_name:
                 yield AGNO_AGENT_NAME, node_name
-
-
-from openinference.semconv.trace import (
-    MessageAttributes,
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-    ToolAttributes,
-    ToolCallAttributes,
-)
 
 
 def _get_attr(obj: Any, key: str, default: Any = None) -> Any:
