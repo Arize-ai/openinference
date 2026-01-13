@@ -5,10 +5,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Link, SpanContext, Status, StatusCode
 
 from autogen import ConversableAgent  # type: ignore
-from openinference.instrumentation.autogen._utils import (
-    extract_llm_model_name_from_agent,
-    infer_llm_provider_from_model,
-)
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInferenceLLMSystemValues
 
 
 class AutogenInstrumentor:
@@ -69,11 +66,14 @@ class AutogenInstrumentor:
                     )
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
 
-                    if model_name := extract_llm_model_name_from_agent(agent_self):
+                    if model_name := extract_llm_model_name(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):
                             span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
+
+                            if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                span.set_attribute(SpanAttributes.LLM_SYSTEM, system)
 
                     return response
             except Exception as e:
@@ -123,11 +123,14 @@ class AutogenInstrumentor:
 
                     span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
 
-                    if model_name := extract_llm_model_name_from_agent(agent_self):
+                    if model_name := extract_llm_model_name(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
 
                         if provider := infer_llm_provider_from_model(model_name):
                             span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
+
+                            if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                span.set_attribute(SpanAttributes.LLM_SYSTEM, system)
 
                     return result
             except Exception as e:
@@ -249,6 +252,111 @@ class SpanAttributes:
     TOOL_PARAMETERS: str = "tool.parameters"
     TOOL_CALL_FUNCTION_ARGUMENTS: str = "tool_call.function.arguments"
     TOOL_CALL_FUNCTION_NAME: str = "tool_call.function.name"
-    LLM_MODEL_NAME = "llm.model_name"
-    LLM_PROVIDER = "llm.provider"
-    LLM_SYSTEM = "llm.system"
+    LLM_MODEL_NAME: str = "llm.model_name"
+    LLM_PROVIDER: str = "llm.provider"
+    LLM_SYSTEM: str = "llm.system"
+
+
+def extract_llm_model_name(agent: ConversableAgent) -> Optional[str]:
+    """Extract the LLM model name from an object when available."""
+    if agent is None:
+        return None
+
+    model_name: Optional[str] = None
+
+    llm_config = getattr(agent, "llm_config", None)
+    if isinstance(llm_config, dict):
+        if isinstance(llm_config.get("model"), str):
+            model_name = llm_config.get("model")
+        elif isinstance(llm_config.get("config_list"), list) and llm_config.get("config_list"):
+            candidate = llm_config.get("config_list")[0]
+            if isinstance(candidate, dict):
+                model_name = candidate.get("model")
+
+    if isinstance(model_name, str) and model_name:
+        return model_name
+
+    return None
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}

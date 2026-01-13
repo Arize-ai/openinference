@@ -16,6 +16,7 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -189,54 +190,6 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
     span.set_attributes(prefixed_attributes)
 
 
-def extract_llm_model_name_from_agent(agent: Any) -> Optional[str]:
-    if not agent:
-        return None
-
-    llm = getattr(agent, "llm", None)
-    if not llm:
-        return None
-
-    return (
-        getattr(llm, "model", None)
-        or getattr(llm, "model_name", None)
-        or getattr(llm, "model_id", None)
-        or getattr(llm, "deployment_name", None)
-    )
-
-
-def infer_llm_provider_from_model(
-    model_name: Optional[str],
-) -> Optional[OpenInferenceLLMProviderValues]:
-    if not model_name:
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
-
-    return None
-
-
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -278,11 +231,14 @@ class _ExecuteCoreWrapper:
             if agent:
                 span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent.role)
 
-                if model_name := extract_llm_model_name_from_agent(agent):
+                if model_name := extract_llm_model_name(agent):
                     span.set_attribute(LLM_MODEL_NAME, model_name)
 
                     if provider := infer_llm_provider_from_model(model_name):
                         span.set_attribute(LLM_PROVIDER, provider.value)
+
+                        if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                span.set_attribute(LLM_SYSTEM, system)
 
                 crew = agent.crew
                 if crew:
@@ -701,6 +657,108 @@ class _ToolUseWrapper:
             span.set_attributes(dict(get_attributes_from_context()))
         return response
 
+
+def extract_llm_model_name(agent: Any) -> Optional[str]:
+    """Extract the LLM model name from an object when available."""
+    if agent is None:
+        return None
+
+    model_name: Optional[str] = None
+
+    llm = getattr(agent, "llm", None)
+    if llm is None:
+        return None
+
+    for attr in ("model", "model_name", "model_id", "deployment_name"):
+        value = getattr(llm, attr, None)
+        if isinstance(value, str) and value:
+            model_name = value
+            break
+
+    return model_name
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

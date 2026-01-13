@@ -210,10 +210,10 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
 
     if GEN_AI_SYSTEM in gen_ai_attrs:
-        system = gen_ai_attrs[GEN_AI_SYSTEM].lower()
+        system = gen_ai_attrs[GEN_AI_SYSTEM]
         yield SpanAttributes.LLM_SYSTEM, system
 
-        if provider := _SYSTEM_TO_PROVIDER.get(system, None):
+        if provider := _SYSTEM_TO_PROVIDER.get(system):
             yield SpanAttributes.LLM_PROVIDER, provider
 
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:

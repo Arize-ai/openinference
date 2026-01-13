@@ -29,6 +29,7 @@ from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -39,38 +40,6 @@ from openinference.semconv.trace import (
 if TYPE_CHECKING:
     from haystack import Document, Pipeline
     from haystack.core.component import Component
-
-
-def infer_llm_provider_from_model(
-    model_name: Optional[str],
-) -> Optional[OpenInferenceLLMProviderValues]:
-    if not model_name:
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
-
-    return None
 
 
 class _PipelineRunComponentWrapper:
@@ -584,7 +553,7 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
 
 
-def _get_llm_model_and_provider_attributes(
+def _get_llm_model_provider_system_attributes(
     response: Mapping[str, Any],
 ) -> Iterator[Tuple[str, Any]]:
     """
@@ -601,13 +570,14 @@ def _get_llm_model_and_provider_attributes(
         if isinstance(reply, ChatMessage):
             model = reply.meta.get("model")
 
-    if not model:
-        return
+    if model:
+        yield LLM_MODEL_NAME, model
 
-    yield LLM_MODEL_NAME, model
+        if provider := infer_llm_provider_from_model(model):
+            yield LLM_PROVIDER, provider.value
 
-    if provider := infer_llm_provider_from_model(model):
-        yield LLM_PROVIDER, provider.value
+            if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                yield LLM_SYSTEM, system
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -950,7 +920,7 @@ def _set_component_runner_response_attributes(
     if component_type is ComponentType.GENERATOR:
         attributes.update(
             {
-                **dict(_get_llm_model_and_provider_attributes(response)),
+                **dict(_get_llm_model_provider_system_attributes(response)),
                 **dict(_get_llm_output_message_attributes(response)),
                 **dict(_get_llm_token_count_attributes(response)),
             }
@@ -969,6 +939,88 @@ def _set_component_runner_response_attributes(
         assert_never(component_type)
     return attributes
 
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
@@ -992,10 +1044,11 @@ EMBEDDING_TEXT = EmbeddingAttributes.EMBEDDING_TEXT
 EMBEDDING_VECTOR = EmbeddingAttributes.EMBEDDING_VECTOR
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
-LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
-LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
 LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE

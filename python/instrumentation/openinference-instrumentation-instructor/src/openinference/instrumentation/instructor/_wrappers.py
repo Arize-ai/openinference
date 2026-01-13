@@ -13,6 +13,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -84,63 +85,6 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         },
         cls=SafeJSONEncoder,
     )
-
-
-def extract_llm_model_name_from_response(
-    instance: Any,
-    kwargs: Mapping[str, Any],
-    response: Any
-) -> Optional[str]:
-    model_name = (
-        getattr(instance, "model", None)
-        or getattr(instance, "_model", None)
-        or kwargs.get("model")
-    )
-
-    if isinstance(model_name, str) and model_name:
-        return model_name
-
-    if isinstance(response, tuple) and len(response) > 1:
-        raw = response[1]
-        if isinstance(raw, dict):
-            model_name = raw.get("model")
-        else:
-            model_name = getattr(raw, "model", None)
-        return model_name
-
-    return None
-
-
-def infer_llm_provider_from_model(
-    model_name: Optional[str],
-) -> Optional[OpenInferenceLLMProviderValues]:
-    if not model_name:
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(("gpt-", "gpt.", "o3", "o4")):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if model.startswith(("claude-", "anthropic.claude")):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if model.startswith(("mistral", "mixtral")):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if model.startswith(("command", "cohere.command")):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if model.startswith("gemini"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if model.startswith("grok"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if model.startswith("deepseek"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
-
-    return None
 
 
 class _PatchWrapper:
@@ -362,11 +306,14 @@ class _HandleResponseWrapper:
                 elif response_model is None:
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
 
-                if model_name := extract_llm_model_name_from_response(instance, kwargs, response):
-                    span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
+                if model_name := extract_llm_model_name(instance, kwargs, response):
+                    span.set_attribute(LLM_MODEL_NAME, model_name)
 
                     if provider := infer_llm_provider_from_model(model_name):
-                        span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+
+                        if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                            span.set_attribute(LLM_SYSTEM, system)
 
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -377,8 +324,116 @@ class _HandleResponseWrapper:
         return response
 
 
+def extract_llm_model_name(
+    instance: Any, kwargs: Mapping[str, Any], response: Any
+) -> Optional[str]:
+    """Extract the LLM model name from an object when available."""
+    model_name: Optional[str] = None
+
+    if hasattr(instance, "model"):
+        model_name = getattr(instance, "model", None)
+    elif isinstance(kwargs, Mapping):
+        model_name = kwargs.get("model")
+    elif isinstance(response, tuple) and len(response) > 1:
+        raw = response[1]
+        if isinstance(raw, Mapping):
+            model_name = raw.get("model")
+        else:
+            model_name = getattr(raw, "model", None)
+
+    if isinstance(model_name, str) and model_name:
+        return model_name
+
+    return None
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE

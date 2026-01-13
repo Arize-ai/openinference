@@ -287,7 +287,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
             system_val = "unknown"
 
-        provider_val = attrs.get("gen_ai.provider", "unknown")
+        provider_val = attrs.get("gen_ai.provider", system_val)
         # Ensure provider_val is one of the known OpenInference providers
         if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
             provider_val = "unknown"
