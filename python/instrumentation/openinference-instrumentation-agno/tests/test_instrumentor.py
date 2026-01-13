@@ -341,7 +341,8 @@ def test_agent_name_and_id_propagated_to_llm_spans(
     for llm_span in llm_spans:
         llm_attrs = dict(llm_span.attributes or {})
         assert llm_attrs.get("agno.agent.name") == "News Agent", (
-            f"LLM span should have agno.agent.name='News Agent', got: {llm_attrs.get('agno.agent.name')}"
+            f"LLM span should have agno.agent.name='News Agent', "
+            f"got: {llm_attrs.get('agno.agent.name')}"
         )
         assert llm_attrs.get("agno.agent.id") == agent_id, (
             f"LLM span should have agno.agent.id={agent_id}, got: {llm_attrs.get('agno.agent.id')}"

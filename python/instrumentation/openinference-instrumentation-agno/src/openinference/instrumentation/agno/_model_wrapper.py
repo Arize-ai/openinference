@@ -19,6 +19,10 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.models.base import Model
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.agno.utils import (
+    _AGNO_TEAM_ID_CONTEXT_KEY,
+    _AGNO_TEAM_NAME_CONTEXT_KEY,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
@@ -26,11 +30,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
-)
-
-from openinference.instrumentation.agno.utils import (
-    _AGNO_TEAM_ID_CONTEXT_KEY,
-    _AGNO_TEAM_NAME_CONTEXT_KEY,
 )
 
 # Attribute keys for agent/team context on LLM spans
