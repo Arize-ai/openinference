@@ -19,12 +19,9 @@ from openinference.instrumentation import OITracer
 from openinference.instrumentation.agno import AgnoInstrumentor
 from openinference.semconv.trace import SpanAttributes
 
-# Use absolute path for cassette library to work regardless of where pytest is run from
-_FIXTURES_DIR = Path(__file__).parent / "openinference" / "instrumentation" / "agno" / "fixtures"
-
 test_vcr = vcr.VCR(
     serializer="yaml",
-    cassette_library_dir=str(_FIXTURES_DIR),
+    cassette_library_dir="tests/openinference/instrumentation/agno/fixtures/",
     record_mode="never",
     match_on=["uri", "method"],
 )
