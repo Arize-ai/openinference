@@ -309,7 +309,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                     if isinstance(item, dict):
                         if "text" in item:
                             text_parts.append(str(item["text"]))
-                        elif "toolUse" in item:
+                        elif "toolUse" in item and isinstance(item["toolUse"], dict):
                             tool_use = item["toolUse"]
                             tool_call = {
                                 "tool_call.id": tool_use.get("toolUseId", ""),
@@ -346,7 +346,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
                 if "text" in content_data:
                     return {"message.role": role, "message.content": str(content_data["text"])}
                 else:
-                    return {"message.role": role, "message.content": str(content_data)}
+                    return {"message.role": role, "message.content": safe_json_dumps(content_data)}
             else:
                 return {"message.role": role, "message.content": str(content_data)}
 
@@ -362,7 +362,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
             if isinstance(item, dict):
                 if "text" in item:
                     text_parts.append(str(item["text"]))
-                elif "toolUse" in item:
+                elif "toolUse" in item and isinstance(item["toolUse"], dict):
                     tool_use = item["toolUse"]
                     tool_call = {
                         "tool_call.id": tool_use.get("toolUseId", ""),
