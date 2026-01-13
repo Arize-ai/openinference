@@ -11,6 +11,7 @@ _AGNO_PARENT_NODE_CONTEXT_KEY = context_api.create_key("agno_parent_node_id")
 _AGNO_TEAM_NAME_CONTEXT_KEY = context_api.create_key("agno_team_name")
 _AGNO_TEAM_ID_CONTEXT_KEY = context_api.create_key("agno_team_id")
 
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
