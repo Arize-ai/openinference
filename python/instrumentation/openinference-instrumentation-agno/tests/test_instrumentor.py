@@ -346,3 +346,77 @@ def test_agent_name_and_id_propagated_to_llm_spans(
         assert llm_attrs.get("agno.agent.id") == agent_id, (
             f"LLM span should have agno.agent.id={agent_id}, got: {llm_attrs.get('agno.agent.id')}"
         )
+
+
+def test_team_name_and_id_propagated_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agno.team.name and agno.team.id are propagated to child LLM spans in team runs."""
+    with test_vcr.use_cassette(
+        "team_coordinate_run.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+
+        web_agent = Agent(
+            name="Web Agent",
+            role="Search the web for information",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            instructions="Always include sources",
+        )
+
+        finance_agent = Agent(
+            name="Finance Agent",
+            role="Get financial data",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[YFinanceTools()],
+            instructions="Use tables to display data",
+        )
+
+        agent_team = Team(
+            name="Team",
+            members=[web_agent, finance_agent],
+            model=OpenAIChat(id="gpt-4o-mini"),
+            instructions=["Always include sources", "Use tables to display data"],
+            user_id="team_user_999",
+        )
+
+        agent_team.run(
+            "What's the market outlook and financial performance of NVIDIA?",
+            session_id="test_session",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find team span and LLM spans
+    team_span = None
+    llm_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span.name == "Team.run":
+            team_span = span
+        elif span_kind == "LLM":
+            llm_spans.append(span)
+
+    # Verify team span exists and has the expected attributes
+    assert team_span is not None, "Team span should exist"
+    team_attrs = dict(team_span.attributes or {})
+    team_id = team_attrs.get("agno.team.id")
+    assert team_id is not None, "Team span should have agno.team.id"
+
+    # Verify LLM spans have team name and ID propagated (via context)
+    assert len(llm_spans) > 0, "At least one LLM span should exist in team run"
+    for llm_span in llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get("agno.team.name") == "Team", (
+            f"LLM span should have agno.team.name='Team', got: {llm_attrs.get('agno.team.name')}"
+        )
+        assert llm_attrs.get("agno.team.id") == team_id, (
+            f"LLM span should have agno.team.id={team_id}, got: {llm_attrs.get('agno.team.id')}"
+        )

@@ -28,6 +28,11 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+from openinference.instrumentation.agno.utils import (
+    _AGNO_TEAM_ID_CONTEXT_KEY,
+    _AGNO_TEAM_NAME_CONTEXT_KEY,
+)
+
 # Attribute keys for agent/team context on LLM spans
 AGNO_AGENT_NAME = "agno.agent.name"
 AGNO_AGENT_ID = "agno.agent.id"
@@ -37,9 +42,22 @@ AGNO_TEAM_ID = "agno.team.id"
 
 def _get_parent_agent_attributes() -> Iterator[Tuple[str, Any]]:
     """
-    Get agent/team name and ID from the parent span for propagation to LLM spans.
-    This reads directly from the parent span's attributes, avoiding context manipulation.
+    Get agent/team name and ID from the parent span and context for propagation to LLM spans.
+    For team runs, team info is propagated via context to all descendant LLM spans.
+    For standalone agent runs, agent info is read from the parent span.
     """
+    team_name_from_ctx = context_api.get_value(_AGNO_TEAM_NAME_CONTEXT_KEY)
+    team_id_from_ctx = context_api.get_value(_AGNO_TEAM_ID_CONTEXT_KEY)
+
+    if team_name_from_ctx or team_id_from_ctx:
+        # in a team context - propagate team info
+        if team_name_from_ctx:
+            yield AGNO_TEAM_NAME, team_name_from_ctx
+        if team_id_from_ctx:
+            yield AGNO_TEAM_ID, team_id_from_ctx
+        return
+
+    # Not in a team context - read from parent span for agent info
     current_span = trace_api.get_current_span()
     if current_span and hasattr(current_span, "attributes") and current_span.attributes:
         attrs = current_span.attributes
@@ -49,7 +67,6 @@ def _get_parent_agent_attributes() -> Iterator[Tuple[str, Any]]:
         agent_id = attrs.get("agno.agent.id")
 
         if team_id:
-            # Parent is a Team
             team_name = attrs.get("graph.node.name")
             if team_name:
                 yield AGNO_TEAM_NAME, team_name
