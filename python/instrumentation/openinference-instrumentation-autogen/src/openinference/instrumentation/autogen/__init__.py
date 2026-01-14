@@ -68,10 +68,8 @@ class AutogenInstrumentor:
 
                     if model_name := extract_llm_model_name(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
-
                         if provider := infer_llm_provider_from_model(model_name):
                             span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
-
                             if system := _PROVIDER_TO_SYSTEM.get(provider.value):
                                 span.set_attribute(SpanAttributes.LLM_SYSTEM, system)
 
@@ -125,10 +123,8 @@ class AutogenInstrumentor:
 
                     if model_name := extract_llm_model_name(agent_self):
                         span.set_attribute(SpanAttributes.LLM_MODEL_NAME, model_name)
-
                         if provider := infer_llm_provider_from_model(model_name):
                             span.set_attribute(SpanAttributes.LLM_PROVIDER, provider.value)
-
                             if system := _PROVIDER_TO_SYSTEM.get(provider.value):
                                 span.set_attribute(SpanAttributes.LLM_SYSTEM, system)
 
@@ -268,10 +264,12 @@ def extract_llm_model_name(agent: ConversableAgent) -> Optional[str]:
     if isinstance(llm_config, dict):
         if isinstance(llm_config.get("model"), str):
             model_name = llm_config.get("model")
-        elif isinstance(llm_config.get("config_list"), list) and llm_config.get("config_list"):
-            candidate = llm_config.get("config_list")[0]
-            if isinstance(candidate, dict):
-                model_name = candidate.get("model")
+        else:
+            config_list = llm_config.get("config_list")
+            if isinstance(config_list, list) and config_list:
+                candidate = config_list[0]
+                if isinstance(candidate, dict):
+                    model_name = candidate.get("model")
 
     if isinstance(model_name, str) and model_name:
         return model_name
@@ -293,7 +291,7 @@ def infer_llm_provider_from_model(
         return OpenInferenceLLMProviderValues.OPENAI
 
     # Anthropic
-    if model.startswith(("claude-", "anthropic.claude")):
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
         return OpenInferenceLLMProviderValues.ANTHROPIC
 
     # Google / Vertex / Gemini

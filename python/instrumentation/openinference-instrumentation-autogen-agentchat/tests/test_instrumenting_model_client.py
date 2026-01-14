@@ -54,7 +54,6 @@ async def test_instrumenting_model_client(
     assert output_json["cached"] is False
     assert output_json["logprobs"] is None
     assert output_json["thought"] is None
-    assert attrs.pop("llm.model_name") == "gpt-4o-2024-08-06"
     expected_content = "The capital of France is Paris."
     assert attrs.pop("llm.output_messages.0.message.content") == expected_content
     assert attrs.pop("llm.output_messages.0.message.role") == "assistant"

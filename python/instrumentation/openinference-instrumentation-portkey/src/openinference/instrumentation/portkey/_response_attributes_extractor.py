@@ -38,13 +38,10 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
-
             if provider := infer_llm_provider_from_model(model):
                 yield SpanAttributes.LLM_PROVIDER, provider.value
-
                 if system := _PROVIDER_TO_SYSTEM.get(provider.value):
                     yield SpanAttributes.LLM_SYSTEM, system
-
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):
@@ -95,7 +92,7 @@ def infer_llm_provider_from_model(
         return OpenInferenceLLMProviderValues.OPENAI
 
     # Anthropic
-    if model.startswith(("claude-", "anthropic.claude")):
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
         return OpenInferenceLLMProviderValues.ANTHROPIC
 
     # Google / Vertex / Gemini

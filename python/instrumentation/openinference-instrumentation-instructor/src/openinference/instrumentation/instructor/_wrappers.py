@@ -306,12 +306,10 @@ class _HandleResponseWrapper:
                 elif response_model is None:
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
 
-                if model_name := extract_llm_model_name(instance, kwargs, response):
+                if model_name := extract_llm_model_name(response):
                     span.set_attribute(LLM_MODEL_NAME, model_name)
-
                     if provider := infer_llm_provider_from_model(model_name):
                         span.set_attribute(LLM_PROVIDER, provider.value)
-
                         if system := _PROVIDER_TO_SYSTEM.get(provider.value):
                             span.set_attribute(LLM_SYSTEM, system)
 
@@ -324,17 +322,14 @@ class _HandleResponseWrapper:
         return response
 
 
-def extract_llm_model_name(
-    instance: Any, kwargs: Mapping[str, Any], response: Any
-) -> Optional[str]:
+def extract_llm_model_name(response: Any) -> Optional[str]:
     """Extract the LLM model name from an object when available."""
+    if response is None:
+        return None
+
     model_name: Optional[str] = None
 
-    if hasattr(instance, "model"):
-        model_name = getattr(instance, "model", None)
-    elif isinstance(kwargs, Mapping):
-        model_name = kwargs.get("model")
-    elif isinstance(response, tuple) and len(response) > 1:
+    if isinstance(response, tuple) and len(response) > 1:
         raw = response[1]
         if isinstance(raw, Mapping):
             model_name = raw.get("model")
@@ -361,7 +356,7 @@ def infer_llm_provider_from_model(
         return OpenInferenceLLMProviderValues.OPENAI
 
     # Anthropic
-    if model.startswith(("claude-", "anthropic.claude")):
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
         return OpenInferenceLLMProviderValues.ANTHROPIC
 
     # Google / Vertex / Gemini

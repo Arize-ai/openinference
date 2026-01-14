@@ -465,10 +465,8 @@ class _ModelWrapper:
 
             if model_name := model.model_id:
                 span.set_attribute(LLM_MODEL_NAME, model_name)
-
                 if provider := infer_llm_provider_from_model(model_name):
                     span.set_attribute(LLM_PROVIDER, provider.value)
-
                     if system := _PROVIDER_TO_SYSTEM.get(provider.value):
                         span.set_attribute(LLM_SYSTEM, system)
 
@@ -561,7 +559,7 @@ def infer_llm_provider_from_model(
         return OpenInferenceLLMProviderValues.OPENAI
 
     # Anthropic
-    if model.startswith(("claude-", "anthropic.claude")):
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
         return OpenInferenceLLMProviderValues.ANTHROPIC
 
     # Google / Vertex / Gemini

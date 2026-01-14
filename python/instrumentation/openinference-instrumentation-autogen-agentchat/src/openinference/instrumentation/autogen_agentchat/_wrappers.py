@@ -486,8 +486,14 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
             set_status_on_exception=False,
         ) as span:
             try:
-                result = await wrapped(*args, **valid_kwargs)
+                if model_name := extract_llm_model_name(instance):
+                    span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if provider := infer_llm_provider_from_model(model_name):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                        if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                            span.set_attribute(LLM_SYSTEM, system)
 
+                result = await wrapped(*args, **valid_kwargs)
                 span.set_status(trace_api.StatusCode.OK)
 
                 # Extract output attributes and process tool calls in response
@@ -495,7 +501,6 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                 output_message_attributes = dict(_extract_output_message_attributes(result))
                 tool_call_attributes = dict(_extract_output_tool_calls(result))
                 token_attributes = dict(_extract_token_attributes(result))
-
                 span.set_attributes(
                     dict(
                         _flatten(
@@ -508,16 +513,6 @@ class _BaseOpenAIChatCompletionClientCreateWrapper(_WithTracer):
                         )
                     )
                 )
-
-                if model_name := extract_llm_model_name(instance):
-                    span.set_attribute(LLM_MODEL_NAME, model_name)
-
-                    if provider := infer_llm_provider_from_model(model_name):
-                        span.set_attribute(LLM_PROVIDER, provider.value)
-
-                        if system := _PROVIDER_TO_SYSTEM.get(provider.value):
-                            span.set_attribute(LLM_SYSTEM, system)
-
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
@@ -571,6 +566,13 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
             set_status_on_exception=False,
         ) as span:
             try:
+                if model_name := extract_llm_model_name(instance):
+                    span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if provider := infer_llm_provider_from_model(model_name):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                        if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                            span.set_attribute(LLM_SYSTEM, system)
+
                 async for res in wrapped(*args, **valid_kwargs):
                     if isinstance(res, CreateResult):
                         # Extract output attributes and process tool calls in response
@@ -590,16 +592,6 @@ class _BaseOpenAIChatCompletionClientCreateStreamWrapper(_WithTracer):
                                 )
                             )
                         )
-
-                        if model_name := extract_llm_model_name(instance):
-                            span.set_attribute(LLM_MODEL_NAME, model_name)
-
-                            if provider := infer_llm_provider_from_model(model_name):
-                                span.set_attribute(LLM_PROVIDER, provider.value)
-
-                                if system := _PROVIDER_TO_SYSTEM.get(provider.value):
-                                    span.set_attribute(LLM_SYSTEM, system)
-
                     yield res
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -935,7 +927,7 @@ def infer_llm_provider_from_model(
         return OpenInferenceLLMProviderValues.OPENAI
 
     # Anthropic
-    if model.startswith(("claude-", "anthropic.claude")):
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
         return OpenInferenceLLMProviderValues.ANTHROPIC
 
     # Google / Vertex / Gemini
