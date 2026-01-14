@@ -62,10 +62,10 @@ async def test_autogen_generate_reply_instrumentation(
     openai_api_key: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_create(self, *args, **kwargs):  # type: ignore[no-untyped-call]
+    def fake_create(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         return {"fake": True}
 
-    def fake_extract(self, response):  # type: ignore[no-untyped-call]
+    def fake_extract(self, response):  # type: ignore[no-untyped-def]
         return [{"role": "assistant", "content": "Hello from Autogen"}]
 
     monkeypatch.setattr(
