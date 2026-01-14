@@ -582,6 +582,43 @@ importers:
         specifier: ^3.24.3
         version: 3.25.76
 
+  packages/openinference-instrumentation-openai-agents:
+    dependencies:
+      '@arizeai/openinference-core':
+        specifier: workspace:*
+        version: link:../openinference-core
+      '@arizeai/openinference-semantic-conventions':
+        specifier: workspace:*
+        version: link:../openinference-semantic-conventions
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@opentelemetry/core':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+    devDependencies:
+      '@openai/agents':
+        specifier: ^0.0.11
+        version: 0.0.11(ws@8.18.3)(zod@3.25.76)
+      '@opentelemetry/exporter-trace-otlp-proto':
+        specifier: ^0.50.0
+        version: 0.50.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^1.25.1
+        version: 1.30.1(@opentelemetry/api@1.9.0)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@24.9.1)(msw@2.12.1(@types/node@24.9.1)(typescript@5.9.3))
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+
   packages/openinference-mastra:
     dependencies:
       '@arizeai/openinference-core':
@@ -1837,6 +1874,23 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
+  '@openai/agents-core@0.0.11':
+    resolution: {integrity: sha512-kMG/B620fsFAwUe/ounmXty4FuAmWbMWgql4z/gCoER3S6h5tBqNTxffN0MAOFHV3EuPLiqTxA0kGiSdTpDwyA==}
+    peerDependencies:
+      zod: 3.25.40 - 3.25.67
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  '@openai/agents-openai@0.0.11':
+    resolution: {integrity: sha512-gqVVDfyD0UYYBkc4kPJgbWzFzayKCKQBHMKHnbMsReZ8/nqHKGEd/hjBiqAZGqDW0BTKNaGfzGB8XAiLWWipnw==}
+
+  '@openai/agents-realtime@0.0.11':
+    resolution: {integrity: sha512-gVdrKri0dPBOJfsQR6m9rdpBscRZK/efc1zLKqOA2mfmaL0RxI2/LvnyXbwrDGHQ6GEbovULkbWWQ9D4nUafow==}
+
+  '@openai/agents@0.0.11':
+    resolution: {integrity: sha512-MYSuQ0PptjryTb/BzrqoZB+cajv/p31uF42uXeqkI3s9PihqRttnQBJ1YCTJS/xQCl4f5R9cIradh/o5PpbDkA==}
+
   '@opentelemetry/api-logs@0.206.0':
     resolution: {integrity: sha512-yIVDu9jX//nV5wSMLZLdHdb1SKHIMj9k+wQVFtln5Flcgdldz9BkHtavvExQiJqBZg2OpEEJEZmzQazYztdz2A==}
     engines: {node: '>=8.0.0'}
@@ -2921,6 +2975,9 @@ packages:
 
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@6.21.0':
     resolution: {integrity: sha512-oy9+hTPCUFpngkEZUSzbf9MxI65wbKFoQYsgPdILTfbUldp5ovUuphZVe4i30emU9M/kP+T64Di0mxl7dSw3MA==}
@@ -4681,6 +4738,18 @@ packages:
       zod:
         optional: true
 
+  openai@5.23.2:
+    resolution: {integrity: sha512-MQBzmTulj+MM5O8SKEk/gL8a7s5mktS9zUtAkU257WjvobGc9nKcBuVwjyEEcb9SI8a8Y2G/mzn3vm9n1Jlleg==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   openai@6.7.0:
     resolution: {integrity: sha512-mgSQXa3O/UXTbA8qFzoa7aydbXBJR5dbLQXCRapAOtoNT+v69sLdKMZzgiakpqhclRnhPggPAXoniVGn2kMY2A==}
     hasBin: true
@@ -5812,6 +5881,9 @@ packages:
     resolution: {integrity: sha512-h/z3PKvcTcTetyjl1fkj79MHNEjm+HpD6NXheWjzOekY7kV+lwDYnHw+ivHkijnCSMz1yJaWBD9vu/Fcmk+vEg==}
     peerDependencies:
       zod: ^3.24.1
+
+  zod@3.25.67:
+    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
@@ -7505,6 +7577,56 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
+  '@openai/agents-core@0.0.11(ws@8.18.3)(zod@3.25.76)':
+    dependencies:
+      '@openai/zod': zod@3.25.67
+      debug: 4.4.3
+      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.20.2
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - supports-color
+      - ws
+
+  '@openai/agents-openai@0.0.11(ws@8.18.3)(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.0.11(ws@8.18.3)(zod@3.25.76)
+      '@openai/zod': zod@3.25.67
+      debug: 4.4.3
+      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+    transitivePeerDependencies:
+      - supports-color
+      - ws
+      - zod
+
+  '@openai/agents-realtime@0.0.11(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.0.11(ws@8.18.3)(zod@3.25.76)
+      '@openai/zod': zod@3.25.67
+      '@types/ws': 8.18.1
+      debug: 4.4.3
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+      - zod
+
+  '@openai/agents@0.0.11(ws@8.18.3)(zod@3.25.76)':
+    dependencies:
+      '@openai/agents-core': 0.0.11(ws@8.18.3)(zod@3.25.76)
+      '@openai/agents-openai': 0.0.11(ws@8.18.3)(zod@3.25.76)
+      '@openai/agents-realtime': 0.0.11(zod@3.25.76)
+      debug: 4.4.3
+      openai: 5.23.2(ws@8.18.3)(zod@3.25.76)
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+      - ws
+      - zod
+
   '@opentelemetry/api-logs@0.206.0':
     dependencies:
       '@opentelemetry/api': 1.9.0
@@ -8915,6 +9037,10 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@types/uuid@10.0.0': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.19.23
 
   '@typescript-eslint/eslint-plugin@6.21.0(@typescript-eslint/parser@6.21.0(eslint@9.38.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.38.0(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
@@ -10841,6 +10967,11 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  openai@5.23.2(ws@8.18.3)(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 3.25.76
+
   openai@6.7.0(ws@8.18.3)(zod@3.25.76):
     optionalDependencies:
       ws: 8.18.3
@@ -12100,8 +12231,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.18.3:
-    optional: true
+  ws@8.18.3: {}
 
   y18n@5.0.8: {}
 
@@ -12132,5 +12262,7 @@ snapshots:
   zod-to-json-schema@3.24.6(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod@3.25.67: {}
 
   zod@3.25.76: {}
