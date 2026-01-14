@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.28...python-openinference-instrumentation-litellm-v0.1.29) (2026-01-08)
+
+
+### Bug Fixes
+
+* litellm async calls with stream reports token usage and span status ([#2480](https://github.com/Arize-ai/openinference/issues/2480)) ([fce93ef](https://github.com/Arize-ai/openinference/commit/fce93ef2243ffb1c4d539ecd2d9ac8e777912d3d))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-litellm-v0.1.27...python-openinference-instrumentation-litellm-v0.1.28) (2025-11-05)
 
 

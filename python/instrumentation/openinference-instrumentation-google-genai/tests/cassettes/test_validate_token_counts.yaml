@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the sum of the first 50 prime
+      numbers? Generate and run code for the calculation, and make sure you get all
+      50."}], "role": "user"}], "tools": [{"codeExecution": {}}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"To find the sum of the first 50 prime
+        numbers, I will generate a list of prime numbers and then sum the first 50
+        elements of that list.\\n\\nHere's the plan:\\n1.  **Define a function to
+        check for primality:** A number `n` is prime if it is greater than 1 and is
+        not divisible by any number from 2 up to the square root of `n`.\\n2.  **Generate
+        prime numbers:** Start from 2 and check each subsequent integer for primality.
+        Add prime numbers to a list until 50 prime numbers are found.\\n3.  **Calculate
+        the sum:** Sum all the numbers in the list of the first 50 primes.\\n\\n\"\n
+        \         },\n          {\n            \"executableCode\": {\n              \"language\":
+        \"PYTHON\",\n              \"code\": \"import math\\n\\ndef is_prime(num):\\n
+        \   if num \\u003c 2:\\n        return False\\n    for i in range(2, int(math.sqrt(num))
+        + 1):\\n        if num % i == 0:\\n            return False\\n    return True\\n\\nprimes
+        = []\\nnum_to_check = 2\\nwhile len(primes) \\u003c 50:\\n    if is_prime(num_to_check):\\n
+        \       primes.append(num_to_check)\\n    num_to_check += 1\\n\\nsum_of_primes
+        = sum(primes)\\n\\nprint(f\\\"The first 50 prime numbers are: {primes}\\\")\\nprint(f\\\"The
+        count of prime numbers found: {len(primes)}\\\")\\nprint(f\\\"The sum of the
+        first 50 prime numbers is: {sum_of_primes}\\\")\\n\"\n            }\n          },\n
+        \         {\n            \"codeExecutionResult\": {\n              \"outcome\":
+        \"OUTCOME_OK\",\n              \"output\": \"The first 50 prime numbers are:
+        [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+        73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+        157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229]\\nThe
+        count of prime numbers found: 50\\nThe sum of the first 50 prime numbers is:
+        5117\\n\"\n            }\n          },\n          {\n            \"text\":
+        \"The first 50 prime numbers are:\\n[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
+        37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109,
+        113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
+        197, 199, 211, 223, 227, 229]\\n\\nThe sum of the first 50 prime numbers is
+        **5117**.\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n
+        \     \"finishReason\": \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 32,\n    \"candidatesTokenCount\": 587,\n    \"totalTokenCount\":
+        1457,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 32\n      }\n    ],\n    \"toolUsePromptTokenCount\":
+        735,\n    \"toolUsePromptTokensDetails\": [\n      {\n        \"modality\":
+        \"TEXT\",\n        \"tokenCount\": 735\n      }\n    ],\n    \"thoughtsTokenCount\":
+        103\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"responseId\": \"dvpfadTaL5u_juMPw5ic4Qc\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
