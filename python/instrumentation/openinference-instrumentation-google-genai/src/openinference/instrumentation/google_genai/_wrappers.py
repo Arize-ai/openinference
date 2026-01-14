@@ -176,7 +176,7 @@ class _SyncGenerateContent(_WithTracer):
         return response
 
 
-class _SyncCreateInteraction(_WithTracer):
+class _SyncCreateInteractionWrapper(_WithTracer):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -399,6 +399,68 @@ class _AsyncGenerateContentStream(_WithTracer):
                 span.finish_tracing()
                 return response
 
+
+class _AsyncInteractionWrapper(_WithTracer):
+    """
+    Wrapper for the pipeline processing
+    Captures all calls to the pipeline
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_extractor = _RequestAttributesExtractor()
+        self._response_extractor = _ResponseAttributesExtractor()
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        # Prepare invocation parameters by merging args and kwargs
+        invocation_parameters = {}
+        for arg in args:
+            if arg and isinstance(arg, dict):
+                invocation_parameters.update(arg)
+        invocation_parameters.update(kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+
+        span_name = "AsyncGenerateContent"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
+                request_parameters
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=self._response_extractor.get_attributes(response=response),
+                    extra_attributes=self._response_extractor.get_extra_attributes(
+                        response=response, request_parameters=request_parameters
+                    ),
+                )
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+        return response
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
 RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER

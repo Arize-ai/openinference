@@ -23,7 +23,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_async_generate_content",
         "_original_generate_content_stream",
         "_original_async_generate_content_stream",
-        "_original_create_interactions",
+        "_original_create_interactions_resource",
+        "_original_async_create_interactions_resource",
         "_tracer",
     )
 
@@ -44,7 +45,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         try:
             from google.genai.models import AsyncModels, Models
-            from google.genai._interactions.resources import InteractionsResource
+            from google.genai._interactions.resources import InteractionsResource, AsyncInteractionsResource
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
@@ -54,7 +55,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _AsyncGenerateContentWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
-            _SyncCreateInteraction
+            _SyncCreateInteractionWrapper,
+            _AsyncCreateInteractionWrapper
         )
 
         self._original_generate_content = Models.generate_content
@@ -63,11 +65,11 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="Models.generate_content",
             wrapper=_SyncGenerateContent(tracer=self._tracer),
         )
-
+        self._original_create_interactions_resource = InteractionsResource.create
         wrap_function_wrapper(
             module="google.genai._interactions.resources",
             name="InteractionsResource.create",
-            wrapper=_SyncCreateInteraction(tracer=self._tracer),
+            wrapper=_SyncCreateInteractionWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content
@@ -97,9 +99,16 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="AsyncModels.generate_content_stream",
             wrapper=_AsyncGenerateContentStream(tracer=self._tracer),
         )
+        self._original_async_create_interactions_resource = AsyncInteractionsResource.create
+        wrap_function_wrapper(
+            module="google.genai._interactions.resources",
+            name="AsyncInteractionsResource.create",
+            wrapper=_AsyncCreateInteractionWrapper(tracer=self._tracer),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         from google.genai.models import AsyncModels, Models
+        from google.genai._interactions.resources import AsyncInteractionsResource, InteractionsResource
 
         if self._original_generate_content is not None:
             setattr(Models, "generate_content", self._original_generate_content)
@@ -113,4 +122,14 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_async_generate_content_stream is not None:
             setattr(
                 AsyncModels, "generate_content_stream", self._original_async_generate_content_stream
+            )
+
+        if self._original_async_create_interactions_resource is not None:
+            setattr(
+                AsyncInteractionsResource, "create", self._original_async_create_interactions_resource
+            )
+
+        if self._original_create_interactions_resource is not None:
+            setattr(
+                InteractionsResource, "create", self._original_create_interactions_resource
             )

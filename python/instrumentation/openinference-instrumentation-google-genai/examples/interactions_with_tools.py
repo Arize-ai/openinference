@@ -40,11 +40,18 @@ weather_tool = {
 
 
 def run():
+    # interaction = client.interactions.create(
+    #     model="gemini-3-flash-preview",
+    #     input="What is the weather in Paris & New Delhi?",
+    #     tools=[weather_tool]
+    # )
+
     interaction = client.interactions.create(
-        model="gemini-3-flash-preview",
-        input="What is the weather in Paris & New Delhi?",
-        tools=[weather_tool]
+        model="gemini-3-pro-image-preview",
+        input="Generate a 3x3 pixels star image.",
+        response_modalities=["IMAGE"]
     )
+    #
     # for output in interaction.outputs:
     #     if output.type == "function_call":
     #         print(f"Tool Call: {output.name}({output.arguments})")
@@ -63,7 +70,7 @@ def run():
     #                 "result": result
     #             }]
     #         )
-    #         print(f"Response: {interaction.outputs[-1].text}")
+    #         print(interaction.outputs)
 
 
 if __name__ == "__main__":
