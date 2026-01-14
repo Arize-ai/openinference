@@ -260,8 +260,15 @@ def extract_llm_model_name(agent: ConversableAgent) -> Optional[str]:
 
     model_name: Optional[str] = None
 
-    llm_config = getattr(agent, "llm_config", None)
-    if isinstance(llm_config, dict):
+    llm_config: Any = getattr(agent, "llm_config", None)
+    if llm_config is None:
+        return None
+
+    config_list = getattr(llm_config, "config_list", None)
+    if isinstance(config_list, list) and config_list:
+        model_name = config_list[0].get("model")
+
+    if not model_name and isinstance(llm_config, dict):
         if isinstance(llm_config.get("model"), str):
             model_name = llm_config.get("model")
         else:

@@ -62,20 +62,27 @@ async def test_autogen_generate_reply_instrumentation(
     openai_api_key: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_create(self, *args, **kwargs):
-        return {"choices": [{"message": {"role": "assistant", "content": "Hello from Autogen"}}]}
+    def fake_create(self, *args, **kwargs):  # type: ignore[no-untyped-call]
+        return {"fake": True}
 
-    monkeypatch.setattr("autogen.oai.client.OpenAIWrapper.create", fake_create)
+    def fake_extract(self, response):  # type: ignore[no-untyped-call]
+        return [{"role": "assistant", "content": "Hello from Autogen"}]
 
-    from autogen.oai.client import OpenAIWrapper
+    monkeypatch.setattr(
+        "autogen.oai.client.OpenAIWrapper.create",
+        fake_create,
+    )
+    monkeypatch.setattr(
+        "autogen.oai.client.OpenAIWrapper.extract_text_or_completion_object",
+        fake_extract,
+    )
 
     agent = ConversableAgent(
         name="TestAgent",
         llm_config={"model": "gpt-4o"},
-        llm=OpenAIWrapper(model="gpt-4o"),
     )
 
-    await agent.generate_reply(messages=[{"role": "user", "content": "Hello"}])
+    agent.generate_reply(messages=[{"role": "user", "content": "Hello"}])
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert spans, "Expected at least one span"
@@ -87,6 +94,7 @@ async def test_autogen_generate_reply_instrumentation(
 
     assert span.name == "ConversableAgent"
     assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "AGENT"
+    assert attributes.pop("agent.type") == "ConversableAgent"
     assert isinstance(attributes.pop(SpanAttributes.INPUT_VALUE), str)
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
     assert isinstance(attributes.pop(SpanAttributes.OUTPUT_VALUE), str)

@@ -208,12 +208,12 @@ class _PatchWrapper:
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
 
-                        if model_name := extract_llm_model_name(resp, kwargs):
-                            span.set_attribute(LLM_MODEL_NAME, model_name)
-                            if provider := infer_llm_provider_from_model(model_name):
-                                span.set_attribute(LLM_PROVIDER, provider.value)
-                                if system := _PROVIDER_TO_SYSTEM.get(provider.value):
-                                    span.set_attribute(LLM_SYSTEM, system)
+                    if model_name := extract_llm_model_name(resp, kwargs):
+                        span.set_attribute(LLM_MODEL_NAME, model_name)
+                        if provider := infer_llm_provider_from_model(model_name):
+                            span.set_attribute(LLM_PROVIDER, provider.value)
+                            if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                span.set_attribute(LLM_SYSTEM, system)
 
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
