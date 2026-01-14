@@ -63,9 +63,7 @@ async def test_autogen_generate_reply_instrumentation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_create(self, *args, **kwargs):
-        return {
-            "choices": [{"message": {"role": "assistant", "content": "Hello from Autogen"}}]
-        }
+        return {"choices": [{"message": {"role": "assistant", "content": "Hello from Autogen"}}]}
 
     monkeypatch.setattr("autogen.oai.client.OpenAIWrapper.create", fake_create)
 

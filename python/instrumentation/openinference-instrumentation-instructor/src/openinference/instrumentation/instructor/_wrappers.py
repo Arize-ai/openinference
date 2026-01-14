@@ -208,6 +208,13 @@ class _PatchWrapper:
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
 
+                        if model_name := extract_llm_model_name(resp, kwargs):
+                            span.set_attribute(LLM_MODEL_NAME, model_name)
+                            if provider := infer_llm_provider_from_model(model_name):
+                                span.set_attribute(LLM_PROVIDER, provider.value)
+                                if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                    span.set_attribute(LLM_SYSTEM, system)
+
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
@@ -242,6 +249,13 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+
+                        if model_name := extract_llm_model_name(resp, kwargs):
+                            span.set_attribute(LLM_MODEL_NAME, model_name)
+                            if provider := infer_llm_provider_from_model(model_name):
+                                span.set_attribute(LLM_PROVIDER, provider.value)
+                                if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                                    span.set_attribute(LLM_SYSTEM, system)
 
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
@@ -306,7 +320,7 @@ class _HandleResponseWrapper:
                 elif response_model is None:
                     span.set_attribute(OUTPUT_VALUE, json.dumps(response[1]))
 
-                if model_name := extract_llm_model_name(response):
+                if model_name := extract_llm_model_name(response, kwargs):
                     span.set_attribute(LLM_MODEL_NAME, model_name)
                     if provider := infer_llm_provider_from_model(model_name):
                         span.set_attribute(LLM_PROVIDER, provider.value)
@@ -322,7 +336,7 @@ class _HandleResponseWrapper:
         return response
 
 
-def extract_llm_model_name(response: Any) -> Optional[str]:
+def extract_llm_model_name(response: Any, kwargs: Mapping[str, Any]) -> Optional[str]:
     """Extract the LLM model name from an object when available."""
     if response is None:
         return None
@@ -335,6 +349,9 @@ def extract_llm_model_name(response: Any) -> Optional[str]:
             model_name = raw.get("model")
         else:
             model_name = getattr(raw, "model", None)
+
+    if not model_name:
+        model_name = kwargs.get("model")
 
     if isinstance(model_name, str) and model_name:
         return model_name
