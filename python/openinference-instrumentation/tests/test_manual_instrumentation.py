@@ -2890,7 +2890,7 @@ def test_infer_llm_provider_and_system_known_models(
     model_name: str,
     expected_provider: OpenInferenceLLMProviderValues,
     expected_system: Optional[OpenInferenceLLMSystemValues],
-):
+) -> None:
     """Test that known models map to correct provider and system."""
     result = infer_llm_provider_and_system(model_name)
 
@@ -2911,7 +2911,7 @@ def test_infer_llm_provider_and_system_known_models(
         "falcon-40b",
     ],
 )
-def test_infer_llm_provider_and_system_unknown_models(model_name: Optional[str]):
+def test_infer_llm_provider_and_system_unknown_models(model_name: Optional[str]) -> None:
     """Test that unknown or empty model names return None."""
     assert infer_llm_provider_and_system(model_name) is None
 
@@ -2950,7 +2950,7 @@ def test_infer_llm_provider_and_system_case_insensitive(
     model_name: str,
     expected_provider: OpenInferenceLLMProviderValues,
     expected_system: Optional[OpenInferenceLLMSystemValues],
-):
+) -> None:
     """Test that provider and system detection is case-insensitive."""
     result = infer_llm_provider_and_system(model_name)
 
@@ -2971,7 +2971,7 @@ def test_infer_llm_provider_and_system_case_insensitive(
 )
 def test_pattern_specificity_order(
     model_name: str, expected_provider: OpenInferenceLLMProviderValues
-):
+) -> None:
     """Test that more specific patterns are matched before general ones."""
     result = infer_llm_provider_and_system(model_name)
 
@@ -2979,7 +2979,7 @@ def test_pattern_specificity_order(
     assert result.provider == expected_provider
 
 
-def test_google_anthropic_vertex_special_case():
+def test_google_anthropic_vertex_special_case() -> None:
     """Test that Google Anthropic Vertex returns Google provider with Anthropic system."""
     result = infer_llm_provider_and_system("google_anthropic_vertex-claude-3-opus")
 
@@ -2988,7 +2988,7 @@ def test_google_anthropic_vertex_special_case():
     assert result.system == OpenInferenceLLMSystemValues.ANTHROPIC
 
 
-def test_aws_bedrock_has_no_system():
+def test_aws_bedrock_has_no_system() -> None:
     """Test that AWS Bedrock models have no associated system."""
     result = infer_llm_provider_and_system("bedrock/meta.llama3")
 
