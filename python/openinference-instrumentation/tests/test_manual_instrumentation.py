@@ -45,6 +45,7 @@ from openinference.instrumentation import (
     ToolCall,
     ToolCallFunction,
     get_llm_attributes,
+    infer_llm_provider_and_system,
     suppress_tracing,
     using_session,
 )
@@ -53,6 +54,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -2690,6 +2693,308 @@ def test_infer_tool_parameters() -> None:
         expected_schema
     )  # check that the expected schema is valid
     assert schema == expected_schema
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_provider, expected_system",
+    [
+        # OpenAI
+        ("gpt-4o", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        ("gpt-4-turbo", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        (
+            "gpt-3.5-turbo",
+            OpenInferenceLLMProviderValues.OPENAI,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+        ("gpt.4", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        ("o1-preview", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        ("o1-mini", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        ("o3-mini", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        (
+            "text-embedding-ada-002",
+            OpenInferenceLLMProviderValues.OPENAI,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+        ("davinci-002", OpenInferenceLLMProviderValues.OPENAI, OpenInferenceLLMSystemValues.OPENAI),
+        # Anthropic
+        (
+            "claude-3-opus-20240229",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "claude-3-sonnet-20240229",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "claude-3-haiku-20240307",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "claude-2.1",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "anthropic.claude-v2",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "anthropic.claude-3-sonnet-20240229-v1:0",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "anthropic/claude-3-opus",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        # Google
+        (
+            "gemini-1.5-pro",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "gemini-1.5-flash",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "gemini-pro",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "google_vertexai/gemini-pro",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "google_genai/gemini-1.5-flash",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "vertexai/gemini-pro",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "vertex_ai-gemini-pro",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        # Google Anthropic Vertex
+        (
+            "google_anthropic_vertex-claude-3-sonnet",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        # AWS Bedrock
+        ("bedrock/anthropic.claude-v2", OpenInferenceLLMProviderValues.AWS, None),
+        ("bedrock_converse/meta.llama3-70b", OpenInferenceLLMProviderValues.AWS, None),
+        ("bedrock-runtime", OpenInferenceLLMProviderValues.AWS, None),
+        # Mistral
+        (
+            "mistral-large-latest",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "mistral-medium",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "mistral-small",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "mixtral-8x7b-instruct",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "mixtral-8x22b",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "mistralai/mistral-large",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "pixtral-12b",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        # Cohere
+        (
+            "command-r-plus",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+        ("command-r", OpenInferenceLLMProviderValues.COHERE, OpenInferenceLLMSystemValues.COHERE),
+        (
+            "command-light",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+        (
+            "command-nightly",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+        (
+            "cohere.command-text-v14",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+        (
+            "cohere.command-r-plus-v1:0",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+        # xAI
+        ("grok-beta", OpenInferenceLLMProviderValues.XAI, None),
+        ("grok-1", OpenInferenceLLMProviderValues.XAI, None),
+        ("xai/grok", OpenInferenceLLMProviderValues.XAI, None),
+        # DeepSeek
+        ("deepseek-chat", OpenInferenceLLMProviderValues.DEEPSEEK, None),
+        ("deepseek-coder", OpenInferenceLLMProviderValues.DEEPSEEK, None),
+        # Azure OpenAI
+        (
+            "azure_openai/gpt-4",
+            OpenInferenceLLMProviderValues.AZURE,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+        (
+            "azure_ai/gpt-35-turbo",
+            OpenInferenceLLMProviderValues.AZURE,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+        (
+            "azure/my-deployment",
+            OpenInferenceLLMProviderValues.AZURE,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+    ],
+)
+def test_infer_llm_provider_and_system_known_models(
+    model_name: str,
+    expected_provider: OpenInferenceLLMProviderValues,
+    expected_system: Optional[OpenInferenceLLMSystemValues],
+):
+    """Test that known models map to correct provider and system."""
+    result = infer_llm_provider_and_system(model_name)
+
+    assert result is not None, f"Expected result for {model_name}, got None"
+    assert result.provider == expected_provider, f"Provider mismatch for {model_name}"
+    assert result.system == expected_system, f"System mismatch for {model_name}"
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        None,
+        "",
+        "unknown-model-v1",
+        "custom-llm",
+        "my-fine-tuned-model",
+        "llama-2-70b",
+        "falcon-40b",
+    ],
+)
+def test_infer_llm_provider_and_system_unknown_models(model_name: Optional[str]):
+    """Test that unknown or empty model names return None."""
+    assert infer_llm_provider_and_system(model_name) is None
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_provider, expected_system",
+    [
+        (
+            "GPT-4O",
+            OpenInferenceLLMProviderValues.OPENAI,
+            OpenInferenceLLMSystemValues.OPENAI,
+        ),
+        (
+            "ClAuDe-3-OpUs",
+            OpenInferenceLLMProviderValues.ANTHROPIC,
+            OpenInferenceLLMSystemValues.ANTHROPIC,
+        ),
+        (
+            "GEMINI-PRO",
+            OpenInferenceLLMProviderValues.GOOGLE,
+            OpenInferenceLLMSystemValues.VERTEXAI,
+        ),
+        (
+            "MiStRaL-LarGe",
+            OpenInferenceLLMProviderValues.MISTRALAI,
+            OpenInferenceLLMSystemValues.MISTRALAI,
+        ),
+        (
+            "COMMAND-R-PLUS",
+            OpenInferenceLLMProviderValues.COHERE,
+            OpenInferenceLLMSystemValues.COHERE,
+        ),
+    ],
+)
+def test_infer_llm_provider_and_system_case_insensitive(
+    model_name: str,
+    expected_provider: OpenInferenceLLMProviderValues,
+    expected_system: Optional[OpenInferenceLLMSystemValues],
+):
+    """Test that provider and system detection is case-insensitive."""
+    result = infer_llm_provider_and_system(model_name)
+
+    assert result is not None
+    assert result.provider == expected_provider
+    assert result.system == expected_system
+
+
+@pytest.mark.parametrize(
+    "model_name, expected_provider",
+    [
+        ("google_anthropic_vertex-model", OpenInferenceLLMProviderValues.GOOGLE),
+        ("google_vertexai/model", OpenInferenceLLMProviderValues.GOOGLE),
+        ("anthropic.claude-v2", OpenInferenceLLMProviderValues.ANTHROPIC),
+        ("bedrock_converse/model", OpenInferenceLLMProviderValues.AWS),
+        ("cohere.command-r", OpenInferenceLLMProviderValues.COHERE),
+    ],
+)
+def test_pattern_specificity_order(
+    model_name: str, expected_provider: OpenInferenceLLMProviderValues
+):
+    """Test that more specific patterns are matched before general ones."""
+    result = infer_llm_provider_and_system(model_name)
+
+    assert result is not None
+    assert result.provider == expected_provider
+
+
+def test_google_anthropic_vertex_special_case():
+    """Test that Google Anthropic Vertex returns Google provider with Anthropic system."""
+    result = infer_llm_provider_and_system("google_anthropic_vertex-claude-3-opus")
+
+    assert result is not None
+    assert result.provider == OpenInferenceLLMProviderValues.GOOGLE
+    assert result.system == OpenInferenceLLMSystemValues.ANTHROPIC
+
+
+def test_aws_bedrock_has_no_system():
+    """Test that AWS Bedrock models have no associated system."""
+    result = infer_llm_provider_and_system("bedrock/meta.llama3")
+
+    assert result is not None
+    assert result.provider == OpenInferenceLLMProviderValues.AWS
+    assert result.system is None
 
 
 # Image attributes

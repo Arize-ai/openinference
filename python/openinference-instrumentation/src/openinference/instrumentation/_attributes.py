@@ -11,6 +11,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Tuple,
     Union,
@@ -56,6 +57,121 @@ except ImportError:
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
+
+
+class ProviderSystemInfo(NamedTuple):
+    """Information about an inferred LLM provider and system."""
+
+    provider: OpenInferenceLLMProviderValues
+    system: Optional[OpenInferenceLLMSystemValues]
+
+
+class ProviderSystemConfig(NamedTuple):
+    """Configuration for LLM provider and system identification."""
+
+    patterns: Tuple[str, ...]
+    provider: OpenInferenceLLMProviderValues
+    system: Optional[OpenInferenceLLMSystemValues]
+
+
+# Centralized Provider/System Configurations
+PROVIDER_SYSTEM_CONFIGS: Tuple[ProviderSystemConfig, ...] = (
+    # OpenAI
+    ProviderSystemConfig(
+        patterns=(
+            "gpt-",
+            "gpt.",
+            "o1",
+            "o3",
+            "o4",
+            "text-embedding",
+            "davinci",
+            "curie",
+            "babbage",
+            "ada",
+        ),
+        provider=OpenInferenceLLMProviderValues.OPENAI,
+        system=OpenInferenceLLMSystemValues.OPENAI,
+    ),
+    # Anthropic
+    ProviderSystemConfig(
+        patterns=("anthropic.claude", "anthropic/", "claude-"),
+        provider=OpenInferenceLLMProviderValues.ANTHROPIC,
+        system=OpenInferenceLLMSystemValues.ANTHROPIC,
+    ),
+    # Google Anthropic Vertex
+    ProviderSystemConfig(
+        patterns=("google_anthropic_vertex",),
+        provider=OpenInferenceLLMProviderValues.GOOGLE,
+        system=OpenInferenceLLMSystemValues.ANTHROPIC,
+    ),
+    # Google / Vertex / Gemini
+    ProviderSystemConfig(
+        patterns=(
+            "google_vertexai",
+            "google_genai",
+            "vertexai",
+            "vertex_ai",
+            "vertex",
+            "gemini",
+            "google",
+        ),
+        provider=OpenInferenceLLMProviderValues.GOOGLE,
+        system=OpenInferenceLLMSystemValues.VERTEXAI,
+    ),
+    # AWS Bedrock
+    ProviderSystemConfig(
+        patterns=("bedrock_converse", "bedrock"),
+        provider=OpenInferenceLLMProviderValues.AWS,
+        system=None,
+    ),
+    # Mistral
+    ProviderSystemConfig(
+        patterns=("mistralai", "mixtral", "mistral", "pixtral"),
+        provider=OpenInferenceLLMProviderValues.MISTRALAI,
+        system=OpenInferenceLLMSystemValues.MISTRALAI,
+    ),
+    # Cohere
+    ProviderSystemConfig(
+        patterns=("cohere.command", "command", "cohere"),
+        provider=OpenInferenceLLMProviderValues.COHERE,
+        system=OpenInferenceLLMSystemValues.COHERE,
+    ),
+    # xAI
+    ProviderSystemConfig(
+        patterns=("grok", "xai"),
+        provider=OpenInferenceLLMProviderValues.XAI,
+        system=None,
+    ),
+    # DeepSeek
+    ProviderSystemConfig(
+        patterns=("deepseek",),
+        provider=OpenInferenceLLMProviderValues.DEEPSEEK,
+        system=None,
+    ),
+    # Azure OpenAI
+    ProviderSystemConfig(
+        patterns=("azure_openai", "azure_ai", "azure"),
+        provider=OpenInferenceLLMProviderValues.AZURE,
+        system=OpenInferenceLLMSystemValues.OPENAI,
+    ),
+)
+
+
+def infer_llm_provider_and_system(
+    model_name: Optional[str] = None,
+) -> Optional[ProviderSystemInfo]:
+    """Infer LLM provider and system from model identifier."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    for config in PROVIDER_SYSTEM_CONFIGS:
+        if any(model.startswith(pattern) for pattern in config.patterns):
+            return ProviderSystemInfo(provider=config.provider, system=config.system)
+
+    return None
 
 
 def get_reranker_attributes(
