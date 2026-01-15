@@ -20,6 +20,27 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 # Make sure to set the GEMINI_API_KEY environment variable
 
 
+async def run():
+    client = genai.Client().aio
+
+    initial_interaction = await client.interactions.create(
+        input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
+
+    )
+    while True:
+        interaction = await client.interactions.get(initial_interaction.id)
+        print(f"Status: {interaction.status}")
+
+        if interaction.status == "completed":
+            print("\nFinal Report:\n", interaction.outputs[-1].text)
+            break
+        elif interaction.status in ["failed", "cancelled"]:
+            print(f"Failed with status: {interaction.status}")
+            break
+        import time
+        time.sleep(10)
+
+
 if __name__ == "__main__":
     client = genai.Client()
 
