@@ -34,7 +34,7 @@ MOCK_COMPLETION = ChatCompletion(
         )
     ],
     created=1722531851,
-    model="fake_model",
+    model="gpt-4o-mini",
     object="chat.completion",
     system_fingerprint="fp0",
     usage=CompletionUsage(
@@ -196,7 +196,7 @@ def test_groq_instrumentation(
                     "content": "Explain the importance of low latency LLMs",
                 }
             ],
-            model="fake_model",
+            model="gpt-4o-mini",
         )
     spans = in_memory_span_exporter.get_finished_spans()
 
@@ -226,6 +226,8 @@ def test_groq_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
 
 
 def test_groq_async_instrumentation(
@@ -251,7 +253,7 @@ def test_groq_async_instrumentation(
                     "content": "Explain the importance of low latency LLMs",
                 }
             ],
-            model="fake_model",
+            model="gpt-4o-mini",
         )
 
     with using_attributes(
@@ -294,6 +296,8 @@ def test_groq_async_instrumentation(
         attributes[f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "idk, sorry!"
     )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME, None) == "gpt-4o-mini"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER, None) == "openai"
 
 
 def test_groq_uninstrumentation(

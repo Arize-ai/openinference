@@ -12,6 +12,8 @@ import openinference.instrumentation as oi
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -460,7 +462,14 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_PROMPT, input_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
-            span.set_attribute(LLM_MODEL_NAME, model.model_id)
+
+            if model_name := model.model_id:
+                span.set_attribute(LLM_MODEL_NAME, model_name)
+                if provider := infer_llm_provider_from_model(model_name):
+                    span.set_attribute(LLM_PROVIDER, provider.value)
+                    if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                        span.set_attribute(LLM_SYSTEM, system)
+
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -536,12 +545,96 @@ def _has_active_llm_parent_span() -> bool:
     )
 
 
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}
+
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

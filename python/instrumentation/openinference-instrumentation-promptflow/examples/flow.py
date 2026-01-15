@@ -1,8 +1,15 @@
 import os
 from pathlib import Path
 
+from opentelemetry import trace as trace_api
 from promptflow.core import AzureOpenAIModelConfiguration, Prompty
 from promptflow.tracing import trace
+
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    SpanAttributes,
+)
 
 BASE_DIR = Path(__file__).absolute().parent
 
@@ -25,6 +32,12 @@ class ChatFlow:
         chat_history: list = None,
     ) -> str:
         """Flow entry function."""
+
+        span = trace_api.get_current_span()
+        if span.is_recording():
+            span.set_attribute(SpanAttributes.LLM_MODEL_NAME, self.model_config.azure_deployment)
+            span.set_attribute(SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value)
+            span.set_attribute(SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
         prompty = Prompty.load(
             source=BASE_DIR / "chat.prompty",

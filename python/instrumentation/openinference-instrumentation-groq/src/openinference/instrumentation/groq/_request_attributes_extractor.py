@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Any, Iterable, Iterator, Mapping, Tuple, TypeVar
+from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple, TypeVar
 
 from opentelemetry.util.types import AttributeValue
 
@@ -8,6 +8,8 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.groq._utils import _as_input_attributes, _io_value_and_type
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -43,6 +45,14 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if not isinstance(request_parameters, Mapping):
             return
+
+        if model_name := request_parameters.get("model"):
+            yield SpanAttributes.LLM_MODEL_NAME, model_name
+            if provider := infer_llm_provider_from_model(model_name):
+                yield SpanAttributes.LLM_PROVIDER, provider.value
+                if system := _PROVIDER_TO_SYSTEM.get(provider.value):
+                    yield SpanAttributes.LLM_SYSTEM, system
+
         invocation_params = dict(request_parameters)
         invocation_params.pop("messages", None)  # Remove LLM input messages
         invocation_params.pop("functions", None)
@@ -129,3 +139,86 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+
+def infer_llm_provider_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    # OpenAI
+    if model.startswith(("gpt-", "gpt.", "o1", "o3", "o4")):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    # Anthropic
+    if model.startswith(("anthropic/", "claude-", "anthropic.claude")):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    # Google / Vertex / Gemini
+    if model.startswith(
+        (
+            "gemini",
+            "google",
+            "vertex",
+            "vertexai",
+            "google_genai",
+            "google_vertexai",
+            "google_anthropic_vertex",
+        )
+    ):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    # AWS Bedrock
+    if model.startswith(("bedrock", "bedrock_converse")):
+        return OpenInferenceLLMProviderValues.AWS
+
+    # Mistral
+    if model.startswith(("mistral", "mixtral", "mistralai")):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    # Cohere
+    if model.startswith(("command", "cohere", "cohere.command")):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    # xAI
+    if model.startswith(("grok", "xai")):
+        return OpenInferenceLLMProviderValues.XAI
+
+    # DeepSeek
+    if model.startswith("deepseek"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+_NA = None
+_PROVIDER_TO_SYSTEM = {
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_ai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure_openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "bedrock": _NA,
+    "bedrock_converse": _NA,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "deepseek": _NA,
+    "fireworks": _NA,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "google_genai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google_vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "groq": OpenInferenceLLMSystemValues.OPENAI.value,
+    "huggingface": _NA,
+    "ibm": _NA,
+    "mistralai": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "ollama": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "perplexity": _NA,
+    "together": _NA,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertexai": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "xai": _NA,
+}
