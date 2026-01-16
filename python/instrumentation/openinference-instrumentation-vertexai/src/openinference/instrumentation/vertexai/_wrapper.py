@@ -45,6 +45,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -317,6 +319,9 @@ def _update_span(obj: Any, span: Span) -> None: ...
 @_update_span.register(v1beta1.GenerateContentRequest)
 def _(req: GenerateContentRequest, span: Span) -> None:
     span.set_attribute(LLM_MODEL_NAME, req.model)
+    span.set_attribute(LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value)
+    if system := infer_llm_system_from_model(req.model):
+        span.set_attribute(LLM_SYSTEM, system.value)
     span.set_attribute(
         LLM_INVOCATION_PARAMETERS,
         safe_json_dumps(
@@ -498,6 +503,51 @@ def _role(role: str) -> str:
     return role
 
 
+def infer_llm_system_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMSystemValues]:
+    """Infer the LLM system from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(
+        (
+            "gpt-",
+            "gpt.",
+            "o1",
+            "o3",
+            "o4",
+            "text-embedding",
+            "davinci",
+            "curie",
+            "babbage",
+            "ada",
+            "azure_openai",
+            "azure_ai",
+            "azure",
+        )
+    ):
+        return OpenInferenceLLMSystemValues.OPENAI
+
+    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+        return OpenInferenceLLMSystemValues.ANTHROPIC
+
+    if model.startswith(("cohere.command", "command", "cohere")):
+        return OpenInferenceLLMSystemValues.COHERE
+
+    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+        return OpenInferenceLLMSystemValues.MISTRALAI
+
+    if model.startswith(
+        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
+    ):
+        return OpenInferenceLLMSystemValues.VERTEXAI
+
+    return None
+
+
 IMAGE_URL = ImageAttributes.IMAGE_URL
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
@@ -506,6 +556,8 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
