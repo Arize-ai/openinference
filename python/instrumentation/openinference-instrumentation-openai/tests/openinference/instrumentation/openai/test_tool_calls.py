@@ -7,7 +7,10 @@ from typing import Tuple, cast
 
 import pytest
 from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
 @pytest.mark.vcr(
@@ -103,7 +106,7 @@ def test_tool_calls(
             },
         ],
     )
-    spans = in_memory_span_exporter.get_finished_spans()
+    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
     assert len(spans) == 1
     span = spans[0]
     attributes = dict(span.attributes or {})
@@ -200,7 +203,7 @@ def test_cached_tokens(
             },
         ],
     )
-    spans = in_memory_span_exporter.get_finished_spans()
+    spans = get_openai_llm_spans(in_memory_span_exporter.get_finished_spans())
     assert len(spans) == 2
     span = spans[1]
     attributes = dict(span.attributes or {})
@@ -209,3 +212,17 @@ def test_cached_tokens(
 
 def _openai_version() -> Tuple[int, int, int]:
     return cast(Tuple[int, int, int], tuple(map(int, version("openai").split(".")[:3])))
+
+
+def get_openai_llm_spans(spans: Tuple[ReadableSpan, ...]) -> Tuple[ReadableSpan, ...]:
+    """Filter spans to only the primary OpenAI LLM response spans to avoid extra internal spans."""
+    llm_spans = [
+        span
+        for span in spans
+        if span.attributes
+        and span.attributes.get(SpanAttributes.LLM_PROVIDER)
+        == OpenInferenceLLMProviderValues.OPENAI.value
+    ]
+    if not llm_spans:
+        raise ValueError("No OpenAI LLM spans found in spans.")
+    return tuple(llm_spans)

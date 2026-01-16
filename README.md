@@ -59,6 +59,7 @@ languages.
 | [`openinference-instrumentation-autogen-agentchat`](./python/instrumentation/openinference-instrumentation-autogen-agentchat) | OpenInference Instrumentation for Microsoft Autogen AgentChat.                   | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-autogen-agentchat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-autogen-agentchat) |
 | [`openinference-instrumentation-pydantic-ai`](./python/instrumentation/openinference-instrumentation-pydantic-ai)             | OpenInference Instrumentation for PydanticAI.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pydantic-ai.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pydantic-ai)             |
 | [`openinference-instrumentation-smolagents`](./python/instrumentation/openinference-instrumentation-smolagents)               | OpenInference Instrumentation for smolagents.                                    | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-smolagents.svg)](https://pypi.python.org/pypi/openinference-instrumentation-smolagents)               |
+| [`openinference-instrumentation-pipecat`](./python/instrumentation/openinference-instrumentation-pipecat)                     | OpenInference Instrumentation for Pipecat.                                       | [![PyPI Version](https://img.shields.io/pypi/v/openinference-instrumentation-pipecat.svg)](https://pypi.python.org/pypi/openinference-instrumentation-pipecat)                     |
 
 ## Span Processors
 
@@ -93,6 +94,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [OpenAI Agents](python/instrumentation/openinference-instrumentation-openai-agents/examples/)         | OpenAI Agents with handoffs                                                                  | Intermediate     |
 | [Autogen AgentChat](python/instrumentation/openinference-instrumentation-autogen-agentchat/examples/) | Microsoft Autogen Assistant Agent and Team Chat                                              | Intermediate     |
 | [PydanticAI](python/instrumentation/openinference-instrumentation-pydantic-ai/examples/)              | PydanticAI agent examples                                                                    | Intermediate     |
+| [Pipecat](python/instrumentation/openinference-instrumentation-pipecat/examples/)                     | Pipecat application examples                                                                 | Intermediate     |
 
 ## JavaScript
 
@@ -152,18 +154,17 @@ Normalize and convert data across other instrumentation libraries by adding span
 
 OpenInference supports the following destinations as span collectors.
 
--   ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
--   ✅ [Arize AX](https://arize.com/)
--   ✅ Any OTEL-compatible collector
+- ✅ [Arize Phoenix](https://github.com/Arize-ai/phoenix)
+- ✅ [Arize AX](https://arize.com/)
+- ✅ Any OTEL-compatible collector
 
 ## Community
 
 Join our community to connect with thousands of machine learning practitioners and LLM observability enthusiasts!
 
--   🌍 Join
-    our [Slack community](https://arize-ai.slack.com/join/shared_invite/zt-11t1vbu4x-xkBIHmOREQnYnYDH1GDfCg?__hstc=259489365.a667dfafcfa0169c8aee4178d115dc81.1733501603539.1733501603539.1733501603539.1&__hssc=259489365.1.1733501603539&__hsfp=3822854628&submissionGuid=381a0676-8f38-437b-96f2-fc10875658df#/shared-invite/email).
--   💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
--   🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
--   🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
--   𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
--   🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.
+- 🌍 Join our [Slack community](https://join.slack.com/t/arize-ai/shared_invite/zt-3lqwr2oc3-7rhdyYEh82zJL_UhPKrb0A).
+- 💡 Ask questions and provide feedback in the _#phoenix-support_ channel.
+- 🌟 Leave a star on our [GitHub](https://github.com/Arize-ai/openinference).
+- 🐞 Report bugs with [GitHub Issues](https://github.com/Arize-ai/openinference/issues).
+- 𝕏 Follow us on [X](https://twitter.com/ArizePhoenix).
+- 🗺️ Check out our [roadmap](https://github.com/orgs/Arize-ai/projects/45) to see where we're heading next.

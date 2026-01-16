@@ -8,16 +8,16 @@ from openinference.semconv.trace import OpenInferenceLLMProviderValues, OpenInfe
 
 
 def test_provider_map() -> None:
-    assert set(_LANGCHAIN_PROVIDER_MAP) >= _SUPPORTED_PROVIDERS
+    assert set(_LANGCHAIN_PROVIDER_MAP.keys()).issuperset(_SUPPORTED_PROVIDERS.keys())
 
     known_values = [v.value for v in OpenInferenceLLMProviderValues]
-    for k, v in _LANGCHAIN_PROVIDER_MAP.items():
-        assert v in known_values or v == k
+    for provider, mapped_value in _LANGCHAIN_PROVIDER_MAP.items():
+        assert mapped_value in known_values or mapped_value == provider
 
 
 def test_system_map() -> None:
-    assert set(_PROVIDER_TO_SYSTEM) >= _SUPPORTED_PROVIDERS
+    assert set(_PROVIDER_TO_SYSTEM.keys()).issuperset(_SUPPORTED_PROVIDERS.keys())
 
     known_values = [v.value for v in OpenInferenceLLMSystemValues]
-    for k, v in _PROVIDER_TO_SYSTEM.items():
-        assert not v or v in known_values
+    for provider, system in _PROVIDER_TO_SYSTEM.items():
+        assert not system or system in known_values
