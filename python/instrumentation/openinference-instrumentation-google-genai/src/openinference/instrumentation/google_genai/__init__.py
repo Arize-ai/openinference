@@ -57,8 +57,6 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _SyncGenerateContentStream,
             _SyncCreateInteractionWrapper,
             _AsyncCreateInteractionWrapper,
-            _SyncCreateInteractionStreamWrapper,
-            _AsyncCreateInteractionStreamWrapper,
         )
 
         self._original_generate_content = Models.generate_content
@@ -106,19 +104,6 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="google.genai._interactions.resources",
             name="AsyncInteractionsResource.create",
             wrapper=_AsyncCreateInteractionWrapper(tracer=self._tracer),
-        )
-        self._original_generate_content_stream = Models.generate_content_stream
-        wrap_function_wrapper(
-            module="google.genai._interactions.resources",
-            name="InteractionsResource.create",
-            wrapper=_SyncCreateInteractionStreamWrapper(tracer=self._tracer),
-        )
-
-        self._original_async_generate_content_stream = AsyncModels.generate_content_stream
-        wrap_function_wrapper(
-            module="google.genai._interactions.resources",
-            name="AsyncInteractionsResource.create",
-            wrapper=_AsyncCreateInteractionStreamWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

@@ -19,6 +19,7 @@ from openinference.instrumentation.google_genai._response_attributes_extractor i
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.google_genai._stream import _Stream
+from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._utils import _finish_tracing
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.semconv.trace import (
@@ -207,6 +208,11 @@ class _SyncCreateInteractionWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
+                if request_parameters.get("stream", False):
+                    return _InteractionsStream(
+                        stream=response,
+                        with_span=span,
+                    )
                 span.set_attributes(get_attributes_from_response(response))
                 status  = trace_api.Status(
                     status_code=trace_api.StatusCode.OK
@@ -426,6 +432,11 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
+                if request_parameters.get("stream", False):
+                    return _InteractionsStream(
+                        stream=response,
+                        with_span=span,
+                    )
                 span.set_attributes(get_attributes_from_response(response))
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.OK
@@ -440,91 +451,6 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
                 span.finish_tracing(status=status)
                 raise
         return response
-
-
-class _SyncCreateInteractionStreamWrapper(_WithTracer):
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        span_name = "InteractionsResource.create"
-        with self._start_as_current_span(
-                span_name=span_name,
-                attributes=get_attributes_from_request(request_parameters),
-                context_attributes=get_attributes_from_context(),
-                extra_attributes={}
-        ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                status = trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=f"{type(exception).__name__}: {exception}",
-                )
-                span.finish_tracing(status=status)
-                raise
-            try:
-                return _Stream(
-                    stream=response,
-                    with_span=span,
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
-                return response
-
-
-class _AsyncCreateInteractionStreamWrapper(_WithTracer):
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._request_extractor = _RequestAttributesExtractor()
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-        span_name = "AsyncGenerateContentStream.create"
-        with self._start_as_current_span(
-                span_name=span_name,
-                attributes=get_attributes_from_request(request_parameters),
-                context_attributes=get_attributes_from_context(),
-                extra_attributes={}
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                status = trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=f"{type(exception).__name__}: {exception}",
-                )
-                span.finish_tracing(status=status)
-                raise
-            try:
-                return _Stream(
-                    stream=response,
-                    with_span=span,
-                )
-            except Exception:
-                logger.exception(f"Failed to finalize response of type {type(response)}")
-                span.finish_tracing()
-                return response
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN

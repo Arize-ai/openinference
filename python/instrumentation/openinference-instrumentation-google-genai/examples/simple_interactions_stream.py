@@ -23,13 +23,19 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 if __name__ == "__main__":
     client = genai.Client()
 
-    interaction = client.interactions.create(
+    stream = client.interactions.create(
         model="gemini-3-flash-preview",
-        input="Tell me a short joke about programming.",
-        generation_config={
-            "temperature": 0.7,
-            "max_output_tokens": 500,
-            "thinking_level": "low",
-        }
+        input="Explain quantum entanglement in simple terms.",
+        stream=True
     )
-    print(interaction)
+
+    for chunk in stream:
+        print("@@@@@@@@@@@@@@@@@@@@@", chunk)
+        # if chunk.event_type == "content.delta":
+        #     if chunk.delta.type == "text":
+        #         print(chunk.delta.text, end="", flush=True)
+        #     elif chunk.delta.type == "thought":
+        #         print(chunk.delta.thought, end="", flush=True)
+        # elif chunk.event_type == "interaction.complete":
+        #     print(f"\n\n--- Stream Finished ---")
+        #     print(f"Total Tokens: {chunk.interaction.usage.total_tokens}")
