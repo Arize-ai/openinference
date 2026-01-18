@@ -44,6 +44,7 @@ test = [
   "vcrpy>=5.0.0,<8.0.0",
   "beeai-framework[duckduckgo]",
   "pytest-asyncio",
+  "pydantic>=2.13",
   "pytest",
 ]
 
