@@ -84,9 +84,10 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
-    BeeAIInstrumentor().instrument(tracer_provider=tracer_provider)
+    instrumentor = BeeAIInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider)
     yield
-    BeeAIInstrumentor().uninstrument()
+    instrumentor.uninstrument()
     in_memory_span_exporter.clear()
 
 
