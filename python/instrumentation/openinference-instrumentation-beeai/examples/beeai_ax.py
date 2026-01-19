@@ -35,7 +35,7 @@ BeeAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 async def main() -> None:
     knowledge_agent = RequirementAgent(
-        llm=OpenAIChatModel(model="gpt-4o-mini"),
+        llm=OpenAIChatModel(model_id="gpt-4o-mini"),
         # llm=ChatModel.from_name("ollama:granite3.3:8b"),
         tools=[ThinkTool(), WikipediaTool()],
         requirements=[ConditionalRequirement(ThinkTool, force_at_step=1)],
@@ -44,7 +44,7 @@ async def main() -> None:
     )
 
     weather_agent = RequirementAgent(
-        llm=OpenAIChatModel(model="gpt-4o-mini"),
+        llm=OpenAIChatModel(model_id="gpt-4o-mini"),
         tools=[OpenMeteoTool()],
         role="Weather Specialist",
         instructions="Provide weather forecast for a given destination.",
@@ -52,7 +52,7 @@ async def main() -> None:
 
     main_agent = RequirementAgent(
         name="MainAgent",
-        llm=OpenAIChatModel(model="gpt-4o-mini"),
+        llm=OpenAIChatModel(model_id="gpt-4o-mini"),
         # llm=ChatModel.from_name("ollama:granite3.3:8b"),
         tools=[
             ThinkTool(),
