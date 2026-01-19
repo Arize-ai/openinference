@@ -54,6 +54,7 @@ def get_message_objects(inputs):
         # if the input is a simple string, treat it as a user message
         messages.append(Message(role="user", content=inputs))
     if isinstance(inputs, list):
+        contents = []
         for message in inputs:
             if isinstance(message, dict):
                 if message.get("type") == "function_result":
@@ -62,6 +63,10 @@ def get_message_objects(inputs):
                         content=message.get("result", ""),
                         tool_call_id=message.get("call_id")
                     ))
+                elif message.get("type") == "text":
+                    contents.append(TextMessageContent(text=message.get("text"), type="text"))
+                elif message.get("type") == "image":
+                    contents.append(ImageMessageContent(image=Image(url=message.get("uri")), type="image"))
                 elif isinstance(message.get("content"), str):
                     messages.append(Message(
                         role=message.get("role", "user"),
@@ -69,6 +74,8 @@ def get_message_objects(inputs):
                     ))
                 elif isinstance(message.get("content"), list):
                     messages.extend(get_output_messages(message.get("content")))
+        if contents:
+            messages.append(Message(role="user", contents=contents))
     return messages
 
 

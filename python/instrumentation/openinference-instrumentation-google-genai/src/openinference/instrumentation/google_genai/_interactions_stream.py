@@ -106,6 +106,13 @@ class _InteractionAccumulator:
                     annotations=None,
                     text="",
                 )
+            elif event.content.type == "image":
+                self._outputs[event.index] = types.ImageContent(
+                    type="image",
+                    data=None,
+                    mime_type=None,
+                    resolution=None
+                )
 
         elif event_type == "content.delta":
             delta = event.delta
@@ -123,11 +130,16 @@ class _InteractionAccumulator:
                         self._outputs[idx].text = delta.text or ""
                     else:
                         self._outputs[idx].text += delta.text or ""
-
-        elif event_type == "content.stop":
-            # Content block complete - no action needed
-            pass
-
+            else:
+                if self._outputs[idx] and isinstance(self._outputs[idx], types.ImageContent):
+                    if self._outputs[idx].data is None:
+                        self._outputs[idx].data = delta.data or ""
+                    else:
+                        self._outputs[idx].data += delta.data or ""
+                    if delta.mime_type is not None:
+                        self._outputs[idx].mime_type = delta.mime_type
+                    if delta.resolution is not None:
+                        self._outputs[idx].resolution = delta.resolution
         elif event_type == "interaction.complete":
             # Update final metadata
             if self._interaction:
