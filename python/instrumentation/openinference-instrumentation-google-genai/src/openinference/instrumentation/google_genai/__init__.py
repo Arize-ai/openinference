@@ -62,12 +62,6 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             _SyncGenerateContentStream,
         )
 
-        self._original_generate_content = Models.generate_content
-        wrap_function_wrapper(
-            module="google.genai.models",
-            name="Models.generate_content",
-            wrapper=_SyncGenerateContent(tracer=self._tracer),
-        )
         self._original_create_interactions_resource = InteractionsResource.create
         wrap_function_wrapper(
             module="google.genai._interactions.resources",
