@@ -1,8 +1,4 @@
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -30,6 +26,6 @@ if __name__ == "__main__":
             "temperature": 0.7,
             "max_output_tokens": 500,
             "thinking_level": "low",
-        }
+        },
     )
     print(interaction)

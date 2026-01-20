@@ -1,8 +1,4 @@
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -26,7 +22,7 @@ if __name__ == "__main__":
     stream = client.interactions.create(
         model="gemini-3-flash-preview",
         input="Explain quantum entanglement in simple terms.",
-        stream=True
+        stream=True,
     )
 
     for chunk in stream:

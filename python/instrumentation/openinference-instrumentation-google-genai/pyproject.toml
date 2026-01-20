@@ -36,10 +36,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "google-genai >= 1.8.0",
+  "google-genai >= 1.57.0",
 ]
 test = [
-  "google-genai >= 1.8.0",
+  "google-genai >= 1.57.0",
   "opentelemetry-sdk",
 ]
 

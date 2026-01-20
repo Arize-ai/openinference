@@ -1,8 +1,4 @@
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -25,7 +21,6 @@ async def run():
 
     initial_interaction = await client.interactions.create(
         input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
-
     )
     while True:
         interaction = await client.interactions.get(initial_interaction.id)
@@ -38,6 +33,7 @@ async def run():
             print(f"Failed with status: {interaction.status}")
             break
         import time
+
         time.sleep(10)
 
 
@@ -47,7 +43,7 @@ if __name__ == "__main__":
     initial_interaction = client.interactions.create(
         input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
         agent="deep-research-pro-preview-12-2025",
-        background=True
+        background=True,
     )
     while True:
         interaction = client.interactions.get(initial_interaction.id)
@@ -60,4 +56,5 @@ if __name__ == "__main__":
             print(f"Failed with status: {interaction.status}")
             break
         import time
+
         time.sleep(10)

@@ -1,9 +1,6 @@
-
 import asyncio
-import os
 
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -27,7 +24,7 @@ async def run():
     interaction = await client.interactions.create(
         model="gemini-3-flash-preview",
         input="Calculate the 50th Fibonacci number.",
-        tools=[{"type": "code_execution"}]
+        tools=[{"type": "code_execution"}],
     )
     print(interaction)
 

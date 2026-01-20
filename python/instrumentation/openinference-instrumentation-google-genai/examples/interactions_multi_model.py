@@ -1,9 +1,4 @@
-
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -31,13 +26,14 @@ def run():
             {
                 "type": "image",
                 "uri": "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U",
-                "mime_type": "image/jpg"
-            }
+                "mime_type": "image/jpg",
+            },
         ],
-        stream=True
+        stream=True,
     )
     for chunk in interaction:
         print("@@@@@@@@@@@@@@@@@@@@@", chunk)
+
 
 if __name__ == "__main__":
     run()

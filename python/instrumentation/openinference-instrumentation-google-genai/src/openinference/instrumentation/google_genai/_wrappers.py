@@ -12,6 +12,7 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._request_attributes_extractor import (
     _RequestAttributesExtractor,
 )
@@ -19,18 +20,18 @@ from openinference.instrumentation.google_genai._response_attributes_extractor i
     _ResponseAttributesExtractor,
 )
 from openinference.instrumentation.google_genai._stream import _Stream
-from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._utils import _finish_tracing
 from openinference.instrumentation.google_genai._with_span import _WithSpan
+from openinference.instrumentation.google_genai.interactions_attributes import (
+    get_attributes_from_request,
+    get_attributes_from_response,
+)
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-
-from openinference.instrumentation.google_genai.interactions_attributes import get_attributes_from_request, \
-    get_attributes_from_response
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -178,7 +179,6 @@ class _SyncGenerateContent(_WithTracer):
 
 
 class _SyncCreateInteractionWrapper(_WithTracer):
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
@@ -204,7 +204,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
             span_name=span_name,
             attributes=get_attributes_from_request(request_parameters),
             context_attributes=get_attributes_from_context(),
-            extra_attributes={}
+            extra_attributes={},
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -214,9 +214,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
                         with_span=span,
                     )
                 span.set_attributes(get_attributes_from_response(response))
-                status  = trace_api.Status(
-                    status_code=trace_api.StatusCode.OK
-                )
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
             except Exception as exception:
                 span.record_exception(exception)
@@ -407,7 +405,6 @@ class _AsyncGenerateContentStream(_WithTracer):
 
 
 class _AsyncCreateInteractionWrapper(_WithTracer):
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._request_extractor = _RequestAttributesExtractor()
@@ -425,10 +422,10 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "AsyncInteractionsResource.create"
         with self._start_as_current_span(
-                span_name=span_name,
-                attributes=get_attributes_from_request(request_parameters),
-                context_attributes=get_attributes_from_context(),
-                extra_attributes={}
+            span_name=span_name,
+            attributes=get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes={},
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -438,9 +435,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
                         with_span=span,
                     )
                 span.set_attributes(get_attributes_from_response(response))
-                status = trace_api.Status(
-                    status_code=trace_api.StatusCode.OK
-                )
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
             except Exception as exception:
                 span.record_exception(exception)

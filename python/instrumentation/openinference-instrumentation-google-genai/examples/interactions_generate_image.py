@@ -1,9 +1,4 @@
-
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -27,7 +22,7 @@ def run():
     interaction = client.interactions.create(
         model="gemini-2.5-flash-image",
         input="Create a simple flat illustration of a red apple on a white background. No text.",
-        stream=True
+        stream=True,
     )
     for chunk in interaction:
         # print(chunk)

@@ -1,8 +1,4 @@
-import asyncio
-import os
-
 from google import genai
-from google.genai.types import Content, GenerateContentConfig, Part
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
 )
@@ -32,47 +28,44 @@ weather_tool = {
     "parameters": {
         "type": "object",
         "properties": {
-            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"}
+            "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA",
+            }
         },
-        "required": ["location"]
-    }
+        "required": ["location"],
+    },
 }
 
 
 def run():
-    # interaction = client.interactions.create(
-    #     model="gemini-3-flash-preview",
-    #     input="What is the weather in Paris & New Delhi?",
-    #     tools=[weather_tool]
-    # )
-
     interaction = client.interactions.create(
-        model="gemini-3-pro-image-preview",
-        input="Generate a 3x3 pixels star image.",
-        response_modalities=["IMAGE"]
+        model="gemini-3-flash-preview",
+        input="What is the weather in Paris & New Delhi?",
+        tools=[weather_tool],
     )
-    #
-    # for output in interaction.outputs:
-    #     if output.type == "function_call":
-    #         print(f"Tool Call: {output.name}({output.arguments})")
-    #         # Execute tool
-    #         result = get_weather(**output.arguments)
-    #         print(f"Result: {result}")
-    #
-    #         # Send result back
-    #         interaction = client.interactions.create(
-    #             model="gemini-3-flash-preview",
-    #             previous_interaction_id=interaction.id,
-    #             input=[{
-    #                 "type": "function_result",
-    #                 "name": output.name,
-    #                 "call_id": output.id,
-    #                 "result": result
-    #             }]
-    #         )
-    #         print(interaction.outputs)
+    for output in interaction.outputs:
+        if output.type == "function_call":
+            print(f"Tool Call: {output.name}({output.arguments})")
+            # Execute tool
+            result = get_weather(**output.arguments)
+            print(f"Result: {result}")
+
+            # Send result back
+            interaction = client.interactions.create(
+                model="gemini-3-flash-preview",
+                previous_interaction_id=interaction.id,
+                input=[
+                    {
+                        "type": "function_result",
+                        "name": output.name,
+                        "call_id": output.id,
+                        "result": result,
+                    }
+                ],
+            )
+            print(interaction.outputs)
 
 
 if __name__ == "__main__":
     run()
-

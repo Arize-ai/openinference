@@ -2,30 +2,27 @@ import logging
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     Iterator,
     Optional,
 )
 
-from openinference.instrumentation.google_genai._stream import _Stream
-from openinference.instrumentation.google_genai._utils import (
-    _as_output_attributes,
-    _finish_tracing,
-    _get_token_count_attributes_from_usage_metadata,
-    _ValueAndType,
-)
-from openinference.instrumentation.google_genai._with_span import _WithSpan
-from openinference.instrumentation.google_genai.interactions_attributes import get_attributes_from_response
 from opentelemetry import trace as trace_api
 
+from openinference.instrumentation.google_genai._stream import _ResponseAccumulator, _Stream
+from openinference.instrumentation.google_genai._with_span import _WithSpan
+from openinference.instrumentation.google_genai.interactions_attributes import (
+    get_attributes_from_response,
+)
+
 if TYPE_CHECKING:
+    from google.genai._interactions.types import Interaction
     from google.genai.types import GenerateContentResponse
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _InteractionsStream(_Stream):  # type: ignore
+class _InteractionsStream(_Stream):
     __slots__ = (
         "_response_accumulator",
         "_with_span",
@@ -33,26 +30,24 @@ class _InteractionsStream(_Stream):  # type: ignore
     )
 
     def __init__(
-            self,
-            stream: Iterator["GenerateContentResponse"],
-            with_span: _WithSpan,
+        self,
+        stream: Iterator["GenerateContentResponse"],
+        with_span: _WithSpan,
     ) -> None:
         super().__init__(stream, with_span)
         self._response_accumulator = _InteractionAccumulator()
 
     def _finish_tracing(
-            self,
-            status: Optional[trace_api.Status] = None,
+        self,
+        status: Optional[trace_api.Status] = None,
     ) -> None:
         self._with_span.set_attributes(
-            get_attributes_from_response(
-                self._response_accumulator.result()
-            )
+            get_attributes_from_response(self._response_accumulator.result())
         )
         self._with_span.finish_tracing(status=status)
 
 
-class _InteractionAccumulator:
+class _InteractionAccumulator(_ResponseAccumulator):
     __slots__ = (
         "_is_null",
         "_interaction",
@@ -61,14 +56,15 @@ class _InteractionAccumulator:
 
     def __init__(self) -> None:
         self._is_null = True
-        self._interaction = None
-        self._outputs = []
+        self._interaction: Optional["Interaction"] = None
+        self._outputs: Any = []
 
-    def process_chunk(self, event) -> None:
+    def process_chunk(self, event: Any) -> None:
         """Process a single streaming event and update the Interaction object."""
         self._is_null = False
         event_type = event.event_type
         from google.genai._interactions import types
+
         if event_type == "interaction.start":
             # Initialize the Interaction object
             self._interaction = types.Interaction(
@@ -108,10 +104,7 @@ class _InteractionAccumulator:
                 )
             elif event.content.type == "image":
                 self._outputs[event.index] = types.ImageContent(
-                    type="image",
-                    data=None,
-                    mime_type=None,
-                    resolution=None
+                    type="image", data=None, mime_type=None, resolution=None
                 )
 
         elif event_type == "content.delta":
@@ -155,12 +148,8 @@ class _InteractionAccumulator:
     def result(self) -> Optional["Interaction"]:
         """Return the accumulated Interaction object."""
         if self._is_null or self._interaction is None:
-            return None
+            return self._interaction
         # Ensure outputs are assigned (in case interaction.complete wasn't received)
         if not self._interaction.outputs and self._outputs:
             self._interaction.outputs = [out for out in self._outputs if out is not None]
         return self._interaction
-
-    def _result(self) -> Optional[Dict[str, Any]]:
-        """Return the accumulated Interaction as a dictionary (for compatibility)."""
-        return self.result()

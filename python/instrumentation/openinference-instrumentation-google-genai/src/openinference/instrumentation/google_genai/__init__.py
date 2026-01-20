@@ -44,19 +44,22 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         try:
+            from google.genai._interactions.resources import (
+                AsyncInteractionsResource,
+                InteractionsResource,
+            )
             from google.genai.models import AsyncModels, Models
-            from google.genai._interactions.resources import InteractionsResource, AsyncInteractionsResource
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
             ) from err
         from openinference.instrumentation.google_genai._wrappers import (
+            _AsyncCreateInteractionWrapper,
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
+            _SyncCreateInteractionWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
-            _SyncCreateInteractionWrapper,
-            _AsyncCreateInteractionWrapper,
         )
 
         self._original_generate_content = Models.generate_content
@@ -107,8 +110,11 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        from google.genai._interactions.resources import (
+            AsyncInteractionsResource,
+            InteractionsResource,
+        )
         from google.genai.models import AsyncModels, Models
-        from google.genai._interactions.resources import AsyncInteractionsResource, InteractionsResource
 
         if self._original_generate_content is not None:
             setattr(Models, "generate_content", self._original_generate_content)
@@ -126,10 +132,10 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_async_create_interactions_resource is not None:
             setattr(
-                AsyncInteractionsResource, "create", self._original_async_create_interactions_resource
+                AsyncInteractionsResource,
+                "create",
+                self._original_async_create_interactions_resource,
             )
 
         if self._original_create_interactions_resource is not None:
-            setattr(
-                InteractionsResource, "create", self._original_create_interactions_resource
-            )
+            setattr(InteractionsResource, "create", self._original_create_interactions_resource)
