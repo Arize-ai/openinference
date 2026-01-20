@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"user","content":"What''s trending on Twitter?"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
+    body: '{"messages":[{"role":"user","content":"What''s trending on Twitter?"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"web_search","description":"Use
       this function to search DDGS for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
       The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"search_news","description":"Use
       this function to get the latest news from DDGS.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
       The query to search for."},"max_results":{"type":"number","description":"(optional,
       default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}}]}'
@@ -270,7 +270,7 @@ interactions:
       message: OK
 - request:
     body: '{"messages":[{"role":"user","content":"What''s trending on Twitter?"},{"role":"assistant","tool_calls":[{"id":"call_cmKKAcnPowBW6xIKNbBjeKcZ","function":{"arguments":"{\"query\":\"trending
-      Twitter topics\",\"max_results\":5}","name":"duckduckgo_search"},"type":"function"}],"content":""},{"role":"tool","content":"[\n  {\n    \"title\":
+      Twitter topics\",\"max_results\":5}","name":"web_search"},"type":"function"}],"content":""},{"role":"tool","content":"[\n  {\n    \"title\":
       \"Twitter. It''s what''s happening / Twitter\",\n    \"href\": \"https://twitter.com/explore/tabs/trending/\",\n    \"body\":
       \"Explore trending topics , hashtags, and conversations on Twitter .\"\n  },\n  {\n    \"title\":
       \"United States \\u2014 X (Twitter) trending topics and hashtags today ...\",\n    \"href\":
@@ -288,10 +288,10 @@ interactions:
       Topics And Hashtags On X (Twitter)\",\n    \"href\": \"https://xtrending.info/\",\n    \"body\":
       \"Stay updated with XTrending.info, your go-to platform for real-time trending
       topics on X (formerly Twitter ). Discover viral hashtags, breaking news, and
-      social media trends worldwide.\"\n  }\n]","tool_call_id":"call_cmKKAcnPowBW6xIKNbBjeKcZ"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"duckduckgo_search","description":"Use
+      social media trends worldwide.\"\n  }\n]","tool_call_id":"call_cmKKAcnPowBW6xIKNbBjeKcZ"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"web_search","description":"Use
       this function to search DDGS for a query.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
       The query to search for."},"max_results":{"type":"number","description":"(optional,
-      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"duckduckgo_news","description":"Use
+      default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}},{"type":"function","function":{"name":"search_news","description":"Use
       this function to get the latest news from DDGS.","parameters":{"type":"object","properties":{"query":{"type":"string","description":"(str)
       The query to search for."},"max_results":{"type":"number","description":"(optional,
       default=5) The maximum number of results to return."}},"required":["query"]},"requires_confirmation":false,"external_execution":false}}]}'

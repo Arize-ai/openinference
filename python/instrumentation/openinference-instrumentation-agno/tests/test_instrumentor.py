@@ -75,7 +75,6 @@ def test_agno_instrumentation(
             model=OpenAIChat(id="gpt-4o-mini"),
             tools=[DuckDuckGoTools()],
             user_id="test_user_123",
-            instructions="You must use the DuckDuckGo search tool to answer the question.",
         )
         agent.run("What's trending on Twitter?", session_id="test_session")
     spans = in_memory_span_exporter.get_finished_spans()
