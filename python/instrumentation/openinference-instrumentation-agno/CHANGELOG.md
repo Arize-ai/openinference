@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.25...python-openinference-instrumentation-agno-v0.1.26) (2026-01-20)
+
+
+### Bug Fixes
+
+* **agno:** Add agent.name attribute and fix Team span attributes being overwritten by members ([#2516](https://github.com/Arize-ai/openinference/issues/2516)) ([4556372](https://github.com/Arize-ai/openinference/commit/4556372658fbc55be1f0f7089c2735bb1c57a536))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.24...python-openinference-instrumentation-agno-v0.1.25) (2025-12-15)
 
 
