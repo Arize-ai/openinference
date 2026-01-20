@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.0...python-openinference-instrumentation-pipecat-v0.1.1) (2026-01-20)
+
+
+### Bug Fixes
+
+* **pipecat:** pipecat instrumentor improvement of TTS output ([#2586](https://github.com/Arize-ai/openinference/issues/2586)) ([3c1a1ae](https://github.com/Arize-ai/openinference/commit/3c1a1ae5e39a33085f0adae6209634062277cb06))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.0...python-openinference-instrumentation-pipecat-v0.1.1) (2026-01-09)
 
 ### Bug Fixes
