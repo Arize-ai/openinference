@@ -70,10 +70,18 @@ def test_agno_instrumentation(
         import os
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
+
+        duckduckgo = DuckDuckGoTools()
+
+        # agno >= 2.4.0 requires explicit tool registration, while older versions
+        # auto-register tools so conditional registration keeps tests compatible.
+        if hasattr(duckduckgo, "register"):
+            duckduckgo.register()
+
         agent = Agent(
             name="News Agent",  # For best results, set a name that will be used by the tracer
             model=OpenAIChat(id="gpt-4o-mini"),
-            tools=[DuckDuckGoTools()],
+            tools=[duckduckgo],
             user_id="test_user_123",
         )
         agent.run("What's trending on Twitter?", session_id="test_session")
@@ -136,11 +144,20 @@ def test_agno_team_coordinate_instrumentation(
 
         os.environ["OPENAI_API_KEY"] = "fake_key"
 
+        duckduckgo = DuckDuckGoTools()
+        yfinance = YFinanceTools()
+
+        # agno >= 2.4.0 requires explicit tool registration, while older versions
+        # auto-register tools so conditional registration keeps tests compatible.
+        for tool in (duckduckgo, yfinance):
+            if hasattr(tool, "register"):
+                tool.register()
+
         web_agent = Agent(
             name="Web Agent",
             role="Search the web for information",
             model=OpenAIChat(id="gpt-4o-mini"),
-            tools=[DuckDuckGoTools()],
+            tools=[duckduckgo],
             instructions="Always include sources",
         )
 
@@ -148,7 +165,7 @@ def test_agno_team_coordinate_instrumentation(
             name="Finance Agent",
             role="Get financial data",
             model=OpenAIChat(id="gpt-4o-mini"),
-            tools=[YFinanceTools()],
+            tools=[yfinance],
             instructions="Use tables to display data",
         )
 
