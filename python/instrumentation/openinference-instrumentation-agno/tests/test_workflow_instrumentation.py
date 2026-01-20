@@ -92,12 +92,15 @@ class TestWorkflowInstrumentation:
         # Find workflow span
         workflow_span = None
         step_span = None
+        agent_span = None
         for span in spans:
             attributes = dict(span.attributes or dict())
             if "Workflow" in span.name and "run" in span.name:
                 workflow_span = attributes
             elif "test_step" in span.name:
                 step_span = attributes
+            elif "Test_Agent.run" in span.name:
+                agent_span = attributes
 
         # Validate workflow span exists
         assert workflow_span is not None, "Workflow span should be found"
@@ -145,6 +148,9 @@ class TestWorkflowInstrumentation:
             assert step_span.get(SpanAttributes.GRAPH_NODE_PARENT_ID) == workflow_node_id
             # Ensure step has unique node ID
             assert step_node_id != workflow_node_id
+
+        assert agent_span is not None, "Agent span should be found"
+        assert agent_span.get(SpanAttributes.AGENT_NAME) == "Test Agent"
 
     def test_multi_step_workflow(
         self,
