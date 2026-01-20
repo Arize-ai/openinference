@@ -75,8 +75,12 @@ def test_agno_instrumentation(
 
         # agno >= 2.4.0 requires explicit tool registration, while older versions
         # auto-register tools so conditional registration keeps tests compatible.
-        if hasattr(duckduckgo, "register"):
-            duckduckgo.register()
+        register = getattr(duckduckgo, "register", None)
+        if callable(register):
+            try:
+                register()
+            except TypeError:
+                pass
 
         agent = Agent(
             name="News Agent",  # For best results, set a name that will be used by the tracer
@@ -150,8 +154,12 @@ def test_agno_team_coordinate_instrumentation(
         # agno >= 2.4.0 requires explicit tool registration, while older versions
         # auto-register tools so conditional registration keeps tests compatible.
         for tool in (duckduckgo, yfinance):
-            if hasattr(tool, "register"):
-                tool.register()
+            register = getattr(tool, "register", None)
+            if callable(register):
+                try:
+                    register()
+                except TypeError:
+                    pass
 
         web_agent = Agent(
             name="Web Agent",
