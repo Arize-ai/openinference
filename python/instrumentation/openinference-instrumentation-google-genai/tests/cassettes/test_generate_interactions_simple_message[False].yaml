@@ -1,0 +1,14 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-3-flash-preview","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"created":"2026-01-21T16:54:18Z","id":"v1_Chd0d1J4YWZDYk5JeTNxZmtQMmE2cTJRaxIXdHdSeGFmQ2JOSXkzcWZrUDJhNnEyUWs","model":"gemini-3-flash-preview","object":"interaction","outputs":[{"signature":"EqMFCqAFAXLI2nxJ+0CRmwWW+4oLw+sRv+EjycPX1CmWGjg5bIWsHq2WABzAA8XM/v8x47JgmaiCnx6DHHakX+GNY4+kRLnD+l0g81TuGGHDO9Tunn55l81/gPQZ42MxYedu3VYrgqmPEJXpOz6sHCcWc/JUZgFCofalc3PvmKKu96CYziDHcByofzODSqb67A/fJKVHax4vkVWvc9ZGa8i2jBYm1QEJk8oY61nGXEpeLZIOZi6+VUJz0R6f4YE7o8pN+EeyPhhWIig+XKvJe38RajWtfxCvsqMkYq/d44y8mXwyMNDGYcOtWaDcl6kwOIZ0PKR729x7Io7YqI/+4iynkYf4g6ev63rYuAvDh70c+vS3qjhbx5CF7v8NR4jOT3Lf0+ObXI5EWLKnScx+VH0LA9z5c0dpwPBM/19OPxSWRpLOaGJHF7B8o3+XfIdWuPnHdmG0U+C5eMuGCrFPTAtKAf3f8WMUoN8+AC5hiS41eKy69h0o33K7FAaXs0+czdTfRQBeGOtKdU2k55HoFZug/0e0HheG0bSzvJi7d2aK6QzZibDJhi4W0luog1zSVhdTMj9hmgdZES7Agc+LolONFHWbTv1QTpW8I9Is5yjSgiG+cmy8ekYdiGRnUbGkIm1BHGXp/a5WMycGgHwTw3QeGE0emVqPlynpILoRkPqfhdm8vObV9BVnSUZdtjsT1Z7S2HKTphvHVNnA67z02AUrdoaVh7WY/wwXKGNo2qqmPGOv2pdTLimnbLLJqPEzo1ZsfDvpMQU7HFLsGl8peh3q0qONsr3dlFaRiiOhhr40A6UQtXUoT0dcibJmDLY6u9QV7hFy1zOSSLn4yngWjg5cOTJuMVU1LvvyC+HwBJ24Zejl6iohMgTjSBRzaHzWTtpkSbKk","type":"thought"},{"text":"Because light attracts bugs.","type":"text"}],"role":"model","status":"completed","updated":"2026-01-21T16:54:18Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":176,"total_tokens":198,"total_tool_use_tokens":0}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

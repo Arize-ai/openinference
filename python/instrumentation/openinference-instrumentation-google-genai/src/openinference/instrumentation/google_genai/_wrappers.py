@@ -418,7 +418,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "AsyncInteractionsResource.create"
         with self._start_as_current_span(

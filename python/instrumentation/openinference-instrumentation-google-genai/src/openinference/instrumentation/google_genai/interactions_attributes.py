@@ -102,9 +102,9 @@ def get_token_object_from_response(response: Any) -> TokenCount:
     if hasattr(response, "usage") and response.usage:
         usage = response.usage
         token_count = TokenCount(
-            total=usage.total_tokens,
-            prompt=usage.total_input_tokens,
-            completion=usage.total_thought_tokens + usage.total_output_tokens,
+            total=usage.total_tokens or 0,
+            prompt=usage.total_input_tokens or 0,
+            completion=(usage.total_thought_tokens or 0) + (usage.total_output_tokens or 0),
         )
     return token_count
 
@@ -138,6 +138,8 @@ def get_attributes_from_request(
 def get_attributes_from_response(
     response: Any,
 ) -> Dict[str, AttributeValue]:
+    if not response:
+        return {}
     return {
         **get_llm_model_name_attributes(response.model),
         **get_output_attributes(safe_json_dumps(response.outputs)),
