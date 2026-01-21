@@ -25,6 +25,8 @@ from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -173,6 +175,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -252,6 +256,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -345,6 +351,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "anthropic/claude-3-7-sonnet-20250219"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.ANTHROPIC.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.ANTHROPIC.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == model_params
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -862,6 +870,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
