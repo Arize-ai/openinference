@@ -84,9 +84,7 @@ class TestContentToString:
             ),
         ],
     )
-    def test_content_to_string_parametrized(
-        self, input_value: Any, expected: str
-    ) -> None:
+    def test_content_to_string_parametrized(self, input_value: Any, expected: str) -> None:
         """Parametrized tests for various input types."""
         extractor = _RequestAttributesExtractor()
         result = extractor._content_to_string(input_value)
