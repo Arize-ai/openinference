@@ -32,7 +32,7 @@ def run():
         stream=True,
     )
     for chunk in interaction:
-        print("@@@@@@@@@@@@@@@@@@@@@", chunk)
+        print(chunk)
 
 
 if __name__ == "__main__":

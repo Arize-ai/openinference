@@ -191,13 +191,6 @@ class _SyncCreateInteractionWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "InteractionsResource.create"
         with self._start_as_current_span(
@@ -407,8 +400,6 @@ class _AsyncGenerateContentStream(_WithTracer):
 class _AsyncCreateInteractionWrapper(_WithTracer):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._request_extractor = _RequestAttributesExtractor()
-        self._response_extractor = _ResponseAttributesExtractor()
 
     async def __call__(
         self,

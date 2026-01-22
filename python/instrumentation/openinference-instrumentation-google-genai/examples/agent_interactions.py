@@ -1,3 +1,5 @@
+import time
+
 from google import genai
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,  # type: ignore[import-not-found]
@@ -32,9 +34,6 @@ async def run():
         elif interaction.status in ["failed", "cancelled"]:
             print(f"Failed with status: {interaction.status}")
             break
-        import time
-
-        time.sleep(10)
 
 
 if __name__ == "__main__":
@@ -55,6 +54,4 @@ if __name__ == "__main__":
         elif interaction.status in ["failed", "cancelled"]:
             print(f"Failed with status: {interaction.status}")
             break
-        import time
-
         time.sleep(10)
