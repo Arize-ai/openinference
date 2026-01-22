@@ -12,6 +12,8 @@ on:
 
 jobs:
   claude:
+    # Runs when maintainers comment @claude on issues/PRs (including forked PRs)
+    # This is safe because comment events run in base repo context with access to secrets
     if: |
       github.actor != 'claude[bot]' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
