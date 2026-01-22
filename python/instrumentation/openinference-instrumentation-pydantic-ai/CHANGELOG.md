@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.10...python-openinference-instrumentation-pydantic-ai-v0.1.11) (2026-01-22)
+
+
+### Features
+
+* **pydantic_ai:** Populate LLM Provider & System Attributes ([#2635](https://github.com/Arize-ai/openinference/issues/2635)) ([3c7774f](https://github.com/Arize-ai/openinference/commit/3c7774fc8af8bec17ca1b9700ee3f0c5baad2da0))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.9...python-openinference-instrumentation-pydantic-ai-v0.1.10) (2025-12-18)
 
 
