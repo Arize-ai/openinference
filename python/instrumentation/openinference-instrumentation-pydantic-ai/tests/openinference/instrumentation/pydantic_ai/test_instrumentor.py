@@ -20,6 +20,8 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
     ToolCallAttributes,
@@ -120,8 +122,10 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.LLM.value
     )
-    assert attributes.get(SpanAttributes.LLM_SYSTEM) == "openai"
-    assert attributes.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+
+    assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
@@ -267,5 +271,8 @@ def _test_openai_agent_and_llm_spans_message_history(
 MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
