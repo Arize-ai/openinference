@@ -3,7 +3,11 @@ from typing import Any, Iterable, Iterator, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
-from openinference.instrumentation.portkey._utils import _as_output_attributes, _io_value_and_type
+from openinference.instrumentation.portkey._utils import (
+    _as_output_attributes,
+    _io_value_and_type,
+    infer_llm_system_from_model,
+)
 from openinference.semconv.trace import MessageAttributes, SpanAttributes
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,8 @@ class _ResponseAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if model := getattr(completion, "model", None):
             yield SpanAttributes.LLM_MODEL_NAME, model
+            if system := infer_llm_system_from_model(model):
+                yield SpanAttributes.LLM_SYSTEM, system.value
         if usage := getattr(completion, "usage", None):
             yield from self._get_attributes_from_completion_usage(usage)
         if (choices := getattr(completion, "choices", None)) and isinstance(choices, Iterable):

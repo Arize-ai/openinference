@@ -5,7 +5,11 @@ import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.semconv.trace import MessageAttributes, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceLLMSystemValues,
+    SpanAttributes,
+)
 
 
 @pytest.mark.vcr(
@@ -47,6 +51,7 @@ def test_chat_completion(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -103,6 +108,7 @@ def test_prompt_template(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4.1-2025-04-14",
+        SpanAttributes.LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -160,6 +166,7 @@ async def test_async_chat_completion(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4o-mini-2024-07-18",
+        SpanAttributes.LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,
@@ -218,6 +225,7 @@ async def test_async_prompt_template(
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
         SpanAttributes.LLM_MODEL_NAME: "gpt-4.1-2025-04-14",
+        SpanAttributes.LLM_SYSTEM: OpenInferenceLLMSystemValues.OPENAI.value,
         SpanAttributes.LLM_TOKEN_COUNT_TOTAL: resp.usage.total_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_PROMPT: resp.usage.prompt_tokens,
         SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: resp.usage.completion_tokens,

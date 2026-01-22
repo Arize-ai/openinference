@@ -7,7 +7,11 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.portkey._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -82,3 +86,48 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def infer_llm_system_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMSystemValues]:
+    """Infer the LLM system from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(
+        (
+            "gpt-",
+            "gpt.",
+            "o1",
+            "o3",
+            "o4",
+            "text-embedding",
+            "davinci",
+            "curie",
+            "babbage",
+            "ada",
+            "azure_openai",
+            "azure_ai",
+            "azure",
+        )
+    ):
+        return OpenInferenceLLMSystemValues.OPENAI
+
+    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+        return OpenInferenceLLMSystemValues.ANTHROPIC
+
+    if model.startswith(("cohere.command", "command", "cohere")):
+        return OpenInferenceLLMSystemValues.COHERE
+
+    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+        return OpenInferenceLLMSystemValues.MISTRALAI
+
+    if model.startswith(
+        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
+    ):
+        return OpenInferenceLLMSystemValues.VERTEXAI
+
+    return None
