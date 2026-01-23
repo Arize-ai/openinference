@@ -131,8 +131,10 @@ class TestOpenLLMetryInstrumentor:
             attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
         )
         assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
-        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] > 0
         assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
+        total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
+        assert isinstance(total_tokens, (int, float))
+        assert total_tokens > 0
 
         # LLM messages
         assert attributes["llm.input_messages.0.message.role"] == "user"
