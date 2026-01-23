@@ -2,14 +2,15 @@ import logging
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Iterator,
     Mapping,
     Optional,
 )
 
 from opentelemetry import trace as trace_api
+from wrapt import ObjectProxy
 
-from openinference.instrumentation.google_genai._stream import _ResponseAccumulator, _Stream
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.instrumentation.google_genai.interactions_attributes import (
     get_attributes_from_response,
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _InteractionsStream(_Stream):
+class _InteractionsStream(ObjectProxy):  # type: ignore
     __slots__ = (
         "_response_accumulator",
         "_with_span",
@@ -37,9 +38,48 @@ class _InteractionsStream(_Stream):
         with_span: _WithSpan,
         request_parameters: Mapping[str, Any],
     ) -> None:
-        super().__init__(stream, with_span)
+        super().__init__(stream)
         self._response_accumulator = _InteractionAccumulator()
         self.request_parameters = request_parameters
+        self._with_span = with_span
+
+    def __iter__(self) -> Iterator["GenerateContentResponse"]:
+        try:
+            for item in self.__wrapped__:
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
+
+    async def __aiter__(self) -> AsyncIterator["GenerateContentResponse"]:
+        try:
+            async for item in self.__wrapped__:
+                self._response_accumulator.process_chunk(item)
+                yield item
+        except Exception as exception:
+            status = trace_api.Status(
+                status_code=trace_api.StatusCode.ERROR,
+                description=f"{type(exception).__name__}: {exception}",
+            )
+            self._with_span.record_exception(exception)
+            self._finish_tracing(status=status)
+            raise
+        # completed without exception
+        status = trace_api.Status(
+            status_code=trace_api.StatusCode.OK,
+        )
+        self._finish_tracing(status=status)
 
     def _finish_tracing(
         self,
@@ -53,7 +93,7 @@ class _InteractionsStream(_Stream):
         self._with_span.finish_tracing(status=status)
 
 
-class _InteractionAccumulator(_ResponseAccumulator):
+class _InteractionAccumulator:
     __slots__ = (
         "_is_null",
         "_interaction",

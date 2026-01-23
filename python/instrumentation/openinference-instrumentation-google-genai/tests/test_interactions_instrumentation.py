@@ -8,7 +8,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from pydantic import BaseModel
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
@@ -18,10 +17,6 @@ from openinference.semconv.trace import (
     MessageContentAttributes,
     SpanAttributes,
 )
-
-
-class Answer(BaseModel):
-    answer: str
 
 
 @pytest.fixture

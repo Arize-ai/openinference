@@ -128,18 +128,14 @@ def is_agent_call(request_parameters: Mapping[str, Any]) -> bool:
     )
 
 
-@_stop_on_exception
-def get_attributes_from_request(
+def get_attributes_from_request_object(
     request_parameters: Mapping[str, Any],
-) -> Iterable[Tuple[str, AttributeValue]]:
+) -> Dict[str, AttributeValue]:
     if is_agent_call(request_parameters):
-        attributes = {
+        return {
             **get_span_kind_attributes("agent"),
             **get_input_attributes(request_parameters.get("input")),
         }
-        for key, value in attributes.items():
-            yield key, value
-        return
 
     input_messages = []
     if system_instruction := request_parameters.get("system_instruction"):
@@ -149,7 +145,7 @@ def get_attributes_from_request(
     metadata = {}
     if previous_interaction_id := request_parameters.get("previous_interaction_id"):
         metadata["previous_interaction_id"] = previous_interaction_id
-    attributes = {
+    return {
         **get_llm_attributes(
             provider=OpenInferenceLLMProviderValues.GOOGLE.value,
             input_messages=input_messages,
@@ -160,6 +156,13 @@ def get_attributes_from_request(
         **get_span_kind_attributes("llm"),
         **get_input_attributes(request_parameters.get("input")),
     }
+
+
+@_stop_on_exception
+def get_attributes_from_request(
+    request_parameters: Mapping[str, Any],
+) -> Iterable[Tuple[str, AttributeValue]]:
+    attributes = get_attributes_from_request_object(request_parameters)
     for key, value in attributes.items():
         yield key, value
 
