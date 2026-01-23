@@ -528,7 +528,7 @@ def system_instruction_text() -> str:
 
 @pytest.fixture
 def model() -> str:
-    return "gemini-1.5-flash"
+    return "xyz"
 
 
 @pytest.fixture
