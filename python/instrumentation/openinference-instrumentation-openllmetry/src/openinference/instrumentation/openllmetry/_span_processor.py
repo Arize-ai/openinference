@@ -285,12 +285,12 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             },
         }
 
-        system_val = attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")
+        system_val = attrs.get(SpanAttributes.LLM_SYSTEM) or "unknown"
         # Ensure system is one of the known OpenInference LLM systems
         if system_val.lower() not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
             system_val = None
 
-        provider_val = attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")
+        provider_val = attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME) or "unknown"
         # Ensure provider is one of the known OpenInference LLM providers
         if provider_val.lower() not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
             provider_val = system_val
