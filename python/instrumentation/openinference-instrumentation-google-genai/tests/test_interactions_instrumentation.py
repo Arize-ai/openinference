@@ -268,7 +268,6 @@ async def test_generate_interactions_async(
     assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
-
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
@@ -287,9 +286,7 @@ def test_agent_stream(
     input_message = "Research the history of the Google TPUs with a focus on 2025 and 2026."
     client = genai.Client(api_key=api_key)
     interaction = client.interactions.create(
-        input=input_message,
-        agent="deep-research-pro-preview-12-2025",
-        background=True
+        input=input_message, agent="deep-research-pro-preview-12-2025", background=True
     )
     assert interaction.id is not None
 
