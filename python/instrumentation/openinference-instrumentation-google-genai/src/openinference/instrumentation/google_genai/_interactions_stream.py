@@ -3,6 +3,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Iterator,
+    Mapping,
     Optional,
 )
 
@@ -27,22 +28,27 @@ class _InteractionsStream(_Stream):
         "_response_accumulator",
         "_with_span",
         "_is_finished",
+        "request_parameters",
     )
 
     def __init__(
         self,
         stream: Iterator["GenerateContentResponse"],
         with_span: _WithSpan,
+        request_parameters: Mapping[str, Any],
     ) -> None:
         super().__init__(stream, with_span)
         self._response_accumulator = _InteractionAccumulator()
+        self.request_parameters = request_parameters
 
     def _finish_tracing(
         self,
         status: Optional[trace_api.Status] = None,
     ) -> None:
         self._with_span.set_attributes(
-            get_attributes_from_response(self._response_accumulator.result())
+            get_attributes_from_response(
+                self.request_parameters, self._response_accumulator.result()
+            )
         )
         self._with_span.finish_tracing(status=status)
 

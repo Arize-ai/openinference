@@ -273,6 +273,52 @@ async def test_generate_interactions_async(
     assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
+#
+# @pytest.mark.vcr(
+#     decode_compressed_response=True,
+#     before_record_request=lambda _: _.headers.clear() or _,
+#     before_record_response=lambda _: {**_, "headers": {}},
+# )
+# def test_agent_stream(
+#     in_memory_span_exporter: InMemorySpanExporter,
+#     tracer_provider: TracerProvider,
+#     setup_google_genai_instrumentation: None,
+# ) -> None:
+#     # Get API key from environment variable
+#     api_key = "REDACTED"
+#     # api_key = os.environ["GEMINI_API_KEY"]
+#
+#     # Initialize the client
+#     input_msg = "Research the history of the Google TPUs with a focus on 2025 and 2026."
+#     client = genai.Client()
+#     input_message = "Tell me a short joke about programming."
+#     interaction = client.interactions.create(
+#         input=input_msg,
+#         agent="deep-research-pro-preview-12-2025",
+#         background=True
+#     )
+#     assert interaction.id is not None
+#
+#     # Get the spans
+#     spans = in_memory_span_exporter.get_finished_spans()
+#     assert len(spans) == 1
+#     span = spans[0]
+#     attributes = dict(span.attributes or {})
+#     expected_attributes: Dict[str, Any] = {
+#         INPUT_MIME_TYPE: "text/plain",
+#         LLM_PROVIDER: "google",
+#         INPUT_VALUE: input_message,
+#         OUTPUT_MIME_TYPE: "text/plain",
+#         OPENINFERENCE_SPAN_KIND: "AGENT",
+#     }
+#     for key, expected_value in expected_attributes.items():
+#         assert attributes.pop(key) == expected_value, (
+#             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
+#         )
+#     assert attributes.pop(OUTPUT_VALUE) is not None
+#     assert not attributes, f"Unexpected attributes found: {attributes}"
+
+
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS

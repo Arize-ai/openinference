@@ -16,14 +16,16 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 # Make sure to set the GEMINI_API_KEY environment variable
 
 
-if __name__ == "__main__":
+def run():
     client = genai.Client()
 
-    stream = client.interactions.create(
-        model="gemini-3-flash-preview",
-        input="Explain quantum entanglement in simple terms.",
-        stream=True,
+    interaction = client.interactions.create(
+        input="Research the history of the Google TPUs with a focus on 2025 and 2026.",
+        agent="deep-research-pro-preview-12-2025",
+        background=True,
     )
+    print(interaction)
 
-    for chunk in stream:
-        print(chunk)
+
+if __name__ == "__main__":
+    run()

@@ -205,8 +205,9 @@ class _SyncCreateInteractionWrapper(_WithTracer):
                     return _InteractionsStream(
                         stream=response,
                         with_span=span,
+                        request_parameters=request_parameters,
                     )
-                span.set_attributes(get_attributes_from_response(response))
+                span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
             except Exception as exception:
@@ -424,8 +425,9 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
                     return _InteractionsStream(
                         stream=response,
                         with_span=span,
+                        request_parameters=request_parameters,
                     )
-                span.set_attributes(get_attributes_from_response(response))
+                span.set_attributes(get_attributes_from_response(request_parameters, response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
             except Exception as exception:
