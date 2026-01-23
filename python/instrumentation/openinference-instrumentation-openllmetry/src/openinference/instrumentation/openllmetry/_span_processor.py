@@ -10,6 +10,9 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry.semconv._incubating.attributes import (
+    gen_ai_attributes as GenAIAttributes,
+)
 
 # Import OpenLLMetry constants from the official package
 from opentelemetry.semconv_ai import SpanAttributes, TraceloopSpanKindValues
@@ -283,7 +286,14 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         }
 
         system_val = attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")
-        provider_val = attrs.get("gen_ai.provider", system_val)
+        # Ensure system is one of the known OpenInference LLM systems
+        if system_val.lower() not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
+            system_val = None
+
+        provider_val = attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")
+        # Ensure provider is one of the known OpenInference LLM providers
+        if provider_val.lower() not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
+            provider_val = system_val
 
         # Span kind
         span_val = (

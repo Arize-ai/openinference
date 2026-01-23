@@ -10,7 +10,13 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
-from openinference.semconv.trace import SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 @pytest.fixture
@@ -100,21 +106,36 @@ class TestOpenLLMetryInstrumentor:
 
         # Get spans
         spans = in_memory_span_exporter.get_finished_spans()
-        assert len(spans) > 0
-        for span in spans:
-            # Check span attributes
-            attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+        assert len(spans) == 1
+        span = spans[0]
 
-            # Verify it's an OpenInference span
-            assert is_openinference_span(span)
+        # Get attributes
+        attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-            # Check that we have input and output values
-            assert SpanAttributes.INPUT_VALUE in attributes
-            assert SpanAttributes.OUTPUT_VALUE in attributes
+        # OpenInference span kind
+        assert is_openinference_span(span)
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
 
-            # Verify the model name is captured (exact attribute may vary)
-            model_name_attr = next(
-                (k for k in attributes if "model" in k.lower() and "name" in k.lower()), None
-            )
-            assert model_name_attr is not None, "Model name attribute not found"
-            assert "gpt-4" in str(attributes[model_name_attr])
+        # Input / Output
+        assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
+        assert attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+        assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
+        assert attributes[SpanAttributes.OUTPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
+
+        # LLM identity
+        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert (
+            attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
+        )
+        assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] > 0
+        assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
+
+        # LLM messages
+        assert attributes["llm.input_messages.0.message.role"] == "user"
+        assert isinstance(attributes["llm.input_messages.0.message.content"], str)
+        assert attributes["llm.output_messages.0.message.role"] == "assistant"
+        assert isinstance(attributes["llm.output_messages.0.message.content"], str)
