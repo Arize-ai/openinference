@@ -26,6 +26,8 @@ from agno.tools.toolkit import Toolkit
 from openinference.instrumentation import get_attributes_from_context
 from openinference.instrumentation.agno.utils import (
     _AGNO_PARENT_NODE_CONTEXT_KEY,
+    _AGNO_TEAM_ID_CONTEXT_KEY,
+    _AGNO_TEAM_NAME_CONTEXT_KEY,
     _bind_arguments,
     _flatten,
     _generate_node_id,
@@ -177,7 +179,13 @@ def _setup_team_context(
     agent: Union[Agent, Team], node_id: str
 ) -> Tuple[Optional[Any], Optional[Context]]:
     if isinstance(agent, Team):
+        # Set parent node ID in context
         team_ctx = context_api.set_value(_AGNO_PARENT_NODE_CONTEXT_KEY, node_id)
+        # Also propagate team name and ID for LLM span attribution
+        if agent.name:
+            team_ctx = context_api.set_value(_AGNO_TEAM_NAME_CONTEXT_KEY, agent.name, team_ctx)
+        if hasattr(agent, "id") and agent.id:
+            team_ctx = context_api.set_value(_AGNO_TEAM_ID_CONTEXT_KEY, agent.id, team_ctx)
         return context_api.attach(team_ctx), team_ctx
     return None, None
 

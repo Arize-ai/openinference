@@ -124,6 +124,63 @@ def test_agno_instrumentation(
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
 
 
+def test_agent_context_propagation_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agent name and ID are propagated to child LLM spans"""
+    with test_vcr.use_cassette("agent_run.yaml", filter_headers=["authorization", "X-API-KEY"]):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="News Agent",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
+        )
+        agent.run("What's trending on Twitter?", session_id="test_session")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find agent, LLM, and tool spans
+    agent_span = None
+    llm_spans = []
+    tool_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span_kind == "AGENT":
+            agent_span = attributes
+        elif span_kind == "LLM":
+            llm_spans.append(attributes)
+        elif span_kind == "TOOL":
+            tool_spans.append(attributes)
+
+    # Verify agent span exists
+    assert agent_span is not None, "Agent span should exist"
+
+    # Verify LLM spans have agent context attributes
+    assert len(llm_spans) > 0, "At least one LLM span should exist"
+    for llm_span in llm_spans:
+        assert llm_span.get("agno.agent.name") == "News Agent", (
+            f"LLM span should have agent name, got: {llm_span.get('agno.agent.name')}"
+        )
+        # Agent ID should be present if the agent has an ID
+        # (agno.agent.id on LLM span comes from context propagation)
+
+    # Verify tool spans do NOT have agent context attributes
+    for tool_span in tool_spans:
+        assert tool_span.get("agno.agent.name") is None, (
+            "Tool span should NOT have agno.agent.name attribute"
+        )
+        assert tool_span.get("agno.agent.id") is None, (
+            "Tool span should NOT have agno.agent.id attribute (from context propagation)"
+        )
+
+
 def test_agno_team_coordinate_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -243,3 +300,128 @@ def test_agno_team_coordinate_instrumentation(
     assert web_agent_span is not None or finance_agent_span is not None, (
         "At least one agent span should be found"
     )
+
+
+def test_agent_name_and_id_propagated_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agno.agent.name and agno.agent.id are propagated to child LLM spans."""
+    with test_vcr.use_cassette("agent_run.yaml", filter_headers=["authorization", "X-API-KEY"]):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+        agent = Agent(
+            name="News Agent",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            user_id="test_user_123",
+        )
+        agent.run("What's trending on Twitter?", session_id="test_session")
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find agent span and LLM spans
+    agent_span = None
+    llm_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span_kind == "AGENT":
+            agent_span = span
+        elif span_kind == "LLM":
+            llm_spans.append(span)
+
+    # Verify agent span exists and has the expected attributes
+    assert agent_span is not None, "Agent span should exist"
+    agent_attrs = dict(agent_span.attributes or {})
+    agent_id = agent_attrs.get("agno.agent.id")
+    assert agent_id is not None, "Agent span should have agno.agent.id"
+
+    # Verify LLM spans have agent name and ID propagated
+    assert len(llm_spans) > 0, "At least one LLM span should exist"
+    for llm_span in llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get("agno.agent.name") == "News Agent", (
+            f"LLM span should have agno.agent.name='News Agent', "
+            f"got: {llm_attrs.get('agno.agent.name')}"
+        )
+        assert llm_attrs.get("agno.agent.id") == agent_id, (
+            f"LLM span should have agno.agent.id={agent_id}, got: {llm_attrs.get('agno.agent.id')}"
+        )
+
+
+def test_team_name_and_id_propagated_to_llm_spans(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_agno_instrumentation: Any,
+) -> None:
+    """Test that agno.team.name and agno.team.id are propagated to child LLM spans in team runs."""
+    with test_vcr.use_cassette(
+        "team_coordinate_run.yaml", filter_headers=["authorization", "X-API-KEY"]
+    ):
+        import os
+
+        os.environ["OPENAI_API_KEY"] = "fake_key"
+
+        web_agent = Agent(
+            name="Web Agent",
+            role="Search the web for information",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[DuckDuckGoTools()],
+            instructions="Always include sources",
+        )
+
+        finance_agent = Agent(
+            name="Finance Agent",
+            role="Get financial data",
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[YFinanceTools()],
+            instructions="Use tables to display data",
+        )
+
+        agent_team = Team(
+            name="Team",
+            members=[web_agent, finance_agent],
+            model=OpenAIChat(id="gpt-4o-mini"),
+            instructions=["Always include sources", "Use tables to display data"],
+            user_id="team_user_999",
+        )
+
+        agent_team.run(
+            "What's the market outlook and financial performance of NVIDIA?",
+            session_id="test_session",
+        )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Find team span and LLM spans
+    team_span = None
+    llm_spans = []
+
+    for span in spans:
+        attributes = dict(span.attributes or dict())
+        span_kind = attributes.get("openinference.span.kind")
+        if span.name == "Team.run":
+            team_span = span
+        elif span_kind == "LLM":
+            llm_spans.append(span)
+
+    # Verify team span exists and has the expected attributes
+    assert team_span is not None, "Team span should exist"
+    team_attrs = dict(team_span.attributes or {})
+    team_id = team_attrs.get("agno.team.id")
+    assert team_id is not None, "Team span should have agno.team.id"
+
+    # Verify LLM spans have team name and ID propagated (via context)
+    assert len(llm_spans) > 0, "At least one LLM span should exist in team run"
+    for llm_span in llm_spans:
+        llm_attrs = dict(llm_span.attributes or {})
+        assert llm_attrs.get("agno.team.name") == "Team", (
+            f"LLM span should have agno.team.name='Team', got: {llm_attrs.get('agno.team.name')}"
+        )
+        assert llm_attrs.get("agno.team.id") == team_id, (
+            f"LLM span should have agno.team.id={team_id}, got: {llm_attrs.get('agno.team.id')}"
+        )

@@ -46,9 +46,12 @@ def _get_team_spans(spans: Sequence[ReadableSpan]) -> list[ReadableSpan]:
     team_spans: list[ReadableSpan] = []
     for span in spans:
         attributes = dict(span.attributes or {})
-        if "agno.team.id" in attributes or (
-            attributes.get("graph.node.name") and "Team" in str(attributes.get("graph.node.name"))
-        ):
+        # Must be an AGENT span
+        if attributes.get("openinference.span.kind") != "AGENT":
+            continue
+        # Must have Team in the graph node name or span name
+        graph_node_name = attributes.get("graph.node.name", "")
+        if "Team" in str(graph_node_name) or "Team" in span.name:
             team_spans.append(span)
     return team_spans
 
