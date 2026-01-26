@@ -11,7 +11,7 @@ from strands import Agent, tool
 from strands.models.openai import OpenAIModel
 from strands.telemetry import StrandsTelemetry
 
-from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents import StrandsToOpenInferenceProcessor
 
 
 @tool

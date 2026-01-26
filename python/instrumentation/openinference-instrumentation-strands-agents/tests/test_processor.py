@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from opentelemetry.trace import SpanKind
 
-from openinference.instrumentation.strands.processor import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents.processor import StrandsToOpenInferenceProcessor
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 

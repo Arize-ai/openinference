@@ -47,7 +47,7 @@ test = [
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-strands-agents"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/strands/__init__.py"
+path = "src/openinference/instrumentation/strands_agents/__init__.py"
 pattern = '__version__ = "(?P<version>[^"]+)"'
 
 [tool.hatch.build.targets.sdist]

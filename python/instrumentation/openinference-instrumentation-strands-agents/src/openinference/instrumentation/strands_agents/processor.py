@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
-from openinference.instrumentation.strands.semantic_conventions import (
+from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE,

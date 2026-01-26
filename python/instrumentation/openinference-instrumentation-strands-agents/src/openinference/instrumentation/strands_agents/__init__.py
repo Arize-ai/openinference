@@ -6,7 +6,7 @@ with OpenInference-supported OTEL backends (Phoenix, Arize, etc.).
 
 Usage:
     from strands.telemetry import StrandsTelemetry
-    from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+    from openinference.instrumentation.strands_agents import StrandsToOpenInferenceProcessor
 
     # Setup Strands native telemetry
     telemetry = StrandsTelemetry()
@@ -36,7 +36,7 @@ The processor handles:
 For more information, see: https://github.com/Arize-ai/openinference
 """
 
-from openinference.instrumentation.strands.processor import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents.processor import StrandsToOpenInferenceProcessor
 
 __all__ = ["StrandsToOpenInferenceProcessor"]
 
