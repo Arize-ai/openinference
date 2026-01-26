@@ -139,7 +139,7 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-strands
+- directory: python/instrumentation/openinference-instrumentation-strands-agents
   ignore:
   - dependency-name: '*'
     update-types:
