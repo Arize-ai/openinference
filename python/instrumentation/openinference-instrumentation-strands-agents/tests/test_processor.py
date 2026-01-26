@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Optional
 
 from opentelemetry.trace import SpanKind
 
-from openinference.instrumentation.strands.processor import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents.processor import (
+    StrandsAgentsToOpenInferenceProcessor,
+)
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 
@@ -41,17 +43,17 @@ class MockReadableSpan:
         }
 
 
-class TestStrandsToOpenInferenceProcessor:
-    """Test cases for StrandsToOpenInferenceProcessor."""
+class TestStrandsAgentsToOpenInferenceProcessor:
+    """Test cases for StrandsAgentsToOpenInferenceProcessor."""
 
     def test_processor_can_be_instantiated(self) -> None:
         """Test that the processor can be instantiated."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         assert processor is not None
 
     def test_processor_transforms_llm_span(self) -> None:
         """Test that the processor transforms LLM spans correctly."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="chat",
             attributes={
@@ -75,7 +77,7 @@ class TestStrandsToOpenInferenceProcessor:
 
     def test_processor_transforms_agent_span(self) -> None:
         """Test that the processor transforms agent spans correctly."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="invoke_agent test_agent",
             attributes={
@@ -92,7 +94,7 @@ class TestStrandsToOpenInferenceProcessor:
 
     def test_processor_transforms_tool_span(self) -> None:
         """Test that the processor transforms tool spans correctly."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="execute_tool calculator",
             attributes={
@@ -110,7 +112,7 @@ class TestStrandsToOpenInferenceProcessor:
 
     def test_processor_transforms_chain_span(self) -> None:
         """Test that the processor transforms chain spans correctly."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(
             name="execute_event_loop_cycle",
             attributes={
@@ -127,7 +129,7 @@ class TestStrandsToOpenInferenceProcessor:
 
     def test_processor_handles_empty_attributes(self) -> None:
         """Test that the processor handles spans with no attributes."""
-        processor = StrandsToOpenInferenceProcessor()
+        processor = StrandsAgentsToOpenInferenceProcessor()
         span = MockReadableSpan(name="test_span", attributes={})
 
         # Should not raise an exception
@@ -135,7 +137,7 @@ class TestStrandsToOpenInferenceProcessor:
 
     def test_processor_debug_mode(self) -> None:
         """Test that debug mode works."""
-        processor = StrandsToOpenInferenceProcessor(debug=True)
+        processor = StrandsAgentsToOpenInferenceProcessor(debug=True)
         span = MockReadableSpan(
             name="chat",
             attributes={

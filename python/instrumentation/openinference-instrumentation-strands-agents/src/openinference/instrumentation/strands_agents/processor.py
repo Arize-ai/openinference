@@ -1,6 +1,6 @@
-"""Strands to OpenInference Span Processor.
+"""Strands Agents to OpenInference Span Processor.
 
-This module provides a span processor that converts Strands' native OpenTelemetry spans
+This module provides a span processor that converts Strands Agents' native OpenTelemetry spans
 (using GenAI semantic conventions) to OpenInference format for compatibility with
 OpenInference-compliant backends.
 
@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
-from openinference.instrumentation.strands.semantic_conventions import (
+from openinference.instrumentation.strands_agents.semantic_conventions import (
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_TEMPERATURE,
@@ -37,9 +37,9 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 
 
-class StrandsToOpenInferenceProcessor(SpanProcessor):
+class StrandsAgentsToOpenInferenceProcessor(SpanProcessor):
     """
-    SpanProcessor that converts Strands telemetry attributes to OpenInference format
+    SpanProcessor that converts Strands Agents telemetry attributes to OpenInference format
     for compatibility with OpenInference-compliant backends.
 
     Important: This processor mutates spans in-place. Add it BEFORE any span
@@ -47,7 +47,7 @@ class StrandsToOpenInferenceProcessor(SpanProcessor):
 
     Example:
         # Correct order: processor first, then exporter
-        tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+        tracer_provider.add_span_processor(StrandsAgentsToOpenInferenceProcessor())
         tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     """
 

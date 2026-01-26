@@ -1,8 +1,8 @@
 # Strands Agents framework
 strands-agents>=1.19.0
 
-# OpenInference instrumentation for Strands
-openinference-instrumentation-strands
+# OpenInference instrumentation for Strands Agents
+openinference-instrumentation-strands-agents
 
 # OpenTelemetry dependencies
 opentelemetry-sdk>=1.39.0

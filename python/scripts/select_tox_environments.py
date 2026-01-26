@@ -33,7 +33,8 @@ def select_tox_environments(
         selected_environments.extend(
             [env for env in instrumentor_environments if instrumentor in env]
         )
-    return selected_environments
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(selected_environments))
 
 
 def find_diffs(diff_files: list[str]) -> tuple[bool, bool, set[str]]:

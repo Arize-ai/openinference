@@ -1,7 +1,7 @@
 """Streaming example using Strands with OpenInference instrumentation.
 
 This example demonstrates streaming responses with proper trace capture
-using the StrandsToOpenInferenceProcessor.
+using the StrandsAgentsToOpenInferenceProcessor.
 """
 
 import asyncio
@@ -11,7 +11,7 @@ from strands import Agent, tool
 from strands.models.openai import OpenAIModel
 from strands.telemetry import StrandsTelemetry
 
-from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents import StrandsAgentsToOpenInferenceProcessor
 
 
 @tool
@@ -53,7 +53,7 @@ async def main():
     telemetry.setup_otlp_exporter(endpoint="http://127.0.0.1:6006/v1/traces")
 
     # Add OpenInference processor
-    telemetry.tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor(debug=False))
+    telemetry.tracer_provider.add_span_processor(StrandsAgentsToOpenInferenceProcessor(debug=False))
 
     print("✅ Telemetry configured")
     print()

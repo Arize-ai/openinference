@@ -6,7 +6,7 @@ with OpenInference-supported OTEL backends (Phoenix, Arize, etc.).
 
 Usage:
     from strands.telemetry import StrandsTelemetry
-    from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+    from openinference.instrumentation.strands_agents import StrandsAgentsToOpenInferenceProcessor
 
     # Setup Strands native telemetry
     telemetry = StrandsTelemetry()
@@ -14,7 +14,7 @@ Usage:
 
     # Add OpenInference processor to transform spans
     telemetry.tracer_provider.add_span_processor(
-        StrandsToOpenInferenceProcessor(debug=False)
+        StrandsAgentsToOpenInferenceProcessor(debug=False)
     )
 
     # Now use your Strands agents normally - spans will be automatically transformed
@@ -36,8 +36,10 @@ The processor handles:
 For more information, see: https://github.com/Arize-ai/openinference
 """
 
-from openinference.instrumentation.strands.processor import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents.processor import (
+    StrandsAgentsToOpenInferenceProcessor,
+)
 
-__all__ = ["StrandsToOpenInferenceProcessor"]
+__all__ = ["StrandsAgentsToOpenInferenceProcessor"]
 
 __version__ = "0.1.0"
