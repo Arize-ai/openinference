@@ -73,6 +73,7 @@ testpaths = [
 strict = true
 explicit_package_bases = true
 exclude = [
+  "src/openinference/instrumentation/agentspec/*",
   "src/openinference/instrumentation/agno/*",
   "src/openinference/instrumentation/anthropic/*",
   "src/openinference/instrumentation/autogen/*",

@@ -14,6 +14,10 @@
                 ".gitignore"
             ]
         },
+        "python/instrumentation/openinference-instrumentation-agentspec": {
+            "package-name": "python-openinference-instrumentation-agentspec",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-agno": {
             "package-name": "python-openinference-instrumentation-agno",
             "release-type": "python"
