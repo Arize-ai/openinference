@@ -1,6 +1,6 @@
-# OpenInference Strands Instrumentation
+# OpenInference Strands Agents Instrumentation
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-strands.svg)](https://pypi.org/project/openinference-instrumentation-strands/)
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-strands-agents.svg)](https://pypi.org/project/openinference-instrumentation-strands-agents/)
 
 Python instrumentation library for Strands Agents.
 
@@ -9,7 +9,7 @@ This package provides a span processor that transforms Strands' native OpenTelem
 ## Installation
 
 ```shell
-pip install openinference-instrumentation-strands
+pip install openinference-instrumentation-strands-agents
 ```
 
 ## Quickstart
@@ -19,7 +19,7 @@ In this example we will instrument a small Strands agent program and observe the
 Install packages.
 
 ```shell
-pip install openinference-instrumentation-strands strands-agents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-strands-agents strands-agents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start the phoenix server so that it is ready to collect traces.

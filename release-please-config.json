@@ -130,8 +130,8 @@
             "package-name": "python-openinference-instrumentation-pipecat",
             "release-type": "python"
         },
-        "python/instrumentation/openinference-instrumentation-strands": {
-            "package-name": "python-openinference-instrumentation-strands",
+        "python/instrumentation/openinference-instrumentation-strands-agents": {
+            "package-name": "python-openinference-instrumentation-strands-agents",
             "release-type": "python"
         },
         "java/openinference-semantic-conventions": {
