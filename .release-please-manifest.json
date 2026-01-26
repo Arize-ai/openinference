@@ -34,5 +34,5 @@
     "java/instrumentation/openinference-instrumentation-springAI": "0.1.7",
     "python/instrumentation/openinference-instrumentation-pipecat": "0.1.1",
     "python/instrumentation/openinference-instrumentation-agentspec": "0.1.0",
-    "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.0"
+    "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.1"
 }
