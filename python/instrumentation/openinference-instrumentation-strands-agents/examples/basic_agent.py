@@ -1,6 +1,6 @@
 """Basic example of using Strands with OpenInference instrumentation.
 
-This example demonstrates how to use the StrandsToOpenInferenceProcessor
+This example demonstrates how to use the StrandsAgentsToOpenInferenceProcessor
 to transform Strands' native OpenTelemetry spans into OpenInference format.
 """
 
@@ -10,7 +10,7 @@ from strands import Agent, tool
 from strands.models.openai import OpenAIModel
 from strands.telemetry import StrandsTelemetry
 
-from openinference.instrumentation.strands_agents import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents import StrandsAgentsToOpenInferenceProcessor
 
 
 @tool
@@ -51,7 +51,7 @@ def main():
 
     # Add OpenInference processor to transform spans
     telemetry.tracer_provider.add_span_processor(
-        StrandsToOpenInferenceProcessor(debug=False)  # Set debug=True for verbose output
+        StrandsAgentsToOpenInferenceProcessor(debug=False)  # Set debug=True for verbose output
     )
 
     print("✅ Telemetry configured")
