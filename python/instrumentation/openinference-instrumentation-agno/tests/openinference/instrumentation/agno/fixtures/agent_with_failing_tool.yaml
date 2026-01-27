@@ -1,0 +1,265 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Search for Python tutorials"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"unreliable_search","description":"A
+      search tool that fails.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '326'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.6.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.7
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        YwBoIgBA/FKX37updl59zgGrDH0AkGnP1mUFkeSE/Y9TwWJhimjEJs0FvD156fwXi3V6Mdirjmn1
+        gpa4WK1vej+ZOZWX/Nkq6rOPBRFMB0Vohzq3Nkh5vjguPnXffn24SUPvbj+8WZn4oT07/fXjy7sl
+        JgURfHPkNnNqJ1MMEuMdRH5z+TPuoGi+3ezXq8V8vSK+a33HAkXoQy5XvrTGmXIxW6zK2bac7yQ8
+        HbxpOUHRn4KI6PFsgQhr4E+haDa5Ks/I8KGAXyJC9MJQhDolk3LtMiYAaGE3qMiNIsR92XvRbS2i
+        XDzQxzEE7Ke1iBbpj5fvrvrD/BdvHvrx5mb/8DOfX+sUxdv3wShlNsZIjELrUgorRHC15b80ushi
+        6kZYT97pnMCVpP8nFOHxL65Hjvd/of7i430evKM8Zh9NLekvnuEZffYTxvRf7GDZ/hy1QNEKm/ov
+        Ytpz3A+D+D5E3yR2DX3wiP7m2D5UFrTCMMGMPsZEH0WI3oass79ixc5qm2SCWgQAM4dfRwA0drNq
+        S9R04z6aqmoIbd0O3HFDCe7WY2c8kRbejzForHwxAlsb1+9AbLQth8ydbv3Ydhqg/CIfudWK5AtG
+        6+hXWNfZcIQiPGFFwLP7lNnqg3E9xxDNTfQCDkHvmqZd7ppV16B4LgwD
+    headers:
+      CF-RAY:
+      - 9c4aa8615fdff465-DEL
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:15 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=HeQwUn_M3Epr5uIbxxIzO.fjguQUgm5.0Lz1hfp7C04-1769542155-1.0.1.1-ICnZPt6MbcIp9fbzpRDYzk9VIaaDD_UoFGpxM9ds3lteKk0p1H422986RV1_iLQvOnfbaq8soEkXtLo2jtVXx0Y_QssnzmigF1llqFCVx0s;
+        path=/; expires=Tue, 27-Jan-26 19:59:15 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=S6sj4i3O7tkttkpYnzCpxofjx6E1_s1hmLhWuNfbkbU-1769542155777-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - phidata
+      openai-processing-ms:
+      - '793'
+      openai-project:
+      - proj_kN4Ywkp19Vpb9bonBb6P3leC
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999990'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_5aa629cb1bbd4e68a736274af8245c54
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Search for Python tutorials"},{"role":"assistant","tool_calls":[{"id":"call_llgjFMkgf1Ye6zguvv9zXtDq","function":{"arguments":"{\"query\":\"Python
+      tutorials\"}","name":"unreliable_search"},"type":"function"}],"content":""},{"role":"tool","content":"Search
+      service unavailable for: Python tutorials","tool_call_id":"call_llgjFMkgf1Ye6zguvv9zXtDq"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"unreliable_search","description":"A
+      search tool that fails.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '643'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.6.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.7
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        YwDYPgBA/Fqqf/fl9D5HXFI6tyS/lOI/HoQWaWO0qwGU9P9/P9e3UOOzNFO/f/O2aIpp2qGKRyok
+        MiFL2iHtRyqP4Xyn0Mc3us99mAGGW+NgQu9rGMa0fL5/tf/t9I/2L/4Od6+Pt7+/f3gZj5rddPBx
+        /8QsZoDR5opChRSvfmJgZJUi9J/Ln6PWOOydHJ8dHe7vHR3f+dZBW0rGwXRjXR7qcmDh5f7u/uFy
+        92S5d4rh2V45UDEO/2YA8HCpBzB94A8bh93FrfQXGRrjCm4JMFkTGQfjS+FSvVSzKABS2GU6mDcg
+        aQXpBpSphRdwKRPh7/vL8x1Lh6rIlccLomZ8vqu9CupUNbNPJkp7g+AFP13ZDjyazBSh15SvmW6g
+        EdkDfloRWVp0qi3Oj3VrWcveCtZ+ksRCuNQpF8Ln5GvUPBRr3VoALGHt5vvZW+vwKUbKBSkoYANb
+        LZNwm15nK1PpAP8GufPC976ySlmgIa00+9ydLB16L21ZqsQUTVmRO4/a39Y6/G++CVWZW5/9Ajdc
+        e3R60RMzERvMxf6p1VrWsr+CtW+kUvah8jXhPfksLB1+UVO4knQ3txR8S8OdtQ6f9dpbwDjOSVSK
+        SktiFUFlULHYCPD+7piJLrWlSz+M1jqcI+gwZupJCl8THhxYkDSPOKVkmGvClDOHKU3DQXDwW390
+        +j41hMvei1Bi/PWZ7vAt9D5SttbhF6W03IreCKeORD7b4vJBJXAhDwC8w8oEszf7QUtva04o6MYI
+        wPBV/QCEacawlkP/KouRA/uEAI68ArmJ+Ds/HJMQHHdp7qx1+N4ToiTVF/1N1AH0vqAbGqKqZNCG
+        3i6NgiJvLMxUdMqBinoFR7MXqltH+OLanE9VB1+pH543Xmhm6fCtTjFqBTPG59qgucN5wrcb4s7n
+        6pApJTNqRkNdy3+ZclVrY9/QZfal92OM5i9eZA744GvtqTicI/pSl6MP1CKCd2BoG9D4idzjvDcR
+        dzphiBiw7J2JkQPq3Sg+oUtNnQAWDPyQNECIhjNqHuxgUcFzCl5QdeSwQKKKgbAVvXkWzcCANFjv
+        k3GQKaUwB6oRFEdF/wOg+CkSXs0k7casTQEXm8yUbZtWABcaB1OqjqZE4GkG/I/QnVPQvdaMWYex
+        bqpuiaTydA9lm6kXQAH1/vEcDMcFcOeyg8P9BU7xJo1me4nx55ngQ08tXlAh7PdTy3onmhHJa7BU
+        Ez+WfmyW7gjurAiBxkrtJhErV2yA43iZrigUFc80LXxi2UPLN5UpGwfzfAcXeOmuVBo2kaWjPGau
+        0p6O4+a0acLBaXPYNmb2NDMAAw==
+    headers:
+      CF-RAY:
+      - 9c4aa86a0eca214e-DEL
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:21 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=njmyR32QK56o9uZVHa.Cg9gQ_QYVBEJt9fN4nZSkZTE-1769542161-1.0.1.1-LZmBLJxsZEkbmXadLKnAUS.93EcMqmHmWGsaxalNyEkICr3CjVxOA._rf9xUE36mlkcEpSB_wOJgzUTdbQcuSzdAknesZIbQ5Gbaesp2.PQ;
+        path=/; expires=Tue, 27-Jan-26 19:59:21 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=mZvsA7NFkslt0q5O_vkrsJwi17pVHnwlVrNrgMFzsm4-1769542161011-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - phidata
+      openai-processing-ms:
+      - '4625'
+      openai-project:
+      - proj_kN4Ywkp19Vpb9bonBb6P3leC
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999977'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_a0895386f6fc4ae1bec55ef597e24570
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"test_session","run_id":"a38ea617-c019-4b49-ae95-771a652ff1d0","data":{"agent_id":"search-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":false},"sdk_version":"2.2.2","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '449'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.2
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: a38ea617-c019-4b49-ae95-771a652ff1d0","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:22 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+version: 1
