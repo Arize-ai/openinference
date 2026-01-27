@@ -51,6 +51,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -124,6 +126,8 @@ async def test_instrumentor(
     assert isinstance(response_json_str, str)
     assert json.loads(response_json_str) == FunctionResponse.to_dict(function_response)["response"]
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     status = span.status
     if has_error:
         assert not status.is_ok
@@ -226,6 +230,8 @@ async def test_instrumentor_config_hiding_inputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -353,6 +359,8 @@ async def test_instrumentor_config_hiding_outputs(
     assert json.loads(metadata_json_str) == metadata
     assert attributes.pop(OPENINFERENCE_SPAN_KIND, None) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME, None) == request.model
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.GOOGLE.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.VERTEXAI.value
     assert cast(str, attributes.pop(LLM_INVOCATION_PARAMETERS, None))
     usage_metadata = response.usage_metadata
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL, None) == usage_metadata.total_token_count
@@ -963,6 +971,8 @@ JSON = OpenInferenceMimeTypeValues.JSON.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
