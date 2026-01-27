@@ -8,6 +8,8 @@ from unittest.mock import Mock
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pipecat.frames.frames import (
+    FunctionCallInProgressFrame,
+    FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMTextFrame,
@@ -514,3 +516,283 @@ class TestEdgeCases:
 
         # Verify flag is tracked
         assert observer._llm_includes_inter_frame_spaces is True
+
+
+@pytest.mark.asyncio
+class TestToolCallTracking:
+    """Test tool/function call tracking."""
+
+    async def test_tool_span_creation_from_in_progress_frame(
+        self,
+        observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Test that FunctionCallInProgressFrame creates a tool span."""
+        # Start a turn first
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # Create a function call in progress frame
+        tool_call_id = "call_123"
+        function_name = "get_weather"
+        arguments = {"location": "San Francisco", "unit": "celsius"}
+
+        in_progress_frame = FunctionCallInProgressFrame(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            arguments=arguments,
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None, destination=None, frame=in_progress_frame, direction="down"
+            )
+        )
+
+        # Verify tool span was created and tracked
+        assert tool_call_id in observer._active_spans
+        span_info = observer._active_spans[tool_call_id]
+        assert span_info["service_type"] == "tool"
+
+    async def test_tool_span_finished_on_result_frame(
+        self,
+        observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Test that FunctionCallResultFrame finishes the tool span."""
+        # Start a turn first
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # Create a function call in progress frame
+        tool_call_id = "call_456"
+        function_name = "search_database"
+        arguments = {"query": "test"}
+
+        in_progress_frame = FunctionCallInProgressFrame(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            arguments=arguments,
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None, destination=None, frame=in_progress_frame, direction="down"
+            )
+        )
+
+        # Verify span is active
+        assert tool_call_id in observer._active_spans
+
+        # Send result frame
+        result_frame = FunctionCallResultFrame(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            arguments=arguments,
+            result={"count": 42, "items": ["item1", "item2"]},
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None, destination=None, frame=result_frame, direction="down"
+            )
+        )
+
+        # Verify span was finished and removed from active spans
+        assert tool_call_id not in observer._active_spans
+
+        # End turn to flush spans
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            ),
+            was_interrupted=False,
+        )
+
+        # Check finished spans
+        spans = in_memory_span_exporter.get_finished_spans()
+        tool_spans = [s for s in spans if "pipecat.tool" in s.name]
+        assert len(tool_spans) == 1
+
+        tool_span = tool_spans[0]
+        attributes = dict(tool_span.attributes or {})
+
+        # Verify span attributes
+        assert attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] == (
+            OpenInferenceSpanKindValues.TOOL.value
+        )
+        assert attributes[SpanAttributes.TOOL_NAME] == function_name
+
+    async def test_tool_span_without_in_progress_frame(
+        self,
+        observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Test that FunctionCallResultFrame creates span even without prior InProgress frame."""
+        # Start a turn first
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # Send result frame directly (without in-progress frame)
+        tool_call_id = "call_789"
+        function_name = "calculate"
+        result_frame = FunctionCallResultFrame(
+            tool_call_id=tool_call_id,
+            function_name=function_name,
+            arguments={"x": 1, "y": 2},
+            result=3,
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None, destination=None, frame=result_frame, direction="down"
+            )
+        )
+
+        # Span should have been created and immediately finished
+        assert tool_call_id not in observer._active_spans
+
+        # End turn to flush spans
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            ),
+            was_interrupted=False,
+        )
+
+        # Check finished spans
+        spans = in_memory_span_exporter.get_finished_spans()
+        tool_spans = [s for s in spans if "pipecat.tool" in s.name]
+        assert len(tool_spans) == 1
+
+    async def test_multiple_tool_calls_same_turn(
+        self,
+        observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Test multiple tool calls within a single turn."""
+        # Start a turn
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # First tool call
+        tool_call_id_1 = "call_001"
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None,
+                destination=None,
+                frame=FunctionCallInProgressFrame(
+                    tool_call_id=tool_call_id_1,
+                    function_name="tool_a",
+                    arguments={},
+                ),
+                direction="down",
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None,
+                destination=None,
+                frame=FunctionCallResultFrame(
+                    tool_call_id=tool_call_id_1,
+                    function_name="tool_a",
+                    arguments={},
+                    result="result_a",
+                ),
+                direction="down",
+            )
+        )
+
+        # Second tool call
+        tool_call_id_2 = "call_002"
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None,
+                destination=None,
+                frame=FunctionCallInProgressFrame(
+                    tool_call_id=tool_call_id_2,
+                    function_name="tool_b",
+                    arguments={},
+                ),
+                direction="down",
+            )
+        )
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=None,
+                destination=None,
+                frame=FunctionCallResultFrame(
+                    tool_call_id=tool_call_id_2,
+                    function_name="tool_b",
+                    arguments={},
+                    result="result_b",
+                ),
+                direction="down",
+            )
+        )
+
+        # End turn
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            ),
+            was_interrupted=False,
+        )
+
+        # Check that both tool spans were created
+        spans = in_memory_span_exporter.get_finished_spans()
+        tool_spans = [s for s in spans if "pipecat.tool" in s.name]
+        assert len(tool_spans) == 2
+
+        tool_names = {s.name for s in tool_spans}
+        assert "pipecat.tool.tool_a" in tool_names
+        assert "pipecat.tool.tool_b" in tool_names
+
+    async def test_tool_frame_without_tool_call_id_ignored(
+        self,
+        observer: OpenInferenceObserver,
+        mock_stt_service: Mock,
+    ) -> None:
+        """Test that tool frames without tool_call_id are ignored gracefully."""
+        # Start a turn
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # Create a frame without tool_call_id
+        frame = FunctionCallInProgressFrame(
+            tool_call_id=None,  # type: ignore[arg-type]
+            function_name="test",
+            arguments={},
+        )
+        # Override to ensure tool_call_id is None
+        frame.tool_call_id = None  # type: ignore[assignment]
+
+        await observer.on_push_frame(
+            create_frame_pushed(source=None, destination=None, frame=frame, direction="down")
+        )
+
+        # No tool spans should be created
+        tool_spans = [
+            k for k, v in observer._active_spans.items() if v.get("service_type") == "tool"
+        ]
+        assert len(tool_spans) == 0

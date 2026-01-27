@@ -17,6 +17,8 @@ from openinference.semconv.trace import (
 )
 from pipecat.frames.frames import (
     Frame,
+    FunctionCallInProgressFrame,
+    FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
@@ -223,6 +225,11 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 if isinstance(frame, (TTSTextFrame)):
                     await self._handle_service_frame(data)
 
+            # Tool/Function calls - handled regardless of source processor
+            # These frames can come from function call handlers/aggregators
+            if isinstance(frame, (FunctionCallInProgressFrame, FunctionCallResultFrame)):
+                await self._handle_tool_frame(data)
+
         except Exception as e:
             logger.debug(f"Error in observer on_push_frame: {e}")
 
@@ -384,6 +391,168 @@ class OpenInferenceObserver(TurnTrackingObserver):
                             # Store processing time for use in _finish_span to calculate end_time
                             span_info["processing_time_seconds"] = value
                         active_span.set_attribute(key, value)
+
+    async def _handle_tool_frame(self, data: FramePushed) -> None:
+        """
+        Handle tool/function call frames.
+
+        Creates TOOL spans for function calls and ends them when results are received.
+
+        Args:
+            data: FramePushed event data
+        """
+        frame = data.frame
+        tool_call_id = getattr(frame, "tool_call_id", None)
+
+        if not tool_call_id:
+            self._log_debug(f"  Tool frame without tool_call_id: {frame}")
+            return
+
+        self._log_debug(f"TOOL FRAME: {frame.__class__.__name__}, tool_call_id: {tool_call_id}")
+
+        # FunctionCallInProgressFrame starts a new tool span
+        if isinstance(frame, FunctionCallInProgressFrame):
+            if tool_call_id in self._active_spans:
+                self._log_debug(f"  Tool span already exists for {tool_call_id}")
+                return
+
+            # If no turn is active yet, start one automatically
+            if not self._is_turn_active or self._turn_span is None:
+                self._log_debug(
+                    f"  No active turn - auto-starting turn for tool call {tool_call_id}"
+                )
+                await self._start_turn(data)
+
+            # Create new TOOL span
+            self._log_debug(f"  CREATING new TOOL SPAN for: {tool_call_id}")
+            span = self._create_tool_span(frame)
+
+            # Extract attributes from the frame
+            frame_attrs = extract_attributes_from_frame(frame)
+
+            self._active_spans[tool_call_id] = {
+                "span": span,
+                "service_type": "tool",
+                "frame_count": 1,
+                "accumulated_input": frame_attrs.get(
+                    "llm.tool_call.0.tool_call.function.arguments", ""
+                ),
+                "accumulated_output": "",
+                "start_time_ns": time.time_ns(),
+                "processing_time_seconds": None,
+            }
+
+            # Set initial attributes on span
+            for key, value in frame_attrs.items():
+                span.set_attribute(key, value)
+
+        # FunctionCallResultFrame ends the tool span
+        elif isinstance(frame, FunctionCallResultFrame):
+            if tool_call_id not in self._active_spans:
+                self._log_debug(f"  No active tool span for {tool_call_id}, creating one")
+                # Create a span for the result even if we missed the start
+                if not self._is_turn_active or self._turn_span is None:
+                    await self._start_turn(data)
+
+                span = self._create_tool_span(frame)
+                self._active_spans[tool_call_id] = {
+                    "span": span,
+                    "service_type": "tool",
+                    "frame_count": 1,
+                    "accumulated_input": "",
+                    "accumulated_output": "",
+                    "start_time_ns": time.time_ns(),
+                    "processing_time_seconds": None,
+                }
+
+            span_info = self._active_spans[tool_call_id]
+            span = span_info["span"]
+
+            # Extract and set result attributes
+            frame_attrs = extract_attributes_from_frame(frame)
+            for key, value in frame_attrs.items():
+                span.set_attribute(key, value)
+
+            # Set the result as output value
+            result = getattr(frame, "result", None)
+            if result is not None:
+                from openinference.instrumentation.helpers import safe_json_dumps
+
+                span_info["accumulated_output"] = safe_json_dumps(result) or str(result)
+
+            self._log_debug(f"  Tool call completed, finishing span for {tool_call_id}")
+            self._finish_tool_span(tool_call_id)
+
+    def _create_tool_span(self, frame: Frame) -> Span:
+        """
+        Create a TOOL span for a function call.
+
+        Args:
+            frame: The function call frame
+
+        Returns:
+            The created span
+        """
+        function_name = getattr(frame, "function_name", "unknown_tool")
+        span_name = f"pipecat.tool.{function_name}"
+        self._log_debug(f">>> Creating tool span: {span_name}")
+
+        # Create span under the turn context
+        if self._turn_span and self._is_turn_active:
+            turn_context = trace_api.set_span_in_context(self._turn_span)
+            span = self._tracer.start_span(
+                name=span_name,
+                context=turn_context,
+            )
+            self._log_debug(f"  Created tool span under turn #{self._turn_count}")
+        else:
+            self._log_debug("  WARNING: No active turn! Creating root span for tool")
+            span = self._tracer.start_span(name=span_name)
+
+        # Set OpenInference span kind to TOOL
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.TOOL.value,
+        )
+        span.set_attribute(SpanAttributes.TOOL_NAME, function_name)
+
+        return span
+
+    def _finish_tool_span(self, tool_call_id: str) -> None:
+        """
+        Finish a tool span.
+
+        Args:
+            tool_call_id: The tool call ID identifying the span
+        """
+        if tool_call_id not in self._active_spans:
+            return
+
+        self._log_debug(f"Finishing tool span for: {tool_call_id}")
+
+        span_info = self._active_spans.pop(tool_call_id)
+        span: Span = span_info["span"]
+        start_time_ns = span_info["start_time_ns"]
+
+        # Calculate end time
+        processing_time_seconds = span_info.get("processing_time_seconds")
+        if processing_time_seconds is not None:
+            end_time_ns = start_time_ns + int(processing_time_seconds * 1_000_000_000)
+        else:
+            end_time_ns = time.time_ns()
+
+        # Set accumulated input/output
+        accumulated_input = span_info.get("accumulated_input", "")
+        accumulated_output = span_info.get("accumulated_output", "")
+
+        if accumulated_input:
+            span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
+
+        if accumulated_output:
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, accumulated_output)
+
+        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+        span.end(end_time=int(end_time_ns))
 
     def _create_service_span(
         self,
