@@ -99,6 +99,10 @@ async def test_async_instrumentation(
         assert len(spans) == 2
         for span in spans:
             attributes = dict(span.attributes or dict())
+            if span.name in {"instructor.patch", "instructor.async_patch"}:
+                assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+                assert attributes.get("llm.provider") == "openai"
+                assert attributes.get("llm.system") == "openai"
             assert attributes.get("openinference.span.kind") in ["TOOL"]
             assert span.status.status_code == trace_api.StatusCode.OK
 
@@ -138,6 +142,10 @@ async def test_streaming_instrumentation(
     assert len(spans) == 2
     for span in spans:
         attributes = dict(span.attributes or dict())
+        if span.name in {"instructor.patch", "instructor.async_patch"}:
+            assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
+            assert attributes.get("llm.provider") == "openai"
+            assert attributes.get("llm.system") == "openai"
         assert attributes.get("openinference.span.kind") in ["TOOL"]
         assert span.status.status_code == trace_api.StatusCode.OK
 
@@ -165,6 +173,10 @@ def test_instructor_instrumentation(
         assert len(spans) == 2
         for span in spans:
             attributes = dict(span.attributes or dict())
+            if span.name in {"instructor.patch", "instructor.async_patch"}:
+                assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
+                assert attributes.get("llm.provider") == "openai"
+                assert attributes.get("llm.system") == "openai"
             assert attributes.get("openinference.span.kind") in ["TOOL"]
             assert span.status.status_code == trace_api.StatusCode.OK
 
