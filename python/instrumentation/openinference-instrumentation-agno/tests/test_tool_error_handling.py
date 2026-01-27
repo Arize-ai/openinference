@@ -110,13 +110,14 @@ def test_tool_error_span_is_created_and_ended(
     assert tool_error_span.end_time is not None, (
         "Tool error span should be ended (have an end_time)"
     )
+    assert tool_error_span.start_time is not None, "Span should have start_time"
     assert tool_error_span.end_time > tool_error_span.start_time, (
         "Span end_time should be after start_time"
     )
 
     # Validate that error information is captured in output
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE, "")
-    assert "Tool error: test failure" in output_value or "Tool error: test failure" in str(
+    assert "Tool error: test failure" in str(output_value) or "Tool error: test failure" in str(
         tool_error_span.status.description
     ), "Error message should be captured in output or status"
 
@@ -208,7 +209,7 @@ def test_tool_failure_status_creates_error_span(
     # Verify output contains error message
     attributes = dict(tool_error_span.attributes or {})
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE, "")
-    assert "failure" in output_value.lower(), "Output should contain failure message"
+    assert "failure" in str(output_value).lower(), "Output should contain failure message"
 
 
 def test_successful_tool_span_for_comparison(
@@ -249,7 +250,7 @@ def test_successful_tool_span_for_comparison(
     # Verify output
     attributes = dict(tool_span.attributes or {})
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE, "")
-    assert "Success: test success" in output_value
+    assert "Success: test success" in str(output_value)
 
 
 def test_all_tool_spans_are_exported(
@@ -292,6 +293,7 @@ def test_all_tool_spans_are_exported(
     # Verify both spans have end_time
     for span in spans:
         assert span.end_time is not None, f"Span {span.name} should be ended"
+        assert span.start_time is not None, f"Span {span.name} should have start_time"
         assert span.end_time > span.start_time, f"Span {span.name} should have valid end_time"
 
 
