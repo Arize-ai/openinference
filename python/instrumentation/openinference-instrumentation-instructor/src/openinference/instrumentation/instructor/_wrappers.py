@@ -2,6 +2,7 @@ import json
 from enum import Enum
 from inspect import signature
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
+from urllib.parse import urlparse
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -12,6 +13,8 @@ from instructor.utils import is_async
 from openinference.instrumentation import safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
@@ -206,6 +209,12 @@ class _PatchWrapper:
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
 
+                    if model_name := kwargs.get("model"):
+                        span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if provider := infer_llm_provider_from_endpoint(create, client):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
+
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
                 except Exception as e:
@@ -240,6 +249,12 @@ class _PatchWrapper:
                     if resp is not None and hasattr(resp, "dict"):
                         span.set_attribute(OUTPUT_VALUE, json.dumps(resp.dict()))
                         span.set_attribute(OUTPUT_MIME_TYPE, "application/json")
+
+                    if model_name := kwargs.get("model"):
+                        span.set_attribute(LLM_MODEL_NAME, model_name)
+                    if provider := infer_llm_provider_from_endpoint(create, client):
+                        span.set_attribute(LLM_PROVIDER, provider.value)
+                    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)
                     return resp
@@ -312,8 +327,80 @@ class _HandleResponseWrapper:
         return response
 
 
+def infer_llm_provider_from_endpoint(
+    create: Any = None,
+    client: Any = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+    instance = None
+    if create is not None:
+        # create is a bound method
+        owner = getattr(create, "__self__", None)
+        if owner is not None:
+            # Completions -> client
+            instance = getattr(owner, "_client", None)
+    elif client is not None:
+        instance = client
+    else:
+        return None
+
+    endpoint = (
+        getattr(instance, "api_base", None)
+        or getattr(instance, "base_url", None)
+        or getattr(instance, "endpoint", None)
+        or getattr(instance, "host", None)
+    )
+
+    if not endpoint:
+        return None
+
+    if hasattr(endpoint, "host"):
+        host = endpoint.host
+    elif isinstance(endpoint, str):
+        host = urlparse(endpoint).hostname
+    else:
+        return None
+
+    if not isinstance(host, str):
+        return None
+
+    host = host.lower()
+
+    if host.endswith("api.openai.com"):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    if "openai.azure.com" in host:
+        return OpenInferenceLLMProviderValues.AZURE
+
+    if host.endswith("googleapis.com"):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    if host.endswith("anthropic.com"):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    if "bedrock" in host or host.endswith("amazonaws.com"):
+        return OpenInferenceLLMProviderValues.AWS
+
+    if host.endswith("cohere.ai"):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    if host.endswith("mistral.ai"):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    if host.endswith("x.ai"):
+        return OpenInferenceLLMProviderValues.XAI
+
+    if host.endswith("deepseek.com"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 INPUT_VALUE_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
