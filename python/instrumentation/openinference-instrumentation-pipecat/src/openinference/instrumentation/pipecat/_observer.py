@@ -119,7 +119,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
 
-        self._active_spans: Dict[int, Dict[str, Any]] = {}
+        self._active_spans: Dict[int | str, Dict[str, Any]] = {}
 
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
@@ -599,12 +599,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         return span
 
-    def _finish_span(self, service_id: int) -> None:
+    def _finish_span(self, service_id: int | str) -> None:
         """
         Finish a span for a service.
 
         Args:
-            service_id: The id() of the service instance
+            service_id: The id() of the service instance, or tool_call_id for tool spans
         """
         if service_id not in self._active_spans:
             return

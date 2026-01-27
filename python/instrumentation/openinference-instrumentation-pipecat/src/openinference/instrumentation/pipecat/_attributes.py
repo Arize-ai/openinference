@@ -749,7 +749,7 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         LLMMessagesAppendFrame: _llm_messages_append_frame_extractor,
         LLMFullResponseStartFrame: _llm_full_response_start_frame_extractor,
         LLMFullResponseEndFrame: _llm_full_response_end_frame_extractor,
-        FunctionCallFromLLM: _function_call_from_llm_extractor,
+        # Note: FunctionCallFromLLM is not a Frame subclass, so it's not included here
         FunctionCallInProgressFrame: _function_call_in_progress_frame_extractor,
         FunctionCallResultFrame: _function_call_result_frame_extractor,
         MetricsFrame: _metrics_frame_extractor,
