@@ -32,7 +32,7 @@ the traces via [`arize-phoenix`](https://github.com/Arize-ai/phoenix).
 Install packages.
 
 ```shell
-pip install openinference-instrumentation-agentspec arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-agentspec pyagentspec[langgraph] arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start the phoenix server so that it is ready to collect traces.
