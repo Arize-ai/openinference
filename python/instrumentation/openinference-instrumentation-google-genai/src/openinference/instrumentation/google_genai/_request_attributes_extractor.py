@@ -75,9 +75,12 @@ class _RequestAttributesExtractor:
             # We push the system instruction to the first message for replay and consistency
             system_instruction = getattr(config, "system_instruction", None)
             if system_instruction:
+                # system_instruction can be a string or a Content object
+                # Convert Content objects to string to avoid OTel attribute type errors
+                system_instruction_str = self._content_to_string(system_instruction)
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                    system_instruction,
+                    system_instruction_str,
                 )
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
@@ -127,6 +130,29 @@ class _RequestAttributesExtractor:
                 config_dict["response_schema"] = response_schema.model_json_schema()
 
         return safe_json_dumps(config_dict)
+
+    def _content_to_string(self, content: Any) -> str:
+        """
+        Convert a Content object or string to a string representation.
+
+        The system_instruction field in GenerateContentConfig can be either a string
+        or a Content object. This method handles both cases to ensure we always
+        return a valid string for OpenTelemetry attributes.
+        """
+        if isinstance(content, str):
+            return content
+
+        # Handle Content objects by extracting text from parts
+        if isinstance(content, Content):
+            text_parts = []
+            if parts := get_attribute(content, "parts"):
+                for part in parts:
+                    if text := get_attribute(part, "text"):
+                        text_parts.append(text)
+            return "\n\n".join(text_parts) if text_parts else str(content)
+
+        # Fallback for any other type
+        return str(content)
 
     def _get_tools_from_config(self, config: Any) -> Iterator[Tuple[str, AttributeValue]]:
         """Extract tools from the GenerateContentConfig object."""
