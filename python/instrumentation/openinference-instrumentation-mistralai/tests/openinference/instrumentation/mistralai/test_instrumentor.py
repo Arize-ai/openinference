@@ -32,6 +32,8 @@ from openinference.instrumentation.mistralai import MistralAIInstrumentor
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -201,7 +203,9 @@ def test_synchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -369,7 +373,9 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -528,7 +534,9 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 64
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 74
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -756,7 +764,9 @@ async def test_asynchronous_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 15
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 141
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 156
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-large-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-large-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -971,7 +981,9 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 26
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1092,7 +1104,9 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 24
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1232,7 +1246,9 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 96
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 23
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 119
-    assert attributes.pop(LLM_MODEL_NAME) == "mistral-small-latest"
+    assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
+    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
+    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
     if use_context_attributes:
         _check_context_attributes(
             attributes,
@@ -1364,6 +1380,8 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
