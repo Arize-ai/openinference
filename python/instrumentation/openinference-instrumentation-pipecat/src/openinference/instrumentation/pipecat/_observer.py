@@ -435,7 +435,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 "service_type": "tool",
                 "frame_count": 1,
                 "accumulated_input": frame_attrs.get(
-                    "llm.tool_call.0.tool_call.function.arguments", ""
+                    "tool_call.function.arguments", ""
                 ),
                 "accumulated_output": "",
                 "start_time_ns": time.time_ns(),
