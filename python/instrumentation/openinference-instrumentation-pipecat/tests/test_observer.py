@@ -600,9 +600,7 @@ class TestToolCallTracking:
             result={"count": 42, "items": ["item1", "item2"]},
         )
         await observer.on_push_frame(
-            create_frame_pushed(
-                source=None, destination=None, frame=result_frame, direction="down"
-            )
+            create_frame_pushed(source=None, destination=None, frame=result_frame, direction="down")
         )
 
         # Verify span was finished and removed from active spans
@@ -655,9 +653,7 @@ class TestToolCallTracking:
             result=3,
         )
         await observer.on_push_frame(
-            create_frame_pushed(
-                source=None, destination=None, frame=result_frame, direction="down"
-            )
+            create_frame_pushed(source=None, destination=None, frame=result_frame, direction="down")
         )
 
         # Span should have been created and immediately finished
