@@ -1,3 +1,4 @@
+import builtins
 import json
 from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
@@ -323,6 +324,371 @@ def test_completion_with_tool_calls(
     assert attributes.get(tool_call_function_args) == '{"location": "New York", "unit": "celsius"}'
 
     assert "The weather in New York is 22°C and sunny." == attributes.get(OUTPUT_VALUE)
+
+
+def test_completion_streaming_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that tool calls are captured correctly in streaming responses."""
+    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+    from openai.types.chat.chat_completion_chunk import (
+        ChoiceDeltaToolCall,
+        ChoiceDeltaToolCallFunction,
+    )
+
+    in_memory_span_exporter.clear()
+
+    # Helper to create Delta with tool_calls (needs model_construct for extra fields)
+    def make_delta(
+        role: Optional[str] = None,
+        content: Optional[str] = None,
+        tool_calls: Optional[list] = None,  # type: ignore[type-arg]
+    ) -> Delta:
+        return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
+
+    # Create mock streaming chunks that simulate a tool call response
+    # Tool calls are streamed in parts: first chunk has id/name, subsequent chunks have arguments
+    chunks = [
+        # First chunk: role and start of tool call (id, type, function name)
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id="call_abc123",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="get_weather",
+                                    arguments="",
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Second chunk: first part of arguments
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"location": "New ',
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Third chunk: second part of arguments
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='York"}',
+                                ),
+                            )
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Final chunk: finish reason
+        ModelResponseStream(
+            id="chatcmpl-123",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(role=None, content=None, tool_calls=None),
+                    finish_reason="tool_calls",
+                )
+            ],
+        ),
+    ]
+
+    # Create a mock stream wrapper
+    class MockStreamWrapper:
+        def __init__(self, chunks: list) -> None:  # type: ignore[type-arg]
+            self._chunks = chunks
+            self._index = 0
+
+        def __iter__(self) -> "MockStreamWrapper":
+            return self
+
+        def __next__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "What's the weather like in New York?", "role": "user"}]
+
+    # Store the original function and replace it temporarily
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["completion"]
+
+    # Patch isinstance to make MockStreamWrapper pass as CustomStreamWrapper
+    original_isinstance = builtins.isinstance
+
+    def patched_isinstance(obj: object, classinfo: type | tuple[type, ...]) -> bool:
+        if classinfo is CustomStreamWrapper and type(obj).__name__ == "MockStreamWrapper":
+            return True
+        return original_isinstance(obj, classinfo)
+
+    try:
+        builtins.isinstance = patched_isinstance  # type: ignore[assignment]
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = (
+            lambda *args, **kwargs: MockStreamWrapper(chunks)
+        )
+
+        response = litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            stream=True,
+        )
+
+        # Consume the stream
+        chunks_received = list(response)
+        assert len(chunks_received) == 4
+    finally:
+        builtins.isinstance = original_isinstance
+        LiteLLMInstrumentor.original_litellm_funcs["completion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "completion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify tool call attributes are captured
+    tool_call_function_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tool_call_function_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+
+    assert attributes.get(tool_call_function_name) == "get_weather"
+    assert attributes.get(tool_call_function_args) == '{"location": "New York"}'
+
+    # Output value is not set when empty (only tool calls, no content)
+    assert attributes.get(SpanAttributes.OUTPUT_VALUE) is None
+
+
+@pytest.mark.asyncio
+async def test_acompletion_streaming_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_litellm_instrumentation: Any,
+) -> None:
+    """Test that tool calls are captured correctly in async streaming responses."""
+    from litellm.types.utils import Delta, ModelResponseStream, StreamingChoices
+    from openai.types.chat.chat_completion_chunk import (
+        ChoiceDeltaToolCall,
+        ChoiceDeltaToolCallFunction,
+    )
+
+    in_memory_span_exporter.clear()
+
+    # Helper to create Delta with tool_calls (needs model_construct for extra fields)
+    def make_delta(
+        role: Optional[str] = None,
+        content: Optional[str] = None,
+        tool_calls: Optional[list] = None,  # type: ignore[type-arg]
+    ) -> Delta:
+        return Delta.model_construct(role=role, content=content, tool_calls=tool_calls)
+
+    # Create mock async streaming chunks
+    chunks = [
+        # First chunk: role and start of tool call
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role="assistant",
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id="call_def456",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="search",
+                                    arguments="",
+                                ),
+                            ),
+                            ChoiceDeltaToolCall(
+                                index=1,
+                                id="call_ghi789",
+                                type="function",
+                                function=ChoiceDeltaToolCallFunction(
+                                    name="calculate",
+                                    arguments="",
+                                ),
+                            ),
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Second chunk: arguments for both tool calls
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(
+                        role=None,
+                        content=None,
+                        tool_calls=[
+                            ChoiceDeltaToolCall(
+                                index=0,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"query": "test"}',
+                                ),
+                            ),
+                            ChoiceDeltaToolCall(
+                                index=1,
+                                id=None,
+                                type=None,
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=None,
+                                    arguments='{"x": 1, "y": 2}',
+                                ),
+                            ),
+                        ],
+                    ),
+                    finish_reason=None,
+                )
+            ],
+        ),
+        # Final chunk
+        ModelResponseStream(
+            id="chatcmpl-456",
+            model="gpt-3.5-turbo",
+            choices=[
+                StreamingChoices(
+                    index=0,
+                    delta=make_delta(role=None, content=None, tool_calls=None),
+                    finish_reason="tool_calls",
+                )
+            ],
+        ),
+    ]
+
+    class MockAsyncStreamWrapper:
+        def __init__(self, chunks: list) -> None:  # type: ignore[type-arg]
+            self._chunks = chunks
+            self._index = 0
+
+        def __aiter__(self) -> "MockAsyncStreamWrapper":
+            return self
+
+        async def __anext__(self) -> ModelResponseStream:
+            if self._index >= len(self._chunks):
+                raise StopAsyncIteration
+            chunk: ModelResponseStream = self._chunks[self._index]
+            self._index += 1
+            return chunk
+
+    input_messages = [{"content": "Search for test and calculate 1+2", "role": "user"}]
+
+    # Store the original function and replace it temporarily
+    original_func = LiteLLMInstrumentor.original_litellm_funcs["acompletion"]
+
+    async def mock_acompletion(*args: Any, **kwargs: Any) -> MockAsyncStreamWrapper:
+        return MockAsyncStreamWrapper(chunks)
+
+    try:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = mock_acompletion
+
+        response = await litellm.acompletion(
+            model="gpt-3.5-turbo",
+            messages=input_messages,
+            stream=True,
+        )
+
+        # Consume the async stream
+        chunks_received = [chunk async for chunk in response]
+        assert len(chunks_received) == 3
+    finally:
+        LiteLLMInstrumentor.original_litellm_funcs["acompletion"] = original_func
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "acompletion"
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify first tool call
+    tc0_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tc0_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert attributes.get(tc0_name) == "search"
+    assert attributes.get(tc0_args) == '{"query": "test"}'
+
+    # Verify second tool call
+    tc1_name = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    )
+    tc1_args = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1."
+        f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    )
+    assert attributes.get(tc1_name) == "calculate"
+    assert attributes.get(tc1_args) == '{"x": 1, "y": 2}'
 
 
 def test_completion_with_tool_schema_capture(
