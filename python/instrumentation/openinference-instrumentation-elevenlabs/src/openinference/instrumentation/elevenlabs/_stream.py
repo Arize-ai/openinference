@@ -55,7 +55,7 @@ class _AudioStream(ObjectProxy):  # type: ignore[misc]
             raise StopIteration
 
         try:
-            chunk = self.__wrapped__.__next__()
+            chunk: bytes = self.__wrapped__.__next__()
             self._self_byte_count += len(chunk)
             self._self_chunk_count += 1
             return chunk
@@ -139,7 +139,7 @@ class _AsyncAudioStream(ObjectProxy):  # type: ignore[misc]
             raise StopAsyncIteration
 
         try:
-            chunk = await self.__wrapped__.__anext__()
+            chunk: bytes = await self.__wrapped__.__anext__()
             self._self_byte_count += len(chunk)
             self._self_chunk_count += 1
             return chunk

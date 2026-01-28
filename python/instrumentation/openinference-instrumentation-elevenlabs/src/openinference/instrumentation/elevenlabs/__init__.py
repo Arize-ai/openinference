@@ -222,15 +222,15 @@ class ElevenLabsInstrumentor(BaseInstrumentor):  # type: ignore
             from elevenlabs.text_to_speech.client import TextToSpeechClient
 
             if hasattr(self, "_original_tts_convert"):
-                TextToSpeechClient.convert = self._original_tts_convert  # type: ignore
+                TextToSpeechClient.convert = self._original_tts_convert
             if hasattr(self, "_original_tts_convert_with_timestamps"):
-                TextToSpeechClient.convert_with_timestamps = (  # type: ignore
+                TextToSpeechClient.convert_with_timestamps = (
                     self._original_tts_convert_with_timestamps
                 )
             if hasattr(self, "_original_tts_stream"):
-                TextToSpeechClient.stream = self._original_tts_stream  # type: ignore
+                TextToSpeechClient.stream = self._original_tts_stream
             if hasattr(self, "_original_tts_stream_with_timestamps"):
-                TextToSpeechClient.stream_with_timestamps = (  # type: ignore
+                TextToSpeechClient.stream_with_timestamps = (
                     self._original_tts_stream_with_timestamps
                 )
         except ImportError:
@@ -241,19 +241,15 @@ class ElevenLabsInstrumentor(BaseInstrumentor):  # type: ignore
             from elevenlabs.text_to_speech.client import AsyncTextToSpeechClient
 
             if hasattr(self, "_original_async_tts_convert"):
-                AsyncTextToSpeechClient.convert = (  # type: ignore
-                    self._original_async_tts_convert
-                )
+                AsyncTextToSpeechClient.convert = self._original_async_tts_convert
             if hasattr(self, "_original_async_tts_convert_with_timestamps"):
-                AsyncTextToSpeechClient.convert_with_timestamps = (  # type: ignore
+                AsyncTextToSpeechClient.convert_with_timestamps = (
                     self._original_async_tts_convert_with_timestamps
                 )
             if hasattr(self, "_original_async_tts_stream"):
-                AsyncTextToSpeechClient.stream = (  # type: ignore
-                    self._original_async_tts_stream
-                )
+                AsyncTextToSpeechClient.stream = self._original_async_tts_stream
             if hasattr(self, "_original_async_tts_stream_with_timestamps"):
-                AsyncTextToSpeechClient.stream_with_timestamps = (  # type: ignore
+                AsyncTextToSpeechClient.stream_with_timestamps = (
                     self._original_async_tts_stream_with_timestamps
                 )
         except ImportError:
@@ -264,17 +260,11 @@ class ElevenLabsInstrumentor(BaseInstrumentor):  # type: ignore
             from elevenlabs.conversational_ai.conversation import Conversation
 
             if hasattr(self, "_original_conversation_start_session"):
-                Conversation.start_session = (  # type: ignore
-                    self._original_conversation_start_session
-                )
+                Conversation.start_session = self._original_conversation_start_session
             if hasattr(self, "_original_conversation_end_session"):
-                Conversation.end_session = (  # type: ignore
-                    self._original_conversation_end_session
-                )
+                Conversation.end_session = self._original_conversation_end_session
             if hasattr(self, "_original_conversation_wait_for_session_end"):
-                Conversation.wait_for_session_end = (  # type: ignore
-                    self._original_conversation_wait_for_session_end
-                )
+                Conversation.wait_for_session_end = self._original_conversation_wait_for_session_end
         except ImportError:
             pass
 
