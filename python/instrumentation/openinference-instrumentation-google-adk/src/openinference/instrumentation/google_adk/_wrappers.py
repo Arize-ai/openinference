@@ -25,6 +25,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.tools.base_tool import BaseTool
 from google.genai import types
+from google.genai.types import Blob
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -39,6 +40,7 @@ from openinference.instrumentation import (
     using_user,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -440,6 +442,27 @@ def _get_attributes_from_content(
         )
 
 
+def _get_attributes_from_inline_data(
+    inline_data: Blob, prefix: str = ""
+) -> Iterator[tuple[str, AttributeValue]]:
+    # inline_data is typically a Blob-like object with `.data` (bytes)
+    # and `.mime_type` (str). Encode the bytes as base64 and record
+    # it as an image content attribute, along with the mime type.
+    try:
+        mime_type = inline_data.mime_type
+        data = inline_data.data
+        if data and mime_type and "image" in mime_type:
+            image_url = f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                image_url,
+            )
+            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+
+    except Exception:
+        logger.debug("Failed to extract file data attributes.")
+
+
 @stop_on_exception
 def _get_attributes_from_parts(
     obj: Iterable[types.Part],
@@ -475,6 +498,9 @@ def _get_attributes_from_parts(
                     safe_json_dumps(function_response.response),
                 )
             message_index += 1
+        elif inline_data := part.inline_data:
+            prefix = f"{span_attribute}.{message_index}.{MESSAGE_CONTENTS}.{i}."
+            yield from _get_attributes_from_inline_data(inline_data, prefix)
 
 
 @stop_on_exception
@@ -555,3 +581,6 @@ def _default(obj: Any) -> Any:
     if isinstance(obj, bytes):
         return base64.b64encode(obj).decode()
     return str(obj)
+
+
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
