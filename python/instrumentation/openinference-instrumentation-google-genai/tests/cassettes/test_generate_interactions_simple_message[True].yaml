@@ -1,0 +1,64 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-3-flash-preview","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.start
+
+        data: {"event_type":"interaction.start","interaction":{"id":"v1_Chczd1J4YWVtMU5OWDdqdU1QbVpxRTZBSRIXM3dSeGFlbTFOTlg3anVNUG1acUU2QUk","model":"gemini-3-flash-preview","object":"interaction","status":"in_progress"}}
+
+
+        event: interaction.status_update
+
+        data: {"event_type":"interaction.status_update","interaction_id":"v1_Chczd1J4YWVtMU5OWDdqdU1QbVpxRTZBSRIXM3dSeGFlbTFOTlg3anVNUG1acUU2QUk","status":"in_progress"}
+
+
+        event: content.start
+
+        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
+
+
+        event: content.delta
+
+        data: {"delta":{"signature":"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","type":"thought_signature"},"event_type":"content.delta","index":0}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":0}
+
+
+        event: content.start
+
+        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":"Because light attracts bugs.","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":1}
+
+
+        event: interaction.complete
+
+        data: {"event_type":"interaction.complete","interaction":{"created":"2026-01-21T16:54:57Z","id":"v1_Chczd1J4YWVtMU5OWDdqdU1QbVpxRTZBSRIXM3dSeGFlbTFOTlg3anVNUG1acUU2QUk","model":"gemini-3-flash-preview","object":"interaction","role":"model","status":"completed","updated":"2026-01-21T16:54:57Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":478,"total_tokens":500,"total_tool_use_tokens":0}}}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
