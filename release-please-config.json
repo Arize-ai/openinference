@@ -134,6 +134,10 @@
             "package-name": "python-openinference-instrumentation-strands-agents",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-elevenlabs": {
+            "package-name": "python-openinference-instrumentation-elevenlabs",
+            "release-type": "python"
+        },
         "java/openinference-semantic-conventions": {
             "package-name": "java-openinference-semantic-conventions",
             "release-type": "simple",
