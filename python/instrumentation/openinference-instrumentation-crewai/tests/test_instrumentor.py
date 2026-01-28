@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
 from packaging import version
+from pydantic import BaseModel, Field
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
@@ -26,11 +27,16 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 os.environ["CREWAI_TESTING"] = "true"
 
 
+class ScrapeWebsiteArgs(BaseModel):
+    url: str = Field(..., description="The website URL to scrape")
+
+
 class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc, unused-ignore]
     """Mock tool to replace ScrapeWebsiteTool and avoid chromadb dependency."""
 
     name: str = "scrape_website"
     description: str = "Scrape text content from a website URL"
+    args_schema: type[BaseModel] = ScrapeWebsiteArgs
 
     def _run(self, url: str = "http://quotes.toscrape.com/") -> str:
         """Mock run method that returns simple content."""
@@ -65,7 +71,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
     spans = in_memory_span_exporter.get_finished_spans()
     crewai_version = version.parse(crewai.__version__)
-    expected_spans = 5 if crewai_version <= version.parse("1.4.0") else 4
+    expected_spans = 5 if crewai_version < version.parse("1.9.0") else 3
     assert len(spans) == expected_spans, f"Expected {expected_spans} spans, got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
@@ -111,8 +117,9 @@ def kickoff_crew() -> Tuple[Task, Task]:
         goal="Scrape content from URL",
         backstory="You extract text from websites",
         tools=[MockScrapeWebsiteTool()],
+        allow_delegation=False,
         llm=llm,
-        max_iter=1,
+        max_iter=2,
         max_retry_limit=0,
         verbose=True,
     )
@@ -120,16 +127,17 @@ def kickoff_crew() -> Tuple[Task, Task]:
         role="Content Analyzer",
         goal="Extract quotes from text",
         backstory="You extract quotes from text",
+        allow_delegation=False,
         llm=llm,
         tools=[],
-        max_iter=1,
+        max_iter=2,
         max_retry_limit=0,
         verbose=True,
     )
 
     # Define Tasks
     scrape_task = Task(
-        description=f"Use scrape_website tool to get content from {url}.",
+        description=f"Call the scrape_website tool to fetch text from {url} and return the result.",
         expected_output="Text content from the website.",
         agent=scraper_agent,
     )
