@@ -451,7 +451,7 @@ def _get_attributes_from_inline_data(
     try:
         mime_type = inline_data.mime_type
         data = inline_data.data
-        if mime_type and "image" in mime_type and data is not None:
+        if data and mime_type and "image" in mime_type:
             image_url = f"data:{inline_data.mime_type};base64,{base64.b64encode(data).decode()}"
             yield (
                 f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
