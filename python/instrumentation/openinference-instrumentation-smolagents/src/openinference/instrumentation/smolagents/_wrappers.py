@@ -378,7 +378,21 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
 
 def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, output.model_dump_json()
+    if hasattr(output, "model_dump_json") and callable(output.model_dump_json):
+        try:
+            yield OUTPUT_VALUE, output.model_dump_json(exclude_unset=True)
+        except Exception:
+            # model_dump_json() failed so convert to dict first then use safe_json_dumps
+            # This handles Pydantic models with non-serializable nested objects
+            if hasattr(output, "model_dump") and callable(output.model_dump):
+                yield OUTPUT_VALUE, safe_json_dumps(output.model_dump())
+            elif hasattr(output, "dict") and callable(output.dict):
+                # Pydantic v1 compatibility
+                yield OUTPUT_VALUE, safe_json_dumps(output.dict())
+            else:
+                yield OUTPUT_VALUE, safe_json_dumps(output)
+    else:
+        yield OUTPUT_VALUE, safe_json_dumps(output)
 
 
 def _llm_invocation_parameters(
