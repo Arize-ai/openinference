@@ -147,9 +147,6 @@ class _ResponseAccumulator:
             return None
         return dict(self._values)
 
-    def result(self) -> Any:
-        return self._result()
-
 
 class _ResponseExtractor:
     __slots__ = ("_response_accumulator",)
