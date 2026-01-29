@@ -221,6 +221,186 @@ class TestConversationInstrumentation:
             instrumentor.uninstrument()
 
 
+class TestConversationErrorHandling:
+    """Test error handling in conversation wrappers."""
+
+    def test_start_session_error_finishes_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that start_session errors properly finish the span."""
+
+        class ErrorConversation:
+            def __init__(self, **kwargs: Any) -> None:
+                self.agent_id = kwargs.get("agent_id")
+                self.user_id = kwargs.get("user_id")
+
+            def start_session(self) -> None:
+                raise ConnectionError("WebSocket connection failed")
+
+            def end_session(self) -> None:
+                pass
+
+            def wait_for_session_end(self) -> str:
+                return ""
+
+        mock_module = MagicMock()
+        mock_module.Conversation = ErrorConversation
+
+        mock_tts_module = MagicMock()
+        mock_tts_module.TextToSpeechClient = MagicMock()
+        mock_tts_module.AsyncTextToSpeechClient = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_tts_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.conversational_ai.conversation import Conversation
+
+                conv = Conversation(agent_id="test_agent")
+
+                with pytest.raises(ConnectionError, match="WebSocket connection failed"):
+                    conv.start_session()
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+                assert "WebSocket connection failed" in spans[0].status.description
+
+                # Verify exception was recorded
+                events = [e for e in spans[0].events if e.name == "exception"]
+                assert len(events) == 1
+
+            finally:
+                instrumentor.uninstrument()
+
+    def test_end_session_error_finishes_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that end_session errors properly finish the span."""
+
+        class ErrorEndConversation:
+            def __init__(self, **kwargs: Any) -> None:
+                self.agent_id = kwargs.get("agent_id")
+                self.user_id = kwargs.get("user_id")
+
+            def start_session(self) -> None:
+                pass
+
+            def end_session(self) -> None:
+                raise RuntimeError("Failed to close session")
+
+            def wait_for_session_end(self) -> str:
+                return ""
+
+        mock_module = MagicMock()
+        mock_module.Conversation = ErrorEndConversation
+
+        mock_tts_module = MagicMock()
+        mock_tts_module.TextToSpeechClient = MagicMock()
+        mock_tts_module.AsyncTextToSpeechClient = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_tts_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.conversational_ai.conversation import Conversation
+
+                conv = Conversation(agent_id="test_agent")
+                conv.start_session()
+
+                with pytest.raises(RuntimeError, match="Failed to close session"):
+                    conv.end_session()
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+
+            finally:
+                instrumentor.uninstrument()
+
+    def test_wait_for_session_end_error_finishes_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that wait_for_session_end errors properly finish the span."""
+
+        class ErrorWaitConversation:
+            def __init__(self, **kwargs: Any) -> None:
+                self.agent_id = kwargs.get("agent_id")
+                self.user_id = kwargs.get("user_id")
+
+            def start_session(self) -> None:
+                pass
+
+            def end_session(self) -> None:
+                pass
+
+            def wait_for_session_end(self) -> str:
+                raise TimeoutError("Session wait timed out")
+
+        mock_module = MagicMock()
+        mock_module.Conversation = ErrorWaitConversation
+
+        mock_tts_module = MagicMock()
+        mock_tts_module.TextToSpeechClient = MagicMock()
+        mock_tts_module.AsyncTextToSpeechClient = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_tts_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.conversational_ai.conversation import Conversation
+
+                conv = Conversation(agent_id="test_agent")
+                conv.start_session()
+
+                with pytest.raises(TimeoutError, match="Session wait timed out"):
+                    conv.wait_for_session_end()
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+                assert "Session wait timed out" in spans[0].status.description
+
+            finally:
+                instrumentor.uninstrument()
+
+
 class TestConversationAttributes:
     """Test conversation attribute extraction."""
 

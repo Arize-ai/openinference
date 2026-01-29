@@ -303,7 +303,6 @@ class _AsyncTimestampedAudioStream:
         with_span: _WithSpan,
         text: str,
         output_format: Optional[str],
-        is_async: bool = True,  # kept for compatibility but not used
     ) -> None:
         self._stream = stream
         self._with_span = with_span

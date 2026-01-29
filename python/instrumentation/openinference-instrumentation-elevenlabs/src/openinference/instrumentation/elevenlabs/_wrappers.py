@@ -138,8 +138,14 @@ class _AsyncTextToSpeechConvertWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            # Async convert() returns an AsyncIterator[bytes] directly (not awaitable)
-            response = wrapped(*args, **kwargs)
+            try:
+                # Async convert() returns an AsyncIterator[bytes] directly (not awaitable)
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
 
             return _AsyncAudioStream(
                 stream=response,
@@ -348,8 +354,14 @@ class _AsyncTextToSpeechStreamWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            # Async stream() returns AsyncIterator[bytes] directly (not awaitable)
-            response = wrapped(*args, **kwargs)
+            try:
+                # Async stream() returns AsyncIterator[bytes] directly (not awaitable)
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
 
             return _AsyncAudioStream(
                 stream=response,
@@ -438,13 +450,18 @@ class _AsyncTextToSpeechStreamWithTimestampsWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            # Async stream_with_timestamps returns AsyncIterator directly (not awaitable)
-            response = wrapped(*args, **kwargs)
+            try:
+                # Async stream_with_timestamps returns AsyncIterator directly (not awaitable)
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
 
             return _AsyncTimestampedAudioStream(
                 stream=response,
                 with_span=span,
                 text=text,
                 output_format=output_format,
-                is_async=True,
             )

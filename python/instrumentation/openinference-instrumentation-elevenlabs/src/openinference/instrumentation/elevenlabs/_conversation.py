@@ -81,7 +81,13 @@ class _ConversationStartSessionWrapper:
             except Exception:
                 logger.exception("Failed to add session_started event")
 
-        return wrapped(*args, **kwargs)
+        try:
+            return wrapped(*args, **kwargs)
+        except Exception as exception:
+            with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+            with_span.record_exception(exception)
+            with_span.finish_tracing()
+            raise
 
 
 class _ConversationEndSessionWrapper:
@@ -101,12 +107,20 @@ class _ConversationEndSessionWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Call the original method first
-        result = wrapped(*args, **kwargs)
-
-        # End the span
+        # Get the span helper for error handling
         with_span: Optional[_WithSpan] = getattr(instance, _CONVERSATION_WITH_SPAN_KEY, None)
 
+        try:
+            # Call the original method first
+            result = wrapped(*args, **kwargs)
+        except Exception as exception:
+            if with_span is not None and not with_span.is_finished:
+                with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                with_span.record_exception(exception)
+                with_span.finish_tracing()
+            raise
+
+        # End the span on success
         if with_span is not None and not with_span.is_finished:
             with_span.finish_tracing(
                 status=trace_api.Status(trace_api.StatusCode.OK),
@@ -132,13 +146,21 @@ class _ConversationWaitForSessionEndWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Call the original method - this blocks until session ends
-        # and returns the conversation_id
-        result = wrapped(*args, **kwargs)
-
-        # End the span with the conversation_id
+        # Get the span helper for error handling
         with_span: Optional[_WithSpan] = getattr(instance, _CONVERSATION_WITH_SPAN_KEY, None)
 
+        try:
+            # Call the original method - this blocks until session ends
+            # and returns the conversation_id
+            result = wrapped(*args, **kwargs)
+        except Exception as exception:
+            if with_span is not None and not with_span.is_finished:
+                with_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                with_span.record_exception(exception)
+                with_span.finish_tracing()
+            raise
+
+        # End the span with the conversation_id on success
         if with_span is not None and not with_span.is_finished:
             # result is the conversation_id
             end_attrs = dict(get_conversation_end_attributes(result))

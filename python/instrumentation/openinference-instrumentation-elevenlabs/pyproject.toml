@@ -13,7 +13,7 @@ authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
 classifiers = [
-  "Development Status :: 5 - Production/Stable",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
@@ -32,8 +32,6 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions>=0.1.12",
   "wrapt",
-  "pip>=25.3",
-  "ipykernel>=6.31.0",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +45,11 @@ test = [
   "elevenlabs",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-exporter-otlp-proto-http",
+]
+examples = [
+  "pip>=25.3",
+  "ipykernel>=6.31.0",
+  "elevenlabs>=1.0.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]

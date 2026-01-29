@@ -382,6 +382,226 @@ class TestTextToSpeechInstrumentation:
                 instrumentor.uninstrument()
 
 
+class TestTextToSpeechErrorHandling:
+    """Test error handling in TTS wrappers."""
+
+    def test_convert_with_timestamps_error_records_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that convert_with_timestamps errors are properly recorded."""
+
+        class ErrorTextToSpeechClient:
+            def convert(self, voice_id: str, *, text: str, **kwargs: Any) -> Iterator[bytes]:
+                yield b""
+
+            def convert_with_timestamps(self, voice_id: str, *, text: str, **kwargs: Any) -> Any:
+                raise RuntimeError("Timestamps API error")
+
+            def stream(self, voice_id: str, *, text: str, **kwargs: Any) -> Iterator[bytes]:
+                yield b""
+
+            def stream_with_timestamps(
+                self, voice_id: str, *, text: str, **kwargs: Any
+            ) -> Iterator[Any]:
+                yield MagicMock()
+
+        class MockAsyncClient:
+            async def convert(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def convert_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+        mock_client_module = MagicMock()
+        mock_client_module.TextToSpeechClient = ErrorTextToSpeechClient
+        mock_client_module.AsyncTextToSpeechClient = MockAsyncClient
+
+        mock_conversation_module = MagicMock()
+        mock_conversation_module.Conversation = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_client_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_conversation_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.text_to_speech.client import TextToSpeechClient
+
+                client = TextToSpeechClient()
+
+                with pytest.raises(RuntimeError, match="Timestamps API error"):
+                    client.convert_with_timestamps(voice_id="test", text="Test")
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+                assert "Timestamps API error" in spans[0].status.description
+
+                # Verify exception was recorded
+                events = spans[0].events
+                assert len(events) == 1
+                assert events[0].name == "exception"
+
+            finally:
+                instrumentor.uninstrument()
+
+    def test_stream_error_records_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that stream errors are properly recorded."""
+
+        class ErrorTextToSpeechClient:
+            def convert(self, voice_id: str, *, text: str, **kwargs: Any) -> Iterator[bytes]:
+                yield b""
+
+            def convert_with_timestamps(self, voice_id: str, *, text: str, **kwargs: Any) -> Any:
+                return MagicMock()
+
+            def stream(self, voice_id: str, *, text: str, **kwargs: Any) -> Iterator[bytes]:
+                raise ConnectionError("Stream connection failed")
+
+            def stream_with_timestamps(
+                self, voice_id: str, *, text: str, **kwargs: Any
+            ) -> Iterator[Any]:
+                yield MagicMock()
+
+        class MockAsyncClient:
+            async def convert(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def convert_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+        mock_client_module = MagicMock()
+        mock_client_module.TextToSpeechClient = ErrorTextToSpeechClient
+        mock_client_module.AsyncTextToSpeechClient = MockAsyncClient
+
+        mock_conversation_module = MagicMock()
+        mock_conversation_module.Conversation = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_client_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_conversation_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.text_to_speech.client import TextToSpeechClient
+
+                client = TextToSpeechClient()
+
+                with pytest.raises(ConnectionError, match="Stream connection failed"):
+                    client.stream(voice_id="test", text="Test")
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+
+            finally:
+                instrumentor.uninstrument()
+
+    @pytest.mark.asyncio
+    async def test_async_convert_error_records_span(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Test that async convert errors are properly recorded."""
+
+        class MockSyncClient:
+            def convert(self, *args: Any, **kwargs: Any) -> Iterator[bytes]:
+                yield b""
+
+            def convert_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock()
+
+            def stream(self, *args: Any, **kwargs: Any) -> Iterator[bytes]:
+                yield b""
+
+            def stream_with_timestamps(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
+                yield MagicMock()
+
+        class ErrorAsyncTextToSpeechClient:
+            def convert(self, voice_id: str, *, text: str, **kwargs: Any) -> Any:
+                raise TimeoutError("Async API timeout")
+
+            async def convert_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+            async def stream_with_timestamps(self, *args: Any, **kwargs: Any) -> Any:
+                pass
+
+        mock_client_module = MagicMock()
+        mock_client_module.TextToSpeechClient = MockSyncClient
+        mock_client_module.AsyncTextToSpeechClient = ErrorAsyncTextToSpeechClient
+
+        mock_conversation_module = MagicMock()
+        mock_conversation_module.Conversation = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "elevenlabs": MagicMock(),
+                "elevenlabs.text_to_speech": MagicMock(),
+                "elevenlabs.text_to_speech.client": mock_client_module,
+                "elevenlabs.conversational_ai": MagicMock(),
+                "elevenlabs.conversational_ai.conversation": mock_conversation_module,
+            },
+        ):
+            instrumentor = ElevenLabsInstrumentor()
+            instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+            try:
+                from elevenlabs.text_to_speech.client import AsyncTextToSpeechClient
+
+                client = AsyncTextToSpeechClient()
+
+                with pytest.raises(TimeoutError, match="Async API timeout"):
+                    client.convert(voice_id="test", text="Test")
+
+                spans = in_memory_span_exporter.get_finished_spans()
+                assert len(spans) == 1
+                assert spans[0].status.status_code.name == "ERROR"
+                assert "Async API timeout" in spans[0].status.description
+
+            finally:
+                instrumentor.uninstrument()
+
+
 class TestTextToSpeechAttributes:
     """Test attribute extraction."""
 
