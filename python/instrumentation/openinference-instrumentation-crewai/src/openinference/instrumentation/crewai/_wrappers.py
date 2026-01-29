@@ -666,8 +666,11 @@ class _BaseToolRunWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.TOOL_NAME: tool_name,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                            wrapped,
+                            *args,
+                            **kwargs,
+                        ),
                     }
                 )
             ),
@@ -690,7 +693,10 @@ class _BaseToolRunWrapper:
             if hasattr(instance, "description_updated"):
                 span.set_attribute("tool.description_updated", bool(instance.description_updated))
             if hasattr(instance, "cache_function") and instance.cache_function is not None:
-                span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
+                try:
+                    span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
+                except Exception:
+                    pass
             if hasattr(instance, "result_as_answer"):
                 span.set_attribute("tool.result_as_answer", bool(instance.result_as_answer))
             if hasattr(instance, "max_usage_count") and instance.max_usage_count is not None:
