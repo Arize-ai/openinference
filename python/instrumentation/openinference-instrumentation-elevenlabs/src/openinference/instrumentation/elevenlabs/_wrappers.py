@@ -15,7 +15,12 @@ from opentelemetry.trace import INVALID_SPAN
 from openinference.instrumentation import get_attributes_from_context
 
 from ._attributes import get_tts_request_attributes, get_tts_response_attributes
-from ._stream import _AsyncAudioStream, _AsyncTimestampedAudioStream, _AudioStream
+from ._stream import (
+    _AsyncAudioStream,
+    _AsyncTimestampedAudioStream,
+    _AudioStream,
+    _TimestampedAudioStream,
+)
 from ._with_span import _WithSpan
 
 logger = logging.getLogger(__name__)
@@ -176,7 +181,7 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
             attributes=attributes,
         ) as span:
             try:
-                # convert_with_timestamps returns AudioWithTimestampsResponse object
+                # convert_with_timestamps returns a single AudioWithTimestampsResponse
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
@@ -184,11 +189,11 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
                 span.finish_tracing()
                 raise
 
-            # Response has audio_base64 attribute - estimate byte count
+            # Response has audio_base_64 attribute - estimate byte count
             byte_count = 0
-            if hasattr(response, "audio_base64") and response.audio_base64:
+            if hasattr(response, "audio_base_64") and response.audio_base_64:
                 # Base64 encoded, actual bytes are ~75% of string length
-                byte_count = int(len(response.audio_base64) * 0.75)
+                byte_count = int(len(response.audio_base_64) * 0.75)
 
             # Set response attributes and finish
             response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
@@ -201,7 +206,7 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
 class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
     """Wrapper for async text_to_speech.convert_with_timestamps() method."""
 
-    def __call__(
+    async def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -210,7 +215,7 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
     ) -> Any:
         # Check for suppression
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
+            return await wrapped(*args, **kwargs)
 
         # Extract parameters
         voice_id = args[0] if args else kwargs.get("voice_id", "")
@@ -229,16 +234,27 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            # Async convert_with_timestamps returns an AsyncIterator directly
-            response = wrapped(*args, **kwargs)
+            try:
+                # Async convert_with_timestamps returns a coroutine -> single response
+                response = await wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                span.finish_tracing()
+                raise
 
-            return _AsyncTimestampedAudioStream(
-                stream=response,
-                with_span=span,
-                text=text,
-                output_format=output_format,
-                is_async=True,
-            )
+            # Response has audio_base_64 attribute - estimate byte count
+            byte_count = 0
+            if hasattr(response, "audio_base_64") and response.audio_base_64:
+                # Base64 encoded, actual bytes are ~75% of string length
+                byte_count = int(len(response.audio_base_64) * 0.75)
+
+            # Set response attributes and finish
+            response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
+            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+            span.finish_tracing(attributes=response_attrs)
+
+            return response
 
 
 class _TextToSpeechStreamWrapper(_WithTracer):
@@ -371,7 +387,7 @@ class _TextToSpeechStreamWithTimestampsWrapper(_WithTracer):
                 raise
 
             # stream_with_timestamps returns Iterator[StreamingAudioChunkWithTimestampsResponse]
-            return _AsyncTimestampedAudioStream(
+            return _TimestampedAudioStream(
                 stream=response,
                 with_span=span,
                 text=text,
