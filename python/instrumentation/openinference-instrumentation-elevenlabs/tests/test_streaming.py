@@ -14,8 +14,8 @@ from openinference.instrumentation.elevenlabs._attributes import (
 )
 from openinference.instrumentation.elevenlabs._stream import (
     _AsyncAudioStream,
-    _AsyncTimestampedAudioStream,
     _AudioStream,
+    _TimestampedAudioStream,
 )
 from openinference.instrumentation.elevenlabs._with_span import _WithSpan
 
@@ -213,19 +213,18 @@ class TestTimestampedAudioStream:
 
         def mock_timestamped_iterator() -> Iterator[Any]:
             chunk1 = MagicMock()
-            chunk1.audio_base64 = "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo="  # 26 chars = ~19 bytes
+            chunk1.audio_base_64 = "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo="  # 26 chars = ~19 bytes
             yield chunk1
 
             chunk2 = MagicMock()
-            chunk2.audio_base64 = "MTIzNDU2Nzg5MA=="  # 16 chars = ~12 bytes
+            chunk2.audio_base_64 = "MTIzNDU2Nzg5MA=="  # 16 chars = ~12 bytes
             yield chunk2
 
-        stream = _AsyncTimestampedAudioStream(
+        stream = _TimestampedAudioStream(
             stream=mock_timestamped_iterator(),
             with_span=with_span,
             text="timestamps test",
             output_format="mp3_44100_128",
-            is_async=False,
         )
 
         chunks = list(stream)
