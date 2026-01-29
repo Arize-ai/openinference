@@ -191,9 +191,15 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
 
             # Response has audio_base_64 attribute - estimate byte count
             byte_count = 0
-            if hasattr(response, "audio_base_64") and response.audio_base_64:
+            audio_data = getattr(response, "audio_base_64", None)
+            if audio_data:
                 # Base64 encoded, actual bytes are ~75% of string length
-                byte_count = int(len(response.audio_base_64) * 0.75)
+                byte_count = int(len(audio_data) * 0.75)
+            else:
+                logger.debug(
+                    f"convert_with_timestamps response has no audio_base_64: "
+                    f"type={type(response)}, attrs={dir(response)}"
+                )
 
             # Set response attributes and finish
             response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
@@ -245,9 +251,15 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
 
             # Response has audio_base_64 attribute - estimate byte count
             byte_count = 0
-            if hasattr(response, "audio_base_64") and response.audio_base_64:
+            audio_data = getattr(response, "audio_base_64", None)
+            if audio_data:
                 # Base64 encoded, actual bytes are ~75% of string length
-                byte_count = int(len(response.audio_base_64) * 0.75)
+                byte_count = int(len(audio_data) * 0.75)
+            else:
+                logger.debug(
+                    f"async convert_with_timestamps response has no audio_base_64: "
+                    f"type={type(response)}, attrs={dir(response)}"
+                )
 
             # Set response attributes and finish
             response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
