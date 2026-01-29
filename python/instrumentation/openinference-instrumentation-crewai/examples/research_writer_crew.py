@@ -187,8 +187,8 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 1: Research latest developments using search tool
     research_task = Task(
-        description="""Use the search_tool to conduct a comprehensive analysis of the latest 
-        advancements in AI in 2024. Search for 'AI advancements 2024' and identify key trends, 
+        description="""Use the search_tool to conduct a comprehensive analysis of the latest
+        advancements in AI in 2024. Search for 'AI advancements 2024' and identify key trends,
         breakthrough technologies, and potential industry impacts.""",
         expected_output="Full analysis report in bullet points based on search results",
         agent=researcher,
@@ -196,7 +196,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 2: Analyze research data using data analysis tool
     analysis_task = Task(
-        description="""Use the data_analysis_tool to analyze the research findings for technical 
+        description="""Use the data_analysis_tool to analyze the research findings for technical
         insights and market implications. Perform a 'trends' analysis on the research data.
         Provide statistical analysis and data-driven conclusions.""",
         expected_output="Technical analysis report with insights from the analysis tool",
@@ -206,9 +206,9 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 3: Create engaging content using content formatter tool
     writing_task = Task(
-        description="""Using the insights provided, use the content_formatter tool to develop 
+        description="""Using the insights provided, use the content_formatter tool to develop
         an engaging blog post that highlights the most significant AI advancements.
-        Format the output as a 'blog' post. Your content should be informative yet accessible, 
+        Format the output as a 'blog' post. Your content should be informative yet accessible,
         catering to a tech-savvy audience.""",
         expected_output="Full blog post formatted using the content_formatter tool",
         agent=writer,
@@ -262,7 +262,7 @@ def run_multiple_crews():
         # Crew 2: AI Specialized Focus
         ai_crew = create_research_writer_crew("AISpecializedCrew")
         # Modify tasks for AI focus
-        ai_crew.tasks[0].description = """Use the search_tool to research specifically 
+        ai_crew.tasks[0].description = """Use the search_tool to research specifically
         AI and machine learning trends. Focus on LLMs, computer vision, and AI automation tools.
         Search for 'Large Language Models 2024' and 'Computer Vision advancements'."""
         ai_crew.kickoff()
