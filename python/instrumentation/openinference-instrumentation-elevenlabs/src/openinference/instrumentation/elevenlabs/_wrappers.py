@@ -105,7 +105,7 @@ class _TextToSpeechConvertWrapper(_WithTracer):
 class _AsyncTextToSpeechConvertWrapper(_WithTracer):
     """Wrapper for async text_to_speech.convert() method."""
 
-    async def __call__(
+    def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -114,7 +114,7 @@ class _AsyncTextToSpeechConvertWrapper(_WithTracer):
     ) -> Any:
         # Check for suppression
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
 
         # Extract parameters
         voice_id = args[0] if args else kwargs.get("voice_id", "")
@@ -133,15 +133,9 @@ class _AsyncTextToSpeechConvertWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
+            # Async convert() returns an AsyncIterator[bytes] directly (not awaitable)
+            response = wrapped(*args, **kwargs)
 
-            # Async convert() returns an AsyncIterator[bytes]
             return _AsyncAudioStream(
                 stream=response,
                 with_span=span,
@@ -207,7 +201,7 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
 class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
     """Wrapper for async text_to_speech.convert_with_timestamps() method."""
 
-    async def __call__(
+    def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -216,7 +210,7 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
     ) -> Any:
         # Check for suppression
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
 
         # Extract parameters
         voice_id = args[0] if args else kwargs.get("voice_id", "")
@@ -235,25 +229,16 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
+            # Async convert_with_timestamps returns an AsyncIterator directly
+            response = wrapped(*args, **kwargs)
 
-            # Response has audio_base64 attribute
-            byte_count = 0
-            if hasattr(response, "audio_base64") and response.audio_base64:
-                byte_count = int(len(response.audio_base64) * 0.75)
-
-            # Set response attributes and finish
-            response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
-            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            span.finish_tracing(attributes=response_attrs)
-
-            return response
+            return _AsyncTimestampedAudioStream(
+                stream=response,
+                with_span=span,
+                text=text,
+                output_format=output_format,
+                is_async=True,
+            )
 
 
 class _TextToSpeechStreamWrapper(_WithTracer):
@@ -307,7 +292,7 @@ class _TextToSpeechStreamWrapper(_WithTracer):
 class _AsyncTextToSpeechStreamWrapper(_WithTracer):
     """Wrapper for async text_to_speech.stream() method."""
 
-    async def __call__(
+    def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -316,7 +301,7 @@ class _AsyncTextToSpeechStreamWrapper(_WithTracer):
     ) -> Any:
         # Check for suppression
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
 
         # Extract parameters
         voice_id = args[0] if args else kwargs.get("voice_id", "")
@@ -335,15 +320,9 @@ class _AsyncTextToSpeechStreamWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
+            # Async stream() returns AsyncIterator[bytes] directly (not awaitable)
+            response = wrapped(*args, **kwargs)
 
-            # Async stream() returns AsyncIterator[bytes]
             return _AsyncAudioStream(
                 stream=response,
                 with_span=span,
@@ -403,7 +382,7 @@ class _TextToSpeechStreamWithTimestampsWrapper(_WithTracer):
 class _AsyncTextToSpeechStreamWithTimestampsWrapper(_WithTracer):
     """Wrapper for async text_to_speech.stream_with_timestamps() method."""
 
-    async def __call__(
+    def __call__(
         self,
         wrapped: Callable[..., Any],
         instance: Any,
@@ -412,7 +391,7 @@ class _AsyncTextToSpeechStreamWithTimestampsWrapper(_WithTracer):
     ) -> Any:
         # Check for suppression
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
 
         # Extract parameters
         voice_id = args[0] if args else kwargs.get("voice_id", "")
@@ -431,15 +410,9 @@ class _AsyncTextToSpeechStreamWithTimestampsWrapper(_WithTracer):
             span_name="ElevenLabs.TextToSpeech",
             attributes=attributes,
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                span.finish_tracing()
-                raise
+            # Async stream_with_timestamps returns AsyncIterator directly (not awaitable)
+            response = wrapped(*args, **kwargs)
 
-            # Async stream_with_timestamps returns AsyncIterator
             return _AsyncTimestampedAudioStream(
                 stream=response,
                 with_span=span,

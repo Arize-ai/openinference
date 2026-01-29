@@ -32,6 +32,8 @@ dependencies = [
   "openinference-instrumentation>=0.1.17",
   "openinference-semantic-conventions>=0.1.12",
   "wrapt",
+  "pip>=25.3",
+  "ipykernel>=6.31.0",
 ]
 
 [project.optional-dependencies]
