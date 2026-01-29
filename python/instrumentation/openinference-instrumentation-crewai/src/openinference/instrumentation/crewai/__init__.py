@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
+    _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffAsyncWrapper,
@@ -37,6 +38,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
         "_original_tool_use",
+        "_original_base_tool_run",
         "_tracer",
     )
 
@@ -125,6 +127,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=short_term_memory_search_wrapper,
         )
 
+        # For CrewAI < 1.9.0 - wrap ToolUsage._use which is the legacy execution path
         use_wrapper = _ToolUseWrapper(tracer=self._tracer)
         self._original_tool_use = getattr(
             import_module("crewai.tools.tool_usage").ToolUsage, "_use", None
@@ -134,6 +137,22 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="ToolUsage._use",
             wrapper=use_wrapper,
         )
+
+        # For CrewAI >= 1.9.0 - wrap BaseTool.run which is the new execution path
+        try:
+            base_tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)
+            self._original_base_tool_run = getattr(
+                import_module("crewai.tools.base_tool").BaseTool, "run", None
+            )
+            if self._original_base_tool_run:
+                wrap_function_wrapper(
+                    module="crewai.tools.base_tool",
+                    name="BaseTool.run",
+                    wrapper=base_tool_run_wrapper,
+                )
+        except (AttributeError, ImportError) as e:
+            logger.warning(f"Could not instrument BaseTool.run: {e}")
+            self._original_base_tool_run = None
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_execute_core is not None:
@@ -177,3 +196,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             tool_usage_module = import_module("crewai.tools.tool_usage")
             tool_usage_module.ToolUsage._use = self._original_tool_use
             self._original_tool_use = None
+
+        if self._original_base_tool_run is not None:
+            base_tool_module = import_module("crewai.tools.base_tool")
+            base_tool_module.BaseTool.run = self._original_base_tool_run
+            self._original_base_tool_run = None

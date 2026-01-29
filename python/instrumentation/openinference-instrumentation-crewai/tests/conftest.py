@@ -1,10 +1,12 @@
 from typing import Generator
 
+import crewai
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from packaging import version
 
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 
@@ -34,3 +36,14 @@ def instrument(
     yield
     CrewAIInstrumentor().uninstrument()
     in_memory_span_exporter.clear()
+
+
+@pytest.fixture(scope="function")
+def vcr_cassette_name(request: pytest.FixtureRequest) -> str:
+    crewai_version = version.parse(crewai.__version__)
+    function_name = request.function.__name__
+    if crewai_version >= version.parse("1.9.0"):
+        suffix = "_latest"
+    else:
+        suffix = "_legacy"
+    return f"{function_name}{suffix}"

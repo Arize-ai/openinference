@@ -643,6 +643,77 @@ class _ToolUseWrapper:
         return response
 
 
+class _BaseToolRunWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        tool_name = getattr(instance, "name", "BaseTool")
+        span_name = f"{tool_name}.run"
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
+                        SpanAttributes.TOOL_NAME: tool_name,
+                        SpanAttributes.INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                    }
+                )
+            ),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            if hasattr(instance, "name") and instance.name:
+                span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
+            if hasattr(instance, "description") and instance.description:
+                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            if hasattr(instance, "args_schema") and instance.args_schema is not None:
+                try:
+                    if hasattr(instance.args_schema, "model_json_schema"):
+                        span.set_attribute(
+                            SpanAttributes.TOOL_PARAMETERS,
+                            safe_json_dumps(instance.args_schema.model_json_schema()),
+                        )
+                except Exception:
+                    pass
+            if hasattr(instance, "description_updated"):
+                span.set_attribute("tool.description_updated", bool(instance.description_updated))
+            if hasattr(instance, "cache_function") and instance.cache_function is not None:
+                span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
+            if hasattr(instance, "result_as_answer"):
+                span.set_attribute("tool.result_as_answer", bool(instance.result_as_answer))
+            if hasattr(instance, "max_usage_count") and instance.max_usage_count is not None:
+                span.set_attribute("tool.max_usage_count", int(instance.max_usage_count))
+            if (
+                hasattr(instance, "current_usage_count")
+                and instance.current_usage_count is not None
+            ):
+                span.set_attribute("tool.current_usage_count", int(instance.current_usage_count))
+
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(response)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
+
+
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
