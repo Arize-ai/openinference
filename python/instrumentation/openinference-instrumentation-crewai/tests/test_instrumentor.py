@@ -78,11 +78,16 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
     assert len(agent_spans) == 2
 
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    assert len(tool_spans) == 1
+    tool_span = tool_spans[0]
+
     _verify_crew_span(crew_span)
 
-    # Enhanced naming: spans now include agent roles
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+
+    _verify_tool_span(tool_span)
 
     # Clear spans exporter
     in_memory_span_exporter.clear()
@@ -288,6 +293,56 @@ def _verify_agent_span(
 
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert isinstance(output_value, str)
+
+
+def _verify_tool_span(span: ReadableSpan) -> None:
+    """Verify a TOOL span has correct attributes."""
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify span kind is TOOL
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    ), f"Expected TOOL span kind, got: {attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)}"
+
+    # Verify span name ends with .run (BaseTool.run wrapper)
+    assert span.name.endswith(".run"), f"Expected span name to end with '.run', got: {span.name}"
+
+    # Verify tool name is present
+    tool_name = attributes.get(SpanAttributes.TOOL_NAME)
+    assert tool_name is not None, "Tool span should have a tool name"
+    assert isinstance(tool_name, str), f"Tool name should be string, got: {type(tool_name)}"
+
+    # Verify tool name is in span name
+    assert str(tool_name) in span.name, (
+        f"Expected tool name '{tool_name}' in span name '{span.name}'"
+    )
+
+    # Verify tool description is present
+    tool_description = attributes.get(SpanAttributes.TOOL_DESCRIPTION)
+    assert tool_description is not None, "Tool span should have a description"
+    assert isinstance(tool_description, str), (
+        f"Tool description should be string, got: {type(tool_description)}"
+    )
+
+    # Verify tool parameters (args_schema) is present and valid JSON
+    tool_parameters = attributes.get(SpanAttributes.TOOL_PARAMETERS)
+    assert tool_parameters is not None, "Tool span should have parameters"
+    assert isinstance(tool_parameters, str), (
+        f"Tool parameters should be JSON string, got: {type(tool_parameters)}"
+    )
+
+    # Verify input value is present
+    input_value = attributes.get(SpanAttributes.INPUT_VALUE)
+    assert input_value is not None, "Tool span should have input value"
+    assert isinstance(input_value, str), f"Input value should be string, got: {type(input_value)}"
+
+    # Verify output value is present
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, "Tool span should have output value"
+    assert isinstance(output_value, str), (
+        f"Output value should be string, got: {type(output_value)}"
+    )
 
 
 def _verify_context_attributes(span: ReadableSpan) -> None:

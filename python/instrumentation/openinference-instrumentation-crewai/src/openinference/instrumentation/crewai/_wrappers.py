@@ -121,6 +121,23 @@ def _get_flow_name(flow: Any) -> str:
     return "Flow"
 
 
+def _get_tool_span_name(instance: Any, wrapped: Callable[..., Any]) -> str:
+    """Generate a meaningful tool span name including tool name."""
+    base_method = wrapped.__name__
+
+    # Try to get the tool name from instance
+    if instance and hasattr(instance, "name"):
+        tool_name = getattr(instance, "name", None)
+        if tool_name:
+            return f"{tool_name}.{str(base_method)}"
+
+    # Fallback to original naming if no tool name available
+    if instance:
+        return f"{instance.__class__.__name__}.{str(base_method)}"
+    else:
+        return str(base_method)
+
+
 def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agent: Any) -> str:
     """Generate a meaningful task span name using agent role."""
     base_method = wrapped.__name__
@@ -586,10 +603,8 @@ class _BaseToolRunWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-
-        tool_name = getattr(instance, "name", "BaseTool")
-        span_name = f"{tool_name}.run"
-
+        # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
+        span_name = _get_tool_span_name(instance, wrapped)
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
