@@ -452,6 +452,11 @@ class PromptAttributes:
     """
     The text of the prompt.
     """
+    PROMPT_TEMPLATE_VARIABLES = "prompt.template_variables"
+    """
+    The variables of the prompt template as a JSON string.
+    e.g. `'{"city": "New York", "country": "USA"}'`
+    """
 
 
 class ChoiceAttributes:
@@ -488,6 +493,7 @@ class OpenInferenceSpanKindValues(Enum):
     UNKNOWN = "UNKNOWN"
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
+    PROMPT = "PROMPT"
 
 
 class OpenInferenceMimeTypeValues(Enum):
