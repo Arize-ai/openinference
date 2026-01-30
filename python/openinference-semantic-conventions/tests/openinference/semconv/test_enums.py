@@ -15,6 +15,7 @@ class TestOpenInferenceSpanKindValues:
             OpenInferenceSpanKindValues.EVALUATOR: "EVALUATOR",
             OpenInferenceSpanKindValues.GUARDRAIL: "GUARDRAIL",
             OpenInferenceSpanKindValues.LLM: "LLM",
+            OpenInferenceSpanKindValues.PROMPT: "PROMPT",
             OpenInferenceSpanKindValues.RERANKER: "RERANKER",
             OpenInferenceSpanKindValues.RETRIEVER: "RETRIEVER",
             OpenInferenceSpanKindValues.TOOL: "TOOL",
