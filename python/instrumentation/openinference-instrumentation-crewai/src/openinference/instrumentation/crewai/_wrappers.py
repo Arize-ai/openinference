@@ -121,26 +121,6 @@ def _get_flow_name(flow: Any) -> str:
     return "Flow"
 
 
-def _get_tool_span_name(
-    instance: Any, wrapped: Callable[..., Any], kwargs: Mapping[str, Any]
-) -> str:
-    """Generate a meaningful tool span name including tool name."""
-    base_method = wrapped.__name__
-
-    # Try to get the tool name from kwargs
-    tool = kwargs.get("tool")
-    if tool and hasattr(tool, "name") and tool.name:
-        tool_name = str(tool.name).strip()
-        if tool_name:
-            return f"{tool_name}.{base_method}"
-
-    # Fallback to original naming if no tool name available
-    if instance:
-        return f"{instance.__class__.__name__}.{str(base_method)}"
-    else:
-        return str(base_method)
-
-
 def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agent: Any) -> str:
     """Generate a meaningful task span name using agent role."""
     base_method = wrapped.__name__
@@ -198,7 +178,7 @@ class _ExecuteCoreWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # task naming - include agent role and task context
+        # Enhanced task naming - use meaningful agent role instead of generic "Task._execute_core"
         agent = args[0] if args else kwargs.get("agent")
         span_name = _get_execute_core_span_name(instance, wrapped, agent)
         with self._tracer.start_as_current_span(
@@ -207,7 +187,7 @@ class _ExecuteCoreWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -593,56 +573,6 @@ class _ShortTermMemorySearchWrapper:
         return response
 
 
-class _ToolUseWrapper:
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-        # Enhanced tool naming - include actual tool name
-        span_name = _get_tool_span_name(instance, wrapped, kwargs)
-        with self._tracer.start_as_current_span(
-            span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
-            record_exception=False,
-            set_status_on_exception=False,
-        ) as span:
-            tool = kwargs.get("tool")
-            tool_name = ""
-            if tool:
-                tool_name = tool.name
-            span.set_attribute("function_calling_llm", instance.function_calling_llm)
-            span.set_attribute(SpanAttributes.TOOL_NAME, tool_name)
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            span.set_attributes(dict(get_output_attributes(response)))
-            span.set_attributes(dict(get_attributes_from_context()))
-        return response
-
-
 class _BaseToolRunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -666,7 +596,7 @@ class _BaseToolRunWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -722,5 +652,3 @@ class _BaseToolRunWrapper:
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

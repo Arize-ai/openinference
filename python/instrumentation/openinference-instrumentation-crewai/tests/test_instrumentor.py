@@ -2,7 +2,6 @@ import json
 import os
 from typing import Any, Mapping, Sequence, Tuple, cast
 
-import crewai
 import pytest
 from crewai import LLM, Agent, Crew, Task
 from crewai.crews import CrewOutput
@@ -12,7 +11,6 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
-from packaging import version
 from pydantic import BaseModel, Field
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -70,8 +68,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    crewai_version = version.parse(crewai.__version__)
-    expected_spans = 5 if crewai_version <= version.parse("1.4.0") else 4
+    expected_spans = 4
     assert len(spans) == expected_spans, f"Expected {expected_spans} spans, got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)

@@ -35,10 +35,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "crewai >= 0.119.0",
+  "crewai >= 1.9.0",
 ]
 test = [
-  "crewai == 0.119.0",
+  "crewai == 1.9.0",
   "opentelemetry-sdk",
   "responses",
   "pytest-vcr",
