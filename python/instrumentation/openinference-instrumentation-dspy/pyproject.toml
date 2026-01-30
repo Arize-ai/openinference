@@ -40,7 +40,6 @@ instruments = [
 ]
 test = [
   "dspy>=2.6.22",
-  "google-generativeai",
   "opentelemetry-sdk",
   "pytest-recording",
   "litellm",
