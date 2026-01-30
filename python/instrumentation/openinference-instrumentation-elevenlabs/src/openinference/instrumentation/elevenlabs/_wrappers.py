@@ -189,30 +189,30 @@ class _TextToSpeechConvertWithTimestampsWrapper(_WithTracer):
             try:
                 # convert_with_timestamps returns a single AudioWithTimestampsResponse
                 response = wrapped(*args, **kwargs)
+
+                # Response has audio_base_64 attribute - estimate byte count
+                byte_count = 0
+                audio_data = getattr(response, "audio_base_64", None)
+                if audio_data:
+                    # Base64 encoded, actual bytes are ~75% of string length
+                    byte_count = int(len(audio_data) * 0.75)
+                else:
+                    logger.debug(
+                        f"convert_with_timestamps response has no audio_base_64: "
+                        f"type={type(response)}, attrs={dir(response)}"
+                    )
+
+                # Set response attributes and finish
+                response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
+                span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+                span.finish_tracing(attributes=response_attrs)
+
+                return response
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-
-            # Response has audio_base_64 attribute - estimate byte count
-            byte_count = 0
-            audio_data = getattr(response, "audio_base_64", None)
-            if audio_data:
-                # Base64 encoded, actual bytes are ~75% of string length
-                byte_count = int(len(audio_data) * 0.75)
-            else:
-                logger.debug(
-                    f"convert_with_timestamps response has no audio_base_64: "
-                    f"type={type(response)}, attrs={dir(response)}"
-                )
-
-            # Set response attributes and finish
-            response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
-            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            span.finish_tracing(attributes=response_attrs)
-
-            return response
 
 
 class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
@@ -249,30 +249,30 @@ class _AsyncTextToSpeechConvertWithTimestampsWrapper(_WithTracer):
             try:
                 # Async convert_with_timestamps returns a coroutine -> single response
                 response = await wrapped(*args, **kwargs)
+
+                # Response has audio_base_64 attribute - estimate byte count
+                byte_count = 0
+                audio_data = getattr(response, "audio_base_64", None)
+                if audio_data:
+                    # Base64 encoded, actual bytes are ~75% of string length
+                    byte_count = int(len(audio_data) * 0.75)
+                else:
+                    logger.debug(
+                        f"async convert_with_timestamps response has no audio_base_64: "
+                        f"type={type(response)}, attrs={dir(response)}"
+                    )
+
+                # Set response attributes and finish
+                response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
+                span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+                span.finish_tracing(attributes=response_attrs)
+
+                return response
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-
-            # Response has audio_base_64 attribute - estimate byte count
-            byte_count = 0
-            audio_data = getattr(response, "audio_base_64", None)
-            if audio_data:
-                # Base64 encoded, actual bytes are ~75% of string length
-                byte_count = int(len(audio_data) * 0.75)
-            else:
-                logger.debug(
-                    f"async convert_with_timestamps response has no audio_base_64: "
-                    f"type={type(response)}, attrs={dir(response)}"
-                )
-
-            # Set response attributes and finish
-            response_attrs = dict(get_tts_response_attributes(text, output_format, byte_count))
-            span.set_status(trace_api.Status(trace_api.StatusCode.OK))
-            span.finish_tracing(attributes=response_attrs)
-
-            return response
 
 
 class _TextToSpeechStreamWrapper(_WithTracer):
