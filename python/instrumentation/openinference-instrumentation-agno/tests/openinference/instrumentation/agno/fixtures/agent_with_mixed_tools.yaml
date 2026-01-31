@@ -1,0 +1,262 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"Calculate 2+2 and check weather
+      in NYC"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"calculator","description":"A
+      calculator that works.","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false}}},{"type":"function","function":{"name":"weather_lookup","description":"A
+      weather tool that''s broken.","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '570'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.6.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.7
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        YwCQKQBA/Jrq16updl4tnUOmu5Aig9BawkYsB+j/PHWqUEAsYr8oc4PFomva6AJZmCv1qsW3hgta
+        soUVxb7mammuS/gVajLK595WRHAdFMEOptgx+ubJ8rT89fzJm+P+6c3Fw/HN5UP7pn3xXZ5u/HBC
+        XRFB2hPbwsk/mGLgOgkk+M3lNO6gaLHbHjbr5WK7Qj46SsceitDH0qylGV1wzXK+XDfzXbPYS6AO
+        4ixnKPpdERHdXu0Q4R/4Qyia11A8I8OAIvwSEZJ4hiKYnF0uJhTUBKkSdrOKwuQ98lIR8doa75XD
+        U/u2neqwnxrvdZBx+vzh9efDz5yXL+ZHflmm/+bmg04oXrmORpHZGLk0BNenFEaJEMzISs+zkzdF
+        koSACKO9AIpw+wfmDxQta/qDtjW8hxvte8j697W3f7tdDsP56qk/DO5b//rx1/VpPuzD7tv2gpds
+        ysBJe5HzFD1eZF25/gNFf/COL+mnpDM9Bpd2nQhu/w2D1NIETBgfH6nEBDv3l4104HXw0sckbWbn
+        Ueuvpb+rdggVaXxlGDBjiCmYbyImGWPRRc6sWN1tjG0h31IEzGaeWh6DFE5fLDmzInldnbCdU2cO
+        1tiBO/ZUnp2aqXOCBFwodgosKpQPu2BfF3p9pJAJazkW7nR9y6zXKVJ2iU9s+Wr0QbALKMoY18Vx
+        giI8RiAB7ToXHvXRhZ5TTO5OcQeOUdv1Zr9pN+3BorqvDAM=
+    headers:
+      CF-RAY:
+      - 9c4aa894aca45a00-DEL
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:25 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=hoUWIKOzyl2BNM12S55rrhtYUeLqhZq1JlaM4S4SBx0-1769542165-1.0.1.1-yCkB_q13vOhmsZ_igXLUc7K9.5p3bqoOBWX4mukon54QtYPCPOLHHk8A3E_h2Bfloqr4UWvwrZJ3hBg6Nu7fZ1QRA1wsQvt4qQv0AYrLKZM;
+        path=/; expires=Tue, 27-Jan-26 19:59:25 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=aCO4LNjiiJ9gHS3JYGZWuUzitXaj57HWLzSL2igNT_E-1769542165045-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - phidata
+      openai-processing-ms:
+      - '1302'
+      openai-project:
+      - proj_kN4Ywkp19Vpb9bonBb6P3leC
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999987'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_a94116290b1c4445a194a6982c270105
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"Calculate 2+2 and check weather
+      in NYC"},{"role":"assistant","tool_calls":[{"id":"call_nomuSPKS9Yss2H0feItuqazP","function":{"arguments":"{\"a\":
+      2, \"b\": 2}","name":"calculator"},"type":"function"},{"id":"call_7snhkxEl9hiVgKCU4j0h8n7V","function":{"arguments":"{\"city\":
+      \"New York City\"}","name":"weather_lookup"},"type":"function"}],"content":""},{"role":"tool","content":"4","tool_call_id":"call_nomuSPKS9Yss2H0feItuqazP"},{"role":"tool","content":"Weather
+      service down for: New York City","tool_call_id":"call_7snhkxEl9hiVgKCU4j0h8n7V"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"calculator","description":"A
+      calculator that works.","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false}}},{"type":"function","function":{"name":"weather_lookup","description":"A
+      weather tool that''s broken.","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"],"additionalProperties":false}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '1074'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 2.6.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 2.6.1
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.13.7
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        YwCoHgBA/F6d1bup/psFDJHK5buKyBuSJ86YRpG0QD7/N/94QJrYsl40FtgCmbexwMbEMOyk2QD9
+        oB88sM9fp+7Zb2KkgLDqNxl+9y0BSDIyILtdRVu7qnXVL/rrx2q30/Li72SXP0uQx+dVl28/f+nS
+        eQKQrgu2UZO0lxiYog2E/3L5HWdk0JuMZ6NhvzceCT+tNeOKDCh3sTXUVi2NtPrd/rDVnbR6Uwu3
+        WxXLgQz+JwDwdtYAqAd+lwy651f5FRkKGeCPAPJaMRnQKgQJcdVEOgdACbulAf1oKXEdHqqIHctC
+        1be/EG2Qpsd9nKGfpieQgDQ9HqbpSRsJZVQjT7yKW/Yo+VYDV/aQ6VODjfrn/M2lxJdzBMUntP3w
+        ujmK8By98CPbxGmqteOAFvr3VxUZNA9VFSAQiMmgcC8VP3J2qNLceV0HdUI16SqL/b96yYBCVEea
+        1kcC3M9N/SHdp+S81i4uopbs0uwNp74qRAlASIPZgD84gJp908m5TbIooFcNs7tFdmW3nDkFKqxX
+        D5mosJpEnnJHqfbZ6EdLkx8gjFjLLnK2KMEYjxqg9DwXbEmSaeqDI1J4EYU9GdCbjgU8vYTI9WIj
+        Tc7eeSHz9cYt7HA0Ha1H65ml5CMxAAM=
+    headers:
+      CF-RAY:
+      - 9c4aa8a3ec1f123b-DEL
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - br
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:27 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=tDXLVOcg1Jut5mDWid6XWoOJ5wek0_pLyjwXMiqnFuM-1769542167-1.0.1.1-apoZjaosb9A4lsIR5EWk9RmneK7lMW.ZvjCfo_SPMlmj2KojOh4poEtwRkWKa10ctPiMdgZPzY8yGpkML4T_iUYAf_mgIjbx8efSbVYzntw;
+        path=/; expires=Tue, 27-Jan-26 19:59:27 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=EVoh.51e3tYNyTQaLvwKg2_khuIuBP8LTtvq35eMiWQ-1769542167120-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - phidata
+      openai-processing-ms:
+      - '1219'
+      openai-project:
+      - proj_kN4Ywkp19Vpb9bonBb6P3leC
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999975'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_bcf20fcba6ae4b31bae3494050939573
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"session_id":"mixed_test","run_id":"6cf01c35-fc81-40b4-b96d-f78d4bf892d7","data":{"agent_id":"assistant-agent","db_type":null,"model_provider":"OpenAI","model_name":"OpenAIChat","model_id":"gpt-4o-mini","parser_model":null,"output_model":null,"has_tools":true,"has_memory":false,"has_culture":false,"has_reasoning":false,"has_knowledge":false,"has_input_schema":false,"has_output_schema":false,"has_team":false},"sdk_version":"2.2.2","type":"agent"}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate, br
+      connection:
+      - keep-alive
+      content-length:
+      - '450'
+      content-type:
+      - application/json
+      host:
+      - os-api.agno.com
+      user-agent:
+      - agno/2.2.2
+    method: POST
+    uri: https://os-api.agno.com/telemetry/runs
+  response:
+    body:
+      string: '{"message":"Run creation acknowledged: 6cf01c35-fc81-40b4-b96d-f78d4bf892d7","status":"success"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '96'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 27 Jan 2026 19:29:28 GMT
+      server:
+      - uvicorn
+    status:
+      code: 201
+      message: Created
+version: 1

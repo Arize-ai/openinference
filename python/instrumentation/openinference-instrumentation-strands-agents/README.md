@@ -1,6 +1,6 @@
-# OpenInference Strands Instrumentation
+# OpenInference Strands Agents Instrumentation
 
-[![pypi](https://badge.fury.io/py/openinference-instrumentation-strands.svg)](https://pypi.org/project/openinference-instrumentation-strands/)
+[![pypi](https://badge.fury.io/py/openinference-instrumentation-strands-agents.svg)](https://pypi.org/project/openinference-instrumentation-strands-agents/)
 
 Python instrumentation library for Strands Agents.
 
@@ -9,7 +9,7 @@ This package provides a span processor that transforms Strands' native OpenTelem
 ## Installation
 
 ```shell
-pip install openinference-instrumentation-strands
+pip install openinference-instrumentation-strands-agents
 ```
 
 ## Quickstart
@@ -19,7 +19,7 @@ In this example we will instrument a small Strands agent program and observe the
 Install packages.
 
 ```shell
-pip install openinference-instrumentation-strands strands-agents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
+pip install openinference-instrumentation-strands-agents strands-agents arize-phoenix opentelemetry-sdk opentelemetry-exporter-otlp
 ```
 
 Start the phoenix server so that it is ready to collect traces.
@@ -29,7 +29,7 @@ The Phoenix server runs entirely on your machine and does not send data over the
 python -m phoenix.server.main serve
 ```
 
-In a python file, setup the Strands telemetry and add the `StrandsToOpenInferenceProcessor` to transform spans.
+In a python file, setup the Strands telemetry and add the `StrandsAgentsToOpenInferenceProcessor` to transform spans.
 
 ```python
 import os
@@ -38,14 +38,14 @@ from strands import Agent, tool
 from strands.models.openai import OpenAIModel
 from strands.telemetry import StrandsTelemetry
 
-from openinference.instrumentation.strands import StrandsToOpenInferenceProcessor
+from openinference.instrumentation.strands_agents import StrandsAgentsToOpenInferenceProcessor
 
 # Setup Strands native telemetry
 telemetry = StrandsTelemetry()
 telemetry.setup_otlp_exporter(endpoint="http://127.0.0.1:6006/v1/traces")
 
 # Add OpenInference processor to transform spans
-telemetry.tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+telemetry.tracer_provider.add_span_processor(StrandsAgentsToOpenInferenceProcessor())
 
 
 @tool
@@ -89,16 +89,16 @@ python your_file.py
 
 ## Important: Processor Ordering
 
-The `StrandsToOpenInferenceProcessor` **mutates spans in-place**. This means the order in which you add span processors matters.
+The `StrandsAgentsToOpenInferenceProcessor` **mutates spans in-place**. This means the order in which you add span processors matters.
 
-Add the `StrandsToOpenInferenceProcessor` **before** any exporters that should receive the transformed OpenInference spans:
+Add the `StrandsAgentsToOpenInferenceProcessor` **before** any exporters that should receive the transformed OpenInference spans:
 
 ```python
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 # Correct order: processor first, then exporter
-telemetry.tracer_provider.add_span_processor(StrandsToOpenInferenceProcessor())
+telemetry.tracer_provider.add_span_processor(StrandsAgentsToOpenInferenceProcessor())
 telemetry.tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 ```
 

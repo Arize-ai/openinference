@@ -3,14 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-dspy"
+name = "openinference-instrumentation-agentspec"
 dynamic = ["version"]
-description = "OpenInference DSPy Instrumentation"
+description = "OpenInference Open Agent Spec Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "Oracle", email = "" },
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -29,40 +30,32 @@ dependencies = [
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
-  "wrapt",
+  "openinference-semantic-conventions>=0.1.21",
   "typing-extensions",
+  "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "dspy >= 2.6.22",
-]
-test = [
-  "dspy>=2.6.22",
   "opentelemetry-sdk",
-  "pytest-recording",
-  "litellm",
-  "urllib3<3.0",
-  "vcrpy>=5.0.0,<9.0.0",
+  "pyagentspec >= 26.1.0",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
-dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-dspy"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agentspec"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/dspy/version.py"
+path = "src/openinference/instrumentation/agentspec/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -70,6 +63,7 @@ packages = ["src/openinference"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = [
   "tests",
 ]
@@ -83,19 +77,13 @@ exclude = [
   "sdist",
 ]
 
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = [
-  "wrapt",
-  "dspy.*",
-]
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"examples/*" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
