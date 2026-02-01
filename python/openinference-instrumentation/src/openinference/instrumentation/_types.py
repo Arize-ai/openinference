@@ -18,6 +18,7 @@ OpenInferenceSpanKind = Union[
         "evaluator",
         "guardrail",
         "llm",
+        "prompt",
         "reranker",
         "retriever",
         "tool",
