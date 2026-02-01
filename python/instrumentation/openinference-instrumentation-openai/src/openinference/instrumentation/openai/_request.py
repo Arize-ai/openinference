@@ -5,9 +5,8 @@ from itertools import chain
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
-from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.instrumentation.utils import is_instrumentation_suppressed
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
@@ -305,7 +304,7 @@ class _Request(_WithTracer, _WithOpenAI):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if is_instrumentation_suppressed():
             return wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
@@ -366,7 +365,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         args: Tuple[type, Any],
         kwargs: Mapping[str, Any],
     ) -> Any:
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        if is_instrumentation_suppressed():
             return await wrapped(*args, **kwargs)
         try:
             cast_to, request_parameters = _parse_request_args(args)
