@@ -176,7 +176,6 @@ class TestSpanAttributes:
             },
             "prompt": {
                 "id": SpanAttributes.PROMPT_ID,
-                "template_variables": SpanAttributes.PROMPT_TEMPLATE_VARIABLES,
                 "url": SpanAttributes.PROMPT_URL,
                 "vendor": SpanAttributes.PROMPT_VENDOR,
             },
