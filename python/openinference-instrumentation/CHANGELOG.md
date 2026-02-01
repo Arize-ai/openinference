@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.43...python-openinference-instrumentation-v0.1.44) (2026-02-01)
+
+
+### Bug Fixes
+
+* **instrumentation:** update openinference span kind helper to include prompt ([#2672](https://github.com/Arize-ai/openinference/issues/2672)) ([6603d44](https://github.com/Arize-ai/openinference/commit/6603d444d5a36aa661908da24ce6e9d1c78bc1fe))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.42...python-openinference-instrumentation-v0.1.43) (2026-01-26)
 
 
