@@ -18,8 +18,7 @@ from ._with_span import _WithSpan
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-# Storage key for the span on Conversation instances
-_CONVERSATION_SPAN_KEY = "_openinference_span"
+# Storage key for the span helper on Conversation instances
 _CONVERSATION_WITH_SPAN_KEY = "_openinference_with_span"
 
 
@@ -67,12 +66,11 @@ class _ConversationStartSessionWrapper:
         # Create the WithSpan helper
         with_span = _WithSpan(span=span)
 
-        # Store the span and helper on the instance for later access
+        # Store the helper on the instance for later access
         try:
-            setattr(instance, _CONVERSATION_SPAN_KEY, span)
             setattr(instance, _CONVERSATION_WITH_SPAN_KEY, with_span)
         except Exception:
-            logger.exception("Failed to store span on Conversation instance")
+            logger.exception("Failed to store span helper on Conversation instance")
 
         # Add session_started event
         if span.is_recording():

@@ -89,20 +89,20 @@ class _WithSpan:
         """
         Finish tracing by setting final attributes and ending the span.
 
-        Attributes are applied in order:
-        1. attributes (highest priority)
-        2. context_attributes
-        3. extra_attributes (from init)
-        4. extra_attributes (from this call, lowest priority)
+        Attributes are applied in priority order (later values overwrite earlier):
+        1. extra_attributes (from this call, lowest priority)
+        2. extra_attributes (from init)
+        3. context_attributes
+        4. attributes (highest priority)
         """
         if self._is_finished:
             return
 
         for mapping in (
-            attributes,
-            self._context_attributes,
-            self._extra_attributes,
             extra_attributes,
+            self._extra_attributes,
+            self._context_attributes,
+            attributes,
         ):
             if not mapping:
                 continue

@@ -39,7 +39,7 @@ class MockTextToSpeechClient:
     ) -> Any:
         """Mock convert_with_timestamps that returns response object."""
         response = MagicMock()
-        response.audio_base64 = "YXVkaW9fZGF0YQ=="  # "audio_data" in base64
+        response.audio_base_64 = "YXVkaW9fZGF0YQ=="  # "audio_data" in base64
         response.alignment = None
         return response
 
@@ -67,18 +67,18 @@ class MockTextToSpeechClient:
     ) -> Iterator[Any]:
         """Mock stream_with_timestamps that yields response chunks."""
         chunk1 = MagicMock()
-        chunk1.audio_base64 = "Y2h1bmsxYXVkaW8="  # "chunk1audio" in base64
+        chunk1.audio_base_64 = "Y2h1bmsxYXVkaW8="  # "chunk1audio" in base64
         yield chunk1
 
         chunk2 = MagicMock()
-        chunk2.audio_base64 = "Y2h1bmsyYXVkaW8="  # "chunk2audio" in base64
+        chunk2.audio_base_64 = "Y2h1bmsyYXVkaW8="  # "chunk2audio" in base64
         yield chunk2
 
 
 class MockAsyncTextToSpeechClient:
     """Mock AsyncTextToSpeechClient for testing."""
 
-    async def convert(
+    def convert(
         self,
         voice_id: str,
         *,
@@ -87,7 +87,7 @@ class MockAsyncTextToSpeechClient:
         output_format: str = None,
         **kwargs: Any,
     ) -> Any:
-        """Mock async convert that returns async iterator."""
+        """Mock async convert that returns async iterator directly (not awaitable)."""
 
         async def _async_gen() -> Any:
             yield b"async_audio_chunk_1"
@@ -106,10 +106,10 @@ class MockAsyncTextToSpeechClient:
     ) -> Any:
         """Mock async convert_with_timestamps."""
         response = MagicMock()
-        response.audio_base64 = "YXN5bmNfYXVkaW9fZGF0YQ=="
+        response.audio_base_64 = "YXN5bmNfYXVkaW9fZGF0YQ=="
         return response
 
-    async def stream(
+    def stream(
         self,
         voice_id: str,
         *,
@@ -118,7 +118,7 @@ class MockAsyncTextToSpeechClient:
         output_format: str = None,
         **kwargs: Any,
     ) -> Any:
-        """Mock async stream."""
+        """Mock async stream that returns async iterator directly (not awaitable)."""
 
         async def _async_gen() -> Any:
             yield b"async_stream_chunk_1"
@@ -126,7 +126,7 @@ class MockAsyncTextToSpeechClient:
 
         return _async_gen()
 
-    async def stream_with_timestamps(
+    def stream_with_timestamps(
         self,
         voice_id: str,
         *,
@@ -135,11 +135,11 @@ class MockAsyncTextToSpeechClient:
         output_format: str = None,
         **kwargs: Any,
     ) -> Any:
-        """Mock async stream_with_timestamps."""
+        """Mock async stream_with_timestamps that returns async iterator directly (not awaitable)."""
 
         async def _async_gen() -> Any:
             chunk = MagicMock()
-            chunk.audio_base64 = "YXN5bmNfY2h1bms="
+            chunk.audio_base_64 = "YXN5bmNfY2h1bms="
             yield chunk
 
         return _async_gen()
@@ -244,7 +244,7 @@ class TestTextToSpeechInstrumentation:
             )
 
             # Verify response
-            assert response.audio_base64 is not None
+            assert response.audio_base_64 is not None
 
             # Verify span
             spans = in_memory_span_exporter.get_finished_spans()
