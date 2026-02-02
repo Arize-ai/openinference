@@ -4,20 +4,20 @@ import logging
 import time
 from contextvars import Token
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, Set, TextIO
 
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 from pipecat.frames.frames import (
     Frame,
-    FunctionCallInProgressFrame,
     FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
@@ -135,6 +135,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._tts_includes_inter_frame_spaces: bool = False
         self._seen_vad_user_stopped_speaking_frame: bool = False
 
+        # Track completed tool calls to avoid duplicate spans
+        self._completed_tool_calls: Set[str] = set()
+
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
         if self._debug_log_file:
@@ -211,6 +214,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
                 ):
                     await self._handle_service_frame(data)
 
+                elif isinstance(frame, FunctionCallResultFrame):
+                    await self._handle_tool_frame(data)
+
             # LLM (destination)
             elif isinstance(dst, LLMService):
                 if isinstance(frame, LLMContextFrame):
@@ -224,11 +230,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             elif isinstance(src, BaseOutputTransport):
                 if isinstance(frame, (TTSTextFrame)):
                     await self._handle_service_frame(data)
-
-            # Tool/Function calls - handled regardless of source processor
-            # These frames can come from function call handlers/aggregators
-            if isinstance(frame, (FunctionCallInProgressFrame, FunctionCallResultFrame)):
-                await self._handle_tool_frame(data)
 
         except Exception as e:
             logger.debug(f"Error in observer on_push_frame: {e}")
@@ -292,13 +293,37 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
                     # Set input context for LLM Span
                     if isinstance(frame, LLMContextFrame):
+
+                        def set_tool_call_attributes(
+                            span: Span, prefix: str, tool_call: dict
+                        ) -> None:
+                            """Set attributes for a tool call with tool_call. prefix."""
+                            # tool_call typically has: id, type, function.name, function.arguments
+                            if "id" in tool_call:
+                                span.set_attribute(f"{prefix}.tool_call.id", tool_call["id"])
+                            if "function" in tool_call and isinstance(tool_call["function"], dict):
+                                func = tool_call["function"]
+                                if "name" in func:
+                                    span.set_attribute(
+                                        f"{prefix}.tool_call.function.name", func["name"]
+                                    )
+                                if "arguments" in func:
+                                    span.set_attribute(
+                                        f"{prefix}.tool_call.function.arguments", func["arguments"]
+                                    )
+
                         index = 0
                         for ctx in frame.context.messages:
                             for key, value in ctx.items():  # type: ignore[union-attr]
-                                span.set_attribute(
-                                    f"llm.input_messages.{index}.message.{key}",
-                                    value,  # type: ignore[arg-type]
-                                )
+                                prefix = f"llm.input_messages.{index}.message.{key}"
+                                if key == "tool_calls" and isinstance(value, list):
+                                    # Handle tool_calls specially with tool_call. prefix
+                                    for tc_idx, tool_call in enumerate(value):
+                                        tc_prefix = f"llm.input_messages.{index}.message.tool_calls.{tc_idx}"
+                                        if isinstance(tool_call, dict):
+                                            set_tool_call_attributes(span, tc_prefix, tool_call)
+                                else:
+                                    span.set_attribute(prefix, value)  # type: ignore[arg-type]
                             index += 1
 
                 # BaseOutputTransport's service_id isn't in self._active_spans but that's ok;
@@ -396,7 +421,8 @@ class OpenInferenceObserver(TurnTrackingObserver):
         """
         Handle tool/function call frames.
 
-        Creates TOOL spans for function calls and ends them when results are received.
+        Creates TOOL spans only from FunctionCallResultFrame to avoid duplicate spans
+        from multiple FunctionCallInProgressFrame events.
 
         Args:
             data: FramePushed event data
@@ -410,10 +436,16 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         self._log_debug(f"TOOL FRAME: {frame.__class__.__name__}, tool_call_id: {tool_call_id}")
 
-        # FunctionCallInProgressFrame starts a new tool span
-        if isinstance(frame, FunctionCallInProgressFrame):
+        # Only create tool spans from FunctionCallResultFrame
+        # This ensures one span per completed tool call with all relevant info
+        if isinstance(frame, FunctionCallResultFrame):
+            # Check if we've already processed this tool call
+            if tool_call_id in self._completed_tool_calls:
+                self._log_debug(f"  Tool call {tool_call_id} already processed, skipping")
+                return
+
             if tool_call_id in self._active_spans:
-                self._log_debug(f"  Tool span already exists for {tool_call_id}")
+                self._log_debug(f"  Tool span already exists for {tool_call_id}, skipping")
                 return
 
             # If no turn is active yet, start one automatically
@@ -430,56 +462,32 @@ class OpenInferenceObserver(TurnTrackingObserver):
             # Extract attributes from the frame
             frame_attrs = extract_attributes_from_frame(frame)
 
+            # Get arguments and result directly from frame
+            arguments = getattr(frame, "arguments", None)
+            result = getattr(frame, "result", None)
+
+            self._log_debug(f"  tool_call frame.result = {result}")
+            self._log_debug(f"  tool_call safe_json_dumps(arguments) = {safe_json_dumps(arguments)}")
+
             self._active_spans[tool_call_id] = {
                 "span": span,
                 "service_type": "tool",
                 "frame_count": 1,
-                "accumulated_input": frame_attrs.get("tool_call.function.arguments", ""),
-                "accumulated_output": "",
+                "accumulated_input": safe_json_dumps(arguments) if arguments else "",
+                "accumulated_output": safe_json_dumps(result) if result is not None else "",
                 "start_time_ns": time.time_ns(),
                 "processing_time_seconds": None,
             }
 
-            # Set initial attributes on span
+            # Set attributes on span
             for key, value in frame_attrs.items():
                 span.set_attribute(key, value)
-
-        # FunctionCallResultFrame ends the tool span
-        elif isinstance(frame, FunctionCallResultFrame):
-            if tool_call_id not in self._active_spans:
-                self._log_debug(f"  No active tool span for {tool_call_id}, creating one")
-                # Create a span for the result even if we missed the start
-                if not self._is_turn_active or self._turn_span is None:
-                    await self._start_turn(data)
-
-                span = self._create_tool_span(frame)
-                self._active_spans[tool_call_id] = {
-                    "span": span,
-                    "service_type": "tool",
-                    "frame_count": 1,
-                    "accumulated_input": "",
-                    "accumulated_output": "",
-                    "start_time_ns": time.time_ns(),
-                    "processing_time_seconds": None,
-                }
-
-            span_info = self._active_spans[tool_call_id]
-            span = span_info["span"]
-
-            # Extract and set result attributes
-            frame_attrs = extract_attributes_from_frame(frame)
-            for key, value in frame_attrs.items():
-                span.set_attribute(key, value)
-
-            # Set the result as output value
-            result = getattr(frame, "result", None)
-            if result is not None:
-                from openinference.instrumentation.helpers import safe_json_dumps
-
-                span_info["accumulated_output"] = safe_json_dumps(result) or str(result)
 
             self._log_debug(f"  Tool call completed, finishing span for {tool_call_id}")
             self._finish_tool_span(tool_call_id)
+
+            # Mark this tool call as completed to prevent duplicate spans
+            self._completed_tool_calls.add(tool_call_id)
 
     def _create_tool_span(self, frame: Frame) -> Span:
         """
@@ -542,9 +550,13 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # Set accumulated input/output
         accumulated_input = span_info.get("accumulated_input", "")
         accumulated_output = span_info.get("accumulated_output", "")
+        service_type = span_info.get("service_type", "")
 
         if accumulated_input:
             span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
+            # For tool spans, also set tool.parameters for Phoenix/Arize UI
+            if service_type == "tool":
+                span.set_attribute(SpanAttributes.TOOL_PARAMETERS, accumulated_input)
 
         if accumulated_output:
             span.set_attribute(SpanAttributes.OUTPUT_VALUE, accumulated_output)
@@ -766,3 +778,4 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # self._is_turn_active = False # let super handle this
         self._turn_span = None
         self._turn_context_token = None
+        self._completed_tool_calls.clear()
