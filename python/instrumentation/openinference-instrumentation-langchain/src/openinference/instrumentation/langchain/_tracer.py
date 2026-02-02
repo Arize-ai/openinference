@@ -419,7 +419,7 @@ def _extract_messages_text(messages: Any) -> str:
                 elif isinstance(msg, dict):
                     # Handle dict representation
                     content = msg.get("content")
-                    if content:
+                    if content is not None:
                         text_parts.append(str(content))
                 elif isinstance(msg, (list, tuple)) and len(msg) == 2:
                     # Handle (role, content) tuple format
@@ -431,7 +431,7 @@ def _extract_messages_text(messages: Any) -> str:
             return str(messages.content) if messages.content else ""
         elif isinstance(messages, dict):
             content = messages.get("content")
-            return str(content) if content else ""
+            return str(content) if content is not None else ""
 
         return ""
     except Exception:
@@ -473,7 +473,7 @@ def _extract_generations_text(generations: Any) -> str:
                                 content = message.get("content") or message.get("kwargs", {}).get(
                                     "content"
                                 )
-                                if content:
+                                if content is not None:
                                     text_parts.append(str(content))
                         # Fallback to text field
                         elif text := generation.get("text"):
