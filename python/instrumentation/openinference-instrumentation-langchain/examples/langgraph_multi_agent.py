@@ -235,10 +235,10 @@ if __name__ == "__main__":
     # Use the same session_id across multiple runs to group them as a session
     session_id = str(uuid.uuid4())
     print(f"Session ID: {session_id}\n")
-    
+
     # Import context setting utilities
     from openinference.instrumentation import using_attributes
-    
+
     # Run the graph with session_id
     # The session_id will be attached to all spans in this trace
     with using_attributes(session_id=session_id):
