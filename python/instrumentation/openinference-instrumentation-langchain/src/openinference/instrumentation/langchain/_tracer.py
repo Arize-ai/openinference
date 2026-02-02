@@ -418,8 +418,7 @@ def _extract_messages_text(messages: Any) -> str:
                         text_parts.append(str(content))
                 elif isinstance(msg, dict):
                     # Handle dict representation
-                    content = msg.get("content")
-                    if content is not None:
+                    if (content := msg.get("content")) is not None:
                         text_parts.append(str(content))
                 elif isinstance(msg, (list, tuple)) and len(msg) == 2:
                     # Handle (role, content) tuple format
@@ -430,8 +429,9 @@ def _extract_messages_text(messages: Any) -> str:
         if isinstance(messages, BaseMessage):
             return str(messages.content) if messages.content else ""
         elif isinstance(messages, dict):
-            content = messages.get("content")
-            return str(content) if content is not None else ""
+            if (content := messages.get("content")) is not None:
+                return str(content)
+            return ""
 
         return ""
     except Exception:
