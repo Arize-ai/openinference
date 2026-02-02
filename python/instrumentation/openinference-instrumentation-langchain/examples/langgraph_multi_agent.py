@@ -93,7 +93,7 @@ def read_document(
     """Read the specified document."""
     with (WORKING_DIRECTORY / file_name).open("r") as file:
         lines = file.readlines()
-    if start is not None:
+    if start is None:
         start = 0
     return "\n".join(lines[start:end])
 
