@@ -417,9 +417,14 @@ def _extract_messages_text(messages: Any) -> str:
                     # Handle dict representation
                     if (content := msg.get("content")) is not None:
                         text_parts.append(str(content))
-                elif isinstance(msg, (list, tuple)) and len(msg) == 2:
-                    # Handle (role, content) tuple format
+                elif isinstance(msg, (list, tuple)) and len(msg) == 2 and isinstance(msg[0], str):
+                    # Handle (role, content) tuple format - msg[0] must be role (string)
+                    # Without this check, [msg1, msg2] (nested list of BaseMessage) would be
+                    # incorrectly matched, causing str(msg[1]) to return BaseMessage repr
                     text_parts.append(str(msg[1]))
+                elif isinstance(msg, (list, tuple)):
+                    # List of messages (e.g. [msg1, msg2] - nested format from chat models)
+                    text_parts.append(_extract_messages_text(msg))
             return "\n".join(text_parts) if text_parts else ""
 
         # Handle single message

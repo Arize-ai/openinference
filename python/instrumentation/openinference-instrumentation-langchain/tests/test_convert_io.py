@@ -9,6 +9,7 @@ from typing import Any, Optional, Union
 from uuid import UUID
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
 from openinference.instrumentation import safe_json_dumps
@@ -381,6 +382,44 @@ class TestConvertIO:
         expected_json = '{"other_key": 42}'
         assert result[0] == expected_json
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
+
+    def test_convert_io_messages_extraction(self) -> None:
+        """Test messages key extracts text content correctly for various formats."""
+        # (role, content) tuple format - msg[0] is string (role)
+        result = list(_convert_io({"messages": [("user", "hello"), ("assistant", "hi there")]}))
+        assert len(result) == 1
+        assert result[0] == "hello\nhi there"
+
+        # Nested list [[msg1, msg2]] - must NOT be mistaken for (role, content)
+        # When inner list has 2 BaseMessage objects, we must extract their content
+        result = list(
+            _convert_io(
+                {
+                    "messages": [
+                        [
+                            HumanMessage(content="hi"),
+                            AIMessage(content="hello back"),
+                        ]
+                    ]
+                }
+            )
+        )
+        assert len(result) == 1
+        assert result[0] == "hi\nhello back"
+
+        # Flat list of BaseMessage
+        result = list(
+            _convert_io(
+                {
+                    "messages": [
+                        HumanMessage(content="first"),
+                        AIMessage(content="second"),
+                    ]
+                }
+            )
+        )
+        assert len(result) == 1
+        assert result[0] == "first\nsecond"
 
     @pytest.mark.parametrize(
         "input_obj,expected_contains",
