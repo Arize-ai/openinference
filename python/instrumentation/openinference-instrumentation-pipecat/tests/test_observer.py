@@ -8,7 +8,6 @@ from unittest.mock import Mock
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pipecat.frames.frames import (
-    FunctionCallInProgressFrame,
     FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
@@ -522,13 +521,14 @@ class TestEdgeCases:
 class TestToolCallTracking:
     """Test tool/function call tracking."""
 
-    async def test_tool_span_creation_from_in_progress_frame(
+    async def test_tool_span_creation_from_result_frame(
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
+        mock_llm_service: Mock,
     ) -> None:
-        """Test that FunctionCallInProgressFrame creates a tool span."""
+        """Test that FunctionCallResultFrame creates a tool span."""
         # Start a turn first
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
@@ -537,34 +537,53 @@ class TestToolCallTracking:
             )
         )
 
-        # Create a function call in progress frame
+        # Create a function call result frame (tool spans are only created from result frames)
         tool_call_id = "call_123"
         function_name = "get_weather"
         arguments = {"location": "San Francisco", "unit": "celsius"}
 
-        in_progress_frame = FunctionCallInProgressFrame(
+        result_frame = FunctionCallResultFrame(
             tool_call_id=tool_call_id,
             function_name=function_name,
             arguments=arguments,
+            result="Sunny, 72°F",
         )
         await observer.on_push_frame(
             create_frame_pushed(
-                source=None, destination=None, frame=in_progress_frame, direction="down"
+                source=mock_llm_service, destination=None, frame=result_frame, direction="down"
             )
         )
 
-        # Verify tool span was created and tracked
-        assert tool_call_id in observer._active_spans
-        span_info = observer._active_spans[tool_call_id]
-        assert span_info["service_type"] == "tool"
+        # Span should have been created and immediately finished
+        assert tool_call_id not in observer._active_spans
+        # But it should be in completed tool calls
+        assert tool_call_id in observer._completed_tool_calls
 
-    async def test_tool_span_finished_on_result_frame(
+        # End turn to flush spans
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            ),
+            was_interrupted=False,
+        )
+
+        # Check finished spans
+        spans = in_memory_span_exporter.get_finished_spans()
+        tool_spans = [s for s in spans if "pipecat.tool" in s.name]
+        assert len(tool_spans) == 1
+
+        tool_span = tool_spans[0]
+        attributes = dict(tool_span.attributes or {})
+        assert attributes[SpanAttributes.TOOL_NAME] == function_name
+
+    async def test_tool_span_with_result_attributes(
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
+        mock_llm_service: Mock,
     ) -> None:
-        """Test that FunctionCallResultFrame finishes the tool span."""
+        """Test that FunctionCallResultFrame creates span with correct attributes."""
         # Start a turn first
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
@@ -573,24 +592,9 @@ class TestToolCallTracking:
             )
         )
 
-        # Create a function call in progress frame
         tool_call_id = "call_456"
         function_name = "search_database"
         arguments = {"query": "test"}
-
-        in_progress_frame = FunctionCallInProgressFrame(
-            tool_call_id=tool_call_id,
-            function_name=function_name,
-            arguments=arguments,
-        )
-        await observer.on_push_frame(
-            create_frame_pushed(
-                source=None, destination=None, frame=in_progress_frame, direction="down"
-            )
-        )
-
-        # Verify span is active
-        assert tool_call_id in observer._active_spans
 
         # Send result frame
         result_frame = FunctionCallResultFrame(
@@ -600,7 +604,9 @@ class TestToolCallTracking:
             result={"count": 42, "items": ["item1", "item2"]},
         )
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=None, frame=result_frame, direction="down")
+            create_frame_pushed(
+                source=mock_llm_service, destination=None, frame=result_frame, direction="down"
+            )
         )
 
         # Verify span was finished and removed from active spans
@@ -628,13 +634,14 @@ class TestToolCallTracking:
         )
         assert attributes[SpanAttributes.TOOL_NAME] == function_name
 
-    async def test_tool_span_without_in_progress_frame(
+    async def test_tool_span_from_result_frame_only(
         self,
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
+        mock_llm_service: Mock,
     ) -> None:
-        """Test that FunctionCallResultFrame creates span even without prior InProgress frame."""
+        """Test that tool span is created from FunctionCallResultFrame."""
         # Start a turn first
         start_frame = VADUserStartedSpeakingFrame()
         await observer.on_push_frame(
@@ -643,7 +650,7 @@ class TestToolCallTracking:
             )
         )
 
-        # Send result frame directly (without in-progress frame)
+        # Send result frame directly
         tool_call_id = "call_789"
         function_name = "calculate"
         result_frame = FunctionCallResultFrame(
@@ -653,7 +660,9 @@ class TestToolCallTracking:
             result=3,
         )
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=None, frame=result_frame, direction="down")
+            create_frame_pushed(
+                source=mock_llm_service, destination=None, frame=result_frame, direction="down"
+            )
         )
 
         # Span should have been created and immediately finished
@@ -677,6 +686,7 @@ class TestToolCallTracking:
         observer: OpenInferenceObserver,
         in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
+        mock_llm_service: Mock,
     ) -> None:
         """Test multiple tool calls within a single turn."""
         # Start a turn
@@ -687,23 +697,11 @@ class TestToolCallTracking:
             )
         )
 
-        # First tool call
+        # First tool call - only send result frame (that's what creates the span now)
         tool_call_id_1 = "call_001"
         await observer.on_push_frame(
             create_frame_pushed(
-                source=None,
-                destination=None,
-                frame=FunctionCallInProgressFrame(
-                    tool_call_id=tool_call_id_1,
-                    function_name="tool_a",
-                    arguments={},
-                ),
-                direction="down",
-            )
-        )
-        await observer.on_push_frame(
-            create_frame_pushed(
-                source=None,
+                source=mock_llm_service,
                 destination=None,
                 frame=FunctionCallResultFrame(
                     tool_call_id=tool_call_id_1,
@@ -719,19 +717,7 @@ class TestToolCallTracking:
         tool_call_id_2 = "call_002"
         await observer.on_push_frame(
             create_frame_pushed(
-                source=None,
-                destination=None,
-                frame=FunctionCallInProgressFrame(
-                    tool_call_id=tool_call_id_2,
-                    function_name="tool_b",
-                    arguments={},
-                ),
-                direction="down",
-            )
-        )
-        await observer.on_push_frame(
-            create_frame_pushed(
-                source=None,
+                source=mock_llm_service,
                 destination=None,
                 frame=FunctionCallResultFrame(
                     tool_call_id=tool_call_id_2,
@@ -764,6 +750,7 @@ class TestToolCallTracking:
         self,
         observer: OpenInferenceObserver,
         mock_stt_service: Mock,
+        mock_llm_service: Mock,
     ) -> None:
         """Test that tool frames without tool_call_id are ignored gracefully."""
         # Start a turn
@@ -774,17 +761,20 @@ class TestToolCallTracking:
             )
         )
 
-        # Create a frame without tool_call_id
-        frame = FunctionCallInProgressFrame(
+        # Create a result frame without tool_call_id
+        frame = FunctionCallResultFrame(
             tool_call_id=None,  # type: ignore[arg-type]
             function_name="test",
             arguments={},
+            result="test",
         )
         # Override to ensure tool_call_id is None
         frame.tool_call_id = None  # type: ignore[assignment]
 
         await observer.on_push_frame(
-            create_frame_pushed(source=None, destination=None, frame=frame, direction="down")
+            create_frame_pushed(
+                source=mock_llm_service, destination=None, frame=frame, direction="down"
+            )
         )
 
         # No tool spans should be created
@@ -792,3 +782,49 @@ class TestToolCallTracking:
             k for k, v in observer._active_spans.items() if v.get("service_type") == "tool"
         ]
         assert len(tool_spans) == 0
+
+    async def test_duplicate_tool_call_ids_ignored(
+        self,
+        observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_stt_service: Mock,
+        mock_llm_service: Mock,
+    ) -> None:
+        """Test that duplicate tool call IDs are ignored to prevent duplicate spans."""
+        # Start a turn
+        start_frame = VADUserStartedSpeakingFrame()
+        await observer.on_push_frame(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            )
+        )
+
+        # Send same tool call result twice
+        tool_call_id = "call_duplicate"
+        for _ in range(2):
+            await observer.on_push_frame(
+                create_frame_pushed(
+                    source=mock_llm_service,
+                    destination=None,
+                    frame=FunctionCallResultFrame(
+                        tool_call_id=tool_call_id,
+                        function_name="test_tool",
+                        arguments={},
+                        result="result",
+                    ),
+                    direction="down",
+                )
+            )
+
+        # End turn
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service, destination=None, frame=start_frame, direction="down"
+            ),
+            was_interrupted=False,
+        )
+
+        # Should only have one tool span despite two result frames
+        spans = in_memory_span_exporter.get_finished_spans()
+        tool_spans = [s for s in spans if "pipecat.tool" in s.name]
+        assert len(tool_spans) == 1
