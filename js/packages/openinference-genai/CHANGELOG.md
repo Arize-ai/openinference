@@ -1,5 +1,11 @@
 # @arizeai/openinference-genai
 
+## 0.1.6
+
+### Patch Changes
+
+- 7cd28bc: feat: Add commonjs builds to openinference-genai
+
 ## 0.1.5
 
 ### Patch Changes
