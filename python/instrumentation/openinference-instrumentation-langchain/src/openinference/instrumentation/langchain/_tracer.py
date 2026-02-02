@@ -389,6 +389,102 @@ def _is_json_parseable(value: str) -> bool:
     )
 
 
+def _extract_messages_text(messages: Any) -> str:
+    """
+    Extract text content from messages for input.value/output.value.
+
+    According to semantic conventions, input.value should be a simple string,
+    not a complex JSON structure. This function extracts just the text content
+    from messages, which is more useful for quick inspection than a full JSON dump.
+
+    Args:
+        messages: Messages data (list or single message)
+
+    Returns:
+        String representation of message content(s)
+    """
+    try:
+        # Import here to avoid circular dependency
+        from langchain_core.messages import BaseMessage
+
+        # Handle list of messages
+        if isinstance(messages, list):
+            text_parts = []
+            for msg in messages:
+                if isinstance(msg, BaseMessage):
+                    # Get content from BaseMessage
+                    content = msg.content
+                    if content:
+                        text_parts.append(str(content))
+                elif isinstance(msg, dict):
+                    # Handle dict representation
+                    content = msg.get("content")
+                    if content:
+                        text_parts.append(str(content))
+                elif isinstance(msg, (list, tuple)) and len(msg) == 2:
+                    # Handle (role, content) tuple format
+                    text_parts.append(str(msg[1]))
+            return "\n".join(text_parts) if text_parts else ""
+
+        # Handle single message
+        if isinstance(messages, BaseMessage):
+            return str(messages.content) if messages.content else ""
+        elif isinstance(messages, dict):
+            content = messages.get("content")
+            return str(content) if content else ""
+
+        return ""
+    except Exception:
+        # If extraction fails, return empty string
+        # The full message structure is still available in llm.input_messages/output_messages
+        return ""
+
+
+def _extract_generations_text(generations: Any) -> str:
+    """
+    Extract text content from LLM generations for output.value.
+
+    LLM outputs have a 'generations' structure. This function extracts just
+    the text content from the generated messages.
+
+    Args:
+        generations: Generations data from LLM output
+
+    Returns:
+        String representation of generated content
+    """
+    try:
+        from langchain_core.messages import BaseMessage
+
+        # Handle list of generation lists (typical structure)
+        if isinstance(generations, list) and len(generations) > 0:
+            first_generation_list = generations[0]
+            if isinstance(first_generation_list, list):
+                text_parts = []
+                for generation in first_generation_list:
+                    if isinstance(generation, dict):
+                        # Check for message in generation
+                        if message := generation.get("message"):
+                            if isinstance(message, BaseMessage):
+                                content = message.content
+                                if content:
+                                    text_parts.append(str(content))
+                            elif isinstance(message, dict):
+                                content = message.get("content") or message.get("kwargs", {}).get(
+                                    "content"
+                                )
+                                if content:
+                                    text_parts.append(str(content))
+                        # Fallback to text field
+                        elif text := generation.get("text"):
+                            text_parts.append(str(text))
+                return "\n".join(text_parts) if text_parts else ""
+
+        return ""
+    except Exception:
+        return ""
+
+
 def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
@@ -398,9 +494,15 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     2. Single string values: return the string directly
        - If the string is parseable JSON (object/array), also yield JSON MIME type
        - Otherwise, no MIME type (defaults to text/plain)
-    3. Single input/output key with non-string: use custom JSON formatting via _json_dumps
+    3. Single messages key: extract just the text content from messages
+       - Returns a simple string representation without complex JSON structure
+       - This aligns with semantic conventions that input.value should be a string
+    4. Single generations key (LLM outputs): extract just the text content
+       - Returns simple text from generated messages
+       - This aligns with semantic conventions that output.value should be a string
+    5. Single input/output key with non-string: use custom JSON formatting via _json_dumps
        - Conditional MIME type: only for structured data (objects/arrays), not primitives
-    4. Multiple keys or other cases: use _json_dumps for consistent formatting
+    6. Multiple keys or other cases: use _json_dumps for consistent formatting
        - Always includes JSON MIME type since these are always structured objects
 
     Args:
@@ -417,6 +519,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     # Handle single-key dictionaries (most common case)
     if len(obj) == 1:
         value = next(iter(obj.values()))
+        key = next(iter(obj.keys()))
 
         # Handle string values: check if they contain JSON
         # This is a common case when producers pass stringified JSON
@@ -428,7 +531,24 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
                 yield OpenInferenceMimeTypeValues.JSON.value
             return
 
-        key = next(iter(obj.keys()))
+        # Special handling for messages: extract text content only
+        # According to semantic conventions, input.value should be a string,
+        # not a complex JSON blob. The full message structure is captured in
+        # llm.input_messages/llm.output_messages attributes.
+        if key == "messages":
+            text_content = _extract_messages_text(value)
+            if text_content:
+                yield text_content
+            return
+
+        # Special handling for generations (LLM outputs): extract text content only
+        # Similar to messages, output.value should be simple text, not the full
+        # generations structure. The full structure is in llm.output_messages.
+        if key == "generations":
+            text_content = _extract_generations_text(value)
+            if text_content:
+                yield text_content
+            return
 
         # Special handling for input/output keys: use custom JSON formatting
         # that preserves readability and handles edge cases like NaN values
