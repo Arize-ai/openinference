@@ -99,6 +99,16 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
+- directory: python/instrumentation/openinference-instrumentation-strands-agents
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-agno
   ignore:
   - dependency-name: '*'
@@ -130,16 +140,6 @@ updates:
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-adk
-  ignore:
-  - dependency-name: '*'
-    update-types:
-    - version-update:semver-major
-    - version-update:semver-minor
-    - version-update:semver-patch
-  package-ecosystem: pip
-  schedule:
-    interval: weekly
-- directory: python/instrumentation/openinference-instrumentation-strands-agents
   ignore:
   - dependency-name: '*'
     update-types:
