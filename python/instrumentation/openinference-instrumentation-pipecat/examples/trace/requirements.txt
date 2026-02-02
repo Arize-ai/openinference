@@ -1,15 +1,5 @@
-aiortc
-arize-otel
 arize-phoenix
-daily-python
-fastapi>=0.115.6,<0.117.0
-onnxruntime>=1.20.1,<2
-openai
-# openinference-instrumentation-pipecat
-pipecat-ai-small-webrtc-prebuilt
-pipecat-ai[webrtc]
+arize-otel
+openinference-instrumentation-pipecat
+pipecat-ai[local_smart_turn_v3,openai,runner,silero,webrtc]
 python-dotenv>=1.0.0,<2.0.0
-runner
-transformers
-uvicorn>=0.32.0,<1.0.0
-websockets>=13.1,<16.0
