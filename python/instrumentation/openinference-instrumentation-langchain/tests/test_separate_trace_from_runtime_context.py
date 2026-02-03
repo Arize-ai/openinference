@@ -18,7 +18,7 @@ def test_separate_trace_from_runtime_context(
         separate_trace_from_runtime_context=separate_trace_from_runtime_context,
     )
     with tracer_provider.get_tracer(__name__).start_as_current_span("parent"):
-        RunnableLambda(lambda _: None).invoke(None)
+        RunnableLambda(lambda x: None).invoke(0)
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 2
     assert spans[0].name == "RunnableLambda"
