@@ -111,7 +111,9 @@ async def test_get_current_span(
     else:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, None)
+                loop.run_in_executor(
+                    None, RunnableLambda(lambda _: get_current_span()).invoke, None
+                )
                 for _ in range(n)
             )
         )
