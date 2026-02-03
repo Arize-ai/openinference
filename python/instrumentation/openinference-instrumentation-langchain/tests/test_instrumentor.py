@@ -1189,10 +1189,12 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
 
 
 def current_span_getter(x: Any) -> Optional[Span]:
+    """Getter function that returns the current span."""
     return get_current_span()
 
 
 def current_span_and_ancestors_getter(x: Any) -> Tuple[Optional[Span], List[Any]]:
+    """Getter function that returns the current span and ancestor spans."""
     return (get_current_span(), get_ancestor_spans())
 
 
