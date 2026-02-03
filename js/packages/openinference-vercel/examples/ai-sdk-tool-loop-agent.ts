@@ -34,7 +34,6 @@ const calculatorTool = tool({
       throw new Error("Expression contains unsupported characters");
     }
 
-     
     const value = Function(`"use strict"; return (${expression});`)() as number;
     return { expression, value };
   },
