@@ -138,6 +138,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # Track completed tool calls to avoid duplicate spans
         self._completed_tool_calls: Set[str] = set()
 
+        # Track the LLM span that triggered tool calls (for parent-child relationship)
+        # This stores (service_id, span_info) for LLM spans awaiting tool call completion
+        self._llm_span_awaiting_tool_calls: Optional[Dict[str, Any]] = None
+
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
         if self._debug_log_file:
@@ -374,6 +378,24 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
                 # LLM
                 elif isinstance(frame, LLMFullResponseEndFrame):
+                    accumulated_output = span_info.get("accumulated_output", "").strip()
+                    if not accumulated_output:
+                        # No text output means this LLM call likely triggered tool calls
+                        # Store a reference to this span so tool calls can be parented under it
+                        self._log_debug(
+                            f"  LLM response ended with no text output - "
+                            f"storing span {service_id} as potential tool call parent"
+                        )
+                        self._llm_span_awaiting_tool_calls = {
+                            "service_id": service_id,
+                            "span": active_span,
+                        }
+                    else:
+                        # LLM produced text output, clear any awaiting tool call parent
+                        self._llm_span_awaiting_tool_calls = None
+                        self._log_debug(
+                            "  LLM response ended with output - clearing tool call parent"
+                        )
                     self._log_debug(f"  LLM response ended  Finish span for service {service_id}")
                     # Finish LLM Span
                     self._finish_span(service_id)
@@ -497,6 +519,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
         """
         Create a TOOL span for a function call.
 
+        Tool spans are created as children of the LLM span that triggered them
+        (if available), otherwise as children of the turn span.
+
         Args:
             frame: The function call frame
 
@@ -507,8 +532,20 @@ class OpenInferenceObserver(TurnTrackingObserver):
         span_name = f"pipecat.tool.{function_name}"
         self._log_debug(f">>> Creating tool span: {span_name}")
 
-        # Create span under the turn context
-        if self._turn_span and self._is_turn_active:
+        # Prefer to create tool span under the LLM span that triggered it
+        if self._llm_span_awaiting_tool_calls:
+            parent_span = self._llm_span_awaiting_tool_calls["span"]
+            parent_context = trace_api.set_span_in_context(parent_span)
+            span = self._tracer.start_span(
+                name=span_name,
+                context=parent_context,
+            )
+            self._log_debug(
+                f"  Created tool span under LLM span "
+                f"{self._llm_span_awaiting_tool_calls['service_id']}"
+            )
+        elif self._turn_span and self._is_turn_active:
+            # Fall back to turn span if no LLM span is awaiting tool calls
             turn_context = trace_api.set_span_in_context(self._turn_span)
             span = self._tracer.start_span(
                 name=span_name,
@@ -783,3 +820,4 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_span = None
         self._turn_context_token = None
         self._completed_tool_calls.clear()
+        self._llm_span_awaiting_tool_calls = None
