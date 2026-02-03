@@ -321,8 +321,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
                                 if key == "tool_calls" and isinstance(value, list):
                                     # Handle tool_calls specially with tool_call. prefix
                                     for tc_idx, tool_call in enumerate(value):
-                                        tc_prefix = f"llm.input_messages.{index}.\
-                                            message.tool_calls.{tc_idx}"
+                                        tc_prefix = f"llm.input_messages.{index}.message.tool_calls.{tc_idx}"  # noqa
                                         if isinstance(tool_call, dict):
                                             set_tool_call_attributes(span, tc_prefix, tool_call)
                                 else:
