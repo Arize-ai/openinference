@@ -107,11 +107,11 @@ async def test_get_current_span(
             await asyncio.sleep(0.001)
             return get_current_span()
 
-        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
+        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))
     else:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, ...)
+                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, None)
                 for _ in range(n)
             )
         )
@@ -127,7 +127,7 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
     instrumentor = LangChainInstrumentor()
     instrumentor.uninstrument()
     del instrumentor._tracer
-    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(None) == (
         None,
         [],
     )

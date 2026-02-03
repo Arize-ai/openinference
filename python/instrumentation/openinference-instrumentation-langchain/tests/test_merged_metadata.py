@@ -13,7 +13,7 @@ async def test_merged_metadata(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     with using_metadata({"b": "2", "c": "3"}):
-        RunnableLambda(lambda _: None).invoke(..., RunnableConfig(metadata={"a": 1, "b": 2}))
+        RunnableLambda(lambda _: None).invoke(None, RunnableConfig(metadata={"a": 1, "b": 2}))
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "RunnableLambda"
