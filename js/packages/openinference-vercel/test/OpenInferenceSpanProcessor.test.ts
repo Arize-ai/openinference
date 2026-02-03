@@ -16,16 +16,16 @@ import {
   OpenInferenceSimpleSpanProcessor,
   SpanFilter,
 } from "../src";
-import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 import { VercelSDKFunctionNameToSpanKindMap } from "../src/constants";
+import { VercelAISemanticConventions } from "../src/VercelAISemanticConventions";
 
-import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
-
+import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
+import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
 // Import real AI SDK v6 fixtures
 import generateTextDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateText-doGenerate.json";
 import streamTextDoStreamFixture from "./__fixtures__/v6-spans/ai-streamText-doStream.json";
-import embedDoEmbedFixture from "./__fixtures__/v6-spans/ai-embed-doEmbed.json";
-import generateObjectDoGenerateFixture from "./__fixtures__/v6-spans/ai-generateObject-doGenerate.json";
+
+import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
 
 type SpanProcessorTestCase = [
   string,

@@ -7,17 +7,19 @@
  * Run with: npx tsx scripts/capture-v6-spans.ts
  */
 
+/* eslint-disable no-console */
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import { generateObject, generateText, embed, streamText } from "ai";
+
 import { openai } from "@ai-sdk/openai";
-import { z } from "zod";
+import { embed, generateObject, generateText, streamText } from "ai";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

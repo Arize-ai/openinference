@@ -14,10 +14,10 @@ import { Attributes, AttributeValue, diag } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
-import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
 import { VercelSDKFunctionNameToSpanKindMap } from "./constants";
 import { OpenInferenceIOConventionKey, SpanFilter } from "./types";
 import { isArrayOfObjects, isStringArray } from "./typeUtils";
+import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
 
 const onErrorCallback = (attributeType: string) => (error: unknown) => {
   diag.warn(

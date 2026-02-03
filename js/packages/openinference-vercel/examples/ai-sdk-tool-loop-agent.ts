@@ -34,7 +34,7 @@ const calculatorTool = tool({
       throw new Error("Expression contains unsupported characters");
     }
 
-    // eslint-disable-next-line no-new-func
+     
     const value = Function(`"use strict"; return (${expression});`)() as number;
     return { expression, value };
   },

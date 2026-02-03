@@ -42,10 +42,8 @@ async function main() {
   });
 
   console.log("\n\nStreaming response:\n------------------");
-  let fullText = "";
   for await (const chunk of result.textStream) {
     process.stdout.write(chunk);
-    fullText += chunk;
   }
 
   console.log("\n\nDone.");
