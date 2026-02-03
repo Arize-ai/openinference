@@ -74,6 +74,20 @@ const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
     : { code: SpanStatusCode.OK };
 };
 
+const maybeRenameRootSpan = (span: ReadableSpan): void => {
+  if (span.parentSpanId != null) return;
+  if (!isLikelyAISDKSpan(span)) return;
+
+  const attrs = span.attributes as Record<string, unknown>;
+  const operationName = attrs["operation.name"];
+  if (typeof operationName !== "string" || operationName.length === 0) return;
+  if (span.name === operationName) return;
+
+  // NOTE: Span.updateName() refuses to update after end(); by the time span processors
+  // run, spans are already ended. Assign directly.
+  (span as unknown as { name: string }).name = operationName;
+};
+
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
  * This processor enhances spans with OpenInference attributes before exporting them.
@@ -149,6 +163,7 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
       }
     }
 
+    maybeRenameRootSpan(span);
     maybeSetRootStatus(span, agg);
 
     // Decrement active span count and cleanup when the trace completes.
@@ -259,6 +274,7 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
       }
     }
 
+    maybeRenameRootSpan(span);
     maybeSetRootStatus(span, agg);
 
     if (this.traceAggregates.has(traceId)) {

@@ -727,6 +727,18 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
       spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
     ).toBe(OpenInferenceSpanKind.CHAIN);
   });
+
+  it("should rename root span to operation.name when present", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("original-name");
+    span.setAttribute("operation.name", "ai.generateText my-function");
+    span.setAttribute("ai.operationId", "ai.generateText");
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    expect(spans[0].name).toBe("ai.generateText my-function");
+  });
 });
 
 describe("OpenInferenceBatchSpanProcessor", () => {
