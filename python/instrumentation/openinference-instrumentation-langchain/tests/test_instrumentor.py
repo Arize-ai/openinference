@@ -110,10 +110,7 @@ async def test_get_current_span(
         results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))
     else:
         results = await asyncio.gather(
-            *(
-                loop.run_in_executor(None, RunnableLambda(lambda x: get_current_span()).invoke, 0)
-                for _ in range(n)
-            )
+            *(loop.run_in_executor(None, RunnableLambda(get_span).invoke, 0) for _ in range(n))
         )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == n
@@ -127,7 +124,7 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
     instrumentor = LangChainInstrumentor()
     instrumentor.uninstrument()
     del instrumentor._tracer
-    assert RunnableLambda(lambda x: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+    assert RunnableLambda(get_spans).invoke(0) == (
         None,
         [],
     )
@@ -1186,6 +1183,14 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
     async def __aiter__(self) -> AsyncIterator[bytes]:
         for byte_string in self._byte_stream:
             yield byte_string
+
+
+def get_span(x: Any) -> Optional[Span]:
+    return get_current_span()
+
+
+def get_spans(x: Any) -> Tuple[Optional[Span], List[Any]]:
+    return (get_current_span(), get_ancestor_spans())
 
 
 LANGCHAIN_SESSION_ID = "session_id"
