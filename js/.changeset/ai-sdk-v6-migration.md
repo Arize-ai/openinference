@@ -1,28 +1,34 @@
 ---
-"@arizeai/openinference-vercel": major
-"@arizeai/openinference-genai": patch
+"@arizeai/openinference-vercel": minor
 ---
 
-feat(openinference-vercel): BREAKING - Add AI SDK v6 support using openinference-genai
+feat(openinference-vercel): add AI SDK v6 telemetry support
 
-This is a breaking change that refactors openinference-vercel to:
+This release improves compatibility with AI SDK v6 telemetry while keeping best-effort compatibility with older AI SDK versions.
 
-1. **Require AI SDK v6+**: This version only supports AI SDK v6. For AI SDK v5, use openinference-vercel v2.x.
+Key behavior:
 
-2. **Leverage openinference-genai**: The package now uses `@arizeai/openinference-genai` as the primary converter for standard `gen_ai.*` OpenTelemetry GenAI semantic conventions that AI SDK v6 emits.
+- Prefer standard `gen_ai.*` attributes (OTel GenAI semantic conventions) when present
+- Fall back to Vercel-specific `ai.*` attributes for data not available in `gen_ai.*` and for older SDK versions
 
-3. **Vercel-specific fallback handling**: Vercel-specific `ai.*` attributes are now processed as supplements to the standard `gen_ai.*` attributes, including:
-   - Span kind determination from `operation.name`
-   - Embeddings (`ai.value`, `ai.embedding`, etc.)
-   - Tool calls (`ai.toolCall.*`)
-   - Metadata (`ai.telemetry.metadata.*`)
-   - Streaming metrics (`ai.response.msToFirstChunk`, etc.)
-   - Input/output messages from `ai.prompt.messages` and `ai.response.toolCalls`
+Vercel-specific `ai.*` processing includes:
 
-4. **New attribute support**: Added support for AI SDK v6 specific attributes including streaming metrics which are stored as metadata.
+- Span kind determination from `operation.name`
+- Embeddings (`ai.value`, `ai.embedding`, etc.)
+- Tool calls (`ai.toolCall.*`)
+- Metadata (`ai.telemetry.metadata.*`)
+- Streaming metrics (`ai.response.msToFirstChunk`, etc.)
+- Input/output messages from `ai.prompt.messages` and `ai.response.toolCalls`
+
+Additional improvements:
+
+- Root AI SDK spans now have a status set (`OK`/`ERROR`) based on the overall invocation result.
+
+Notes:
+
+- AI SDK telemetry is experimental; older versions are supported on a best-effort basis.
 
 **Migration Guide:**
 
-- Update AI SDK to v6+: `pnpm install ai@^6.0.0`
-- Update openinference-vercel: `pnpm install @arizeai/openinference-vercel@^3.0.0`
-- No code changes required - the API remains the same
+- If you are on AI SDK v6: no code changes required.
+- If you are on older AI SDK versions: no code changes required; compatibility is best-effort.
