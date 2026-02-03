@@ -25,6 +25,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     MetricsFrame,
     StartFrame,
+    STTMuteFrame,
     TranscriptionFrame,
     TTSStartedFrame,
     TTSTextFrame,
@@ -202,7 +203,20 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
             # STT
             elif isinstance(src, STTService):
-                if isinstance(
+                if isinstance(frame, STTMuteFrame):
+                    if frame.mute and self._active_stt_service_id is not None:
+                        # STT muted — finish the active STT span
+                        self._log_debug(
+                            f"  STTMuteFrame (mute=True) - "
+                            f"finishing active STT span {self._active_stt_service_id}"
+                        )
+                        self._finish_span(self._active_stt_service_id)
+                        self._active_stt_service_id = None
+                    elif not frame.mute:
+                        # STT unmuted — start a new STT span
+                        self._log_debug("  STTMuteFrame (mute=False) - starting new STT span")
+                        await self._handle_service_frame(data)
+                elif isinstance(
                     frame,
                     (
                         TranscriptionFrame,
@@ -265,15 +279,16 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         if service_type in ("llm", "stt", "tts"):
             # only these frame types will start a span:
-            ## VADUserStartedSpeakingFrame (STT)
-            ## LLMFullResponseStartFrame (LLM)
+            ## LLMContextFrame (LLM)
+            ## STTMuteFrame [if mute:false] (STT)
             ## TTSStartedFrame (TTS)
+            ## VADUserStartedSpeakingFrame (STT)
 
             # New Span (or add to self._turn_bot_text)
             if service_id not in self._active_spans:
                 if isinstance(
                     frame,
-                    (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame),
+                    (LLMContextFrame, STTMuteFrame, TTSStartedFrame, VADUserStartedSpeakingFrame),
                 ):
                     # For TTS: consecutive TTS operations are merged into one span.
                     # When a NEW non-TTS span starts (LLM/STT), finish any active TTS span first.
