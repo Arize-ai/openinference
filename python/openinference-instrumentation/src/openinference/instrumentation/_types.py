@@ -61,12 +61,20 @@ class ToolCall(TypedDict, total=False):
     function: ToolCallFunction
 
 
+class ToolCallResult(TypedDict, total=False):
+    id: str
+    function_name: str
+    result_value: Union[str, Dict[str, Any]]
+    mime_type: OpenInferenceMimeType
+
+
 class Message(TypedDict, total=False):
     role: str
     content: str
     contents: "Sequence[MessageContent]"
     tool_call_id: str
     tool_calls: "Sequence[ToolCall]"
+    tool_call_results: "Sequence[ToolCallResult]"
 
 
 class PromptDetails(TypedDict, total=False):
