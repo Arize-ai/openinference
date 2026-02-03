@@ -142,6 +142,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # This stores (service_id, span_info) for LLM spans awaiting tool call completion
         self._llm_span_awaiting_tool_calls: Optional[Dict[str, Any]] = None
 
+        # Track active TTS span service_id for efficient lookup
+        # Used to finish TTS span when non-TTS operations start
+        self._active_tts_service_id: Optional[int] = None
+
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
         if self._debug_log_file:
@@ -267,6 +271,18 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     frame,
                     (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame),
                 ):
+                    # For TTS: consecutive TTS operations are merged into one span.
+                    # When a NEW non-TTS span starts (LLM/STT), finish any active TTS span first.
+                    # This groups TTS that's part of the same response while separating
+                    # TTS that comes before/after other operations.
+                    if service_type != "tts" and self._active_tts_service_id is not None:
+                        self._log_debug(
+                            f"  Non-TTS span ({service_type}) starting - "
+                            f"finishing active TTS span {self._active_tts_service_id}"
+                        )
+                        self._finish_span(self._active_tts_service_id)
+                        self._active_tts_service_id = None
+
                     self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
                     self._log_debug(f"   >>>>  {service_type.upper()} response STARTED. ({frame})")
 
@@ -294,6 +310,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     # Increment frame count for this service
                     span_info = self._active_spans[service_id]
                     span_info["frame_count"] += 1
+
+                    # Track active TTS span for efficient lookup
+                    if service_type == "tts":
+                        self._active_tts_service_id = service_id
 
                     # Set input context for LLM Span
                     if isinstance(frame, LLMContextFrame):
@@ -667,6 +687,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
         start_time_ns = span_info["start_time_ns"]
         service_type = span_info.get("service_type")
 
+        # Clear TTS tracking if finishing a TTS span
+        if service_type == "tts" and self._active_tts_service_id == service_id:
+            self._active_tts_service_id = None
+
         # Calculate end time (use processing time if available, otherwise use current time)
         processing_time_seconds = span_info.get("processing_time_seconds")
         if processing_time_seconds is not None:
@@ -821,3 +845,4 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._turn_context_token = None
         self._completed_tool_calls.clear()
         self._llm_span_awaiting_tool_calls = None
+        self._active_tts_service_id = None
