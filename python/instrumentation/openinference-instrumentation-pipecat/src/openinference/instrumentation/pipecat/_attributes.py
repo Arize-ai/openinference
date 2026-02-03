@@ -537,25 +537,6 @@ class LLMFullResponseEndFrameExtractor(LLMMessagesSequenceFrameExtractor):
 _llm_full_response_end_frame_extractor = LLMFullResponseEndFrameExtractor()
 
 
-class FunctionCallFromLLMExtractor(FrameAttributeExtractor):
-    """Extract attributes from function call frames initiated by the LLM."""
-
-    attributes: Dict[str, Any] = {
-        SpanAttributes.TOOL_NAME: lambda frame: getattr(frame, "function_name", None),
-        ToolCallAttributes.TOOL_CALL_ID: lambda frame: getattr(frame, "tool_call_id", None),
-        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME: lambda frame: getattr(
-            frame, "function_name", None
-        ),
-        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON: lambda frame: (
-            safe_json_dumps(getattr(frame, "arguments", {}))
-        ),
-    }
-
-
-# Singleton function call from LLM extractor
-_function_call_from_llm_extractor = FunctionCallFromLLMExtractor()
-
-
 class FunctionCallInProgressFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from function call in progress frames."""
 

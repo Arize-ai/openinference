@@ -295,7 +295,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     if isinstance(frame, LLMContextFrame):
 
                         def set_tool_call_attributes(
-                            span: Span, prefix: str, tool_call: dict
+                            span: Span, prefix: str, tool_call: Dict[str, Any]
                         ) -> None:
                             """Set attributes for a tool call with tool_call. prefix."""
                             # tool_call typically has: id, type, function.name, function.arguments
@@ -305,11 +305,13 @@ class OpenInferenceObserver(TurnTrackingObserver):
                                 func = tool_call["function"]
                                 if "name" in func:
                                     span.set_attribute(
-                                        f"{prefix}.tool_call.function.name", func["name"]
+                                        f"{prefix}.tool_call.function.name",
+                                        func["name"],
                                     )
                                 if "arguments" in func:
                                     span.set_attribute(
-                                        f"{prefix}.tool_call.function.arguments", func["arguments"]
+                                        f"{prefix}.tool_call.function.arguments",
+                                        func["arguments"],
                                     )
 
                         index = 0
@@ -319,7 +321,8 @@ class OpenInferenceObserver(TurnTrackingObserver):
                                 if key == "tool_calls" and isinstance(value, list):
                                     # Handle tool_calls specially with tool_call. prefix
                                     for tc_idx, tool_call in enumerate(value):
-                                        tc_prefix = f"llm.input_messages.{index}.message.tool_calls.{tc_idx}"
+                                        tc_prefix = f"llm.input_messages.{index}.\
+                                            message.tool_calls.{tc_idx}"
                                         if isinstance(tool_call, dict):
                                             set_tool_call_attributes(span, tc_prefix, tool_call)
                                 else:
@@ -467,14 +470,16 @@ class OpenInferenceObserver(TurnTrackingObserver):
             result = getattr(frame, "result", None)
 
             self._log_debug(f"  tool_call frame.result = {result}")
-            self._log_debug(f"  tool_call safe_json_dumps(arguments) = {safe_json_dumps(arguments)}")
+            self._log_debug(
+                f"  tool_call safe_json_dumps(arguments) = {safe_json_dumps(arguments)}"
+            )
 
             self._active_spans[tool_call_id] = {
                 "span": span,
                 "service_type": "tool",
                 "frame_count": 1,
                 "accumulated_input": safe_json_dumps(arguments) if arguments else "",
-                "accumulated_output": safe_json_dumps(result) if result is not None else "",
+                "accumulated_output": (safe_json_dumps(result) if result is not None else ""),
                 "start_time_ns": time.time_ns(),
                 "processing_time_seconds": None,
             }
