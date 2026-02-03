@@ -9,7 +9,7 @@ from openinference.instrumentation import using_metadata
 from openinference.semconv.trace import SpanAttributes
 
 
-def noop(x: Any) -> None:
+def dummy_runnable(x: Any) -> None:
     return None
 
 
@@ -18,7 +18,7 @@ async def test_merged_metadata(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
     with using_metadata({"b": "2", "c": "3"}):
-        RunnableLambda(noop).invoke(0, RunnableConfig(metadata={"a": 1, "b": 2}))
+        RunnableLambda(dummy_runnable, name="RunnableLambda").invoke(0, RunnableConfig(metadata={"a": 1, "b": 2}))
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     assert spans[0].name == "RunnableLambda"
