@@ -17,6 +17,30 @@ from openinference.semconv.trace import SpanAttributes
 logger = logging.getLogger(__name__)
 
 
+class _ClientQueryWrapper:
+    """Wrapper for ClaudeSDKClient.query() method to capture input."""
+
+    __slots__ = ("_tracer",)
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Any,
+    ) -> Any:
+        """Wrap query() method to store input on client instance."""
+        # Store the query for later use in receive_response
+        if args:
+            instance._otel_last_query = args[0]  # First arg is the query string
+
+        # Call the original method
+        return await wrapped(*args, **kwargs)
+
+
 class _ReceiveResponseWrapper:
     """Wrapper for ClaudeSDKClient.receive_response() method."""
 
@@ -56,9 +80,17 @@ class _ReceiveResponseWrapper:
                 parent_span=root_span,
             )
 
+            # Set input message if available
+            if hasattr(instance, "_otel_last_query"):
+                response_span.set_attribute(
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{SpanAttributes.MESSAGE_CONTENT}",
+                    instance._otel_last_query,
+                )
+
             try:
-                # Track tool spans by ID
+                # Track tool spans by ID and collect output
                 tool_spans = {}
+                output_messages = []
 
                 # Call original function and yield messages
                 async for message in wrapped(*args, **kwargs):
@@ -66,6 +98,9 @@ class _ReceiveResponseWrapper:
                     from claude_agent_sdk import AssistantMessage
 
                     if isinstance(message, AssistantMessage):
+                        # Collect output for span attributes
+                        output_messages.append(message)
+
                         # Extract and create tool spans
                         tool_uses = extract_tool_uses(message)
                         for tool_use in tool_uses:
@@ -82,6 +117,18 @@ class _ReceiveResponseWrapper:
                             tool_spans[tool_use["id"]] = tool_span
 
                     yield message
+
+                # Set LLM output messages on span
+                if output_messages:
+                    # Combine all text content from messages
+                    output_text = "\n".join(
+                        extract_text_content(msg) for msg in output_messages
+                    )
+                    if output_text:
+                        response_span.set_attribute(
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{SpanAttributes.MESSAGE_CONTENT}",
+                            output_text,
+                        )
 
                 # End all tool spans
                 for tool_span in tool_spans.values():
