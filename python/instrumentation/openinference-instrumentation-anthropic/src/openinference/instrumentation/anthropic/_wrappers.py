@@ -356,6 +356,142 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
         return _MessagesStream(raw, self._self_with_span)
 
 
+class _BetaMessagesParseWrapper(_WithTracer):
+    """
+    Wrapper for beta.messages.parse()
+    Captures all calls to the parse method
+    """
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        arguments = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
+
+        with self._start_as_current_span(
+            span_name="BetaMessagesParse",
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_model_name_from_input(arguments),
+                    _get_llm_provider(),
+                    _get_llm_system(),
+                    _get_llm_span_kind(),
+                    _get_llm_input_messages(llm_input_messages),
+                    _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
+                    _get_inputs(arguments),
+                )
+            ),
+        ) as span:
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            # Parse method returns structured data, handle it appropriately
+            if hasattr(response, "usage") and response.usage:
+                span.set_attributes(
+                    dict(
+                        chain(
+                            _get_llm_model_name_from_response(response),
+                            _get_output_messages(response),
+                            _get_llm_token_counts(response.usage),
+                            _get_outputs(response),
+                        )
+                    )
+                )
+            else:
+                span.set_attributes(
+                    dict(
+                        chain(
+                            _get_llm_model_name_from_input(arguments),
+                            _get_outputs(response),
+                        )
+                    )
+                )
+            span.finish_tracing()
+            return response
+
+
+class _AsyncBetaMessagesParseWrapper(_WithTracer):
+    """
+    Wrapper for async beta.messages.parse()
+    Captures all calls to the parse method
+    """
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        arguments = kwargs
+        llm_input_messages = dict(arguments).pop("messages", None)
+        invocation_parameters = _get_invocation_parameters(arguments)
+
+        with self._start_as_current_span(
+            span_name="AsyncBetaMessagesParse",
+            attributes=dict(
+                chain(
+                    get_attributes_from_context(),
+                    _get_llm_provider(),
+                    _get_llm_system(),
+                    _get_llm_model_name_from_input(arguments),
+                    _get_llm_span_kind(),
+                    _get_llm_input_messages(llm_input_messages),
+                    _get_llm_invocation_parameters(invocation_parameters),
+                    _get_llm_tools(invocation_parameters),
+                    _get_inputs(arguments),
+                )
+            ),
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            # Parse method returns structured data, handle it appropriately
+            if hasattr(response, "usage") and response.usage:
+                span.set_attributes(
+                    dict(
+                        chain(
+                            _get_llm_model_name_from_response(response),
+                            _get_output_messages(response),
+                            _get_llm_token_counts(response.usage),
+                            _get_outputs(response),
+                        )
+                    )
+                )
+            else:
+                span.set_attributes(
+                    dict(
+                        chain(
+                            _get_llm_model_name_from_input(arguments),
+                            _get_outputs(response),
+                        )
+                    )
+                )
+            span.finish_tracing()
+            return response
+
+
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     yield INPUT_VALUE, safe_json_dumps(arguments)
     yield INPUT_MIME_TYPE, JSON

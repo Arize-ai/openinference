@@ -7,6 +7,8 @@ This package implements the following Anthropic clients:
 - `Completions`
 - `AsyncMessages`
 - `AsyncCompletions`
+- `beta.messages.parse()` (beta API)
+- `beta.messages.parse()` async (beta API)
 
 These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
 

@@ -9,8 +9,10 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
+    _AsyncBetaMessagesParseWrapper,
     _AsyncCompletionsWrapper,
     _AsyncMessagesWrapper,
+    _BetaMessagesParseWrapper,
     _CompletionsWrapper,
     _MessagesStreamWrapper,
     _MessagesWrapper,
@@ -31,6 +33,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_messages_create",
         "_original_async_messages_create",
         "_original_messages_stream",
+        "_original_beta_messages_parse",
+        "_original_async_beta_messages_parse",
         "_instruments",
         "_tracer",
     )
@@ -88,6 +92,36 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_MessagesStreamWrapper(tracer=self._tracer),
         )
 
+        # Instrument beta.messages.parse() if available
+        try:
+            from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+            from anthropic.resources.beta.messages import Messages as BetaMessages
+
+            self._original_beta_messages_parse = BetaMessages.parse
+            wrap_function_wrapper(
+                module="anthropic.resources.beta.messages",
+                name="Messages.parse",
+                wrapper=_BetaMessagesParseWrapper(tracer=self._tracer),
+            )
+            logger.debug("Successfully instrumented beta.messages.parse()")
+
+            self._original_async_beta_messages_parse = AsyncBetaMessages.parse
+            wrap_function_wrapper(
+                module="anthropic.resources.beta.messages",
+                name="AsyncMessages.parse",
+                wrapper=_AsyncBetaMessagesParseWrapper(tracer=self._tracer),
+            )
+            logger.debug("Successfully instrumented async beta.messages.parse()")
+        except ImportError as e:
+            # Beta API may not be available in all SDK versions
+            logger.debug(f"Beta messages API not available, skipping instrumentation: {e}")
+            self._original_beta_messages_parse = None
+            self._original_async_beta_messages_parse = None
+        except Exception as e:
+            logger.warning(f"Failed to instrument beta.messages.parse(): {e}", exc_info=True)
+            self._original_beta_messages_parse = None
+            self._original_async_beta_messages_parse = None
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
@@ -101,3 +135,20 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             Messages.create = self._original_messages_create  # type: ignore[method-assign]
         if self._original_async_messages_create is not None:
             AsyncMessages.create = self._original_async_messages_create  # type: ignore[method-assign]
+
+        # Uninstrument beta.messages.parse() if it was instrumented
+        if self._original_beta_messages_parse is not None:
+            try:
+                from anthropic.resources.beta.messages import Messages as BetaMessages
+
+                BetaMessages.parse = self._original_beta_messages_parse  # type: ignore[method-assign]
+            except ImportError:
+                pass
+
+        if self._original_async_beta_messages_parse is not None:
+            try:
+                from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+
+                AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
+            except ImportError:
+                pass
