@@ -39,6 +39,7 @@ instruments = [
 test = [
     "pytest",
     "pytest-asyncio",
+    "pytest-recording",
 ]
 
 [project.urls]

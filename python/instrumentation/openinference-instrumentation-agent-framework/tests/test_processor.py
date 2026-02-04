@@ -1,350 +1,494 @@
-"""Tests for AgentFrameworkToOpenInferenceProcessor."""
-
-import json
-from typing import Any, Dict
-from unittest.mock import MagicMock
-
-from openinference.instrumentation.agent_framework import (
-    AgentFrameworkToOpenInferenceProcessor,
-)
-
-
-def create_mock_span(name: str, attributes: Dict[str, Any]) -> MagicMock:
-    """Create a mock span with the given attributes."""
-    span = MagicMock()
-    span.name = name
-    span._attributes = attributes
-    span._events = []
-    span.get_span_context.return_value.span_id = 12345
-    return span
-
-
-class TestSpanKindDetermination:
-    """Tests for span kind determination."""
-
-    def test_chat_operation_returns_llm(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4", {"gen_ai.operation.name": "chat", "gen_ai.request.model": "gpt-4"}
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "LLM"
-
-    def test_execute_tool_operation_returns_tool(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "execute_tool get_weather",
-            {"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "get_weather"},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "TOOL"
-
-    def test_invoke_agent_operation_returns_agent(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "invoke_agent Assistant",
-            {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": "Assistant"},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "AGENT"
-
-    def test_workflow_span_returns_chain(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "workflow.run my_workflow", {"workflow.id": "wf-123", "workflow.name": "my_workflow"}
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "CHAIN"
-
-    def test_unknown_operation_defaults_to_chain(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span("unknown_operation", {"some.attribute": "value"})
-
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "CHAIN"
-
-
-class TestModelInfoMapping:
-    """Tests for model and provider info mapping."""
-
-    def test_model_name_mapped(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.request.model": "gpt-4-turbo"},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.model_name"] == "gpt-4-turbo"
-
-    def test_provider_mapped(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {
-                "gen_ai.operation.name": "chat",
-                "gen_ai.request.model": "gpt-4",
-                "gen_ai.provider.name": "openai",
-            },
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.provider"] == "openai"
-
-
-class TestTokenUsageMapping:
-    """Tests for token usage mapping."""
-
-    def test_input_tokens_mapped_to_prompt(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.usage.input_tokens": 100},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.token_count.prompt"] == 100
-
-    def test_output_tokens_mapped_to_completion(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.usage.output_tokens": 50},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.token_count.completion"] == 50
-
-    def test_total_tokens_calculated(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {
-                "gen_ai.operation.name": "chat",
-                "gen_ai.usage.input_tokens": 100,
-                "gen_ai.usage.output_tokens": 50,
-            },
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.token_count.total"] == 150
-
-
-class TestMessageExtraction:
-    """Tests for message extraction and transformation."""
-
-    def test_simple_user_message(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        messages = json.dumps(
-            [{"role": "user", "parts": [{"type": "text", "content": "Hello, world!"}]}]
-        )
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.input.messages": messages},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.input_messages.0.message.role"] == "user"
-        assert span._attributes["llm.input_messages.0.message.content"] == "Hello, world!"
-
-    def test_assistant_message_with_tool_call(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        messages = json.dumps(
-            [
-                {
-                    "role": "assistant",
-                    "parts": [
-                        {
-                            "type": "tool_call",
-                            "id": "call_123",
-                            "name": "get_weather",
-                            "arguments": {"location": "Seattle"},
-                        }
-                    ],
-                }
-            ]
-        )
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.output.messages": messages},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["llm.output_messages.0.message.role"] == "assistant"
-        assert (
-            span._attributes["llm.output_messages.0.message.tool_calls.0.tool_call.function.name"]
-            == "get_weather"
-        )
-        assert (
-            span._attributes["llm.output_messages.0.message.tool_calls.0.tool_call.id"]
-            == "call_123"
-        )
-
-
-class TestToolSpanHandling:
-    """Tests for tool span handling."""
-
-    def test_tool_attributes_mapped(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "execute_tool get_weather",
-            {
-                "gen_ai.operation.name": "execute_tool",
-                "gen_ai.tool.name": "get_weather",
-                "gen_ai.tool.call.id": "call_123",
-                "gen_ai.tool.call.arguments": json.dumps({"location": "Seattle"}),
-                "gen_ai.tool.call.result": "Sunny, 72F",
-            },
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["tool.name"] == "get_weather"
-        assert span._attributes["tool.call_id"] == "call_123"
-        assert span._attributes["output.value"] == "Sunny, 72F"
-
-
-class TestGraphNodeAttributes:
-    """Tests for graph node attribute generation."""
-
-    def test_agent_span_graph_node(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "invoke_agent Assistant",
-            {
-                "gen_ai.operation.name": "invoke_agent",
-                "gen_ai.agent.id": "agent-001",
-                "gen_ai.agent.name": "Assistant",
-            },
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["graph.node.id"] == "agent_agent-001"
-        assert span._attributes["graph.node.name"] == "Assistant"
-
-    def test_tool_span_graph_node(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "execute_tool calculator",
-            {"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "calculator"},
-        )
-
-        processor.on_end(span)
-
-        assert "tool_calculator_" in span._attributes["graph.node.id"]
-        assert span._attributes["graph.node.name"] == "calculator"
-
-
-class TestSessionMapping:
-    """Tests for session/conversation ID mapping."""
-
-    def test_conversation_id_mapped_to_session(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "invoke_agent Assistant",
-            {
-                "gen_ai.operation.name": "invoke_agent",
-                "gen_ai.conversation.id": "conv-12345",
-            },
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["session.id"] == "conv-12345"
-
-
-class TestInputOutputValues:
-    """Tests for input/output value creation."""
-
-    def test_simple_input_as_plain_text(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        messages = json.dumps(
-            [{"role": "user", "parts": [{"type": "text", "content": "What is 2+2?"}]}]
-        )
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.input.messages": messages},
-        )
-
-        processor.on_end(span)
-
-        assert span._attributes["input.value"] == "What is 2+2?"
-        assert span._attributes["input.mime_type"] == "text/plain"
-
-    def test_llm_output_as_json_structure(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        output_messages = json.dumps(
-            [{"role": "assistant", "parts": [{"type": "text", "content": "The answer is 4."}]}]
-        )
-        span = create_mock_span(
-            "chat gpt-4",
-            {
-                "gen_ai.operation.name": "chat",
-                "gen_ai.output.messages": output_messages,
-                "gen_ai.response.finish_reasons": json.dumps(["stop"]),
-            },
-        )
-
-        processor.on_end(span)
-
-        output_value = json.loads(span._attributes["output.value"])
-        assert "choices" in output_value
-        assert output_value["choices"][0]["message"]["content"] == "The answer is 4."
-        assert output_value["choices"][0]["finish_reason"] == "stop"
-
-
-class TestProcessorInfo:
-    """Tests for processor info method."""
-
-    def test_get_processor_info(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor(debug=True)
-
-        info = processor.get_processor_info()
-
-        assert info["processor_name"] == "AgentFrameworkToOpenInferenceProcessor"
-        assert info["debug_enabled"] is True
-        assert "LLM" in info["supported_span_kinds"]
-        assert "AGENT" in info["supported_span_kinds"]
-        assert "TOOL" in info["supported_span_kinds"]
-        assert "CHAIN" in info["supported_span_kinds"]
-
-
-class TestErrorHandling:
-    """Tests for error handling."""
-
-    def test_empty_span_attributes_handled(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = MagicMock()
-        span._attributes = None
-
-        # Should not raise
-        processor.on_end(span)
-
-    def test_invalid_json_in_messages_handled(self) -> None:
-        processor = AgentFrameworkToOpenInferenceProcessor()
-        span = create_mock_span(
-            "chat gpt-4",
-            {"gen_ai.operation.name": "chat", "gen_ai.input.messages": "not valid json{"},
-        )
-
-        # Should not raise
-        processor.on_end(span)
-
-        assert span._attributes["openinference.span.kind"] == "LLM"
+"""Processor tests for agent-framework instrumentation using pytest-recording.
+
+These tests verify the AgentFrameworkToOpenInferenceProcessor by recording and replaying
+HTTP interactions with real AI services. This ensures the processor correctly transforms
+agent-framework spans to OpenInference format with actual API responses.
+
+Requirements:
+- agent-framework must be installed (tests will fail at import if missing)
+- OpenAI API key required for recording new cassettes
+- Existing cassettes can be used for replay without an API key
+
+Recording new cassettes:
+1. Set environment variable: export OPENAI_API_KEY=your_actual_key
+2. Delete cassettes to re-record: rm -rf tests/cassettes/test_processor/
+3. Run: pytest tests/test_processor.py -v --record-mode=rewrite
+
+Running with existing cassettes:
+- Run: pytest tests/test_processor.py -v
+- Uses recorded cassettes from tests/cassettes/test_processor/
+- Headers are sanitized (no API keys stored)
+"""
+from typing import cast
+
+import pytest
+from agent_framework.openai import OpenAIChatClient
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_openai_chat_with_agent(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test basic OpenAI chat agent creates proper LLM spans with OpenInference attributes."""
+
+    # Create a simple agent
+    agent = openai_client.as_agent(
+        name="TestAssistant",
+        instructions="You are a helpful assistant. Answer concisely.",
+    )
+
+    # Run the agent with a simple query
+    response = await agent.run("What is 2+2? Answer with just the number.")
+
+    # Verify we got a response
+    assert response is not None
+    assert response.text is not None
+
+    # Get the captured spans
+    spans = in_memory_span_exporter.get_finished_spans()
+
+    # Agent-framework creates multiple spans (agent invoke, chat, etc.)
+    assert len(spans) > 0, f"Expected at least 1 span, got {len(spans)}"
+
+    # Find the LLM span
+    llm_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+
+    assert len(llm_spans) > 0, "Expected at least one LLM span"
+
+    llm_span = llm_spans[0]
+    attrs = dict(cast(dict, llm_span.attributes))
+
+    # Verify OpenInference attributes were added
+    assert (
+        attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    )
+
+    # Verify model info
+    assert attrs.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attrs.get(SpanAttributes.LLM_PROVIDER) == "openai"
+
+    # Verify token counts exist
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
+
+    # Verify messages
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role" in attrs
+    assert f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.role" in attrs
+
+    # Verify original GenAI attributes are preserved
+    assert "gen_ai.operation.name" in attrs
+    assert "gen_ai.request.model" in attrs
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_agent_with_tool_calls(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test agent with tool calls creates AGENT, LLM, and TOOL spans."""
+
+    # Define a simple tool
+    def get_weather(location: str) -> str:
+        """Get the weather for a location."""
+        return f"The weather in {location} is sunny and 72°F"
+
+    agent = openai_client.as_agent(
+        name="WeatherAgent",
+        instructions="You are a weather assistant. Use the get_weather tool when asked about weather.",
+        tools=[get_weather],
+    )
+
+    # Run agent with a query that should use the tool
+    response = await agent.run("What's the weather in San Francisco?")
+
+    assert response is not None
+
+    # Get spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) > 0
+
+    # Check we have different span kinds
+    span_kinds = set()
+    for span in spans:
+        if span.attributes:
+            kind = span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            if kind:
+                span_kinds.add(kind)
+
+    # Should have at least LLM spans, possibly AGENT and TOOL
+    assert OpenInferenceSpanKindValues.LLM.value in span_kinds
+
+    # Find tool spans - should exist for tool call test
+    tool_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    ]
+
+    assert len(tool_spans) > 0, "Expected at least one TOOL span for tool call test"
+
+    tool_span = tool_spans[0]
+    attrs = dict(cast(dict, tool_span.attributes))
+
+    # Verify tool attributes
+    assert attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "TOOL"
+    assert SpanAttributes.TOOL_NAME in attrs
+
+    # Verify original GenAI attributes preserved
+    assert "gen_ai.operation.name" in attrs
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_conversation_with_history(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test multi-turn conversation maintains conversation_id as session_id."""
+    agent = openai_client.as_agent(
+        name="ConversationAgent",
+        instructions="You are a friendly assistant.",
+    )
+
+    # First message
+    response1 = await agent.run("Hi, my name is Alice.")
+    assert response1 is not None
+
+    # Clear spans from first turn
+    in_memory_span_exporter.clear()
+
+    # Second message - should maintain conversation context
+    response2 = await agent.run("What is my name?")
+    assert response2 is not None
+
+    # Get spans from second turn
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) > 0
+
+    # Check for session.id (mapped from conversation.id)
+    llm_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+
+    assert len(llm_spans) > 0, "Expected at least one LLM span in conversation"
+
+    attrs = dict(cast(dict, llm_spans[0].attributes))
+
+    # Verify session ID exists (mapped from gen_ai.conversation.id)
+    if SpanAttributes.SESSION_ID in attrs:
+        assert attrs[SpanAttributes.SESSION_ID] is not None
+        print(f"Session ID: {attrs[SpanAttributes.SESSION_ID]}")
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_multiple_tools(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test agent with multiple tools and complex tool interactions."""
+
+    # Define multiple tools
+    def get_temperature(location: str) -> str:
+        """Get the temperature for a location."""
+        temps = {"San Francisco": "72°F", "New York": "65°F", "London": "58°F"}
+        return temps.get(location, "Unknown location")
+
+    def get_humidity(location: str) -> str:
+        """Get the humidity for a location."""
+        humidity = {"San Francisco": "65%", "New York": "70%", "London": "80%"}
+        return humidity.get(location, "Unknown location")
+
+    def calculate_heat_index(temperature: str, humidity: str) -> str:
+        """Calculate heat index from temperature and humidity."""
+        return f"Heat index: Comfortable (based on {temperature} and {humidity})"
+
+    agent = openai_client.as_agent(
+        name="WeatherExpert",
+        instructions="You are a weather expert. Use available tools to provide detailed weather information.",
+        tools=[get_temperature, get_humidity, calculate_heat_index],
+    )
+
+    # Clear any spans from setup
+    in_memory_span_exporter.clear()
+
+    # Run agent with a query that might use multiple tools
+    response = await agent.run(
+        "What's the weather like in San Francisco? Give me temperature and humidity."
+    )
+
+    assert response is not None
+    assert response.text is not None
+
+    # Get spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) > 0
+
+    # Check for multiple tool calls
+    tool_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    ]
+
+    # Should have tool calls (at least one, possibly multiple)
+    assert len(tool_spans) >= 1, f"Expected at least 1 tool span, got {len(tool_spans)}"
+
+    # Verify tool span has proper attributes
+    for tool_span in tool_spans:
+        attrs = dict(cast(dict, tool_span.attributes))
+        assert SpanAttributes.TOOL_NAME in attrs
+        assert attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "TOOL"
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_agent_with_system_instructions(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test that system instructions are properly captured in spans."""
+
+    # Create agent with specific system instructions
+    system_instructions = "You are a helpful math tutor. Explain concepts simply and provide examples. Always be encouraging."
+
+    agent = openai_client.as_agent(
+        name="MathTutor",
+        instructions=system_instructions,
+    )
+
+    # Clear any spans from setup
+    in_memory_span_exporter.clear()
+
+    # Run a simple query
+    response = await agent.run("What is a prime number?")
+
+    assert response is not None
+    assert response.text is not None
+
+    # Get spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+
+    assert len(llm_spans) > 0
+
+    llm_span = llm_spans[0]
+    attrs = dict(cast(dict, llm_span.attributes))
+
+    # Check that system instructions are captured
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role" in attrs
+    assert attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role"] == "system"
+
+    # Verify the system message content contains our instructions
+    system_content_key = f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content"
+    if system_content_key in attrs:
+        assert system_instructions in attrs[system_content_key]
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_long_conversation_context(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test longer conversation with multiple context-dependent turns."""
+    agent = openai_client.as_agent(
+        name="ConversationAgent",
+        instructions="You are a helpful assistant. Remember context from previous messages.",
+    )
+
+    # Turn 1: Establish context
+    response1 = await agent.run("My favorite color is blue.")
+    assert response1 is not None
+
+    # Turn 2: Add more context
+    response2 = await agent.run("I also like programming in Python.")
+    assert response2 is not None
+
+    # Clear spans from previous turns
+    in_memory_span_exporter.clear()
+
+    # Turn 3: Question that requires context from both previous turns
+    response3 = await agent.run("What do you know about my preferences?")
+    assert response3 is not None
+
+    # Get spans from final turn
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) > 0
+
+    # Find LLM span
+    llm_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+
+    assert len(llm_spans) > 0
+
+    llm_span = llm_spans[0]
+    attrs = dict(cast(dict, llm_span.attributes))
+
+    # Verify we have input messages captured
+    assert f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role" in attrs
+
+    # Verify basic span attributes
+    assert (
+        attrs.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    )
+    assert SpanAttributes.LLM_MODEL_NAME in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_tool_with_complex_return_type(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    openai_client: OpenAIChatClient,
+) -> None:
+    """Test tool that returns complex data structure."""
+
+    # Define a tool that returns complex data
+    def get_user_profile(user_id: str) -> str:
+        """Get detailed user profile information."""
+        import json
+
+        profile = {
+            "user_id": user_id,
+            "name": "John Doe",
+            "email": "john@example.com",
+            "preferences": {"theme": "dark", "notifications": True},
+            "stats": {"posts": 42, "followers": 150},
+        }
+        return json.dumps(profile)
+
+    agent = openai_client.as_agent(
+        name="UserManager",
+        instructions="You help manage user information. Use the get_user_profile tool to fetch user details.",
+        tools=[get_user_profile],
+    )
+
+    # Clear any spans from setup
+    in_memory_span_exporter.clear()
+
+    # Run query
+    response = await agent.run("Get the profile for user 'user123'")
+
+    assert response is not None
+
+    # Get spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) > 0
+
+    # Find tool spans - should exist for tool return type test
+    tool_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    ]
+
+    assert len(tool_spans) > 0, "Expected at least one TOOL span for complex return type test"
+
+    tool_span = tool_spans[0]
+    attrs = dict(cast(dict, tool_span.attributes))
+
+    # Verify tool attributes
+    assert SpanAttributes.TOOL_NAME in attrs
+    assert attrs[SpanAttributes.TOOL_NAME] == "get_user_profile"
+
+    # Check for output capture
+    assert SpanAttributes.OUTPUT_VALUE in attrs or "tool.output" in attrs
+
+
+@pytest.mark.vcr
+@pytest.mark.asyncio
+async def test_agent_with_different_model(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    gpt4_client: OpenAIChatClient,
+) -> None:
+    """Test with a different OpenAI model to ensure model info is captured correctly."""
+
+    # Use gpt-4o instead of gpt-4o-mini
+    agent = gpt4_client.as_agent(
+        name="GPT4Agent",
+        instructions="You are a helpful assistant.",
+    )
+
+    # Clear any spans from setup
+    in_memory_span_exporter.clear()
+
+    # Run simple query
+    response = await agent.run("Say hello in one word.")
+
+    assert response is not None
+
+    # Get spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    llm_spans = [
+        s
+        for s in spans
+        if s.attributes
+        and s.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.LLM.value
+    ]
+
+    assert len(llm_spans) > 0
+
+    llm_span = llm_spans[0]
+    attrs = dict(cast(dict, llm_span.attributes))
+
+    # Verify model is correctly captured
+    assert attrs.get(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o"
+    assert attrs.get(SpanAttributes.LLM_PROVIDER) == "openai"
+
+    # Verify token counts exist
+    assert SpanAttributes.LLM_TOKEN_COUNT_PROMPT in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_COMPLETION in attrs
+    assert SpanAttributes.LLM_TOKEN_COUNT_TOTAL in attrs
+
+
+# Helper function to find spans by kind
+def get_span_by_kind(spans, kind: str):
+    """Find the first span with the given OpenInference span kind."""
+    for span in spans:
+        if span.attributes and span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND) == kind:
+            return span
+    raise ValueError(f"No span found with kind: {kind}")

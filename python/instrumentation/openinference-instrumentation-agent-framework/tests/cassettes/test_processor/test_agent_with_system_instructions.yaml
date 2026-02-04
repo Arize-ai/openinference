@@ -1,0 +1,129 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
+      a helpful math tutor. Explain concepts simply and provide examples. Always be
+      encouraging.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"What
+      is a prime number?","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate, br, zstd
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '336'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - agent-framework-python/1.0.0b260130
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - async:asyncio
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.16.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.11.13
+      agent-framework-version:
+      - python/1.0.0b260130
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-D5ggZbHZQlAMnD9Q4CJnVt8kaKEKa\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770248095,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"A prime number is a special type of
+        whole number that has exactly two distinct positive divisors: 1 and itself.
+        This means that a prime number can only be divided evenly (without leaving
+        a remainder) by 1 and the number itself.\\n\\nFor example, the number 5 is
+        prime because the only numbers that divide evenly into 5 are 1 and 5. On the
+        other hand, the number 6 is not prime because it can be divided by 1, 2, 3,
+        and 6\u2014so it has more than two divisors.\\n\\nHere are some examples of
+        prime numbers:\\n- 2 (the only even prime number!)\\n- 3\\n- 5\\n- 7\\n- 11\\n-
+        13\\n\\nAnd here are some numbers that are NOT prime:\\n- 4 (divisible by
+        1, 2, and 4)\\n- 6 (divisible by 1, 2, 3, and 6)\\n- 9 (divisible by 1, 3,
+        and 9)\\n\\nRemember, the first number in the list of whole numbers, 1, is
+        not considered a prime number because it only has one positive divisor (1
+        itself).\\n\\nKeep up the great work in learning about numbers! You\u2019re
+        doing awesome! If you have more questions or need further examples, just let
+        me know!\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 35,\n    \"completion_tokens\": 279,\n
+        \   \"total_tokens\": 314,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9c8dfb4289a65527-SJC
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 04 Feb 2026 23:35:00 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=I.BcVt5NYGVthJ0AizOi80GwpZWlBY5rtOdydpKVcnI-1770248100-1.0.1.1-8jppcidAesRAXScUT0Tno9ozqxzDG7J6NfjVXWZFj4W5.xqA44rebO8xicGW1oq8mYcTTIKePzTxCAfz_dvQaY1ZlGsmVDR31lj3I0MjHOg;
+        path=/; expires=Thu, 05-Feb-26 00:05:00 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=4dtk933j8FR4_QhlBQxh9AE_w5_lc.j5kdsxB6TGXTs-1770248100248-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '1814'
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '5079'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999965'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_ec4a2dac528a45f1aca18a956303fe98
+    status:
+      code: 200
+      message: OK
+version: 1

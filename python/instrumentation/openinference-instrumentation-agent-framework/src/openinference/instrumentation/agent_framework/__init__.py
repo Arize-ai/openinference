@@ -38,8 +38,10 @@ __version__ = "0.1.0"
 from openinference.instrumentation.agent_framework.processor import (
     AgentFrameworkToOpenInferenceProcessor,
 )
+from openinference.instrumentation.agent_framework.utils import is_openinference_span
 
 __all__ = [
     "AgentFrameworkToOpenInferenceProcessor",
+    "is_openinference_span",
     "__version__",
 ]
