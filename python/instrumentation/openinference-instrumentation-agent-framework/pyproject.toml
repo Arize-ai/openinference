@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-microsoft-agentframework"
+name = "openinference-instrumentation-agent-framework"
 dynamic = ["version"]
 description = "OpenInference span processor for Microsoft Agent Framework - transforms native OpenTelemetry spans to OpenInference format"
 readme = "README.md"
@@ -28,7 +28,7 @@ dependencies = [
     "opentelemetry-api>=1.39.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-semantic-conventions>=0.52b0",
-    "openinference-semantic-conventions>=0.1.17",
+    "openinference-semantic-conventions>=0.1.25",
     "typing-extensions",
 ]
 
@@ -42,10 +42,10 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-microsoft-agentframework"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agent-framework"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/microsoft_agentframework/__init__.py"
+path = "src/openinference/instrumentation/agent_framework/__init__.py"
 pattern = '__version__ = "(?P<version>[^"]+)"'
 
 [tool.hatch.build.targets.sdist]
@@ -76,7 +76,7 @@ exclude = [
 ignore_missing_imports = true
 module = [
     "agent_framework.*",
-    "openinference.instrumentation.microsoft_agentframework.*",
+    "openinference.instrumentation.agent_framework.*",
 ]
 
 [tool.ruff]

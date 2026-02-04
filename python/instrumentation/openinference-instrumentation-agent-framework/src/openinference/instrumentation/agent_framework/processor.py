@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
-from openinference.instrumentation.microsoft_agentframework.semantic_conventions import (
+from openinference.instrumentation.agent_framework import __version__
+from openinference.instrumentation.agent_framework.semantic_conventions import (
     AGENT_DESCRIPTION,
     AGENT_ID,
     AGENT_INVOKE_OPERATION,
@@ -60,7 +61,7 @@ from openinference.instrumentation.microsoft_agentframework.semantic_conventions
 logger = logging.getLogger(__name__)
 
 
-class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
+class AgentFrameworkToOpenInferenceProcessor(SpanProcessor):
     """
     SpanProcessor that converts Microsoft Agent Framework telemetry attributes
     to OpenInference format for compatibility with OpenInference-compliant backends.
@@ -72,13 +73,13 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
     Usage:
         ```python
         from opentelemetry.sdk.trace import TracerProvider
-        from openinference.instrumentation.microsoft_agentframework import (
-            MicrosoftAgentFrameworkToOpenInferenceProcessor
+        from openinference.instrumentation.agent_framework import (
+            AgentFrameworkToOpenInferenceProcessor
         )
 
         provider = TracerProvider()
         provider.add_span_processor(
-            MicrosoftAgentFrameworkToOpenInferenceProcessor(debug=False)
+            AgentFrameworkToOpenInferenceProcessor(debug=False)
         )
         ```
     """
@@ -115,11 +116,12 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
                 events = list(span.events)
 
             transformed_attrs = self._transform_attributes(original_attrs, span, events)
-            span._attributes = transformed_attrs
+            # Merge with original attributes to preserve GenAI attributes that weren't transformed
+            span._attributes = {**span.attributes, **transformed_attrs}  # type: ignore[dict-item]
 
             # MS Agent Framework only sets ERROR status, not OK - set OK for successful spans
-            if hasattr(span, "_status") and span._status.status_code == StatusCode.UNSET:
-                span._status = Status(StatusCode.OK)
+            if not span.status.status_code == StatusCode.ERROR:
+                span._status = Status(status_code=StatusCode.OK)
 
             if self.debug:
                 logger.info(
@@ -687,8 +689,8 @@ class MicrosoftAgentFrameworkToOpenInferenceProcessor(SpanProcessor):
     def get_processor_info(self) -> Dict[str, Any]:
         """Get information about this processor's capabilities."""
         return {
-            "processor_name": "MicrosoftAgentFrameworkToOpenInferenceProcessor",
-            "version": "0.1.0",
+            "processor_name": "AgentFrameworkToOpenInferenceProcessor",
+            "version": __version__,
             "debug_enabled": self.debug,
             "supported_span_kinds": ["LLM", "AGENT", "CHAIN", "TOOL"],
             "supported_operations": [

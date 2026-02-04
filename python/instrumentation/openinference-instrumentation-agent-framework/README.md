@@ -5,7 +5,7 @@ OpenInference span processor for Microsoft Agent Framework that transforms nativ
 ## Installation
 
 ```bash
-pip install openinference-instrumentation-microsoft-agentframework
+pip install openinference-instrumentation-agent-framework
 ```
 
 ## Overview
@@ -18,8 +18,8 @@ Microsoft Agent Framework emits telemetry using GenAI semantic conventions (`gen
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from agent_framework.observability import configure_otel_providers
-from openinference.instrumentation.microsoft_agentframework import (
-    MicrosoftAgentFrameworkToOpenInferenceProcessor
+from openinference.instrumentation.agent_framework import (
+    AgentFrameworkToOpenInferenceProcessor
 )
 
 # Configure MS Agent Framework's native telemetry
@@ -30,7 +30,7 @@ configure_otel_providers(enable_sensitive_data=True)
 tracer_provider = trace.get_tracer_provider()
 if isinstance(tracer_provider, TracerProvider):
     tracer_provider.add_span_processor(
-        MicrosoftAgentFrameworkToOpenInferenceProcessor()
+        AgentFrameworkToOpenInferenceProcessor()
     )
 
 # Use framework normally - spans will be transformed automatically
@@ -92,7 +92,7 @@ llm.input_messages.0.message.content = "Hello"
 Enable debug mode to log transformation details:
 
 ```python
-processor = MicrosoftAgentFrameworkToOpenInferenceProcessor(debug=True)
+processor = AgentFrameworkToOpenInferenceProcessor(debug=True)
 ```
 
 ## Requirements

@@ -1,14 +1,14 @@
 """Basic example of using Microsoft Agent Framework with OpenInference instrumentation.
 
-This example demonstrates how to use the MicrosoftAgentFrameworkToOpenInferenceProcessor
+This example demonstrates how to use the AgentFrameworkToOpenInferenceProcessor
 to transform Microsoft Agent Framework's native OpenTelemetry spans into OpenInference format.
 """
 
 import asyncio
 import os
 
-from openinference.instrumentation.microsoft_agentframework import (
-    MicrosoftAgentFrameworkToOpenInferenceProcessor,
+from openinference.instrumentation.agent_framework import (
+    AgentFrameworkToOpenInferenceProcessor,
 )
 
 
@@ -40,9 +40,7 @@ async def main():
     # Add OpenInference processor to transform spans
     tracer_provider = trace.get_tracer_provider()
     if isinstance(tracer_provider, TracerProvider):
-        tracer_provider.add_span_processor(
-            MicrosoftAgentFrameworkToOpenInferenceProcessor(debug=False)
-        )
+        tracer_provider.add_span_processor(AgentFrameworkToOpenInferenceProcessor(debug=False))
 
     print("Telemetry configured")
     print()

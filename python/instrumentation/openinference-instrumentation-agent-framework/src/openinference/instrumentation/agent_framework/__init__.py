@@ -9,8 +9,8 @@ Usage:
     from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
     from agent_framework.observability import configure_otel_providers
-    from openinference.instrumentation.microsoft_agentframework import (
-        MicrosoftAgentFrameworkToOpenInferenceProcessor
+    from openinference.instrumentation.agent_framework import (
+        AgentFrameworkToOpenInferenceProcessor
     )
 
     # Configure MS Agent Framework's native telemetry
@@ -21,7 +21,7 @@ Usage:
     tracer_provider = trace.get_tracer_provider()
     if isinstance(tracer_provider, TracerProvider):
         tracer_provider.add_span_processor(
-            MicrosoftAgentFrameworkToOpenInferenceProcessor()
+            AgentFrameworkToOpenInferenceProcessor()
         )
 
     # Use framework normally - spans will be transformed automatically
@@ -35,11 +35,11 @@ Usage:
 
 __version__ = "0.1.0"
 
-from openinference.instrumentation.microsoft_agentframework.processor import (
-    MicrosoftAgentFrameworkToOpenInferenceProcessor,
+from openinference.instrumentation.agent_framework.processor import (
+    AgentFrameworkToOpenInferenceProcessor,
 )
 
 __all__ = [
-    "MicrosoftAgentFrameworkToOpenInferenceProcessor",
+    "AgentFrameworkToOpenInferenceProcessor",
     "__version__",
 ]
