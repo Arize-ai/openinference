@@ -16,5 +16,5 @@ langgraph>=0.0.15
 typing-extensions>=4.8.0
 
 # Phoenix dependencies
-phoenix-client>=0.1.0
+arize-phoenix-client>=1.28.0
 openinference-instrumentation-openllmetry>=0.1.0 
