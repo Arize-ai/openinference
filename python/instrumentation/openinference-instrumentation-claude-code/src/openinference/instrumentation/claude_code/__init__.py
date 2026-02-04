@@ -8,7 +8,10 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.claude_code._wrappers import _QueryWrapper
+from openinference.instrumentation.claude_code._wrappers import (
+    _QueryWrapper,
+    _ReceiveResponseWrapper,
+)
 from openinference.instrumentation.claude_code.package import _instruments
 from openinference.instrumentation.claude_code.version import __version__
 
@@ -50,6 +53,13 @@ class ClaudeCodeInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_QueryWrapper(tracer=tracer),
         )
 
+        # Wrap ClaudeSDKClient.receive_response method
+        wrap_function_wrapper(
+            module="claude_agent_sdk",
+            name="ClaudeSDKClient.receive_response",
+            wrapper=_ReceiveResponseWrapper(tracer=tracer),
+        )
+
         self._is_instrumented = True
         logger.info("Claude Code instrumentation enabled")
 
@@ -61,6 +71,12 @@ class ClaudeCodeInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import claude_agent_sdk
         if hasattr(claude_agent_sdk.query, "__wrapped__"):
             claude_agent_sdk.query = claude_agent_sdk.query.__wrapped__
+
+        # Unwrap ClaudeSDKClient.receive_response
+        if hasattr(claude_agent_sdk.ClaudeSDKClient.receive_response, "__wrapped__"):
+            claude_agent_sdk.ClaudeSDKClient.receive_response = (
+                claude_agent_sdk.ClaudeSDKClient.receive_response.__wrapped__
+            )
 
         self._is_instrumented = False
         self._tracer = None  # type: ignore
