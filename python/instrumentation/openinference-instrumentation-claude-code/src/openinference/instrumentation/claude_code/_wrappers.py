@@ -7,8 +7,12 @@ import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import Span
 
-from openinference.instrumentation.claude_code._message_parser import extract_text_content
+from openinference.instrumentation.claude_code._message_parser import (
+    extract_text_content,
+    extract_tool_uses,
+)
 from openinference.instrumentation.claude_code._span_manager import SpanManager
+from openinference.semconv.trace import SpanAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +58,36 @@ class _QueryWrapper:
             )
 
             try:
+                # Track tool spans by ID
+                tool_spans = {}
+
                 # Call original function and yield messages
                 async for message in wrapped(*args, **kwargs):
-                    # TODO: Parse message and create child spans
+                    # Parse message for tool uses
+                    from claude_agent_sdk import AssistantMessage
+
+                    if isinstance(message, AssistantMessage):
+                        # Extract and create tool spans
+                        tool_uses = extract_tool_uses(message)
+                        for tool_use in tool_uses:
+                            tool_span = self._span_manager.start_tool_span(
+                                tool_name=tool_use["name"],
+                                parent_span=query_span,
+                            )
+                            # Set tool parameters
+                            tool_span.set_attribute(
+                                SpanAttributes.TOOL_PARAMETERS,
+                                str(tool_use["input"]),
+                            )
+                            # Track for later closing
+                            tool_spans[tool_use["id"]] = tool_span
+
                     yield message
+
+                # End all tool spans
+                for tool_span in tool_spans.values():
+                    self._span_manager.end_span(tool_span)
+
             finally:
                 self._span_manager.end_span(query_span)
         finally:
