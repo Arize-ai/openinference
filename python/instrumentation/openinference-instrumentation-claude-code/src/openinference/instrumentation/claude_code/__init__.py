@@ -5,8 +5,10 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.claude_code._wrappers import _QueryWrapper
 from openinference.instrumentation.claude_code.package import _instruments
 from openinference.instrumentation.claude_code.version import __version__
 
@@ -38,9 +40,14 @@ class ClaudeCodeInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         else:
             assert isinstance(config, TraceConfig)
 
-        self._tracer = OITracer(
-            trace_api.get_tracer(__name__, __version__, tracer_provider),
-            config=config,
+        tracer = trace_api.get_tracer(__name__, __version__, tracer_provider)
+        self._tracer = OITracer(tracer, config=config)
+
+        # Wrap query function
+        wrap_function_wrapper(
+            module="claude_agent_sdk",
+            name="query",
+            wrapper=_QueryWrapper(tracer=tracer),
         )
 
         self._is_instrumented = True
@@ -50,7 +57,10 @@ class ClaudeCodeInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if not self._is_instrumented:
             return
 
-        # TODO: Unwrap functions
+        # Unwrap query function
+        import claude_agent_sdk
+        if hasattr(claude_agent_sdk.query, "__wrapped__"):
+            claude_agent_sdk.query = claude_agent_sdk.query.__wrapped__
 
         self._is_instrumented = False
         self._tracer = None  # type: ignore
