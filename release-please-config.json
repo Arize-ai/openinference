@@ -82,6 +82,10 @@
             "package-name": "python-openinference-instrumentation-anthropic",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-claude-code": {
+            "package-name": "python-openinference-instrumentation-claude-code",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-smolagents": {
             "package-name": "python-openinference-instrumentation-smolagents",
             "release-type": "python"
