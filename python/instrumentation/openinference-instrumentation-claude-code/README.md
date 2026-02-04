@@ -8,7 +8,28 @@ Instrumentation for [Claude Agent SDK](https://github.com/anthropics/claude-agen
 
 ```bash
 pip install openinference-instrumentation-claude-code
+pip install claude-agent-sdk
 ```
+
+## Authentication
+
+The Claude Agent SDK requires authentication. You have two options:
+
+### Option 1: Use Claude Code CLI Authentication (Recommended)
+If you've already authenticated with the Claude Code CLI:
+```bash
+claude  # Run this once to authenticate
+```
+
+The SDK will automatically use your existing authentication.
+
+### Option 2: Provide API Key
+Set your Anthropic API key as an environment variable:
+```bash
+export ANTHROPIC_API_KEY='your-api-key-here'
+```
+
+Get your API key from the [Anthropic Console](https://console.anthropic.com/).
 
 ## Quickstart
 

@@ -7,6 +7,13 @@ Install dependencies:
     pip install opentelemetry-sdk opentelemetry-exporter-otlp
     pip install 'arize-phoenix[evals]'
     pip install openinference-instrumentation-claude-code
+    pip install claude-agent-sdk
+
+Authentication:
+    Option 1: Use Claude Code CLI authentication (run 'claude' once to authenticate)
+    Option 2: Set environment variable: export ANTHROPIC_API_KEY='your-api-key'
+
+    Get your API key from: https://console.anthropic.com/
 
 Run Phoenix:
     python -m phoenix.server.main serve
