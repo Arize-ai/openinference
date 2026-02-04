@@ -35,6 +35,21 @@ def extract_tool_uses(message: AssistantMessage) -> List[Dict[str, Any]]:
     return tool_uses
 
 
+def extract_thinking_content(message: AssistantMessage) -> str:
+    """Extract thinking block content from message."""
+    if not hasattr(message, "content"):
+        return ""
+
+    from claude_agent_sdk import ThinkingBlock
+
+    thinking_parts = []
+    for block in message.content:
+        if isinstance(block, ThinkingBlock):
+            thinking_parts.append(block.text)
+
+    return "\n".join(thinking_parts)
+
+
 def has_thinking_block(message: AssistantMessage) -> bool:
     """Check if message contains thinking block."""
     if not hasattr(message, "content"):

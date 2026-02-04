@@ -1,8 +1,9 @@
 import pytest
-from claude_agent_sdk import AssistantMessage, TextBlock, ToolUseBlock
+from claude_agent_sdk import AssistantMessage, TextBlock, ThinkingBlock, ToolUseBlock
 
 from openinference.instrumentation.claude_code._message_parser import (
     extract_text_content,
+    extract_thinking_content,
     extract_tool_uses,
     has_thinking_block,
 )
@@ -51,3 +52,43 @@ def test_extract_tool_uses_from_message():
     assert result[0]["id"] == "tool_123"
     assert result[0]["name"] == "Read"
     assert result[0]["input"]["file_path"] == "test.py"
+
+
+def test_extract_thinking_content():
+    """Test extracting thinking block content."""
+    message = AssistantMessage(
+        content=[
+            ThinkingBlock(type="thinking", text="Let me think about this..."),
+            TextBlock(type="text", text="The answer is 4"),
+        ]
+    )
+
+    result = extract_thinking_content(message)
+
+    assert result == "Let me think about this..."
+
+
+def test_has_thinking_block_returns_true():
+    """Test detecting thinking block presence."""
+    message = AssistantMessage(
+        content=[
+            ThinkingBlock(type="thinking", text="Thinking..."),
+        ]
+    )
+
+    result = has_thinking_block(message)
+
+    assert result is True
+
+
+def test_has_thinking_block_returns_false():
+    """Test detecting no thinking block."""
+    message = AssistantMessage(
+        content=[
+            TextBlock(type="text", text="Answer"),
+        ]
+    )
+
+    result = has_thinking_block(message)
+
+    assert result is False
