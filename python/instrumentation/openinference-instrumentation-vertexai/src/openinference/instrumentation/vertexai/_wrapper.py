@@ -45,6 +45,8 @@ from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -317,6 +319,8 @@ def _update_span(obj: Any, span: Span) -> None: ...
 @_update_span.register(v1beta1.GenerateContentRequest)
 def _(req: GenerateContentRequest, span: Span) -> None:
     span.set_attribute(LLM_MODEL_NAME, req.model)
+    span.set_attribute(LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value)
+    span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.VERTEXAI.value)
     span.set_attribute(
         LLM_INVOCATION_PARAMETERS,
         safe_json_dumps(
@@ -506,6 +510,8 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
