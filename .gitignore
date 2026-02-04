@@ -113,3 +113,6 @@ Thumbs.db
 
 # Workspace Definitions
 *.code-workspace
+
+# Planning documents
+docs/plans/
