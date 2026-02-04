@@ -1,0 +1,100 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-claude-code"
+dynamic = ["version"]
+description = "OpenInference Instrumentation for Claude Code SDK"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9, <3.15"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "opentelemetry-api>=1.22.0",
+  "opentelemetry-sdk>=1.22.0",
+  "opentelemetry-instrumentation>=1.22.0",
+  "opentelemetry-semantic-conventions>=1.22.0",
+  "openinference-instrumentation>=0.1.27",
+  "openinference-semantic-conventions>=0.1.17",
+  "wrapt>=1.14.0",
+]
+
+[project.optional-dependencies]
+instruments = [
+  "claude-agent-sdk>=0.1.29",
+]
+test = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.21.0",
+  "claude-agent-sdk>=0.1.29",
+]
+
+[project.entry-points.openinference_instrumentor]
+claude_code = "openinference.instrumentation.claude_code:ClaudeCodeInstrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-claude-code"
+
+[tool.hatch.version]
+path = "src/openinference/instrumentation/claude_code/version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+  "tests",
+]
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "wrapt",
+  "claude_agent_sdk",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
