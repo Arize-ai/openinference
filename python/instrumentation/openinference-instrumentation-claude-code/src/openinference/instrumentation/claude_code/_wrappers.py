@@ -95,6 +95,8 @@ class _ReceiveResponseWrapper:
                 # Track tool spans by ID and collect output
                 tool_spans = {}
                 output_messages = []
+                active_subagent_span = None  # Track active subagent AGENT span
+                active_subagent_llm_span = None  # Track active subagent LLM span
 
                 # Call original function and yield messages
                 async for message in wrapped(*args, **kwargs):
@@ -108,17 +110,59 @@ class _ReceiveResponseWrapper:
                         # Extract and create tool spans
                         tool_uses = extract_tool_uses(message)
                         for tool_use in tool_uses:
-                            tool_span = self._span_manager.start_tool_span(
-                                tool_name=tool_use["name"],
-                                parent_span=response_span,
+                            # Check if this is a Task tool spawning a subagent
+                            is_subagent = (
+                                tool_use["name"] == "Task"
+                                and isinstance(tool_use["input"], dict)
+                                and "subagent_type" in tool_use["input"]
                             )
-                            # Set tool parameters
-                            tool_span.set_attribute(
-                                SpanAttributes.TOOL_PARAMETERS,
-                                str(tool_use["input"]),
-                            )
-                            # Track for later closing
-                            tool_spans[tool_use["id"]] = tool_span
+
+                            if is_subagent:
+                                # Create nested AGENT span for subagent
+                                subagent_name = tool_use["input"]["subagent_type"]
+                                subagent_session_id = f"{session_id}-{subagent_name}"
+
+                                active_subagent_span = self._span_manager.start_agent_span(
+                                    name=f"Subagent: {subagent_name}",
+                                    session_id=subagent_session_id,
+                                    parent_span=response_span,
+                                )
+
+                                # Create LLM span under subagent for its operations
+                                active_subagent_llm_span = self._span_manager.start_llm_span(
+                                    name=f"Subagent {subagent_name} Operations",
+                                    parent_span=active_subagent_span,
+                                )
+
+                                # Create the Task tool span under parent response span
+                                tool_span = self._span_manager.start_tool_span(
+                                    tool_name=tool_use["name"],
+                                    parent_span=response_span,
+                                )
+                                tool_span.set_attribute(
+                                    SpanAttributes.TOOL_PARAMETERS,
+                                    str(tool_use["input"]),
+                                )
+                                tool_spans[tool_use["id"]] = tool_span
+                            else:
+                                # Regular tool - create under current context
+                                # If we're in a subagent, tools go under the subagent's LLM span
+                                parent = (
+                                    active_subagent_llm_span
+                                    if active_subagent_llm_span
+                                    else response_span
+                                )
+                                tool_span = self._span_manager.start_tool_span(
+                                    tool_name=tool_use["name"],
+                                    parent_span=parent,
+                                )
+                                # Set tool parameters
+                                tool_span.set_attribute(
+                                    SpanAttributes.TOOL_PARAMETERS,
+                                    str(tool_use["input"]),
+                                )
+                                # Track for later closing
+                                tool_spans[tool_use["id"]] = tool_span
 
                     yield message
 
@@ -141,6 +185,12 @@ class _ReceiveResponseWrapper:
                 # End all tool spans
                 for tool_span in tool_spans.values():
                     self._span_manager.end_span(tool_span)
+
+                # End subagent spans if active
+                if active_subagent_llm_span:
+                    self._span_manager.end_span(active_subagent_llm_span)
+                if active_subagent_span:
+                    self._span_manager.end_span(active_subagent_span)
 
             finally:
                 self._span_manager.end_span(response_span)
