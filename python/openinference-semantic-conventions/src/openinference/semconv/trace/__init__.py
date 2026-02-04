@@ -488,6 +488,7 @@ class OpenInferenceSpanKindValues(Enum):
     UNKNOWN = "UNKNOWN"
     GUARDRAIL = "GUARDRAIL"
     EVALUATOR = "EVALUATOR"
+    PROMPT = "PROMPT"
 
 
 class OpenInferenceMimeTypeValues(Enum):

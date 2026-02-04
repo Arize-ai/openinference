@@ -508,6 +508,9 @@ def _json_dumps(obj: Any) -> str:
     This approach is much simpler and more robust than manual recursive processing.
     It handles most common types while falling back to safe_json_dumps for edge cases.
     """
+    if isinstance(obj, dict):
+        obj = {str(k): v for k, v in obj.items()}
+
     try:
         # Use standard json.dumps with our custom encoder
         return json.dumps(obj, cls=_OpenInferenceJSONEncoder, ensure_ascii=False)

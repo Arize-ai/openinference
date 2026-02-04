@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the sum of the first 50 prime
+      numbers? Generate and run code for the calculation, and make sure you get all
+      50."}], "role": "user"}], "tools": [{"codeExecution": {}}], "generationConfig":
+      {}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"To
+        find the sum of the first 50 prime numbers, I will generate the prime numbers
+        one by one until I have 50 of them, and then I will sum the numbers in the
+        list.\\n\\nHere's the plan:\\n\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 49,\"totalTokenCount\":
+        249,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
+        168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"1.  Define a function
+        `is_prime(n)` that returns `True` if `n` is prime, and `False` otherwise.\\n2.
+        \ Initialize an empty list `primes` and a counter `num\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        96,\"totalTokenCount\": 296,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"` starting from 2.\\n3.  Loop until the `primes`
+        list contains 50 numbers. In each iteration:\\n    *   Check if `num` is prime
+        using `is_prime(num)`.\\n    *   If\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 148,\"totalTokenCount\":
+        348,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
+        168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" `num` is prime,
+        add it to the `primes` list.\\n    *   Increment `num`.\\n4.  Calculate the
+        sum of the numbers in the `primes` list.\\n\\n\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        188,\"totalTokenCount\": 388,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"executableCode\": {\"language\": \"PYTHON\",\"code\": \"def
+        is_prime(n):\\n    if n \\u003c 2:\\n        return False\\n    for i in range(2,
+        int(n**0.5) + 1):\\n        if n % i == 0:\\n            return False\\n    return
+        True\\n\\nprimes = []\\nnum = 2\\nwhile len(primes) \\u003c 50:\\n    if is_prime(num):\\n
+        \       primes.append(num)\\n    num += 1\\n\\nsum_of_primes = sum(primes)\\n\\nprint(f\\\"The
+        first 50 prime numbers are: {primes}\\\")\\nprint(f\\\"The count of primes
+        found: {len(primes)}\\\")\\nprint(f\\\"The sum of the first 50 prime numbers
+        is: {sum_of_primes}\\\")\"}}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 357,\"totalTokenCount\":
+        557,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"thoughtsTokenCount\":
+        168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"codeExecutionResult\": {\"outcome\":
+        \"OUTCOME_OK\",\"output\": \"The first 50 prime numbers are: [2, 3, 5, 7,
+        11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
+        89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167,
+        173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229]\\nThe count of primes
+        found: 50\\nThe sum of the first 50 prime numbers is: 5117\\n\"}}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        357,\"totalTokenCount\": 557,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"The first 5\"}],\"role\": \"model\"},\"index\":
+        0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        361,\"totalTokenCount\": 1379,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"toolUsePromptTokenCount\": 818,\"toolUsePromptTokensDetails\": [{\"modality\":
+        \"TEXT\",\"tokenCount\": 818}],\"thoughtsTokenCount\": 168},\"modelVersion\":
+        \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"0 prime numbers
+        are:\\n2, 3, 5, 7, \"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 378,\"totalTokenCount\":
+        1396,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
+        818,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        818}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+        \"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\":
+        32,\"candidatesTokenCount\": 425,\"totalTokenCount\": 1443,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
+        818,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        818}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 10\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        473,\"totalTokenCount\": 1491,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"toolUsePromptTokenCount\": 818,\"toolUsePromptTokensDetails\": [{\"modality\":
+        \"TEXT\",\"tokenCount\": 818}],\"thoughtsTokenCount\": 168},\"modelVersion\":
+        \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"7, 109, 113, 127,
+        131, 137, 139, 149, 151, 157, \"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\":
+        {\"promptTokenCount\": 32,\"candidatesTokenCount\": 520,\"totalTokenCount\":
+        1538,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 32}],\"toolUsePromptTokenCount\":
+        818,\"toolUsePromptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        818}],\"thoughtsTokenCount\": 168},\"modelVersion\": \"gemini-2.5-flash\",\"responseId\":
+        \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"163, 167, 173, 179, 181, 191, 193, 197, 199, 211\"}],\"role\":
+        \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        568,\"totalTokenCount\": 1586,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"toolUsePromptTokenCount\": 818,\"toolUsePromptTokensDetails\": [{\"modality\":
+        \"TEXT\",\"tokenCount\": 818}],\"thoughtsTokenCount\": 168},\"modelVersion\":
+        \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", 223, 227, 229.\\n\\nThe
+        sum of the first 50 prime numbers is **5117**.\"}],\"role\": \"model\"},\"finishReason\":
+        \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 32,\"candidatesTokenCount\":
+        602,\"totalTokenCount\": 1620,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        32}],\"toolUsePromptTokenCount\": 818,\"toolUsePromptTokensDetails\": [{\"modality\":
+        \"TEXT\",\"tokenCount\": 818}],\"thoughtsTokenCount\": 168},\"modelVersion\":
+        \"gemini-2.5-flash\",\"responseId\": \"A_tfaYroJ6es4-EPkMag-Qc\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

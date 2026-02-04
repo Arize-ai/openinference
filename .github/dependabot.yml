@@ -119,7 +119,27 @@ updates:
   package-ecosystem: pip
   schedule:
     interval: weekly
+- directory: python/instrumentation/openinference-instrumentation-pipecat
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-google-adk
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
+- directory: python/instrumentation/openinference-instrumentation-strands-agents
   ignore:
   - dependency-name: '*'
     update-types:
@@ -270,6 +290,16 @@ updates:
   schedule:
     interval: weekly
 - directory: python/instrumentation/openinference-instrumentation-autogen-agentchat
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: pip
+  schedule:
+    interval: weekly
+- directory: python/instrumentation/openinference-instrumentation-agentspec
   ignore:
   - dependency-name: '*'
     update-types:

@@ -1,0 +1,4 @@
+pytest
+pytest-asyncio
+strands-agents>=1.19.0
+

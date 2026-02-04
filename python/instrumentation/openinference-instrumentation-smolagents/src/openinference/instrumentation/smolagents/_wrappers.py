@@ -2,6 +2,7 @@ from collections.abc import Generator
 from enum import Enum
 from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Mapping, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -12,6 +13,8 @@ import openinference.instrumentation as oi
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -378,7 +381,21 @@ def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
 
 def _output_value_and_mime_type(output: Any) -> Iterator[Tuple[str, Any]]:
     yield OUTPUT_MIME_TYPE, JSON
-    yield OUTPUT_VALUE, output.model_dump_json()
+    if hasattr(output, "model_dump_json") and callable(output.model_dump_json):
+        try:
+            yield OUTPUT_VALUE, output.model_dump_json(exclude_unset=True)
+        except Exception:
+            # model_dump_json() failed so convert to dict first then use safe_json_dumps
+            # This handles Pydantic models with non-serializable nested objects
+            if hasattr(output, "model_dump") and callable(output.model_dump):
+                yield OUTPUT_VALUE, safe_json_dumps(output.model_dump())
+            elif hasattr(output, "dict") and callable(output.dict):
+                # Pydantic v1 compatibility
+                yield OUTPUT_VALUE, safe_json_dumps(output.dict())
+            else:
+                yield OUTPUT_VALUE, safe_json_dumps(output)
+    else:
+        yield OUTPUT_VALUE, safe_json_dumps(output)
 
 
 def _llm_invocation_parameters(
@@ -461,6 +478,13 @@ class _ModelWrapper:
             span.set_attribute(LLM_TOKEN_COUNT_COMPLETION, output_tokens)
             span.set_attribute(LLM_TOKEN_COUNT_TOTAL, total_tokens)
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
+            if provider := (
+                infer_llm_provider_from_class_name(instance)
+                or infer_llm_provider_from_endpoint(instance)
+            ):
+                span.set_attribute(LLM_PROVIDER, provider.value)
+            if system := infer_llm_system_from_model(model.model_id):
+                span.set_attribute(LLM_SYSTEM, system.value)
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -536,12 +560,151 @@ def _has_active_llm_parent_span() -> bool:
     )
 
 
+def infer_llm_provider_from_class_name(
+    instance: Any = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from an SDK instance using the model class name when possible."""
+    if instance is None:
+        return None
+
+    class_name = instance.__class__.__name__
+
+    if class_name in ["LiteLLMModel", "LiteLLMRouterModel"]:
+        model_id = getattr(instance, "model_id", None)
+        if isinstance(model_id, str):
+            provider_prefix = model_id.split("/", 1)[0].lower()
+            try:
+                return OpenInferenceLLMProviderValues(provider_prefix)
+            except ValueError:
+                return None
+
+    if class_name == "InferenceClientModel":
+        return None
+
+    if class_name == "OpenAIServerModel":
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    if class_name == "AzureOpenAIServerModel":
+        return OpenInferenceLLMProviderValues.AZURE
+
+    if class_name == "AmazonBedrockServerModel":
+        return OpenInferenceLLMProviderValues.AWS
+
+    return None
+
+
+def infer_llm_provider_from_endpoint(
+    instance: Any = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+    if instance is None:
+        return None
+
+    endpoint = (
+        getattr(instance, "api_base", None)
+        or getattr(instance, "base_url", None)
+        or getattr(instance, "endpoint", None)
+        or getattr(instance, "host", None)
+    )
+
+    if not endpoint:
+        return None
+
+    if hasattr(endpoint, "host"):
+        host = endpoint.host
+    elif isinstance(endpoint, str):
+        host = urlparse(endpoint).hostname
+    else:
+        return None
+
+    if not isinstance(host, str):
+        return None
+
+    host = host.lower()
+
+    if host.endswith("api.openai.com"):
+        return OpenInferenceLLMProviderValues.OPENAI
+
+    if "openai.azure.com" in host:
+        return OpenInferenceLLMProviderValues.AZURE
+
+    if host.endswith("googleapis.com"):
+        return OpenInferenceLLMProviderValues.GOOGLE
+
+    if host.endswith("anthropic.com"):
+        return OpenInferenceLLMProviderValues.ANTHROPIC
+
+    if "bedrock" in host or host.endswith("amazonaws.com"):
+        return OpenInferenceLLMProviderValues.AWS
+
+    if host.endswith("cohere.ai"):
+        return OpenInferenceLLMProviderValues.COHERE
+
+    if host.endswith("mistral.ai"):
+        return OpenInferenceLLMProviderValues.MISTRALAI
+
+    if host.endswith("x.ai"):
+        return OpenInferenceLLMProviderValues.XAI
+
+    if host.endswith("deepseek.com"):
+        return OpenInferenceLLMProviderValues.DEEPSEEK
+
+    return None
+
+
+def infer_llm_system_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMSystemValues]:
+    """Infer the LLM system from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(
+        (
+            "gpt-",
+            "gpt.",
+            "o1",
+            "o3",
+            "o4",
+            "text-embedding",
+            "davinci",
+            "curie",
+            "babbage",
+            "ada",
+            "azure_openai",
+            "azure_ai",
+            "azure",
+        )
+    ):
+        return OpenInferenceLLMSystemValues.OPENAI
+
+    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+        return OpenInferenceLLMSystemValues.ANTHROPIC
+
+    if model.startswith(("cohere.command", "command", "cohere")):
+        return OpenInferenceLLMSystemValues.COHERE
+
+    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+        return OpenInferenceLLMSystemValues.MISTRALAI
+
+    if model.startswith(
+        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
+    ):
+        return OpenInferenceLLMSystemValues.VERTEXAI
+
+    return None
+
+
 # span attributes
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
