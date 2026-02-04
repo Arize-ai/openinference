@@ -83,6 +83,10 @@ class _ReceiveResponseWrapper:
             # Set input message if available
             if hasattr(instance, "_otel_last_query"):
                 response_span.set_attribute(
+                    f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role",
+                    "user",
+                )
+                response_span.set_attribute(
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content",
                     instance._otel_last_query,
                 )
@@ -125,6 +129,10 @@ class _ReceiveResponseWrapper:
                         extract_text_content(msg) for msg in output_messages
                     )
                     if output_text:
+                        response_span.set_attribute(
+                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.role",
+                            "assistant",
+                        )
                         response_span.set_attribute(
                             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.content",
                             output_text,
