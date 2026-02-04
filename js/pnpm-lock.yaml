@@ -8,7 +8,6 @@ overrides:
   '@langchain/openai@^0.2>@langchain/core': ^0.2.36
   '@langchain/openai@^0.1>@langchain/core': ^0.1.63
   micromatch@<4.0.8: '>=4.0.8'
-  langchain@<0.2.19: '>=0.3.37'
   cross-spawn@<6.0.6: '>=6.0.6'
   cross-spawn@>=7.0.0 <7.0.5: '>=7.0.5'
   form-data@<4.0.4: '>=4.0.4'
@@ -17,9 +16,7 @@ overrides:
   esbuild@<0.25.0: '>=0.25.0'
   '@langchain/community@<0.3.3': '>=0.3.3'
   '@babel/runtime@<7.26.10': '>=7.26.10'
-  vite@<=5.4.19: '>=5.4.21'
-  vite@>=6.0.0 <=6.3.5: '>=6.4.1'
-  vite@>=5.2.6 <=5.4.20: '>=5.4.21'
+  vite@<=5.4.20: '>=5.4.21'
   vite@>=6.0.0 <=6.4.0: '>=6.4.1'
   glob@>=10.2.0 <10.5.0: '>=10.5.0'
   body-parser@>=2.2.0 <2.2.1: '>=2.2.1'
