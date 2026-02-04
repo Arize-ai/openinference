@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from enum import Enum
 from inspect import signature
@@ -15,6 +16,9 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -622,10 +626,14 @@ class _BaseToolRunWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            # See https://github.com/crewAIInc/crewAI/blob/main/lib/crewai/src/crewai/tools/base_tool.py#L55
+            # The unique name of the tool that clearly communicates its purpose.
             if hasattr(instance, "name") and instance.name:
                 span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
+            # Used to tell the model how/when/why to use the tool.
             if hasattr(instance, "description") and instance.description:
                 span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            # The schema for the arguments that the tool accepts.
             if hasattr(instance, "args_schema") and instance.args_schema is not None:
                 try:
                     if hasattr(instance.args_schema, "model_json_schema"):
@@ -634,18 +642,23 @@ class _BaseToolRunWrapper:
                             safe_json_dumps(instance.args_schema.model_json_schema()),
                         )
                 except Exception:
-                    pass
+                    logger.exception("Failed to extract the tool parameters schema.")
+            # Flag to check if the description has been updated.
             if hasattr(instance, "description_updated"):
                 span.set_attribute("tool.description_updated", bool(instance.description_updated))
+            # Function that will be used to determine if the tool should be cached.
             if hasattr(instance, "cache_function") and instance.cache_function is not None:
                 try:
                     span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
                 except Exception:
-                    pass
+                    logger.exception("Failed to get the cache function name.")
+            # Flag to check if the tool should be the final agent answer.
             if hasattr(instance, "result_as_answer"):
                 span.set_attribute("tool.result_as_answer", bool(instance.result_as_answer))
+            # Maximum number of times this tool can be used.
             if hasattr(instance, "max_usage_count") and instance.max_usage_count is not None:
                 span.set_attribute("tool.max_usage_count", int(instance.max_usage_count))
+            # Current number of times this tool has been used.
             if (
                 hasattr(instance, "current_usage_count")
                 and instance.current_usage_count is not None
