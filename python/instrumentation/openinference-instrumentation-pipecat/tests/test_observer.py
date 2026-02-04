@@ -449,11 +449,16 @@ class TestEdgeCases:
     async def test_multiple_services_same_turn(
         self,
         observer: OpenInferenceObserver,
+        in_memory_span_exporter: InMemorySpanExporter,
         mock_stt_service: Mock,
         mock_llm_service: Mock,
         mock_tts_service: Mock,
     ) -> None:
-        """Test multiple service spans within a single turn."""
+        """Test multiple service spans within a single turn.
+
+        STT and TTS spans are finished when a different service type starts,
+        so only the most recently started service type has an active span.
+        """
         # Start turn with STT
         await observer.on_push_frame(
             create_frame_pushed(
@@ -464,7 +469,11 @@ class TestEdgeCases:
             )
         )
 
-        # Start LLM
+        # Verify STT span is active
+        assert id(mock_stt_service) in observer._active_spans
+        assert observer._active_stt_service_id == id(mock_stt_service)
+
+        # Start LLM — this finishes the active STT span
         context = LLMContext()
         await observer.on_push_frame(
             create_frame_pushed(
@@ -475,17 +484,38 @@ class TestEdgeCases:
             )
         )
 
-        # Start TTS
+        # STT span was finished when LLM started
+        assert id(mock_stt_service) not in observer._active_spans
+        assert observer._active_stt_service_id is None
+        assert id(mock_llm_service) in observer._active_spans
+
+        # Start TTS — this finishes the active LLM span is not affected (only STT/TTS auto-close)
         await observer.on_push_frame(
             create_frame_pushed(
                 source=mock_tts_service, destination=None, frame=TTSStartedFrame(), direction="down"
             )
         )
 
-        # Verify all three services have active spans
-        assert id(mock_stt_service) in observer._active_spans
         assert id(mock_llm_service) in observer._active_spans
         assert id(mock_tts_service) in observer._active_spans
+        assert observer._active_tts_service_id == id(mock_tts_service)
+
+        # End turn to flush all spans
+        await observer._end_turn(
+            create_frame_pushed(
+                source=mock_stt_service,
+                destination=None,
+                frame=VADUserStartedSpeakingFrame(),
+                direction="down",
+            ),
+            was_interrupted=False,
+        )
+
+        # Verify all three service spans were created during the turn
+        spans = in_memory_span_exporter.get_finished_spans()
+        # Should have: turn span + STT span + LLM span + TTS span
+        service_span_names = [s.name for s in spans if s.name != "pipecat.conversation.turn"]
+        assert len(service_span_names) >= 3
 
     async def test_inter_frame_spaces_handling(
         self,
