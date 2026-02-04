@@ -25,6 +25,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     MetricsFrame,
     StartFrame,
+    STTMuteFrame,
     TranscriptionFrame,
     TTSStartedFrame,
     TTSTextFrame,
@@ -146,6 +147,10 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # Used to finish TTS span when non-TTS operations start
         self._active_tts_service_id: Optional[int] = None
 
+        # Track active STT span service_id for efficient lookup
+        # Used to finish STT span when non-STT operations start
+        self._active_stt_service_id: Optional[int] = None
+
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
         if self._debug_log_file:
@@ -198,7 +203,20 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
             # STT
             elif isinstance(src, STTService):
-                if isinstance(
+                if isinstance(frame, STTMuteFrame):
+                    if frame.mute and self._active_stt_service_id is not None:
+                        # STT muted — finish the active STT span
+                        self._log_debug(
+                            f"  STTMuteFrame (mute=True) - "
+                            f"finishing active STT span {self._active_stt_service_id}"
+                        )
+                        self._finish_span(self._active_stt_service_id)
+                        self._active_stt_service_id = None
+                    elif not frame.mute:
+                        # STT unmuted — start a new STT span
+                        self._log_debug("  STTMuteFrame (mute=False) - starting new STT span")
+                        await self._handle_service_frame(data)
+                elif isinstance(
                     frame,
                     (
                         TranscriptionFrame,
@@ -261,15 +279,16 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         if service_type in ("llm", "stt", "tts"):
             # only these frame types will start a span:
-            ## VADUserStartedSpeakingFrame (STT)
-            ## LLMFullResponseStartFrame (LLM)
+            ## LLMContextFrame (LLM)
+            ## STTMuteFrame [if mute:false] (STT)
             ## TTSStartedFrame (TTS)
+            ## VADUserStartedSpeakingFrame (STT)
 
             # New Span (or add to self._turn_bot_text)
             if service_id not in self._active_spans:
                 if isinstance(
                     frame,
-                    (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame),
+                    (LLMContextFrame, STTMuteFrame, TTSStartedFrame, VADUserStartedSpeakingFrame),
                 ):
                     # For TTS: consecutive TTS operations are merged into one span.
                     # When a NEW non-TTS span starts (LLM/STT), finish any active TTS span first.
@@ -282,6 +301,16 @@ class OpenInferenceObserver(TurnTrackingObserver):
                         )
                         self._finish_span(self._active_tts_service_id)
                         self._active_tts_service_id = None
+
+                    # For STT: consecutive STT operations are merged into one span.
+                    # When a NEW non-STT span starts (LLM/TTS), finish any active STT span first.
+                    if service_type != "stt" and self._active_stt_service_id is not None:
+                        self._log_debug(
+                            f"  Non-STT span ({service_type}) starting - "
+                            f"finishing active STT span {self._active_stt_service_id}"
+                        )
+                        self._finish_span(self._active_stt_service_id)
+                        self._active_stt_service_id = None
 
                     self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
                     self._log_debug(f"   >>>>  {service_type.upper()} response STARTED. ({frame})")
@@ -311,9 +340,11 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     span_info = self._active_spans[service_id]
                     span_info["frame_count"] += 1
 
-                    # Track active TTS span for efficient lookup
+                    # Track active TTS/STT span for efficient lookup
                     if service_type == "tts":
                         self._active_tts_service_id = service_id
+                    elif service_type == "stt":
+                        self._active_stt_service_id = service_id
 
                     # Set input context for LLM Span
                     if isinstance(frame, LLMContextFrame):
@@ -687,9 +718,11 @@ class OpenInferenceObserver(TurnTrackingObserver):
         start_time_ns = span_info["start_time_ns"]
         service_type = span_info.get("service_type")
 
-        # Clear TTS tracking if finishing a TTS span
+        # Clear TTS/STT tracking if finishing their span
         if service_type == "tts" and self._active_tts_service_id == service_id:
             self._active_tts_service_id = None
+        elif service_type == "stt" and self._active_stt_service_id == service_id:
+            self._active_stt_service_id = None
 
         # Calculate end time (use processing time if available, otherwise use current time)
         processing_time_seconds = span_info.get("processing_time_seconds")
@@ -846,3 +879,4 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._completed_tool_calls.clear()
         self._llm_span_awaiting_tool_calls = None
         self._active_tts_service_id = None
+        self._active_stt_service_id = None
