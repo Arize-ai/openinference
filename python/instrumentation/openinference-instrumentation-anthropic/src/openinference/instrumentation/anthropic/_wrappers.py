@@ -416,6 +416,7 @@ class _BetaMessagesParseWrapper(_WithTracer):
                     dict(
                         chain(
                             _get_llm_model_name_from_input(arguments),
+                            _get_output_messages(response),
                             _get_outputs(response),
                         )
                     )
@@ -484,6 +485,7 @@ class _AsyncBetaMessagesParseWrapper(_WithTracer):
                     dict(
                         chain(
                             _get_llm_model_name_from_input(arguments),
+                            _get_output_messages(response),
                             _get_outputs(response),
                         )
                     )
