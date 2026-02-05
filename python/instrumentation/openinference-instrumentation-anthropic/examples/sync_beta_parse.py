@@ -40,7 +40,7 @@ try:
     from anthropic.resources.beta.messages import Messages as BetaMessages
     from wrapt import BoundFunctionWrapper, FunctionWrapper
     is_wrapped = isinstance(BetaMessages.parse, (BoundFunctionWrapper, FunctionWrapper))
-    print(f"✓ Beta API instrumentation {'enabled' if is_wrapped else 'not detected'}")
+    print(f"Beta API instrumentation {'enabled' if is_wrapped else 'not detected'}")
 except Exception:
     pass  # Silently skip if beta API not available
 
@@ -83,7 +83,7 @@ try:
             print(f"   Total attributes: {len(attrs)}")
         print(f"\nView traces at: http://localhost:6006")
     else:
-        print("\No spans found - instrumentation may not have worked")
+        print("\nNo spans found - instrumentation may not have worked")
         
 except Exception as e:
     print(f"Error calling beta.messages.parse(): {e}")
