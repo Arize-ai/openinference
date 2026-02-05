@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.8...python-openinference-instrumentation-google-adk-v0.1.9) (2026-02-05)
+
+
+### Features
+
+* google adk artifacts ([#2570](https://github.com/Arize-ai/openinference/issues/2570)) ([45f7027](https://github.com/Arize-ai/openinference/commit/45f70276a829bd2e41217e67daf9ae84b30b545e))
+
 ## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.7...python-openinference-instrumentation-google-adk-v0.1.8) (2025-12-11)
 
 
