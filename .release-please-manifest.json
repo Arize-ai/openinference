@@ -32,7 +32,7 @@
     "java/openinference-instrumentation": "0.1.7",
     "java/instrumentation/openinference-instrumentation-langchain4j": "0.1.5",
     "java/instrumentation/openinference-instrumentation-springAI": "0.1.7",
-    "python/instrumentation/openinference-instrumentation-pipecat": "0.1.1",
+    "python/instrumentation/openinference-instrumentation-pipecat": "0.1.2",
     "python/instrumentation/openinference-instrumentation-agentspec": "0.1.0",
     "python/instrumentation/openinference-instrumentation-strands-agents": "0.1.1",
     "python/instrumentation/openinference-instrumentation-agent-framework": "0.1.1"
