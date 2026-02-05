@@ -92,9 +92,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_MessagesStreamWrapper(tracer=self._tracer),
         )
 
-        # Instrument beta.messages.parse() if available
+        # Instrument beta.messages.parse() if available (sync)
         try:
-            from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
             from anthropic.resources.beta.messages import Messages as BetaMessages
 
             self._original_beta_messages_parse = BetaMessages.parse
@@ -104,6 +103,16 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 wrapper=_BetaMessagesParseWrapper(tracer=self._tracer),
             )
             logger.debug("Successfully instrumented beta.messages.parse()")
+        except ImportError as e:
+            logger.debug(f"Beta messages API not available, skipping instrumentation: {e}")
+            self._original_beta_messages_parse = None
+        except Exception as e:
+            logger.warning(f"Failed to instrument beta.messages.parse(): {e}", exc_info=True)
+            self._original_beta_messages_parse = None
+
+        # Instrument async beta.messages.parse() if available
+        try:
+            from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
 
             self._original_async_beta_messages_parse = AsyncBetaMessages.parse
             wrap_function_wrapper(
@@ -113,13 +122,10 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             )
             logger.debug("Successfully instrumented async beta.messages.parse()")
         except ImportError as e:
-            # Beta API may not be available in all SDK versions
-            logger.debug(f"Beta messages API not available, skipping instrumentation: {e}")
-            self._original_beta_messages_parse = None
+            logger.debug(f"Async beta messages API not available, skipping instrumentation: {e}")
             self._original_async_beta_messages_parse = None
         except Exception as e:
-            logger.warning(f"Failed to instrument beta.messages.parse(): {e}", exc_info=True)
-            self._original_beta_messages_parse = None
+            logger.warning(f"Failed to instrument async beta.messages.parse(): {e}", exc_info=True)
             self._original_async_beta_messages_parse = None
 
     def _uninstrument(self, **kwargs: Any) -> None:
