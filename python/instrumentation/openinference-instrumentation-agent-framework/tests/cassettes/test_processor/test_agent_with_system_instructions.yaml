@@ -1,0 +1,125 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
+      a helpful math tutor. Explain concepts simply and provide examples. Always be
+      encouraging.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"What
+      is a prime number?","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '336'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - agent-framework-python/1.0.0b260130
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - async:asyncio
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.16.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.14.0
+      agent-framework-version:
+      - python/1.0.0b260130
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-D5h8SKMCpI3JpqsXzELW2LDYiSxFZ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Great question! A prime number is a
+        natural number greater than 1 that cannot be formed by multiplying two smaller
+        natural numbers. In simpler terms, a prime number has exactly two distinct
+        positive divisors: 1 and itself.\\n\\nHere's what that means: \\n\\n- The
+        number 2 is a prime number because its only divisors are 1 and 2.\\n- The
+        number 3 is also prime because it can only be divided by 1 and 3.\\n- However,
+        the number 4 is not a prime number because it can be divided by 1, 2, and
+        4.\\n\\nSome examples of prime numbers are: 2, 3, 5, 7, 11, 13, and so on.
+        \\n\\nAn important thing to note: the number 1 is not considered a prime number
+        because it only has one positive divisor (itself).\\n\\nKeep up the great
+        work, and let me know if you have more questions!\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        35,\n    \"completion_tokens\": 194,\n    \"total_tokens\": 229,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9c8e257a7cea2c39-SJC
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 05 Feb 2026 00:03:48 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=PxVJmRm2Se0Uz40yq1ruK6hXJVHJZvH9Q0K8Z_lLVq0-1770249828-1.0.1.1-RnicI6HXIP9V6ehF6SgjGBBPxHnje2vY4A4fMG59bdegMzMawkl0z0Zd9EEYj7jxaMsKdrBGnddqaoDruI_mADP69ZwGn_bsNS.4yvtXk3Y;
+        path=/; expires=Thu, 05-Feb-26 00:33:48 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=6VnJnss2.mvkKNawxgNM4lKSoN_in80DAVbK467Wdyk-1770249828440-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '1566'
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '4008'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      openai-version:
+      - '2020-10-01'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999965'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_7da8202789da46ccb63b017f7f12db9a
+    status:
+      code: 200
+      message: OK
+version: 1
