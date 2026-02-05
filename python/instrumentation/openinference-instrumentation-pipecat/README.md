@@ -49,3 +49,22 @@ await runner.run(task)
 ```
 
 After configuring tracing, exchanges in the running application are logged to your project in Phoenix or Arize AX.
+
+
+## Example
+
+1. Install dependencies
+```bash
+uv pip install -e '.[examples]'
+```
+
+or
+
+```bash
+uv pip install -r examples/trace/requirements.txt
+```
+
+2. Run example
+```bash
+uv run python examples/trace/001-trace.py
+```

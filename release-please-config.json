@@ -138,6 +138,10 @@
             "package-name": "python-openinference-instrumentation-strands-agents",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-agent-framework": {
+            "package-name": "python-openinference-instrumentation-agent-framework",
+            "release-type": "python"
+        },
         "java/openinference-semantic-conventions": {
             "package-name": "java-openinference-semantic-conventions",
             "release-type": "simple",

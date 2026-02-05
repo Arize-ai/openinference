@@ -537,6 +537,25 @@ class LLMFullResponseEndFrameExtractor(LLMMessagesSequenceFrameExtractor):
 _llm_full_response_end_frame_extractor = LLMFullResponseEndFrameExtractor()
 
 
+class FunctionCallInProgressFrameExtractor(FrameAttributeExtractor):
+    """Extract attributes from function call in progress frames."""
+
+    attributes: Dict[str, Any] = {
+        SpanAttributes.TOOL_NAME: lambda frame: getattr(frame, "function_name", None),
+        ToolCallAttributes.TOOL_CALL_ID: lambda frame: getattr(frame, "tool_call_id", None),
+        ToolCallAttributes.TOOL_CALL_FUNCTION_NAME: lambda frame: getattr(
+            frame, "function_name", None
+        ),
+        ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON: lambda frame: (
+            safe_json_dumps(getattr(frame, "arguments", {}))
+        ),
+    }
+
+
+# Singleton function call in progress frame extractor
+_function_call_in_progress_frame_extractor = FunctionCallInProgressFrameExtractor()
+
+
 class FunctionCallResultFrameExtractor(FrameAttributeExtractor):
     """Extract attributes from function call result frames."""
 
@@ -711,6 +730,8 @@ class GenericFrameExtractor(FrameAttributeExtractor):
         LLMMessagesAppendFrame: _llm_messages_append_frame_extractor,
         LLMFullResponseStartFrame: _llm_full_response_start_frame_extractor,
         LLMFullResponseEndFrame: _llm_full_response_end_frame_extractor,
+        # Note: FunctionCallFromLLM is not a Frame subclass, so it's not included here
+        FunctionCallInProgressFrame: _function_call_in_progress_frame_extractor,
         FunctionCallResultFrame: _function_call_result_frame_extractor,
         MetricsFrame: _metrics_frame_extractor,
     }

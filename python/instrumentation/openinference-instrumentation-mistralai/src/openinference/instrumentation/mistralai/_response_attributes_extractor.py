@@ -12,6 +12,8 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     SpanAttributes,
     ToolCallAttributes,
 )
@@ -39,6 +41,8 @@ def _get_attributes_from_chat_completion_response(
 ) -> Iterator[Tuple[str, AttributeValue]]:
     if model := getattr(response, "model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
+    yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.MISTRALAI.value
+    yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.MISTRALAI.value
     if usage := getattr(response, "usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := getattr(response, "choices", None)) and isinstance(choices, Iterable):
@@ -65,6 +69,8 @@ def _get_attributes_from_stream_chat_completion_response(
     data = response.data
     if model := data.get("model", None):
         yield SpanAttributes.LLM_MODEL_NAME, model
+    yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.MISTRALAI.value
+    yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.MISTRALAI.value
     if usage := data.get("usage", None):
         yield from _get_attributes_from_completion_usage(usage)
     if (choices := data.get("choices", None)) and isinstance(choices, Iterable):
