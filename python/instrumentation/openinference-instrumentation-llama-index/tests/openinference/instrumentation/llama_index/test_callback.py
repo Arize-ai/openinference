@@ -181,7 +181,7 @@ def test_callback_llm(
             assert query_span.status.status_code == trace_api.StatusCode.OK
             assert not query_span.status.description
             if not (is_async and is_stream):
-                assert query_attributes.pop(OUTPUT_VALUE, None) == answer
+                assert query_attributes.pop(OUTPUT_VALUE, "None") == answer
 
         if use_context_attributes:
             _check_context_attributes(query_attributes, session_id, user_id, metadata, tags)
