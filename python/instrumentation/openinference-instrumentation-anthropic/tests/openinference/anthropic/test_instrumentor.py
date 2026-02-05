@@ -1286,16 +1286,19 @@ def test_anthropic_instrumentation_beta_messages_parse(
     try:
         # Check if beta API is available first
         from anthropic.resources.beta.messages import Messages as BetaMessages
+
         if not hasattr(BetaMessages, "parse"):
             pytest.skip("Beta messages parse API not available")
-            
+
         client = Anthropic(api_key="fake")
-        input_message = "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        input_message = (
+            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        )
 
         invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
 
         # Call beta.messages.parse()
-        response = client.beta.messages.parse(
+        client.beta.messages.parse(
             max_tokens=1024,
             messages=[
                 {
@@ -1346,16 +1349,19 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     try:
         # Check if beta API is available first
         from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+
         if not hasattr(AsyncBetaMessages, "parse"):
             pytest.skip("Beta messages parse API not available")
-            
+
         client = AsyncAnthropic(api_key="fake")
-        input_message = "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        input_message = (
+            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        )
 
         invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
 
         # Call async beta.messages.parse()
-        response = await client.beta.messages.parse(
+        await client.beta.messages.parse(
             max_tokens=1024,
             messages=[
                 {

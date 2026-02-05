@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field
 from anthropic import Anthropic
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from pydantic import BaseModel, Field
 
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 
