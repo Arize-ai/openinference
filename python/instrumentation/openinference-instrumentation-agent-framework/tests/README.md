@@ -19,6 +19,8 @@ The processor tests use `pytest-recording` to record real API interactions with 
    enable_instrumentation(enable_sensitive_data=True)
    ```
 
+   Note: API may vary by version. Pinned to 1.0.0b260130 for stability.
+
    Note: `enable_sensitive_data=True` is required to capture message content in spans.
 
 ## Recording New Cassettes
