@@ -1,0 +1,14 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-3-flash-preview","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"created":"2026-01-21T17:36:18Z","id":"v1_ChdrQTV4YWJDNERfNkdqdU1QbmU3bC1BYxIXa0E1eGFiQzREXzZHanVNUG5lN2wtQWM","model":"gemini-3-flash-preview","object":"interaction","outputs":[{"signature":"EtkJCtYJAXLI2nxvE2LBO5W9gfs8eBG5m8R0ZkyzxIi0Cvr125e9kk0qHYf5ndkeRR73vVI6VNfdgzvSB+EZclOtzqkr8VH9FqhtgileY12X8zXC4ZAa4JYOaUPAeKIjKyf97kZ57nXQO5Bh2dFOEi3Gt/4sbpJqS8ORFz3AmV/FFTlA/eKnYVNsTPHyJC7BZTlQg87Z9C0QPNlszr64+56xxcdyE0ZXluY5jf17+d49yhRmLDwfO0mIfot7o0bpP3RX2xIkaiBxIUulnKDxNPGsGUWOqf4CsaB3FFXnGtshv6io37kZE2wHc68nLurufGXUfac8UATK+NTObG9csAS5kOThgYkaUIkw59lYJeOgUssldyUpi7sDWMyzUMfOpsvXP6x1vV5KNt6giHUkJuujdiWd5/z6K/GZSLNLCXBLWHBCnkFlnfdCNqRGhoAB9uCVMYx0L8p2/AkYh35Km0x7xNx3R1oMHbqEjeedYjgqTskUquic/l9zZG7w/kom3i/oS4DKgh+u2p71FRpwvZDeuZ2Gv1AJ8ejcNtps53z/E+ocj7N9EozIHJk6+ixQcJKnd5WHwxdNE0EaPuZb1GNKD5vI+pnLca14OWf1vgsn0u6yA8cWAM+kMStsOS9v/FbLM+x84MZ6ZvQw/+CaHv2h8GAa4JuN2M14/9uztGZzCm0KNklAn57PdKv0Tj0zYhp5oT1ZPs4ppMOgwDaCemogJfqEC/14M88FxEAsXZlcgMz/iZaJXPEILnxSlbN//zusz4Zk2JjmK4Llw19maSFv6hr5XoTPX8EH97XqIbmyff3N/LrYd1zeknVUf/a0PikpXtuhROzF5QOEtZ+rZmSNNzC8u3CS88bs0+0dDFlVsaHo2Jme1DR1Bc+bGet25ELw2d33Q+0HhR39+u0cjz9VG05OyRItMqVxzGDhc95E53FBJeJMoitp75SY71TAnMSi49B+0bI21p9NpD0TNX8LZaC7mK71unprWSbzdCio6nm9s86ByE5ETGuHOoPjucAxX1tN39WGwmJqyQE5RNk7wmpcDcCqoiywGYYRXRXoPm4s7wtkjYut8VJtmGXkQEh+M/VdgI4m0GXUu7SP6QZSgonCm9iX+vleENYCET5Dmt2cjS2Ds3VUCQGagc0HzhjZGLaVehQkrnV3Bms9f6LtENvC9UHUIgg6yJej7KE3l88SHMyfolvD4+WdEUIiZrZ/3+4Ow4hW1hmuTLP+iXV8K/Zak1dwMkn5ahYz4jjzImAGHb6tu8qhwYlNdytcCZ1v3igO4RcfVOJ1W4b1BlkV42mCzxbozCZRmZ4GNIT2rbOqmuZrh2X3Glaz3k22723HZ8SrZX2edhKVhoKnwKAo3jqTaR+41u64G83Yok/4nVejKOyAzPB/cuWhjWZZn4ICBz8G6t4coaFqIJCQ469zRhk0OkyO2Sjgr0v8Eum8NJPUNL5Qoclp5h4+toBhA2E7LQauSoEDjigCtwYyy9L3Z80Qhzzr1ZV2PcslMHfgHce8SxZ/2uHM8F/uVkULhealxpkVFb0Cn2xdGvhiM1FY62XO89n3Tdq41nO8smdLipLwOFJgVdj9T9z+MV0YOaUVj2boIZ4ho5ix9OEdnrK56B8ZwgiRcJ8LQqkQ8ClzPQsRXKbtmMOtgQM=","type":"thought"},{"text":"Because light attracts bugs.","type":"text"}],"role":"model","status":"completed","updated":"2026-01-21T17:36:18Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":333,"total_tokens":355,"total_tool_use_tokens":0}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

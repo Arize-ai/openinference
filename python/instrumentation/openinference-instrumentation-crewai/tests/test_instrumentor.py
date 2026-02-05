@@ -2,7 +2,6 @@ import json
 import os
 from typing import Any, Mapping, Sequence, Tuple, cast
 
-import crewai
 import pytest
 from crewai import LLM, Agent, Crew, Task
 from crewai.crews import CrewOutput
@@ -12,7 +11,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
-from packaging import version
+from pydantic import BaseModel, Field
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
@@ -26,13 +25,18 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 os.environ["CREWAI_TESTING"] = "true"
 
 
+class MockScrapeWebsiteToolSchema(BaseModel):
+    url: str = Field(..., description="The website URL to scrape")
+
+
 class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc, unused-ignore]
     """Mock tool to replace ScrapeWebsiteTool and avoid chromadb dependency."""
 
     name: str = "scrape_website"
     description: str = "Scrape text content from a website URL"
+    args_schema: type[BaseModel] = MockScrapeWebsiteToolSchema
 
-    def _run(self, url: str = "http://quotes.toscrape.com/") -> str:
+    def _run(self, url: str = "http://quotes.toscrape.com/", **kwargs: Any) -> str:
         """Mock run method that returns simple content."""
         return (
             '"The world as we have created it is a process of our thinking. '
@@ -64,8 +68,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     analyze_task, scrape_task = kickoff_crew()
 
     spans = in_memory_span_exporter.get_finished_spans()
-    crewai_version = version.parse(crewai.__version__)
-    expected_spans = 5 if crewai_version <= version.parse("1.4.0") else 4
+    expected_spans = 4
     assert len(spans) == expected_spans, f"Expected {expected_spans} spans, got {len(spans)}"
 
     crew_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
@@ -75,11 +78,16 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
     assert len(agent_spans) == 2
 
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    assert len(tool_spans) == 1
+    tool_span = tool_spans[0]
+
     _verify_crew_span(crew_span)
 
-    # Enhanced naming: spans now include agent roles
     _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
     _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+
+    _verify_tool_span(tool_span)
 
     # Clear spans exporter
     in_memory_span_exporter.clear()
@@ -111,8 +119,9 @@ def kickoff_crew() -> Tuple[Task, Task]:
         goal="Scrape content from URL",
         backstory="You extract text from websites",
         tools=[MockScrapeWebsiteTool()],
+        allow_delegation=False,
         llm=llm,
-        max_iter=1,
+        max_iter=2,
         max_retry_limit=0,
         verbose=True,
     )
@@ -120,16 +129,17 @@ def kickoff_crew() -> Tuple[Task, Task]:
         role="Content Analyzer",
         goal="Extract quotes from text",
         backstory="You extract quotes from text",
+        allow_delegation=False,
         llm=llm,
         tools=[],
-        max_iter=1,
+        max_iter=2,
         max_retry_limit=0,
         verbose=True,
     )
 
     # Define Tasks
     scrape_task = Task(
-        description=f"Use scrape_website tool to get content from {url}.",
+        description=f"Call the scrape_website tool to fetch text from {url} and return the result.",
         expected_output="Text content from the website.",
         agent=scraper_agent,
     )
@@ -283,6 +293,56 @@ def _verify_agent_span(
 
     output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
     assert isinstance(output_value, str)
+
+
+def _verify_tool_span(span: ReadableSpan) -> None:
+    """Verify a TOOL span has correct attributes."""
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify span kind is TOOL
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.TOOL.value
+    ), f"Expected TOOL span kind, got: {attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)}"
+
+    # Verify span name ends with .run (BaseTool.run wrapper)
+    assert span.name.endswith(".run"), f"Expected span name to end with '.run', got: {span.name}"
+
+    # Verify tool name is present
+    tool_name = attributes.get(SpanAttributes.TOOL_NAME)
+    assert tool_name is not None, "Tool span should have a tool name"
+    assert isinstance(tool_name, str), f"Tool name should be string, got: {type(tool_name)}"
+
+    # Verify tool name is in span name
+    assert str(tool_name) in span.name, (
+        f"Expected tool name '{tool_name}' in span name '{span.name}'"
+    )
+
+    # Verify tool description is present
+    tool_description = attributes.get(SpanAttributes.TOOL_DESCRIPTION)
+    assert tool_description is not None, "Tool span should have a description"
+    assert isinstance(tool_description, str), (
+        f"Tool description should be string, got: {type(tool_description)}"
+    )
+
+    # Verify tool parameters (args_schema) is present and valid JSON
+    tool_parameters = attributes.get(SpanAttributes.TOOL_PARAMETERS)
+    assert tool_parameters is not None, "Tool span should have parameters"
+    assert isinstance(tool_parameters, str), (
+        f"Tool parameters should be JSON string, got: {type(tool_parameters)}"
+    )
+
+    # Verify input value is present
+    input_value = attributes.get(SpanAttributes.INPUT_VALUE)
+    assert input_value is not None, "Tool span should have input value"
+    assert isinstance(input_value, str), f"Input value should be string, got: {type(input_value)}"
+
+    # Verify output value is present
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, "Tool span should have output value"
+    assert isinstance(output_value, str), (
+        f"Output value should be string, got: {type(output_value)}"
+    )
 
 
 def _verify_context_attributes(span: ReadableSpan) -> None:

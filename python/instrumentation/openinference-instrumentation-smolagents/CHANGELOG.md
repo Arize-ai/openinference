@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.21...python-openinference-instrumentation-smolagents-v0.1.22) (2026-02-05)
+
+
+### Features
+
+* **smolagents:** Populate LLM Provider & System Attributes ([#2631](https://github.com/Arize-ai/openinference/issues/2631)) ([a9062f2](https://github.com/Arize-ai/openinference/commit/a9062f29ffbc9c980061d4fe5e25f09662e8b7ca))
+
+
+### Bug Fixes
+
+* Add handling for json dumping of non-serializable objects ([#2581](https://github.com/Arize-ai/openinference/issues/2581)) ([b6e44f8](https://github.com/Arize-ai/openinference/commit/b6e44f8734b623ae07339a5946a0e4e6d236e375))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.20...python-openinference-instrumentation-smolagents-v0.1.21) (2025-12-10)
 
 

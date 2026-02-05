@@ -33,6 +33,7 @@ version.ts
 # Local caching and environment files
 .env
 .vercel
+.claude/settings.local.json
 
 # DSPy produced files
 assertion.log

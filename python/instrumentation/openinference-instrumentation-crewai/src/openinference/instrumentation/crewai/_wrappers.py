@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from enum import Enum
 from inspect import signature
@@ -15,6 +16,9 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -121,18 +125,15 @@ def _get_flow_name(flow: Any) -> str:
     return "Flow"
 
 
-def _get_tool_span_name(
-    instance: Any, wrapped: Callable[..., Any], kwargs: Mapping[str, Any]
-) -> str:
+def _get_tool_span_name(instance: Any, wrapped: Callable[..., Any]) -> str:
     """Generate a meaningful tool span name including tool name."""
     base_method = wrapped.__name__
 
-    # Try to get the tool name from kwargs
-    tool = kwargs.get("tool")
-    if tool and hasattr(tool, "name") and tool.name:
-        tool_name = str(tool.name).strip()
+    # Try to get the tool name from instance
+    if instance and hasattr(instance, "name"):
+        tool_name = getattr(instance, "name", None)
         if tool_name:
-            return f"{tool_name}.{base_method}"
+            return f"{tool_name}.{str(base_method)}"
 
     # Fallback to original naming if no tool name available
     if instance:
@@ -198,7 +199,7 @@ class _ExecuteCoreWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # task naming - include agent role and task context
+        # Enhanced task naming - use meaningful agent role instead of generic "Task._execute_core"
         agent = args[0] if args else kwargs.get("agent")
         span_name = _get_execute_core_span_name(instance, wrapped, agent)
         with self._tracer.start_as_current_span(
@@ -207,7 +208,7 @@ class _ExecuteCoreWrapper:
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -593,7 +594,7 @@ class _ShortTermMemorySearchWrapper:
         return response
 
 
-class _ToolUseWrapper:
+class _BaseToolRunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
 
@@ -606,15 +607,15 @@ class _ToolUseWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # Enhanced tool naming - include actual tool name
-        span_name = _get_tool_span_name(instance, wrapped, kwargs)
+        # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
+        span_name = _get_tool_span_name(instance, wrapped)
         with self._tracer.start_as_current_span(
             span_name,
             attributes=dict(
                 _flatten(
                     {
                         OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        SpanAttributes.INPUT_VALUE: _get_input_value(
+                        INPUT_VALUE: _get_input_value(
                             wrapped,
                             *args,
                             **kwargs,
@@ -625,18 +626,52 @@ class _ToolUseWrapper:
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            tool = kwargs.get("tool")
-            tool_name = ""
-            if tool:
-                tool_name = tool.name
-            span.set_attribute("function_calling_llm", instance.function_calling_llm)
-            span.set_attribute(SpanAttributes.TOOL_NAME, tool_name)
+            # See https://github.com/crewAIInc/crewAI/blob/main/lib/crewai/src/crewai/tools/base_tool.py#L55
+            # The unique name of the tool that clearly communicates its purpose.
+            if hasattr(instance, "name") and instance.name:
+                span.set_attribute(SpanAttributes.TOOL_NAME, str(instance.name))
+            # Used to tell the model how/when/why to use the tool.
+            if hasattr(instance, "description") and instance.description:
+                span.set_attribute(SpanAttributes.TOOL_DESCRIPTION, str(instance.description))
+            # The schema for the arguments that the tool accepts.
+            if hasattr(instance, "args_schema") and instance.args_schema is not None:
+                try:
+                    if hasattr(instance.args_schema, "model_json_schema"):
+                        span.set_attribute(
+                            SpanAttributes.TOOL_PARAMETERS,
+                            safe_json_dumps(instance.args_schema.model_json_schema()),
+                        )
+                except Exception:
+                    logger.exception("Failed to extract the tool parameters schema.")
+            # Flag to check if the description has been updated.
+            if hasattr(instance, "description_updated"):
+                span.set_attribute("tool.description_updated", bool(instance.description_updated))
+            # Function that will be used to determine if the tool should be cached.
+            if hasattr(instance, "cache_function") and instance.cache_function is not None:
+                try:
+                    span.set_attribute("tool.cache_function", str(instance.cache_function.__name__))
+                except Exception:
+                    logger.exception("Failed to get the cache function name.")
+            # Flag to check if the tool should be the final agent answer.
+            if hasattr(instance, "result_as_answer"):
+                span.set_attribute("tool.result_as_answer", bool(instance.result_as_answer))
+            # Maximum number of times this tool can be used.
+            if hasattr(instance, "max_usage_count") and instance.max_usage_count is not None:
+                span.set_attribute("tool.max_usage_count", int(instance.max_usage_count))
+            # Current number of times this tool has been used.
+            if (
+                hasattr(instance, "current_usage_count")
+                and instance.current_usage_count is not None
+            ):
+                span.set_attribute("tool.current_usage_count", int(instance.current_usage_count))
+
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
@@ -645,5 +680,3 @@ class _ToolUseWrapper:
 
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
-OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE

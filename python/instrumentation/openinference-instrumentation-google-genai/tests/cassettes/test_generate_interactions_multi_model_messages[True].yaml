@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpg"}],"model":"gemini-3-flash-preview","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.start
+
+        data: {"event_type":"interaction.start","interaction":{"id":"v1_Chd4Uk54YVp2OUtaZnk0LUVQcHZIUnNBOBIXeFJOeGFadjlLWmZ5NC1FUHB2SFJzQTg","model":"gemini-3-flash-preview","object":"interaction","status":"in_progress"}}
+
+
+        event: interaction.status_update
+
+        data: {"event_type":"interaction.status_update","interaction_id":"v1_Chd4Uk54YVp2OUtaZnk0LUVQcHZIUnNBOBIXeFJOeGFadjlLWmZ5NC1FUHB2SFJzQTg","status":"in_progress"}
+
+
+        event: content.start
+
+        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
+
+
+        event: content.delta
+
+        data: {"delta":{"signature":"Er0HCroHAXLI2nycOvTXclizENd3OQyRNOfVmbcksr9g7tmlR3+FtWh0eRKLFhABL6V40P64pUgrDsXYYhqi874+4ZW+UPqysDTPWZx/79bWjgHSBlVc2vu8L8Mxu2YTslzcXfiv8KMHGSefLE29aUNgyFMG4PmMI2Pzk04510J9mfo2haX3/Wy+RfPO5AkYz52Ejs8c7TCXvRLbg+tIvoWCm7VIsO8wx0jB74BkG4OVyCAzELIsKKzbu4NNapa5hpFltNbWxC/6hp2TB797oZPKW/NMmYYhQDe74/kBpDu3qOHIqaNS6j0GIvBI3thkvc6ayeL52tzJQfeCRSUc8WPqD+1OaFrQu5a+xy9yH/pKCXbS2jt030XAfK+HEUNrrJ7Bz0iu92falCDuQSz5YVcO98h4thcfBBlJNnpcLc71NPRCjM7+9gXXl5vem90UA3D1/5jbNsgrtzrzcKrp+oc/z/fxTwBAWYeaQOH2Aofghay0SwNkpDJ+kq9UT7HXjYbZrnZYIFPAIkeoovHhZrTRSD0KhtBT3zKUtiQk2wZFp24i16gtvhmieUMefLJTI/DzXiJpPmA9N+G87D6mhUmEx3jRtxr75cgrj3kFecVzG/wjB4QscHKnQWUmOLrffuBfj57Fr+nRen6GtVrpfduGWttAKTf+Z/ugSmCaYei39q6LfIe7jANDymGZeFHHrOXFQKElCd1Sdw/WHyuOIbMzNPpl53Ba63eDWUshNYFrqKjJ4XjYQiYkG3vCQrdZ0PrfTiH7u8/x70LsCedpeZavYdCWLSGkW1jJUxyJHpo6cSX7ovUtdsnpKv9soh56WQQw7KP4eu1p1B7W+JH8ZpAj/uA5kU5324GmTBdl5yvZNG1a+MLpLaBbrNgOVSHVuEANHKbQBe2+ScWOCw8RZHduiVAm1Ln7UCvu8TaM2iGdzqB+Vp9cZ13zmm/wTmfPy0B2oRlQuUDMERB6C3F08jVI5ciwevmNk9Fx1bYli4jBOxbjuToscjAyY/G8fpt5YypmEtkGCt/9WVkN9RNH+fLQxhHYDPlDykdbGA7kfU/dljKS/Q8UO5tbk3QqWXJHRv12vx0iee7hVWJDmrwrmfdRWwlbttuJGKqqBDnbWqYtgqXHwfItwHtbpDHaMAOsMMliMJTV+psU2Gwr+WeEeF6m0GbXLX1UszMu5wcH/SNlzEjyua0e9gl8pAezlui+eWKZvfk1opqj8/pPKS0boswj8nuQDTy72wbBdzRxoNBIXaptpiyRyBZDZO0+qr5S","type":"thought_signature"},"event_type":"content.delta","index":0}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":0}
+
+
+        event: content.start
+
+        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":"A close-up, high-angle shot captures a black Labrador
+        puppy sitting on a weathered wooden surface. The","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" puppy''s sleek, dark fur contrasts with the light
+        brown and grey tones of the wooden planks. Looking directly up at the camera,","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" the puppy has wide, expressive eyes that give it
+        a curious and endearing expression. Its black nose is prominent, and its","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" floppy ears frame its face. The lighting highlights
+        the texture of its coat and the glisten in its eyes, creating a heartwarming
+        and","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" intimate portrait.","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":1}
+
+
+        event: interaction.complete
+
+        data: {"event_type":"interaction.complete","interaction":{"created":"2026-01-21T17:58:32Z","id":"v1_Chd4Uk54YVp2OUtaZnk0LUVQcHZIUnNBOBIXeFJOeGFadjlLWmZ5NC1FUHB2SFJzQTg","model":"gemini-3-flash-preview","object":"interaction","role":"model","status":"completed","updated":"2026-01-21T17:58:32Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":5},{"modality":"image","tokens":1080}],"total_cached_tokens":0,"total_input_tokens":1085,"total_output_tokens":102,"total_thought_tokens":192,"total_tokens":1379,"total_tool_use_tokens":0}}}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

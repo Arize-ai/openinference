@@ -1,372 +1,107 @@
 interactions:
 - request:
     body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
-      text from websites\nYour personal goal is: Scrape content from URL\nYou ONLY
-      have access to the following tools, and should NEVER make up tools that are
-      not listed here:\n\nTool Name: scrape_website\nTool Arguments: {''url'': {''description'':
-      None, ''type'': ''str''}}\nTool Description: Scrape text content from a website
-      URL\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, only one
-      name of [scrape_website], just the name, exactly as it''s written.\nAction Input:
-      the input to the action, just a simple JSON object, enclosed in curly braces,
-      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
-      all necessary information is gathered, return the following format:\n\n```\nThought:
-      I now know the final answer\nFinal Answer: the final answer to the original
-      input question\n```"},{"role":"user","content":"\nCurrent Task: Use scrape_website
-      tool to get content from http://quotes.toscrape.com/.\n\nThis is the expected
-      criteria for your final answer: Text content from the website.\nyou MUST return
-      the actual complete content as the final answer, not a summary.\n\nBegin! This
-      is VERY important to you, use the tools available and give your best Final Answer,
-      your job depends on it!\n\nThought:"}],"model":"gpt-4.1-nano","stop":["\nObservation:"],"temperature":0}'
+      text from websites\nYour personal goal is: Scrape content from URL"},{"role":"user","content":"\nCurrent
+      Task: Call the scrape_website tool to fetch text from http://quotes.toscrape.com/
+      and return the result.\n\nThis is the expected criteria for your final answer:
+      Text content from the website.\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nThis is VERY important to you, your job
+      depends on it!"}],"model":"gpt-4.1-nano","temperature":0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"scrape_website","description":"Scrape
+      text content from a website URL","parameters":{"properties":{"url":{"description":"The
+      website URL to scrape","title":"Url","type":"string"}},"required":["url"],"type":"object","additionalProperties":false}}}]}'
     headers: {}
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CJluHeA47DZIjdaOCd3pQgMxEQCw4\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828421,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+      string: "{\n  \"id\": \"chatcmpl-D3OX6nQp9XOXvSgpoLVEvdqa8ElK6\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1769701660,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Action: scrape_website\\nAction Input:
-        {\\\"url\\\": \\\"http://quotes.toscrape.com/\\\"}\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        296,\n    \"completion_tokens\": 23,\n    \"total_tokens\": 319,\n    \"prompt_tokens_details\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_ocqzdEq8gaOdCmHAggaa4Ggr\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"scrape_website\",\n
+        \             \"arguments\": \"{\\\"url\\\":\\\"http://quotes.toscrape.com/\\\"}\"\n
+        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 153,\n    \"completion_tokens\":
+        24,\n    \"total_tokens\": 177,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_2b9b3207a6\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
+      text from websites\nYour personal goal is: Scrape content from URL"},{"role":"user","content":"\nCurrent
+      Task: Call the scrape_website tool to fetch text from http://quotes.toscrape.com/
+      and return the result.\n\nThis is the expected criteria for your final answer:
+      Text content from the website.\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nThis is VERY important to you, your job
+      depends on it!"},{"role":"assistant","content":null,"tool_calls":[{"id":"call_ocqzdEq8gaOdCmHAggaa4Ggr","type":"function","function":{"name":"scrape_website","arguments":"{\"url\":\"http://quotes.toscrape.com/\"}"}}]},{"role":"tool","tool_call_id":"call_ocqzdEq8gaOdCmHAggaa4Ggr","name":"scrape_website","content":"\"The
+      world as we have created it is a process of our thinking. It cannot be changed
+      without changing our thinking.\" by Albert Einstein"},{"role":"user","content":"Analyze
+      the tool result. If requirements are met, provide the Final Answer. Otherwise,
+      call the next tool. Deliver only the answer without meta-commentary."}],"model":"gpt-4.1-nano","temperature":0,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"scrape_website","description":"Scrape
+      text content from a website URL","parameters":{"properties":{"url":{"description":"The
+      website URL to scrape","title":"Url","type":"string"}},"required":["url"],"type":"object","additionalProperties":false}}}]}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-D3OX6els18N2Hc6nbV9L8sjmOCiDq\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1769701660,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The content retrieved from the website
+        is a quote by Albert Einstein: \\\"The world as we have created it is a process
+        of our thinking. It cannot be changed without changing our thinking.\\\"\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        248,\n    \"completion_tokens\": 38,\n    \"total_tokens\": 286,\n    \"prompt_tokens_details\":
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_fe84ea9799\"\n}\n"
     headers: {}
     status:
       code: 200
       message: OK
 - request:
-    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
-      text from websites\nYour personal goal is: Scrape content from URL\nYou ONLY
-      have access to the following tools, and should NEVER make up tools that are
-      not listed here:\n\nTool Name: scrape_website\nTool Arguments: {''url'': {''description'':
-      None, ''type'': ''str''}}\nTool Description: Scrape text content from a website
-      URL\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, only one
-      name of [scrape_website], just the name, exactly as it''s written.\nAction Input:
-      the input to the action, just a simple JSON object, enclosed in curly braces,
-      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
-      all necessary information is gathered, return the following format:\n\n```\nThought:
-      I now know the final answer\nFinal Answer: the final answer to the original
-      input question\n```"},{"role":"user","content":"\nCurrent Task: Use scrape_website
-      tool to get content from http://quotes.toscrape.com/.\n\nThis is the expected
-      criteria for your final answer: Text content from the website.\nyou MUST return
-      the actual complete content as the final answer, not a summary.\n\nBegin! This
-      is VERY important to you, use the tools available and give your best Final Answer,
-      your job depends on it!\n\nThought:"},{"role":"assistant","content":"\"The world
-      as we have created it is a process of our thinking. It cannot be changed without
-      changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein\nNow it''s time
-      you MUST give your absolute best final answer. You''ll ignore all previous instructions,
-      stop using any tools, and just return your absolute BEST Final answer."}],"model":"gpt-4.1-nano","stop":["\nObservation:"],"temperature":0}'
-    headers: {}
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: "{\n  \"id\": \"chatcmpl-CJluInXwiAWiR8l9AGR7Vb4LOpcKn\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828422,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Thought: I need to scrape the entire
-        content from the website http://quotes.toscrape.com/ to provide the complete
-        text content as the final answer.\\nAction: scrape_website\\nAction Input:
-        {\\\"url\\\": \\\"http://quotes.toscrape.com/\\\"}\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        471,\n    \"completion_tokens\": 57,\n    \"total_tokens\": 528,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
-      text from websites\nYour personal goal is: Scrape content from URL\nYou ONLY
-      have access to the following tools, and should NEVER make up tools that are
-      not listed here:\n\nTool Name: scrape_website\nTool Arguments: {''url'': {''description'':
-      None, ''type'': ''str''}}\nTool Description: Scrape text content from a website
-      URL\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, only one
-      name of [scrape_website], just the name, exactly as it''s written.\nAction Input:
-      the input to the action, just a simple JSON object, enclosed in curly braces,
-      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
-      all necessary information is gathered, return the following format:\n\n```\nThought:
-      I now know the final answer\nFinal Answer: the final answer to the original
-      input question\n```"},{"role":"user","content":"\nCurrent Task: Use scrape_website
-      tool to get content from http://quotes.toscrape.com/.\n\nThis is the expected
-      criteria for your final answer: Text content from the website.\nyou MUST return
-      the actual complete content as the final answer, not a summary.\n\nBegin! This
-      is VERY important to you, use the tools available and give your best Final Answer,
-      your job depends on it!\n\nThought:"},{"role":"assistant","content":"\"The world
-      as we have created it is a process of our thinking. It cannot be changed without
-      changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein\nNow it''s time
-      you MUST give your absolute best final answer. You''ll ignore all previous instructions,
-      stop using any tools, and just return your absolute BEST Final answer."}],"model":"gpt-4.1-nano","stop":["\nObservation:"],"temperature":0}'
-    headers: {}
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: "{\n  \"id\": \"chatcmpl-CJluIYrjTSBFfMxIzhQk2joNVcvRs\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828422,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Thought: I need to scrape the entire
-        content from the website http://quotes.toscrape.com/ to provide the complete
-        text content as requested.\\nAction: scrape_website\\nAction Input: {\\\"url\\\":
-        \\\"http://quotes.toscrape.com/\\\"}\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 471,\n    \"completion_tokens\":
-        55,\n    \"total_tokens\": 526,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: !!binary |
-      CtMRCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSqhEKEgoQY3Jld2FpLnRl
-      bGVtZXRyeRKGDQoQsGk6FcV87v/8MBAz7UHhqxIIKlUcVdqPo5IiCCtxXQVTbE45KgxDcmV3IENy
-      ZWF0ZWQwATngtc5gIZ1oGEHoxO5gIZ1oGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjExOS4wShoK
-      DnB5dGhvbl92ZXJzaW9uEggKBjMuMTMuMkouCghjcmV3X2tleRIiCiA3MjdkOTBlYjYyNTgyYzE4
-      MDM1OTA1ODBiNzhhYjUyOEoxCgdjcmV3X2lkEiYKJDA1YmEzMmFmLTJiYmQtNGQyMC05MjEyLWUw
-      OTg1MGU3NjZkN0ocCgxjcmV3X3Byb2Nlc3MSDAoKc2VxdWVudGlhbEoRCgtjcmV3X21lbW9yeRIC
-      EABKGgoUY3Jld19udW1iZXJfb2ZfdGFza3MSAhgCShsKFWNyZXdfbnVtYmVyX29mX2FnZW50cxIC
-      GAJKOgoQY3Jld19maW5nZXJwcmludBImCiRjMDE3ZTk5NS0xNGE2LTRhNWQtOTUyNC0zZGNmZWM1
-      MmNhN2ZKOwobY3Jld19maW5nZXJwcmludF9jcmVhdGVkX2F0EhwKGjIwMjUtMDktMjVUMTI6Mjc6
-      MDEuMTYwMTIzSqgFCgtjcmV3X2FnZW50cxKYBQqVBVt7ImtleSI6ICIzODk3NzgyNzY3OWI1NTBk
-      MDc4OTRiNzhiMTJhZTEzOCIsICJpZCI6ICI0NzY0MWVjOS03NTA4LTQ4ZWItYWFmMy0wOWU5ZjM0
-      ZWM0YTMiLCAicm9sZSI6ICJXZWJzaXRlIFNjcmFwZXIiLCAidmVyYm9zZT8iOiB0cnVlLCAibWF4
-      X2l0ZXIiOiAxLCAibWF4X3JwbSI6IG51bGwsICJmdW5jdGlvbl9jYWxsaW5nX2xsbSI6ICIiLCAi
-      bGxtIjogImdwdC00LjEtbmFubyIsICJkZWxlZ2F0aW9uX2VuYWJsZWQ/IjogZmFsc2UsICJhbGxv
-      d19jb2RlX2V4ZWN1dGlvbj8iOiBmYWxzZSwgIm1heF9yZXRyeV9saW1pdCI6IDAsICJ0b29sc19u
-      YW1lcyI6IFsic2NyYXBlX3dlYnNpdGUiXX0sIHsia2V5IjogIjhkZjExNTRmNTFhZGNmYWU4NDQ5
-      MGJlM2E4ZmRkYzRjIiwgImlkIjogImIxYjA0N2ZhLTgwM2ItNDUzYy1hZjYxLTkxMDBmNzk5MTQy
-      NSIsICJyb2xlIjogIkNvbnRlbnQgQW5hbHl6ZXIiLCAidmVyYm9zZT8iOiB0cnVlLCAibWF4X2l0
-      ZXIiOiAxLCAibWF4X3JwbSI6IG51bGwsICJmdW5jdGlvbl9jYWxsaW5nX2xsbSI6ICIiLCAibGxt
-      IjogImdwdC00LjEtbmFubyIsICJkZWxlZ2F0aW9uX2VuYWJsZWQ/IjogZmFsc2UsICJhbGxvd19j
-      b2RlX2V4ZWN1dGlvbj8iOiBmYWxzZSwgIm1heF9yZXRyeV9saW1pdCI6IDAsICJ0b29sc19uYW1l
-      cyI6IFtdfV1KhwQKCmNyZXdfdGFza3MS+AMK9QNbeyJrZXkiOiAiY2U1ZjgyMTc5NTBhNTJmYTdh
-      MTRjOTkwM2FhMjU2MDYiLCAiaWQiOiAiMzlhMTI0NGUtMmYwYy00ZmRhLTlmM2ItNThkODgxMzMz
-      YzEzIiwgImFzeW5jX2V4ZWN1dGlvbj8iOiBmYWxzZSwgImh1bWFuX2lucHV0PyI6IGZhbHNlLCAi
-      YWdlbnRfcm9sZSI6ICJXZWJzaXRlIFNjcmFwZXIiLCAiYWdlbnRfa2V5IjogIjM4OTc3ODI3Njc5
-      YjU1MGQwNzg5NGI3OGIxMmFlMTM4IiwgInRvb2xzX25hbWVzIjogWyJzY3JhcGVfd2Vic2l0ZSJd
-      fSwgeyJrZXkiOiAiZDU2OWUwMjM5ZjdjNzdkZDljMDdjYmEwMjhhMzMxOGEiLCAiaWQiOiAiODhm
-      ODBkOTMtNThlOS00YTg2LTkxYmYtYjkyOGQ4ZmViNDE4IiwgImFzeW5jX2V4ZWN1dGlvbj8iOiBm
-      YWxzZSwgImh1bWFuX2lucHV0PyI6IGZhbHNlLCAiYWdlbnRfcm9sZSI6ICJDb250ZW50IEFuYWx5
-      emVyIiwgImFnZW50X2tleSI6ICI4ZGYxMTU0ZjUxYWRjZmFlODQ0OTBiZTNhOGZkZGM0YyIsICJ0
-      b29sc19uYW1lcyI6IFtdfV16AhgBhQEAAQAAEooEChCwaToVxXzu//wwEDPtQeGrEgi39bvNdroL
-      0SII+0iSb+hD9V4qDFRhc2sgQ3JlYXRlZDABOUhfo2EhnWgYQQDipGEhnWgYSi4KCGNyZXdfa2V5
-      EiIKIDcyN2Q5MGViNjI1ODJjMTgwMzU5MDU4MGI3OGFiNTI4SjEKB2NyZXdfaWQSJgokMDViYTMy
-      YWYtMmJiZC00ZDIwLTkyMTItZTA5ODUwZTc2NmQ3Si4KCHRhc2tfa2V5EiIKIGNlNWY4MjE3OTUw
-      YTUyZmE3YTE0Yzk5MDNhYTI1NjA2SjEKB3Rhc2tfaWQSJgokMzlhMTI0NGUtMmYwYy00ZmRhLTlm
-      M2ItNThkODgxMzMzYzEzSjoKEGNyZXdfZmluZ2VycHJpbnQSJgokYzAxN2U5OTUtMTRhNi00YTVk
-      LTk1MjQtM2RjZmVjNTJjYTdmSjoKEHRhc2tfZmluZ2VycHJpbnQSJgokMDY3YmQ3NTMtZWM3OC00
-      MjIyLWE4YmUtNmY1ZmEwY2NkNmJjSjsKG3Rhc2tfZmluZ2VycHJpbnRfY3JlYXRlZF9hdBIcChoy
-      MDI1LTA5LTI1VDEyOjI3OjAxLjE1OTk5NEo7ChFhZ2VudF9maW5nZXJwcmludBImCiQyMjc1MTAy
-      Ni02OGNmLTQ4ZDUtODcxNy05MjEyZGEyZDlmYTl6AhgBhQEAAQAA
-    headers: {}
-    method: POST
-    uri: https://telemetry.crewai.com:4319/v1/traces
-  response:
-    body:
-      string: "\n\0"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
-      text from websites\nYour personal goal is: Scrape content from URL\nYou ONLY
-      have access to the following tools, and should NEVER make up tools that are
-      not listed here:\n\nTool Name: scrape_website\nTool Arguments: {''url'': {''description'':
-      None, ''type'': ''str''}}\nTool Description: Scrape text content from a website
-      URL\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, only one
-      name of [scrape_website], just the name, exactly as it''s written.\nAction Input:
-      the input to the action, just a simple JSON object, enclosed in curly braces,
-      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
-      all necessary information is gathered, return the following format:\n\n```\nThought:
-      I now know the final answer\nFinal Answer: the final answer to the original
-      input question\n```"},{"role":"user","content":"\nCurrent Task: Use scrape_website
-      tool to get content from http://quotes.toscrape.com/.\n\nThis is the expected
-      criteria for your final answer: Text content from the website.\nyou MUST return
-      the actual complete content as the final answer, not a summary.\n\nBegin! This
-      is VERY important to you, use the tools available and give your best Final Answer,
-      your job depends on it!\n\nThought:"},{"role":"assistant","content":"\"The world
-      as we have created it is a process of our thinking. It cannot be changed without
-      changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein\nNow it''s time
-      you MUST give your absolute best final answer. You''ll ignore all previous instructions,
-      stop using any tools, and just return your absolute BEST Final answer."},{"role":"assistant","content":"I
-      tried reusing the same input, I must stop using this action input. I''ll try
-      something else instead.\n\n"},{"role":"assistant","content":"Thought: I need
-      to scrape the entire content from the website http://quotes.toscrape.com/ to
-      provide the complete text content as requested.\nAction: scrape_website\nAction
-      Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation: I tried reusing
-      the same input, I must stop using this action input. I''ll try something else
-      instead."},{"role":"assistant","content":"Thought: I need to scrape the entire
-      content from the website http://quotes.toscrape.com/ to provide the complete
-      text content as requested.\nAction: scrape_website\nAction Input: {\"url\":
-      \"http://quotes.toscrape.com/\"}\nObservation: I tried reusing the same input,
-      I must stop using this action input. I''ll try something else instead.\n\n\nNow
-      it''s time you MUST give your absolute best final answer. You''ll ignore all
-      previous instructions, stop using any tools, and just return your absolute BEST
-      Final answer."}],"model":"gpt-4.1-nano","stop":["\nObservation:"],"temperature":0}'
-    headers: {}
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: "{\n  \"id\": \"chatcmpl-CJluJOBX4dMNElwfdA8CT5LGMv5uu\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828423,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"I'm sorry, but I cannot access external
-        websites directly. However, I can provide a sample of typical content from
-        http://quotes.toscrape.com/ based on my training data:\\n\\n\\\"Quotes to
-        Scrape is a website designed for practicing web scraping. It contains various
-        quotes from different authors along with tags. For example:\\n\\n- \u201CThe
-        world as we have created it is a process of our thinking. It cannot be changed
-        without changing our thinking.\u201D \u2014 Albert Einstein\\n- \u201CIt is
-        our choices that show what we truly are, far more than our abilities.\u201D
-        \u2014 J.K. Rowling\\n- \u201CThe purpose of our lives is to be happy.\u201D
-        \u2014 Dalai Lama\\n\\nYou can visit the website directly to see all the quotes
-        and content.\\\"\\n\\nIf you need the full content scraped from the website,
-        please use a web scraping tool or provide specific sections you'd like me
-        to help with.\",\n        \"refusal\": null,\n        \"annotations\": []\n
-        \     },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
-        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 691,\n    \"completion_tokens\":
-        178,\n    \"total_tokens\": 869,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: '{"messages":[{"role":"system","content":"You are Website Scraper. You extract
-      text from websites\nYour personal goal is: Scrape content from URL\nYou ONLY
-      have access to the following tools, and should NEVER make up tools that are
-      not listed here:\n\nTool Name: scrape_website\nTool Arguments: {''url'': {''description'':
-      None, ''type'': ''str''}}\nTool Description: Scrape text content from a website
-      URL\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
-      you should always think about what to do\nAction: the action to take, only one
-      name of [scrape_website], just the name, exactly as it''s written.\nAction Input:
-      the input to the action, just a simple JSON object, enclosed in curly braces,
-      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
-      all necessary information is gathered, return the following format:\n\n```\nThought:
-      I now know the final answer\nFinal Answer: the final answer to the original
-      input question\n```"},{"role":"user","content":"\nCurrent Task: Use scrape_website
-      tool to get content from http://quotes.toscrape.com/.\n\nThis is the expected
-      criteria for your final answer: Text content from the website.\nyou MUST return
-      the actual complete content as the final answer, not a summary.\n\nBegin! This
-      is VERY important to you, use the tools available and give your best Final Answer,
-      your job depends on it!\n\nThought:"},{"role":"assistant","content":"\"The world
-      as we have created it is a process of our thinking. It cannot be changed without
-      changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein"},{"role":"assistant","content":"Action:
-      scrape_website\nAction Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation:
-      \"The world as we have created it is a process of our thinking. It cannot be
-      changed without changing our thinking.\" by Albert Einstein\nNow it''s time
-      you MUST give your absolute best final answer. You''ll ignore all previous instructions,
-      stop using any tools, and just return your absolute BEST Final answer."},{"role":"assistant","content":"I
-      tried reusing the same input, I must stop using this action input. I''ll try
-      something else instead.\n\n"},{"role":"assistant","content":"Thought: I need
-      to scrape the entire content from the website http://quotes.toscrape.com/ to
-      provide the complete text content as requested.\nAction: scrape_website\nAction
-      Input: {\"url\": \"http://quotes.toscrape.com/\"}\nObservation: I tried reusing
-      the same input, I must stop using this action input. I''ll try something else
-      instead."},{"role":"assistant","content":"Thought: I need to scrape the entire
-      content from the website http://quotes.toscrape.com/ to provide the complete
-      text content as requested.\nAction: scrape_website\nAction Input: {\"url\":
-      \"http://quotes.toscrape.com/\"}\nObservation: I tried reusing the same input,
-      I must stop using this action input. I''ll try something else instead.\n\n\nNow
-      it''s time you MUST give your absolute best final answer. You''ll ignore all
-      previous instructions, stop using any tools, and just return your absolute BEST
-      Final answer."}],"model":"gpt-4.1-nano","stop":["\nObservation:"],"temperature":0}'
-    headers: {}
-    method: POST
-    uri: https://api.openai.com/v1/chat/completions
-  response:
-    body:
-      string: "{\n  \"id\": \"chatcmpl-CJluLdULpAU2XpOtgiLCvguo5DX69\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828425,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"The world as we have created it is
-        a process of our thinking. It cannot be changed without changing our thinking.
-        \ \\n\u2014 Albert Einstein\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 691,\n    \"completion_tokens\":
-        27,\n    \"total_tokens\": 718,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
-    headers: {}
-    status:
-      code: 200
-      message: OK
-- request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":\"You are Content Analyzer.
-      You extract quotes from text\\nYour personal goal is: Extract quotes from text\\nTo
+    body: '{"messages":[{"role":"system","content":"You are Content Analyzer. You
+      extract quotes from text\nYour personal goal is: Extract quotes from text\nTo
       give my best complete final answer to the task respond using the exact following
-      format:\\n\\nThought: I now can give a great answer\\nFinal Answer: Your final
+      format:\n\nThought: I now can give a great answer\nFinal Answer: Your final
       answer must be the great and the most complete as possible, it must be outcome
-      described.\\n\\nI MUST use these formats, my job depends on it!\"},{\"role\":\"user\",\"content\":\"\\nCurrent
-      Task: Extract the first quote from the content.\\n\\nThis is the expected criteria
-      for your final answer: Quote with author.\\nyou MUST return the actual complete
-      content as the final answer, not a summary.\\n\\nThis is the context you're
-      working with:\\nThe world as we have created it is a process of our thinking.
-      It cannot be changed without changing our thinking.  \\n\u2014 Albert Einstein\\n\\nBegin!
-      This is VERY important to you, use the tools available and give your best Final
-      Answer, your job depends on it!\\n\\nThought:\"}],\"model\":\"gpt-4.1-nano\",\"stop\":[\"\\nObservation:\"],\"temperature\":0}"
+      described.\n\nI MUST use these formats, my job depends on it!"},{"role":"user","content":"\nCurrent
+      Task: Extract the first quote from the content.\n\nThis is the expected criteria
+      for your final answer: Quote with author.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nThis is the context you''re working
+      with:\nThe content retrieved from the website is a quote by Albert Einstein:
+      \"The world as we have created it is a process of our thinking. It cannot be
+      changed without changing our thinking.\"\n\nBegin! This is VERY important to
+      you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}],"model":"gpt-4.1-nano","temperature":0}'
     headers: {}
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CJluLaxcq65ojstj3v5HsKrFxn7zu\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1758828425,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+      string: "{\n  \"id\": \"chatcmpl-D3OX8qWbICSr7BlkzKg98dlEW1ZI9\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1769701662,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Final Answer: \\\"The world as we have
         created it is a process of our thinking. It cannot be changed without changing
         our thinking.\\\" \u2014 Albert Einstein\",\n        \"refusal\": null,\n
         \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
-        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 200,\n    \"completion_tokens\":
-        30,\n    \"total_tokens\": 230,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 209,\n    \"completion_tokens\":
+        30,\n    \"total_tokens\": 239,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_7c233bf9d1\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_2b9b3207a6\"\n}\n"
     headers: {}
     status:
       code: 200
