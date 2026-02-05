@@ -1,0 +1,69 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-3-flash-preview","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.start
+
+        data: {"event_type":"interaction.start","interaction":{"id":"v1_ChduZzV4YWMyVEtfbVZnOFVQbXNXSjBBNBIXbmc1eGFjMlRLX21WZzhVUG1zV0owQTQ","model":"gemini-3-flash-preview","object":"interaction","status":"in_progress"}}
+
+
+        event: interaction.status_update
+
+        data: {"event_type":"interaction.status_update","interaction_id":"v1_ChduZzV4YWMyVEtfbVZnOFVQbXNXSjBBNBIXbmc1eGFjMlRLX21WZzhVUG1zV0owQTQ","status":"in_progress"}
+
+
+        event: content.start
+
+        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
+
+
+        event: content.delta
+
+        data: {"delta":{"signature":"ErkKCrYKAXLI2nyCRpTpAgQAmkQ8XZRSMBceKwbn5b2A4L8o9cvXQYIEC3lAv0RubB6xiFmrAcpSWqGLNN58nvD+Sieqwaj7QTLFVMJWi4e3ela4OUhWln6ydDuHPAod7RJ+0aazKjmgsFiS6a4Sdn2g4RuEc3xEUZ2jBIha+wZXJME2e824jhliWuz/7HLWQ/JnSvnCIdoEkj8x5QbR8dYfsQsOdGXFdtBio9UjmNtFalyplNc+7w6+m/M5VwWVLs61/eEdoudLt/yDc+Z+OJtTlgjAUpbA2vV3KigNjPpMB7aVdSYKqGd9kTOClmCTAUibfasN6NPaXQ+EANAbEnd4iI289vUkRdhSC6UhnIeMer7k3UA4ovriq9bNtK/VZve88/rcpsBm8uc5K0s00dxAza/Ob0LRcE+I0bYbtiARkRDlzXB1pyRHj350v8gx2AR5J6XtgAFZFG6APQITWMRYjjb3ZE55Eauai3KnRyKl+WWiOyhUwfT+DaYktqO/oKyBmadTGSG7vwOf0UIi738aloYj3bpUyX88c9+CxuUA/RZajSn7GFsHl5P9L96dF0EnTd3fiyWyyF3bHpS1uJ1S9lrXCDg21UIpY6XLQvb4F/uOi1pJ9ZjQ6gk4e6L1MUbKfkjndtb0zkTQXljVcVS0HFgeJRKvuMjanQxblQFxj3zJpPVoRyJ7tYrOjnyNfHm3Vk6eY4mExGBGj0eCU/8yHL/L0HahQhwGHcn9ZiiVXQcikgpbyZKkcgl8voKtTUWoI1qoJYix0icKVSkqyiM6WOhs1PYLqhQidoB7G0JR5piCzBfhtr940I+dV96FxfF8lLeRZj9l/kViVaOHln7a7pGfCi1zB7lXv9EIzAIwJfMfIwPIp5yqPC16b5UaCo5p4wyLYJ4ut3Uv/A4i1/vgRwJQ3hLT9SnBhyrsSWtKFXbHn23g6y2TO5u5DYO3kkHZ0lFnL2b7X7M7tCDIlq0Jpi85wyYO5uuRzJiZ9JyhE135ZO7ta4Un6jxCyZl7jL2SG2dEpRHG0SfKjC9PWzpYcMilm0JmBxZ1y1gYcjjXuKK4wyeLa2S3Nv1xKj4JnA+tFTpaCpP5vzzyfBvK9lhjigg/mrZq9vIMMCawSDc1IYiePdIM2Q+TKB35Vm0C6lDKLJ3pavMn57FmcP3mhFhimXpVEx/q1FJNDerEV6Cy6g8zoAk9/e+lDN48U0GmZ+D6bvolKP0cem4BuHXua1NQr+XLeo/fRCUzK9LRmevzkNYJMgC+wD+rGNUAC8OH+OhFuW2z9wwNaKaILMC6jiey0ZondqIa5nRanUsiI0gO6l8tUwZCraAnmcX+NruZwXspOp/MufJFGBuSMHj74qKmeUP6tUgEXSBsepBO5ih/TxedoRQMqgEbSRZqkDgOs6DjHlWKMfXyuefG0D5dhDAVl+QCqgZA6Ce9WJGbl5U/S8f2BPJY8jwhvksrUOm5+Fpg9YXlTXRHfkaoq25MfbWsXgbl9RdsAXK36Oji84kTCzt360HbX7yHMQ1LAbTw29Xf3kG0+0pOlxFPZz6K5F/bijmmI0c/uBIFXT8KrP9Duvqws+fnREZgtloum5sCdL+ZKdSjI1E9Z+yJgzgS2c+fKTXupq65ZhyBI/Cm8rVlQXQ5rMcu/AxTotogd7EYwzB4DWIegClv/H/7JSKkHYVoinICfUcwxQSTXrlm73GPPQj68mv+oFAfBqnd08pW7bkXsYH402BbJink90IF92eQJ5M/dlLVSOckfIx2F5Upj0YPKN79SS6Xz0w=","type":"thought_signature"},"event_type":"content.delta","index":0}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":0}
+
+
+        event: content.start
+
+        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":"Because","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" light attracts bugs.","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":1}
+
+
+        event: interaction.complete
+
+        data: {"event_type":"interaction.complete","interaction":{"created":"2026-01-21T17:36:32Z","id":"v1_ChduZzV4YWMyVEtfbVZnOFVQbXNXSjBBNBIXbmc1eGFjMlRLX21WZzhVUG1zV0owQTQ","model":"gemini-3-flash-preview","object":"interaction","role":"model","status":"completed","updated":"2026-01-21T17:36:32Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":313,"total_tokens":335,"total_tool_use_tokens":0}}}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
