@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.3.4...python-openinference-instrumentation-mistralai-v1.4.0) (2026-02-05)
+
+
+### Features
+
+* **mistralai:** Populate LLM Provider & System Attributes ([#2650](https://github.com/Arize-ai/openinference/issues/2650)) ([fbf48ef](https://github.com/Arize-ai/openinference/commit/fbf48ef159a9b0f9e0bf3eb46d41a9cfb1cafd44))
+
 ## [1.3.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.3.3...python-openinference-instrumentation-mistralai-v1.3.4) (2025-10-10)
 
 
