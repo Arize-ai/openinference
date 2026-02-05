@@ -36,9 +36,7 @@ def tracer_provider(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> trace_api.TracerProvider:
     """Create a tracer provider with OpenInference processor and span exporter."""
-    # Enable agent-framework instrumentation with sensitive data
-    enable_instrumentation(enable_sensitive_data=True)
-
+    # Create our tracer provider FIRST
     tracer_provider = trace_sdk.TracerProvider()
 
     # Add OpenInference processor to transform spans
@@ -48,8 +46,11 @@ def tracer_provider(
     span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
     tracer_provider.add_span_processor(span_processor=span_processor)
 
-    # Set the tracer provider globally (can only be done once)
+    # Set the tracer provider globally BEFORE enabling instrumentation
     trace_api.set_tracer_provider(tracer_provider)
+
+    # Now enable agent-framework instrumentation - it will use the existing global provider
+    enable_instrumentation(enable_sensitive_data=True)
 
     return tracer_provider
 

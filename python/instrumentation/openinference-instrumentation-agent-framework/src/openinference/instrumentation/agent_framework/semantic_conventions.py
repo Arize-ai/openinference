@@ -18,25 +18,16 @@ logger.addHandler(logging.NullHandler())
 OPERATION = "gen_ai.operation.name"
 CHAT_COMPLETION_OPERATION = "chat"
 TOOL_EXECUTION_OPERATION = "execute_tool"
-AGENT_CREATE_OPERATION = "create_agent"
 AGENT_INVOKE_OPERATION = "invoke_agent"
 
 # Provider and system
 PROVIDER_NAME = "gen_ai.provider.name"
-AGENT_FRAMEWORK_GEN_AI_SYSTEM = "microsoft.agent_framework"
 
 # Request attributes
 LLM_REQUEST_MODEL = "gen_ai.request.model"
 LLM_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
 LLM_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
 LLM_REQUEST_TOP_P = "gen_ai.request.top_p"
-SEED = "gen_ai.request.seed"
-FREQUENCY_PENALTY = "gen_ai.request.frequency_penalty"
-PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
-STOP_SEQUENCES = "gen_ai.request.stop_sequences"
-TOP_K = "gen_ai.request.top_k"
-CHOICE_COUNT = "gen_ai.request.choice.count"
-ENCODING_FORMATS = "gen_ai.request.encoding_formats"
 
 # Response attributes
 LLM_RESPONSE_MODEL = "gen_ai.response.model"
@@ -51,7 +42,6 @@ OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 TOOL_CALL_ID = "gen_ai.tool.call.id"
 TOOL_DESCRIPTION = "gen_ai.tool.description"
 TOOL_NAME = "gen_ai.tool.name"
-TOOL_TYPE = "gen_ai.tool.type"
 TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 TOOL_ARGUMENTS = "gen_ai.tool.call.arguments"
 TOOL_RESULT = "gen_ai.tool.call.result"
@@ -70,9 +60,6 @@ SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 # Workflow attributes
 WORKFLOW_ID = "workflow.id"
 WORKFLOW_NAME = "workflow.name"
-WORKFLOW_DESCRIPTION = "workflow.description"
-WORKFLOW_DEFINITION = "workflow.definition"
-WORKFLOW_BUILD_SPAN = "workflow.build"
 WORKFLOW_RUN_SPAN = "workflow.run"
 
 # Executor attributes
@@ -83,23 +70,6 @@ EXECUTOR_PROCESS_SPAN = "executor.process"
 # Edge group attributes
 EDGE_GROUP_TYPE = "edge_group.type"
 EDGE_GROUP_ID = "edge_group.id"
-
-# Server attributes
-ADDRESS = "server.address"
-PORT = "server.port"
-
-# Error attributes
-ERROR_TYPE = "error.type"
-
-# Event names (used in span events)
-SYSTEM_MESSAGE_EVENT = "gen_ai.system.message"
-USER_MESSAGE_EVENT = "gen_ai.user.message"
-ASSISTANT_MESSAGE_EVENT = "gen_ai.assistant.message"
-TOOL_MESSAGE_EVENT = "gen_ai.tool.message"
-CHOICE_EVENT = "gen_ai.choice"
-
-# LLM system attribute from semconv_ai
-LLM_SYSTEM = "gen_ai.system"
 
 
 def safe_json_dumps(obj: Any) -> str:

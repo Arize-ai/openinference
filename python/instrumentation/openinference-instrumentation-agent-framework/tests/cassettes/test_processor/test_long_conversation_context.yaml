@@ -7,7 +7,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -31,7 +31,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -42,35 +42,35 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5ggekQNPE3PZyV0XGQlCd6BqGvD2\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248100,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8SGxdLKCgfJk5g30ifrikEcAEp\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"That's great! Blue is a beautiful and
-        calming color. Do you have a specific shade of blue that you like the most,
-        or do you enjoy it in general?\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 29,\n    \"completion_tokens\":
-        33,\n    \"total_tokens\": 62,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        \"assistant\",\n        \"content\": \"That\u2019s great! Blue is such a calming
+        and versatile color. Do you have a particular shade of blue that you like
+        the most?\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 29,\n    \"completion_tokens\": 27,\n
+        \   \"total_tokens\": 56,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb633f2d944c-SJC
+      - 9c8e257a7a9b78eb-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:01 GMT
+      - Thu, 05 Feb 2026 00:03:45 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=0traS_t0eEnpl1HrDGeDMb_nQbbfOFZubZXhDIhLn_o-1770248101-1.0.1.1-HH7fI0pJ.mGY7Ju6rFujtIL8NSZ_h6okxo8U9qlyKSZKz1FXLvD9dCPciEk00NFJ7eofU9lo_xQgdteaHWSqQJvCn2xGgmwIxj..f.BDRTI;
-        path=/; expires=Thu, 05-Feb-26 00:05:01 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=7nMjjbix3WPoAycvhCL3LyHSG0SEmn8ZoiCg_HQa5TY-1770249825-1.0.1.1-9fkbOBEr0td7of3hzgujvWb89GOCyv3Ebnv216sz6S_zQneUTh4O7YTYPedZVdwBaZPa.sfgiqFJUtPMFrYBK8OxBuPUUUN4Y4vt0B9K7eA;
+        path=/; expires=Thu, 05-Feb-26 00:33:45 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=oczDQGXlKH80Zk77NYCOY5Kw_8Md5Vrn8bUvCwAjtrQ-1770248101201-0.0.1.1-604800000;
+      - _cfuvid=geohgqukPFcqES4uJKosThSDig2pov4n7C6PFAIb82w-1770249825443-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -85,11 +85,11 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '951'
+      - '929'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '783'
+      - '983'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -109,7 +109,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_a86667631c794ab49a291ba0668e2d5a
+      - req_473b4d15f0e240a787e9c32316652534
     status:
       code: 200
       message: OK
@@ -121,7 +121,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -129,8 +129,8 @@ interactions:
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=0traS_t0eEnpl1HrDGeDMb_nQbbfOFZubZXhDIhLn_o-1770248101-1.0.1.1-HH7fI0pJ.mGY7Ju6rFujtIL8NSZ_h6okxo8U9qlyKSZKz1FXLvD9dCPciEk00NFJ7eofU9lo_xQgdteaHWSqQJvCn2xGgmwIxj..f.BDRTI;
-        _cfuvid=oczDQGXlKH80Zk77NYCOY5Kw_8Md5Vrn8bUvCwAjtrQ-1770248101201-0.0.1.1-604800000
+      - __cf_bm=7nMjjbix3WPoAycvhCL3LyHSG0SEmn8ZoiCg_HQa5TY-1770249825-1.0.1.1-9fkbOBEr0td7of3hzgujvWb89GOCyv3Ebnv216sz6S_zQneUTh4O7YTYPedZVdwBaZPa.sfgiqFJUtPMFrYBK8OxBuPUUUN4Y4vt0B9K7eA;
+        _cfuvid=geohgqukPFcqES4uJKosThSDig2pov4n7C6PFAIb82w-1770249825443-0.0.1.1-604800000
       Host:
       - api.openai.com
       User-Agent:
@@ -148,7 +148,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -159,29 +159,30 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5ggfUrO5cNHPQyLGUjCPKwGutEom\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248101,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8T5DpLX2FLuAQlpTtmPTnvtVQQ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249825,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"That's great! Python is a versatile
-        and popular language known for its readability and ease of use. Are there
-        specific projects or areas in Python programming that you're interested in,
-        like web development, data science, automation, or something else?\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        30,\n    \"completion_tokens\": 46,\n    \"total_tokens\": 76,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        and powerful programming language that is widely used for various applications,
+        from web development to data analysis and artificial intelligence. What specific
+        areas of Python do you enjoy working with, or are there any projects you're
+        currently involved in?\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 30,\n    \"completion_tokens\":
+        50,\n    \"total_tokens\": 80,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb68d8eed438-SJC
+      - 9c8e25815c1dc6c6-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:02 GMT
+      - Thu, 05 Feb 2026 00:03:46 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -197,11 +198,11 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1059'
+      - '1102'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1649'
+      - '1274'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -221,7 +222,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_8e4f8998e79543558b822813dd6b1b25
+      - req_0e4422cfb7de47b7828de37f8fe780cf
     status:
       code: 200
       message: OK
@@ -233,7 +234,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -241,8 +242,8 @@ interactions:
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=0traS_t0eEnpl1HrDGeDMb_nQbbfOFZubZXhDIhLn_o-1770248101-1.0.1.1-HH7fI0pJ.mGY7Ju6rFujtIL8NSZ_h6okxo8U9qlyKSZKz1FXLvD9dCPciEk00NFJ7eofU9lo_xQgdteaHWSqQJvCn2xGgmwIxj..f.BDRTI;
-        _cfuvid=oczDQGXlKH80Zk77NYCOY5Kw_8Md5Vrn8bUvCwAjtrQ-1770248101201-0.0.1.1-604800000
+      - __cf_bm=7nMjjbix3WPoAycvhCL3LyHSG0SEmn8ZoiCg_HQa5TY-1770249825-1.0.1.1-9fkbOBEr0td7of3hzgujvWb89GOCyv3Ebnv216sz6S_zQneUTh4O7YTYPedZVdwBaZPa.sfgiqFJUtPMFrYBK8OxBuPUUUN4Y4vt0B9K7eA;
+        _cfuvid=geohgqukPFcqES4uJKosThSDig2pov4n7C6PFAIb82w-1770249825443-0.0.1.1-604800000
       Host:
       - api.openai.com
       User-Agent:
@@ -260,7 +261,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -271,29 +272,30 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5gghurr8ulilL7BBMCIwsdBeLqvo\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248103,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8VANf4rUW4zD69TDQHJnb0hdqi\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249827,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"I don't have access to past conversations
-        or personal data, so I don't know your specific preferences. However, I can
-        help you with a wide range of topics. You can share your preferences with
-        me, and I'll do my best to assist you based on that information!\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        31,\n    \"completion_tokens\": 53,\n    \"total_tokens\": 84,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        \"assistant\",\n        \"content\": \"I don\u2019t have access to your personal
+        data or preferences unless you share them with me during our conversation.
+        However, I can help answer questions or provide information based on what
+        you tell me. If there\u2019s something specific you\u2019d like to discuss
+        or ask about, feel free to share!\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 31,\n    \"completion_tokens\":
+        57,\n    \"total_tokens\": 88,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb7458d3fa2e-SJC
+      - 9c8e258a7cfef3f6-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:04 GMT
+      - Thu, 05 Feb 2026 00:03:48 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -309,11 +311,11 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1063'
+      - '1097'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1732'
+      - '1519'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -333,7 +335,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_4dae4182646d48e99c71ffad1dde54d3
+      - req_368ebed9eb2e4046b18407db8216c672
     status:
       code: 200
       message: OK

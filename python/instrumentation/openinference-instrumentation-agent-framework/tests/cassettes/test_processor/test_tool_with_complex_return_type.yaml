@@ -9,7 +9,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -33,7 +33,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -44,11 +44,11 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5ggjYCX2YohAmw9fZ2jXyIYnHlFr\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248105,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8SKqvG7ozo5u97mRiG8QMLYYkV\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_zi3Q2zoL11riJjyEi7cVHzgU\",\n            \"type\":
+        \           \"id\": \"call_hbDcKzi2Rkniqa6EnSAOsuTi\",\n            \"type\":
         \"function\",\n            \"function\": {\n              \"name\": \"get_user_profile\",\n
         \             \"arguments\": \"{\\\"user_id\\\":\\\"user123\\\"}\"\n            }\n
         \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
@@ -61,20 +61,20 @@ interactions:
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb803a79fb48-SJC
+      - 9c8e257a7b94f953-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:05 GMT
+      - Thu, 05 Feb 2026 00:03:44 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=jo2IRPTbqrJ6nF1Eoyi0On1fwetQYcnWl57q2DYInR4-1770248105-1.0.1.1-aSCyvITzcTz.Bf7aRZJ.8kXUwK.80uorPBjleym_3XD1uCg1PILFktgs0CKmSt0S3RYSikszlDqsuVFxo17jHsB8yLFI93yxrxiEtaHGRTs;
-        path=/; expires=Thu, 05-Feb-26 00:05:05 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=rE.TqdpGExGrvPlbdZS3J14DqVooA3CJZpZlNwAbZI0-1770249824-1.0.1.1-uw_qNyNx5t0Bq8PpzCGWzsjRNrYNinYiWQoHY0t6_m4.OdqNp.tsAzl3ZxcGfMhYaSEmmkeRKDQgu_vZFAb60LcRJvuoPAIVXBmarGhbR50;
+        path=/; expires=Thu, 05-Feb-26 00:33:44 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=FnIbFmXhn2EZeWsiyJ4CKS2rS4kLMExvUnqWz6JsSpo-1770248105600-0.0.1.1-604800000;
+      - _cfuvid=Xc08_3yGoCfDbGW5a2gw2fJdGZYP5q7gH.Tpgxg5m3o-1770249824945-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -93,7 +93,7 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '520'
+      - '465'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -107,20 +107,20 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999965'
+      - '149999967'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_89e9096add184b688ebabf4c67d997f7
+      - req_719e449080704d4f93dee1f75e526650
     status:
       code: 200
       message: OK
 - request:
     body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You help
       manage user information. Use the get_user_profile tool to fetch user details.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"Get
-      the profile for user ''user123''","additional_properties":{}}]},{"role":"assistant","tool_calls":[{"id":"call_zi3Q2zoL11riJjyEi7cVHzgU","type":"function","function":{"name":"get_user_profile","arguments":"{\"user_id\":\"user123\"}"}}]},{"role":"tool","tool_call_id":"call_zi3Q2zoL11riJjyEi7cVHzgU","content":"{\"user_id\":
+      the profile for user ''user123''","additional_properties":{}}]},{"role":"assistant","tool_calls":[{"id":"call_hbDcKzi2Rkniqa6EnSAOsuTi","type":"function","function":{"name":"get_user_profile","arguments":"{\"user_id\":\"user123\"}"}}]},{"role":"tool","tool_call_id":"call_hbDcKzi2Rkniqa6EnSAOsuTi","content":"{\"user_id\":
       \"user123\", \"name\": \"John Doe\", \"email\": \"john@example.com\", \"preferences\":
       {\"theme\": \"dark\", \"notifications\": true}, \"stats\": {\"posts\": 42, \"followers\":
       150}}"}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_user_profile","description":"Get
@@ -130,7 +130,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -138,8 +138,8 @@ interactions:
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=jo2IRPTbqrJ6nF1Eoyi0On1fwetQYcnWl57q2DYInR4-1770248105-1.0.1.1-aSCyvITzcTz.Bf7aRZJ.8kXUwK.80uorPBjleym_3XD1uCg1PILFktgs0CKmSt0S3RYSikszlDqsuVFxo17jHsB8yLFI93yxrxiEtaHGRTs;
-        _cfuvid=FnIbFmXhn2EZeWsiyJ4CKS2rS4kLMExvUnqWz6JsSpo-1770248105600-0.0.1.1-604800000
+      - __cf_bm=rE.TqdpGExGrvPlbdZS3J14DqVooA3CJZpZlNwAbZI0-1770249824-1.0.1.1-uw_qNyNx5t0Bq8PpzCGWzsjRNrYNinYiWQoHY0t6_m4.OdqNp.tsAzl3ZxcGfMhYaSEmmkeRKDQgu_vZFAb60LcRJvuoPAIVXBmarGhbR50;
+        _cfuvid=Xc08_3yGoCfDbGW5a2gw2fJdGZYP5q7gH.Tpgxg5m3o-1770249824945-0.0.1.1-604800000
       Host:
       - api.openai.com
       User-Agent:
@@ -157,7 +157,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -168,13 +168,13 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5ggjUX9PVFigNf54DbS9ExGdSLeb\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248105,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8TaLQmAfqXs3zTLUcDUGDAK39g\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249825,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Here is the profile information for
-        user 'user123':\\n\\n- **Name:** John Doe\\n- **Email:** john@example.com\\n-
-        **Preferences:**\\n  - Theme: Dark\\n  - Notifications: Enabled\\n- **Stats:**\\n
-        \ - Posts: 42\\n  - Followers: 150\",\n        \"refusal\": null,\n        \"annotations\":
+        \"assistant\",\n        \"content\": \"Here are the profile details for user
+        'user123':\\n\\n- **Name:** John Doe\\n- **Email:** john@example.com\\n- **Preferences:**\\n
+        \ - Theme: Dark\\n  - Notifications: Enabled\\n- **Statistics:**\\n  - Posts:
+        42\\n  - Followers: 150\",\n        \"refusal\": null,\n        \"annotations\":
         []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
         \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 159,\n    \"completion_tokens\":
         62,\n    \"total_tokens\": 221,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
@@ -184,13 +184,13 @@ interactions:
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb84dcacc65e-SJC
+      - 9c8e257e4a9aebe7-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:07 GMT
+      - Thu, 05 Feb 2026 00:03:46 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -206,11 +206,11 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1029'
+      - '1031'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1824'
+      - '1656'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -230,7 +230,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_e1650feeef4949ee9cc38b28a744c970
+      - req_fb5eed20a3034ef690faf4ff94828354
     status:
       code: 200
       message: OK

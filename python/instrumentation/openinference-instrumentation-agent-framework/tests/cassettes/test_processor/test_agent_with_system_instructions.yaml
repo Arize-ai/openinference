@@ -8,7 +8,7 @@ interactions:
       Accept:
       - application/json
       Accept-Encoding:
-      - gzip, deflate, br, zstd
+      - gzip, deflate
       Connection:
       - keep-alive
       Content-Length:
@@ -32,7 +32,7 @@ interactions:
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.11.13
+      - 3.14.0
       agent-framework-version:
       - python/1.0.0b260130
       x-stainless-read-timeout:
@@ -43,47 +43,43 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5ggZbHZQlAMnD9Q4CJnVt8kaKEKa\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770248095,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D5h8SKMCpI3JpqsXzELW2LDYiSxFZ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"A prime number is a special type of
-        whole number that has exactly two distinct positive divisors: 1 and itself.
-        This means that a prime number can only be divided evenly (without leaving
-        a remainder) by 1 and the number itself.\\n\\nFor example, the number 5 is
-        prime because the only numbers that divide evenly into 5 are 1 and 5. On the
-        other hand, the number 6 is not prime because it can be divided by 1, 2, 3,
-        and 6\u2014so it has more than two divisors.\\n\\nHere are some examples of
-        prime numbers:\\n- 2 (the only even prime number!)\\n- 3\\n- 5\\n- 7\\n- 11\\n-
-        13\\n\\nAnd here are some numbers that are NOT prime:\\n- 4 (divisible by
-        1, 2, and 4)\\n- 6 (divisible by 1, 2, 3, and 6)\\n- 9 (divisible by 1, 3,
-        and 9)\\n\\nRemember, the first number in the list of whole numbers, 1, is
-        not considered a prime number because it only has one positive divisor (1
-        itself).\\n\\nKeep up the great work in learning about numbers! You\u2019re
-        doing awesome! If you have more questions or need further examples, just let
-        me know!\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
-        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
-        \ \"usage\": {\n    \"prompt_tokens\": 35,\n    \"completion_tokens\": 279,\n
-        \   \"total_tokens\": 314,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        \"assistant\",\n        \"content\": \"Great question! A prime number is a
+        natural number greater than 1 that cannot be formed by multiplying two smaller
+        natural numbers. In simpler terms, a prime number has exactly two distinct
+        positive divisors: 1 and itself.\\n\\nHere's what that means: \\n\\n- The
+        number 2 is a prime number because its only divisors are 1 and 2.\\n- The
+        number 3 is also prime because it can only be divided by 1 and 3.\\n- However,
+        the number 4 is not a prime number because it can be divided by 1, 2, and
+        4.\\n\\nSome examples of prime numbers are: 2, 3, 5, 7, 11, 13, and so on.
+        \\n\\nAn important thing to note: the number 1 is not considered a prime number
+        because it only has one positive divisor (itself).\\n\\nKeep up the great
+        work, and let me know if you have more questions!\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        35,\n    \"completion_tokens\": 194,\n    \"total_tokens\": 229,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8dfb4289a65527-SJC
+      - 9c8e257a7cea2c39-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Wed, 04 Feb 2026 23:35:00 GMT
+      - Thu, 05 Feb 2026 00:03:48 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=I.BcVt5NYGVthJ0AizOi80GwpZWlBY5rtOdydpKVcnI-1770248100-1.0.1.1-8jppcidAesRAXScUT0Tno9ozqxzDG7J6NfjVXWZFj4W5.xqA44rebO8xicGW1oq8mYcTTIKePzTxCAfz_dvQaY1ZlGsmVDR31lj3I0MjHOg;
-        path=/; expires=Thu, 05-Feb-26 00:05:00 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=PxVJmRm2Se0Uz40yq1ruK6hXJVHJZvH9Q0K8Z_lLVq0-1770249828-1.0.1.1-RnicI6HXIP9V6ehF6SgjGBBPxHnje2vY4A4fMG59bdegMzMawkl0z0Zd9EEYj7jxaMsKdrBGnddqaoDruI_mADP69ZwGn_bsNS.4yvtXk3Y;
+        path=/; expires=Thu, 05-Feb-26 00:33:48 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=4dtk933j8FR4_QhlBQxh9AE_w5_lc.j5kdsxB6TGXTs-1770248100248-0.0.1.1-604800000;
+      - _cfuvid=6VnJnss2.mvkKNawxgNM4lKSoN_in80DAVbK467Wdyk-1770249828440-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -98,11 +94,11 @@ interactions:
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1814'
+      - '1566'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '5079'
+      - '4008'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
@@ -122,7 +118,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_ec4a2dac528a45f1aca18a956303fe98
+      - req_7da8202789da46ccb63b017f7f12db9a
     status:
       code: 200
       message: OK

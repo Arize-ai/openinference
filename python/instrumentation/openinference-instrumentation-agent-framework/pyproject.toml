@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "agent-framework >= 0.1.0",
+    "agent-framework >= 1.0.0b260130",
 ]
 test = [
     "pytest",
@@ -71,6 +71,7 @@ exclude = [
     "examples",
     "dist",
     "sdist",
+    "tests",
 ]
 
 [[tool.mypy.overrides]]
