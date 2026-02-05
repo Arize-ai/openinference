@@ -782,7 +782,21 @@ class _Span(BaseSpan):
         if response is None:
             return
         if isinstance(response, (Response, PydanticResponse)):
-            self._process_response_text_type(response.response)
+            # Handle the case where response.response might be None
+            response_text = None
+            if isinstance(response, Response):
+                response_text = response.response
+            elif isinstance(response, PydanticResponse):
+                response_text = response.response.model_dump_json() if response.response else None
+
+            if response_text is not None:
+                self._process_response_text_type(response_text)
+            else:
+                # Fallback to __str__ if response attribute is None
+                try:
+                    self[OUTPUT_VALUE] = str(response)
+                except Exception:
+                    logger.exception("Failed to use __str__ as fallback which handles None case.")
         elif isinstance(response, (StreamingResponse, AsyncStreamingResponse)):
             pass
         else:
