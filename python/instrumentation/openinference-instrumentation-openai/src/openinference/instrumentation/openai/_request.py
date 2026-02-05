@@ -5,12 +5,6 @@ from itertools import chain
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
 
-from openinference.semconv.trace import (
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
@@ -38,6 +32,12 @@ from openinference.instrumentation.openai._utils import (
     _io_value_and_type,
 )
 from openinference.instrumentation.openai._with_span import _WithSpan
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 __all__ = (
     "_Request",
