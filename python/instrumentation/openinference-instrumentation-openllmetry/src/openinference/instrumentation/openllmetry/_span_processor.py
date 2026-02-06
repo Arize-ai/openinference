@@ -202,11 +202,13 @@ def _extract_llm_provider_and_system(
     attrs: Dict[str, Any],
 ) -> Tuple[Optional[str], Optional[str]]:
     """Extract validated OpenInference LLM provider and system values from span attributes."""
-    provider_val = str(attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")).lower()
+    provider_val: Optional[str] = str(
+        attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")
+    ).lower()
     if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
         provider_val = None
 
-    system_val = str(attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")).lower()
+    system_val: Optional[str] = str(attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")).lower()
     if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
         system_val = None
 
