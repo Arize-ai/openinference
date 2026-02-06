@@ -10,12 +10,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
-from opentelemetry.util.types import AttributeValue
 
 # Import OpenLLMetry constants from the official package
 from opentelemetry.semconv_ai import (
     SpanAttributes as GenAISpanAttributes,
 )
+from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
