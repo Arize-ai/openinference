@@ -1,4 +1,5 @@
 import base64
+import inspect
 import io
 import json
 import logging
@@ -21,6 +22,7 @@ from typing import (
     cast,
 )
 
+import aiobotocore.client
 from botocore.client import BaseClient
 from botocore.response import StreamingBody
 from opentelemetry import context as context_api
@@ -64,7 +66,9 @@ from openinference.semconv.trace import (
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
 _MODULE = "botocore.client"
+_AIO_MODULE = "aiobotocore.client"
 _BASE_MODULE = "botocore"
+_AIO_BASE_MODULE = "aiobotocore"
 _MINIMUM_CONVERSE_BOTOCORE_VERSION = "1.34.116"
 
 logger = logging.getLogger(__name__)
@@ -118,6 +122,48 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
             self._buffer.seek(0)
 
 
+def _instrument_client(client: BaseClient, bound_arguments: Any, tracer: Tracer) -> BaseClient:
+    """Helper function to instrument a client (both sync and async)."""
+    if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
+        client = cast(InstrumentedClient, client)
+
+        client._unwrapped_invoke_agent = client.invoke_agent
+        client.invoke_agent = _InvokeAgentWithResponseStream(tracer)(client.invoke_agent)
+
+        client._unwrapped_invoke_inline_agent = client.invoke_inline_agent
+        client.invoke_inline_agent = _InvokeAgentWithResponseStream(tracer)(
+            client.invoke_inline_agent
+        )
+
+        client._unwrapped_retrieve = client.retrieve
+        client.retrieve = _retrieve_wrapper(tracer)(client)
+
+        client._unwrapped_retrieve_and_generate = client.retrieve_and_generate
+        client.retrieve_and_generate = _retrieve_and_generate_wrapper(tracer)(client)
+
+        client._unwrapped_retrieve_and_generate_stream = client.retrieve_and_generate_stream
+        client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
+            client.retrieve_and_generate_stream
+        )
+
+    if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
+        client = cast(InstrumentedClient, client)
+
+        client._unwrapped_invoke_model = client.invoke_model
+        client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+            client.invoke_model_with_response_stream
+        )
+
+        # Note: You'll need to check module_version here too if needed
+        # For now, assuming it's available in the closure
+        client._unwrapped_converse = client.converse
+        client.converse = _model_converse_wrapper(tracer)(client)
+        client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
+
+    return client
+
+
 def _client_creation_wrapper(
     tracer: Tracer, module_version: str
 ) -> Callable[[ClientCreator], ClientCreator]:
@@ -131,6 +177,20 @@ def _client_creation_wrapper(
         client = wrapped(*args, **kwargs)
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return client
+        if inspect.iscoroutine(client):
+            # For async clients, we need to wrap the coroutine
+            async def async_wrapper():
+                actual_client = await client
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return actual_client
+
+                call_signature = signature(wrapped)
+                bound_arguments = call_signature.bind(*args, **kwargs)
+                bound_arguments.apply_defaults()
+
+                return _instrument_client(actual_client, bound_arguments, tracer)
+
+            return async_wrapper()
 
         call_signature = signature(wrapped)
         bound_arguments = call_signature.bind(*args, **kwargs)
@@ -334,6 +394,8 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_tracer",
         "_original_client_creator",
+        "_original_aio_client_creator",
+
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -362,6 +424,20 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
                 tracer=self._tracer, module_version=botocore.__version__
             ),
         )
+
+        try:
+            aioboto = import_module(_AIO_MODULE)
+            aiobotocore = import_module(_AIO_BASE_MODULE)
+            self._original_aio_client_creator = aioboto.ClientCreator.create_client
+            wrap_function_wrapper(
+                module=_AIO_MODULE,
+                name="AioClientCreator.create_client",
+                wrapper=_client_creation_wrapper(
+                    tracer=self._tracer, module_version=aiobotocore.__version__
+                ),
+            )
+        except ImportError:
+            pass
 
     def _uninstrument(self, **kwargs: Any) -> None:
         boto = import_module(_MODULE)

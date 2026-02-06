@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import asyncio
+
 from typing import Any, Callable
 
 import wrapt
@@ -119,18 +121,36 @@ class _InvokeAgentWithResponseStream(_WithTracer):
 
     @wrapt.decorator  # type: ignore[misc]
     def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # span = self._tracer.start_span(self._name)
+            # Try to detect if it's async by checking the wrapped function or instance
+        is_async = (
+                asyncio.iscoroutinefunction(wrapped) or
+                asyncio.iscoroutinefunction(getattr(instance, wrapped.__name__, None)) or
+                (hasattr(instance, '_make_api_call') and asyncio.iscoroutinefunction(instance._make_api_call))
+        )
+        # Check if the wrapped function is async
+        if is_async:
+            return self._async_call(wrapped, instance, args, kwargs)
+        else:
+            return self._sync_call(wrapped, instance, args, kwargs)
+
+    def _sync_call(
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+    ) -> Any:
         with self._tracer.start_as_current_span(
-            f"bedrock_agent.{wrapped.__name__}",
-            end_on_exit=False,
+                f"bedrock_agent.{wrapped.__name__}",
+                end_on_exit=False,
         ) as span:
             attributes = {
                 SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
@@ -153,6 +173,37 @@ class _InvokeAgentWithResponseStream(_WithTracer):
                 span.end()
                 raise e
 
+    async def _async_call(
+            self,
+            wrapped: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+    ) -> Any:
+        with self._tracer.start_as_current_span(
+                f"bedrock_agent.{wrapped.__name__}",
+                end_on_exit=False,
+        ) as span:
+            attributes = {
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
+            }
+            if input_text := kwargs.get("inputText"):
+                attributes[SpanAttributes.INPUT_VALUE] = input_text
+            span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+            try:
+                response = await wrapped(*args, **kwargs)
+                response["completion"] = _EventStream(
+                    response["completion"],
+                    _ResponseAccumulator(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
 
 class _RetrieveAndGenerateStream(_WithTracer):
     _name = "bedrock_agent.retrieve_and_generate_stream"
