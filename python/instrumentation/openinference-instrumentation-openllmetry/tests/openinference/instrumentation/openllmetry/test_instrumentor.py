@@ -1,4 +1,4 @@
-from typing import Any, Mapping, cast
+from typing import Any, Dict, Mapping, cast
 
 import openai
 import pytest
@@ -7,9 +7,20 @@ from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv._incubating.attributes import (
+    gen_ai_attributes as GenAIAttributes,
+)
 from opentelemetry.util.types import AttributeValue
 
+# Import OpenLLMetry constants from the official package
+from opentelemetry.semconv_ai import (
+    SpanAttributes as GenAISpanAttributes,
+)
+
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
+from openinference.instrumentation.openllmetry._span_processor import (
+    _extract_llm_provider_and_system,
+)
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
@@ -127,9 +138,6 @@ class TestOpenLLMetryInstrumentor:
 
         # LLM identity
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
-        assert (
-            attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
-        )
         assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
         total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
@@ -141,3 +149,92 @@ class TestOpenLLMetryInstrumentor:
         assert isinstance(attributes["llm.input_messages.0.message.content"], str)
         assert attributes["llm.output_messages.0.message.role"] == "assistant"
         assert isinstance(attributes["llm.output_messages.0.message.content"], str)
+
+
+def _set_span_attributes(
+    *,
+    provider: Any = None,
+    system: Any = None,
+) -> Dict[str, Any]:
+    attrs: Dict[str, Any] = {}
+    if provider is not None:
+        attrs[GenAIAttributes.GEN_AI_PROVIDER_NAME] = provider
+    if system is not None:
+        attrs[GenAISpanAttributes.LLM_SYSTEM] = system
+    return attrs
+
+
+@pytest.mark.parametrize(
+    "attrs, expected_provider, expected_system",
+    [
+        # OpenAI system only
+        (
+            _set_span_attributes(system="openai"),
+            None,
+            OpenInferenceLLMSystemValues.OPENAI.value,
+        ),
+        # Anthropic system only
+        (
+            _set_span_attributes(system="Anthropic"),
+            None,
+            OpenInferenceLLMSystemValues.ANTHROPIC.value,
+        ),
+        # Mistral system only
+        (
+            _set_span_attributes(system="MISTRALAI"),
+            None,
+            OpenInferenceLLMSystemValues.MISTRALAI.value,
+        ),
+        # Vertex AI system only
+        (
+            _set_span_attributes(system="VertexAI"),
+            None,
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        # Google Generative AI (provider present)
+        (
+            _set_span_attributes(provider="Google", system="VertexAI"),
+            OpenInferenceLLMProviderValues.GOOGLE.value,
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        # Valid provider, Invalid system
+        (
+            _set_span_attributes(provider="OpenAI", system="Langchain"),
+            OpenInferenceLLMProviderValues.OPENAI.value,
+            None,
+        ),
+        # Invalid provider, Valid system
+        (
+            _set_span_attributes(provider="CrewAI", system="OpenAI"),
+            None,
+            OpenInferenceLLMSystemValues.OPENAI.value,
+        ),
+        # Both invalid values
+        (
+            _set_span_attributes(provider="HuggingFace", system="HuggingFace"),
+            None,
+            None,
+        ),
+        # Explicit None values
+        (
+            _set_span_attributes(provider=None, system=None),
+            None,
+            None,
+        ),
+        # Empty span attributes
+        (
+            {},
+            None,
+            None,
+        ),
+    ],
+)
+def test_extract_llm_provider_and_system(
+    attrs: Dict[str, Any],
+    expected_provider: str | None,
+    expected_system: str | None,
+) -> None:
+    provider, system = _extract_llm_provider_and_system(attrs)
+
+    assert provider == expected_provider
+    assert system == expected_system

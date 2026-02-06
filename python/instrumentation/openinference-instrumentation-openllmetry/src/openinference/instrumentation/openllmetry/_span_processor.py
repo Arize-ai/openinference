@@ -7,7 +7,7 @@ into OpenInference semantic conventions for Phoenix observability.
 
 import json
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.semconv._incubating.attributes import (
@@ -198,6 +198,21 @@ def _handle_tool_list(raw: Any, dst: Dict[str, Any]) -> List[oi.Tool]:
     return oi_tools
 
 
+def _extract_llm_provider_and_system(
+    attrs: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract validated OpenInference LLM provider and system values from span attributes."""
+    provider_val = str(attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")).lower()
+    if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
+        provider_val = None
+
+    system_val = str(attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")).lower()
+    if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
+        system_val = None
+
+    return provider_val, system_val
+
+
 class OpenInferenceSpanProcessor(SpanProcessor):
     """
     SpanProcessor that converts OpenLLMetry spans to OpenInference attributes.
@@ -285,15 +300,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             },
         }
 
-        system_val = attrs.get(SpanAttributes.LLM_SYSTEM) or "unknown"
-        # Ensure system is one of the known OpenInference LLM systems
-        if system_val.lower() not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
-            system_val = None
-
-        provider_val = attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME) or "unknown"
-        # Ensure provider is one of the known OpenInference LLM providers
-        if provider_val.lower() not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
-            provider_val = system_val
+        provider_val, system_val = _extract_llm_provider_and_system(attrs)
 
         # Span kind
         span_val = (
