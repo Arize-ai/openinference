@@ -1,4 +1,4 @@
-from typing import Any, Dict, Mapping, cast
+from typing import Any, Dict, Mapping, Optional, cast
 
 import openai
 import pytest
@@ -157,10 +157,8 @@ def _set_span_attributes(
     system: Any = None,
 ) -> Dict[str, Any]:
     attrs: Dict[str, Any] = {}
-    if provider is not None:
-        attrs[GenAIAttributes.GEN_AI_PROVIDER_NAME] = provider
-    if system is not None:
-        attrs[GenAISpanAttributes.LLM_SYSTEM] = system
+    attrs[GenAIAttributes.GEN_AI_PROVIDER_NAME] = provider
+    attrs[GenAISpanAttributes.LLM_SYSTEM] = system
     return attrs
 
 
@@ -231,8 +229,8 @@ def _set_span_attributes(
 )
 def test_extract_llm_provider_and_system(
     attrs: Dict[str, Any],
-    expected_provider: str | None,
-    expected_system: str | None,
+    expected_provider: Optional[str],
+    expected_system: Optional[str],
 ) -> None:
     provider, system = _extract_llm_provider_and_system(attrs)
 
