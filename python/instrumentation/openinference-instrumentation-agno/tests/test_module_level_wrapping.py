@@ -147,8 +147,7 @@ class TestAgentSpanCreation:
 
         spans = exporter.get_finished_spans()
         agent_spans = [
-            s for s in spans
-            if dict(s.attributes or {}).get("openinference.span.kind") == "AGENT"
+            s for s in spans if dict(s.attributes or {}).get("openinference.span.kind") == "AGENT"
         ]
 
         assert len(agent_spans) >= 1, "Expected agent span"
@@ -217,10 +216,7 @@ class TestTeamSpanCreation:
             pass
 
         spans = exporter.get_finished_spans()
-        team_spans = [
-            s for s in spans
-            if dict(s.attributes or {}).get("agno.team.id") is not None
-        ]
+        team_spans = [s for s in spans if dict(s.attributes or {}).get("agno.team.id") is not None]
 
         assert len(team_spans) >= 1, "Expected team span with agno.team.id"
 
@@ -348,10 +344,7 @@ class TestSpanHierarchy:
             pass
 
         spans = exporter.get_finished_spans()
-        team_spans = [
-            s for s in spans
-            if dict(s.attributes or {}).get("agno.team.id") is not None
-        ]
+        team_spans = [s for s in spans if dict(s.attributes or {}).get("agno.team.id") is not None]
 
         if team_spans:
             team_span = team_spans[0]
@@ -374,12 +367,10 @@ class TestSpanHierarchy:
         spans = exporter.get_finished_spans()
 
         # Find team and agent spans
-        team_spans = [
-            s for s in spans
-            if dict(s.attributes or {}).get("agno.team.id") is not None
-        ]
+        team_spans = [s for s in spans if dict(s.attributes or {}).get("agno.team.id") is not None]
         agent_spans = [
-            s for s in spans
+            s
+            for s in spans
             if dict(s.attributes or {}).get("agno.agent.id") is not None
             and dict(s.attributes or {}).get("agno.team.id") is None
         ]
@@ -477,8 +468,7 @@ class TestAsyncMethods:
         assert len(spans) >= 1, "Expected at least one span from async run"
 
         agent_spans = [
-            s for s in spans
-            if dict(s.attributes or {}).get("openinference.span.kind") == "AGENT"
+            s for s in spans if dict(s.attributes or {}).get("openinference.span.kind") == "AGENT"
         ]
         assert len(agent_spans) >= 1, "Expected agent span from async run"
 
