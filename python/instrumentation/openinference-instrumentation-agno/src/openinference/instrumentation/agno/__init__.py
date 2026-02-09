@@ -104,7 +104,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         try:
             from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
 
-            has_module_level_impl = hasattr(agent_run_module, "run_impl")
+            # New agno versions have _run, _run_stream, _arun, _arun_stream as module functions
+            has_module_level_impl = hasattr(agent_run_module, "_run")
         except ImportError:
             agent_run_module = None
             has_module_level_impl = False
@@ -128,32 +129,32 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if has_module_level_impl and agent_run_module is not None:
             # New agno versions: wrap module-level implementation functions directly
             # These are where the actual work happens (LLM calls, tool calls, etc.)
-            self._original_run_method = getattr(agent_run_module, "run_impl", None)
+            self._original_run_method = getattr(agent_run_module, "_run", None)
             if self._original_run_method:
                 wrap_function_wrapper(
                     module=agent_run_module,
-                    name="run_impl",
+                    name="_run",
                     wrapper=run_wrapper.run,
                 )
-            self._original_run_stream_method = getattr(agent_run_module, "run_stream_impl", None)
+            self._original_run_stream_method = getattr(agent_run_module, "_run_stream", None)
             if self._original_run_stream_method:
                 wrap_function_wrapper(
                     module=agent_run_module,
-                    name="run_stream_impl",
+                    name="_run_stream",
                     wrapper=run_wrapper.run_stream,
                 )
-            self._original_arun_method = getattr(agent_run_module, "arun_impl", None)
+            self._original_arun_method = getattr(agent_run_module, "_arun", None)
             if self._original_arun_method:
                 wrap_function_wrapper(
                     module=agent_run_module,
-                    name="arun_impl",
+                    name="_arun",
                     wrapper=run_wrapper.arun,
                 )
-            self._original_arun_stream_method = getattr(agent_run_module, "arun_stream_impl", None)
+            self._original_arun_stream_method = getattr(agent_run_module, "_arun_stream", None)
             if self._original_arun_stream_method:
                 wrap_function_wrapper(
                     module=agent_run_module,
-                    name="arun_stream_impl",
+                    name="_arun_stream",
                     wrapper=run_wrapper.arun_stream,
                 )
         else:
@@ -454,16 +455,16 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
                 from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
 
                 if self._original_run_method is not None:
-                    agent_run_module.run_impl = self._original_run_method
+                    agent_run_module._run = self._original_run_method
                     self._original_run_method = None
                 if self._original_run_stream_method is not None:
-                    agent_run_module.run_stream_impl = self._original_run_stream_method
+                    agent_run_module._run_stream = self._original_run_stream_method
                     self._original_run_stream_method = None
                 if self._original_arun_method is not None:
-                    agent_run_module.arun_impl = self._original_arun_method
+                    agent_run_module._arun = self._original_arun_method
                     self._original_arun_method = None
                 if self._original_arun_stream_method is not None:
-                    agent_run_module.arun_stream_impl = self._original_arun_stream_method
+                    agent_run_module._arun_stream = self._original_arun_stream_method
                     self._original_arun_stream_method = None
             except ImportError:
                 pass
