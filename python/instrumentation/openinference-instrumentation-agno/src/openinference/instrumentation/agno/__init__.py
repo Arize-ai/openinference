@@ -102,7 +102,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
         # Try to import the new module-level _run module (new agno versions)
         try:
-            from agno.agent import _run as agent_run_module
+            from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
 
             has_module_level_impl = hasattr(agent_run_module, "run_impl")
         except ImportError:
@@ -190,7 +190,7 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         # Register wrapper for team
         # Try to import the new module-level _run module (new agno versions)
         try:
-            from agno.team import _run as team_run_module
+            from agno.team import _run as team_run_module  # type: ignore[attr-defined]
 
             has_team_module_level_impl = hasattr(team_run_module, "_run")
         except ImportError:
@@ -451,19 +451,19 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if getattr(self, "_using_module_level_wrapping", False):
             # New agno versions: restore module-level functions
             try:
-                from agno.agent import _run as agent_run_module
+                from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
 
                 if self._original_run_method is not None:
-                    agent_run_module.run_impl = self._original_run_method  # type: ignore[attr-defined]
+                    agent_run_module.run_impl = self._original_run_method
                     self._original_run_method = None
                 if self._original_run_stream_method is not None:
-                    agent_run_module.run_stream_impl = self._original_run_stream_method  # type: ignore[attr-defined]
+                    agent_run_module.run_stream_impl = self._original_run_stream_method
                     self._original_run_stream_method = None
                 if self._original_arun_method is not None:
-                    agent_run_module.arun_impl = self._original_arun_method  # type: ignore[attr-defined]
+                    agent_run_module.arun_impl = self._original_arun_method
                     self._original_arun_method = None
                 if self._original_arun_stream_method is not None:
-                    agent_run_module.arun_stream_impl = self._original_arun_stream_method  # type: ignore[attr-defined]
+                    agent_run_module.arun_stream_impl = self._original_arun_stream_method
                     self._original_arun_stream_method = None
             except ImportError:
                 pass
@@ -486,19 +486,19 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         if getattr(self, "_using_team_module_level_wrapping", False):
             # New agno versions: restore module-level functions
             try:
-                from agno.team import _run as team_run_module
+                from agno.team import _run as team_run_module  # type: ignore[attr-defined]
 
                 if self._original_team_run_method is not None:
-                    team_run_module._run = self._original_team_run_method  # type: ignore[attr-defined]
+                    team_run_module._run = self._original_team_run_method
                     self._original_team_run_method = None
                 if self._original_team_run_stream_method is not None:
-                    team_run_module._run_stream = self._original_team_run_stream_method  # type: ignore[attr-defined]
+                    team_run_module._run_stream = self._original_team_run_stream_method
                     self._original_team_run_stream_method = None
                 if self._original_team_arun_method is not None:
-                    team_run_module._arun = self._original_team_arun_method  # type: ignore[attr-defined]
+                    team_run_module._arun = self._original_team_arun_method
                     self._original_team_arun_method = None
                 if self._original_team_arun_stream_method is not None:
-                    team_run_module._arun_stream = self._original_team_arun_stream_method  # type: ignore[attr-defined]
+                    team_run_module._arun_stream = self._original_team_arun_stream_method
                     self._original_team_arun_stream_method = None
             except ImportError:
                 pass
