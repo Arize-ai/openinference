@@ -1,5 +1,5 @@
 # Requirements for CrewAI instrumentation examples
-crewai>=0.28.0
+crewai>=1.9.0
 openinference-instrumentation-crewai>=0.1.0
 opentelemetry-api>=1.20.0
 opentelemetry-sdk>=1.20.0

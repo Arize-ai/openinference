@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.25...python-openinference-semantic-conventions-v0.1.26) (2026-02-01)
+
+
+### Features
+
+* **semconv:** add prompt span kind and prompt template variables attributes ([#2669](https://github.com/Arize-ai/openinference/issues/2669)) ([cd5d2ff](https://github.com/Arize-ai/openinference/commit/cd5d2ff13ecbd50472f4097ac10994aee3245924))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.24...python-openinference-semantic-conventions-v0.1.25) (2025-11-05)
 
 

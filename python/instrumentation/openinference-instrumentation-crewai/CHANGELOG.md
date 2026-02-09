@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.17...python-openinference-instrumentation-crewai-v0.1.18) (2026-02-05)
+
+
+### Bug Fixes
+
+* **crewai:** Not Getting Tool Spans From Latest CrewAI ([#2665](https://github.com/Arize-ai/openinference/issues/2665)) ([d80846f](https://github.com/Arize-ai/openinference/commit/d80846f897d8427b4bd58ddf510414838e42649c))
+
 ## [0.1.17](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.16...python-openinference-instrumentation-crewai-v0.1.17) (2025-12-04)
 
 

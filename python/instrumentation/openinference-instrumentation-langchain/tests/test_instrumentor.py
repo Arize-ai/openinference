@@ -107,11 +107,11 @@ async def test_get_current_span(
             await asyncio.sleep(0.001)
             return get_current_span()
 
-        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))  # type: ignore[arg-type]
+        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))
     else:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(None, RunnableLambda(lambda _: get_current_span()).invoke, ...)
+                loop.run_in_executor(None, RunnableLambda(current_span_getter).invoke, 0)
                 for _ in range(n)
             )
         )
@@ -127,7 +127,7 @@ def test_get_current_span_when_there_is_no_tracer() -> None:
     instrumentor = LangChainInstrumentor()
     instrumentor.uninstrument()
     del instrumentor._tracer
-    assert RunnableLambda(lambda _: (get_current_span(), get_ancestor_spans())).invoke(0) == (
+    assert RunnableLambda(current_span_and_ancestors_getter).invoke(0) == (
         None,
         [],
     )
@@ -1186,6 +1186,16 @@ class MockByteStream(SyncByteStream, AsyncByteStream):
     async def __aiter__(self) -> AsyncIterator[bytes]:
         for byte_string in self._byte_stream:
             yield byte_string
+
+
+def current_span_getter(x: Any) -> Optional[Span]:
+    """Getter function that returns the current span."""
+    return get_current_span()
+
+
+def current_span_and_ancestors_getter(x: Any) -> Tuple[Optional[Span], List[Any]]:
+    """Getter function that returns the current span and ancestor spans."""
+    return (get_current_span(), get_ancestor_spans())
 
 
 LANGCHAIN_SESSION_ID = "session_id"

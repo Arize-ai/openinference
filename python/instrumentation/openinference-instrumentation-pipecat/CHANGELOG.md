@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.1...python-openinference-instrumentation-pipecat-v0.1.2) (2026-02-05)
+
+
+### Bug Fixes
+
+* **pipecat:** adding updates for tool calls ([#2661](https://github.com/Arize-ai/openinference/issues/2661)) ([06b3c5c](https://github.com/Arize-ai/openinference/commit/06b3c5cb85ceb06abbd8fd32d27d2fb01d036cc8))
+
 ## [0.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pipecat-v0.1.0...python-openinference-instrumentation-pipecat-v0.1.1) (2026-01-20)
 
 

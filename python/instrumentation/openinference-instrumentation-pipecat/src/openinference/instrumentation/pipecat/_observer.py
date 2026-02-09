@@ -4,25 +4,28 @@ import logging
 import time
 from contextvars import Token
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, Set, TextIO
 
 from opentelemetry import trace as trace_api
 from opentelemetry.context import Context
 from opentelemetry.trace import Span
 
 from openinference.instrumentation import OITracer, TraceConfig
+from openinference.instrumentation.helpers import safe_json_dumps
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 from pipecat.frames.frames import (
     Frame,
+    FunctionCallResultFrame,
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMTextFrame,
     MetricsFrame,
     StartFrame,
+    STTMuteFrame,
     TranscriptionFrame,
     TTSStartedFrame,
     TTSTextFrame,
@@ -117,7 +120,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
             except Exception as e:
                 logger.error(f"Could not open debug log file: {e}")
 
-        self._active_spans: Dict[int, Dict[str, Any]] = {}
+        self._active_spans: Dict[int | str, Dict[str, Any]] = {}
 
         # Track the last frame seen from each service to detect completion
         self._last_frames: Dict[int, Frame] = {}
@@ -132,6 +135,21 @@ class OpenInferenceObserver(TurnTrackingObserver):
         self._llm_includes_inter_frame_spaces: bool = False
         self._tts_includes_inter_frame_spaces: bool = False
         self._seen_vad_user_stopped_speaking_frame: bool = False
+
+        # Track completed tool calls to avoid duplicate spans
+        self._completed_tool_calls: Set[str] = set()
+
+        # Track the LLM span that triggered tool calls (for parent-child relationship)
+        # This stores (service_id, span_info) for LLM spans awaiting tool call completion
+        self._llm_span_awaiting_tool_calls: Optional[Dict[str, Any]] = None
+
+        # Track active TTS span service_id for efficient lookup
+        # Used to finish TTS span when non-TTS operations start
+        self._active_tts_service_id: Optional[int] = None
+
+        # Track active STT span service_id for efficient lookup
+        # Used to finish STT span when non-STT operations start
+        self._active_stt_service_id: Optional[int] = None
 
     def _log_debug(self, message: str) -> None:
         """Log debug message to file and logger."""
@@ -185,7 +203,20 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
             # STT
             elif isinstance(src, STTService):
-                if isinstance(
+                if isinstance(frame, STTMuteFrame):
+                    if frame.mute and self._active_stt_service_id is not None:
+                        # STT muted — finish the active STT span
+                        self._log_debug(
+                            f"  STTMuteFrame (mute=True) - "
+                            f"finishing active STT span {self._active_stt_service_id}"
+                        )
+                        self._finish_span(self._active_stt_service_id)
+                        self._active_stt_service_id = None
+                    elif not frame.mute:
+                        # STT unmuted — start a new STT span
+                        self._log_debug("  STTMuteFrame (mute=False) - starting new STT span")
+                        await self._handle_service_frame(data)
+                elif isinstance(
                     frame,
                     (
                         TranscriptionFrame,
@@ -208,6 +239,9 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     ),
                 ):
                     await self._handle_service_frame(data)
+
+                elif isinstance(frame, FunctionCallResultFrame):
+                    await self._handle_tool_frame(data)
 
             # LLM (destination)
             elif isinstance(dst, LLMService):
@@ -245,16 +279,39 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         if service_type in ("llm", "stt", "tts"):
             # only these frame types will start a span:
-            ## VADUserStartedSpeakingFrame (STT)
-            ## LLMFullResponseStartFrame (LLM)
+            ## LLMContextFrame (LLM)
+            ## STTMuteFrame [if mute:false] (STT)
             ## TTSStartedFrame (TTS)
+            ## VADUserStartedSpeakingFrame (STT)
 
             # New Span (or add to self._turn_bot_text)
             if service_id not in self._active_spans:
                 if isinstance(
                     frame,
-                    (VADUserStartedSpeakingFrame, LLMContextFrame, TTSStartedFrame),
+                    (LLMContextFrame, STTMuteFrame, TTSStartedFrame, VADUserStartedSpeakingFrame),
                 ):
+                    # For TTS: consecutive TTS operations are merged into one span.
+                    # When a NEW non-TTS span starts (LLM/STT), finish any active TTS span first.
+                    # This groups TTS that's part of the same response while separating
+                    # TTS that comes before/after other operations.
+                    if service_type != "tts" and self._active_tts_service_id is not None:
+                        self._log_debug(
+                            f"  Non-TTS span ({service_type}) starting - "
+                            f"finishing active TTS span {self._active_tts_service_id}"
+                        )
+                        self._finish_span(self._active_tts_service_id)
+                        self._active_tts_service_id = None
+
+                    # For STT: consecutive STT operations are merged into one span.
+                    # When a NEW non-STT span starts (LLM/TTS), finish any active STT span first.
+                    if service_type != "stt" and self._active_stt_service_id is not None:
+                        self._log_debug(
+                            f"  Non-STT span ({service_type}) starting - "
+                            f"finishing active STT span {self._active_stt_service_id}"
+                        )
+                        self._finish_span(self._active_stt_service_id)
+                        self._active_stt_service_id = None
+
                     self._log_debug(f"  {service_type.upper()} response STARTED. ({frame})")
                     self._log_debug(f"   >>>>  {service_type.upper()} response STARTED. ({frame})")
 
@@ -283,15 +340,47 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     span_info = self._active_spans[service_id]
                     span_info["frame_count"] += 1
 
+                    # Track active TTS/STT span for efficient lookup
+                    if service_type == "tts":
+                        self._active_tts_service_id = service_id
+                    elif service_type == "stt":
+                        self._active_stt_service_id = service_id
+
                     # Set input context for LLM Span
                     if isinstance(frame, LLMContextFrame):
+
+                        def set_tool_call_attributes(
+                            span: Span, prefix: str, tool_call: Dict[str, Any]
+                        ) -> None:
+                            """Set attributes for a tool call with tool_call. prefix."""
+                            # tool_call typically has: id, type, function.name, function.arguments
+                            if "id" in tool_call:
+                                span.set_attribute(f"{prefix}.tool_call.id", tool_call["id"])
+                            if "function" in tool_call and isinstance(tool_call["function"], dict):
+                                func = tool_call["function"]
+                                if "name" in func:
+                                    span.set_attribute(
+                                        f"{prefix}.tool_call.function.name",
+                                        func["name"],
+                                    )
+                                if "arguments" in func:
+                                    span.set_attribute(
+                                        f"{prefix}.tool_call.function.arguments",
+                                        func["arguments"],
+                                    )
+
                         index = 0
                         for ctx in frame.context.messages:
                             for key, value in ctx.items():  # type: ignore[union-attr]
-                                span.set_attribute(
-                                    f"llm.input_messages.{index}.message.{key}",
-                                    value,  # type: ignore[arg-type]
-                                )
+                                prefix = f"llm.input_messages.{index}.message.{key}"
+                                if key == "tool_calls" and isinstance(value, list):
+                                    # Handle tool_calls specially with tool_call. prefix
+                                    for tc_idx, tool_call in enumerate(value):
+                                        tc_prefix = f"llm.input_messages.{index}.message.tool_calls.{tc_idx}"  # noqa
+                                        if isinstance(tool_call, dict):
+                                            set_tool_call_attributes(span, tc_prefix, tool_call)
+                                else:
+                                    span.set_attribute(prefix, value)  # type: ignore[arg-type]
                             index += 1
 
                 # BaseOutputTransport's service_id isn't in self._active_spans but that's ok;
@@ -340,6 +429,24 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
                 # LLM
                 elif isinstance(frame, LLMFullResponseEndFrame):
+                    accumulated_output = span_info.get("accumulated_output", "").strip()
+                    if not accumulated_output:
+                        # No text output means this LLM call likely triggered tool calls
+                        # Store a reference to this span so tool calls can be parented under it
+                        self._log_debug(
+                            f"  LLM response ended with no text output - "
+                            f"storing span {service_id} as potential tool call parent"
+                        )
+                        self._llm_span_awaiting_tool_calls = {
+                            "service_id": service_id,
+                            "span": active_span,
+                        }
+                    else:
+                        # LLM produced text output, clear any awaiting tool call parent
+                        self._llm_span_awaiting_tool_calls = None
+                        self._log_debug(
+                            "  LLM response ended with output - clearing tool call parent"
+                        )
                     self._log_debug(f"  LLM response ended  Finish span for service {service_id}")
                     # Finish LLM Span
                     self._finish_span(service_id)
@@ -384,6 +491,170 @@ class OpenInferenceObserver(TurnTrackingObserver):
                             # Store processing time for use in _finish_span to calculate end_time
                             span_info["processing_time_seconds"] = value
                         active_span.set_attribute(key, value)
+
+    async def _handle_tool_frame(self, data: FramePushed) -> None:
+        """
+        Handle tool/function call frames.
+
+        Creates TOOL spans only from FunctionCallResultFrame to avoid duplicate spans
+        from multiple FunctionCallInProgressFrame events.
+
+        Args:
+            data: FramePushed event data
+        """
+        frame = data.frame
+        tool_call_id = getattr(frame, "tool_call_id", None)
+
+        if not tool_call_id:
+            self._log_debug(f"  Tool frame without tool_call_id: {frame}")
+            return
+
+        self._log_debug(f"TOOL FRAME: {frame.__class__.__name__}, tool_call_id: {tool_call_id}")
+
+        # Only create tool spans from FunctionCallResultFrame
+        # This ensures one span per completed tool call with all relevant info
+        if isinstance(frame, FunctionCallResultFrame):
+            # Check if we've already processed this tool call
+            if tool_call_id in self._completed_tool_calls:
+                self._log_debug(f"  Tool call {tool_call_id} already processed, skipping")
+                return
+
+            if tool_call_id in self._active_spans:
+                self._log_debug(f"  Tool span already exists for {tool_call_id}, skipping")
+                return
+
+            # If no turn is active yet, start one automatically
+            if not self._is_turn_active or self._turn_span is None:
+                self._log_debug(
+                    f"  No active turn - auto-starting turn for tool call {tool_call_id}"
+                )
+                await self._start_turn(data)
+
+            # Create new TOOL span
+            self._log_debug(f"  CREATING new TOOL SPAN for: {tool_call_id}")
+            span = self._create_tool_span(frame)
+
+            # Extract attributes from the frame
+            frame_attrs = extract_attributes_from_frame(frame)
+
+            # Get arguments and result directly from frame
+            arguments = getattr(frame, "arguments", None)
+            result = getattr(frame, "result", None)
+
+            self._log_debug(f"  tool_call frame.result = {result}")
+            self._log_debug(
+                f"  tool_call safe_json_dumps(arguments) = {safe_json_dumps(arguments)}"
+            )
+
+            self._active_spans[tool_call_id] = {
+                "span": span,
+                "service_type": "tool",
+                "frame_count": 1,
+                "accumulated_input": safe_json_dumps(arguments) if arguments else "",
+                "accumulated_output": (safe_json_dumps(result) if result is not None else ""),
+                "start_time_ns": time.time_ns(),
+                "processing_time_seconds": None,
+            }
+
+            # Set attributes on span
+            for key, value in frame_attrs.items():
+                span.set_attribute(key, value)
+
+            self._log_debug(f"  Tool call completed, finishing span for {tool_call_id}")
+            self._finish_tool_span(tool_call_id)
+
+            # Mark this tool call as completed to prevent duplicate spans
+            self._completed_tool_calls.add(tool_call_id)
+
+    def _create_tool_span(self, frame: Frame) -> Span:
+        """
+        Create a TOOL span for a function call.
+
+        Tool spans are created as children of the LLM span that triggered them
+        (if available), otherwise as children of the turn span.
+
+        Args:
+            frame: The function call frame
+
+        Returns:
+            The created span
+        """
+        function_name = getattr(frame, "function_name", "unknown_tool")
+        span_name = f"pipecat.tool.{function_name}"
+        self._log_debug(f">>> Creating tool span: {span_name}")
+
+        # Prefer to create tool span under the LLM span that triggered it
+        if self._llm_span_awaiting_tool_calls:
+            parent_span = self._llm_span_awaiting_tool_calls["span"]
+            parent_context = trace_api.set_span_in_context(parent_span)
+            span = self._tracer.start_span(
+                name=span_name,
+                context=parent_context,
+            )
+            self._log_debug(
+                f"  Created tool span under LLM span "
+                f"{self._llm_span_awaiting_tool_calls['service_id']}"
+            )
+        elif self._turn_span and self._is_turn_active:
+            # Fall back to turn span if no LLM span is awaiting tool calls
+            turn_context = trace_api.set_span_in_context(self._turn_span)
+            span = self._tracer.start_span(
+                name=span_name,
+                context=turn_context,
+            )
+            self._log_debug(f"  Created tool span under turn #{self._turn_count}")
+        else:
+            self._log_debug("  WARNING: No active turn! Creating root span for tool")
+            span = self._tracer.start_span(name=span_name)
+
+        # Set OpenInference span kind to TOOL
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.TOOL.value,
+        )
+        span.set_attribute(SpanAttributes.TOOL_NAME, function_name)
+
+        return span
+
+    def _finish_tool_span(self, tool_call_id: str) -> None:
+        """
+        Finish a tool span.
+
+        Args:
+            tool_call_id: The tool call ID identifying the span
+        """
+        if tool_call_id not in self._active_spans:
+            return
+
+        self._log_debug(f"Finishing tool span for: {tool_call_id}")
+
+        span_info = self._active_spans.pop(tool_call_id)
+        span: Span = span_info["span"]
+        start_time_ns = span_info["start_time_ns"]
+
+        # Calculate end time
+        processing_time_seconds = span_info.get("processing_time_seconds")
+        if processing_time_seconds is not None:
+            end_time_ns = start_time_ns + int(processing_time_seconds * 1_000_000_000)
+        else:
+            end_time_ns = time.time_ns()
+
+        # Set accumulated input/output
+        accumulated_input = span_info.get("accumulated_input", "")
+        accumulated_output = span_info.get("accumulated_output", "")
+        service_type = span_info.get("service_type", "")
+
+        if accumulated_input:
+            span.set_attribute(SpanAttributes.INPUT_VALUE, accumulated_input)
+            # For tool spans, also set tool.parameters for Phoenix/Arize UI
+            if service_type == "tool":
+                span.set_attribute(SpanAttributes.TOOL_PARAMETERS, accumulated_input)
+
+        if accumulated_output:
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, accumulated_output)
+
+        span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+        span.end(end_time=int(end_time_ns))
 
     def _create_service_span(
         self,
@@ -430,12 +701,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
 
         return span
 
-    def _finish_span(self, service_id: int) -> None:
+    def _finish_span(self, service_id: int | str) -> None:
         """
         Finish a span for a service.
 
         Args:
-            service_id: The id() of the service instance
+            service_id: The id() of the service instance, or tool_call_id for tool spans
         """
         if service_id not in self._active_spans:
             return
@@ -446,6 +717,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
         span: Span = span_info["span"]
         start_time_ns = span_info["start_time_ns"]
         service_type = span_info.get("service_type")
+
+        # Clear TTS/STT tracking if finishing their span
+        if service_type == "tts" and self._active_tts_service_id == service_id:
+            self._active_tts_service_id = None
+        elif service_type == "stt" and self._active_stt_service_id == service_id:
+            self._active_stt_service_id = None
 
         # Calculate end time (use processing time if available, otherwise use current time)
         processing_time_seconds = span_info.get("processing_time_seconds")
@@ -599,3 +876,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         # self._is_turn_active = False # let super handle this
         self._turn_span = None
         self._turn_context_token = None
+        self._completed_tool_calls.clear()
+        self._llm_span_awaiting_tool_calls = None
+        self._active_tts_service_id = None
+        self._active_stt_service_id = None
