@@ -22,6 +22,7 @@ async def run():
     agent_alias_id = "<AgentAliasId>"
     session_id = f"default-session1_{int(time.time())}"
     import aioboto3
+
     session = aioboto3.session.Session(
         region_name="us-east-1",
     )

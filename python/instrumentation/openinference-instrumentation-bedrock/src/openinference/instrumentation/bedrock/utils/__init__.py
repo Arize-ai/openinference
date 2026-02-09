@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, ContextManager, Iterator, Mapping, Optional, cast, AsyncIterator
+from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, Mapping, Optional, cast
 
 import wrapt
 from botocore.eventstream import EventStream
@@ -21,13 +21,18 @@ from openinference.semconv.trace import (
 
 class _AsyncIterator:
     def __init__(
-            self,
-            iterable: AsyncIterator[Any],
-            callback: Optional[_CallbackT[_AnyT]] = None,
-            context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
+        self,
+        iterable: AsyncIterator[Any],
+        callback: Optional[_CallbackT[_AnyT]] = None,
+        context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         self._iterator = iterable
-        self._callback = callback
+        # Ensure we always have a callable callback.
+        if callback is None:
+            self._callback: Callable[[Any], Any] = lambda _value: None
+        else:
+            # cast to a generic Callable that accepts Any to avoid type incompatibilities
+            self._callback = cast(Callable[[Any], Any], callback)
         self._context_manager_factory = context_manager_factory
         self._context_manager: Optional[Any] = None
         self._finished = False
@@ -52,6 +57,7 @@ class _AsyncIterator:
             if self._context_manager is not None:
                 self._context_manager.__exit__(None, None, None)
                 self._context_manager = None
+            # callback is always callable (no-op fallback), so safe to call with the exception
             self._callback(e)
             raise
         except Exception as e:
@@ -73,7 +79,7 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(obj)
         self._self_callback = callback
         self._self_context_manager_factory = context_manager_factory
-        self._self_is_async = hasattr(obj, '__aiter__')
+        self._self_is_async = hasattr(obj, "__aiter__")
 
     def __iter__(self) -> Iterator[Any]:
         return _Iterator(
@@ -84,9 +90,7 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
 
     def __aiter__(self) -> AsyncIterator[Any]:
         if not self._self_is_async:
-            raise TypeError(
-                "This is a sync stream. Use 'for' instead of 'async for'."
-            )
+            raise TypeError("This is a sync stream. Use 'for' instead of 'async for'.")
         return _AsyncIterator(
             self.__wrapped__.__aiter__(),
             self._self_callback,
