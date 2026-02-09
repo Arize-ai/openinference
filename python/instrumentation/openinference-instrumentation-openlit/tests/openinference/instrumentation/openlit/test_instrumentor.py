@@ -113,7 +113,7 @@ class TestOpenLitInstrumentor:
 
         # Initialize OpenLit with the tracer
         openlit.init(
-            tracer=tracer,
+            otel_tracer=tracer,
             otlp_endpoint=None,
         )
 
