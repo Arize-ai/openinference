@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Mapping, cast
+from typing import Any, Dict, Mapping, Optional, cast
 
 import openlit  # type: ignore[import-untyped]
 import pytest
@@ -15,7 +15,14 @@ from semantic_kernel.functions import KernelArguments
 from openinference.instrumentation.openlit import (
     OpenInferenceSpanProcessor,
 )
-from openinference.semconv.trace import SpanAttributes
+from openinference.instrumentation.openlit._span_processor import (
+    _extract_llm_provider_and_system,
+)
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+    SpanAttributes,
+)
 
 
 @pytest.fixture
@@ -168,6 +175,10 @@ class TestOpenLitInstrumentor:
             assert model_name_attr is not None, "Model name attribute not found"
             assert "gpt-4" in str(attributes[model_name_attr])
 
+            # LLM identity
+            assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4"
+            assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+
     def test_openinference_span_processor_creation(self) -> None:
         """Test that the OpenInference span processor can be created and used."""
         # Create the span processor
@@ -183,3 +194,90 @@ class TestOpenLitInstrumentor:
         tracer_provider.add_span_processor(span_processor)
 
         assert True
+
+
+def _set_span_attributes(
+    *,
+    provider: Any = None,
+    system: Any = None,
+) -> Dict[str, Any]:
+    attrs: Dict[str, Any] = {}
+    attrs["gen_ai.llm.provider"] = provider
+    attrs["gen_ai.system"] = system
+    return attrs
+
+
+@pytest.mark.parametrize(
+    "attrs, expected_provider, expected_system",
+    [
+        # OpenAI system only
+        (
+            _set_span_attributes(system="openai"),
+            None,
+            OpenInferenceLLMSystemValues.OPENAI.value,
+        ),
+        # Anthropic system only
+        (
+            _set_span_attributes(system="Anthropic"),
+            None,
+            OpenInferenceLLMSystemValues.ANTHROPIC.value,
+        ),
+        # Mistral system only
+        (
+            _set_span_attributes(system="MISTRALAI"),
+            None,
+            OpenInferenceLLMSystemValues.MISTRALAI.value,
+        ),
+        # Vertex AI system only
+        (
+            _set_span_attributes(system="VertexAI"),
+            None,
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        # Google Generative AI (provider present)
+        (
+            _set_span_attributes(provider="Google", system="VertexAI"),
+            OpenInferenceLLMProviderValues.GOOGLE.value,
+            OpenInferenceLLMSystemValues.VERTEXAI.value,
+        ),
+        # Valid provider, Invalid system
+        (
+            _set_span_attributes(provider="OpenAI", system="Langchain"),
+            OpenInferenceLLMProviderValues.OPENAI.value,
+            None,
+        ),
+        # Invalid provider, Valid system
+        (
+            _set_span_attributes(provider="CrewAI", system="OpenAI"),
+            None,
+            OpenInferenceLLMSystemValues.OPENAI.value,
+        ),
+        # Both invalid values
+        (
+            _set_span_attributes(provider="HuggingFace", system="HuggingFace"),
+            None,
+            None,
+        ),
+        # Explicit None values
+        (
+            _set_span_attributes(provider=None, system=None),
+            None,
+            None,
+        ),
+        # Empty span attributes
+        (
+            {},
+            None,
+            None,
+        ),
+    ],
+)
+def test_extract_llm_provider_and_system(
+    attrs: Dict[str, Any],
+    expected_provider: Optional[str],
+    expected_system: Optional[str],
+) -> None:
+    provider, system = _extract_llm_provider_and_system(attrs)
+
+    assert provider == expected_provider
+    assert system == expected_system

@@ -1,7 +1,7 @@
 import ast
 import json
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 
@@ -277,12 +277,17 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         token_count["total"] = total_tokens
 
     invocation_params = find_invocation_parameters(attrs)
+    provider_val, system_val = _extract_llm_provider_and_system(attrs)
 
     oi_attrs = {
         **get_llm_attributes(
-            provider=attrs.get("gen_ai.system", "").lower(),
-            system=attrs.get("gen_ai.system", "").lower(),
-            model_name=attrs.get("gen_ai.request.model") or attrs.get("gen_ai.response.model"),
+            provider=provider_val,
+            system=system_val,
+            model_name=(
+                attrs.get("gen_ai.llm.model")
+                or attrs.get("gen_ai.request.model")
+                or attrs.get("gen_ai.response.model")
+            ),
             input_messages=input_msgs,
             output_messages=output_msgs,
             token_count=token_count,
@@ -306,3 +311,18 @@ def _get_llm_attributes(span: ReadableSpan) -> dict[str, Any]:
         **get_span_kind_attributes("llm"),
     }
     return oi_attrs
+
+
+def _extract_llm_provider_and_system(
+    attrs: Dict[str, Any],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract validated OpenInference LLM provider and system values from span attributes."""
+    provider_val: Optional[str] = str(attrs.get("gen_ai.llm.provider", "unknown")).lower()
+    if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
+        provider_val = None
+
+    system_val: Optional[str] = str(attrs.get("gen_ai.system", "unknown")).lower()
+    if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
+        system_val = None
+
+    return provider_val, system_val
