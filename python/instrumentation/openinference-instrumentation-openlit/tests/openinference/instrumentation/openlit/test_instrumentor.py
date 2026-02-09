@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 import sys
 from typing import Any, Mapping, cast
@@ -16,6 +18,16 @@ from openinference.instrumentation.openlit import (
     OpenInferenceSpanProcessor,
 )
 from openinference.semconv.trace import SpanAttributes
+
+# Enable detailed logging for debugging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Set OpenLit logger to DEBUG
+openlit_logger = logging.getLogger('openlit')
+openlit_logger.setLevel(logging.DEBUG)
 
 
 @pytest.fixture
@@ -111,11 +123,23 @@ class TestOpenLitInstrumentor:
 
         tracer = tracer_provider.get_tracer(__name__)
 
-        # Initialize OpenLit with the tracer
-        openlit.init(
-            otel_tracer=tracer,
-            otlp_endpoint=None,
-        )
+        # Set the tracer provider globally before OpenLit init
+        from opentelemetry import trace
+        trace.set_tracer_provider(tracer_provider)
+
+        try:
+            openlit.init(
+                otel_tracer=tracer,
+                otlp_endpoint=None,
+                disable_batch=True,  # Disable batch processing to avoid async issues
+            )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
+
+        # Give async operations time to complete
+        await asyncio.sleep(0.2)
 
         # Set up Semantic Kernel
         kernel = Kernel()
