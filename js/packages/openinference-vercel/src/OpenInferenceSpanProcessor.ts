@@ -1,4 +1,4 @@
-import { Context, SpanStatusCode } from "@opentelemetry/api";
+import { Context } from "@opentelemetry/api";
 import {
   BatchSpanProcessor,
   BufferConfig,
@@ -8,85 +8,9 @@ import {
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 
+import { TraceAggregateManager } from "./TraceAggregateManager";
 import { SpanFilter } from "./types";
-import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
-
-type TraceAggregate = {
-  activeSpans: number;
-  hadError: boolean;
-  firstErrorMessage?: string;
-};
-
-const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
-  const attrs = span.attributes as Record<string, unknown> | undefined;
-  const opName = attrs?.["operation.name"];
-  const opId = attrs?.["ai.operationId"];
-
-  if (typeof opName === "string" && opName.startsWith("ai.")) return true;
-  if (typeof opId === "string" && opId.startsWith("ai.")) return true;
-
-  // gen_ai.* indicates AI SDK v6+ GenAI spans
-  return (
-    attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai."))
-  );
-};
-
-const spanHasErrorSignal = (
-  span: ReadableSpan,
-): { error: boolean; message?: string } => {
-  if (span.status.code === SpanStatusCode.ERROR) {
-    return { error: true, message: span.status.message };
-  }
-
-  const attrs = span.attributes as Record<string, unknown>;
-  const finishReason = attrs["ai.response.finishReason"];
-  if (finishReason === "error") {
-    return { error: true, message: "ai.response.finishReason=error" };
-  }
-
-  const genFinishReasons = attrs["gen_ai.response.finish_reasons"];
-  if (Array.isArray(genFinishReasons) && genFinishReasons.includes("error")) {
-    return {
-      error: true,
-      message: "gen_ai.response.finish_reasons includes error",
-    };
-  }
-
-  const hasExceptionEvent = span.events?.some((e) => e.name === "exception");
-  if (hasExceptionEvent) {
-    return { error: true, message: "exception" };
-  }
-
-  return { error: false };
-};
-
-const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
-  // Only set status on the root span, and only when it's currently UNSET.
-  if (span.parentSpanId != null) return;
-  if (!isLikelyAISDKSpan(span)) return;
-  if (span.status.code !== SpanStatusCode.UNSET) return;
-
-  // ReadableSpan is typed as readonly; runtime Span objects are mutable.
-  (
-    span as unknown as { status: { code: SpanStatusCode; message?: string } }
-  ).status = agg.hadError
-    ? { code: SpanStatusCode.ERROR, message: agg.firstErrorMessage }
-    : { code: SpanStatusCode.OK };
-};
-
-const maybeRenameRootSpan = (span: ReadableSpan): void => {
-  if (span.parentSpanId != null) return;
-  if (!isLikelyAISDKSpan(span)) return;
-
-  const attrs = span.attributes as Record<string, unknown>;
-  const operationName = attrs["operation.name"];
-  if (typeof operationName !== "string" || operationName.length === 0) return;
-  if (span.name === operationName) return;
-
-  // NOTE: Span.updateName() refuses to update after end(); by the time span processors
-  // run, spans are already ended. Assign directly.
-  (span as unknown as { name: string }).name = operationName;
-};
+import { shouldExportSpan } from "./utils";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -116,7 +40,8 @@ const maybeRenameRootSpan = (span: ReadableSpan): void => {
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
-  private readonly traceAggregates = new Map<string, TraceAggregate>();
+  private readonly aggregateManager = new TraceAggregateManager();
+
   constructor({
     exporter,
     spanFilter,
@@ -137,44 +62,12 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   }
 
   onStart(span: Span, parentContext: Context): void {
-    const traceId = span.spanContext().traceId;
-    const agg = this.traceAggregates.get(traceId);
-    if (agg) {
-      agg.activeSpans += 1;
-    } else {
-      this.traceAggregates.set(traceId, { activeSpans: 1, hadError: false });
-    }
+    this.aggregateManager.onStart(span);
     super.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
-
-    const traceId = span.spanContext().traceId;
-    const agg =
-      this.traceAggregates.get(traceId) ??
-      ({ activeSpans: 0, hadError: false } satisfies TraceAggregate);
-
-    const { error, message } = spanHasErrorSignal(span);
-    if (error) {
-      agg.hadError = true;
-      if (agg.firstErrorMessage == null && message != null) {
-        agg.firstErrorMessage = message;
-      }
-    }
-
-    maybeRenameRootSpan(span);
-    maybeSetRootStatus(span, agg);
-
-    // Decrement active span count and cleanup when the trace completes.
-    if (this.traceAggregates.has(traceId)) {
-      agg.activeSpans = Math.max(0, agg.activeSpans - 1);
-      if (agg.activeSpans === 0) {
-        this.traceAggregates.delete(traceId);
-      } else {
-        this.traceAggregates.set(traceId, agg);
-      }
-    }
+    this.aggregateManager.onEnd(span);
 
     if (
       shouldExportSpan({
@@ -184,6 +77,16 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     ) {
       super.onEnd(span);
     }
+  }
+
+  async shutdown(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.shutdown();
+  }
+
+  async forceFlush(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.forceFlush();
   }
 }
 
@@ -216,7 +119,8 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  */
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
-  private readonly traceAggregates = new Map<string, TraceAggregate>();
+  private readonly aggregateManager = new TraceAggregateManager();
+
   constructor({
     exporter,
     spanFilter,
@@ -239,52 +143,13 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     this.spanFilter = spanFilter;
   }
 
-  forceFlush(): Promise<void> {
-    return super.forceFlush();
-  }
-
-  shutdown(): Promise<void> {
-    return super.shutdown();
-  }
-
-  onStart(_span: Span, _parentContext: Context): void {
-    const traceId = _span.spanContext().traceId;
-    const agg = this.traceAggregates.get(traceId);
-    if (agg) {
-      agg.activeSpans += 1;
-    } else {
-      this.traceAggregates.set(traceId, { activeSpans: 1, hadError: false });
-    }
-    return super.onStart(_span, _parentContext);
+  onStart(span: Span, parentContext: Context): void {
+    this.aggregateManager.onStart(span);
+    return super.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
-
-    const traceId = span.spanContext().traceId;
-    const agg =
-      this.traceAggregates.get(traceId) ??
-      ({ activeSpans: 0, hadError: false } satisfies TraceAggregate);
-
-    const { error, message } = spanHasErrorSignal(span);
-    if (error) {
-      agg.hadError = true;
-      if (agg.firstErrorMessage == null && message != null) {
-        agg.firstErrorMessage = message;
-      }
-    }
-
-    maybeRenameRootSpan(span);
-    maybeSetRootStatus(span, agg);
-
-    if (this.traceAggregates.has(traceId)) {
-      agg.activeSpans = Math.max(0, agg.activeSpans - 1);
-      if (agg.activeSpans === 0) {
-        this.traceAggregates.delete(traceId);
-      } else {
-        this.traceAggregates.set(traceId, agg);
-      }
-    }
+    this.aggregateManager.onEnd(span);
 
     if (
       shouldExportSpan({
@@ -294,5 +159,15 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     ) {
       super.onEnd(span);
     }
+  }
+
+  async shutdown(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.shutdown();
+  }
+
+  async forceFlush(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.forceFlush();
   }
 }

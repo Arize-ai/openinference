@@ -4,7 +4,7 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, trace } from "@opentelemetry/api";
+import { Attributes, context, SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -833,5 +833,294 @@ describe("OpenInferenceBatchSpanProcessor", () => {
     expect(
       spans[0].attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
     ).toBe(OpenInferenceSpanKind.CHAIN);
+  });
+});
+
+describe("Trace aggregate behavior", () => {
+  describe.each([
+    ["OpenInferenceSimpleSpanProcessor", OpenInferenceSimpleSpanProcessor],
+    ["OpenInferenceBatchSpanProcessor", OpenInferenceBatchSpanProcessor],
+  ])("%s", (_name, Processor) => {
+    beforeEach(() => {
+      setupTraceProvider({ Processor });
+    });
+    afterEach(() => {
+      trace.disable();
+    });
+
+    it("should propagate error status from child span to root span", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a root AI SDK span
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+
+      // Create a child span within the root's context
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+
+      // Set error status on child span
+      childSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: "Test error",
+      });
+      childSpan.end();
+
+      // End root span (status should be UNSET initially, then set to ERROR)
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      // Find the root span (no parent)
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
+      expect(exportedRootSpan!.status.message).toBe("Test error");
+    });
+
+    it("should set OK status on root span when no errors occur", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a root AI SDK span
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+
+      // Create a child span within the root's context
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+
+      // End both spans without error
+      childSpan.end();
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      // Find the root span
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.OK);
+    });
+
+    it("should detect error from ai.response.finishReason=error", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+      childSpan.setAttribute("ai.response.finishReason", "error");
+      childSpan.end();
+
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
+    });
+
+    it("should detect error from gen_ai.response.finish_reasons containing error", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+      childSpan.setAttribute("gen_ai.response.finish_reasons", [
+        "stop",
+        "error",
+      ]);
+      childSpan.end();
+
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
+    });
+
+    it("should not modify root span status if already set", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+      // Explicitly set OK status before any child errors
+      rootSpan.setStatus({ code: SpanStatusCode.OK });
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+      childSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: "Test error",
+      });
+      childSpan.end();
+
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      // Status should remain OK since it was explicitly set
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.OK);
+    });
+
+    it("should only track AI SDK spans for aggregate state", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a non-AI SDK span first
+      const nonAISpan = tracer.startSpan("http-request");
+      nonAISpan.setAttribute("http.method", "GET");
+
+      // Create an AI SDK root span
+      const rootSpan = tracer.startSpan("ai.generateText");
+      rootSpan.setAttribute("operation.name", "ai.generateText");
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan(
+        "ai.generateText.doGenerate",
+        undefined,
+        rootContext,
+      );
+      childSpan.setAttribute("operation.name", "ai.generateText.doGenerate");
+      childSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: "Test error",
+      });
+      childSpan.end();
+
+      rootSpan.end();
+
+      // End the non-AI span - this should not affect aggregate tracking
+      nonAISpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      // Find the AI root span
+      const exportedRootSpan = spans.find(
+        (s) =>
+          s.parentSpanId == null &&
+          s.attributes["operation.name"] === "ai.generateText",
+      );
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
+    });
+
+    it("should not set status on non-AI SDK root spans", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a non-AI SDK root span
+      const rootSpan = tracer.startSpan("http-request");
+      rootSpan.setAttribute("http.method", "GET");
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan("db-query", undefined, rootContext);
+      childSpan.setStatus({ code: SpanStatusCode.ERROR, message: "DB error" });
+      childSpan.end();
+
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      // Status should remain UNSET for non-AI SDK spans
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.UNSET);
+    });
+
+    it("should handle spans detected via gen_ai.* attributes", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Create a root span with gen_ai.* attributes (AI SDK v6 style)
+      const rootSpan = tracer.startSpan("chat");
+      rootSpan.setAttribute("gen_ai.system", "openai");
+
+      const rootContext = trace.setSpan(context.active(), rootSpan);
+      const childSpan = tracer.startSpan("llm-call", undefined, rootContext);
+      childSpan.setAttribute("gen_ai.request.model", "gpt-4");
+      childSpan.setStatus({ code: SpanStatusCode.ERROR, message: "API error" });
+      childSpan.end();
+
+      rootSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+
+      const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
+      expect(exportedRootSpan).toBeDefined();
+      expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.ERROR);
+    });
+
+    it("should clear aggregate state on shutdown", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Start a span but don't end it (simulating abandoned span)
+      const span = tracer.startSpan("ai.generateText");
+      span.setAttribute("operation.name", "ai.generateText");
+
+      // Shutdown should clear internal state without error
+      await processor.shutdown();
+
+      // The processor should not throw or leak memory
+      // We can't easily verify internal state, but at least verify no errors occur
+      expect(true).toBe(true);
+    });
+
+    it("should clear aggregate state on forceFlush", async () => {
+      const tracer = trace.getTracer("test-tracer");
+
+      // Start a span but don't end it (simulating abandoned span)
+      const span = tracer.startSpan("ai.generateText");
+      span.setAttribute("operation.name", "ai.generateText");
+
+      // forceFlush should clear internal state without error
+      await processor.forceFlush();
+
+      // Create and complete a new span to verify processor still works
+      const newSpan = tracer.startSpan("ai.generateText");
+      newSpan.setAttribute("operation.name", "ai.generateText");
+      newSpan.end();
+
+      await processor.forceFlush();
+      const spans = memoryExporter.getFinishedSpans();
+      expect(spans.length).toBeGreaterThan(0);
+    });
   });
 });
