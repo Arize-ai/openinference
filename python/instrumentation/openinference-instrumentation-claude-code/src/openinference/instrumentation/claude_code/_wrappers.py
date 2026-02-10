@@ -374,7 +374,9 @@ class _QueryWrapper:
                                     tool_name=tool_use["name"],
                                     parent_span=query_span,
                                 )
-                                logger.debug("Started tool span for %s: %s", tool_use["name"], tool_span)
+                                logger.debug(
+                                    "Started tool span for %s: %s", tool_use["name"], tool_span
+                                )
                                 tool_span.set_attribute(
                                     SpanAttributes.TOOL_PARAMETERS,
                                     str(tool_use["input"]),
@@ -411,7 +413,9 @@ class _QueryWrapper:
                                     tool_name=tool_use["name"],
                                     parent_span=parent,
                                 )
-                                logger.debug("Started tool span for %s: %s", tool_use["name"], tool_span)
+                                logger.debug(
+                                    "Started tool span for %s: %s", tool_use["name"], tool_span
+                                )
                                 # Set tool parameters
                                 tool_span.set_attribute(
                                     SpanAttributes.TOOL_PARAMETERS,
@@ -463,7 +467,11 @@ class _QueryWrapper:
 
                     yield message
 
-                logger.debug("Finished processing %d messages, ending %d tool spans", message_count, len(tool_spans))
+                logger.debug(
+                    "Finished processing %d messages, ending %d tool spans",
+                    message_count,
+                    len(tool_spans),
+                )
 
                 # Set LLM output messages on span - create separate entries for each message
                 if output_messages:

@@ -77,6 +77,7 @@ class ClaudeCodeInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         # Unwrap query function
         import claude_agent_sdk
+
         if hasattr(claude_agent_sdk.query, "__wrapped__"):
             claude_agent_sdk.query = claude_agent_sdk.query.__wrapped__
 

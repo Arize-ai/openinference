@@ -26,11 +26,13 @@ def extract_tool_uses(message: AssistantMessage) -> List[Dict[str, Any]]:
     tool_uses = []
     for block in message.content:
         if isinstance(block, ToolUseBlock):
-            tool_uses.append({
-                "id": block.id,
-                "name": block.name,
-                "input": block.input,
-            })
+            tool_uses.append(
+                {
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                }
+            )
 
     return tool_uses
 
