@@ -99,9 +99,6 @@ class TestOpenLitInstrumentor:
         filter_headers=["authorization"],
     )
     @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        sys.version_info < (3, 10), reason="semantic-kernel>=1.0.0 requires Python>=3.10"
-    )
     async def test_openlit_instrumentor(
         self,
         openai_api_key: None,
@@ -142,9 +139,7 @@ class TestOpenLitInstrumentor:
             pytest.skip(
                 "OpenLIT has a known bug in the current version: "
                 "'return' with value in async generator (async_agno.py, line 783). "
-                "This prevents proper instrumentation. "
-                "Fix: Pin to openlit<1.27.0 or wait for OpenLIT to release a fix. "
-                "See: https://github.com/openlit/openlit/pull/959"
+                "Track Reported Issue: https://github.com/openlit/openlit/issues/997"
             )
 
         # Set up Semantic Kernel
