@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 from typing import Any, Dict, Mapping, Optional, cast
 
 import openlit  # type: ignore[import-untyped]
