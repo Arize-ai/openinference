@@ -93,6 +93,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         # Instrument beta.messages.parse() if available (sync)
+        self._original_beta_messages_parse = None
+        self._original_async_beta_messages_parse = None
         try:
             from anthropic.resources.beta.messages import Messages as BetaMessages
 
