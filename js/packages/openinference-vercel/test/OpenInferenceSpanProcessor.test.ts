@@ -402,6 +402,217 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
         },
       },
     ],
+    // Tool result messages (role: "tool") - AI SDK v6 format with output
+    [
+      `${VercelAISemanticConventions.PROMPT_MESSAGES} to ${SemanticConventions.LLM_INPUT_MESSAGES} (tool results with output)`,
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT_MESSAGES]: JSON.stringify([
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "test-tool-call-id",
+                  toolName: "weather",
+                  output: { location: "Boston", temperature: 72 },
+                },
+              ],
+            },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "test-tool-call-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
+            "weather",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ location: "Boston", temperature: 72 }),
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    // Tool result messages with string output
+    [
+      `${VercelAISemanticConventions.PROMPT_MESSAGES} to ${SemanticConventions.LLM_INPUT_MESSAGES} (tool results with string output)`,
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT_MESSAGES]: JSON.stringify([
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "calc-tool-id",
+                  toolName: "calculator",
+                  output: "2503",
+                },
+              ],
+            },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "calc-tool-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
+            "calculator",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "2503",
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    // Legacy tool result format with 'result' property
+    [
+      `${VercelAISemanticConventions.PROMPT_MESSAGES} to ${SemanticConventions.LLM_INPUT_MESSAGES} (tool results with legacy result property)`,
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT_MESSAGES]: JSON.stringify([
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "legacy-tool-id",
+                  toolName: "legacyTool",
+                  result: { data: "legacy result" },
+                },
+              ],
+            },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "legacy-tool-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
+            "legacyTool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ data: "legacy result" }),
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    // Multiple tool result messages (separate messages for each tool result)
+    [
+      `${VercelAISemanticConventions.PROMPT_MESSAGES} to ${SemanticConventions.LLM_INPUT_MESSAGES} (multiple tool result messages)`,
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT_MESSAGES]: JSON.stringify([
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "weather-call-id",
+                  toolName: "weather",
+                  output: { location: "Boston", temperature: 72 },
+                },
+              ],
+            },
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "calculator-call-id",
+                  toolName: "calculator",
+                  output: { expression: "100 * 25 + 3", value: 2503 },
+                },
+              ],
+            },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          // First tool result message
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "weather-call-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
+            "weather",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ location: "Boston", temperature: 72 }),
+          // Second tool result message
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "calculator-call-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.TOOL_NAME}`]:
+            "calculator",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
+    // Multiple tool results within a single Vercel message get expanded into separate OpenInference messages
+    // Per OpenInference spec, each tool result should be a separate message with:
+    // - message.role: "tool"
+    // - message.content: the result content
+    // - message.tool_call_id: linking back to the original tool call
+    [
+      `${VercelAISemanticConventions.PROMPT_MESSAGES} to ${SemanticConventions.LLM_INPUT_MESSAGES} (multiple tool results expanded to separate messages)`,
+      {
+        vercelFunctionName: "ai.generateText.doGenerate",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT_MESSAGES]: JSON.stringify([
+            {
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolCallId: "weather-call-id",
+                  toolName: "weather",
+                  output: { location: "Boston", temperature: 72 },
+                },
+                {
+                  type: "tool-result",
+                  toolCallId: "calculator-call-id",
+                  toolName: "calculator",
+                  output: { expression: "100 * 25 + 3", value: 2503 },
+                },
+              ],
+            },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          // First tool result becomes message index 0
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ location: "Boston", temperature: 72 }),
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "weather-call-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
+            "weather",
+          // Second tool result becomes message index 1
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
+            "tool",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
+            JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+            "calculator-call-id",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.TOOL_NAME}`]:
+            "calculator",
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.LLM,
+        },
+      },
+    ],
   );
 
   // Response tool calls to output messages

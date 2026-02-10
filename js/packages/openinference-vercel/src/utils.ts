@@ -266,53 +266,82 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
     return null;
   }
 
-  return messages.reduce((acc: Attributes, message, index) => {
-    const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}`;
+  // Track the output message index separately since tool messages with multiple results
+  // get expanded into multiple OpenInference messages
+  let outputMessageIndex = 0;
+
+  return messages.reduce((acc: Attributes, message) => {
     if (message.role === "tool") {
-      const firstContent = Array.isArray(message.content)
-        ? message.content[0]
-        : message.content;
-      // prefer the output property over the result property
-      // newer versions of Vercel use the output property instead of the result property
-      // when output is present, prefer the text value type
-      const TOOL_OUTPUT =
-        firstContent?.output != null
-          ? firstContent.output?.type === "text"
-            ? firstContent.output?.value
-            : null
-          : firstContent?.result;
-      // Do not double-stringify the tool output
-      const TOOL_OUTPUT_JSON =
-        typeof TOOL_OUTPUT === "string"
-          ? TOOL_OUTPUT
-          : TOOL_OUTPUT != null
-            ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
-            : undefined;
+      const contentArray: unknown[] = Array.isArray(message.content)
+        ? message.content
+        : message.content
+          ? [message.content]
+          : [];
+
+      // Per OpenInference spec, each tool result should be a separate message with:
+      // - message.role: "tool"
+      // - message.content: the result content
+      // - message.tool_call_id: linking back to the original tool call
+      // When Vercel sends multiple tool results in one message, we expand them.
+      const toolResultAttributes = contentArray.reduce(
+        (toolAcc: Attributes, content) => {
+          if (typeof content !== "object" || content === null) {
+            // bail out if the content is not an object
+            return toolAcc;
+          }
+          if (!("output" in content) && !("result" in content)) {
+            // bail out if the content does not have an output or result property
+            return toolAcc;
+          }
+          const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${outputMessageIndex}`;
+          outputMessageIndex++;
+
+          // Extract tool output from various possible formats:
+          // 1. Newer AI SDK v6: content.output (the raw output value)
+          // 2. Legacy format: content.result
+          const TOOL_OUTPUT =
+            "output" in content
+              ? content.output
+              : "result" in content
+                ? content.result
+                : undefined;
+          const TOOL_OUTPUT_JSON =
+            typeof TOOL_OUTPUT === "string"
+              ? TOOL_OUTPUT
+              : TOOL_OUTPUT != null
+                ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
+                : undefined;
+          const TOOL_CALL_ID =
+            "toolCallId" in content && typeof content.toolCallId === "string"
+              ? content.toolCallId
+              : undefined;
+          const TOOL_NAME =
+            "toolName" in content && typeof content.toolName === "string"
+              ? content.toolName
+              : undefined;
+          return {
+            ...toolAcc,
+            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "tool",
+            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
+              TOOL_OUTPUT_JSON,
+            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
+              TOOL_CALL_ID,
+            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: TOOL_NAME,
+          };
+        },
+        {} as Attributes,
+      );
+
       return {
         ...acc,
-        ...message,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: message.role,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
-          Array.isArray(message.content)
-            ? typeof message.content[0]?.toolCallId === "string"
-              ? message.content[0].toolCallId
-              : undefined
-            : typeof message.toolCallId === "string"
-              ? message.toolCallId
-              : undefined,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: Array.isArray(
-          message.content,
-        )
-          ? typeof message.content[0]?.toolName === "string"
-            ? message.content[0].toolName
-            : undefined
-          : typeof message.toolName === "string"
-            ? message.toolName
-            : undefined,
-        [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
-          TOOL_OUTPUT_JSON,
+        ...toolResultAttributes,
       };
-    } else if (isArrayOfObjects(message.content)) {
+    }
+
+    const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${outputMessageIndex}`;
+    outputMessageIndex++;
+
+    if (isArrayOfObjects(message.content)) {
       const messageAttributes = message.content.reduce(
         (acc: Attributes, content, contentIndex) => {
           const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
@@ -362,9 +391,8 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
       acc[`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`] =
         message.content;
     }
-    acc[
-      `${SemanticConventions.LLM_INPUT_MESSAGES}.${index}.${SemanticConventions.MESSAGE_ROLE}`
-    ] = typeof message.role === "string" ? message.role : undefined;
+    acc[`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`] =
+      typeof message.role === "string" ? message.role : undefined;
     return acc;
   }, {});
 };
