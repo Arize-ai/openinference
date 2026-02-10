@@ -92,7 +92,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrapper=_MessagesStreamWrapper(tracer=self._tracer),
         )
 
-        # Instrument beta.messages.parse() if available (sync)
+        # Instrument beta.messages.parse() (sync and async in separate try/except so partial
+        # failure does not clear the other's original ref; uninstrument can still restore either)
         self._original_beta_messages_parse = None
         self._original_async_beta_messages_parse = None
         try:

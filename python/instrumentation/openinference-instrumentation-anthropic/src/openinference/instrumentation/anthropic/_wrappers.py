@@ -196,24 +196,9 @@ class _MessagesWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
             span_name="Messages",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -224,20 +209,10 @@ class _MessagesWrapper(_WithTracer):
             streaming = kwargs.get("stream", False)
             if streaming:
                 return _MessagesStream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-                span.finish_tracing()
-                return response
+            span.set_status(trace_api.StatusCode.OK)
+            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
+            span.finish_tracing()
+            return response
 
 
 class _AsyncMessagesWrapper(_WithTracer):
@@ -257,24 +232,9 @@ class _AsyncMessagesWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
             span_name="AsyncMessages",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -285,20 +245,10 @@ class _AsyncMessagesWrapper(_WithTracer):
             streaming = kwargs.get("stream", False)
             if streaming:
                 return _MessagesStream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-                span.finish_tracing()
-                return response
+            span.set_status(trace_api.StatusCode.OK)
+            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
+            span.finish_tracing()
+            return response
 
 
 class _MessagesStreamWrapper(_WithTracer):
@@ -359,7 +309,7 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
 class _BetaMessagesParseWrapper(_WithTracer):
     """
     Wrapper for beta.messages.parse()
-    Captures all calls to the parse method
+    Captures all calls to the parse method. Uses shared messages helpers; output may lack usage.
     """
 
     def __call__(
@@ -373,24 +323,9 @@ class _BetaMessagesParseWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
             span_name="BetaMessagesParse",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -399,28 +334,7 @@ class _BetaMessagesParseWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            # Parse method returns structured data, handle it appropriately
-            if hasattr(response, "usage") and response.usage:
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-            else:
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_input(arguments),
-                            _get_output_messages(response),
-                            _get_outputs(response),
-                        )
-                    )
-                )
+            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
             span.finish_tracing()
             return response
 
@@ -428,7 +342,7 @@ class _BetaMessagesParseWrapper(_WithTracer):
 class _AsyncBetaMessagesParseWrapper(_WithTracer):
     """
     Wrapper for async beta.messages.parse()
-    Captures all calls to the parse method
+    Captures all calls to the parse method. Uses shared messages helpers; output may lack usage.
     """
 
     async def __call__(
@@ -442,24 +356,9 @@ class _AsyncBetaMessagesParseWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
             span_name="AsyncBetaMessagesParse",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -468,28 +367,7 @@ class _AsyncBetaMessagesParseWrapper(_WithTracer):
                 span.record_exception(exception)
                 raise
             span.set_status(trace_api.StatusCode.OK)
-            # Parse method returns structured data, handle it appropriately
-            if hasattr(response, "usage") and response.usage:
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-            else:
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_input(arguments),
-                            _get_output_messages(response),
-                            _get_outputs(response),
-                        )
-                    )
-                )
+            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
             span.finish_tracing()
             return response
 
@@ -666,6 +544,62 @@ def _get_output_messages(response: Any) -> Any:
             tool_index += 1
         if isinstance(block, TextBlock):
             yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
+
+
+def _get_messages_span_input_attributes(arguments: Mapping[str, Any]) -> dict:
+    """Build input attributes for messages-style spans (create, parse). Shared by Messages and BetaMessagesParse wrappers."""
+    llm_input_messages = dict(arguments).pop("messages", None)
+    invocation_parameters = _get_invocation_parameters(arguments)
+    return dict(
+        chain(
+            get_attributes_from_context(),
+            _get_llm_model_name_from_input(arguments),
+            _get_llm_provider(),
+            _get_llm_system(),
+            _get_llm_span_kind(),
+            _get_llm_input_messages(llm_input_messages),
+            _get_llm_invocation_parameters(invocation_parameters),
+            _get_llm_tools(invocation_parameters),
+            _get_inputs(arguments),
+        )
+    )
+
+
+def _set_messages_span_output_attributes(
+    span: Any,
+    response: Any,
+    arguments: Mapping[str, Any],
+    *,
+    include_usage: bool = True,
+) -> None:
+    """
+    Set output attributes on a messages-style span. If include_usage is True and response has usage,
+    records model name from response, output messages, token counts, and outputs. Otherwise uses
+    model name from arguments and omits token counts (e.g. for beta parse when usage is absent).
+    Output messages and outputs are always captured in both branches for complete observability.
+    """
+    if include_usage and getattr(response, "usage", None):
+        span.set_attributes(
+            dict(
+                chain(
+                    _get_llm_model_name_from_response(response),
+                    _get_output_messages(response),
+                    _get_llm_token_counts(response.usage),
+                    _get_outputs(response),
+                )
+            )
+        )
+    else:
+        # Usage missing: still record output messages and outputs; model from input, no token counts
+        span.set_attributes(
+            dict(
+                chain(
+                    _get_llm_model_name_from_input(arguments),
+                    _get_output_messages(response),
+                    _get_outputs(response),
+                )
+            )
+        )
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
