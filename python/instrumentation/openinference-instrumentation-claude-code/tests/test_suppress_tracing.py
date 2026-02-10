@@ -16,18 +16,15 @@ async def test_suppress_tracing_query(tracer_provider, in_memory_span_exporter):
 
         # Mock query
         async def mock_query(*args, **kwargs):
-            yield AssistantMessage(
-                content=[TextBlock(type="text", text="suppressed")]
-            )
+            yield AssistantMessage(content=[TextBlock(type="text", text="suppressed")])
 
         import claude_agent_sdk
+
         original = claude_agent_sdk.query
         claude_agent_sdk.query = mock_query
 
         # Set suppression context
-        token = context_api.attach(
-            context_api.set_value(_SUPPRESS_INSTRUMENTATION_KEY, True)
-        )
+        token = context_api.attach(context_api.set_value(_SUPPRESS_INSTRUMENTATION_KEY, True))
 
         try:
             async for message in claude_agent_sdk.query(prompt="test"):

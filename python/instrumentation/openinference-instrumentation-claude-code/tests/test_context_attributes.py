@@ -15,11 +15,10 @@ async def test_context_attributes_propagation(tracer_provider, in_memory_span_ex
 
         # Mock query
         async def mock_query(*args, **kwargs):
-            yield AssistantMessage(
-                content=[TextBlock(type="text", text="context test")]
-            )
+            yield AssistantMessage(content=[TextBlock(type="text", text="context test")])
 
         import claude_agent_sdk
+
         original = claude_agent_sdk.query
         claude_agent_sdk.query = mock_query
 

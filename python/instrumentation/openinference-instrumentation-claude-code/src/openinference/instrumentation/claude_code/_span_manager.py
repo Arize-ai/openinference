@@ -31,7 +31,9 @@ class SpanManager:
         parent_span: Optional[Span] = None,
     ) -> Span:
         """Start an AGENT span."""
-        logger.debug("start_agent_span: name=%s, session_id=%s, parent=%s", name, session_id, parent_span)
+        logger.debug(
+            "start_agent_span: name=%s, session_id=%s, parent=%s", name, session_id, parent_span
+        )
         context = None
         if parent_span is not None:
             context = trace_api.set_span_in_context(parent_span)

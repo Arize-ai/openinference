@@ -19,15 +19,13 @@ async def test_tool_use_creates_tool_span(tracer_provider, in_memory_span_export
                 content=[
                     TextBlock(type="text", text="I'll read the file"),
                     ToolUseBlock(
-                        type="tool_use",
-                        id="tool_123",
-                        name="Read",
-                        input={"file_path": "test.py"}
+                        type="tool_use", id="tool_123", name="Read", input={"file_path": "test.py"}
                     ),
                 ]
             )
 
         import claude_agent_sdk
+
         original = claude_agent_sdk.query
         claude_agent_sdk.query = mock_query
 
@@ -37,10 +35,7 @@ async def test_tool_use_creates_tool_span(tracer_provider, in_memory_span_export
         claude_agent_sdk.query = original
 
         spans = in_memory_span_exporter.get_finished_spans()
-        tool_spans = [
-            s for s in spans
-            if s.attributes.get("openinference.span.kind") == "TOOL"
-        ]
+        tool_spans = [s for s in spans if s.attributes.get("openinference.span.kind") == "TOOL"]
 
         assert len(tool_spans) >= 1
         tool_span = tool_spans[0]

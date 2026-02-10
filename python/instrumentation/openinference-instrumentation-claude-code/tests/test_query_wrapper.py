@@ -16,12 +16,11 @@ async def test_query_creates_agent_span(tracer_provider, in_memory_span_exporter
         # Mock the query to return a simple message
         # (This test will need mocking in real implementation)
         async def mock_query(*args, **kwargs):
-            yield AssistantMessage(
-                content=[TextBlock(type="text", text="4")]
-            )
+            yield AssistantMessage(content=[TextBlock(type="text", text="4")])
 
         # Temporarily replace query for testing
         import claude_agent_sdk
+
         original_query = claude_agent_sdk.query
         claude_agent_sdk.query = mock_query
 

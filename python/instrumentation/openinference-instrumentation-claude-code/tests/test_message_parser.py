@@ -38,10 +38,7 @@ def test_extract_tool_uses_from_message():
         content=[
             TextBlock(type="text", text="I'll read the file"),
             ToolUseBlock(
-                type="tool_use",
-                id="tool_123",
-                name="Read",
-                input={"file_path": "test.py"}
+                type="tool_use", id="tool_123", name="Read", input={"file_path": "test.py"}
             ),
         ]
     )
