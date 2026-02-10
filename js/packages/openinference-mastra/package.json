@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-mastra",
-  "version": "3.0.9",
+  "version": "3.0.8",
   "private": false,
   "type": "module",
   "types": "dist/esm/index.d.ts",
@@ -45,7 +45,7 @@
   "dependencies": {
     "@arizeai/openinference-core": "2.0.5",
     "@arizeai/openinference-semantic-conventions": "2.1.7",
-    "@arizeai/openinference-vercel": "2.6.0"
+    "@arizeai/openinference-vercel": "2.5.5"
   },
   "devDependencies": {
     "vitest": "^4.0.3"
