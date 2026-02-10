@@ -1,5 +1,11 @@
 # @arizeai/openinference-vercel
 
+## 2.7.0
+
+### Minor Changes
+
+- 2821f95: feat(openinference-vercel): Expand multi-tool results into multiple tool messages
+
 ## 2.6.0
 
 ### Minor Changes
