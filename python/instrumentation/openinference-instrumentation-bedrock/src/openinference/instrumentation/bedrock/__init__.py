@@ -122,7 +122,7 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
 
 
 def _instrument_client(
-    client: Any, bound_arguments: Any, tracer: Tracer, module_version: str
+    client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
 ) -> BaseClient:
     """Helper function to instrument a client (both sync and async)."""
     if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
@@ -150,16 +150,18 @@ def _instrument_client(
     if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
         client = cast(InstrumentedClient, client)
 
-        client._unwrapped_invoke_model = client.invoke_model
-        client.invoke_model = _model_invocation_wrapper(tracer)(client, client.invoke_model)
-        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
-            client.invoke_model_with_response_stream
-        )
+        if not is_async:
+            client._unwrapped_invoke_model = client.invoke_model
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)
+            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+                client.invoke_model_with_response_stream
+            )
 
         if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
             client._unwrapped_converse = client.converse
-            client.converse = _model_converse_wrapper(tracer)(client, client.converse)
-            client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
+            client.converse = _model_converse_wrapper(tracer)(client)
+            if not is_async:
+                client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
     return client
 
 
@@ -186,20 +188,18 @@ def _client_creation_wrapper(
                 actual_client = await client
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                     return actual_client
-                return _instrument_client(actual_client, bound_arguments, tracer, module_version)
+                return _instrument_client(
+                    actual_client, bound_arguments, tracer, module_version, True
+                )
 
             return async_wrapper()
-        return _instrument_client(client, bound_arguments, tracer, module_version)
+        return _instrument_client(client, bound_arguments, tracer, module_version, False)
 
     return _client_wrapper  # type: ignore
 
 
-def _model_invocation_wrapper(
-    tracer: Tracer,
-) -> Callable[[InstrumentedClient, Callable[..., Any]], Callable[..., Any]]:
-    def _invocation_wrapper(
-        wrapped_client: InstrumentedClient, original_method: Callable[..., Any]
-    ) -> Callable[..., Any]:
+def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
+    def _invocation_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
         """Instruments a bedrock client's `invoke_model` method."""
 
         def _process_invocation(
@@ -207,17 +207,10 @@ def _model_invocation_wrapper(
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
             response: Dict[str, Any],
-        ) -> Any:
+        ) -> Dict[str, Any]:
             """Common processing logic for both sync and async."""
-            request_body = json.loads(kwargs["body"])
             model_id = str(kwargs.get("modelId"))
             is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(model_id)
-
-            # Set input attributes
-            if is_claude_message_api:
-                anthropic_attributes.set_input_attributes(span, request_body, model_id)
-            else:
-                _extract_invoke_model_attributes.set_input_attributes(span, request_body)
 
             # Process the streaming response body
             response["body"] = BufferedStreamingBody(
@@ -226,7 +219,7 @@ def _model_invocation_wrapper(
             response_body = json.loads(response["body"].read())
             response["body"].reset()
 
-            # Set response attributes
+            # Set response attributes based on model type
             if is_claude_message_api:
                 anthropic_attributes.set_response_attributes(span, response_body)
             else:
@@ -237,37 +230,58 @@ def _model_invocation_wrapper(
             span.set_status(Status(StatusCode.OK))
             return response
 
-        if hasattr(wrapped_client, "__aenter__"):  # Async clients have context manager methods
+        def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
+            """Set input attributes on the span."""
+            request_body = json.loads(kwargs["body"])
+            model_id = str(kwargs.get("modelId"))
+            is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(model_id)
 
-            @wraps(original_method)
-            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+            # Set input attributes based on model type
+            if is_claude_message_api:
+                anthropic_attributes.set_input_attributes(span, request_body, model_id)
+            else:
+                _extract_invoke_model_attributes.set_input_attributes(span, request_body)
+
+        # Check if this is an async client
+        if hasattr(wrapped_client, "__aenter__"):
+
+            @wraps(wrapped_client.invoke_model)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return await original_method(*args, **kwargs)
+                    return await wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.invoke_model") as span:
+                    _set_input_attributes(span, kwargs)
+
+                    # Execute the model invocation with proper error handling
                     try:
-                        response = await original_method(*args, **kwargs)
+                        response = await wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                     except Exception as e:
                         span.set_status(Status(StatusCode.ERROR))
                         span.end()
                         raise e
+
                     return _process_invocation(span, args, kwargs, response)
 
             return async_instrumented_response
         else:
 
-            @wraps(original_method)
-            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+            @wraps(wrapped_client.invoke_model)
+            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return original_method(*args, **kwargs)
+                    return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.invoke_model") as span:
+                    _set_input_attributes(span, kwargs)
+
+                    # Execute the model invocation with proper error handling
                     try:
-                        response = original_method(*args, **kwargs)
+                        response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                     except Exception as e:
                         span.set_status(Status(StatusCode.ERROR))
                         span.end()
                         raise e
+
                     return _process_invocation(span, args, kwargs, response)
 
             return sync_instrumented_response
@@ -275,12 +289,8 @@ def _model_invocation_wrapper(
     return _invocation_wrapper
 
 
-def _model_converse_wrapper(
-    tracer: Tracer,
-) -> Callable[[InstrumentedClient, Callable[..., Any]], Callable[..., Any]]:
-    def _converse_wrapper(
-        wrapped_client: InstrumentedClient, original_method: Callable[..., Any]
-    ) -> Callable[..., Any]:
+def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
+    def _converse_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
         """Instruments a bedrock client's `converse` method."""
 
         def _process_converse(
@@ -288,25 +298,24 @@ def _model_converse_wrapper(
             args: Tuple[Any, ...],
             kwargs: Dict[str, Any],
             response: Dict[str, Any],
-        ) -> Any:
+        ) -> Dict[str, Any]:
             """Common processing logic for both sync and async."""
-            response_message = response.get("output", {}).get("message")
-            if response_message:
-                response_role = response_message.get("role")
-                response_content = response_message.get("content", [])
+            if (
+                (response_message := response.get("output", {}).get("message"))
+                and (response_role := response_message.get("role"))
+                and (response_content := response_message.get("content", []))
+            ):
+                # Currently only supports text-based data
+                response_text = "\n".join(
+                    content_input.get("text", "") for content_input in response_content
+                )
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
 
-                if response_role and response_content:
-                    response_text = "\n".join(
-                        content_input.get("text", "") for content_input in response_content
-                    )
-                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
+                span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+                _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
+                _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
 
-                    span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-                    _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
-                    _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
-
-            usage = response.get("usage")
-            if usage:
+            if usage := response.get("usage"):
                 if input_token_count := usage.get("inputTokens"):
                     _set_span_attribute(
                         span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
@@ -321,7 +330,7 @@ def _model_converse_wrapper(
                     _set_span_attribute(
                         span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
                     )
-            span.set_status(Status(StatusCode.OK))
+
             span.set_attributes(dict(get_attributes_from_context()))
             return response
 
@@ -332,20 +341,17 @@ def _model_converse_wrapper(
                 OpenInferenceSpanKindValues.LLM.value,
             )
 
-            model_id = kwargs.get("modelId")
-            if model_id:
+            if model_id := kwargs.get("modelId"):
                 _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
 
-            inference_config = kwargs.get("inferenceConfig")
-            if inference_config:
+            if inference_config := kwargs.get("inferenceConfig"):
                 invocation_parameters = safe_json_dumps(inference_config)
                 _set_span_attribute(
                     span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                 )
 
-            aggregated_messages: List[Dict[str, Any]] = []
-            system_prompts = kwargs.get("system")
-            if system_prompts:
+            aggregated_messages: List[Any] = []
+            if system_prompts := kwargs.get("system"):
                 aggregated_messages.append(
                     {
                         "role": "system",
@@ -358,6 +364,7 @@ def _model_converse_wrapper(
             aggregated_messages.extend(kwargs.get("messages", []))
             for idx, msg in enumerate(aggregated_messages):
                 if not isinstance(msg, dict):
+                    # Only dictionaries supported for now
                     continue
                 for key, value in _get_attributes_from_message_param(msg):
                     _set_span_attribute(
@@ -365,40 +372,39 @@ def _model_converse_wrapper(
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
                         value,
                     )
+            last_message = aggregated_messages[-1] if aggregated_messages else None
+            if isinstance(last_message, dict) and (
+                request_msg_content := last_message.get("content")
+            ):
+                request_msg_prompt = "\n".join(
+                    content_input.get("text", "") for content_input in request_msg_content
+                ).strip("\n")
+                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
 
-            if aggregated_messages:
-                last_message = aggregated_messages[-1]
-                if isinstance(last_message, dict):
-                    request_msg_content = last_message.get("content")
-                    if request_msg_content:
-                        request_msg_prompt = "\n".join(
-                            content_input.get("text", "") for content_input in request_msg_content
-                        ).strip("\n")
-                        _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
+        # Check if this is an async client
+        if hasattr(wrapped_client, "__aenter__"):
 
-        if hasattr(wrapped_client, "__aenter__"):  # Async clients have context manager methods
-
-            @wraps(original_method)
-            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+            @wraps(wrapped_client.converse)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return await original_method(*args, **kwargs)
+                    return await wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
                     _set_input_attributes(span, kwargs)
-                    response = await original_method(*args, **kwargs)
+                    response = await wrapped_client._unwrapped_converse(*args, **kwargs)
                     return _process_converse(span, args, kwargs, response)
 
             return async_instrumented_response
         else:
 
-            @wraps(original_method)
-            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+            @wraps(wrapped_client.converse)
+            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return original_method(*args, **kwargs)
+                    return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
                     _set_input_attributes(span, kwargs)
-                    response = original_method(*args, **kwargs)
+                    response = wrapped_client._unwrapped_converse(*args, **kwargs)
                     return _process_converse(span, args, kwargs, response)
 
             return sync_instrumented_response
