@@ -150,18 +150,16 @@ def _instrument_client(
     if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
         client = cast(InstrumentedClient, client)
 
-        if not is_async:
-            client._unwrapped_invoke_model = client.invoke_model
-            client.invoke_model = _model_invocation_wrapper(tracer)(client)
-            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
-                client.invoke_model_with_response_stream
-            )
+        client._unwrapped_invoke_model = client.invoke_model
+        client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+            client.invoke_model_with_response_stream
+        )
 
         if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
             client._unwrapped_converse = client.converse
             client.converse = _model_converse_wrapper(tracer)(client)
-            if not is_async:
-                client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
+            client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
     return client
 
 

@@ -18,8 +18,8 @@ BedrockInstrumentor().instrument()
 
 
 async def run():
-    agent_id = "<AgentId>"
-    agent_alias_id = "<AgentAliasId>"
+    agent_id = "XNW1LGJJZT"
+    agent_alias_id = "K0P4LV9GPO"
     session_id = f"default-session1_{int(time.time())}"
     import aioboto3
 

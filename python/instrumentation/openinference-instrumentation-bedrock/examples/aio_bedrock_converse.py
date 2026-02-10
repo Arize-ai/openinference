@@ -28,15 +28,14 @@ async def run():
         user_message = {"role": "user", "content": [{"text": "Create a list of 3 pop songs."}]}
         inference_config = {"maxTokens": 1024, "temperature": 0.0}
         messages = [user_message]
-        response = await client.converse(
+        response = await client.converse_stream(
             modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
             system=system_prompt,
             messages=messages,
             inferenceConfig=inference_config,
         )
-        out = response["output"]["message"]
-        messages.append(out)
-        print(out.get("content")[-1].get("text"))
+        async for stream in response["stream"]:
+            print(stream)
 
 
 if __name__ == "__main__":
