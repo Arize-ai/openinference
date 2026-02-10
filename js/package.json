@@ -24,7 +24,7 @@
   "author": "oss@arize.com",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@changesets/cli": "^2.28.1",
+    "@changesets/cli": "^2.29.8",
     "@eslint/js": "^9.38.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -81,7 +81,8 @@
       "diff@>=4.0.0 <4.0.4": ">=4.0.4",
       "fast-xml-parser@>=4.3.6 <=5.3.3": ">=5.3.4",
       "js-yaml@<3.14.2": ">=3.14.2",
-      "js-yaml@>=4.0.0 <4.1.1": ">=4.1.1"
+      "js-yaml@>=4.0.0 <4.1.1": ">=4.1.1",
+      "read-yaml-file@<2.0.0": ">=2.1.0"
     }
   }
 }
