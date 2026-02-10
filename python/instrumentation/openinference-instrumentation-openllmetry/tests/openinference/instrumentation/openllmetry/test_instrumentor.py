@@ -150,6 +150,22 @@ class TestOpenLLMetryInstrumentor:
         assert attributes["llm.output_messages.0.message.role"] == "assistant"
         assert isinstance(attributes["llm.output_messages.0.message.content"], str)
 
+    def test_openinference_span_processor_creation(self) -> None:
+        """Test that the OpenInference span processor can be created and used."""
+        # Create the span processor
+        span_processor = OpenInferenceSpanProcessor()
+
+        # Verify it's created successfully
+        assert span_processor is not None
+        assert hasattr(span_processor, "on_start")
+        assert hasattr(span_processor, "on_end")
+
+        # Test that it can be added to a tracer provider
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(span_processor)
+
+        assert True
+
 
 def _set_span_attributes(
     *,
