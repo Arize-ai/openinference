@@ -151,10 +151,11 @@ def _instrument_client(
         client = cast(InstrumentedClient, client)
 
         client._unwrapped_invoke_model = client.invoke_model
-        client.invoke_model = _model_invocation_wrapper(tracer)(client)
-        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
-            client.invoke_model_with_response_stream
-        )
+        if not is_async:
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)
+            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+                client.invoke_model_with_response_stream
+            )
 
         if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
             client._unwrapped_converse = client.converse
@@ -198,91 +199,54 @@ def _client_creation_wrapper(
 
 def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
     def _invocation_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
-        """Instruments a bedrock client's `invoke_model` method."""
+        """Instruments a bedrock client's `invoke_model` or `converse` method."""
 
-        def _process_invocation(
-            span: trace_api.Span,
-            args: Tuple[Any, ...],
-            kwargs: Dict[str, Any],
-            response: Dict[str, Any],
-        ) -> Dict[str, Any]:
-            """Common processing logic for both sync and async."""
-            model_id = str(kwargs.get("modelId"))
-            is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(model_id)
+        @wraps(wrapped_client.invoke_model)
+        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
-            # Process the streaming response body
-            response["body"] = BufferedStreamingBody(
-                response["body"]._raw_stream, response["body"]._content_length
-            )
-            response_body = json.loads(response["body"].read())
-            response["body"].reset()
-
-            # Set response attributes based on model type
-            if is_claude_message_api:
-                anthropic_attributes.set_response_attributes(span, response_body)
-            else:
-                _extract_invoke_model_attributes.set_response_attributes(
-                    span, kwargs, response_body, response
+            with tracer.start_as_current_span("bedrock.invoke_model") as span:
+                request_body = json.loads(kwargs["body"])
+                model_id = str(kwargs.get("modelId"))
+                # Determine if this is a Claude Messages API model
+                is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(
+                    model_id
                 )
-            span.set_attributes(dict(get_attributes_from_context()))
-            span.set_status(Status(StatusCode.OK))
-            return response
 
-        def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
-            """Set input attributes on the span."""
-            request_body = json.loads(kwargs["body"])
-            model_id = str(kwargs.get("modelId"))
-            is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(model_id)
+                # Set input attributes based on model type
+                if is_claude_message_api:
+                    anthropic_attributes.set_input_attributes(span, request_body, model_id)
+                else:
+                    _extract_invoke_model_attributes.set_input_attributes(span, request_body)
 
-            # Set input attributes based on model type
-            if is_claude_message_api:
-                anthropic_attributes.set_input_attributes(span, request_body, model_id)
-            else:
-                _extract_invoke_model_attributes.set_input_attributes(span, request_body)
+                # Execute the model invocation with proper error handling
+                try:
+                    response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
+                except Exception as e:
+                    span.set_status(Status(StatusCode.ERROR))
+                    span.end()
+                    raise e
 
-        # Check if this is an async client
-        if hasattr(wrapped_client, "__aenter__"):
+                # Process the streaming response body
+                response["body"] = BufferedStreamingBody(
+                    response["body"]._raw_stream, response["body"]._content_length
+                )
+                response_body = json.loads(response.get("body").read())
+                response["body"].reset()
 
-            @wraps(wrapped_client.invoke_model)
-            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return await wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
+                # Set response attributes based on model type
+                if is_claude_message_api:
+                    anthropic_attributes.set_response_attributes(span, response_body)
+                else:
+                    _extract_invoke_model_attributes.set_response_attributes(
+                        span, kwargs, response_body, response
+                    )
+                span.set_attributes(dict(get_attributes_from_context()))
+                span.set_status(Status(StatusCode.OK))
+                return response  # type: ignore
 
-                with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                    _set_input_attributes(span, kwargs)
-
-                    # Execute the model invocation with proper error handling
-                    try:
-                        response = await wrapped_client._unwrapped_invoke_model(*args, **kwargs)
-                    except Exception as e:
-                        span.set_status(Status(StatusCode.ERROR))
-                        span.end()
-                        raise e
-
-                    return _process_invocation(span, args, kwargs, response)
-
-            return async_instrumented_response
-        else:
-
-            @wraps(wrapped_client.invoke_model)
-            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
-
-                with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                    _set_input_attributes(span, kwargs)
-
-                    # Execute the model invocation with proper error handling
-                    try:
-                        response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
-                    except Exception as e:
-                        span.set_status(Status(StatusCode.ERROR))
-                        span.end()
-                        raise e
-
-                    return _process_invocation(span, args, kwargs, response)
-
-            return sync_instrumented_response
+        return instrumented_response
 
     return _invocation_wrapper
 
