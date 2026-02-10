@@ -122,16 +122,16 @@ class TestOpenLitInstrumentor:
 
         tracer = tracer_provider.get_tracer(__name__)
 
-        # Capture OpenLit initialization logs
+        # Capture OpenLIT initialization logs
         with caplog.at_level(logging.ERROR, logger="openlit"):
-            # Initialize OpenLit with the tracer
+            # Initialize OpenLIT with the tracer
             openlit.init(
                 otel_tracer=tracer,
                 otlp_endpoint=None,
                 disable_batch=True,  # Try to avoid async issues
             )
 
-        # Check if OpenLit initialization failed with the known bug
+        # Check if OpenLIT initialization failed with the known bug
         openlit_init_error = any(
             "async generator" in record.message.lower()
             for record in caplog.records
@@ -140,10 +140,10 @@ class TestOpenLitInstrumentor:
 
         if openlit_init_error:
             pytest.skip(
-                "OpenLit has a known bug in the current version: "
+                "OpenLIT has a known bug in the current version: "
                 "'return' with value in async generator (async_agno.py, line 783). "
                 "This prevents proper instrumentation. "
-                "Fix: Pin to openlit<1.27.0 or wait for OpenLit to release a fix. "
+                "Fix: Pin to openlit<1.27.0 or wait for OpenLIT to release a fix. "
                 "See: https://github.com/openlit/openlit/pull/959"
             )
 
@@ -177,13 +177,7 @@ class TestOpenLitInstrumentor:
 
         # Get spans
         spans = in_memory_span_exporter.get_finished_spans()
-
-        # If no spans, OpenLit didn't instrument properly
-        if len(spans) == 0:
-            pytest.skip(
-                "OpenLit failed to create any spans. This indicates the instrumentation "
-                "is not working properly in the current version."
-            )
+        assert len(spans) > 0
 
         for span in spans:
             # Get attributes
