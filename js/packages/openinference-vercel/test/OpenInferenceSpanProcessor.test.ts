@@ -229,7 +229,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
     [
       "Token counts should not be mapped for CHAIN spans",
       {
-        vercelFunctionName: "ai.generateText",
+        vercelFunctionName: "ai.embed",
         vercelAttributes: {
           [VercelAISemanticConventions.TOKEN_COUNT_COMPLETION]: 10,
         },
