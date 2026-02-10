@@ -272,7 +272,7 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 
   return messages.reduce((acc: Attributes, message) => {
     if (message.role === "tool") {
-      const contentArray = Array.isArray(message.content)
+      const contentArray: unknown[] = Array.isArray(message.content)
         ? message.content
         : message.content
           ? [message.content]
@@ -285,6 +285,14 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
       // When Vercel sends multiple tool results in one message, we expand them.
       const toolResultAttributes = contentArray.reduce(
         (toolAcc: Attributes, content) => {
+          if (typeof content !== "object" || content === null) {
+            // bail out if the content is not an object
+            return toolAcc;
+          }
+          if (!("output" in content) && !("result" in content)) {
+            // bail out if the content does not have an output or result property
+            return toolAcc;
+          }
           const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${outputMessageIndex}`;
           outputMessageIndex++;
 
@@ -292,30 +300,36 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
           // 1. Newer AI SDK v6: content.output (the raw output value)
           // 2. Legacy format: content.result
           const TOOL_OUTPUT =
-            content?.output !== undefined ? content.output : content?.result;
+            "output" in content
+              ? content.output
+              : "result" in content
+                ? content.result
+                : undefined;
           const TOOL_OUTPUT_JSON =
             typeof TOOL_OUTPUT === "string"
               ? TOOL_OUTPUT
               : TOOL_OUTPUT != null
                 ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
                 : undefined;
-
+          const TOOL_CALL_ID =
+            "toolCallId" in content && typeof content.toolCallId === "string"
+              ? content.toolCallId
+              : undefined;
+          const TOOL_NAME =
+            "toolName" in content && typeof content.toolName === "string"
+              ? content.toolName
+              : undefined;
           return {
             ...toolAcc,
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "tool",
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
               TOOL_OUTPUT_JSON,
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
-              typeof content?.toolCallId === "string"
-                ? content.toolCallId
-                : undefined,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]:
-              typeof content?.toolName === "string"
-                ? content.toolName
-                : undefined,
+              TOOL_CALL_ID,
+            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: TOOL_NAME,
           };
         },
-        {},
+        {} as Attributes,
       );
 
       return {
