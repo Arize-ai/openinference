@@ -546,8 +546,9 @@ def _get_output_messages(response: Any) -> Any:
             yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
 
 
-def _get_messages_span_input_attributes(arguments: Mapping[str, Any]) -> dict:
-    """Build input attributes for messages-style spans (create, parse). Shared by Messages and BetaMessagesParse wrappers."""
+def _get_messages_span_input_attributes(arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Build input attributes for messages-style spans (create, parse).
+    Shared by Messages and BetaMessagesParse wrappers."""
     llm_input_messages = dict(arguments).pop("messages", None)
     invocation_parameters = _get_invocation_parameters(arguments)
     return dict(

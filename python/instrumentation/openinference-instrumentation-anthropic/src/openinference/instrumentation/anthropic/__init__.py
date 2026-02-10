@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Collection
+from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -38,6 +38,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_instruments",
         "_tracer",
     )
+
+    _original_beta_messages_parse: Optional[Callable[..., Any]]
+    _original_async_beta_messages_parse: Optional[Callable[..., Any]]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
