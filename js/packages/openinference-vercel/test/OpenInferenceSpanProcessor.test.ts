@@ -911,6 +911,11 @@ describe("Trace aggregate behavior", () => {
       const exportedRootSpan = spans.find((s) => s.parentSpanId == null);
       expect(exportedRootSpan).toBeDefined();
       expect(exportedRootSpan!.status.code).toBe(SpanStatusCode.OK);
+
+      // Find the child span - should also have OK status
+      const exportedChildSpan = spans.find((s) => s.parentSpanId != null);
+      expect(exportedChildSpan).toBeDefined();
+      expect(exportedChildSpan!.status.code).toBe(SpanStatusCode.OK);
     });
 
     it("should detect error from ai.response.finishReason=error", async () => {

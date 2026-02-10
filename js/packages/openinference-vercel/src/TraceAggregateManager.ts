@@ -67,6 +67,17 @@ const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
     : { code: SpanStatusCode.OK };
 };
 
+const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
+  // Set OK status on AI SDK spans that completed without error
+  if (!isLikelyAISDKSpan(span)) return;
+  if (span.status.code !== SpanStatusCode.UNSET) return;
+
+  // ReadableSpan is typed as readonly; runtime Span objects are mutable.
+  (
+    span as unknown as { status: { code: SpanStatusCode; message?: string } }
+  ).status = { code: SpanStatusCode.OK };
+};
+
 const maybeRenameRootSpan = (span: ReadableSpan): void => {
   if (span.parentSpanId != null) return;
   if (!isLikelyAISDKSpan(span)) return;
@@ -144,9 +155,15 @@ export class TraceAggregateManager {
 
     maybeRenameRootSpan(span);
 
-    // Only set root status for AI SDK traces
+    // Set status for AI SDK spans:
+    // - Root spans get OK/ERROR based on aggregate error state
+    // - Child spans get OK if they completed without error (already have ERROR if they errored)
     if (agg.isAISDKTrace) {
-      maybeSetRootStatus(span, agg);
+      if (span.parentSpanId == null) {
+        maybeSetRootStatus(span, agg);
+      } else {
+        maybeSetSpanOkStatus(span);
+      }
     }
 
     // Decrement active span count and cleanup when the trace completes
