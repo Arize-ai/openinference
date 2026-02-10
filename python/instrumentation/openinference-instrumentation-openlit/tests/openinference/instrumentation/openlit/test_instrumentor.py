@@ -21,6 +21,8 @@ from openinference.instrumentation.openlit._span_processor import (
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
@@ -161,23 +163,42 @@ class TestOpenLitInstrumentor:
         assert len(openinference_spans) > 0, "No OpenInference spans found"
 
         for span in openinference_spans:
-            # Check span attributes
+            # Get attributes
             attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
 
-            # Check that we have input and output values
-            assert SpanAttributes.INPUT_VALUE in attributes
-            assert SpanAttributes.OUTPUT_VALUE in attributes
-
-            # Verify the model name is captured (exact attribute may vary)
-            model_name_attr = next(
-                (k for k in attributes if "model" in k.lower() and "name" in k.lower()), None
+            # OpenInference span kind
+            assert is_openinference_span(span)
+            assert (
+                attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+                == OpenInferenceSpanKindValues.TOOL.value
             )
-            assert model_name_attr is not None, "Model name attribute not found"
-            assert "gpt-4" in str(attributes[model_name_attr])
+
+            # Input / Output
+            assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
+            assert (
+                attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
+            )
+            assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
+            assert (
+                attributes[SpanAttributes.OUTPUT_MIME_TYPE]
+                == OpenInferenceMimeTypeValues.TEXT.value
+            )
 
             # LLM identity
-            assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4"
-            assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+            assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4o-mini"
+            assert (
+                attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+            )
+            assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
+            total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
+            assert isinstance(total_tokens, (int, float))
+            assert total_tokens > 0
+
+            # LLM messages
+            assert attributes["llm.input_messages.0.message.role"] == "user"
+            assert isinstance(attributes["llm.input_messages.0.message.content"], str)
+            assert attributes["llm.output_messages.0.message.role"] == "assistant"
+            assert isinstance(attributes["llm.output_messages.0.message.content"], str)
 
     def test_openinference_span_processor_creation(self) -> None:
         """Test that the OpenInference span processor can be created and used."""
