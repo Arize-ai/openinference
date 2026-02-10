@@ -8,8 +8,9 @@ import {
   SpanExporter,
 } from "@opentelemetry/sdk-trace-base";
 
+import { TraceAggregateManager } from "./TraceAggregateManager";
 import { SpanFilter } from "./types";
-import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
+import { shouldExportSpan } from "./utils";
 
 /**
  * Extends {@link SimpleSpanProcessor} to support OpenInference attributes.
@@ -39,6 +40,8 @@ import { addOpenInferenceAttributesToSpan, shouldExportSpan } from "./utils";
  */
 export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
   private readonly spanFilter?: SpanFilter;
+  private readonly aggregateManager = new TraceAggregateManager();
+
   constructor({
     exporter,
     spanFilter,
@@ -58,8 +61,14 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     this.spanFilter = spanFilter;
   }
 
+  onStart(span: Span, parentContext: Context): void {
+    this.aggregateManager.onStart(span);
+    super.onStart(span, parentContext);
+  }
+
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    this.aggregateManager.onEnd(span);
+
     if (
       shouldExportSpan({
         span,
@@ -68,6 +77,16 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
     ) {
       super.onEnd(span);
     }
+  }
+
+  async shutdown(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.shutdown();
+  }
+
+  async forceFlush(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.forceFlush();
   }
 }
 
@@ -100,6 +119,8 @@ export class OpenInferenceSimpleSpanProcessor extends SimpleSpanProcessor {
  */
 export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
   private readonly spanFilter?: SpanFilter;
+  private readonly aggregateManager = new TraceAggregateManager();
+
   constructor({
     exporter,
     spanFilter,
@@ -122,20 +143,14 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     this.spanFilter = spanFilter;
   }
 
-  forceFlush(): Promise<void> {
-    return super.forceFlush();
-  }
-
-  shutdown(): Promise<void> {
-    return super.shutdown();
-  }
-
-  onStart(_span: Span, _parentContext: Context): void {
-    return super.onStart(_span, _parentContext);
+  onStart(span: Span, parentContext: Context): void {
+    this.aggregateManager.onStart(span);
+    return super.onStart(span, parentContext);
   }
 
   onEnd(span: ReadableSpan): void {
-    addOpenInferenceAttributesToSpan(span);
+    this.aggregateManager.onEnd(span);
+
     if (
       shouldExportSpan({
         span,
@@ -144,5 +159,15 @@ export class OpenInferenceBatchSpanProcessor extends BatchSpanProcessor {
     ) {
       super.onEnd(span);
     }
+  }
+
+  async shutdown(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.shutdown();
+  }
+
+  async forceFlush(): Promise<void> {
+    this.aggregateManager.clear();
+    return super.forceFlush();
   }
 }
