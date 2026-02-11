@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Any, Dict, Mapping, Optional, cast
 
 import openlit  # type: ignore[import-untyped]
@@ -29,11 +28,7 @@ from openinference.semconv.trace import (
 
 @pytest.fixture
 def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Only set fake API key if no real one is available
-    real_api_key = os.environ.get("OPENAI_API_KEY")
-    if not real_api_key or real_api_key == "sk-0123456789":
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
-    # If real API key exists, don't override it
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
 
 
 @pytest.fixture
@@ -121,11 +116,7 @@ class TestOpenLitInstrumentor:
         # Capture OpenLIT initialization logs
         with caplog.at_level(logging.ERROR, logger="openlit"):
             # Initialize OpenLIT with the tracer
-            openlit.init(
-                otel_tracer=tracer,
-                otlp_endpoint=None,
-                disable_batch=True,  # Try to avoid async issues
-            )
+            openlit.init(otel_tracer=tracer)
 
         # Check if OpenLIT initialization failed with the known bug
         openlit_init_error = any(
@@ -136,9 +127,9 @@ class TestOpenLitInstrumentor:
 
         if openlit_init_error:
             pytest.skip(
-                "OpenLIT has a known bug in the current version: "
-                "'return' with value in async generator (async_agno.py, line 783). "
-                "Track Reported Issue: https://github.com/openlit/openlit/issues/997"
+                "OpenLIT (v1.36.8) has a known bug which prevents initialization: "
+                "\n'return' with value in async generator (async_agno.py, line 783). "
+                "\nTrack Reported Issue: https://github.com/openlit/openlit/issues/997"
             )
 
         # Set up Semantic Kernel
@@ -181,18 +172,18 @@ class TestOpenLitInstrumentor:
             assert is_openinference_span(span)
             assert (
                 attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
-                == OpenInferenceSpanKindValues.TOOL.value
+                == OpenInferenceSpanKindValues.LLM.value
             )
 
             # Input / Output
             assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
             assert (
-                attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.TEXT.value
+                attributes[SpanAttributes.INPUT_MIME_TYPE] == OpenInferenceMimeTypeValues.JSON.value
             )
             assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
             assert (
                 attributes[SpanAttributes.OUTPUT_MIME_TYPE]
-                == OpenInferenceMimeTypeValues.TEXT.value
+                == OpenInferenceMimeTypeValues.JSON.value
             )
 
             # LLM identity
@@ -201,9 +192,12 @@ class TestOpenLitInstrumentor:
                 attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
             )
             assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
-            total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
-            assert isinstance(total_tokens, (int, float))
-            assert total_tokens > 0
+            completion_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION)
+            assert isinstance(completion_tokens, (int, float))
+            assert completion_tokens > 0
+            prompt_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT)
+            assert isinstance(prompt_tokens, (int, float))
+            assert prompt_tokens > 0
 
             # LLM messages
             assert attributes["llm.input_messages.0.message.role"] == "user"

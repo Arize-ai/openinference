@@ -63,7 +63,7 @@ provider.add_span_processor(
 )
 
 tracer = provider.get_tracer(__name__)
-openlit.init(tracer=tracer)
+openlit.init(otel_tracer=tracer)
 
 # --------------------------------------------------------------------------------
 # LLM Setup
