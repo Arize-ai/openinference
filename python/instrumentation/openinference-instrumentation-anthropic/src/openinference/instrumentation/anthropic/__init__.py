@@ -106,7 +106,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrap_function_wrapper(
                 module="anthropic.resources.beta.messages",
                 name="Messages.parse",
-                wrapper=_BetaMessagesParseWrapper(tracer=self._tracer),
+                wrapper=_BetaMessagesParseWrapper(
+                    tracer=self._tracer,
+                    span_name="BetaMessagesParse",
+                    enable_streaming=False,
+                ),
             )
             logger.debug("Successfully instrumented beta.messages.parse()")
         except ImportError as e:
@@ -124,7 +128,11 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             wrap_function_wrapper(
                 module="anthropic.resources.beta.messages",
                 name="AsyncMessages.parse",
-                wrapper=_AsyncBetaMessagesParseWrapper(tracer=self._tracer),
+                wrapper=_AsyncBetaMessagesParseWrapper(
+                    tracer=self._tracer,
+                    span_name="AsyncBetaMessagesParse",
+                    enable_streaming=False,
+                ),
             )
             logger.debug("Successfully instrumented async beta.messages.parse()")
         except ImportError as e:

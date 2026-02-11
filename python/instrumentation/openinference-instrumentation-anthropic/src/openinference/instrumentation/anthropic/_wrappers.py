@@ -183,7 +183,18 @@ class _MessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
+    Supports both regular messages.create() and beta.messages.parse()
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str = "Messages",
+        enable_streaming: bool = True,
+    ) -> None:
+        super().__init__(tracer)
+        self._span_name = span_name
+        self._enable_streaming = enable_streaming
 
     def __call__(
         self,
@@ -197,7 +208,7 @@ class _MessagesWrapper(_WithTracer):
 
         arguments = kwargs
         with self._start_as_current_span(
-            span_name="Messages",
+            span_name=self._span_name,
             attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
@@ -206,9 +217,10 @@ class _MessagesWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
+            if self._enable_streaming:
+                streaming = kwargs.get("stream", False)
+                if streaming:
+                    return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
             _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
             span.finish_tracing()
@@ -219,7 +231,18 @@ class _AsyncMessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
+    Supports both regular messages.create() and beta.messages.parse()
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str = "AsyncMessages",
+        enable_streaming: bool = True,
+    ) -> None:
+        super().__init__(tracer)
+        self._span_name = span_name
+        self._enable_streaming = enable_streaming
 
     async def __call__(
         self,
@@ -233,7 +256,7 @@ class _AsyncMessagesWrapper(_WithTracer):
 
         arguments = kwargs
         with self._start_as_current_span(
-            span_name="AsyncMessages",
+            span_name=self._span_name,
             attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
@@ -242,9 +265,10 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
+            if self._enable_streaming:
+                streaming = kwargs.get("stream", False)
+                if streaming:
+                    return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
             _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
             span.finish_tracing()
@@ -306,70 +330,9 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
         return _MessagesStream(raw, self._self_with_span)
 
 
-class _BetaMessagesParseWrapper(_WithTracer):
-    """
-    Wrapper for beta.messages.parse()
-    Captures all calls to the parse method. Uses shared messages helpers; output may lack usage.
-    """
-
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return wrapped(*args, **kwargs)
-
-        arguments = kwargs
-        with self._start_as_current_span(
-            span_name="BetaMessagesParse",
-            attributes=_get_messages_span_input_attributes(arguments),
-        ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
-            span.finish_tracing()
-            return response
-
-
-class _AsyncBetaMessagesParseWrapper(_WithTracer):
-    """
-    Wrapper for async beta.messages.parse()
-    Captures all calls to the parse method. Uses shared messages helpers; output may lack usage.
-    """
-
-    async def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
-        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
-            return await wrapped(*args, **kwargs)
-
-        arguments = kwargs
-        with self._start_as_current_span(
-            span_name="AsyncBetaMessagesParse",
-            attributes=_get_messages_span_input_attributes(arguments),
-        ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
-                span.record_exception(exception)
-                raise
-            span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
-            span.finish_tracing()
-            return response
+# Beta wrappers are now aliases to the main wrappers with different configuration
+_BetaMessagesParseWrapper = _MessagesWrapper
+_AsyncBetaMessagesParseWrapper = _AsyncMessagesWrapper
 
 
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
