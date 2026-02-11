@@ -16,6 +16,7 @@
     "python/instrumentation/openinference-instrumentation-groq": "0.1.12",
     "python/instrumentation/openinference-instrumentation-instructor": "0.1.13",
     "python/instrumentation/openinference-instrumentation-anthropic": "0.1.20",
+    "python/instrumentation/openinference-instrumentation-claude-code": "0.1.0",
     "python/instrumentation/openinference-instrumentation-smolagents": "0.1.22",
     "python/instrumentation/openinference-instrumentation-autogen": "0.1.10",
     "python/instrumentation/openinference-instrumentation-openai-agents": "1.4.0",
