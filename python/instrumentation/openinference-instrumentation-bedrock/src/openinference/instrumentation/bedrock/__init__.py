@@ -153,9 +153,9 @@ def _instrument_client(
         client._unwrapped_invoke_model = client.invoke_model
         if not is_async:
             client.invoke_model = _model_invocation_wrapper(tracer)(client)
-            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
-                client.invoke_model_with_response_stream
-            )
+        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+            client.invoke_model_with_response_stream
+        )
 
         if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
             client._unwrapped_converse = client.converse

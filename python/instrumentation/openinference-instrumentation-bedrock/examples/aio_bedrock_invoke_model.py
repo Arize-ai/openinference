@@ -37,12 +37,11 @@ async def claude3_invoke_model():
         region_name="us-east-1",
     )
     async with session.client("bedrock-runtime") as client:
-        response = client.invoke_model(
+        response = await client.invoke_model_with_response_stream(
             modelId="anthropic.claude-3-haiku-20240307-v1:0", body=json.dumps(prompt)
         )
-
-        response_body = json.loads(response.get("body").read())
-        print(response_body)
+        async for chunk in response["body"]:
+            print(chunk)
 
 
 def sanitize_format(fmt: str) -> str:
@@ -94,14 +93,13 @@ async def invoke_image_call():
         region_name="us-east-1",
     )
     async with session.client("bedrock-runtime") as client:
-        response = await client.invoke_model(
+        response = await client.invoke_model_with_response_stream(
             modelId="anthropic.claude-3-haiku-20240307-v1:0", body=json.dumps(message)
         )
-
-        response_body = json.loads(response.get("body").read())
-        print(response_body)
+        async for chunk in response["body"]:
+            print(chunk)
 
 
 if __name__ == "__main__":
-    asyncio.run(invoke_image_call())
+    # asyncio.run(invoke_image_call())
     asyncio.run(claude3_invoke_model())

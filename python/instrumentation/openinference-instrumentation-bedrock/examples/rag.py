@@ -41,10 +41,12 @@ def retrieve_and_generate():
             "type": "KNOWLEDGE_BASE",
         },
     }
-    response = client.retrieve_and_generate(**attributes)
+    response = client.retrieve_and_generate_stream(**attributes)
     print(response)
+    for res in response['stream']:
+        print(res)
 
 
 if __name__ == "__main__":
-    run()
+    # run()
     retrieve_and_generate()
