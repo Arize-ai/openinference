@@ -222,7 +222,7 @@ class _MessagesWrapper(_WithTracer):
                 if streaming:
                     return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
+            _set_messages_span_output_attributes(span, response, arguments)
             span.finish_tracing()
             return response
 
@@ -270,7 +270,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                 if streaming:
                     return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments, include_usage=True)
+            _set_messages_span_output_attributes(span, response, arguments)
             span.finish_tracing()
             return response
 
@@ -568,37 +568,21 @@ def _set_messages_span_output_attributes(
     span: Any,
     response: Any,
     arguments: Mapping[str, Any],
-    *,
-    include_usage: bool = True,
 ) -> None:
     """
-    Set output attributes on a messages-style span. If include_usage is True and response has usage,
-    records model name from response, output messages, token counts, and outputs. Otherwise uses
-    model name from arguments and omits token counts (e.g. for beta parse when usage is absent).
-    Output messages and outputs are always captured in both branches for complete observability.
+    Set output attributes on a messages-style span.
+    Records model name from response, output messages, token counts, and outputs.
     """
-    if include_usage and getattr(response, "usage", None):
-        span.set_attributes(
-            dict(
-                chain(
-                    _get_llm_model_name_from_response(response),
-                    _get_output_messages(response),
-                    _get_llm_token_counts(response.usage),
-                    _get_outputs(response),
-                )
+    span.set_attributes(
+        dict(
+            chain(
+                _get_llm_model_name_from_response(response),
+                _get_output_messages(response),
+                _get_llm_token_counts(response.usage),
+                _get_outputs(response),
             )
         )
-    else:
-        # Usage missing: still record output messages and outputs; model from input, no token counts
-        span.set_attributes(
-            dict(
-                chain(
-                    _get_llm_model_name_from_input(arguments),
-                    _get_output_messages(response),
-                    _get_outputs(response),
-                )
-            )
-        )
+    )
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:
