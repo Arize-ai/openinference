@@ -20,7 +20,7 @@ from openinference.instrumentation.agno._workflow_wrapper import (
 )
 from openinference.instrumentation.agno.version import __version__
 
-_instruments = ("agno >= 1.5.2",)
+_instruments = ("agno >= 2.5.0",)
 
 
 # Find all model classes in agno.models that inherit from BaseModel
