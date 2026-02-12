@@ -182,34 +182,6 @@ def _setup_team_context(
     return None, None
 
 
-def _get_team_span_context(instance: Any) -> Optional[Context]:
-    """
-    Determine the appropriate span context for Team instances.
-
-    Returns:
-        - INVALID_SPAN context if this is a top-level Team (no parent team)
-        - None if this is a nested Team or not a Team at all
-
-    This ensures:
-    - Sequential team.run() calls create separate top-level traces
-    - Nested teams (teams as members) properly nest under parent teams
-    """
-    if not isinstance(instance, Team):
-        return None
-
-    # Check if we're inside a parent Team context
-    # This is more reliable than get_current_span() when Agno uses thread pools
-    parent_team_node_id = context_api.get_value(_AGNO_PARENT_NODE_CONTEXT_KEY)
-
-    # Only force root span if we're NOT inside a parent Team
-    if parent_team_node_id is None:
-        # No parent team context - create root span for top-level Team
-        return trace_api.set_span_in_context(trace_api.INVALID_SPAN)
-
-    # Inside parent team - let it nest naturally
-    return None
-
-
 class _RunWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -242,9 +214,6 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Get appropriate span context for Team instances
-        span_context = _get_team_span_context(instance)
-
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -252,7 +221,6 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
-            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -271,10 +239,20 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
-                run_response: RunOutput = wrapped(*args, **kwargs)
+                try:
+                    run_response: RunOutput = wrapped(*args, **kwargs)
+                finally:
+                    # Detach team context BEFORE use_span exits to prevent context leak
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
+                        team_token = None
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -290,11 +268,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
     def run_stream(
@@ -316,16 +289,12 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.run"
 
-        # Get appropriate span context for Team instances
-        span_context = _get_team_span_context(instance)
-
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
         arguments = _bind_arguments(wrapped, *args, **kwargs)
 
         span = self._tracer.start_span(
             span_name,
-            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -344,6 +313,7 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             current_run_id = None
             yield_run_output_set = False
@@ -354,18 +324,27 @@ class _RunWrapper:
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
-                for response in wrapped(*args, **kwargs):
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+                try:
+                    for response in wrapped(*args, **kwargs):
+                        if hasattr(response, "run_id"):
+                            current_run_id = response.run_id
+                            if current_run_id:
+                                span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                        if isinstance(response, (RunOutput, TeamRunOutput)):
+                            run_response = response
+                            if yield_run_output_set:
+                                continue
 
-                    yield response
+                        yield response
+                finally:
+                    # Detach team context BEFORE use_span exits to prevent context leak
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
+                        team_token = None
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
@@ -380,11 +359,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
     async def arun(
@@ -407,9 +381,6 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
-        # Get appropriate span context for Team instances
-        span_context = _get_team_span_context(instance)
-
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -417,7 +388,6 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
-            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -436,10 +406,20 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
-                run_response = await wrapped(*args, **kwargs)
+                try:
+                    run_response = await wrapped(*args, **kwargs)
+                finally:
+                    # Detach team context BEFORE use_span exits to prevent context leak
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
+                        team_token = None
             span.set_status(trace_api.StatusCode.OK)
             span.set_attribute(OUTPUT_VALUE, _extract_run_response_output(run_response))
             span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -454,11 +434,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
     async def arun_stream(
@@ -481,9 +456,6 @@ class _RunWrapper:
                 agent_name = "Agent"
         span_name = f"{agent_name}.arun"
 
-        # Get appropriate span context for Team instances
-        span_context = _get_team_span_context(instance)
-
         # Generate unique node ID for this execution
         node_id = _generate_node_id()
 
@@ -491,7 +463,6 @@ class _RunWrapper:
 
         span = self._tracer.start_span(
             span_name,
-            context=span_context,
             attributes=dict(
                 _flatten(
                     {
@@ -510,6 +481,7 @@ class _RunWrapper:
             ),
         )
 
+        team_token = None
         try:
             current_run_id = None
             yield_run_output_set = False
@@ -519,18 +491,27 @@ class _RunWrapper:
             run_response = None
             with trace_api.use_span(span, end_on_exit=False):
                 team_token, team_ctx = _setup_team_context(instance, node_id)
-                async for response in wrapped(*args, **kwargs):  # type: ignore
-                    if hasattr(response, "run_id"):
-                        current_run_id = response.run_id
-                        if current_run_id:
-                            span.set_attribute("agno.run.id", current_run_id)
+                try:
+                    async for response in wrapped(*args, **kwargs):  # type: ignore
+                        if hasattr(response, "run_id"):
+                            current_run_id = response.run_id
+                            if current_run_id:
+                                span.set_attribute("agno.run.id", current_run_id)
 
-                    if isinstance(response, (RunOutput, TeamRunOutput)):
-                        run_response = response
-                        if yield_run_output_set:
-                            continue
+                        if isinstance(response, (RunOutput, TeamRunOutput)):
+                            run_response = response
+                            if yield_run_output_set:
+                                continue
 
-                    yield response
+                        yield response
+                finally:
+                    # Detach team context BEFORE use_span exits to prevent context leak
+                    if team_token:
+                        try:
+                            context_api.detach(team_token)
+                        except Exception:
+                            pass
+                        team_token = None
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
@@ -545,11 +526,6 @@ class _RunWrapper:
             raise
 
         finally:
-            if team_token:
-                try:
-                    context_api.detach(team_token)
-                except Exception:
-                    pass
             span.end()
 
 
