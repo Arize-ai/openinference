@@ -95,8 +95,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _instrument(self, **kwargs: Any) -> None:
         try:
-            from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
-            from agno.team import _run as team_run_module  # type: ignore[attr-defined]
+            from agno.agent import _run as agent_run_module
+            from agno.team import _run as team_run_module
         except ImportError as e:
             raise ImportError(
                 "openinference-instrumentation-agno >= 0.1.28 requires agno >= 2.5.0. "
@@ -361,8 +361,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_parallel_methods = None  # type: ignore[assignment]
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
-        from agno.team import _run as team_run_module  # type: ignore[attr-defined]
+        from agno.agent import _run as agent_run_module
+        from agno.team import _run as team_run_module
         from agno.tools.function import FunctionCall
 
         # Restore Agent module-level functions

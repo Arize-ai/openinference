@@ -161,7 +161,9 @@ def _agent_run_attributes(
 
         if agent.tools:
             tool_names = []
-            for tool in agent.tools:
+            # Handle both list of tools and callable that returns tools
+            tools = agent.tools() if callable(agent.tools) else agent.tools
+            for tool in tools:
                 if isinstance(tool, Function):
                     tool_names.append(tool.name)
                 elif isinstance(tool, Toolkit):
