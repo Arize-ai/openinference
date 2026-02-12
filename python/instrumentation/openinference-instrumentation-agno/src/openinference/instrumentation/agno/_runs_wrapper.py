@@ -187,18 +187,13 @@ def _get_agent_or_team(
 ) -> Optional[Union[Agent, Team]]:
     """
     Extract the Agent or Team from the arguments.
-    For instance methods: instance is the Agent/Team
     For module-level functions: first arg is the Agent/Team
     """
-    # If instance is already an Agent or Team (instance method call)
-    if isinstance(instance, (Agent, Team)):
-        return instance
-
-    # For module-level functions, check first positional arg
+    # For module-level functions, the Agent/Team is the first positional arg
     if args and isinstance(args[0], (Agent, Team)):
         return args[0]
 
-    # Check kwargs for 'agent' or 'team'
+    # Fallback: check kwargs for 'agent' or 'team'
     if "agent" in kwargs and isinstance(kwargs["agent"], Agent):
         return kwargs["agent"]
     if "team" in kwargs and isinstance(kwargs["team"], Team):

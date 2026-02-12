@@ -87,8 +87,6 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_workflow_methods",
         "_original_step_methods",
         "_original_parallel_methods",
-        "_using_module_level_wrapping",
-        "_using_team_module_level_wrapping",
         "_tracer",
     )
 
@@ -96,19 +94,16 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
-        from agno.agent import Agent
-        from agno.team import Team
-        from agno.tools.function import FunctionCall
-
-        # Try to import the new module-level _run module (new agno versions)
         try:
             from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
-
-            # New agno versions have _run, _run_stream, _arun, _arun_stream as module functions
-            has_module_level_impl = hasattr(agent_run_module, "_run")
-        except ImportError:
-            agent_run_module = None
-            has_module_level_impl = False
+            from agno.team import _run as team_run_module  # type: ignore[attr-defined]
+        except ImportError as e:
+            raise ImportError(
+                "openinference-instrumentation-agno >= 0.1.28 requires agno >= 2.5.0. "
+                "Please either upgrade agno (`pip install --upgrade agno`) or "
+                "downgrade the instrumentor (`pip install openinference-instrumentation-agno<0.1.28`)."
+            ) from e
+        from agno.tools.function import FunctionCall
 
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
@@ -123,144 +118,65 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
 
         run_wrapper = _RunWrapper(tracer=self._tracer)
 
-        # Track which wrapping strategy we used for uninstrument
-        self._using_module_level_wrapping = has_module_level_impl
+        # Wrap Agent module-level run functions
+        self._original_run_method = getattr(agent_run_module, "_run", None)
+        if self._original_run_method:
+            wrap_function_wrapper(
+                module=agent_run_module,
+                name="_run",
+                wrapper=run_wrapper.run,
+            )
+        self._original_run_stream_method = getattr(agent_run_module, "_run_stream", None)
+        if self._original_run_stream_method:
+            wrap_function_wrapper(
+                module=agent_run_module,
+                name="_run_stream",
+                wrapper=run_wrapper.run_stream,
+            )
+        self._original_arun_method = getattr(agent_run_module, "_arun", None)
+        if self._original_arun_method:
+            wrap_function_wrapper(
+                module=agent_run_module,
+                name="_arun",
+                wrapper=run_wrapper.arun,
+            )
+        self._original_arun_stream_method = getattr(agent_run_module, "_arun_stream", None)
+        if self._original_arun_stream_method:
+            wrap_function_wrapper(
+                module=agent_run_module,
+                name="_arun_stream",
+                wrapper=run_wrapper.arun_stream,
+            )
 
-        if has_module_level_impl and agent_run_module is not None:
-            # New agno versions: wrap module-level implementation functions directly
-            # These are where the actual work happens (LLM calls, tool calls, etc.)
-            self._original_run_method = getattr(agent_run_module, "_run", None)
-            if self._original_run_method:
-                wrap_function_wrapper(
-                    module=agent_run_module,
-                    name="_run",
-                    wrapper=run_wrapper.run,
-                )
-            self._original_run_stream_method = getattr(agent_run_module, "_run_stream", None)
-            if self._original_run_stream_method:
-                wrap_function_wrapper(
-                    module=agent_run_module,
-                    name="_run_stream",
-                    wrapper=run_wrapper.run_stream,
-                )
-            self._original_arun_method = getattr(agent_run_module, "_arun", None)
-            if self._original_arun_method:
-                wrap_function_wrapper(
-                    module=agent_run_module,
-                    name="_arun",
-                    wrapper=run_wrapper.arun,
-                )
-            self._original_arun_stream_method = getattr(agent_run_module, "_arun_stream", None)
-            if self._original_arun_stream_method:
-                wrap_function_wrapper(
-                    module=agent_run_module,
-                    name="_arun_stream",
-                    wrapper=run_wrapper.arun_stream,
-                )
-        else:
-            # Old agno versions: wrap Agent class methods directly
-            self._original_run_method = getattr(Agent, "_run", None)
-            if self._original_run_method:
-                wrap_function_wrapper(
-                    module=Agent,
-                    name="_run",
-                    wrapper=run_wrapper.run,
-                )
-            self._original_run_stream_method = getattr(Agent, "_run_stream", None)
-            if self._original_run_stream_method:
-                wrap_function_wrapper(
-                    module=Agent,
-                    name="_run_stream",
-                    wrapper=run_wrapper.run_stream,
-                )
-            self._original_arun_method = getattr(Agent, "_arun", None)
-            if self._original_arun_method:
-                wrap_function_wrapper(
-                    module=Agent,
-                    name="_arun",
-                    wrapper=run_wrapper.arun,
-                )
-            self._original_arun_stream_method = getattr(Agent, "_arun_stream", None)
-            if self._original_arun_stream_method:
-                wrap_function_wrapper(
-                    module=Agent,
-                    name="_arun_stream",
-                    wrapper=run_wrapper.arun_stream,
-                )
-
-        # Register wrapper for team
-        # Try to import the new module-level _run module (new agno versions)
-        try:
-            from agno.team import _run as team_run_module  # type: ignore[attr-defined]
-
-            has_team_module_level_impl = hasattr(team_run_module, "_run")
-        except ImportError:
-            team_run_module = None
-            has_team_module_level_impl = False
-
-        # Track which wrapping strategy we used for Team uninstrument
-        self._using_team_module_level_wrapping = has_team_module_level_impl
-
-        if has_team_module_level_impl and team_run_module is not None:
-            # New agno versions: wrap module-level implementation functions directly
-            self._original_team_run_method = getattr(team_run_module, "_run", None)
-            if self._original_team_run_method:
-                wrap_function_wrapper(
-                    module=team_run_module,
-                    name="_run",
-                    wrapper=run_wrapper.run,
-                )
-            self._original_team_run_stream_method = getattr(team_run_module, "_run_stream", None)
-            if self._original_team_run_stream_method:
-                wrap_function_wrapper(
-                    module=team_run_module,
-                    name="_run_stream",
-                    wrapper=run_wrapper.run_stream,
-                )
-            self._original_team_arun_method = getattr(team_run_module, "_arun", None)
-            if self._original_team_arun_method:
-                wrap_function_wrapper(
-                    module=team_run_module,
-                    name="_arun",
-                    wrapper=run_wrapper.arun,
-                )
-            self._original_team_arun_stream_method = getattr(team_run_module, "_arun_stream", None)
-            if self._original_team_arun_stream_method:
-                wrap_function_wrapper(
-                    module=team_run_module,
-                    name="_arun_stream",
-                    wrapper=run_wrapper.arun_stream,
-                )
-        else:
-            # Old agno versions: wrap Team class methods directly
-            self._original_team_run_method = getattr(Team, "_run", None)
-            if self._original_team_run_method:
-                wrap_function_wrapper(
-                    module=Team,
-                    name="_run",
-                    wrapper=run_wrapper.run,
-                )
-            self._original_team_run_stream_method = getattr(Team, "_run_stream", None)
-            if self._original_team_run_stream_method:
-                wrap_function_wrapper(
-                    module=Team,
-                    name="_run_stream",
-                    wrapper=run_wrapper.run_stream,
-                )
-            self._original_team_arun_method = getattr(Team, "_arun", None)
-            if self._original_team_arun_method:
-                wrap_function_wrapper(
-                    module=Team,
-                    name="_arun",
-                    wrapper=run_wrapper.arun,
-                )
-            self._original_team_arun_stream_method = getattr(Team, "_arun_stream", None)
-            if self._original_team_arun_stream_method:
-                wrap_function_wrapper(
-                    module=Team,
-                    name="_arun_stream",
-                    wrapper=run_wrapper.arun_stream,
-                )
+        # Wrap Team module-level run functions
+        self._original_team_run_method = getattr(team_run_module, "_run", None)
+        if self._original_team_run_method:
+            wrap_function_wrapper(
+                module=team_run_module,
+                name="_run",
+                wrapper=run_wrapper.run,
+            )
+        self._original_team_run_stream_method = getattr(team_run_module, "_run_stream", None)
+        if self._original_team_run_stream_method:
+            wrap_function_wrapper(
+                module=team_run_module,
+                name="_run_stream",
+                wrapper=run_wrapper.run_stream,
+            )
+        self._original_team_arun_method = getattr(team_run_module, "_arun", None)
+        if self._original_team_arun_method:
+            wrap_function_wrapper(
+                module=team_run_module,
+                name="_arun",
+                wrapper=run_wrapper.arun,
+            )
+        self._original_team_arun_stream_method = getattr(team_run_module, "_arun_stream", None)
+        if self._original_team_arun_stream_method:
+            wrap_function_wrapper(
+                module=team_run_module,
+                name="_arun_stream",
+                wrapper=run_wrapper.arun_stream,
+            )
 
         self._original_model_call_methods: Optional[dict[type, dict[str, Callable[..., Any]]]] = {}
 
@@ -444,79 +360,37 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_parallel_methods = None  # type: ignore[assignment]
 
     def _uninstrument(self, **kwargs: Any) -> None:
-        from agno.agent import Agent
-        from agno.team import Team
+        from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
+        from agno.team import _run as team_run_module  # type: ignore[attr-defined]
         from agno.tools.function import FunctionCall
 
-        # Restore Agent methods based on which wrapping strategy was used
-        if getattr(self, "_using_module_level_wrapping", False):
-            # New agno versions: restore module-level functions
-            try:
-                from agno.agent import _run as agent_run_module  # type: ignore[attr-defined]
+        # Restore Agent module-level functions
+        if self._original_run_method is not None:
+            agent_run_module._run = self._original_run_method
+            self._original_run_method = None
+        if self._original_run_stream_method is not None:
+            agent_run_module._run_stream = self._original_run_stream_method
+            self._original_run_stream_method = None
+        if self._original_arun_method is not None:
+            agent_run_module._arun = self._original_arun_method
+            self._original_arun_method = None
+        if self._original_arun_stream_method is not None:
+            agent_run_module._arun_stream = self._original_arun_stream_method
+            self._original_arun_stream_method = None
 
-                if self._original_run_method is not None:
-                    agent_run_module._run = self._original_run_method
-                    self._original_run_method = None
-                if self._original_run_stream_method is not None:
-                    agent_run_module._run_stream = self._original_run_stream_method
-                    self._original_run_stream_method = None
-                if self._original_arun_method is not None:
-                    agent_run_module._arun = self._original_arun_method
-                    self._original_arun_method = None
-                if self._original_arun_stream_method is not None:
-                    agent_run_module._arun_stream = self._original_arun_stream_method
-                    self._original_arun_stream_method = None
-            except ImportError:
-                pass
-        else:
-            # Old agno versions: restore Agent class methods
-            if self._original_run_method is not None:
-                Agent._run = self._original_run_method  # type: ignore[method-assign]
-                self._original_run_method = None
-            if self._original_run_stream_method is not None:
-                Agent._run_stream = self._original_run_stream_method  # type: ignore[method-assign]
-                self._original_run_stream_method = None
-            if self._original_arun_method is not None:
-                Agent._arun = self._original_arun_method  # type: ignore[method-assign]
-                self._original_arun_method = None
-            if self._original_arun_stream_method is not None:
-                Agent._arun_stream = self._original_arun_stream_method  # type: ignore[method-assign]
-                self._original_arun_stream_method = None
-
-        # Restore Team methods based on which wrapping strategy was used
-        if getattr(self, "_using_team_module_level_wrapping", False):
-            # New agno versions: restore module-level functions
-            try:
-                from agno.team import _run as team_run_module  # type: ignore[attr-defined]
-
-                if self._original_team_run_method is not None:
-                    team_run_module._run = self._original_team_run_method
-                    self._original_team_run_method = None
-                if self._original_team_run_stream_method is not None:
-                    team_run_module._run_stream = self._original_team_run_stream_method
-                    self._original_team_run_stream_method = None
-                if self._original_team_arun_method is not None:
-                    team_run_module._arun = self._original_team_arun_method
-                    self._original_team_arun_method = None
-                if self._original_team_arun_stream_method is not None:
-                    team_run_module._arun_stream = self._original_team_arun_stream_method
-                    self._original_team_arun_stream_method = None
-            except ImportError:
-                pass
-        else:
-            # Old agno versions: restore Team class methods
-            if self._original_team_run_method is not None:
-                Team._run = self._original_team_run_method  # type: ignore[method-assign]
-                self._original_team_run_method = None
-            if self._original_team_run_stream_method is not None:
-                Team._run_stream = self._original_team_run_stream_method  # type: ignore[method-assign]
-                self._original_team_run_stream_method = None
-            if self._original_team_arun_method is not None:
-                Team._arun = self._original_team_arun_method  # type: ignore[method-assign]
-                self._original_team_arun_method = None
-            if self._original_team_arun_stream_method is not None:
-                Team._arun_stream = self._original_team_arun_stream_method  # type: ignore[method-assign]
-                self._original_team_arun_stream_method = None
+        # Restore Team module-level functions
+        if self._original_team_run_method is not None:
+            team_run_module._run = self._original_team_run_method
+            self._original_team_run_method = None
+        if self._original_team_run_stream_method is not None:
+            team_run_module._run_stream = self._original_team_run_stream_method
+            self._original_team_run_stream_method = None
+        if self._original_team_arun_method is not None:
+            team_run_module._arun = self._original_team_arun_method
+            self._original_team_arun_method = None
+        if self._original_team_arun_stream_method is not None:
+            team_run_module._arun_stream = self._original_team_arun_stream_method
+            self._original_team_arun_stream_method = None
 
         if self._original_model_call_methods is not None:
             for (

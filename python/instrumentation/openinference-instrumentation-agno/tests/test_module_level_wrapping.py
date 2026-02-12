@@ -1,12 +1,10 @@
-"""Tests for module-level wrapping compatibility with new and old agno versions.
+"""Tests for module-level wrapping in agno >= 2.5.
 
-These tests verify that the instrumentor correctly handles both:
-1. New agno versions (>= X.Y.Z) where _run methods are module-level functions
-2. Old agno versions where _run methods are instance methods on Agent/Team classes
+These tests verify that the instrumentor correctly wraps module-level functions
+in agno.agent._run and agno.team._run modules.
 """
 
 from typing import Iterator, Tuple
-from unittest.mock import patch
 
 import pytest
 from agno.agent import Agent
@@ -29,27 +27,8 @@ def tracer_provider_with_exporter() -> Iterator[Tuple[TracerProvider, InMemorySp
     exporter.clear()
 
 
-class TestInstrumentorDetection:
-    """Tests for detecting which agno version is installed."""
-
-    def test_instrumentor_detects_module_level_functions(
-        self, tracer_provider_with_exporter: Tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """Test that instrumentor correctly detects module-level functions."""
-        tracer_provider, _ = tracer_provider_with_exporter
-        instrumentor = AgnoInstrumentor()
-        instrumentor.instrument(tracer_provider=tracer_provider)
-
-        # Check that the instrumentor detected which wrapping strategy to use
-        # This attribute is set during instrumentation
-        assert hasattr(instrumentor, "_using_module_level_wrapping")
-        assert hasattr(instrumentor, "_using_team_module_level_wrapping")
-
-        # Both should be boolean values
-        assert isinstance(instrumentor._using_module_level_wrapping, bool)
-        assert isinstance(instrumentor._using_team_module_level_wrapping, bool)
-
-        instrumentor.uninstrument()
+class TestInstrumentorSetup:
+    """Tests for instrumentor setup."""
 
     def test_instrumentor_stores_original_methods(
         self, tracer_provider_with_exporter: Tuple[TracerProvider, InMemorySpanExporter]
@@ -392,43 +371,6 @@ class TestSpanHierarchy:
                 )
 
 
-class TestBackwardsCompatibility:
-    """Tests to ensure backwards compatibility with older agno versions."""
-
-    def test_instrumentor_works_without_module_level_functions(
-        self, tracer_provider_with_exporter: Tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """Test that instrumentor works even if module-level functions don't exist.
-
-        This simulates an older agno version where _run methods are on the class.
-        """
-        tracer_provider, exporter = tracer_provider_with_exporter
-
-        # Mock the import to simulate old agno version
-        with patch.dict("sys.modules", {"agno.agent._run": None}):
-            instrumentor = AgnoInstrumentor()
-            # This should not raise an error
-            try:
-                instrumentor.instrument(tracer_provider=tracer_provider)
-                # If we get here without error, the fallback worked
-                instrumentor.uninstrument()
-            except ImportError:
-                # This is also acceptable - means the instrumentor tried the fallback
-                pass
-
-    def test_instrumentor_handles_missing_team_module(
-        self, tracer_provider_with_exporter: Tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """Test that instrumentor handles missing team._run module gracefully."""
-        tracer_provider, exporter = tracer_provider_with_exporter
-
-        with patch.dict("sys.modules", {"agno.team._run": None}):
-            instrumentor = AgnoInstrumentor()
-            try:
-                instrumentor.instrument(tracer_provider=tracer_provider)
-                instrumentor.uninstrument()
-            except ImportError:
-                pass
 
 
 class TestAsyncMethods:
