@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.58...python-openinference-instrumentation-langchain-v0.1.59) (2026-02-12)
+
+
+### Bug Fixes
+
+* resolve Python daily cron failures (langchain, pipecat, openlit, agent-framework) ([#2724](https://github.com/Arize-ai/openinference/issues/2724)) ([87639c4](https://github.com/Arize-ai/openinference/commit/87639c48600a3e18ec16a3c75c185631916bd7f3))
+
 ## [0.1.58](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.57...python-openinference-instrumentation-langchain-v0.1.58) (2026-01-06)
 
 
