@@ -222,7 +222,7 @@ class _MessagesWrapper(_WithTracer):
                 if streaming:
                     return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments)
+            _set_messages_span_output_attributes(span, response)
             span.finish_tracing()
             return response
 
@@ -270,7 +270,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                 if streaming:
                     return _MessagesStream(response, span)
             span.set_status(trace_api.StatusCode.OK)
-            _set_messages_span_output_attributes(span, response, arguments)
+            _set_messages_span_output_attributes(span, response)
             span.finish_tracing()
             return response
 
@@ -567,7 +567,6 @@ def _get_messages_span_input_attributes(arguments: Mapping[str, Any]) -> dict[st
 def _set_messages_span_output_attributes(
     span: Any,
     response: Any,
-    arguments: Mapping[str, Any],
 ) -> None:
     """
     Set output attributes on a messages-style span.
