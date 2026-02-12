@@ -1329,6 +1329,17 @@ def test_anthropic_instrumentation_beta_messages_parse(
         assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == invocation_params
+
+        # Verify output messages are captured for beta responses (BetaTextBlock handling)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        )
+        assert "March 15th" in msg_content  # Verify content matches expected response
+
+        # Verify token counts are captured
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
     except (ImportError, AttributeError) as e:
         # Beta API may not be available in all SDK versions
         pytest.skip(f"Beta messages API not available: {e}")
@@ -1392,6 +1403,17 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == invocation_params
+
+        # Verify output messages are captured for beta responses (BetaTextBlock handling)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        )
+        assert "March 15th" in msg_content  # Verify content matches expected response
+
+        # Verify token counts are captured
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
     except (ImportError, AttributeError) as e:
         # Beta API may not be available in all SDK versions
         pytest.skip(f"Beta messages API not available: {e}")
