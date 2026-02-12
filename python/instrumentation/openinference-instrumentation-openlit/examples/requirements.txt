@@ -1,5 +1,5 @@
 semantic-kernel>=1.0.0
-openlit>=1.0.0 
+openlit>=1.36.8
 grpcio>=1.60.0
 opentelemetry-sdk>=1.22.0
 opentelemetry-exporter-otlp-proto-grpc>=1.22.0
