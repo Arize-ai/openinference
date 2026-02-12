@@ -371,8 +371,6 @@ class TestSpanHierarchy:
                 )
 
 
-
-
 class TestAsyncMethods:
     """Tests for async method wrapping."""
 

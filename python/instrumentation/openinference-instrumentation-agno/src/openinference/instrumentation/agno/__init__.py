@@ -101,7 +101,8 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
             raise ImportError(
                 "openinference-instrumentation-agno >= 0.1.28 requires agno >= 2.5.0. "
                 "Please either upgrade agno (`pip install --upgrade agno`) or "
-                "downgrade the instrumentor (`pip install openinference-instrumentation-agno<0.1.28`)."
+                "downgrade the instrumentor "
+                "(`pip install openinference-instrumentation-agno<0.1.28`)."
             ) from e
         from agno.tools.function import FunctionCall
 
