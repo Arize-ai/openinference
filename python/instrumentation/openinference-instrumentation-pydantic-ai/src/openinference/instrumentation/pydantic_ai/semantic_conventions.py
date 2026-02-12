@@ -762,9 +762,14 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                     ):
                                         message_role = GenAIMessageRoles.TOOL
                                         if GenAIMessagePartFields.RESULT in part:
+                                            result = part[GenAIMessagePartFields.RESULT]
+                                            if not isinstance(result, str):
+                                                result_str = safe_json_dumps(result)
+                                            else:
+                                                result_str = result
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                                                part[GenAIMessagePartFields.RESULT],
+                                                result_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (
