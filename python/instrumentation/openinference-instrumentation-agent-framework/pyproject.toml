@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "agent-framework >= 1.0.0b260130",
+    "agent-framework >= 1.0.0b260210",
 ]
 test = [
     "pytest",

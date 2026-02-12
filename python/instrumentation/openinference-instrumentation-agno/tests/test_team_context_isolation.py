@@ -144,17 +144,17 @@ async def test_multiple_async_team_runs_create_separate_traces(
     team, exporter = instrumented_team
 
     try:
-        await team.arun("First async question")
+        await team.arun("First async question")  # type: ignore[misc]
     except Exception:
         pass
 
     try:
-        await team.arun("Second async question")
+        await team.arun("Second async question")  # type: ignore[misc]
     except Exception:
         pass
 
     try:
-        await team.arun("Third async question")
+        await team.arun("Third async question")  # type: ignore[misc]
     except Exception:
         pass
 
@@ -248,7 +248,7 @@ async def test_mixed_sync_async_team_runs_create_separate_traces(
         pass
 
     try:
-        await team.arun("Async question")
+        await team.arun("Async question")  # type: ignore[misc]
     except Exception:
         pass
 

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "ai.streamText.doStream",
+    "spanContext": {
+      "traceId": "478d4dcc697ecfabc5e7a3d6e4216291",
+      "spanId": "5a81ef3ffb5d8603"
+    },
+    "attributes": {
+      "operation.name": "ai.streamText.doStream test-stream-text",
+      "resource.name": "test-stream-text",
+      "ai.operationId": "ai.streamText.doStream",
+      "ai.telemetry.functionId": "test-stream-text",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "streaming",
+      "ai.prompt.messages": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Write a short poem about TypeScript.\"}]}]",
+      "gen_ai.system": "openai.responses",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "ai.response.msToFirstChunk": 426.8535000000011,
+      "ai.response.msToFinish": 5385.003875,
+      "ai.response.avgOutputTokensPerSecond": 20.798499425406632,
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "In code’s embrace, where types align,  \nTypeScript dances, clear and fine.  \nWith static grace, it catches errors,  \nA safety net for code creators.  \n\nNo more confusion, types defined,  \nIn every function, purpose finds.  \nFrom JavaScript’s roots, it takes its flight,  \nEnhancing clarity, bringing light.  \n\nSo write with joy, or craft with care,  \nTypeScript's here, let worries spare.  \nIn every line, precision sings,  \nA language woven with bright, safe strings.  ",
+      "ai.response.id": "resp_07aff6ffa00269d50069821220f35c819dbbabe49b6cc82791",
+      "ai.response.model": "gpt-4o-mini-2024-07-18",
+      "ai.response.timestamp": "2026-02-03T15:20:00.000Z",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_07aff6ffa00269d50069821220f35c819dbbabe49b6cc82791\",\"serviceTier\":\"default\"}}",
+      "ai.usage.inputTokens": 15,
+      "ai.usage.outputTokens": 112,
+      "ai.usage.totalTokens": 127,
+      "ai.usage.reasoningTokens": 0,
+      "ai.usage.cachedInputTokens": 0,
+      "gen_ai.response.finish_reasons": [
+        "stop"
+      ],
+      "gen_ai.response.id": "resp_07aff6ffa00269d50069821220f35c819dbbabe49b6cc82791",
+      "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+      "gen_ai.usage.input_tokens": 15,
+      "gen_ai.usage.output_tokens": 112
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770132000,
+      598000000
+    ],
+    "endTime": [
+      1770132005,
+      984307375
+    ],
+    "events": [
+      {
+        "name": "ai.stream.firstChunk",
+        "time": [
+          1770132001,
+          25056459
+        ],
+        "attributes": {
+          "ai.response.msToFirstChunk": 426.8535000000011
+        }
+      },
+      {
+        "name": "ai.stream.finish",
+        "time": [
+          1770132005,
+          983212750
+        ],
+        "attributes": {}
+      }
+    ]
+  }
+]

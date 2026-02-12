@@ -16,7 +16,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "exports": {
     ".": {
@@ -54,6 +54,6 @@
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.3"
   }
 }

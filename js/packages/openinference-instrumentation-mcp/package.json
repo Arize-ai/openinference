@@ -17,7 +17,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest --typecheck"
+    "test": "vitest run --typecheck"
   },
   "exports": {
     ".": {
