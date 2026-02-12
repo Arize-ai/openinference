@@ -32,7 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "openlit>=1.36.0",  # 1.36.0+ required for Python 3.13 compatibility
+  "openlit>=1.36.8",
   "opentelemetry-sdk>=1.20.0",
   "opentelemetry-exporter-otlp-proto-http",
   "pytest-recording",
