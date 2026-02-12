@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Dict, Mapping, Optional, cast
 
 import openlit  # type: ignore[import-untyped]
@@ -93,9 +92,6 @@ class TestOpenLitInstrumentor:
         filter_headers=["authorization"],
     )
     @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        sys.version_info < (3, 10), reason="semantic-kernel>=1.0.0 requires Python>=3.10"
-    )
     @pytest.mark.skip(
         reason="OpenLIT v1.36.8 has async generator bug preventing initialization. "
         "See https://github.com/openlit/openlit/issues/997. "
@@ -107,7 +103,6 @@ class TestOpenLitInstrumentor:
         openai_global_llm_service: None,
         openai_chat_model_id: None,
         openai_text_model_id: None,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         in_memory_span_exporter = InMemorySpanExporter()
         in_memory_span_exporter.clear()
@@ -126,13 +121,6 @@ class TestOpenLitInstrumentor:
             otel_tracer=tracer,
             otlp_endpoint=None,
         )
-
-        if openlit_init_error:
-            pytest.skip(
-                "OpenLIT (v1.36.8) has a known bug which prevents initialization: "
-                "\n'return' with value in async generator (async_agno.py, line 783). "
-                "\nTrack Reported Issue: https://github.com/openlit/openlit/issues/997"
-            )
 
         # Set up Semantic Kernel
         kernel = Kernel()
