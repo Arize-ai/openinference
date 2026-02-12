@@ -408,6 +408,23 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
     """
     from anthropic.types import TextBlock, ToolUseBlock
 
+    # Import beta types for compatibility with beta API responses
+    try:
+        from anthropic.types.beta import BetaTextBlock, BetaToolUseBlock
+    except ImportError:
+        BetaTextBlock = None  # type: ignore[misc, assignment]
+        BetaToolUseBlock = None  # type: ignore[misc, assignment]
+
+    # Build tuple of text block types to check against
+    text_block_types: tuple[type, ...] = (TextBlock,)
+    if BetaTextBlock is not None:
+        text_block_types = (TextBlock, BetaTextBlock)
+
+    # Build tuple of tool use block types to check against
+    tool_use_block_types: tuple[type, ...] = (ToolUseBlock,)
+    if BetaToolUseBlock is not None:
+        tool_use_block_types = (ToolUseBlock, BetaToolUseBlock)
+
     for i in range(len(messages)):
         tool_index = 0
         if content := messages[i].get("content"):
@@ -415,7 +432,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
                 for j, block in enumerate(content):
-                    if isinstance(block, ToolUseBlock):
+                    if isinstance(block, tool_use_block_types):
                         if tool_call_id := block.id:
                             yield (
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
@@ -430,7 +447,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                             safe_json_dumps(block.input),
                         )
                         tool_index += 1
-                    elif isinstance(block, TextBlock):
+                    elif isinstance(block, text_block_types):
                         yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
                     elif isinstance(block, dict):
                         block_type = block.get("type")
@@ -488,14 +505,32 @@ def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
 
 def _get_output_messages(response: Any) -> Any:
     """
-    Extracts the tool call information from the response
+    Extracts the tool call information from the response.
+    Supports both regular Message responses and beta BetaMessage responses.
     """
     from anthropic.types import TextBlock, ToolUseBlock
+
+    # Import beta types for compatibility with beta API responses
+    try:
+        from anthropic.types.beta import BetaTextBlock, BetaToolUseBlock
+    except ImportError:
+        BetaTextBlock = None  # type: ignore[misc, assignment]
+        BetaToolUseBlock = None  # type: ignore[misc, assignment]
+
+    # Build tuple of text block types to check against
+    text_block_types: tuple[type, ...] = (TextBlock,)
+    if BetaTextBlock is not None:
+        text_block_types = (TextBlock, BetaTextBlock)
+
+    # Build tuple of tool use block types to check against
+    tool_use_block_types: tuple[type, ...] = (ToolUseBlock,)
+    if BetaToolUseBlock is not None:
+        tool_use_block_types = (ToolUseBlock, BetaToolUseBlock)
 
     tool_index = 0
     for block in response.content:
         yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", response.role
-        if isinstance(block, ToolUseBlock):
+        if isinstance(block, tool_use_block_types):
             yield (
                 f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                 block.name,
@@ -505,7 +540,7 @@ def _get_output_messages(response: Any) -> Any:
                 safe_json_dumps(block.input),
             )
             tool_index += 1
-        if isinstance(block, TextBlock):
+        if isinstance(block, text_block_types):
             yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
 
 
