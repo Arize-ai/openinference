@@ -92,6 +92,11 @@ class TestOpenLitInstrumentor:
     @pytest.mark.skipif(
         sys.version_info < (3, 10), reason="semantic-kernel>=1.0.0 requires Python>=3.10"
     )
+    @pytest.mark.skip(
+        reason="OpenLIT v1.36.8 has async generator bug preventing initialization. "
+        "See https://github.com/openlit/openlit/issues/997. "
+        "TODO: Re-enable when upstream bug is fixed."
+    )
     async def test_openlit_instrumentor(
         self,
         openai_api_key: None,
@@ -113,7 +118,7 @@ class TestOpenLitInstrumentor:
 
         # Initialize OpenLit with the tracer
         openlit.init(
-            tracer=tracer,
+            otel_tracer=tracer,
             otlp_endpoint=None,
         )
 

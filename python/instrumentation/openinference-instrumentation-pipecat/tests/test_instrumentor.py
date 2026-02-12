@@ -73,6 +73,7 @@ class TestInstrumentor:
         """Test that observer is injected into PipelineTask instances."""
         # Create a mock pipeline to pass to PipelineTask
         mock_pipeline = Mock()
+        mock_pipeline.processors = []  # PipelineTask expects processors attribute
 
         # Create a PipelineTask - observer should be automatically added
         with patch.object(PipelineTask, "add_observer") as mock_add_observer:

@@ -20,7 +20,7 @@ interactions:
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260130
+      - agent-framework-python/1.0.0b260210
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -30,13 +30,13 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.16.0
+      - 2.20.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.14.0
+      - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260130
+      - python/1.0.0b260210
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
@@ -45,14 +45,14 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5h8Sv6Uqh3tDgWLY8E2aZiGl1Nnv\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770249824,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D8EhxbO6Ijm3OXuV21Wef3x99R7U8\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770855533,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_n3cPsyTwSYCFkNOlqqCHqbZ2\",\n            \"type\":
+        \           \"id\": \"call_jzYR2r5QpEW38DgIlv2PKr14\",\n            \"type\":
         \"function\",\n            \"function\": {\n              \"name\": \"get_temperature\",\n
         \             \"arguments\": \"{\\\"location\\\": \\\"San Francisco\\\"}\"\n
-        \           }\n          },\n          {\n            \"id\": \"call_pUK8QXgolxLVm47oZ4BEcsI0\",\n
+        \           }\n          },\n          {\n            \"id\": \"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\n
         \           \"type\": \"function\",\n            \"function\": {\n              \"name\":
         \"get_humidity\",\n              \"arguments\": \"{\\\"location\\\": \\\"San
         Francisco\\\"}\"\n            }\n          }\n        ],\n        \"refusal\":
@@ -62,24 +62,18 @@ interactions:
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_1590f93f9d\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8e257a7e8012a1-SJC
+      - 9cc7e94b9ae5fab2-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 05 Feb 2026 00:03:45 GMT
+      - Thu, 12 Feb 2026 00:18:54 GMT
       Server:
       - cloudflare
-      Set-Cookie:
-      - __cf_bm=nF1Jzv5oxPykJlA8KGFbOtVA8e35VBUC9bi8PbbEtnE-1770249825-1.0.1.1-AntFiB3aBYopD6yxRS3SYWg6ZL1Yy2e6UhKHKHVHjIF4IrHMiRheU4sXowHBUZzeJWONtYILPec1UBdKoF94ZNGT4xSgvG2TzNX8Pr3p7zM;
-        path=/; expires=Thu, 05-Feb-26 00:33:45 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=qWZWkEx70yM9nGuHeXJTf8DWj4HV4.5P0uXHF.zFvA0-1770249825622-0.0.1.1-604800000;
-        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
       Transfer-Encoding:
@@ -97,11 +91,15 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '1144'
+      - '1201'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
+      set-cookie:
+      - __cf_bm=1m_7ORxxIYVcubvmAKY.Vlj9lyfBd_HjVPa_R4FUqrk-1770855533.3772464-1.0.1.1-iYj98eeAsiLjlNJShALNOj8EKkgVhrYDSMEAy3e70XZWSwSu18MC52TfSEfAQufVp.9fsFySsOnS4sCbOI8YaK_yyrNemW2vA382h6mBxq6jyLlnEKaVJWZUF3499Gjs;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
+        00:48:54 GMT
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
@@ -111,22 +109,22 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999955'
+      - '149999957'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_f376557b44284529a336a38921396f1e
+      - req_fe60fc73fec84188aaf4f46d4532a876
     status:
       code: 200
       message: OK
 - request:
     body: "{\"messages\":[{\"role\":\"system\",\"content\":[{\"type\":\"text\",\"text\":\"You
       are a weather expert. Use available tools to provide detailed weather information.\",\"additional_properties\":{}}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What's
-      the weather like in San Francisco? Give me temperature and humidity.\",\"additional_properties\":{}}]},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_n3cPsyTwSYCFkNOlqqCHqbZ2\",\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"arguments\":\"{\\\"location\\\":
-      \\\"San Francisco\\\"}\"}},{\"id\":\"call_pUK8QXgolxLVm47oZ4BEcsI0\",\"type\":\"function\",\"function\":{\"name\":\"get_humidity\",\"arguments\":\"{\\\"location\\\":
-      \\\"San Francisco\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_n3cPsyTwSYCFkNOlqqCHqbZ2\",\"content\":\"72\xB0F\"},{\"role\":\"tool\",\"tool_call_id\":\"call_pUK8QXgolxLVm47oZ4BEcsI0\",\"content\":\"65%\"}],\"model\":\"gpt-4o-mini\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"description\":\"Get
+      the weather like in San Francisco? Give me temperature and humidity.\",\"additional_properties\":{}}]},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_jzYR2r5QpEW38DgIlv2PKr14\",\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"arguments\":\"{\\\"location\\\":
+      \\\"San Francisco\\\"}\"}},{\"id\":\"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\"type\":\"function\",\"function\":{\"name\":\"get_humidity\",\"arguments\":\"{\\\"location\\\":
+      \\\"San Francisco\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_jzYR2r5QpEW38DgIlv2PKr14\",\"content\":\"72\xB0F\"},{\"role\":\"tool\",\"tool_call_id\":\"call_OK1oM1IdSH2vv6MLsI9WSmfh\",\"content\":\"65%\"}],\"model\":\"gpt-4o-mini\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_temperature\",\"description\":\"Get
       the temperature for a location.\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_temperature_input\",\"type\":\"object\"}}},{\"type\":\"function\",\"function\":{\"name\":\"get_humidity\",\"description\":\"Get
       the humidity for a location.\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_humidity_input\",\"type\":\"object\"}}},{\"type\":\"function\",\"function\":{\"name\":\"calculate_heat_index\",\"description\":\"Calculate
       heat index from temperature and humidity.\",\"parameters\":{\"properties\":{\"temperature\":{\"title\":\"Temperature\",\"type\":\"string\"},\"humidity\":{\"title\":\"Humidity\",\"type\":\"string\"}},\"required\":[\"temperature\",\"humidity\"],\"title\":\"calculate_heat_index_input\",\"type\":\"object\"}}}]}"
@@ -142,12 +140,11 @@ interactions:
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=nF1Jzv5oxPykJlA8KGFbOtVA8e35VBUC9bi8PbbEtnE-1770249825-1.0.1.1-AntFiB3aBYopD6yxRS3SYWg6ZL1Yy2e6UhKHKHVHjIF4IrHMiRheU4sXowHBUZzeJWONtYILPec1UBdKoF94ZNGT4xSgvG2TzNX8Pr3p7zM;
-        _cfuvid=qWZWkEx70yM9nGuHeXJTf8DWj4HV4.5P0uXHF.zFvA0-1770249825622-0.0.1.1-604800000
+      - __cf_bm=1m_7ORxxIYVcubvmAKY.Vlj9lyfBd_HjVPa_R4FUqrk-1770855533.3772464-1.0.1.1-iYj98eeAsiLjlNJShALNOj8EKkgVhrYDSMEAy3e70XZWSwSu18MC52TfSEfAQufVp.9fsFySsOnS4sCbOI8YaK_yyrNemW2vA382h6mBxq6jyLlnEKaVJWZUF3499Gjs
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260130
+      - agent-framework-python/1.0.0b260210
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -157,13 +154,13 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.16.0
+      - 2.20.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
-      - 3.14.0
+      - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260130
+      - python/1.0.0b260210
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
@@ -172,8 +169,8 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D5h8T8LKnkb5D1ThaXXNAfF3paPSi\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770249825,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-D8Ehzcf2IG0Fiyw4hVmwyrxQs5lIL\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770855535,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"The current weather in San Francisco
         is as follows:\\n- **Temperature:** 72\xB0F\\n- **Humidity:** 65%\",\n        \"refusal\":
@@ -183,16 +180,16 @@ interactions:
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_1590f93f9d\"\n}\n"
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
     headers:
       CF-RAY:
-      - 9c8e25827dfb9814-SJC
+      - 9cc7e955cdc1f31f-SJC
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 05 Feb 2026 00:03:46 GMT
+      - Thu, 12 Feb 2026 00:18:56 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -212,11 +209,15 @@ interactions:
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '727'
+      - '659'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
+      set-cookie:
+      - __cf_bm=NituEJzL5TWlEFhKR13.9LQlblZmByf67MgMRlRRCr8-1770855535.007012-1.0.1.1-iPgJw0PnMd1afbg5sF11vtY2ttn1CpaqQ4go31pqL6RyQE7kQaijYcbOlZPPaXOBKKPXKErz2HCt8etwXPLHklg0SPHC4vRHbAB6BgcxizffIBgjS2fA2UYTixwLMMyF;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
+        00:48:56 GMT
       x-openai-proxy-wasm:
       - v0.1
       x-ratelimit-limit-requests:
@@ -232,7 +233,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_e3dbb146a7614ae0931a4ca028e9c6f1
+      - req_28d6f81a5a064b21966785df7edac4bc
     status:
       code: 200
       message: OK
