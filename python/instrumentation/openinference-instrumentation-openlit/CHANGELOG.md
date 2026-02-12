@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.3...python-openinference-instrumentation-openlit-v0.1.4) (2026-02-12)
+
+
+### Features
+
+* **openlit:** Populate LLM Provider & System Attributes ([#2714](https://github.com/Arize-ai/openinference/issues/2714)) ([e01383b](https://github.com/Arize-ai/openinference/commit/e01383b5a63331bcd53e61265aa366224480a4aa))
+
 ## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.2...python-openinference-instrumentation-openlit-v0.1.3) (2026-02-12)
 
 
