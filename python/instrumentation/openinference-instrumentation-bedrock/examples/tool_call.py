@@ -1,6 +1,7 @@
+import asyncio
 import json
 
-import boto3
+import aioboto3
 from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
@@ -17,10 +18,6 @@ trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
 BedrockInstrumentor().instrument()
 
-session = boto3.session.Session()
-client = session.client("bedrock-runtime", "us-east-1")
-
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 tools = [
     {
         "name": "get_stock_price",
@@ -39,7 +36,7 @@ tools = [
 ]
 
 
-def tool_call_example():
+async def tool_call_example():
     # Prepare Claude messages payload
     body = {
         "messages": [{"role": "user", "content": "What's the S&P 500 at today?"}],
@@ -48,14 +45,16 @@ def tool_call_example():
         "temperature": 0.7,
         "anthropic_version": "bedrock-2023-05-31",
     }
-
-    # Send request to Claude via Bedrock
-    response = bedrock.invoke_model(
-        modelId="anthropic.claude-3-haiku-20240307-v1:0",
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps(body),
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
     )
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
 
     response_body = json.loads(response["body"].read())
 
@@ -64,7 +63,7 @@ def tool_call_example():
     print(json.dumps(response_body, indent=2))
 
 
-def tool_call_with_response():
+async def tool_call_with_response():
     # Prepare Claude messages payload
     body = {
         "messages": [
@@ -97,21 +96,28 @@ def tool_call_with_response():
         "anthropic_version": "bedrock-2023-05-31",
     }
 
-    # Send request to Claude via Bedrock
-    response = bedrock.invoke_model(
-        modelId="anthropic.claude-3-haiku-20240307-v1:0",
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps(body),
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
     )
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
 
-    response_body = json.loads(response["body"].read())
+        response_body = json.loads(response["body"].read())
 
-    # Display the response
-    print("Claude response:")
-    print(json.dumps(response_body, indent=2))
+        # Display the response
+        print("Claude response:")
+        print(json.dumps(response_body, indent=2))
+
+
+async def run():
+    await tool_call_example()
+    await tool_call_with_response()
 
 
 if __name__ == "__main__":
-    tool_call_example()
-    tool_call_with_response()
+    asyncio.run(run())

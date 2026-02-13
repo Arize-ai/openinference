@@ -1,0 +1,97 @@
+interactions:
+- request:
+    body: '{"retrievalQuery": {"text": "What is task Decomposition?"}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-agent-runtime.us-east-1.amazonaws.com/knowledgebases/QKERWOBDH0/retrieve
+  response:
+    body:
+      string: "{\"retrievalResults\":[{\"content\":{\"text\":\"This method proves
+        helpful for agents in solving mathematical and symbolic rea- soning problems.
+        Program-of-Thought (PoT) [Chen et al., 2022] completely formalize the reasoning
+        process as pro- gramming. The authors also leverage a CodeX [Chen et al.,
+        2021b] model trained on code-related data, enhancing perfor- mance in mathematical
+        and financial problems.     3.3 Discussions For the decomposition-first method,
+        the advantage lies in cre- ating a stronger correlation between the sub-tasks
+        and the original tasks, reducing the risk of task forgetting and halluci-
+        nations [Touvron et al., 2023]. However, since the sub-tasks are predetermined
+        at the beginning, additional mechanisms for adjustment are required otherwise
+        one error in some step will result in failure, which will be discussed in
+        Section 6. On the other hand, interleaved decomposition and sub-planning dynamically
+        adjust decomposition based on environmental feedback, improving the fault
+        tolerance. However, for com- plicated tasks, excessively long trajectories
+        may lead to LLM experiencing hallucinations, deviating from the original goals
+        during subsequent sub-tasks and sub-planning.     Although task decomposition
+        significantly enhances the ability of LLM-Agent to solve complicated tasks,
+        challenges persist. The first challenge is the additional overhead in- troduced
+        by task decomposition. Decomposing a task into multiple sub-tasks requires
+        more reasoning and generation,incurring additional time and computational
+        costs.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":3.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.6815404891967773},{\"content\":{\"text\":\"Current
+        methods for task decomposition in this domain generally fall into two categories:
+        decomposition-first and in- terleaved decomposition, illustrated in Figure
+        2.     3.1 Decomposition-First Methods Decomposition-first methods decompose
+        the task into sub- goals first and then plan for each sub-goal successively,
+        pre- sented in Figure 2(a). The representative methods includeTable 1: A taxonomy
+        for existing LLM-Agent planning works.     Method Idea LLM\u2019s task Formulation
+        Representative works     Task Decomposition Divide and Conquer Task decomposition
+        \    Subtask planning [gi] = decompose(E, g; \u0398,P); pi = sub-plan(E, gi;
+        \u0398,P)     CoT [2022], ReAct [2022], HuggingGPT [2023]     Multi-plan Selection
+        \    Generate multiple plans and select the optimal     Plans generation Plans
+        evaluation     P = plan(E, g; \u0398,P); p\u2217 = select(E, g, P ; \u0398,F)
+        \    ToT [2023], GoT [2023], CoT-SC [2022b]     External Planner-aided     Formalize
+        tasks and utilize external planner Task formalization h = formalize(E, g;
+        \u0398,P);     p = plan(E, g, h; \u03A6) LLM+P [2023a],     LLM+PDDL [2023]
+        \    Reflection & Refinement     Reflect on experiences\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":2.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.6736659407615662},{\"content\":{\"text\":\"In
+        the subsequent sections, we delve deeper into the five research directions
+        concerning LLM-agent plan- ning, elucidating their motivations, proposing
+        representation solutions, and addressing inherent limitations.     3 Task
+        Decomposition In real-world scenarios, environments are often characterized
+        by complexity and variability, thereby addressing complex tasks through a
+        one-step planning process is a formidable challenge.     Goal     Sub Goal-1
+        \    \u2026     Decompose     Sub Goal-2     Sub Goal-n     \u2026 Sub-plan
+        \    Sub Goal-1     \u2026     Sub Goal-2     Sub Goal-n     \u2026     (a)
+        Decomposition-First (b) Interleaved     \u2460     \u2461     LLM Agent LLM
+        Agent     Figure 2: Types of task decomposition manners.     This simplification
+        of complicated tasks is a remarkable human ability, evident in the decomposition
+        of one task into several simpler sub-tasks [Schraagen et al., 2000], which
+        is analogous to the well-known algorithmic strategy called \u201Cdi- vide
+        and conquer\u201D, as illustrated in Eq. (1). Task decomposi- tion generally
+        involves two crucial steps: firstly, decomposing the complex task, referred
+        to as the \u201Cdecompose\u201D step, and secondly, planning for the sub-tasks,
+        known as the \u201Csub-plan step\u201D.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":2.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.5831977725028992},{\"content\":{\"text\":\"ProgPrompt
+        [Singh et al., 2023] translates natural language descriptions of tasks into
+        coding problems. It symbolizes the agent\u2019s action space and objects in
+        the environment through code, with each action formalized as a function and
+        each ob- ject represented as a variable. Consequently, task planning is naturally
+        transformed into function generation. When ex- ecuting tasks, the agent first
+        generates a plan in the form of function callings and then executes them step
+        by step.     3.2 Interleaved Decomposition Methods Interleaved decomposition
+        involves interleaved task decom- position and sub-task planning, where each
+        decomposition only reveals one or two sub-tasks at the current state, illus-
+        trated in Figure 2(b). Representative methods in this category include the
+        Chain-of-Thought (CoT) series [Wei et al., 2022; Kojima et al., 2022], ReAct
+        [Yao et al., 2022], PAL [Gao et al., 2023], Program-of-Thought (PoT) [Chen
+        et al., 2022], Visual ChatGPT [Wu et al., 2023], et al.     The introduction
+        of Chain-of-Thought (CoT) [Wei et al., 2022] reveals the few-shot learning
+        capabilities of LLM.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":3.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.503212034702301},{\"content\":{\"text\":\"HuggingGPT
+        [Shen et al., 2023] utilizes various multi- modal models from the Huggingface
+        Hub to construct an intelligent agent for multimodal tasks. It is capable
+        of han- dling tasks such as image generation, image classification, object
+        recognition, video annotation, speech-to-text, et al. To facilitate collaboration
+        between different models, the LLM acts as a controller, responsible for decomposing
+        tasks in- putted by humans, selecting models, and generating final re- sponses.
+        The most crucial stage is the initial task decom- position, where HuggingGPT
+        explicitly instructs the LLM to break down the given task into sub-tasks,
+        providing depen- dencies between tasks. Plan-and-Solve [Wang et al., 2023b]
+        improves upon the Zero-shot Chain-of-Thought [Kojima et al., 2022] by transforming
+        the original \u201CLet\u2019s think step- by-step\u201D into a two-step prompt
+        instruction: \u201CLet\u2019s first de- vise a plan\u201D and \u201CLet\u2019s
+        carry out the plan\u201D. This zero-shot approach has achieved improvements
+        in mathematical rea- soning, common-sense reasoning, and symbolic reasoning.
+        ProgPrompt [Singh et al., 2023] translates natural language descriptions of
+        tasks into coding problems.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":3.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.3443746268749237}]}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

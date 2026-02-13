@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, Callable
 
 import wrapt
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import Status, StatusCode, Tracer
+from opentelemetry.trace import Span, Status, StatusCode, Tracer
 
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
 from openinference.instrumentation.bedrock._converse_attributes import (
@@ -30,9 +31,30 @@ from openinference.semconv.trace import (
 )
 
 
+def is_async(wrapped: Callable[..., Any], instance: Any) -> bool:
+    return (
+        asyncio.iscoroutinefunction(wrapped)
+        or asyncio.iscoroutinefunction(getattr(instance, wrapped.__name__, None))
+        or (
+            hasattr(instance, "_make_api_call")
+            and asyncio.iscoroutinefunction(instance._make_api_call)
+        )
+    )
+
+
 class _WithTracer:
     def __init__(self, tracer: Tracer):
         self._tracer = tracer
+
+    @wrapt.decorator  # type: ignore[misc]
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        raise NotImplementedError("Subclasses must implement the __call__ method")
 
 
 class _InvokeModelWithResponseStream(_WithTracer):
@@ -46,6 +68,35 @@ class _InvokeModelWithResponseStream(_WithTracer):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Any:
+        if is_async(wrapped, instance):
+            return self._async_call(wrapped, args, kwargs)
+        return self._sync_call(wrapped, args, kwargs)
+
+    @staticmethod
+    def handle_response(span: Span, kwargs: dict[str, Any], response: Any) -> Any:
+        from botocore.eventstream import EventStream
+
+        kwargs["body"] = json.loads(kwargs["body"])
+        if isinstance(response["body"], EventStream):
+            if "anthropic_version" in kwargs["body"]:
+                response["body"] = _EventStream(
+                    response["body"],
+                    _AnthropicMessagesCallback(span, kwargs),
+                    _use_span(span),
+                )
+                return response
+        span.set_attribute(LLM_INVOCATION_PARAMETERS, kwargs["body"])
+        span.set_attribute(INPUT_MIME_TYPE, JSON)
+        span.set_attribute(INPUT_VALUE, kwargs["body"])
+        span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+        span.end()
+
+    def _sync_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         with self._tracer.start_as_current_span(
@@ -53,22 +104,23 @@ class _InvokeModelWithResponseStream(_WithTracer):
             end_on_exit=False,
         ) as span:
             response = wrapped(*args, **kwargs)
-            from botocore.eventstream import EventStream
+            self.handle_response(span, kwargs, response)
+            return response
 
-            kwargs["body"] = json.loads(kwargs["body"])
-            if isinstance(response["body"], EventStream):
-                if "anthropic_version" in kwargs["body"]:
-                    response["body"] = _EventStream(
-                        response["body"],
-                        _AnthropicMessagesCallback(span, kwargs),
-                        _use_span(span),
-                    )
-                    return response
-            span.set_attribute(LLM_INVOCATION_PARAMETERS, kwargs["body"])
-            span.set_attribute(INPUT_MIME_TYPE, JSON)
-            span.set_attribute(INPUT_VALUE, kwargs["body"])
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
-            span.end()
+    async def _async_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        with self._tracer.start_as_current_span(
+            self._name,
+            end_on_exit=False,
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            self.handle_response(span, kwargs, response)
             return response
 
 
@@ -92,6 +144,31 @@ class _ConverseStream(_WithTracer):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Any:
+        if is_async(wrapped, instance):
+            return self._async_call(wrapped, args, kwargs)
+        else:
+            return self._sync_call(wrapped, args, kwargs)
+
+    @staticmethod
+    def handle_response(response: Any, span: Any, kwargs: dict[str, Any]) -> Any:
+        from botocore.eventstream import EventStream
+
+        if isinstance(response["stream"], EventStream):
+            response["stream"] = _EventStream(
+                response["stream"],
+                _ConverseStreamCallback(span, kwargs),
+                _use_span(span),
+            )
+            return response
+        span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+        span.end()
+
+    def _sync_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         with self._tracer.start_as_current_span(
@@ -100,17 +177,24 @@ class _ConverseStream(_WithTracer):
             end_on_exit=False,
         ) as span:
             response = wrapped(*args, **kwargs)
-            from botocore.eventstream import EventStream
+            self.handle_response(response, span, kwargs)
+            return response
 
-            if isinstance(response["stream"], EventStream):
-                response["stream"] = _EventStream(
-                    response["stream"],
-                    _ConverseStreamCallback(span, kwargs),
-                    _use_span(span),
-                )
-                return response
-            span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
-            span.end()
+    async def _async_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        with self._tracer.start_as_current_span(
+            self._name,
+            attributes=get_attributes_from_request_data(kwargs),
+            end_on_exit=False,
+        ) as span:
+            response = await wrapped(*args, **kwargs)
+            self.handle_response(response, span, kwargs)
             return response
 
 
@@ -125,22 +209,59 @@ class _InvokeAgentWithResponseStream(_WithTracer):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Any:
+        if is_async(wrapped, instance):
+            return self._async_call(wrapped, args, kwargs)
+        else:
+            return self._sync_call(wrapped, args, kwargs)
+
+    @staticmethod
+    def handle_request_attributes(span: Span, kwargs: dict[str, Any]) -> None:
+        attributes = {
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+            SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
+        }
+        if input_text := kwargs.get("inputText"):
+            attributes[SpanAttributes.INPUT_VALUE] = input_text
+        span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+
+    def _sync_call(
+        self, wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        # span = self._tracer.start_span(self._name)
+            # span = self._tracer.start_span(self._name)
         with self._tracer.start_as_current_span(
             f"bedrock_agent.{wrapped.__name__}",
             end_on_exit=False,
         ) as span:
-            attributes = {
-                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
-                SpanAttributes.LLM_PROVIDER: OpenInferenceLLMProviderValues.AWS.value,
-            }
-            if input_text := kwargs.get("inputText"):
-                attributes[SpanAttributes.INPUT_VALUE] = input_text
-            span.set_attributes({k: v for k, v in attributes.items() if v is not None})
+            self.handle_request_attributes(span, kwargs)
             try:
                 response = wrapped(*args, **kwargs)
+                response["completion"] = _EventStream(
+                    response["completion"],
+                    _ResponseAccumulator(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
+
+    async def _async_call(
+        self, wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+            # span = self._tracer.start_span(self._name)
+        with self._tracer.start_as_current_span(
+            f"bedrock_agent.{wrapped.__name__}",
+            end_on_exit=False,
+        ) as span:
+            self.handle_request_attributes(span, kwargs)
+            try:
+                response = await wrapped(*args, **kwargs)
                 response["completion"] = _EventStream(
                     response["completion"],
                     _ResponseAccumulator(span, self._tracer, kwargs),
@@ -165,6 +286,17 @@ class _RetrieveAndGenerateStream(_WithTracer):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> Any:
+        if is_async(wrapped, instance):
+            return self._async_call(wrapped, args, kwargs)
+        else:
+            return self._sync_call(wrapped, args, kwargs)
+
+    def _sync_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         with self._tracer.start_as_current_span(
@@ -174,6 +306,33 @@ class _RetrieveAndGenerateStream(_WithTracer):
             try:
                 span.set_attributes(AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs))
                 response = wrapped(*args, **kwargs)
+                response["stream"] = _EventStream(
+                    response["stream"],
+                    _RagEventStream(span, self._tracer, kwargs),
+                    _use_span(span),
+                )
+                return response
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise e
+
+    async def _async_call(
+        self,
+        wrapped: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        with self._tracer.start_as_current_span(
+            self._name,
+            end_on_exit=False,
+        ) as span:
+            try:
+                span.set_attributes(AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs))
+                response = await wrapped(*args, **kwargs)
                 response["stream"] = _EventStream(
                     response["stream"],
                     _RagEventStream(span, self._tracer, kwargs),

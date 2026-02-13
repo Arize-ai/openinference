@@ -64,7 +64,9 @@ from openinference.semconv.trace import (
 ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
 
 _MODULE = "botocore.client"
+_AIO_MODULE = "aiobotocore.client"
 _BASE_MODULE = "botocore"
+_AIO_BASE_MODULE = "aiobotocore"
 _MINIMUM_CONVERSE_BOTOCORE_VERSION = "1.34.116"
 
 logger = logging.getLogger(__name__)
@@ -118,6 +120,50 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
             self._buffer.seek(0)
 
 
+def _instrument_client(
+    client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
+) -> BaseClient:
+    print("==========Client Creation Args:", bound_arguments.arguments)  # Debugging statement
+    """Helper function to instrument a client (both sync and async)."""
+    if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
+        client = cast(InstrumentedClient, client)
+
+        client._unwrapped_invoke_agent = client.invoke_agent
+        client.invoke_agent = _InvokeAgentWithResponseStream(tracer)(client.invoke_agent)
+
+        client._unwrapped_invoke_inline_agent = client.invoke_inline_agent
+        client.invoke_inline_agent = _InvokeAgentWithResponseStream(tracer)(
+            client.invoke_inline_agent
+        )
+
+        client._unwrapped_retrieve = client.retrieve
+        client.retrieve = _retrieve_wrapper(tracer)(client)
+
+        client._unwrapped_retrieve_and_generate = client.retrieve_and_generate
+        client.retrieve_and_generate = _retrieve_and_generate_wrapper(tracer)(client)
+
+        client._unwrapped_retrieve_and_generate_stream = client.retrieve_and_generate_stream
+        client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
+            client.retrieve_and_generate_stream
+        )
+
+    if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
+        client = cast(InstrumentedClient, client)
+
+        client._unwrapped_invoke_model = client.invoke_model
+        if not is_async:
+            client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
+            client.invoke_model_with_response_stream
+        )
+
+        if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
+            client._unwrapped_converse = client.converse
+            client.converse = _model_converse_wrapper(tracer)(client)
+            client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
+    return client
+
+
 def _client_creation_wrapper(
     tracer: Tracer, module_version: str
 ) -> Callable[[ClientCreator], ClientCreator]:
@@ -126,52 +172,34 @@ def _client_creation_wrapper(
         instance: Optional[Any],
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
-    ) -> BaseClient:
+    ) -> Any:
         """Instruments boto client creation."""
-        client = wrapped(*args, **kwargs)
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return client
 
         call_signature = signature(wrapped)
         bound_arguments = call_signature.bind(*args, **kwargs)
         bound_arguments.apply_defaults()
+        is_async = (
+            instance is not None
+            and hasattr(instance, "__class__")
+            and "aioboto" in instance.__class__.__module__
+        )
 
-        if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
-            client = cast(InstrumentedClient, client)
+        if is_async:
+            # For async clients, we need to wrap the coroutine
+            async def async_wrapper() -> BaseClient:
+                async_client = await wrapped(*args, **kwargs)
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return async_client
+                return _instrument_client(
+                    async_client, bound_arguments, tracer, module_version, True
+                )
 
-            client._unwrapped_invoke_agent = client.invoke_agent
-            client.invoke_agent = _InvokeAgentWithResponseStream(tracer)(client.invoke_agent)
-
-            client._unwrapped_invoke_inline_agent = client.invoke_inline_agent
-            client.invoke_inline_agent = _InvokeAgentWithResponseStream(tracer)(
-                client.invoke_inline_agent
-            )
-
-            client._unwrapped_retrieve = client.retrieve
-            client.retrieve = _retrieve_wrapper(tracer)(client)
-
-            client._unwrapped_retrieve_and_generate = client.retrieve_and_generate
-            client.retrieve_and_generate = _retrieve_and_generate_wrapper(tracer)(client)
-
-            client._unwrapped_retrieve_and_generate_stream = client.retrieve_and_generate_stream
-            client.retrieve_and_generate_stream = _RetrieveAndGenerateStream(tracer)(
-                client.retrieve_and_generate_stream
-            )
-
-        if bound_arguments.arguments.get("service_name") == "bedrock-runtime":
-            client = cast(InstrumentedClient, client)
-
-            client._unwrapped_invoke_model = client.invoke_model
-            client.invoke_model = _model_invocation_wrapper(tracer)(client)
-            client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
-                client.invoke_model_with_response_stream
-            )
-
-            if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
-                client._unwrapped_converse = client.converse
-                client.converse = _model_converse_wrapper(tracer)(client)
-                client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
-        return client
+            return async_wrapper()
+        else:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped(*args, **kwargs)
+            client = wrapped(*args, **kwargs)
+            return _instrument_client(client, bound_arguments, tracer, module_version, False)
 
     return _client_wrapper  # type: ignore
 
@@ -234,98 +262,121 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
     def _converse_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
         """Instruments a bedrock client's `converse` method."""
 
-        @wraps(wrapped_client.converse)
-        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
+        def _process_converse(
+            span: trace_api.Span,
+            args: Tuple[Any, ...],
+            kwargs: Dict[str, Any],
+            response: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            """Common processing logic for both sync and async."""
+            if (
+                (response_message := response.get("output", {}).get("message"))
+                and (response_role := response_message.get("role"))
+                and (response_content := response_message.get("content", []))
+            ):
+                # Currently only supports text-based data
+                response_text = "\n".join(
+                    content_input.get("text", "") for content_input in response_content
+                )
+                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
 
-            with tracer.start_as_current_span("bedrock.converse") as span:
-                span.set_attribute(
-                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                    OpenInferenceSpanKindValues.LLM.value,
+                span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+                _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
+                _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
+
+            if usage := response.get("usage"):
+                if input_token_count := usage.get("inputTokens"):
+                    _set_span_attribute(
+                        span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
+                    )
+                if response_token_count := usage.get("outputTokens"):
+                    _set_span_attribute(
+                        span,
+                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
+                        response_token_count,
+                    )
+                if total_token_count := usage.get("totalTokens"):
+                    _set_span_attribute(
+                        span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
+                    )
+
+            span.set_attributes(dict(get_attributes_from_context()))
+            return response
+
+        def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
+            """Set input attributes on the span."""
+            span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.LLM.value,
+            )
+
+            if model_id := kwargs.get("modelId"):
+                _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+
+            if inference_config := kwargs.get("inferenceConfig"):
+                invocation_parameters = safe_json_dumps(inference_config)
+                _set_span_attribute(
+                    span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
                 )
 
-                if model_id := kwargs.get("modelId"):
-                    _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+            aggregated_messages: List[Any] = []
+            if system_prompts := kwargs.get("system"):
+                aggregated_messages.append(
+                    {
+                        "role": "system",
+                        "content": [
+                            {"text": " ".join(prompt.get("text", "") for prompt in system_prompts)}
+                        ],
+                    }
+                )
 
-                if inference_config := kwargs.get("inferenceConfig"):
-                    invocation_parameters = safe_json_dumps(inference_config)
+            aggregated_messages.extend(kwargs.get("messages", []))
+            for idx, msg in enumerate(aggregated_messages):
+                if not isinstance(msg, dict):
+                    # Only dictionaries supported for now
+                    continue
+                for key, value in _get_attributes_from_message_param(msg):
                     _set_span_attribute(
-                        span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
+                        span,
+                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
+                        value,
                     )
+            last_message = aggregated_messages[-1] if aggregated_messages else None
+            if isinstance(last_message, dict) and (
+                request_msg_content := last_message.get("content")
+            ):
+                request_msg_prompt = "\n".join(
+                    content_input.get("text", "") for content_input in request_msg_content
+                ).strip("\n")
+                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
 
-                aggregated_messages = []
-                if system_prompts := kwargs.get("system"):
-                    aggregated_messages.append(
-                        {
-                            "role": "system",
-                            "content": [
-                                {
-                                    "text": " ".join(
-                                        prompt.get("text", "") for prompt in system_prompts
-                                    )
-                                }
-                            ],
-                        }
-                    )
+        # Check if this is an async client
+        if hasattr(wrapped_client, "__aenter__"):
 
-                aggregated_messages.extend(kwargs.get("messages", []))
-                for idx, msg in enumerate(aggregated_messages):
-                    if not isinstance(msg, dict):
-                        # Only dictionaries supported for now
-                        continue
-                    for key, value in _get_attributes_from_message_param(msg):
-                        _set_span_attribute(
-                            span,
-                            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
-                            value,
-                        )
-                last_message = aggregated_messages[-1]
-                if isinstance(last_message, dict) and (
-                    request_msg_content := last_message.get("content")
-                ):
-                    request_msg_prompt = "\n".join(
-                        content_input.get("text", "")  # type: ignore
-                        for content_input in request_msg_content
-                    ).strip("\n")
-                    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
+            @wraps(wrapped_client.converse)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return await wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
-                response = wrapped_client._unwrapped_converse(*args, **kwargs)
-                if (
-                    (response_message := response.get("output", {}).get("message"))
-                    and (response_role := response_message.get("role"))
-                    and (response_content := response_message.get("content", []))
-                ):
-                    # Currently only supports text-based data
-                    response_text = "\n".join(
-                        content_input.get("text", "") for content_input in response_content
-                    )
-                    _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
+                with tracer.start_as_current_span("bedrock.converse") as span:
+                    _set_input_attributes(span, kwargs)
+                    response = await wrapped_client._unwrapped_converse(*args, **kwargs)
+                    return _process_converse(span, args, kwargs, response)
 
-                    span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-                    _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
-                    _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
+            return async_instrumented_response
+        else:
 
-                if usage := response.get("usage"):
-                    if input_token_count := usage.get("inputTokens"):
-                        _set_span_attribute(
-                            span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
-                        )
-                    if response_token_count := usage.get("outputTokens"):
-                        _set_span_attribute(
-                            span,
-                            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                            response_token_count,
-                        )
-                    if total_token_count := usage.get("totalTokens"):
-                        _set_span_attribute(
-                            span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-                        )
+            @wraps(wrapped_client.converse)
+            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
-                span.set_attributes(dict(get_attributes_from_context()))
-            return response  # type: ignore
+                with tracer.start_as_current_span("bedrock.converse") as span:
+                    _set_input_attributes(span, kwargs)
+                    response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                    return _process_converse(span, args, kwargs, response)
 
-        return instrumented_response
+            return sync_instrumented_response
 
     return _converse_wrapper
 
@@ -334,6 +385,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_tracer",
         "_original_client_creator",
+        "_original_aio_client_creator",
     )
 
     def instrumentation_dependencies(self) -> Collection[str]:
@@ -363,10 +415,30 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             ),
         )
 
+        try:
+            aioboto = import_module(_AIO_MODULE)
+            aiobotocore = import_module(_AIO_BASE_MODULE)
+            self._original_aio_client_creator = aioboto.ClientCreator.create_client
+            wrap_function_wrapper(
+                module=_AIO_MODULE,
+                name="AioClientCreator.create_client",
+                wrapper=_client_creation_wrapper(
+                    tracer=self._tracer, module_version=aiobotocore.__version__
+                ),
+            )
+        except ImportError:
+            pass
+
     def _uninstrument(self, **kwargs: Any) -> None:
         boto = import_module(_MODULE)
         boto.ClientCreator.create_client = self._original_client_creator
         self._original_client_creator = None
+        try:
+            aioboto = import_module(_AIO_MODULE)
+            aioboto.AioClientCreator.create_client = self._original_aio_client_creator
+            self._original_aio_client_creator = None
+        except ImportError:
+            pass
 
 
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
