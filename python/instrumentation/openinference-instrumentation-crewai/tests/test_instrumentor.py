@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from typing import Any, Mapping, Sequence, Tuple, cast
 
 import pytest
@@ -155,7 +156,13 @@ def kickoff_crew() -> Tuple[Task, Task]:
         agents=[scraper_agent, analyzer_agent],
         tasks=[scrape_task, analyze_task],
     )
-    crew_output = crew.kickoff()
+
+    # NOTE: We manually set Kickoff ID for testing purposes to simulate the API behavior, that is
+    # automatically provided by the CrewAI AMP API when Crews are deployed & executed via REST API.
+    test_kickoff_id = str(uuid.uuid4())
+    inputs = {"id": test_kickoff_id}
+    crew_output = crew.kickoff(inputs=inputs)
+
     result = ""
     if isinstance(crew_output, CrewOutput):
         result = crew_output.raw
@@ -180,7 +187,13 @@ def kickoff_flow() -> Flow[Any]:
             return f"Step Two Received: {step_one_output}"
 
     flow = SimpleFlow()
-    result = flow.kickoff()
+
+    # NOTE: We manually set Kickoff ID for testing purposes to simulate the API behavior, that is
+    # automatically provided by the CrewAI AMP API when Flows are deployed & executed via REST API.
+    test_kickoff_id = str(uuid.uuid4())
+    inputs = {"id": test_kickoff_id}
+    result = flow.kickoff(inputs=inputs)
+
     assert isinstance(result, str)
 
     expected = "Step Two Received: Step One Output"
@@ -249,6 +262,14 @@ def _verify_crew_span(span: ReadableSpan) -> None:
     assert span.name.endswith(".kickoff"), (
         f"Expected span name to end with '.kickoff', got: {span.name}"
     )
+    # Verify Kickoff ID
+    kickoff_id = attributes.get("kickoff_id")
+    assert kickoff_id is not None, "Expected kickoff_id attribute to be present at root level."
+    assert isinstance(kickoff_id, str), f"Expected kickoff_id to be string, got {type(kickoff_id)}"
+    try:
+        uuid.UUID(kickoff_id)
+    except ValueError:
+        pytest.fail(f"kickoff_id '{kickoff_id}' is not a valid UUID.")
 
 
 def _verify_flow_span(span: ReadableSpan) -> None:
@@ -262,6 +283,14 @@ def _verify_flow_span(span: ReadableSpan) -> None:
     assert span.name.endswith(".kickoff"), (
         f"Expected span name to end with '.kickoff', got: {span.name}"
     )
+    # Verify Kickoff ID
+    kickoff_id = attributes.get("kickoff_id")
+    assert kickoff_id is not None, "Expected kickoff_id attribute to be present at root level."
+    assert isinstance(kickoff_id, str), f"Expected kickoff_id to be string, got {type(kickoff_id)}"
+    try:
+        uuid.UUID(kickoff_id)
+    except ValueError:
+        pytest.fail(f"kickoff_id '{kickoff_id}' is not a valid UUID.")
 
 
 def _verify_agent_span(
