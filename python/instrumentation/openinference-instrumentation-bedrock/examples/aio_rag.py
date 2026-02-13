@@ -48,7 +48,7 @@ async def run_generate():
     }
     async with session.client("bedrock-agent-runtime") as client:
         response = await client.retrieve_and_generate_stream(**attributes)
-        async for res in response['stream']:
+        async for res in response["stream"]:
             print(res)
 
 

@@ -1,6 +1,11 @@
-from typing import Iterator
+import json
+import re
+from pathlib import Path
+from typing import Any, Callable, Iterator
 
 import pytest
+import yaml  # type: ignore[import-untyped]
+from aioresponses import aioresponses
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -8,7 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.instrumentation.bedrock import BedrockInstrumentor
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def tracer_provider(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> TracerProvider:
@@ -23,7 +28,7 @@ def tracer_provider(
     return tracer_provider
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def in_memory_span_exporter() -> InMemorySpanExporter:
     return InMemorySpanExporter()
 
@@ -36,3 +41,72 @@ def instrument(
     BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
     yield
     BedrockInstrumentor().uninstrument()
+
+
+@pytest.fixture(scope="function")
+def read_aio_cassette() -> Callable[..., Any]:
+    def mock_from_cassette(cassette_path: str, aioresponses_mock: aioresponses) -> None:
+        """
+        Load a VCR cassette YAML file and configure aioresponses.
+        Supports JSON responses and EventStream binary data.
+        """
+        cassette_file = Path(cassette_path)
+        if not cassette_file.exists():
+            raise FileNotFoundError(f"Cassette file not found: {cassette_path}")
+
+        with open(cassette_file, "r") as f:
+            cassette_data = yaml.safe_load(f)
+
+        for interaction in cassette_data.get("interactions", []):
+            request = interaction["request"]
+            response = interaction["response"]
+
+            # Extract response body
+            body = response.get("body", {})
+            response_body = body.get("string", "") if isinstance(body, dict) else body
+
+            # Convert headers (list format to single value)
+            headers = {
+                k: v[0] if isinstance(v, list) else v
+                for k, v in response.get("headers", {}).items()
+            }
+
+            # Determine response type
+            is_binary = isinstance(response_body, bytes)
+            is_event_stream = "event-stream" in headers.get("Content-Type", "").lower()
+
+            # Parse JSON for non-binary responses
+            payload = None
+            if not is_binary and not is_event_stream and response_body:
+                try:
+                    payload = (
+                        json.loads(response_body)
+                        if isinstance(response_body, str)
+                        else response_body
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Handle regex in URI
+            uri = request["uri"]
+            url = re.compile(uri) if any(c in uri for c in r"()[]{}*+?") else uri
+
+            # Register mock
+            method = request.get("method", "GET").upper()
+            method_map = {
+                "GET": aioresponses_mock.get,
+                "POST": aioresponses_mock.post,
+                "PUT": aioresponses_mock.put,
+                "DELETE": aioresponses_mock.delete,
+                "PATCH": aioresponses_mock.patch,
+            }
+
+            method_map[method](
+                url=url,
+                status=response["status"]["code"],
+                headers=headers,
+                payload=payload if payload and not is_binary and not is_event_stream else None,
+                body=response_body if is_binary or is_event_stream or not payload else None,
+            )
+
+    return mock_from_cassette

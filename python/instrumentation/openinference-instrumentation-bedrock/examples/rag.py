@@ -43,7 +43,7 @@ def retrieve_and_generate():
     }
     response = client.retrieve_and_generate_stream(**attributes)
     print(response)
-    for res in response['stream']:
+    for res in response["stream"]:
         print(res)
 
 

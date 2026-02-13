@@ -1,5 +1,4 @@
 import base64
-import inspect
 import io
 import json
 import logging
@@ -124,6 +123,7 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
 def _instrument_client(
     client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
 ) -> BaseClient:
+    print("==========Client Creation Args:", bound_arguments.arguments)  # Debugging statement
     """Helper function to instrument a client (both sync and async)."""
     if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
         client = cast(InstrumentedClient, client)
@@ -174,25 +174,32 @@ def _client_creation_wrapper(
         kwargs: Dict[str, Any],
     ) -> Any:
         """Instruments boto client creation."""
-        client = wrapped(*args, **kwargs)
-        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-            return client
+
         call_signature = signature(wrapped)
         bound_arguments = call_signature.bind(*args, **kwargs)
         bound_arguments.apply_defaults()
+        is_async = (
+            instance is not None
+            and hasattr(instance, "__class__")
+            and "aioboto" in instance.__class__.__module__
+        )
 
-        if inspect.iscoroutine(client):
+        if is_async:
             # For async clients, we need to wrap the coroutine
             async def async_wrapper() -> BaseClient:
-                actual_client = await client
+                async_client = await wrapped(*args, **kwargs)
                 if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return actual_client
+                    return async_client
                 return _instrument_client(
-                    actual_client, bound_arguments, tracer, module_version, True
+                    async_client, bound_arguments, tracer, module_version, True
                 )
 
             return async_wrapper()
-        return _instrument_client(client, bound_arguments, tracer, module_version, False)
+        else:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped(*args, **kwargs)
+            client = wrapped(*args, **kwargs)
+            return _instrument_client(client, bound_arguments, tracer, module_version, False)
 
     return _client_wrapper  # type: ignore
 

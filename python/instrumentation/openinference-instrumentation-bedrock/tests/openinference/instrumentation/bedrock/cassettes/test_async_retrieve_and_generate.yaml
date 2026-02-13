@@ -1,0 +1,82 @@
+interactions:
+- request:
+    body: '{"input": {"text": "What is Task Decomposition?"}, "retrieveAndGenerateConfiguration":
+      {"knowledgeBaseConfiguration": {"knowledgeBaseId": "QKERWOBDH0", "modelArn":
+      "anthropic.claude-3-haiku-20240307-v1:0"}, "type": "KNOWLEDGE_BASE"}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-agent-runtime.us-east-1.amazonaws.com/retrieveAndGenerate
+  response:
+    body:
+      string: "{\"citations\":[{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":275,\"start\":0},\"text\":\"Task
+        Decomposition is a method used in LLM-agent planning where a complex task
+        is broken down into simpler sub-tasks. This involves two key steps:\\n1. Decomposing
+        the complex task into sub-goals (the \\\"decompose\\\" step)\\n2. Planning
+        for each of the sub-tasks (the \\\"sub-plan\\\" step)\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"In
+        the subsequent sections, we delve deeper into the five research directions
+        concerning LLM-agent plan- ning, elucidating their motivations, proposing
+        representation solutions, and addressing inherent limitations.     3 Task
+        Decomposition In real-world scenarios, environments are often characterized
+        by complexity and variability, thereby addressing complex tasks through a
+        one-step planning process is a formidable challenge.     Goal     Sub Goal-1
+        \    \u2026     Decompose     Sub Goal-2     Sub Goal-n     \u2026 Sub-plan
+        \    Sub Goal-1     \u2026     Sub Goal-2     Sub Goal-n     \u2026     (a)
+        Decomposition-First (b) Interleaved     \u2460     \u2461     LLM Agent LLM
+        Agent     Figure 2: Types of task decomposition manners.     This simplification
+        of complicated tasks is a remarkable human ability, evident in the decomposition
+        of one task into several simpler sub-tasks [Schraagen et al., 2000], which
+        is analogous to the well-known algorithmic strategy called \u201Cdi- vide
+        and conquer\u201D, as illustrated in Eq. (1). Task decomposi- tion generally
+        involves two crucial steps: firstly, decomposing the complex task, referred
+        to as the \u201Cdecompose\u201D step, and secondly, planning for the sub-tasks,
+        known as the \u201Csub-plan step\u201D.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":2.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.5835275650024414}]},{\"generatedResponsePart\":{\"textResponsePart\":{\"span\":{\"end\":610,\"start\":277},\"text\":\"There
+        are two main approaches to Task Decomposition:\\n1. Decomposition-First: The
+        task is fully decomposed into sub-goals first, and then a plan is made for
+        each sub-goal.\\n2. Interleaved Decomposition: The task is decomposed and
+        planned for in an interleaved manner, where the decomposition only reveals
+        one or two sub-tasks at a time.\"}},\"retrievedReferences\":[{\"content\":{\"text\":\"In
+        the subsequent sections, we delve deeper into the five research directions
+        concerning LLM-agent plan- ning, elucidating their motivations, proposing
+        representation solutions, and addressing inherent limitations.     3 Task
+        Decomposition In real-world scenarios, environments are often characterized
+        by complexity and variability, thereby addressing complex tasks through a
+        one-step planning process is a formidable challenge.     Goal     Sub Goal-1
+        \    \u2026     Decompose     Sub Goal-2     Sub Goal-n     \u2026 Sub-plan
+        \    Sub Goal-1     \u2026     Sub Goal-2     Sub Goal-n     \u2026     (a)
+        Decomposition-First (b) Interleaved     \u2460     \u2461     LLM Agent LLM
+        Agent     Figure 2: Types of task decomposition manners.     This simplification
+        of complicated tasks is a remarkable human ability, evident in the decomposition
+        of one task into several simpler sub-tasks [Schraagen et al., 2000], which
+        is analogous to the well-known algorithmic strategy called \u201Cdi- vide
+        and conquer\u201D, as illustrated in Eq. (1). Task decomposi- tion generally
+        involves two crucial steps: firstly, decomposing the complex task, referred
+        to as the \u201Cdecompose\u201D step, and secondly, planning for the sub-tasks,
+        known as the \u201Csub-plan step\u201D.\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":2.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.5835275650024414},{\"content\":{\"text\":\"Current
+        methods for task decomposition in this domain generally fall into two categories:
+        decomposition-first and in- terleaved decomposition, illustrated in Figure
+        2.     3.1 Decomposition-First Methods Decomposition-first methods decompose
+        the task into sub- goals first and then plan for each sub-goal successively,
+        pre- sented in Figure 2(a). The representative methods includeTable 1: A taxonomy
+        for existing LLM-Agent planning works.     Method Idea LLM\u2019s task Formulation
+        Representative works     Task Decomposition Divide and Conquer Task decomposition
+        \    Subtask planning [gi] = decompose(E, g; \u0398,P); pi = sub-plan(E, gi;
+        \u0398,P)     CoT [2022], ReAct [2022], HuggingGPT [2023]     Multi-plan Selection
+        \    Generate multiple plans and select the optimal     Plans generation Plans
+        evaluation     P = plan(E, g; \u0398,P); p\u2217 = select(E, g, P ; \u0398,F)
+        \    ToT [2023], GoT [2023], CoT-SC [2022b]     External Planner-aided     Formalize
+        tasks and utilize external planner Task formalization h = formalize(E, g;
+        \u0398,P);     p = plan(E, g, h; \u03A6) LLM+P [2023a],     LLM+PDDL [2023]
+        \    Reflection & Refinement     Reflect on experiences\",\"type\":\"TEXT\"},\"location\":{\"customDocumentLocation\":{\"id\":\"1232345\"},\"type\":\"CUSTOM\"},\"metadata\":{\"x-amz-bedrock-kb-source-uri\":\"1232345\",\"x-amz-bedrock-kb-document-page-number\":2.0,\"x-amz-bedrock-kb-data-source-id\":\"MVDS8BEVHQ\"},\"score\":0.6729609370231628}]}],\"output\":{\"text\":\"Task
+        Decomposition is a method used in LLM-agent planning where a complex task
+        is broken down into simpler sub-tasks. This involves two key steps:\\n1. Decomposing
+        the complex task into sub-goals (the \\\"decompose\\\" step)\\n2. Planning
+        for each of the sub-tasks (the \\\"sub-plan\\\" step) There are two main approaches
+        to Task Decomposition:\\n1. Decomposition-First: The task is fully decomposed
+        into sub-goals first, and then a plan is made for each sub-goal.\\n2. Interleaved
+        Decomposition: The task is decomposed and planned for in an interleaved manner,
+        where the decomposition only reveals one or two sub-tasks at a time.\"},\"sessionId\":\"80cf565e-1968-4c1a-915a-e20920a24bcf\"}"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1
