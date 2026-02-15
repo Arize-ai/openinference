@@ -33,6 +33,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
+    ToolCallResultAttributes,
 )
 
 from ._types import (
@@ -416,7 +417,7 @@ def get_llm_output_message_attributes(
     }
 
 
-def _llm_messages_attributes(
+def _llm_messages_attributes    (
     messages: Optional["Sequence[Message]"],
     message_type: Literal["input", "output"],
 ) -> Iterator[Tuple[str, AttributeValue]]:
@@ -478,6 +479,40 @@ def _llm_messages_attributes(
                                 f"{base_key}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_call_index}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                 _json_serialize(function_arguments),
                             )
+        if isinstance(tool_call_results := message.get("tool_call_results"), Sequence):
+            for result_index, tool_call_result in enumerate(tool_call_results):
+                if not isinstance(tool_call_result, dict):
+                    continue
+                tool_result_prefix = (
+                    f"{base_key}.{message_index}.{MESSAGE_TOOL_CALL_RESULTS}.{result_index}"
+                )
+                if (tool_call_id := tool_call_result.get("id")) is not None:
+                    yield (
+                        f"{tool_result_prefix}.{TOOL_CALL_RESULT_ID}",
+                        tool_call_id,
+                    )
+                if (function_name := tool_call_result.get("function_name")) is not None:
+                    yield (
+                        f"{tool_result_prefix}.{TOOL_CALL_RESULT_FUNCTION_NAME}",
+                        function_name,
+                    )
+                if (result_value := tool_call_result.get("result_value")) is not None:
+                    if isinstance(result_value, str):
+                        yield (
+                            f"{tool_result_prefix}.{TOOL_CALL_RESULT_FUNCTION_RESULT_VALUE}",
+                            result_value,
+                        )
+                    elif isinstance(result_value, dict):
+                        yield (
+                            f"{tool_result_prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                            _json_serialize(result_value),
+                        )
+                if (mime_type := tool_call_result.get("mime_type")) is not None:
+                    normalized_mime_type = _normalize_mime_type(mime_type)
+                    yield (
+                        f"{tool_result_prefix}.{TOOL_CALL_RESULT_FUNCTION_RESULT_MIME_TYPE}",
+                        normalized_mime_type.value,
+                    )
 
 
 def get_llm_token_count_attributes(
@@ -539,6 +574,7 @@ MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALL_ID = MessageAttributes.MESSAGE_TOOL_CALL_ID
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+MESSAGE_TOOL_CALL_RESULTS = MessageAttributes.MESSAGE_TOOL_CALL_RESULTS
 
 # message content attributes
 MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
@@ -591,3 +627,13 @@ TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+
+# tool call result attributes
+TOOL_CALL_RESULT_ID = ToolCallResultAttributes.TOOL_CALL_RESULT_ID
+TOOL_CALL_RESULT_FUNCTION_NAME = ToolCallResultAttributes.TOOL_CALL_RESULT_FUNCTION_NAME
+TOOL_CALL_RESULT_FUNCTION_RESULT_VALUE = (
+    ToolCallResultAttributes.TOOL_CALL_RESULT_FUNCTION_RESULT_VALUE
+)
+TOOL_CALL_RESULT_FUNCTION_RESULT_MIME_TYPE = (
+    ToolCallResultAttributes.TOOL_CALL_RESULT_FUNCTION_RESULT_MIME_TYPE
+)

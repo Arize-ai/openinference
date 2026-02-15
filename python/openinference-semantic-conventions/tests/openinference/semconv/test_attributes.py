@@ -63,6 +63,7 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
+    ToolCallResultAttributes,
 )
 
 
@@ -201,6 +202,7 @@ class TestMessageAttributes:
                 "role": MessageAttributes.MESSAGE_ROLE,
                 "tool_call_id": MessageAttributes.MESSAGE_TOOL_CALL_ID,
                 "tool_calls": MessageAttributes.MESSAGE_TOOL_CALLS,
+                "tool_call_results": MessageAttributes.MESSAGE_TOOL_CALL_RESULTS,
             }
         }
 
@@ -313,6 +315,30 @@ class TestToolCallAttributes:
                 },
                 "id": ToolCallAttributes.TOOL_CALL_ID,
             },
+        }
+
+
+class TestToolCallResultAttributes:
+    """Tests for ToolCallResultAttributes namespace structure.
+
+    Ensures tool call results attributes from flat spans are properly nested under
+    the tool_call_result namespace, with function-related attributes further nested
+    under the function namespace.
+    """
+
+    def test_nesting(self) -> None:
+        attributes = _get_attributes(ToolCallResultAttributes)
+        assert _nested_dict(attributes) == {
+            "tool_call_result": {
+                "function": {
+                    "name": "tool_call_result.function.name",
+                    "result": {
+                        "mime_type": "tool_call_result.function.result.mime_type",
+                        "value": "tool_call_result.function.result.value",
+                    },
+                },
+                "id": "tool_call_result.id",
+            }
         }
 
 
