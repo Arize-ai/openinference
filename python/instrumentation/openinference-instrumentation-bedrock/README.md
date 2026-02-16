@@ -1,8 +1,8 @@
 # OpenInference AWS Bedrock Instrumentation
 
-Python autoinstrumentation library for AWS Bedrock calls made using `boto3`.
+Python autoinstrumentation library for AWS Bedrock calls made using `boto3` (sync) and `aioboto3` (async).
 
-This package implements OpenInference tracing for `invoke_model`, `invoke_agent` and `converse` calls made using the `boto3` `bedrock-runtime` and `bedrock-agent-runtime` clients. These traces are fully OpenTelemetry compatible and can be sent to an OpenTelemetry collector for viewing, such as [Arize `phoenix`](https://github.com/Arize-ai/phoenix).
+This package implements OpenInference tracing for `invoke_model`, `invoke_agent` and `converse` calls made using the `bedrock-runtime` and `bedrock-agent-runtime` clients from both `boto3` (sync) and `aioboto3` (async).
 
 [![pypi](https://badge.fury.io/py/openinference-instrumentation-bedrock.svg)](https://pypi.org/project/openinference-instrumentation-bedrock/)
 
@@ -32,6 +32,14 @@ Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.
 ```shell
 pip install openinference-instrumentation-bedrock
 ```
+### Async (aioboto3) support
+
+To instrument async Bedrock calls made via `aioboto3`, install the optional async dependencies:
+
+```shell
+pip install openinference-instrumentation-bedrock[aio]
+```
+
 
 ## Quickstart
 
@@ -45,10 +53,16 @@ In a notebook environment (`jupyter`, `colab`, etc.) install `openinference-inst
 ```shell
 pip install openinference-instrumentation-bedrock arize-phoenix boto3
 ```
+For async usage with `aioboto3`:
+
+```shell
+pip install openinference-instrumentation-bedrock[aio] arize-phoenix aioboto3
+```
 
 Ensure that `boto3` is [configured with AWS credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
 
-First, import dependencies required to autoinstrument AWS Bedrock and set up `phoenix` as an collector for OpenInference traces.
+## Tracing Setup (Phoenix)
+The tracing setup below is shared for both sync (`boto3`) and async (`aioboto3`) usage.
 
 ```python
 from urllib.parse import urljoin
@@ -75,13 +89,14 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter=phoenix_exp
 trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 ```
 
-Instrumenting `boto3` is simple:
-
 ```python
 BedrockInstrumentor().instrument()
 ```
 
+
 Now, all calls to `invoke_model` are instrumented and can be viewed in the `phoenix` UI.
+
+## Quickstart (boto3)
 
 ```python
 session = boto3.session.Session()
@@ -153,6 +168,75 @@ for idx, event in enumerate(response['completion']):
         print(event['trace'])
 ```
 
+## Async Quickstart (aioboto3)
+OpenInference AWS Bedrock instrumentation also supports async Bedrock calls using `aioboto3`.
+
+
+```python
+import aioboto3
+import asyncio
+
+async def main():
+
+    session = aioboto3.session.Session(region_name="us-east-1")
+
+    async with session.client(
+        "bedrock-runtime",
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+    ) as client:
+        response = await client.converse(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"text": "What is the sum of numbers from 1 to 10?"}],
+                }
+            ],
+        )
+        print(response["output"]["message"]["content"][-1]["text"])
+
+asyncio.run(main())
+
+```
+All async calls to `invoke_agent` are instrumented and can be viewed in the `phoenix` UI. You can enable the agent traces by passing `enableTrace=True` argument.
+```python
+import aioboto3
+import asyncio
+import time
+
+
+async def main():
+
+    session = aioboto3.session.Session(region_name="us-east-1")
+    agent_id = '<AgentId>'
+    agent_alias_id = '<AgentAliasId>'
+    session_id = f"default-session1_{int(time.time())}"
+    
+    attributes = dict(
+        inputText="When is a good time to visit the Taj Mahal?",
+        agentId=agent_id,
+        agentAliasId=agent_alias_id,
+        sessionId=session_id,
+        enableTrace=True
+    )
+    async with session.client(
+        "bedrock-runtime",
+        aws_access_key_id="test",
+        aws_secret_access_key="test",
+    ) as client:
+        response = await client.invoke_agent(**attributes)
+        for idx, event in enumerate(response['completion']):
+            if 'chunk' in event:
+                chunk_data = event['chunk']
+                if 'bytes' in chunk_data:
+                    output_text = chunk_data['bytes'].decode('utf8')
+                    print(output_text)
+            elif 'trace' in event:
+                print(event['trace'])
+
+asyncio.run(main())
+```
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
