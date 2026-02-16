@@ -292,8 +292,8 @@ You can also configure masking with environment variables:
 - `withSafety({ fn, onError? })`: wraps a function and returns `null` on error
 - `safelyJSONStringify(value)` / `safelyJSONParse(value)`: guarded JSON operations
 
-## Source
+## Documentation
 
-- Package: `js/packages/openinference-core`
-- Helper examples: `js/packages/openinference-core/examples`
-- Semantic conventions: `js/packages/openinference-semantic-conventions`
+- API reference: [@arizeai/openinference-core](https://arize-ai.github.io/openinference/js/modules/_arizeai_openinference-core.html)
+- OpenInference JS docs: [openinference/js](https://arize-ai.github.io/openinference/js/)
+- Source code: [js/packages/openinference-core](https://github.com/Arize-ai/openinference/tree/main/js/packages/openinference-core)
