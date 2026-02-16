@@ -7,7 +7,6 @@ from typing import Any, Callable, Iterator
 
 import pytest
 import yaml  # type: ignore[import-untyped]
-from aioresponses import aioresponses
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -47,6 +46,8 @@ def instrument(
 
 @pytest.fixture(scope="function")
 def read_aio_cassette() -> Callable[..., Any]:
+    from aioresponses import aioresponses
+
     def mock_from_cassette(cassette_path: str, aioresponses_mock: aioresponses) -> None:
         """
         Load a VCR cassette YAML file and configure aioresponses.

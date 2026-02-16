@@ -19,7 +19,7 @@ def starts_with(left_value: Any, right_value: str) -> bool:
 async def test_async_converse(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    import aioboto3  # type: ignore[import-untyped]
+    import aioboto3
     from aioresponses import aioresponses
 
     mock_response = {

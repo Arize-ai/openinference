@@ -103,6 +103,8 @@ module = [
   "wrapt",
   "boto3",
   "botocore.*",
+  "aioboto3",
+  "aioresponses",
 ]
 
 [tool.ruff]
