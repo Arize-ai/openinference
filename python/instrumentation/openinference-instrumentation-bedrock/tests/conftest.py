@@ -1,4 +1,6 @@
+import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -110,3 +112,23 @@ def read_aio_cassette() -> Callable[..., Any]:
             )
 
     return mock_from_cassette
+
+
+def pytest_configure(config: Any) -> Any:
+    config.addinivalue_line("markers", "aio: aioboto3-only tests")
+
+
+def pytest_runtest_setup(item: Any) -> Any:
+    if "aio" in item.keywords:
+        if importlib.util.find_spec("aioboto3") is None:
+            pytest.skip("aioboto3 is not installed")
+
+
+def pytest_collection_modifyitems(config: Any, items: Any) -> None:
+    aio_enabled = os.getenv("OPENINFERENCE_TEST_AIO") == "1"
+
+    skip_aio = pytest.mark.skip(reason="aioboto3 tests only run in bedrock-aio env")
+
+    for item in items:
+        if "aio" in item.keywords and not aio_enabled:
+            item.add_marker(skip_aio)
