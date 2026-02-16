@@ -427,8 +427,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             "tool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "test-tool-call-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
-            "weather",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
             JSON.stringify({ location: "Boston", temperature: 72 }),
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -461,8 +459,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             "tool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "calc-tool-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
-            "calculator",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
             "2503",
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -495,8 +491,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             "tool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "legacy-tool-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
-            "legacyTool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
             JSON.stringify({ data: "legacy result" }),
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -541,8 +535,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             "tool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "weather-call-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
-            "weather",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
             JSON.stringify({ location: "Boston", temperature: 72 }),
           // Second tool result message
@@ -550,8 +542,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             "tool",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "calculator-call-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.TOOL_NAME}`]:
-            "calculator",
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
             JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
@@ -597,8 +587,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             JSON.stringify({ location: "Boston", temperature: 72 }),
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "weather-call-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.TOOL_NAME}`]:
-            "weather",
           // Second tool result becomes message index 1
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
             "tool",
@@ -606,8 +594,6 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
             JSON.stringify({ expression: "100 * 25 + 3", value: 2503 }),
           [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
             "calculator-call-id",
-          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.TOOL_NAME}`]:
-            "calculator",
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
             OpenInferenceSpanKind.LLM,
         },
@@ -623,8 +609,16 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
       vercelFunctionName: "ai.toolCall",
       vercelAttributes: {
         [VercelAISemanticConventions.RESPONSE_TOOL_CALLS]: JSON.stringify([
-          { toolName: "test-tool-1", args: { test1: "test-1" } },
-          { toolName: "test-tool-2", input: { test2: "test-2" } },
+          {
+            toolCallId: "call_1",
+            toolName: "test-tool-1",
+            args: { test1: "test-1" },
+          },
+          {
+            toolCallId: "call_2",
+            toolName: "test-tool-2",
+            input: { test2: "test-2" },
+          },
         ]),
       },
       expectedOpenInferenceAttributes: {
@@ -632,10 +626,14 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           "test-tool-1",
         [`${firstOutputMessageToolPrefix}.0.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
           JSON.stringify({ test1: "test-1" }),
+        [`${firstOutputMessageToolPrefix}.0.${SemanticConventions.TOOL_CALL_ID}`]:
+          "call_1",
         [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
           "test-tool-2",
         [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
           JSON.stringify({ test2: "test-2" }),
+        [`${firstOutputMessageToolPrefix}.1.${SemanticConventions.TOOL_CALL_ID}`]:
+          "call_2",
         [`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
           "assistant",
         [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
