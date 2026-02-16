@@ -123,7 +123,6 @@ class BufferedStreamingBody(StreamingBody):  # type: ignore
 def _instrument_client(
     client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
 ) -> BaseClient:
-    print("==========Client Creation Args:", bound_arguments.arguments)  # Debugging statement
     """Helper function to instrument a client (both sync and async)."""
     if bound_arguments.arguments.get("service_name") == "bedrock-agent-runtime":
         client = cast(InstrumentedClient, client)
@@ -153,55 +152,49 @@ def _instrument_client(
         client._unwrapped_invoke_model = client.invoke_model
         if not is_async:
             client.invoke_model = _model_invocation_wrapper(tracer)(client)
+        client._unwrapped_invoke_model_with_response_stream = (
+            client.invoke_model_with_response_stream
+        )
         client.invoke_model_with_response_stream = _InvokeModelWithResponseStream(tracer)(
             client.invoke_model_with_response_stream
         )
-
         if module_version >= _MINIMUM_CONVERSE_BOTOCORE_VERSION:
             client._unwrapped_converse = client.converse
             client.converse = _model_converse_wrapper(tracer)(client)
+            client._unwrapped_converse_stream = client.converse_stream
             client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
     return client
 
 
-def _client_creation_wrapper(
-    tracer: Tracer, module_version: str
-) -> Callable[[ClientCreator], ClientCreator]:
+def _client_creation_wrapper(tracer: Tracer, module_version: str, is_async: bool) -> Any:
     def _client_wrapper(
         wrapped: ClientCreator,
         instance: Optional[Any],
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
     ) -> Any:
-        """Instruments boto client creation."""
+        if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
 
         call_signature = signature(wrapped)
         bound_arguments = call_signature.bind(*args, **kwargs)
         bound_arguments.apply_defaults()
-        is_async = (
-            instance is not None
-            and hasattr(instance, "__class__")
-            and "aioboto" in instance.__class__.__module__
-        )
 
         if is_async:
-            # For async clients, we need to wrap the coroutine
+
             async def async_wrapper() -> BaseClient:
                 async_client = await wrapped(*args, **kwargs)
-                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                    return async_client
                 return _instrument_client(
                     async_client, bound_arguments, tracer, module_version, True
                 )
 
             return async_wrapper()
+
         else:
-            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return wrapped(*args, **kwargs)
             client = wrapped(*args, **kwargs)
             return _instrument_client(client, bound_arguments, tracer, module_version, False)
 
-    return _client_wrapper  # type: ignore
+    return _client_wrapper
 
 
 def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
@@ -406,24 +399,26 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         boto = import_module(_MODULE)
         botocore = import_module(_BASE_MODULE)
         self._original_client_creator = boto.ClientCreator.create_client
-
         wrap_function_wrapper(
             module=_MODULE,
             name="ClientCreator.create_client",
             wrapper=_client_creation_wrapper(
-                tracer=self._tracer, module_version=botocore.__version__
+                tracer=self._tracer,
+                module_version=botocore.__version__,
+                is_async=False,
             ),
         )
-
         try:
             aioboto = import_module(_AIO_MODULE)
             aiobotocore = import_module(_AIO_BASE_MODULE)
-            self._original_aio_client_creator = aioboto.ClientCreator.create_client
+            self._original_aio_client_creator = aioboto.AioClientCreator.create_client
             wrap_function_wrapper(
                 module=_AIO_MODULE,
                 name="AioClientCreator.create_client",
                 wrapper=_client_creation_wrapper(
-                    tracer=self._tracer, module_version=aiobotocore.__version__
+                    tracer=self._tracer,
+                    module_version=aiobotocore.__version__,
+                    is_async=True,
                 ),
             )
         except ImportError:

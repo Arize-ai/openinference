@@ -237,18 +237,8 @@ class TestAioBotoInstrumentor:
                 )
                 response = await client.invoke_agent(**attributes)
                 events = []
-                completion = await response["completion"]
-                async for event in completion:
+                async for event in response["completion"]:
                     events.append(event)
-                    if "chunk" in event:
-                        print(event)
-                        chunk_data = event["chunk"]
-                        if "bytes" in chunk_data:
-                            output_text = chunk_data["bytes"].decode("utf8")
-                            print(output_text)
-                    elif "trace" in event:
-                        print(event["trace"])
-
                 spans = in_memory_span_exporter.get_finished_spans()
                 assert len(events) == 5
                 assert len(spans) == 5
@@ -300,4 +290,5 @@ class TestAioBotoInstrumentor:
                 assert starts_with(
                     llm_span_attributes.pop("output.value"), ':\n<thinking>\nThe input "When is a'
                 )
+                assert llm_span_attributes.pop("metadata") is not None
                 assert not llm_span_attributes, f"Unexpected attributes: {llm_span_attributes}"

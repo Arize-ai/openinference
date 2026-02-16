@@ -195,8 +195,8 @@ def multi_agent_colab():
 
 
 if __name__ == "__main__":
-    simple_agent()
-    # code_gen_agent()
+    # simple_agent()
+    code_gen_agent()
     # full_processing_agent()
     # knowledge_base_agent()
     # action_group()
