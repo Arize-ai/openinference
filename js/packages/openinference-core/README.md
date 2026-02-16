@@ -13,10 +13,10 @@
 ## Installation
 
 ```bash
-npm install @arizeai/openinference-core @arizeai/openinference-semantic-conventions @opentelemetry/api
+npm install @arizeai/openinference-core
 
-# For running spans in a Node app:
-npm install @opentelemetry/sdk-trace-node @opentelemetry/resources
+# Only needed if you want to run the Quick Start example in this README:
+npm install @arizeai/openinference-semantic-conventions @opentelemetry/sdk-trace-node @opentelemetry/resources
 ```
 
 ## Quick Start (Runnable)
