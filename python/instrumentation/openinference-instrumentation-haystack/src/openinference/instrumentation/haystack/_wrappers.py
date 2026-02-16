@@ -28,6 +28,7 @@ from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -551,25 +552,27 @@ def _get_llm_output_message_attributes(response: Mapping[str, Any]) -> Iterator[
             yield f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}", ASSISTANT
 
 
-def _get_llm_model_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
+def _get_llm_model_system_attributes(
+    response: Mapping[str, Any],
+) -> Iterator[Tuple[str, Any]]:
     """
-    Extracts LLM model attributes from response.
+    Extracts LLM model and system attributes from response.
     """
     from haystack.dataclasses.chat_message import ChatMessage
 
-    if (
-        isinstance(response_meta := response.get("meta"), Sequence)
-        and response_meta
-        and (model := response_meta[0].get("model")) is not None
-    ):
+    model: Optional[str] = None
+
+    if isinstance(meta := response.get("meta"), Sequence) and meta:
+        model = meta[0].get("model")
+    elif isinstance(replies := response.get("replies"), Sequence) and replies:
+        reply = replies[0]
+        if isinstance(reply, ChatMessage):
+            model = reply.meta.get("model")
+
+    if model:
         yield LLM_MODEL_NAME, model
-    elif (
-        isinstance(replies := response.get("replies"), Sequence)
-        and replies
-        and isinstance(reply := replies[0], ChatMessage)
-        and (model := reply.meta.get("model")) is not None
-    ):
-        yield LLM_MODEL_NAME, model
+    if system := infer_llm_system_from_model(model):
+        yield LLM_SYSTEM, system.value
 
 
 def _get_llm_token_count_attributes(response: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -912,7 +915,7 @@ def _set_component_runner_response_attributes(
     if component_type is ComponentType.GENERATOR:
         attributes.update(
             {
-                **dict(_get_llm_model_attributes(response)),
+                **dict(_get_llm_model_system_attributes(response)),
                 **dict(_get_llm_output_message_attributes(response)),
                 **dict(_get_llm_token_count_attributes(response)),
             }
@@ -930,6 +933,51 @@ def _set_component_runner_response_attributes(
     else:
         assert_never(component_type)
     return attributes
+
+
+def infer_llm_system_from_model(
+    model_name: Optional[str] = None,
+) -> Optional[OpenInferenceLLMSystemValues]:
+    """Infer the LLM system from a model identifier when possible."""
+    if not model_name:
+        return None
+
+    model = model_name.lower()
+
+    if model.startswith(
+        (
+            "gpt-",
+            "gpt.",
+            "o1",
+            "o3",
+            "o4",
+            "text-embedding",
+            "davinci",
+            "curie",
+            "babbage",
+            "ada",
+            "azure_openai",
+            "azure_ai",
+            "azure",
+        )
+    ):
+        return OpenInferenceLLMSystemValues.OPENAI
+
+    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+        return OpenInferenceLLMSystemValues.ANTHROPIC
+
+    if model.startswith(("cohere.command", "command", "cohere")):
+        return OpenInferenceLLMSystemValues.COHERE
+
+    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+        return OpenInferenceLLMSystemValues.MISTRALAI
+
+    if model.startswith(
+        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
+    ):
+        return OpenInferenceLLMSystemValues.VERTEXAI
+
+    return None
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
@@ -957,6 +1005,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
