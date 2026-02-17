@@ -656,15 +656,14 @@ def infer_llm_system_from_model(
     model_name: Optional[str] = None,
 ) -> Optional[OpenInferenceLLMSystemValues]:
     """Infer the LLM system from a model identifier when possible."""
-    if not model_name:
+    if not isinstance(model_name, str):
         return None
 
     model = model_name.lower()
 
     if model.startswith(
         (
-            "gpt-",
-            "gpt.",
+            "gpt",
             "o1",
             "o3",
             "o4",
@@ -673,25 +672,22 @@ def infer_llm_system_from_model(
             "curie",
             "babbage",
             "ada",
-            "azure_openai",
-            "azure_ai",
             "azure",
+            "openai",
         )
     ):
         return OpenInferenceLLMSystemValues.OPENAI
 
-    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+    if model.startswith(("anthropic", "claude", "google_anthropic_vertex")):
         return OpenInferenceLLMSystemValues.ANTHROPIC
 
-    if model.startswith(("cohere.command", "command", "cohere")):
+    if model.startswith(("cohere", "command")):
         return OpenInferenceLLMSystemValues.COHERE
 
-    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+    if model.startswith(("mistral", "mixtral", "pixtral")):
         return OpenInferenceLLMSystemValues.MISTRALAI
 
-    if model.startswith(
-        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
-    ):
+    if model.startswith(("vertex", "gemini", "google")):
         return OpenInferenceLLMSystemValues.VERTEXAI
 
     return None
