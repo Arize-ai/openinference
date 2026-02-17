@@ -337,7 +337,6 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
     outputMessageIndex++;
 
     if (isArrayOfObjects(message.content)) {
-      let toolCallIndex = 0;
       const messageAttributes = message.content.reduce(
         (acc: Attributes, content, contentIndex) => {
           const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
