@@ -375,7 +375,6 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
             [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
               TOOL_CALL_ARGS_JSON,
           };
-
         },
         {},
       );

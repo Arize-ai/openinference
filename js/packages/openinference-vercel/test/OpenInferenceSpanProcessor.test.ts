@@ -651,9 +651,7 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
         vercelAttributes: {
           [VercelAISemanticConventions.PROMPT]: JSON.stringify({
             system: "You are a helpful assistant.",
-            messages: [
-              { role: "user", content: "What is the weather?" },
-            ],
+            messages: [{ role: "user", content: "What is the weather?" }],
           }),
         },
         expectedOpenInferenceAttributes: {
@@ -697,7 +695,10 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
           [VercelAISemanticConventions.PROMPT]: JSON.stringify({
             messages: [
               { role: "user", content: "Tell me a joke" },
-              { role: "assistant", content: "Why did the chicken cross the road?" },
+              {
+                role: "assistant",
+                content: "Why did the chicken cross the road?",
+              },
             ],
           }),
         },
