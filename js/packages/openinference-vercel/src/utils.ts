@@ -322,7 +322,6 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               TOOL_OUTPUT_JSON,
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
               TOOL_CALL_ID,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: TOOL_NAME,
           };
         },
         {} as Attributes,
@@ -405,7 +404,7 @@ const safelyGetInputMessageAttributes = withSafety({
 
 /**
  * Extracts messages from a prompt value and returns llm.input_messages attributes.
- * The Vercel AI SDK sets `ai.prompt` on outer CHAIN spans as a JSON string containing
+ * The Vercel AI SDK sets `ai.prompt` on top level spans as a JSON string containing
  * the full prompt object (e.g., { messages: [...], system: "..." }).
  * This function parses the prompt, extracts messages, and converts them to
  * OpenInference llm.input_messages format.

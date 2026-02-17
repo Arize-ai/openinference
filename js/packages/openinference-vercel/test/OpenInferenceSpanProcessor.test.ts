@@ -642,6 +642,140 @@ const generateVercelAttributeTestCases = (): SpanProcessorTestCase[] => {
     },
   ]);
 
+  // Input messages extracted from ai.prompt (outer AGENT spans like ai.streamText, ai.generateText)
+  testCases.push(
+    [
+      `${VercelAISemanticConventions.PROMPT} to ${SemanticConventions.LLM_INPUT_MESSAGES} (messages with system)`,
+      {
+        vercelFunctionName: "ai.streamText",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT]: JSON.stringify({
+            system: "You are a helpful assistant.",
+            messages: [
+              { role: "user", content: "What is the weather?" },
+            ],
+          }),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "system",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "You are a helpful assistant.",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
+            "user",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "What is the weather?",
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.AGENT,
+        },
+      },
+    ],
+    [
+      `${VercelAISemanticConventions.PROMPT} to ${SemanticConventions.LLM_INPUT_MESSAGES} (messages array only)`,
+      {
+        vercelFunctionName: "ai.generateText",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT]: JSON.stringify([
+            { role: "user", content: "Hello" },
+          ]),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "user",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "Hello",
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.AGENT,
+        },
+      },
+    ],
+    [
+      `${VercelAISemanticConventions.PROMPT} to ${SemanticConventions.LLM_INPUT_MESSAGES} (messages without system)`,
+      {
+        vercelFunctionName: "ai.streamText",
+        vercelAttributes: {
+          [VercelAISemanticConventions.PROMPT]: JSON.stringify({
+            messages: [
+              { role: "user", content: "Tell me a joke" },
+              { role: "assistant", content: "Why did the chicken cross the road?" },
+            ],
+          }),
+        },
+        expectedOpenInferenceAttributes: {
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+            "user",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "Tell me a joke",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
+            "assistant",
+          [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
+            "Why did the chicken cross the road?",
+          [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+            OpenInferenceSpanKind.AGENT,
+        },
+      },
+    ],
+  );
+
+  // Output value fallback from tool calls when response text is empty
+  testCases.push([
+    `${VercelAISemanticConventions.RESPONSE_TOOL_CALLS} falls back to ${SemanticConventions.OUTPUT_VALUE} when response text is empty`,
+    {
+      vercelFunctionName: "ai.streamText.doStream",
+      vercelAttributes: {
+        [VercelAISemanticConventions.RESPONSE_TEXT]: "",
+        [VercelAISemanticConventions.RESPONSE_TOOL_CALLS]: JSON.stringify([
+          {
+            toolCallId: "call_abc",
+            toolName: "get_weather",
+            args: { location: "Boston" },
+          },
+        ]),
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.OUTPUT_VALUE]: JSON.stringify([
+          {
+            toolCallId: "call_abc",
+            toolName: "get_weather",
+            args: { location: "Boston" },
+          },
+        ]),
+        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    },
+  ]);
+
+  // Input value fallback from prompt messages on LLM spans
+  const promptMessagesJSON = JSON.stringify([
+    { role: "system", content: "You are helpful." },
+    { role: "user", content: "Hi" },
+  ]);
+  testCases.push([
+    `${VercelAISemanticConventions.PROMPT_MESSAGES} falls back to ${SemanticConventions.INPUT_VALUE} when ai.prompt is absent`,
+    {
+      vercelFunctionName: "ai.generateText.doGenerate",
+      vercelAttributes: {
+        [VercelAISemanticConventions.PROMPT_MESSAGES]: promptMessagesJSON,
+      },
+      expectedOpenInferenceAttributes: {
+        [SemanticConventions.INPUT_VALUE]: promptMessagesJSON,
+        [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
+          "system",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
+          "You are helpful.",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
+          "user",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]:
+          "Hi",
+        [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
+          OpenInferenceSpanKind.LLM,
+      },
+    },
+  ]);
+
   // Embeddings
   testCases.push(
     [
@@ -947,6 +1081,28 @@ describe("OpenInferenceSimpleSpanProcessor", () => {
     const spans = memoryExporter.getFinishedSpans();
     expect(spans.length).toBe(1);
     expect(spans[0].name).toBe("ai.generateText my-function");
+  });
+
+  it("should remove ai.stream.* events from spans", () => {
+    const tracer = trace.getTracer("test-tracer");
+    const span = tracer.startSpan("ai.streamText.doStream");
+    span.setAttribute("operation.name", "ai.streamText.doStream");
+    span.addEvent("ai.stream.firstChunk", { "ai.stream.msToFirstChunk": 150 });
+    span.addEvent("ai.stream.finish", {
+      "ai.stream.msToFinish": 1200,
+      "ai.usage.completionTokens": 42,
+    });
+    span.addEvent("other.event", { foo: "bar" });
+    span.end();
+
+    const spans = memoryExporter.getFinishedSpans();
+    expect(spans.length).toBe(1);
+    // ai.stream.* events should be removed
+    const eventNames = spans[0].events.map((e) => e.name);
+    expect(eventNames).not.toContain("ai.stream.firstChunk");
+    expect(eventNames).not.toContain("ai.stream.finish");
+    // Non ai.stream.* events should be preserved
+    expect(eventNames).toContain("other.event");
   });
 });
 
