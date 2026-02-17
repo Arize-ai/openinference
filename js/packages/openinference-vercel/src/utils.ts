@@ -818,7 +818,7 @@ const getVercelSpecificAttributes = (
       attributes[VercelAISemanticConventions.PROMPT_MESSAGES],
     ),
 
-    // Extract messages from ai.prompt for CHAIN spans (e.g., ai.streamText, ai.generateText).
+    // Extract messages from ai.prompt for AGENT spans (e.g., ai.streamText, ai.generateText).
     // ai.prompt contains the full prompt object with messages and optional system field.
     ...safelyGetInputMessagesFromPrompt(
       attributes[VercelAISemanticConventions.PROMPT],
