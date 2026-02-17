@@ -570,7 +570,7 @@ def _get_llm_model_provider_system_attributes(
 
     if isinstance(meta := response.get("meta"), Sequence) and meta:
         model = meta[0].get("model")
-    elif isinstance(replies := response.get("replies"), Sequence) and replies:
+    if model is None and isinstance(replies := response.get("replies"), Sequence) and replies:
         reply = replies[0]
         if isinstance(reply, ChatMessage):
             model = reply.meta.get("model")
@@ -955,7 +955,7 @@ def infer_llm_provider_from_class_name(
 
     if class_name in ["HuggingFaceAPIGenerator", "HuggingFaceAPIChatGenerator"]:
         api_params = getattr(instance, "api_params", None)
-        if isinstance(api_params, Dict):
+        if isinstance(api_params, dict):
             model = api_params.get("model")
             if isinstance(model, str):
                 provider_prefix = model.split("/", 1)[0].lower()
