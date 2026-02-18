@@ -330,14 +330,50 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
     if isinstance(prompt := arguments.get("prompt"), str):
         yield from process_message(0, "user", prompt)
     elif isinstance(messages := arguments.get("messages"), list):
-        for i, message in enumerate(messages):
-            if not isinstance(message, dict):
-                continue
-            role, content = message.get("role"), message.get("content")
-            if isinstance(content, list) and role:
-                for subcontent in content:
-                    if isinstance(subcontent, dict) and (text := subcontent.get("text")):
-                        yield from process_message(i, role, text)
+        oi_messages: list[oi.Message] = []
+        for message in messages:
+            oi_message: oi.Message = {}
+            oi_message_contents: list[oi.MessageContent] = []
+            if (role := getattr(message, "role", None)) is not None:
+                oi_message["role"] = role
+            if (content := getattr(message, "content", None)) is not None:
+                oi_message_contents.extend(content)
+
+            # Add the reasoning_content if available in raw.choices[0].message structure
+            if (raw := getattr(message, "raw", None)) is not None:
+                if (choices := getattr(raw, "choices", None)) is not None:
+                    if isinstance(choices, list) and len(choices) > 0:
+                        if (message := getattr(choices[0], "message", None)) is not None:
+                            if (
+                                reasoning_content := getattr(message, "reasoning_content", None)
+                            ) is not None:
+                                oi_message_contents.append(
+                                    oi.TextMessageContent(type="text", text=reasoning_content)
+                                )
+
+            oi_message["contents"] = oi_message_contents
+            oi_tool_calls: list[oi.ToolCall] = []
+            if isinstance(tool_calls := getattr(message, "tool_calls", None), list):
+                for tool_call in tool_calls:
+                    oi_tool_call: oi.ToolCall = {}
+                    if (tool_call_id := getattr(tool_call, "id", None)) is not None:
+                        oi_tool_call["id"] = tool_call_id
+                    if (function := getattr(tool_call, "function", None)) is not None:
+                        oi_function: oi.ToolCallFunction = {}
+                        if (name := getattr(function, "name", None)) is not None:
+                            oi_function["name"] = name
+                        if isinstance(
+                            function_arguments := getattr(function, "arguments", None), str
+                        ):
+                            oi_function["arguments"] = function_arguments
+                        oi_tool_call["function"] = oi_function
+                        oi_tool_calls.append(oi_tool_call)
+
+            oi_message["tool_calls"] = oi_tool_calls
+            oi_messages.append(oi_message)
+
+        for k, v in oi.get_llm_input_message_attributes(messages=oi_messages).items():
+            yield k, v
 
 
 def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
