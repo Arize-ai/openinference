@@ -64,6 +64,7 @@ class _AsyncIterator:
             if self._context_manager is not None:
                 self._context_manager.__exit__(type(e), e, e.__traceback__)
                 self._context_manager = None
+            self._callback(e)
             raise
 
 
