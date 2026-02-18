@@ -84,8 +84,12 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
     _verify_crew_span(crew_span)
 
-    _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
-    _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+    _verify_agent_span(
+        agent_spans[0], agent_spans[0].name, analyze_task.description, analyze_task.name
+    )
+    _verify_agent_span(
+        agent_spans[1], agent_spans[1].name, scrape_task.description, scrape_task.name
+    )
 
     _verify_tool_span(tool_span)
 
@@ -142,12 +146,14 @@ def kickoff_crew() -> Tuple[Task, Task]:
         description=f"Call the scrape_website tool to fetch text from {url} and return the result.",
         expected_output="Text content from the website.",
         agent=scraper_agent,
+        name="scrape-task",
     )
     analyze_task = Task(
         description="Extract the first quote from the content.",
         expected_output="Quote with author.",
         agent=analyzer_agent,
         context=[scrape_task],
+        name="analyze-task",
     )
 
     # Create Crew
@@ -265,7 +271,10 @@ def _verify_flow_span(span: ReadableSpan) -> None:
 
 
 def _verify_agent_span(
-    span: ReadableSpan, expected_name: str, expected_task_description: str
+    span: ReadableSpan,
+    expected_name: str,
+    expected_task_description: str,
+    expected_task_name: str | None = None,
 ) -> None:
     """Verify an AGENT span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -273,6 +282,8 @@ def _verify_agent_span(
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.AGENT.value
     )
+    if expected_task_name is not None:
+        assert attributes.get("task_name") == expected_task_name
     # Enhanced naming: expect agent role in span name
     assert span.name.endswith("._execute_core"), (
         f"Expected span name to end with '._execute_core', got: {span.name}"
