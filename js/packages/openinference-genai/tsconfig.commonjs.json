@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist/commonjs",
+    "rootDir": "src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "tsBuildInfoFile": "dist/commonjs/tsconfig.commonjs.tsbuildinfo",
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "references": []
+}

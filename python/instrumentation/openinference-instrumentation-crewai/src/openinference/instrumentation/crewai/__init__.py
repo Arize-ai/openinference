@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
+    _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _FlowKickoffAsyncWrapper,
@@ -18,11 +19,10 @@ from openinference.instrumentation.crewai._wrappers import (
     _LongTermMemorySearchWrapper,
     _ShortTermMemorySaveWrapper,
     _ShortTermMemorySearchWrapper,
-    _ToolUseWrapper,
 )
 from openinference.instrumentation.crewai.version import __version__
 
-_instruments = ("crewai >= 0.41.1",)
+_instruments = ("crewai >= 1.9.0",)
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
-        "_original_tool_use",
+        "_original_base_tool_run",
         "_tracer",
     )
 
@@ -125,14 +125,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=short_term_memory_search_wrapper,
         )
 
-        use_wrapper = _ToolUseWrapper(tracer=self._tracer)
-        self._original_tool_use = getattr(
-            import_module("crewai.tools.tool_usage").ToolUsage, "_use", None
+        base_tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)
+        self._original_base_tool_run = getattr(
+            import_module("crewai.tools.base_tool").BaseTool, "run", None
         )
         wrap_function_wrapper(
-            module="crewai.tools.tool_usage",
-            name="ToolUsage._use",
-            wrapper=use_wrapper,
+            module="crewai.tools.base_tool",
+            name="BaseTool.run",
+            wrapper=base_tool_run_wrapper,
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -173,7 +173,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             )
             self._original_short_term_memory_search = None
 
-        if self._original_tool_use is not None:
-            tool_usage_module = import_module("crewai.tools.tool_usage")
-            tool_usage_module.ToolUsage._use = self._original_tool_use
-            self._original_tool_use = None
+        if self._original_base_tool_run is not None:
+            base_tool_module = import_module("crewai.tools.base_tool")
+            base_tool_module.BaseTool.run = self._original_base_tool_run
+            self._original_base_tool_run = None

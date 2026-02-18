@@ -1,0 +1,238 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You help
+      manage user information. Use the get_user_profile tool to fetch user details.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"Get
+      the profile for user ''user123''","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_user_profile","description":"Get
+      detailed user profile information.","parameters":{"properties":{"user_id":{"title":"User
+      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object"}}}]}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '628'
+      Content-Type:
+      - application/json
+      Host:
+      - api.openai.com
+      User-Agent:
+      - agent-framework-python/1.0.0b260210
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - async:asyncio
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.20.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.10.18
+      agent-framework-version:
+      - python/1.0.0b260210
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-D8EhxuXH2G31ASubnytGwc0OGb6dS\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770855533,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
+        \           \"id\": \"call_Z2GDsFLeVM2WxPDrIhDksfZI\",\n            \"type\":
+        \"function\",\n            \"function\": {\n              \"name\": \"get_user_profile\",\n
+        \             \"arguments\": \"{\\\"user_id\\\":\\\"user123\\\"}\"\n            }\n
+        \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 81,\n    \"completion_tokens\":
+        17,\n    \"total_tokens\": 98,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9cc7e94b9fc6cf2e-SJC
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 12 Feb 2026 00:18:54 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '1094'
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '481'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - __cf_bm=ceFBtT19ZjhDjHviZgl1mcaMTDpVrap4VIxR.jQeQcA-1770855533.3763292-1.0.1.1-UnOAb400kfLfXIH._w78tKvveYfbX70Q48zVotmAcA2ZjBOET1FoWMMbIL01b5R30MjJK1BC4.xnowQr3D_goSOvrrc2m47k5xfcssZTch0NYQrtzXdfrYahiW8INqSy;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
+        00:48:54 GMT
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999967'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_c98189a6c1d8465da3a48422ae891e92
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You help
+      manage user information. Use the get_user_profile tool to fetch user details.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"Get
+      the profile for user ''user123''","additional_properties":{}}]},{"role":"assistant","tool_calls":[{"id":"call_Z2GDsFLeVM2WxPDrIhDksfZI","type":"function","function":{"name":"get_user_profile","arguments":"{\"user_id\":\"user123\"}"}}]},{"role":"tool","tool_call_id":"call_Z2GDsFLeVM2WxPDrIhDksfZI","content":"{\"user_id\":
+      \"user123\", \"name\": \"John Doe\", \"email\": \"john@example.com\", \"preferences\":
+      {\"theme\": \"dark\", \"notifications\": true}, \"stats\": {\"posts\": 42, \"followers\":
+      150}}"}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_user_profile","description":"Get
+      detailed user profile information.","parameters":{"properties":{"user_id":{"title":"User
+      Id","type":"string"}},"required":["user_id"],"title":"get_user_profile_input","type":"object"}}}]}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1072'
+      Content-Type:
+      - application/json
+      Cookie:
+      - __cf_bm=ceFBtT19ZjhDjHviZgl1mcaMTDpVrap4VIxR.jQeQcA-1770855533.3763292-1.0.1.1-UnOAb400kfLfXIH._w78tKvveYfbX70Q48zVotmAcA2ZjBOET1FoWMMbIL01b5R30MjJK1BC4.xnowQr3D_goSOvrrc2m47k5xfcssZTch0NYQrtzXdfrYahiW8INqSy
+      Host:
+      - api.openai.com
+      User-Agent:
+      - agent-framework-python/1.0.0b260210
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - async:asyncio
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 2.20.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.10.18
+      agent-framework-version:
+      - python/1.0.0b260210
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-D8EhygeFOx6vHAKWlS8vUDTfEefja\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1770855534,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Here is the profile information for
+        user 'user123':\\n\\n- **Name**: John Doe\\n- **Email**: john@example.com\\n-
+        **Preferences**:\\n  - Theme: Dark\\n  - Notifications: Enabled\\n- **Stats**:\\n
+        \ - Posts: 42\\n  - Followers: 150\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 159,\n    \"completion_tokens\":
+        64,\n    \"total_tokens\": 223,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+    headers:
+      CF-RAY:
+      - 9cc7e951fc7898ae-SJC
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 12 Feb 2026 00:18:55 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '1029'
+      openai-organization:
+      - arize-ai-ewa7w1
+      openai-processing-ms:
+      - '1410'
+      openai-project:
+      - proj_AeL7VnPLDeZ3AFo71yqLaMRO
+      openai-version:
+      - '2020-10-01'
+      set-cookie:
+      - __cf_bm=4bwjF.7C7ad8vPT54SNlf.wc4kewa5UUZkgTbzua4Tg-1770855534.3919284-1.0.1.1-3tMeY6mG.pXX3vLVNLvsjYAODxUDiVVUK2HabaQDVE1u7PO0uGZ9RHF.7j3bHsPw3QQEB0.rdhyHAKOdGwlTFizRG.QWkgaNdWZg9wlqa1eTD9fx7j08t553eRAxyLFy;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
+        00:48:55 GMT
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999922'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_9f1940134fbe4b03a5d15cce06ecbfc6
+    status:
+      code: 200
+      message: OK
+version: 1

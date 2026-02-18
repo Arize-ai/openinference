@@ -17,7 +17,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "exports": {
     ".": {
@@ -46,7 +46,7 @@
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "openai": "^6.7.0",
-    "vitest": "^2.1.8",
+    "vitest": "^4.0.3",
     "zod": "^3.24.3",
     "typescript": "^5.5.4"
   }

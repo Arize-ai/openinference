@@ -6,6 +6,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
+    GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_FREQUENCY_PENALTY,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
@@ -199,11 +200,14 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
     elif PydanticTools.TOOLS in gen_ai_attrs:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.CHAIN.value
 
-    if GEN_AI_SYSTEM in gen_ai_attrs:
-        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
-
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
+
+    if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
+        yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_PROVIDER_NAME]
+
+    if GEN_AI_SYSTEM in gen_ai_attrs:
+        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
 
     if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
         yield (
@@ -758,9 +762,14 @@ def _extract_from_gen_ai_messages(gen_ai_attrs: Mapping[str, Any]) -> Iterator[T
                                     ):
                                         message_role = GenAIMessageRoles.TOOL
                                         if GenAIMessagePartFields.RESULT in part:
+                                            result = part[GenAIMessagePartFields.RESULT]
+                                            if not isinstance(result, str):
+                                                result_str = safe_json_dumps(result)
+                                            else:
+                                                result_str = result
                                             yield (
                                                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_index}.{MessageAttributes.MESSAGE_CONTENTS}.{part_index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
-                                                part[GenAIMessagePartFields.RESULT],
+                                                result_str,
                                             )
                                         if GenAIToolCallFields.ID in part:
                                             yield (

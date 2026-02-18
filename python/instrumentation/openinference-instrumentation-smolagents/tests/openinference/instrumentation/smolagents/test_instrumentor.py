@@ -22,9 +22,16 @@ from smolagents.models import (  # type: ignore[import-untyped]
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
+from openinference.instrumentation.smolagents._wrappers import (
+    infer_llm_provider_from_class_name,
+    infer_llm_provider_from_endpoint,
+    infer_llm_system_from_model,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -173,6 +180,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -252,6 +261,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -345,6 +356,8 @@ class TestModels:
         assert isinstance(output_value := attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(json.loads(output_value), dict)
         assert attributes.pop(LLM_MODEL_NAME) == "anthropic/claude-3-7-sonnet-20250219"
+        assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.ANTHROPIC.value
+        assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.ANTHROPIC.value
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == model_params
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
@@ -836,6 +849,305 @@ class TestTools:
         assert not attributes
 
 
+class TestInferLLMProviderFromClassName:
+    def test_returns_none_when_instance_is_none(self) -> None:
+        result = infer_llm_provider_from_class_name(None)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, model_id, expected",
+        [
+            ("LiteLLMModel", "anthropic/claude-3-opus", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("LiteLLMModel", "openai/gpt-4", OpenInferenceLLMProviderValues.OPENAI),
+            ("LiteLLMModel", "azure/gpt-4", OpenInferenceLLMProviderValues.AZURE),
+            ("LiteLLMModel", "cohere/command-r", OpenInferenceLLMProviderValues.COHERE),
+            ("LiteLLMRouterModel", "anthropic/claude-3", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("LiteLLMRouterModel", "openai/gpt-3.5", OpenInferenceLLMProviderValues.OPENAI),
+        ],
+    )
+    def test_litellm_models_with_valid_provider_prefix(
+        self, class_name: str, model_id: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name, model_id",
+        [
+            ("LiteLLMModel", "invalid_provider/some-model"),
+            ("LiteLLMModel", "gpt-4"),
+            ("LiteLLMRouterModel", "unknown/model"),
+        ],
+    )
+    def test_litellm_models_with_invalid_model_id_returns_none(
+        self, class_name: str, model_id: str
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_id",
+        [None, 12345, [], {}],
+    )
+    def test_litellm_model_with_invalid_model_id_type(self, model_id: Any) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "LiteLLMModel"
+        mock_instance.model_id = model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    def test_litellm_model_with_missing_model_id_attribute(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "LiteLLMModel"
+        del mock_instance.model_id
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, expected",
+        [
+            ("OpenAIServerModel", OpenInferenceLLMProviderValues.OPENAI),
+            ("AzureOpenAIServerModel", OpenInferenceLLMProviderValues.AZURE),
+            ("AmazonBedrockServerModel", OpenInferenceLLMProviderValues.AWS),
+        ],
+    )
+    def test_known_server_models_return_expected_provider(
+        self, class_name: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name",
+        ["InferenceClientModel", "UnknownModelClass", "CustomModel"],
+    )
+    def test_unknown_or_special_class_names_return_none(self, class_name: str) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+
+class TestInferLLMProviderFromEndpoint:
+    def test_returns_none_when_instance_is_none(self) -> None:
+        result = infer_llm_provider_from_endpoint(None)
+        assert result is None
+
+    def test_returns_none_when_no_endpoint_attributes_exist(self) -> None:
+        mock_instance = MagicMock()
+        del mock_instance.api_base
+        del mock_instance.base_url
+        del mock_instance.endpoint
+        del mock_instance.host
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result is None
+
+    def test_returns_none_when_all_endpoint_attributes_are_none(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = None
+        mock_instance.base_url = None
+        mock_instance.endpoint = None
+        mock_instance.host = None
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "attr_name, endpoint_url, expected",
+        [
+            ("api_base", "https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            ("base_url", "https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
+            ("endpoint", "https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
+            ("host", "https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
+        ],
+    )
+    def test_endpoint_attribute_priority(
+        self, attr_name: str, endpoint_url: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = None
+        mock_instance.base_url = None
+        mock_instance.endpoint = None
+        mock_instance.host = None
+        setattr(mock_instance, attr_name, endpoint_url)
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result == expected
+
+    def test_endpoint_with_host_attribute(self) -> None:
+        mock_endpoint = MagicMock()
+        mock_endpoint.host = "api.openai.com"
+
+        mock_instance = MagicMock()
+        mock_instance.api_base = mock_endpoint
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result == OpenInferenceLLMProviderValues.OPENAI
+
+    @pytest.mark.parametrize(
+        "invalid_endpoint",
+        [12345, [], {}, None],
+    )
+    def test_invalid_endpoint_type_returns_none(self, invalid_endpoint: Any) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = invalid_endpoint
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result is None
+
+    def test_host_not_string_returns_none(self) -> None:
+        mock_endpoint = MagicMock()
+        mock_endpoint.host = 12345
+
+        mock_instance = MagicMock()
+        mock_instance.api_base = mock_endpoint
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "endpoint_url, expected",
+        [
+            ("https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            ("https://subdomain.api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            (
+                "https://my-resource.openai.azure.com/openai/deployments",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://different-resource.openai.azure.com/v1",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://generativelanguage.googleapis.com/v1",
+                OpenInferenceLLMProviderValues.GOOGLE,
+            ),
+            ("https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
+            (
+                "https://bedrock-runtime.us-east-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            ("https://someservice.us-west-2.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
+            ("https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
+            ("https://api.x.ai/v1", OpenInferenceLLMProviderValues.XAI),
+            ("https://api.deepseek.com/v1", OpenInferenceLLMProviderValues.DEEPSEEK),
+        ],
+    )
+    def test_known_endpoints_return_expected_provider(
+        self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = endpoint_url
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result == expected
+
+    def test_unknown_endpoint_returns_none(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = "https://unknown-provider.com/v1"
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result is None
+
+    def test_case_insensitive_host_matching(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.api_base = "https://API.OPENAI.COM/v1"
+
+        result = infer_llm_provider_from_endpoint(mock_instance)
+        assert result == OpenInferenceLLMProviderValues.OPENAI
+
+
+class TestInferLLMSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name",
+        [None, ""],
+    )
+    def test_returns_none_for_invalid_input(self, model_name: Optional[str]) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            # OpenAI
+            ("gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-4-turbo-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt.3.5.turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_openai/gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_ai/some-model", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure/deployment-name", OpenInferenceLLMSystemValues.OPENAI),
+            # Anthropic
+            ("anthropic.claude-v2", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic/claude-3-opus", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-opus-20240229", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex/claude-3", OpenInferenceLLMSystemValues.ANTHROPIC),
+            # Cohere
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("cohere/embed-english-v3", OpenInferenceLLMSystemValues.COHERE),
+            # Mistral
+            ("mistralai/mistral-large", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-small", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            # VertexAI
+            ("google_vertexai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google_genai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertexai/gemini-ultra", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex_ai/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex/bison", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_model_names_return_expected_system(
+        self, model_name: str, expected: OpenInferenceLLMSystemValues
+    ) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "custom-llm-v1",
+            "my-gpt-4-custom",
+        ],
+    )
+    def test_unknown_model_names_return_none(self, model_name: str) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_system_from_model("GPT-4-Turbo")
+        assert result == OpenInferenceLLMSystemValues.OPENAI
+
+
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
@@ -862,6 +1174,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION

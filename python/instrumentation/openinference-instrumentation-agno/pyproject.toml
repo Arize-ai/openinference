@@ -36,10 +36,10 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "agno>=2.2.2",
+  "agno>=2.5.0",
 ]
 test = [
-  "agno==2.2.2",
+  "agno>=2.5.0",
   "opentelemetry-sdk",
   "pytest-recording",
   "openai",

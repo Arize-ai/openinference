@@ -17,7 +17,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "exports": {
     ".": {
@@ -57,7 +57,7 @@
     "msw": "^2.12.1",
     "openai": "^4.52.7",
     "typescript": "^5.5.4",
-    "vitest": "^2.1.8",
+    "vitest": "^4.0.3",
     "zod": "^3.25.76"
   }
 }

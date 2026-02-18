@@ -1,0 +1,4 @@
+pytest
+pytest-asyncio
+pytest-recording
+agent-framework==1.0.0b260210

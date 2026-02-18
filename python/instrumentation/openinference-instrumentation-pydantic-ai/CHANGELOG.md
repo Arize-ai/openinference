@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.11...python-openinference-instrumentation-pydantic-ai-v0.1.12) (2026-02-12)
+
+
+### Bug Fixes
+
+* **pydantic_ai:** Update Invalid Span Attribute For Tool Results ([#2729](https://github.com/Arize-ai/openinference/issues/2729)) ([c4c5056](https://github.com/Arize-ai/openinference/commit/c4c50566ad1e438293d8dae95d390aad3951beb8))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.10...python-openinference-instrumentation-pydantic-ai-v0.1.11) (2026-01-22)
+
+
+### Features
+
+* **pydantic_ai:** Populate LLM Provider & System Attributes ([#2635](https://github.com/Arize-ai/openinference/issues/2635)) ([3c7774f](https://github.com/Arize-ai/openinference/commit/3c7774fc8af8bec17ca1b9700ee3f0c5baad2da0))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-pydantic-ai-v0.1.9...python-openinference-instrumentation-pydantic-ai-v0.1.10) (2025-12-18)
 
 

@@ -14,6 +14,10 @@
                 ".gitignore"
             ]
         },
+        "python/instrumentation/openinference-instrumentation-agentspec": {
+            "package-name": "python-openinference-instrumentation-agentspec",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-agno": {
             "package-name": "python-openinference-instrumentation-agno",
             "release-type": "python"
@@ -124,6 +128,14 @@
         },
         "python/instrumentation/openinference-instrumentation-pipecat": {
             "package-name": "python-openinference-instrumentation-pipecat",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-strands-agents": {
+            "package-name": "python-openinference-instrumentation-strands-agents",
+            "release-type": "python"
+        },
+        "python/instrumentation/openinference-instrumentation-agent-framework": {
+            "package-name": "python-openinference-instrumentation-agent-framework",
             "release-type": "python"
         },
         "java/openinference-semantic-conventions": {

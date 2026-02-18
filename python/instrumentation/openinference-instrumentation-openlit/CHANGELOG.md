@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.3...python-openinference-instrumentation-openlit-v0.1.4) (2026-02-12)
+
+
+### Features
+
+* **openlit:** Populate LLM Provider & System Attributes ([#2714](https://github.com/Arize-ai/openinference/issues/2714)) ([e01383b](https://github.com/Arize-ai/openinference/commit/e01383b5a63331bcd53e61265aa366224480a4aa))
+
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.2...python-openinference-instrumentation-openlit-v0.1.3) (2026-02-12)
+
+
+### Bug Fixes
+
+* resolve Python daily cron failures (langchain, pipecat, openlit, agent-framework) ([#2724](https://github.com/Arize-ai/openinference/issues/2724)) ([87639c4](https://github.com/Arize-ai/openinference/commit/87639c48600a3e18ec16a3c75c185631916bd7f3))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openlit-v0.1.1...python-openinference-instrumentation-openlit-v0.1.2) (2025-08-30)
 
 

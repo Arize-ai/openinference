@@ -6,10 +6,17 @@ import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
-import { addOpenInferenceAttributesToSpan } from "@arizeai/openinference-vercel/utils";
+import { addOpenInferenceAttributesToSpan as addOpenInferenceAttributesToSpanVercel } from "@arizeai/openinference-vercel/utils";
 
 import { diag } from "@opentelemetry/api";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
+// openinference-vercel is typed against OTel v1 ReadableSpan, while Mastra uses OTel v2.
+// At runtime we only need span.attributes, so keep the call but erase the type.
+const addOpenInferenceAttributesToSpan =
+  addOpenInferenceAttributesToSpanVercel as unknown as (span: {
+    attributes: Record<string, unknown>;
+  }) => void;
 
 import {
   MASTRA_AGENT_SPAN_NAME_PREFIXES,
@@ -134,12 +141,9 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
  */
 export const processMastraSpanAttributes = (span: ReadableSpan): void => {
   addOpenInferenceProjectResourceAttributeSpan(span);
-  addOpenInferenceAttributesToSpan({
-    ...span,
-    instrumentationLibrary: {
-      name: "@arizeai/openinference-mastra",
-    },
-  });
+  addOpenInferenceAttributesToSpan(
+    span as unknown as { attributes: Record<string, unknown> },
+  );
   addOpenInferenceAttributesToMastraSpan(span);
 };
 

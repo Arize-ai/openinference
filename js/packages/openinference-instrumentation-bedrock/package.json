@@ -17,7 +17,7 @@
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest --typecheck",
+    "test": "vitest run --typecheck",
     "validate:invoke-model": "tsx scripts/validate-invoke-model.ts",
     "validate:converse-comprehensive": "tsx scripts/validate-converse-comprehensive.ts",
     "validate:converse-stream": "tsx scripts/validate-converse-stream.ts"

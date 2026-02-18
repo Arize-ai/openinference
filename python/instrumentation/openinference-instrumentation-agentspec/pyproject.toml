@@ -3,14 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openinference-instrumentation-openllmetry"
+name = "openinference-instrumentation-agentspec"
 dynamic = ["version"]
-description = "OpenInference OpenLLMetry Instrumentation"
+description = "OpenInference Open Agent Spec Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.15"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
+  { name = "Oracle", email = "" },
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
@@ -18,7 +19,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -26,43 +26,36 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "opentelemetry-api>=1.22.0",
-  "opentelemetry-sdk>=1.22.0",
-  "opentelemetry-instrumentation>=1.22.0",
-  "opentelemetry-semantic-conventions>=1.22.0",
+  "opentelemetry-api",
+  "opentelemetry-instrumentation",
+  "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.27",
-  "openinference-semantic-conventions>=0.1.17",
-  "typing-extensions>=4.8.0",
-  "wrapt>=1.14.0",
-  "grpcio>=1.60.0",
+  "openinference-semantic-conventions>=0.1.21",
+  "typing-extensions",
+  "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "opentelemetry-instrumentation-openai>=0.35.0",
-  "opentelemetry-instrumentation-langchain>=0.35.0",
-  "opentelemetry-instrumentation-anthropic>=0.35.0",
+  "opentelemetry-sdk",
+  "pyagentspec >= 26.1.0",
 ]
 
-tests = [
-  "pytest>=7.4.0",
-  "pytest-cov>=4.1.0",
-  "python-dotenv>=1.0.0",
-]
+[project.entry-points.opentelemetry_instrumentor]
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
 
 [project.entry-points.openinference_instrumentor]
-openllmetry = "openinference.instrumentation.openllmetry:OpenLLMetryInstrumentor"
+agentspec = "openinference.instrumentation.agentspec:AgentSpecInstrumentor"
 
 [project.urls]
-Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openllmetry"
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agentspec"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/openllmetry/version.py"
+path = "src/openinference/instrumentation/agentspec/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/src",
-  "/tests",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -84,24 +77,16 @@ exclude = [
   "sdist",
 ]
 
-[[tool.mypy.overrides]]
-ignore_missing_imports = true
-module = [
-  "wrapt",
-  "openai",
-  "langchain",
-  "langgraph",
-]
-
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
+"examples/*" = ["E501"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 
 [tool.ruff.lint.isort]
-force-single-line = false 
+force-single-line = false

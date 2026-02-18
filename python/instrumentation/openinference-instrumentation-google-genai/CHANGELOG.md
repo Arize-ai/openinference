@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.9...python-openinference-instrumentation-google-genai-v0.1.10) (2026-02-05)
+
+
+### Features
+
+* **google-genai:** interactions api integration ([#2628](https://github.com/Arize-ai/openinference/issues/2628)) ([23a9702](https://github.com/Arize-ai/openinference/commit/23a9702bbd9fcf0bd9a3013bcac59ecf375d2c8f))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.8...python-openinference-instrumentation-google-genai-v0.1.9) (2026-01-08)
 
 
