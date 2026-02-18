@@ -221,6 +221,9 @@ class _ExecuteCoreWrapper:
         ) as span:
             span.set_attribute("task_key", instance.key)
             span.set_attribute("task_id", str(instance.id))
+            task_name = getattr(instance, "name", None)
+            if task_name is not None:
+                span.set_attribute("task_name", task_name)
 
             agent = args[0] if args else None
             # Conditionally set attributes for the agent, crew, and task
