@@ -287,6 +287,9 @@ class _CrewKickoffWrapper:
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
@@ -379,6 +382,9 @@ class _FlowKickoffAsyncWrapper:
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
             span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
