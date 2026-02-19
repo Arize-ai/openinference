@@ -659,14 +659,15 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         # Patch async client creation (aiobotocore) if available.
         try:
             aioboto = import_module(_AIO_MODULE)
-            aiobotocore = import_module(_AIO_BASE_MODULE)
             self._original_aio_client_creator = aioboto.AioClientCreator.create_client
             wrap_function_wrapper(
                 module=_AIO_MODULE,
                 name="AioClientCreator.create_client",
                 wrapper=_async_client_creation_wrapper(
                     tracer=self._tracer,
-                    module_version=aiobotocore.__version__,
+                    # Converse check uses botocore version (same as sync);
+                    # aiobotocore wraps botocore.
+                    module_version=botocore.__version__,
                 ),
             )
         except ImportError:

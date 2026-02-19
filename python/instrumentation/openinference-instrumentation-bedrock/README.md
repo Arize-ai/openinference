@@ -34,10 +34,10 @@ pip install openinference-instrumentation-bedrock
 ```
 ### Async (aioboto3) support
 
-To instrument async Bedrock calls made via `aioboto3`, install the optional async dependencies:
+To instrument async Bedrock calls made via `aioboto3`, install `aioboto3` in addition to this package:
 
 ```shell
-pip install openinference-instrumentation-bedrock[aio]
+pip install openinference-instrumentation-bedrock aioboto3
 ```
 
 
@@ -56,7 +56,7 @@ pip install openinference-instrumentation-bedrock arize-phoenix boto3
 For async usage with `aioboto3`:
 
 ```shell
-pip install openinference-instrumentation-bedrock[aio] arize-phoenix aioboto3
+pip install openinference-instrumentation-bedrock arize-phoenix aioboto3
 ```
 
 Ensure that `boto3` is [configured with AWS credentials](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
