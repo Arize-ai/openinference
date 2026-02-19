@@ -163,16 +163,23 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
 
+        if description := getattr(instance, "description", None):
+            attributes["gen_ai.agent.description"] = description
+
         class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
             __wrapped__: AsyncGenerator[Event, None]
 
             async def __aiter__(self) -> Any:
+                has_final_response = False
+                last_event = None
                 with tracer.start_as_current_span(
                     name=name,
                     attributes=attributes,
                 ) as span:
                     async for event in self.__wrapped__:
+                        last_event = event
                         if event.is_final_response():
+                            has_final_response = True
                             try:
                                 span.set_attribute(
                                     SpanAttributes.OUTPUT_VALUE,
@@ -187,6 +194,18 @@ class _BaseAgentRunAsync(_WithTracer):
                                     f"Failed to get attribute: {SpanAttributes.OUTPUT_VALUE}."
                                 )
                         yield event
+                    if last_event and not has_final_response:
+                        try:
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_VALUE,
+                                last_event.model_dump_json(exclude_none=True),
+                            )
+                            span.set_attribute(
+                                SpanAttributes.OUTPUT_MIME_TYPE,
+                                OpenInferenceMimeTypeValues.JSON.value,
+                            )
+                        except Exception:
+                            pass
                     span.set_status(StatusCode.OK)
 
         return _AsyncGenerator(generator)
