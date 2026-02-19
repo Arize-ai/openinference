@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from typing import Any, Dict, Generator, Optional, Sequence, Union
+from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document
@@ -31,10 +32,16 @@ from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
+from openinference.instrumentation.haystack._wrappers import (
+    infer_llm_provider_from_class_name,
+    infer_llm_system_from_model,
+)
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
     MessageAttributes,
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     RerankerAttributes,
@@ -166,6 +173,10 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -266,6 +277,10 @@ def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "system"
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
@@ -460,6 +475,10 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -552,6 +571,10 @@ def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
     assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     assert "What is the weather in Berlin" in input_value
@@ -665,8 +688,12 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert not attributes
 
 
@@ -739,8 +766,12 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert not attributes
 
 
@@ -777,8 +808,12 @@ def test_openai_generator_llm_span_has_expected_attributes(
     assert isinstance(input_value := attributes.pop(INPUT_VALUE), str)
     input_value_data = json.loads(input_value)
     assert input_value_data.get("prompt") == "Who won the World Cup in 2022? Answer in one word."
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert (
         attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
         == "Who won the World Cup in 2022? Answer in one word."
@@ -1250,8 +1285,12 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     tool_prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
     assert attributes.pop(f"{tool_prefix}.{TOOL_CALL_FUNCTION_NAME}") == "search"
     assert isinstance(
@@ -1290,8 +1329,12 @@ async def test_agent_run_component_spans(
     assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == (
         "Search for Python tutorials"
     )
-    assert isinstance(model_name := attributes.pop(LLM_MODEL_NAME), str)
-    assert "gpt-4o" in model_name
+    assert isinstance(llm_model_name := attributes.pop(LLM_MODEL_NAME), str)
+    assert "gpt-4o" in llm_model_name
+    assert isinstance(llm_provider := attributes.pop(LLM_PROVIDER), str)
+    assert OpenInferenceLLMProviderValues.OPENAI.value in llm_provider
+    assert isinstance(llm_system := attributes.pop(LLM_SYSTEM), str)
+    assert OpenInferenceLLMSystemValues.OPENAI.value in llm_system
     assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert isinstance(prompt_tokens := attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -1455,6 +1498,188 @@ def _is_vector(
     return is_sequence_of_numbers
 
 
+class TestInferLLMProviderFromClassName:
+    def test_returns_none_when_instance_is_none(self) -> None:
+        result = infer_llm_provider_from_class_name(None)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, model_id, expected",
+        [
+            (
+                "HuggingFaceAPIGenerator",
+                "anthropic/claude-3-opus",
+                OpenInferenceLLMProviderValues.ANTHROPIC,
+            ),
+            ("HuggingFaceAPIGenerator", "openai/gpt-4", OpenInferenceLLMProviderValues.OPENAI),
+            ("HuggingFaceAPIGenerator", "azure/gpt-4", OpenInferenceLLMProviderValues.AZURE),
+            ("HuggingFaceAPIGenerator", "cohere/command-r", OpenInferenceLLMProviderValues.COHERE),
+            (
+                "HuggingFaceAPIChatGenerator",
+                "anthropic/claude-3",
+                OpenInferenceLLMProviderValues.ANTHROPIC,
+            ),
+            (
+                "HuggingFaceAPIChatGenerator",
+                "openai/gpt-3.5",
+                OpenInferenceLLMProviderValues.OPENAI,
+            ),
+        ],
+    )
+    def test_litellm_models_with_valid_provider_prefix(
+        self, class_name: str, model_id: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name, model_id",
+        [
+            ("HuggingFaceAPIGenerator", "invalid_provider/some-model"),
+            ("HuggingFaceAPIGenerator", "gpt-4"),
+            ("HuggingFaceAPIChatGenerator", "unknown/model"),
+        ],
+    )
+    def test_litellm_models_with_invalid_model_id_returns_none(
+        self, class_name: str, model_id: str
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_id",
+        [None, 12345, [], {}],
+    )
+    def test_litellm_model_with_invalid_model_id_type(self, model_id: Any) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "HuggingFaceAPIGenerator"
+        mock_instance.api_params = {"model": model_id}
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    def test_litellm_model_with_missing_model_id_attribute(self) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = "HuggingFaceAPIGenerator"
+        del mock_instance.api_params
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "class_name, expected",
+        [
+            ("OpenAIGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("DALLEImageGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("OpenAIChatGenerator", OpenInferenceLLMProviderValues.OPENAI),
+            ("AzureOpenAIGenerator", OpenInferenceLLMProviderValues.AZURE),
+            ("AzureOpenAIChatGenerator", OpenInferenceLLMProviderValues.AZURE),
+        ],
+    )
+    def test_known_server_models_return_expected_provider(
+        self, class_name: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "class_name",
+        ["InferenceClientModel", "UnknownModelClass", "CustomModel"],
+    )
+    def test_unknown_or_special_class_names_return_none(self, class_name: str) -> None:
+        mock_instance = MagicMock()
+        mock_instance.__class__.__name__ = class_name
+
+        result = infer_llm_provider_from_class_name(mock_instance)
+        assert result is None
+
+
+class TestInferLLMSystemFromModel:
+    @pytest.mark.parametrize(
+        "model_name",
+        [None, ""],
+    )
+    def test_returns_none_for_invalid_input(self, model_name: Optional[str]) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "model_name, expected",
+        [
+            # OpenAI
+            ("gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt-4-turbo-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("gpt.3.5.turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
+            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
+            ("o4-turbo", OpenInferenceLLMSystemValues.OPENAI),
+            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
+            ("curie", OpenInferenceLLMSystemValues.OPENAI),
+            ("babbage", OpenInferenceLLMSystemValues.OPENAI),
+            ("ada", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_openai/gpt-4", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure_ai/some-model", OpenInferenceLLMSystemValues.OPENAI),
+            ("azure/deployment-name", OpenInferenceLLMSystemValues.OPENAI),
+            # Anthropic
+            ("anthropic.claude-v2", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("anthropic/claude-3-opus", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("claude-3-opus-20240229", OpenInferenceLLMSystemValues.ANTHROPIC),
+            ("google_anthropic_vertex/claude-3", OpenInferenceLLMSystemValues.ANTHROPIC),
+            # Cohere
+            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
+            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
+            ("cohere/embed-english-v3", OpenInferenceLLMSystemValues.COHERE),
+            # Mistral
+            ("mistralai/mistral-large", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("mistral-small", OpenInferenceLLMSystemValues.MISTRALAI),
+            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
+            # VertexAI
+            ("google_vertexai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google_genai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertexai/gemini-ultra", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex_ai/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("vertex/bison", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
+            ("google/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
+        ],
+    )
+    def test_known_model_names_return_expected_system(
+        self, model_name: str, expected: OpenInferenceLLMSystemValues
+    ) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "unknown-model-xyz",
+            "custom-llm-v1",
+            "my-gpt-4-custom",
+        ],
+    )
+    def test_unknown_model_names_return_none(self, model_name: str) -> None:
+        result = infer_llm_system_from_model(model_name)
+        assert result is None
+
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_system_from_model("GPT-4-Turbo")
+        assert result == OpenInferenceLLMSystemValues.OPENAI
+
+
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
 LLM = OpenInferenceSpanKindValues.LLM.value
@@ -1478,6 +1703,8 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 LLM_PROMPTS = SpanAttributes.LLM_PROMPTS
 LLM_PROMPT_TEMPLATE = SpanAttributes.LLM_PROMPT_TEMPLATE
