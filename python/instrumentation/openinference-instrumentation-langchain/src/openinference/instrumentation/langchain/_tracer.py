@@ -395,6 +395,7 @@ def _extract_message_content(message: Optional[Mapping[str, Any]]) -> Optional[s
         and (kwargs := message.get("kwargs"))
         and isinstance(kwargs, Mapping)
         and (content := kwargs.get("content"))
+        and isinstance(content, str)
     ):
         return content
     else:
