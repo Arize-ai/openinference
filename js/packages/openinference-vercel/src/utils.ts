@@ -315,10 +315,6 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
             "toolCallId" in content && typeof content.toolCallId === "string"
               ? content.toolCallId
               : undefined;
-          const TOOL_NAME =
-            "toolName" in content && typeof content.toolName === "string"
-              ? content.toolName
-              : undefined;
           return {
             ...toolAcc,
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "tool",
@@ -326,7 +322,6 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
               TOOL_OUTPUT_JSON,
             [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
               TOOL_CALL_ID,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: TOOL_NAME,
           };
         },
         {} as Attributes,
@@ -406,6 +401,58 @@ const safelyGetInputMessageAttributes = withSafety({
 });
 
 /**
+ * Extracts messages from a prompt value and returns llm.input_messages attributes.
+ * The Vercel AI SDK sets `ai.prompt` on top level spans as a JSON string containing
+ * the full prompt object (e.g., { messages: [...], system: "..." }).
+ * This function parses the prompt, extracts messages, and converts them to
+ * OpenInference llm.input_messages format.
+ * @param promptValue the ai.prompt attribute value
+ * @returns llm.input_messages attributes or null if messages cannot be extracted
+ */
+const getInputMessagesFromPrompt = (promptValue?: AttributeValue) => {
+  if (typeof promptValue !== "string") {
+    return null;
+  }
+
+  const parsed = safelyJSONParse(promptValue);
+  if (parsed == null || typeof parsed !== "object") {
+    return null;
+  }
+
+  // If the prompt itself is an array of messages, use it directly
+  if (Array.isArray(parsed)) {
+    return getInputMessageAttributes(promptValue);
+  }
+
+  const prompt = parsed as Record<string, unknown>;
+  const messagesArray: unknown[] = [];
+
+  // Prepend system message if present at the top level
+  if (typeof prompt.system === "string") {
+    messagesArray.push({ role: "system", content: prompt.system });
+  }
+
+  // Extract the messages array
+  if (Array.isArray(prompt.messages)) {
+    messagesArray.push(...prompt.messages);
+  }
+
+  if (messagesArray.length === 0) {
+    return null;
+  }
+
+  return getInputMessageAttributes(JSON.stringify(messagesArray));
+};
+
+/**
+ * {@link getInputMessagesFromPrompt} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetInputMessagesFromPrompt = withSafety({
+  fn: getInputMessagesFromPrompt,
+  onError: onErrorCallback("input messages from prompt"),
+});
+
+/**
  * Gets the output_messages tool_call OpenInference attributes
  * @param toolCalls the attribute value of the Vercel ai.response.toolCalls
  * @returns output_messages tool_call attributes
@@ -440,6 +487,10 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
           isAttributeValue(toolCall.toolName) ? toolCall.toolName : undefined,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
           toolCallArgsJSON != null ? toolCallArgsJSON : undefined,
+        [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+          typeof toolCall.toolCallId === "string"
+            ? toolCall.toolCallId
+            : undefined,
       };
     }, {}),
   };
@@ -742,7 +793,7 @@ const getVercelSpecificAttributes = (
   attributes: Attributes,
   spanKind: OpenInferenceSpanKind | string | undefined,
 ): Attributes => {
-  return {
+  const result: Attributes = {
     // Embeddings (only for EMBEDDING spans)
     ...safelyGetEmbeddingAttributes(attributes, spanKind),
 
@@ -765,6 +816,12 @@ const getVercelSpecificAttributes = (
       attributes[VercelAISemanticConventions.PROMPT_MESSAGES],
     ),
 
+    // Extract messages from ai.prompt for AGENT spans (e.g., ai.streamText, ai.generateText).
+    // ai.prompt contains the full prompt object with messages and optional system field.
+    ...safelyGetInputMessagesFromPrompt(
+      attributes[VercelAISemanticConventions.PROMPT],
+    ),
+
     // Streaming performance metrics (store as metadata)
     ...safelyGetStreamingMetrics(attributes),
 
@@ -777,6 +834,33 @@ const getVercelSpecificAttributes = (
     // Token counts from ai.usage.* (fallback if gen_ai.* not present)
     ...safelyGetTokenCountAttributes(attributes, spanKind),
   };
+
+  // Set output.value from tool calls if output is not already meaningfully set
+  // (e.g., when ai.response.text is empty for tool-calls-only responses)
+  const toolCallsValue =
+    attributes[VercelAISemanticConventions.RESPONSE_TOOL_CALLS];
+  if (
+    typeof toolCallsValue === "string" &&
+    (result[SemanticConventions.OUTPUT_VALUE] == null ||
+      result[SemanticConventions.OUTPUT_VALUE] === "")
+  ) {
+    result[SemanticConventions.OUTPUT_VALUE] = toolCallsValue;
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  // Set input.value from prompt messages if not already set
+  // (ai.prompt is not present on LLM spans, so this ensures input.value is populated)
+  const promptMessagesValue =
+    attributes[VercelAISemanticConventions.PROMPT_MESSAGES];
+  if (
+    typeof promptMessagesValue === "string" &&
+    !result[SemanticConventions.INPUT_VALUE]
+  ) {
+    result[SemanticConventions.INPUT_VALUE] = promptMessagesValue;
+    result[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return result;
 };
 
 /**
@@ -882,4 +966,14 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   Object.entries(newAttributes).forEach(([key, value]) => {
     span.attributes[key] = value as AttributeValue;
   });
+
+  // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)
+  // These are Vercel AI SDK stream events that are not needed for OpenInference.
+  // newer versions of opentelemetry will also not allow you to reassign
+  // the events object, so we must remove elements from the array directly
+  for (let i = span.events.length - 1; i >= 0; i--) {
+    if (span.events[i].name.startsWith("ai.stream.")) {
+      span.events.splice(i, 1);
+    }
+  }
 };
