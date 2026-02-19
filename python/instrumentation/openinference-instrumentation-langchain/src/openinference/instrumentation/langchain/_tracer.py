@@ -290,8 +290,8 @@ def _update_span(span: Span, run: Run) -> None:
         dict(
             _flatten(
                 chain(
-                    _as_input(_convert_io(run.inputs)),
-                    _as_output(_convert_io(run.outputs)),
+                    _as_input(_convert_io(run.inputs, "inputs")),
+                    _as_output(_convert_io(run.outputs, "outputs")),
                     _prompts(run.inputs),
                     _input_messages(run.inputs),
                     _output_messages(run.outputs),
@@ -389,7 +389,19 @@ def _is_json_parseable(value: str) -> bool:
     )
 
 
-def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
+def _extract_message_content(message: Optional[Mapping[str, Any]]) -> Optional[str]:
+    if (
+        isinstance(message, Mapping)
+        and (kwargs := message.get("kwargs"))
+        and isinstance(kwargs, Mapping)
+        and (content := kwargs.get("content"))
+    ):
+        return content
+    else:
+        return None
+
+
+def _convert_io(obj: Optional[Mapping[str, Any]], obj_type: Optional[str]) -> Iterator[str]:
     """
     Convert input/output data to appropriate string representation for OpenInference spans.
 
@@ -413,6 +425,44 @@ def _convert_io(obj: Optional[Mapping[str, Any]]) -> Iterator[str]:
     if not obj:
         return
     assert isinstance(obj, dict), f"expected dict, found {type(obj)}"
+
+    # Handle structured messages (LangGraph style)
+    if (
+        obj_type == "inputs"
+        and isinstance(messages := obj.get("messages"), Sequence)
+        and len(messages) > 0
+    ):
+        extracted_contents: list[str] = []
+
+        for message in messages:
+            if message is None:
+                continue
+
+            try:
+                if isinstance(message, BaseMessage):
+                    content = _extract_message_content(message.to_json())
+                elif isinstance(message, Mapping):
+                    content = _extract_message_content(message)
+                    if content is None:
+                        content = message.get("content")
+                elif (
+                    isinstance(message, Sequence)
+                    and len(message) == 2
+                ):
+                    _, content = message
+                else:
+                    continue
+
+                if isinstance(content, str) and content.strip():
+                    extracted_contents.append(content)
+
+            except Exception:
+                continue
+
+        if extracted_contents:
+            yield "\n\n".join(extracted_contents)
+            yield OpenInferenceMimeTypeValues.TEXT.value
+            return
 
     # Handle single-key dictionaries (most common case)
     if len(obj) == 1:
