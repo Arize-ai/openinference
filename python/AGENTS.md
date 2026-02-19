@@ -208,8 +208,6 @@ asyncio_mode = "auto"
 
 ## Publishing
 
-Release-please automates PyPI releases on PR merge. See root `CLAUDE.md` for full release management details.
-
 **Conda-Forge**: after initial PyPI publication, create a feedstock once using `grayskull pypi <package-name>` to generate `meta.yaml`, then open a PR to `conda-forge/staged-recipes`. Subsequent releases are handled automatically by the conda-forge bot.
 
 ---
@@ -261,25 +259,22 @@ def _serialize(obj: Any) -> str:
 
 ### Pattern 3 — Explicit PII masking at source
 
-Don't rely solely on `TraceConfig` to strip secrets. Three approaches used in the codebase:
+Don't rely solely on `TraceConfig` to strip secrets. Three approaches, in increasing safety order:
 
 ```python
-# Blacklist pop (DSPy) — remove known-sensitive keys
+# Blacklist pop — remove known-sensitive keys (DSPy style)
 params = request_params.copy()
 params.pop("api_key", None)
 
-# Redact-list filter (LiteLLM) — exclude at collection time
-KEYS_TO_REDACT = ["api_key", "messages"]
-params = {k: v for k, v in kwargs.items() if k not in KEYS_TO_REDACT}
+# Redact-list filter — exclude at collection time (LiteLLM style)
+params = {k: v for k, v in kwargs.items() if k not in {"api_key", "messages"}}
 
-# Whitelist (Anthropic) — safest; only collect known-safe keys
+# Whitelist — only collect known-safe keys; won't leak new fields (Anthropic style, safest)
 SAFE_PARAMS = {"max_tokens", "model", "temperature", "stream", "top_k", "top_p"}
 params = {k: v for k, v in kwargs.items() if k in SAFE_PARAMS}
 
 span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(params))
 ```
-
-Whitelist never leaks new fields but needs updating as the target library evolves.
 
 ### Pattern 4 — Prevent duplicate spans when frameworks nest instrumented clients
 
@@ -320,9 +315,9 @@ def test_input_messages(instrumentor, tracer_provider, messages):
 
 ### Pattern 6 — `assert_never` for exhaustive union matching
 
-When dispatching on a discriminated union (a `type` field or `isinstance` chain), add `assert_never` at the end so mypy flags unhandled members whenever the upstream library adds a new type. Used throughout the OpenAI, OpenAI Agents, LlamaIndex, Haystack, and Bedrock instrumentors.
+At the end of a discriminated-union dispatch, add `assert_never` so mypy flags unhandled members when a library adds new types. Used throughout the OpenAI, OpenAI Agents, LlamaIndex, Haystack, and Bedrock instrumentors.
 
-**Variant A — `TYPE_CHECKING`-only (zero runtime cost):** Use when the union comes from an external library that may add new members. The branch is erased at runtime; mypy still enforces exhaustion.
+**Variant A — `TYPE_CHECKING`-only** (preferred for external SDK types; zero runtime cost, mypy still enforces exhaustion):
 
 ```python
 from typing import TYPE_CHECKING
@@ -333,28 +328,16 @@ for item in content:
         yield from _get_text_attributes(item, prefix)
     elif item["type"] == "input_image":
         yield from _get_image_attributes(item, prefix)
-    elif item["type"] == "refusal":
-        yield from _get_refusal_attributes(item, prefix)
     elif TYPE_CHECKING:
-        assert_never(item["type"])  # mypy catches new union members; never runs
+        assert_never(item["type"])  # never runs; mypy catches new union members
 ```
 
-**Variant B — runtime assertion:** Use for closed enums you control (e.g., an internal `ComponentType`). Raises `AssertionError` if an unexpected value reaches the else branch, which is useful during development.
+**Variant B — runtime assertion** (for internal enums you control; also raises `AssertionError` at runtime):
 
 ```python
-from typing_extensions import assert_never
-
-if component_type is ComponentType.GENERATOR:
-    ...
-elif component_type is ComponentType.EMBEDDER:
-    ...
-elif component_type is ComponentType.RETRIEVER:
-    ...
 else:
-    assert_never(component_type)  # also raises at runtime for unhandled variants
+    assert_never(component_type)
 ```
-
-Prefer Variant A for external SDK types (the library may add a new `type` value in a minor release without a breaking-change warning). Prefer Variant B for internal enums where a runtime error is a useful early-warning.
 
 ---
 

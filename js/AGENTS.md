@@ -165,11 +165,7 @@ describe("MyInstrumentation", () => {
    - Add to `js/pnpm-workspace.yaml` under `packages:`
    - Run `pnpm install` to link it
 
-4. **Create a changeset** (required before PR merge):
-   ```bash
-   pnpm changeset
-   # Select the new package, choose semver bump type, add summary
-   ```
+4. **Create a changeset** (required before PR merge): run `pnpm changeset` — see the Version Management section below for details.
 
 ---
 

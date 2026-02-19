@@ -33,23 +33,11 @@ openinference/
 
 Every instrumentor in **every language** must implement these three features:
 
-### 1. Suppress Tracing
+1. **Suppress Tracing** — check the suppression key before creating any spans; skip tracing when suppressed
+2. **Context Attribute Propagation** — read session ID, user ID, metadata, and tags from OTel context and attach to each span
+3. **Trace Configuration** — wrap the raw OTel tracer with `OITracer` to support `TraceConfig` masking
 
-Check the suppression key before creating any spans and skip tracing when suppressed.
-
-- **Python**: check `context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY)`
-- **JS/Java**: call `isTracingSuppressed(context.active())` / OITracer handles this automatically
-
-### 2. Context Attribute Propagation
-
-Read session ID, user ID, metadata, and tags from OTel context and attach them to each span.
-
-- **Python**: call `get_attributes_from_context()` at span creation time
-- **JS/Java**: `OITracer` handles propagation automatically
-
-### 3. Trace Configuration
-
-Allow masking of sensitive data via `TraceConfig`. Always wrap the raw OTel tracer with `OITracer`.
+See each workspace's `AGENTS.md` for language-specific implementation details.
 
 ---
 

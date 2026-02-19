@@ -194,4 +194,4 @@ Pass a `TraceConfig` to `OITracer` at construction time (shown in the OITracer p
 
 ## Publishing
 
-Java packages are released to Maven Central via JReleaser, triggered by GitHub Actions on a tagged release. For local development testing, use `./gradlew publishToMavenLocal` and add `mavenLocal()` to your project's repositories.
+For local development testing, use `./gradlew publishToMavenLocal` and add `mavenLocal()` to your project's repositories.
