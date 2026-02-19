@@ -65,7 +65,7 @@ class TestConvertIO:
         expected_output: list[str],
     ) -> None:
         """Test that None and empty dict return empty iterators."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert result == expected_output
 
     @pytest.mark.parametrize(
@@ -94,7 +94,7 @@ class TestConvertIO:
         expected_output: list[str],
     ) -> None:
         """Test that single string values are returned as-is."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert result == expected_output
 
     @pytest.mark.parametrize(
@@ -128,7 +128,7 @@ class TestConvertIO:
         expected_first_item: str,
     ) -> None:
         """Test that input/output keys trigger JSON serialization with mime type when conditions are met."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
         assert result[0] == expected_first_item
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
@@ -177,7 +177,7 @@ class TestConvertIO:
         self, input_obj: dict[str, Any], expected_first_item: str
     ) -> None:
         """Test that input/output keys trigger _json_dumps, but only complex types get MIME type."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         # Only arrays get MIME type (start with '['), simple values don't
         if expected_first_item.startswith("["):
             assert len(result) == 2, (
@@ -236,7 +236,7 @@ class TestConvertIO:
     )
     def test_convert_io_non_special_cases(self, input_obj: dict[str, Any]) -> None:
         """Test that non-special cases return _json_dumps serialization with mime type."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
 
         # First item should be _json_dumps serialization of the input
@@ -276,7 +276,7 @@ class TestConvertIO:
         self, input_obj: dict[str, Any], expected_json_contains: str
     ) -> None:
         """Test that NaN and infinite float values are serialized natively as NaN/Infinity."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
 
         # Verify that the expected content is in the JSON output
@@ -297,7 +297,7 @@ class TestConvertIO:
             "session": "abc123",
         }
 
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         # Verify it contains expected structure (now goes through _json_dumps)
@@ -323,7 +323,7 @@ class TestConvertIO:
         model_info = ModelInfo(model="test", version="1.0")
         # Use 'input' key to trigger _json_dumps path instead of safe_json_dumps
         input_obj = {"input": model_info}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         # The _json_dumps function should use model_dump_json for the Pydantic model
@@ -353,7 +353,7 @@ class TestConvertIO:
 
         # Test with 'input' key to trigger _json_dumps path
         input_obj = {"input": model}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         json_output = result[0]
@@ -373,7 +373,7 @@ class TestConvertIO:
     def test_convert_io_edge_case_special_key_non_string(self) -> None:
         """Test edge case where input/output key has non-string value that becomes string."""
         input_obj = {"other_key": 42}  # Not input/output key, single non-string value
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         # Should go through the general case since it's not input/output key
@@ -401,7 +401,7 @@ class TestConvertIO:
         self, input_obj: dict[str, Any], expected_contains: list[str]
     ) -> None:
         """Test NaN handling works in _json_dumps path (input/output keys) serializing as NaN/Infinity."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
 
         json_output = result[0]
@@ -439,7 +439,7 @@ class TestConvertIO:
         self, input_obj: dict[str, Any], expected_output: str
     ) -> None:
         """Test empty collections through _json_dumps path."""
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
         assert result[0] == expected_output
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
@@ -452,7 +452,7 @@ class TestConvertIO:
         """Test that bytes with input/output keys go through _json_dumps."""
         byte_data = b"hello world"
         input_obj = {"input": byte_data}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         # Bytes fallback to safe_json_dumps, which doesn't start with { or [, so no MIME type
         assert len(result) == 1
@@ -473,7 +473,7 @@ class TestConvertIO:
     ) -> None:
         """Test various iterable types through _json_dumps."""
         input_obj = {"input": iterable_obj}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         json_output = result[0]
@@ -492,7 +492,7 @@ class TestConvertIO:
         """Test that sets with input/output keys go through _json_dumps and get converted to arrays."""
         set_obj = {1, 2, 3}
         input_obj = {"input": set_obj}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         # With simplified condition, sets go through _json_dumps and become arrays
@@ -524,7 +524,7 @@ class TestConvertIO:
             }
         }
 
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         json_output = result[0]
@@ -553,7 +553,7 @@ class TestConvertIO:
 
         custom_obj = CustomObject("test")
         input_obj = {"input": custom_obj}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         # Custom objects fallback to safe_json_dumps, which doesn't start with { or [, so no MIME type
         assert len(result) == 1
@@ -563,13 +563,13 @@ class TestConvertIO:
         """Test how strings and bytes are handled with current input/output conditions."""
         # Test string - single string value gets returned directly (special case)
         input_obj = {"input": "hello"}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         # Single string value gets returned directly
         assert result[0] == "hello"
 
         # Test bytes - goes through _json_dumps and falls back to safe_json_dumps
         byte_obj = {"input": b"hello"}
-        result = list(_convert_io(byte_obj))
+        result = list(_convert_io(byte_obj, "outputs"))
         expected_json = safe_json_dumps(b"hello")
         # Bytes don't start with { or [, so no MIME type
         assert len(result) == 1
@@ -577,7 +577,7 @@ class TestConvertIO:
 
         # Test that dict with string value still works
         string_dict = {"input": {"key": "abc"}}  # This should trigger _json_dumps
-        result = list(_convert_io(string_dict))
+        result = list(_convert_io(string_dict, "outputs"))
         # Objects start with {, so they get MIME type
         assert len(result) == 2
         assert result[0] == '{"key": "abc"}'
@@ -624,7 +624,7 @@ class TestConvertIO:
 
         # Test complex cases (should get MIME type)
         for input_obj, expected in complex_cases:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             assert len(result) == 2, (
                 f"Expected 2 items for {input_obj}, got {len(result)} items: {result}"
             )
@@ -645,7 +645,7 @@ class TestConvertIO:
 
         # Test simple cases (should NOT get MIME type)
         for input_obj, expected in simple_cases:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             assert len(result) == 1, (
                 f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
             )
@@ -655,7 +655,7 @@ class TestConvertIO:
 
         # Test direct string cases (single string values)
         for input_obj, expected in direct_string_cases:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             assert len(result) == 1, (
                 f"Expected 1 item for {input_obj}, got {len(result)} items: {result}"
             )  # Direct string return, no mime type
@@ -672,7 +672,7 @@ class TestConvertIO:
         ]
 
         for input_obj in general_cases:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             assert len(result) == 2
             # Now uses _json_dumps with quoted keys instead of safe_json_dumps
             json_output = result[0]
@@ -707,7 +707,7 @@ class TestConvertIO:
         ]
 
         for input_obj, expected in test_cases:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             if expected.startswith("{") or expected.startswith("["):
                 # Objects and arrays get MIME type
                 assert len(result) == 2
@@ -728,7 +728,7 @@ class TestConvertIO:
 
         # Test string enum value
         string_enum_obj: dict[str, Any] = {"input": StatusEnum.PENDING}
-        result = list(_convert_io(string_enum_obj))
+        result = list(_convert_io(string_enum_obj, "outputs"))
         assert len(result) == 1, (
             f"Expected 1 item for string enum, got {len(result)} items: {result}"
         )
@@ -736,13 +736,13 @@ class TestConvertIO:
 
         # Test integer enum value
         int_enum_obj: dict[str, Any] = {"input": StatusEnum.FAILED}
-        result = list(_convert_io(int_enum_obj))
+        result = list(_convert_io(int_enum_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for int enum, got {len(result)} items: {result}"
         assert result[0] == "42", f"Expected number string for enum value, got {result[0]}"
 
         # Test enum in complex structure
         complex_obj: dict[str, Any] = {"data": {"status": StatusEnum.COMPLETED, "count": 5}}
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2, f"Expected 2 items for complex object, got {len(result)}"
 
         # Verify the JSON is valid and contains enum value
@@ -763,7 +763,7 @@ class TestConvertIO:
         # Test dataclass with all fields
         person = PersonInfo(name="John Doe", age=30, email="john@example.com")
         full_person_obj: dict[str, Any] = {"input": person}
-        result = list(_convert_io(full_person_obj))
+        result = list(_convert_io(full_person_obj, "outputs"))
 
         assert len(result) == 2, (
             f"Expected 2 items for dataclass, got {len(result)} items: {result}"
@@ -781,7 +781,7 @@ class TestConvertIO:
         # Test dataclass with optional None field (should be excluded)
         person_no_email = PersonInfo(name="Jane Doe", age=25)
         minimal_person_obj: dict[str, Any] = {"input": person_no_email}
-        result = list(_convert_io(minimal_person_obj))
+        result = list(_convert_io(minimal_person_obj, "outputs"))
 
         json_output = result[0]
         parsed = json.loads(json_output)
@@ -796,7 +796,7 @@ class TestConvertIO:
         # Test datetime
         dt = datetime.datetime(2023, 12, 25, 15, 30, 45)
         dt_input_obj: dict[str, Any] = {"input": dt}
-        result = list(_convert_io(dt_input_obj))
+        result = list(_convert_io(dt_input_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for datetime, got {len(result)} items: {result}"
         assert result[0] == '"2023-12-25T15:30:45"', (
             f"Expected ISO format datetime, got {result[0]}"
@@ -805,28 +805,28 @@ class TestConvertIO:
         # Test date
         d = datetime.date(2023, 12, 25)
         date_input_obj: dict[str, Any] = {"input": d}
-        result = list(_convert_io(date_input_obj))
+        result = list(_convert_io(date_input_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for date, got {len(result)} items: {result}"
         assert result[0] == '"2023-12-25"', f"Expected ISO format date, got {result[0]}"
 
         # Test time
         t = datetime.time(15, 30, 45)
         time_input_obj: dict[str, Any] = {"input": t}
-        result = list(_convert_io(time_input_obj))
+        result = list(_convert_io(time_input_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for time, got {len(result)} items: {result}"
         assert result[0] == '"15:30:45"', f"Expected ISO format time, got {result[0]}"
 
         # Test datetime with timezone
         dt_tz = datetime.datetime(2023, 12, 25, 15, 30, 45, tzinfo=datetime.timezone.utc)
         tz_input_obj: dict[str, Any] = {"input": dt_tz}
-        result = list(_convert_io(tz_input_obj))
+        result = list(_convert_io(tz_input_obj, "outputs"))
         assert result[0] == '"2023-12-25T15:30:45+00:00"', (
             f"Expected ISO format with timezone, got {result[0]}"
         )
 
         # Test in complex structure
         complex_obj: dict[str, Any] = {"metadata": {"created_at": dt, "updated_at": d}}
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -839,7 +839,7 @@ class TestConvertIO:
         # Test simple timedelta
         td = datetime.timedelta(hours=2, minutes=30, seconds=15)
         td_obj: dict[str, Any] = {"input": td}
-        result = list(_convert_io(td_obj))
+        result = list(_convert_io(td_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for timedelta, got {len(result)} items: {result}"
 
         expected_seconds = 2 * 3600 + 30 * 60 + 15  # 9015
@@ -849,12 +849,12 @@ class TestConvertIO:
         # Test fractional seconds
         td_frac = datetime.timedelta(seconds=1.5)
         td_frac_obj: dict[str, Any] = {"input": td_frac}
-        result = list(_convert_io(td_frac_obj))
+        result = list(_convert_io(td_frac_obj, "outputs"))
         assert result[0] == "1.5", f"Expected fractional seconds, got {result[0]}"
 
         # Test in complex structure
         complex_obj: dict[str, Any] = {"performance": {"duration": td, "timeout": td_frac}}
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -889,7 +889,7 @@ class TestConvertIO:
             "metadata": {"timestamp": datetime.datetime.now(), "status": Priority.LOW},
         }
 
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2, f"Expected 2 items for complex mixed types, got {len(result)}"
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -929,7 +929,7 @@ class TestConvertIO:
 
         # Test as input/output key (should get MIME type for complex object)
         input_obj = {"input": config}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -943,7 +943,7 @@ class TestConvertIO:
 
         # Test as general case (should always get MIME type)
         general_obj: dict[str, Any] = {"config": config, "extra": "data"}
-        result = list(_convert_io(general_obj))
+        result = list(_convert_io(general_obj, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -963,7 +963,7 @@ class TestConvertIO:
 
         empty_obj = EmptyClass()
         input_obj: dict[str, Any] = {"input": empty_obj}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
         assert len(result) == 2  # Empty dataclass still gets MIME type
         parsed = json.loads(result[0])
         assert parsed == {}, f"Expected empty object for empty dataclass, got {parsed}"
@@ -977,7 +977,7 @@ class TestConvertIO:
 
         minimal_obj = OptionalClass(required="test")
         minimal_obj_input: dict[str, Any] = {"input": minimal_obj}
-        result = list(_convert_io(minimal_obj_input))
+        result = list(_convert_io(minimal_obj_input, "outputs"))
         parsed = json.loads(result[0])
         assert "optional1" not in parsed
         assert "optional2" not in parsed
@@ -988,7 +988,7 @@ class TestConvertIO:
         max_date = datetime.date.max  # year 9999
 
         dates_obj: dict[str, Any] = {"dates": {"min": min_date, "max": max_date}}
-        result = list(_convert_io(dates_obj))
+        result = list(_convert_io(dates_obj, "outputs"))
         parsed = json.loads(result[0])
         assert parsed["dates"]["min"] == "0001-01-01"
         assert parsed["dates"]["max"] == "9999-12-31"
@@ -996,13 +996,13 @@ class TestConvertIO:
         # Test zero timedelta
         zero_td = datetime.timedelta(0)
         zero_td_obj: dict[str, Any] = {"input": zero_td}
-        result = list(_convert_io(zero_td_obj))
+        result = list(_convert_io(zero_td_obj, "outputs"))
         assert result[0] == "0.0", f"Expected zero for zero timedelta, got {result[0]}"
 
         # Test negative timedelta
         negative_td = datetime.timedelta(days=-1)
         negative_td_obj: dict[str, Any] = {"input": negative_td}
-        result = list(_convert_io(negative_td_obj))
+        result = list(_convert_io(negative_td_obj, "outputs"))
         assert result[0] == str(-86400.0), (
             f"Expected negative seconds for negative timedelta, got {result[0]}"
         )
@@ -1013,7 +1013,7 @@ class TestConvertIO:
         # Test standard UUID
         test_uuid = UUID("12345678-1234-5678-9abc-123456789abc")
         uuid_obj: dict[str, Any] = {"input": test_uuid}
-        result = list(_convert_io(uuid_obj))
+        result = list(_convert_io(uuid_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for UUID, got {len(result)} items: {result}"
         assert result[0] == '"12345678-1234-5678-9abc-123456789abc"', (
             f"Expected quoted UUID string, got {result[0]}"
@@ -1024,7 +1024,7 @@ class TestConvertIO:
             "user": {"id": test_uuid, "name": "John Doe"},
             "session": UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
         }
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -1037,7 +1037,7 @@ class TestConvertIO:
         # Test standard decimal
         decimal_val = Decimal("123.456789012345678901234567890")
         decimal_obj: dict[str, Any] = {"input": decimal_val}
-        result = list(_convert_io(decimal_obj))
+        result = list(_convert_io(decimal_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for Decimal, got {len(result)} items: {result}"
         assert result[0] == '"123.456789012345678901234567890"', (
             f"Expected quoted decimal string, got {result[0]}"
@@ -1046,7 +1046,7 @@ class TestConvertIO:
         # Test decimal with currency context
         price = Decimal("19.99")
         complex_obj: dict[str, Any] = {"order": {"price": price, "quantity": 2, "total": price * 2}}
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -1060,7 +1060,7 @@ class TestConvertIO:
         # Test Path object
         path_obj = Path("/home/user/documents/file.txt")
         path_input: dict[str, Any] = {"input": path_obj}
-        result = list(_convert_io(path_input))
+        result = list(_convert_io(path_input, "outputs"))
         assert len(result) == 1, f"Expected 1 item for Path, got {len(result)} items: {result}"
         assert result[0] == '"/home/user/documents/file.txt"', (
             f"Expected quoted path string, got {result[0]}"
@@ -1069,7 +1069,7 @@ class TestConvertIO:
         # Test relative path
         rel_path = Path("relative/path/to/file.py")
         rel_path_input: dict[str, Any] = {"input": rel_path}
-        result = list(_convert_io(rel_path_input))
+        result = list(_convert_io(rel_path_input, "outputs"))
         assert result[0] == '"relative/path/to/file.py"', f"Expected relative path, got {result[0]}"
 
         # Test in complex structure
@@ -1080,7 +1080,7 @@ class TestConvertIO:
                 "config": Path("config.yaml"),
             }
         }
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -1094,27 +1094,27 @@ class TestConvertIO:
         # Test complex number
         complex_num = complex(3, 4)
         complex_obj: dict[str, Any] = {"input": complex_num}
-        result = list(_convert_io(complex_obj))
+        result = list(_convert_io(complex_obj, "outputs"))
         assert len(result) == 1, f"Expected 1 item for complex, got {len(result)} items: {result}"
         assert result[0] == '"(3+4j)"', f"Expected quoted complex string, got {result[0]}"
 
         # Test pure imaginary number
         imaginary = complex(0, 1)
         imaginary_obj: dict[str, Any] = {"input": imaginary}
-        result = list(_convert_io(imaginary_obj))
+        result = list(_convert_io(imaginary_obj, "outputs"))
         assert result[0] == '"1j"', f"Expected pure imaginary, got {result[0]}"
 
         # Test real number as complex
         real_complex = complex(5, 0)
         real_complex_obj: dict[str, Any] = {"input": real_complex}
-        result = list(_convert_io(real_complex_obj))
+        result = list(_convert_io(real_complex_obj, "outputs"))
         assert result[0] == '"(5+0j)"', f"Expected real complex, got {result[0]}"
 
         # Test in complex structure
         complex_data: dict[str, Any] = {
             "signal": {"real": complex(2, 3), "imaginary": complex(0, -1), "magnitude": 5.0}
         }
-        result = list(_convert_io(complex_data))
+        result = list(_convert_io(complex_data, "outputs"))
         assert len(result) == 2
 
         parsed = json.loads(result[0])
@@ -1128,14 +1128,14 @@ class TestConvertIO:
         # Test 1: Single strings go through optimization (no escaping needed)
         quote_str = "Hello \"world\" and 'single quotes'"
         quote_obj: dict[str, Any] = {"input": quote_str}
-        result = list(_convert_io(quote_obj))
+        result = list(_convert_io(quote_obj, "outputs"))
         assert len(result) == 1
         # Single strings are returned as-is (optimization path)
         assert result[0] == quote_str, f"Expected {quote_str}, got {result[0]}"
 
         # Test 2: Strings in arrays (go through _json_dumps)
         quote_array: dict[str, Any] = {"input": [quote_str, "normal string"]}
-        result = list(_convert_io(quote_array))
+        result = list(_convert_io(quote_array, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
         # Verify the JSON is valid and strings are properly escaped
@@ -1153,7 +1153,7 @@ class TestConvertIO:
                 "control": control_str,
             }
         }
-        result = list(_convert_io(string_dict))
+        result = list(_convert_io(string_dict, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1168,7 +1168,7 @@ class TestConvertIO:
             "key1": quote_str,
             "key2": backslash_str,
         }
-        result = list(_convert_io(multi_key_obj))
+        result = list(_convert_io(multi_key_obj, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1183,7 +1183,7 @@ class TestConvertIO:
             "key\nwith\nnewlines": "value3",
         }
         dict_obj: dict[str, Any] = {"data": problematic_dict}
-        result = list(_convert_io(dict_obj))
+        result = list(_convert_io(dict_obj, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1212,7 +1212,7 @@ class TestConvertIO:
             }
         }
 
-        result = list(_convert_io(mixed_obj))
+        result = list(_convert_io(mixed_obj, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1232,7 +1232,7 @@ class TestConvertIO:
         # Test path with problematic characters
         problematic_path = Path('C:\\Users\\John "Doe"\\Documents\\file.txt')
         path_obj: dict[str, Any] = {"input": problematic_path}
-        result = list(_convert_io(path_obj))
+        result = list(_convert_io(path_obj, "outputs"))
         assert len(result) == 1
         # Should be properly escaped
         parsed_path = json.loads(result[0])
@@ -1247,7 +1247,7 @@ class TestConvertIO:
 
         data = ProblematicData()
         data_obj: dict[str, Any] = {"input": data}
-        result = list(_convert_io(data_obj))
+        result = list(_convert_io(data_obj, "outputs"))
         assert len(result) == 2
 
         # Verify the JSON is valid and all fields are correctly escaped
@@ -1278,7 +1278,7 @@ class TestConvertIO:
         ]
 
         for test_name, test_obj in test_cases:
-            result = list(_convert_io(test_obj))
+            result = list(_convert_io(test_obj, "outputs"))
 
             # All should have either 1 item (simple) or 2 items (with MIME type)
             assert len(result) in (1, 2), f"Test {test_name}: Expected 1-2 items, got {len(result)}"
@@ -1310,7 +1310,7 @@ class TestConvertIO:
         for test_name, test_obj in test_cases:
             try:
                 obj_dict: dict[str, Any] = {"input": test_obj}
-                result = list(_convert_io(obj_dict))
+                result = list(_convert_io(obj_dict, "outputs"))
 
                 # Should always get a result (even if it's a fallback)
                 assert len(result) >= 1, f"No result for {test_name}"
@@ -1334,7 +1334,7 @@ class TestConvertIO:
         obj_dict: dict[str, Any] = {"input": large_data}
 
         # This should complete quickly and not use excessive memory
-        result = list(_convert_io(obj_dict))
+        result = list(_convert_io(obj_dict, "outputs"))
 
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
@@ -1353,7 +1353,7 @@ class TestConvertIO:
             "none_value": None,
         }
 
-        result = list(_convert_io(empty_nested))
+        result = list(_convert_io(empty_nested, "outputs"))
         parsed = json.loads(result[0])
         assert parsed["empty_dict"] == {}
         assert parsed["empty_list"] == []
@@ -1365,7 +1365,7 @@ class TestConvertIO:
             "input": ["string", 42, True, None, {"nested": "dict"}, [1, 2, 3]]
         }
 
-        result = list(_convert_io(mixed_collection))
+        result = list(_convert_io(mixed_collection, "outputs"))
         parsed = json.loads(result[0])
         assert len(parsed) == 6
         assert parsed[0] == "string"
@@ -1378,7 +1378,7 @@ class TestConvertIO:
             "control_chars": "Line1\nLine2\tTabbed\rCarriage",
         }
 
-        result = list(_convert_io(unicode_data))
+        result = list(_convert_io(unicode_data, "outputs"))
         parsed = json.loads(result[0])
         assert parsed["unicode"] == "Hello 世界 🌍"
         assert parsed["special_chars"] == 'Quotes "here" and backslashes \\here\\'
@@ -1503,7 +1503,7 @@ class TestConvertIO:
         invalid JSON gracefully. This validates that stringified JSON payloads are
         identified so the frontend can render them as pretty JSON instead of plain text.
         """
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         # First item should always be the original string value
         assert result[0] == expected_value, f"Expected value '{expected_value}', got '{result[0]}'"
@@ -1529,7 +1529,7 @@ class TestConvertIO:
         # Scenario 1: LangChain chain with stringified JSON input
         # This is the exact use case from the feature request
         chain_input = {"input": '{"name": "Ada", "age": 30}'}
-        result = list(_convert_io(chain_input))
+        result = list(_convert_io(chain_input, "outputs"))
 
         assert len(result) == 2
         assert result[0] == '{"name": "Ada", "age": 30}'
@@ -1544,7 +1544,7 @@ class TestConvertIO:
         chain_output = {
             "output": '[{"id": 1, "status": "complete"}, {"id": 2, "status": "pending"}]'
         }
-        result = list(_convert_io(chain_output))
+        result = list(_convert_io(chain_output, "outputs"))
 
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
@@ -1555,7 +1555,7 @@ class TestConvertIO:
         # Scenario 3: Mixed - some keys are JSON strings, others aren't
         # (but this is multiple keys, so goes through general path)
         mixed = {"data": '{"valid": "json"}', "plain": "not json"}
-        result = list(_convert_io(mixed))
+        result = list(_convert_io(mixed, "outputs"))
 
         # Multiple keys always get JSON MIME type (general case)
         assert len(result) == 2
@@ -1574,7 +1574,7 @@ class TestConvertIO:
         ]
 
         for input_obj in non_json_strings:
-            result = list(_convert_io(input_obj))
+            result = list(_convert_io(input_obj, "outputs"))
             # All should return just the string, no MIME type
             assert len(result) == 1, (
                 f"Expected early exit for non-JSON string: {input_obj['input']}"
@@ -1586,7 +1586,7 @@ class TestConvertIO:
         # JSON string with escaped quotes
         json_with_quotes = r'{"message": "He said \"Hello\""}'
         input_obj = {"input": json_with_quotes}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         assert result[0] == json_with_quotes
@@ -1599,7 +1599,7 @@ class TestConvertIO:
         # JSON string with newlines
         json_with_newlines = '{"text": "Line 1\\nLine 2"}'
         input_obj = {"input": json_with_newlines}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
@@ -1612,7 +1612,7 @@ class TestConvertIO:
         # JSON string with Unicode characters
         json_unicode = '{"greeting": "Hello 世界 🌍", "emoji": "🎉"}'
         input_obj = {"input": json_unicode}
-        result = list(_convert_io(input_obj))
+        result = list(_convert_io(input_obj, "outputs"))
 
         assert len(result) == 2
         assert result[0] == json_unicode
@@ -1628,7 +1628,7 @@ class TestConvertIO:
 
         # Very nested JSON string
         deeply_nested = '{"a": {"b": {"c": {"d": {"e": "value"}}}}}'
-        result = list(_convert_io({"input": deeply_nested}))
+        result = list(_convert_io({", "outputs"input": deeply_nested}))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1636,17 +1636,17 @@ class TestConvertIO:
         # Note: These are NOT strictly valid JSON, but heuristic will match them
         # (starts with {, ends with }) - acceptable false positive
         invalid_json_numbers = '{"value": NaN}'
-        result = list(_convert_io({"input": invalid_json_numbers}))
+        result = list(_convert_io({", "outputs"input": invalid_json_numbers}))
         assert len(result) == 2  # Heuristic matches, frontend will handle gracefully
 
         # JSON array with mixed types
         mixed_array = '[1, "string", true, null, {"nested": "object"}]'
-        result = list(_convert_io({"input": mixed_array}))
+        result = list(_convert_io({", "outputs"input": mixed_array}))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
         # Single-character braces/brackets (not JSON)
-        assert len(list(_convert_io({"input": "{"}))) == 1
-        assert len(list(_convert_io({"input": "["}))) == 1
-        assert len(list(_convert_io({"input": "}"}))) == 1
-        assert len(list(_convert_io({"input": "]"}))) == 1
+        assert len(list(_convert_io({", "outputs"input": "{"}))) == 1
+        assert len(list(_convert_io({", "outputs"input": "["}))) == 1
+        assert len(list(_convert_io({", "outputs"input": "}"}))) == 1
+        assert len(list(_convert_io({", "outputs"input": "]"}))) == 1
