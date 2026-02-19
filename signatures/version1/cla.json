@@ -847,6 +847,14 @@
       "created_at": "2026-02-19T12:39:47Z",
       "repoId": 735999703,
       "pullRequestNo": 2759
+    },
+    {
+      "name": "max-kuklin",
+      "id": 8312264,
+      "comment_id": 3927962457,
+      "created_at": "2026-02-19T15:23:19Z",
+      "repoId": 735999703,
+      "pullRequestNo": 2760
     }
   ]
 }
