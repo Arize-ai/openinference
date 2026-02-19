@@ -445,10 +445,7 @@ def _convert_io(obj: Optional[Mapping[str, Any]], obj_type: Optional[str]) -> It
                     content = _extract_message_content(message)
                     if content is None:
                         content = message.get("content")
-                elif (
-                    isinstance(message, Sequence)
-                    and len(message) == 2
-                ):
+                elif isinstance(message, Sequence) and len(message) == 2:
                     _, content = message
                 else:
                     continue
