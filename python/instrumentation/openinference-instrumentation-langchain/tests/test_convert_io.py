@@ -1628,7 +1628,7 @@ class TestConvertIO:
 
         # Very nested JSON string
         deeply_nested = '{"a": {"b": {"c": {"d": {"e": "value"}}}}}'
-        result = list(_convert_io({", "outputs"input": deeply_nested}))
+        result = list(_convert_io({"input": deeply_nested}, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
@@ -1636,17 +1636,17 @@ class TestConvertIO:
         # Note: These are NOT strictly valid JSON, but heuristic will match them
         # (starts with {, ends with }) - acceptable false positive
         invalid_json_numbers = '{"value": NaN}'
-        result = list(_convert_io({", "outputs"input": invalid_json_numbers}))
+        result = list(_convert_io({"input": invalid_json_numbers}, "outputs"))
         assert len(result) == 2  # Heuristic matches, frontend will handle gracefully
 
         # JSON array with mixed types
         mixed_array = '[1, "string", true, null, {"nested": "object"}]'
-        result = list(_convert_io({", "outputs"input": mixed_array}))
+        result = list(_convert_io({"input": mixed_array}, "outputs"))
         assert len(result) == 2
         assert result[1] == OpenInferenceMimeTypeValues.JSON.value
 
         # Single-character braces/brackets (not JSON)
-        assert len(list(_convert_io({", "outputs"input": "{"}))) == 1
-        assert len(list(_convert_io({", "outputs"input": "["}))) == 1
-        assert len(list(_convert_io({", "outputs"input": "}"}))) == 1
-        assert len(list(_convert_io({", "outputs"input": "]"}))) == 1
+        assert len(list(_convert_io({"input": "{"}, "outputs"))) == 1
+        assert len(list(_convert_io({"input": "["}, "outputs"))) == 1
+        assert len(list(_convert_io({"input": "}"}, "outputs"))) == 1
+        assert len(list(_convert_io({"input": "]"}, "outputs"))) == 1
