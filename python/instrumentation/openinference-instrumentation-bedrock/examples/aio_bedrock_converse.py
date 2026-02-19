@@ -1,22 +1,18 @@
 import asyncio
 
 import aioboto3
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
 from openinference.instrumentation.bedrock import BedrockInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
-resource = Resource(attributes={})
-tracer_provider = trace_sdk.TracerProvider(resource=resource)
+tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-trace_api.set_tracer_provider(tracer_provider=tracer_provider)
 
-BedrockInstrumentor().instrument()
+BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
 async def run():
@@ -29,7 +25,7 @@ async def run():
         inference_config = {"maxTokens": 1024, "temperature": 0.0}
         messages = [user_message]
         response = await client.converse_stream(
-            modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            modelId="us.anthropic.claude-sonnet-4-6",
             system=system_prompt,
             messages=messages,
             inferenceConfig=inference_config,

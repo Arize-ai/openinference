@@ -20,6 +20,12 @@ from openinference.semconv.trace import (
 
 
 class _AsyncIterator:
+    """
+    Async counterpart of _Iterator: wraps an async event stream, runs callback per
+    item and on stream end/error, and manages a context (e.g. span) so it is
+    closed when the stream is fully consumed or on exception.
+    """
+
     def __init__(
         self,
         iterable: AsyncIterator[Any],
@@ -80,6 +86,7 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(obj)
         self._self_callback = callback
         self._self_context_manager_factory = context_manager_factory
+        # aiobotocore event streams provide __aiter__; botocore's are sync-only.
         self._self_is_async = hasattr(obj, "__aiter__")
 
     def __iter__(self) -> Iterator[Any]:

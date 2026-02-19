@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from typing import Any, Callable
 
@@ -8,6 +9,7 @@ import wrapt
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
+from typing_extensions import override
 
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
 from openinference.instrumentation.bedrock._converse_attributes import (
@@ -31,51 +33,75 @@ from openinference.semconv.trace import (
 )
 
 
-def is_async(wrapped: Callable[..., Any], instance: Any) -> bool:
-    return (
-        asyncio.iscoroutinefunction(wrapped)
-        or asyncio.iscoroutinefunction(getattr(instance, wrapped.__name__, None))
-        or (
-            hasattr(instance, "_make_api_call")
-            and asyncio.iscoroutinefunction(instance._make_api_call)
-        )
-    )
+def _is_async_at_decoration(wrapped: Callable[..., Any]) -> bool:
+    """
+    Decide sync vs async at decoration time (same heuristic as call-time check).
+
+    Botocore builds client methods as sync def that return self._make_api_call(...).
+    In aiobotocore, _make_api_call is async, so the method returns a coroutine but
+    is not itself a coroutine function. We detect async by checking whether the
+    bound instance's _make_api_call is a coroutine function.
+    """
+    if inspect.iscoroutinefunction(wrapped):
+        return True
+    instance = getattr(wrapped, "__self__", None)
+    if instance is not None and hasattr(instance, "_make_api_call"):
+        if asyncio.iscoroutinefunction(instance._make_api_call):
+            return True
+    return False
 
 
 class _WithTracer:
     def __init__(self, tracer: Tracer):
         self._tracer = tracer
 
-    @wrapt.decorator  # type: ignore[misc]
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        raise NotImplementedError("Subclasses must implement the __call__ method")
+    def __call__(self, wrapped: Callable[..., Any]) -> Any:
+        """Route to sync or async wrapper at decoration time."""
+        if _is_async_at_decoration(wrapped):
+            return self._wrap_async(wrapped)
+        return self._wrap_sync(wrapped)
+
+    def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
+        raise NotImplementedError("Subclasses must implement _wrap_sync")
+
+    def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
+        raise NotImplementedError("Subclasses must implement _wrap_async")
 
 
 class _InvokeModelWithResponseStream(_WithTracer):
     _name = "bedrock.invoke_model_with_response_stream"
 
-    @wrapt.decorator  # type: ignore[misc]
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        if is_async(wrapped, instance):
-            return self._async_call(wrapped, args, kwargs)
-        return self._sync_call(wrapped, args, kwargs)
+    @override
+    def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return self._sync_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
+
+    @override
+    def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        async def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return await self._async_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
 
     @staticmethod
     def handle_response(span: Span, kwargs: dict[str, Any], response: Any) -> Any:
         from botocore.eventstream import EventStream
 
+        # Request body is InvokeModel payload (blob: str or bytes); json.loads accepts both.
         kwargs["body"] = json.loads(kwargs["body"])
         if isinstance(response["body"], EventStream):
             if "anthropic_version" in kwargs["body"]:
@@ -136,18 +162,31 @@ class _ConverseStream(_WithTracer):
 
     _name = "bedrock.converse_stream"
 
-    @wrapt.decorator  # type: ignore[misc]
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        if is_async(wrapped, instance):
-            return self._async_call(wrapped, args, kwargs)
-        else:
-            return self._sync_call(wrapped, args, kwargs)
+    @override
+    def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return self._sync_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
+
+    @override
+    def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        async def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return await self._async_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
 
     @staticmethod
     def handle_response(response: Any, span: Any, kwargs: dict[str, Any]) -> Any:
@@ -201,18 +240,31 @@ class _ConverseStream(_WithTracer):
 class _InvokeAgentWithResponseStream(_WithTracer):
     _name = "bedrock_agent.invoke_agent"
 
-    @wrapt.decorator  # type: ignore[misc]
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        if is_async(wrapped, instance):
-            return self._async_call(wrapped, args, kwargs)
-        else:
-            return self._sync_call(wrapped, args, kwargs)
+    @override
+    def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return self._sync_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
+
+    @override
+    def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        async def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return await self._async_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
 
     @staticmethod
     def handle_request_attributes(span: Span, kwargs: dict[str, Any]) -> None:
@@ -229,7 +281,6 @@ class _InvokeAgentWithResponseStream(_WithTracer):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-            # span = self._tracer.start_span(self._name)
         with self._tracer.start_as_current_span(
             f"bedrock_agent.{wrapped.__name__}",
             end_on_exit=False,
@@ -254,7 +305,6 @@ class _InvokeAgentWithResponseStream(_WithTracer):
     ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-            # span = self._tracer.start_span(self._name)
         with self._tracer.start_as_current_span(
             f"bedrock_agent.{wrapped.__name__}",
             end_on_exit=False,
@@ -278,18 +328,31 @@ class _InvokeAgentWithResponseStream(_WithTracer):
 class _RetrieveAndGenerateStream(_WithTracer):
     _name = "bedrock_agent.retrieve_and_generate_stream"
 
-    @wrapt.decorator  # type: ignore[misc]
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> Any:
-        if is_async(wrapped, instance):
-            return self._async_call(wrapped, args, kwargs)
-        else:
-            return self._sync_call(wrapped, args, kwargs)
+    @override
+    def _wrap_sync(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return self._sync_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
+
+    @override
+    def _wrap_async(self, wrapped: Callable[..., Any]) -> Any:
+        @wrapt.decorator  # type: ignore[misc]
+        async def _impl(
+            wrapped_fn: Callable[..., Any],
+            instance: Any,
+            args: tuple[Any, ...],
+            kwargs: dict[str, Any],
+        ) -> Any:
+            return await self._async_call(wrapped_fn, args, kwargs)
+
+        return _impl(wrapped)
 
     def _sync_call(
         self,

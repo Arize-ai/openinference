@@ -38,26 +38,21 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "boto3 >= 1.38.17",
-]
-aio = [
-  "aioboto3 >= 15.5.0",
+  "boto3 >= 1.40.46",
 ]
 test = [
-  "boto3 >= 1.38.17",
+  "boto3 == 1.40.46",
+  "aioboto3 == 15.5.0",
+  "aioresponses",
   "opentelemetry-sdk",
   "opentelemetry-instrumentation-httpx",
   "anthropic>=0.47.0",
   "pytest-asyncio",
+  "pytest-order",
   "pydantic>=2.10.6",
   "pytest-vcr>=1.0.2",
   "types-requests",
   "requests"
-]
-
-test-aio = [
-  "aioboto3 >= 15.5.0",
-  "aioresponses",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
