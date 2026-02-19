@@ -407,9 +407,7 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                     span.end()
                     raise ValueError("InvokeModel response missing 'body'")
                 # Botocore response body has _raw_stream and _content_length.
-                response["body"] = BufferedStreamingBody(
-                    body._raw_stream, body._content_length
-                )
+                response["body"] = BufferedStreamingBody(body._raw_stream, body._content_length)
                 response_body = json.loads(response.get("body").read())
                 response["body"].reset()
 
