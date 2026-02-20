@@ -228,7 +228,57 @@ asyncio_mode = "auto"
 
 ## Preferred Patterns
 
-### Pattern 1 — TypedDict + TypeGuard for structured extraction
+### Pattern 1 — Use helpers from `openinference.instrumentation`
+
+Before writing any attribute-setting logic, check whether `openinference.instrumentation`
+already provides a helper for it. The core library exports typed builders for every common
+span kind and attribute group — use them instead of hand-rolling.
+
+```python
+from openinference.instrumentation import (
+    get_input_attributes,
+    get_output_attributes,
+    get_llm_attributes,
+    get_tool_attributes,
+    get_retriever_attributes,
+    safe_json_dumps,
+)
+
+# Input / output (infers mime type automatically)
+span.set_attributes(get_input_attributes(prompt))
+span.set_attributes(get_output_attributes(response.content))
+
+# LLM attributes
+span.set_attributes(get_llm_attributes(
+    model_name=response.model,
+    invocation_parameters=safe_json_dumps(params),
+    token_count=TokenCount(prompt=usage.prompt_tokens, completion=usage.completion_tokens),
+))
+
+# Tool span
+span.set_attributes(get_tool_attributes(name=tool.name, parameters=tool.input_schema))
+
+# Retriever
+span.set_attributes(get_retriever_attributes(documents=docs))
+```
+
+Key helpers available (all importable from `openinference.instrumentation`):
+
+| Helper | Use case |
+|--------|----------|
+| `get_input_attributes(value)` | `input.value` + mime type, inferred or explicit |
+| `get_output_attributes(value)` | `output.value` + mime type |
+| `get_llm_attributes(...)` | model name, system, provider, messages, tools, token counts |
+| `get_embedding_attributes(...)` | model name, embeddings list |
+| `get_retriever_attributes(...)` | flattened `retrieval.documents` array |
+| `get_reranker_attributes(...)` | input/output documents, query, model, top_k |
+| `get_tool_attributes(...)` | name, description, parameters |
+| `get_span_kind_attributes(kind)` | `openinference.span.kind` |
+| `safe_json_dumps(obj)` | safe serializer for params, metadata, schemas |
+
+For the full list see `openinference-instrumentation/src/openinference/instrumentation/_attributes.py`.
+
+### Pattern 2 — TypedDict + TypeGuard for structured extraction
 
 When reading token counts or usage metadata from untyped dicts, define a `TypedDict` for the expected shape and a `TypeGuard` function for validation. This separates validation from extraction and enables mypy strictness.
 
@@ -251,16 +301,6 @@ def is_usage_dict(obj: object) -> TypeGuard[UsageDict]:
 
 if is_usage_dict(usage):
     span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage["prompt_tokens"])
-```
-
-### Pattern 2 — Use `safe_json_dumps` for all serialization
-
-`safe_json_dumps` from `openinference.instrumentation` already handles Pydantic models, custom types, and serialization failures without crashing. Use it directly instead of writing a custom fallback chain:
-
-```python
-from openinference.instrumentation import safe_json_dumps
-
-span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(params))
 ```
 
 ### Pattern 3 — Explicit PII masking at source
