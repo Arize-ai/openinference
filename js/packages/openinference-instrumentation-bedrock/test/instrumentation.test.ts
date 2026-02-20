@@ -1518,7 +1518,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
   "llm.input_messages.0.message.contents.0.message_content.type": "text",
   "llm.input_messages.0.message.role": "user",
   "llm.invocation_parameters": "{"max_new_tokens":150,"temperature":0.7}",
-  "llm.model_name": "amazon",
+  "llm.model_name": "nova-micro-v1:0",
   "llm.output_messages.0.message.content": "In the year 2145, humanity launched the starship *Odyssey* to explore the Andromeda Galaxy. After a decade of travel, the crew discovered a planet, Zeta-9, teeming with vibrant bioluminescent flora and strange, intelligent creatures. The explorers established a peaceful contact, sharing knowledge and technology. As they prepared to return home, the Zeta-9 inhabitants gifted them a crystal containing the planet's energy, a symbol of their newfound friendship. The *Odyssey* departed, leaving behind a legacy of unity among the stars.",
   "llm.output_messages.0.message.role": "assistant",
   "llm.provider": "aws",
