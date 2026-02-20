@@ -1,6 +1,6 @@
 # OpenInference Specification Guide
 
-Language-agnostic conventions that all OpenInference instrumentors must follow. Defines the span kinds and attribute names used to represent AI/ML operations in OpenTelemetry traces.
+Language-agnostic conventions that all OpenInference instrumentors must follow. Defines the span kinds and attribute names used to represent AI/ML operations in OpenTelemetry traces. [`semantic_conventions.md`](semantic_conventions.md) is the authoritative source for all attribute names, types, and descriptions.
 
 ---
 
@@ -77,120 +77,9 @@ Flatten recursively until all leaf values are primitives (`bool`, `string`, `int
 
 ---
 
-## Key Attributes Reference
+## Attribute Reference
 
-### Always Required
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `openinference.span.kind` | String | One of the 10 span kind values above. REQUIRED on every span. |
-
-### Input and Output
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `input.value` | String | The input to the operation |
-| `input.mime_type` | String | MIME type of input: `text/plain` or `application/json` |
-| `output.value` | String | The output of the operation |
-| `output.mime_type` | String | MIME type of output: `text/plain` or `application/json` |
-
-### LLM Attributes
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `llm.model_name` | String | Model identifier (e.g., `"gpt-4o"`, `"claude-3-opus-20240229"`) |
-| `llm.system` | String | AI product/vendor: `openai`, `anthropic`, `vertexai`, `cohere`, `mistralai` |
-| `llm.provider` | String | Hosting provider: `openai`, `anthropic`, `azure`, `aws`, `google` |
-| `llm.input_messages` | Flattened array | Messages sent to the LLM (see array format above) |
-| `llm.output_messages` | Flattened array | Messages received from the LLM |
-| `llm.invocation_parameters` | JSON String | Model parameters (temperature, max_tokens, etc.) |
-| `llm.token_count.prompt` | Integer | Tokens in the prompt |
-| `llm.token_count.completion` | Integer | Tokens in the completion |
-| `llm.token_count.total` | Integer | Total tokens |
-| `llm.token_count.prompt_details.cache_read` | Integer | Cached prompt tokens (cache hits) |
-| `llm.token_count.prompt_details.cache_write` | Integer | Prompt tokens written to cache (Anthropic) |
-| `llm.token_count.completion_details.reasoning` | Integer | Reasoning tokens (chain-of-thought models) |
-| `llm.cost.prompt` | Float | Cost of prompt tokens in USD |
-| `llm.cost.completion` | Float | Cost of completion tokens in USD |
-| `llm.cost.total` | Float | Total cost in USD |
-| `llm.tools` | Flattened array | Tools advertised to the LLM |
-| `llm.prompt_template.template` | String | Prompt template as a Python f-string |
-| `llm.prompt_template.version` | String | Template version |
-| `llm.prompt_template.variables` | JSON String | Variables applied to the template |
-
-### Embedding Attributes
-
-Note: `llm.system` and `llm.provider` are **not used** for EMBEDDING spans.
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `embedding.model_name` | String | Embedding model name (e.g., `"text-embedding-3-small"`) |
-| `embedding.embeddings` | Flattened array | List of embedding objects with text and vector |
-| `embedding.invocation_parameters` | JSON String | Embedding API parameters |
-
-### Document Attributes (RETRIEVER / RERANKER)
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `retrieval.documents` | Flattened array | Retrieved documents |
-| `reranker.input_documents` | Flattened array | Documents input to reranker |
-| `reranker.output_documents` | Flattened array | Documents output by reranker |
-| `reranker.query` | String | Query used for reranking |
-| `reranker.model_name` | String | Reranker model name |
-| `reranker.top_k` | Integer | Top K parameter |
-| `document.id` | String | Document identifier |
-| `document.content` | String | Document text content |
-| `document.score` | Float | Relevance score |
-| `document.metadata` | JSON String | Document metadata |
-
-### Tool Attributes
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `tool.name` | String | Tool name |
-| `tool.description` | String | Tool description |
-| `tool.json_schema` | JSON String | Tool input schema |
-| `tool.parameters` | JSON String | Parameters definition |
-| `tool.id` | String | Tool call result identifier |
-| `tool_call.function.name` | String | Function name in a tool call |
-| `tool_call.function.arguments` | JSON String | Function arguments |
-| `tool_call.id` | String | Tool call identifier |
-
-### Session and User
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `session.id` | String | Session identifier (groups multi-turn conversations) |
-| `user.id` | String | User identifier |
-| `metadata` | JSON String | Custom metadata |
-| `tag.tags` | List of strings | Span tags for filtering |
-
-### Agent and Graph
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `agent.name` | String | Name of the agent |
-| `graph.node.id` | String | Node ID in execution graph |
-| `graph.node.name` | String | Human-readable node name |
-| `graph.node.parent_id` | String | Parent node ID (empty = root) |
-
-### Exception
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `exception.type` | String | Exception class name |
-| `exception.message` | String | Exception message |
-| `exception.stacktrace` | String | Full stack trace |
-| `exception.escaped` | Boolean | Whether exception escaped the span scope |
-
-### Multimodal
-
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `image.url` | String | Image URL or base64 encoding |
-| `audio.url` | String | Audio file URL |
-| `audio.mime_type` | String | Audio MIME type (e.g., `audio/mpeg`) |
-| `audio.transcript` | String | Audio transcript |
+See [`semantic_conventions.md`](semantic_conventions.md) for the complete, authoritative list of all span attributes, types, and descriptions.
 
 ---
 
