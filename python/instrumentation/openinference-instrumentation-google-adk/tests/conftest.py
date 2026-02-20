@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Any, Dict, Iterator
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -6,6 +6,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from vcr.request import Request
 
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
@@ -42,12 +43,12 @@ def api_key(
     monkeypatch.setenv("GOOGLE_API_KEY", "xyz")
 
 
-def method_case_insensitive(r1, r2):
+def method_case_insensitive(r1: Request, r2: Request) -> bool:
     return r1.method.lower() == r2.method.lower()
 
 
 @pytest.fixture(scope="session")
-def vcr_config():
+def vcr_config() -> Dict[str, Any]:
     return {
         "record_mode": "once",
         "match_on": ["scheme", "host", "port", "path", "query", "method"],
