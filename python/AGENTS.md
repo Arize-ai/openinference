@@ -303,23 +303,7 @@ def _has_active_llm_parent_span() -> bool:
     )
 ```
 
-### Pattern 5 — Parametrized tests covering multiple input shapes
-
-Reviewers flag missing input-shape variants. Cover dict, Pydantic model, and framework-native types in one parametrized test rather than writing separate tests for each.
-
-```python
-@pytest.mark.parametrize("messages", [
-    [{"role": "user", "content": "hello"}],          # plain dict
-    [UserMessage(content="hello")],                   # framework type
-    [ChatCompletionUserMessageParam(role="user", content="hello")],  # typed param
-])
-def test_input_messages(instrumentor, tracer_provider, messages):
-    my_framework_call(messages=messages)
-    spans = get_spans()
-    assert spans[0].attributes["llm.input_messages.0.message.role"] == "user"
-```
-
-### Pattern 6 — `assert_never` for exhaustive union matching
+### Pattern 5 — `assert_never` for exhaustive union matching
 
 At the end of a discriminated-union dispatch, add `assert_never` so mypy flags unhandled members when a library adds new types. Used throughout the OpenAI, OpenAI Agents, LlamaIndex, Haystack, and Bedrock instrumentors.
 
@@ -392,7 +376,7 @@ def _instrument(self, **kwargs: Any) -> None:
         raise RuntimeError("my-framework must be installed") from e
 ```
 
-`TYPE_CHECKING`-guarded imports (for type annotations only) are fine at module level.
+The only exception is `TYPE_CHECKING`-guarded imports — those never execute at runtime and are safe at module level. Everything else from the instrumented library must be a nested import inside `_instrument()` or the wrapper functions.
 
 ---
 
