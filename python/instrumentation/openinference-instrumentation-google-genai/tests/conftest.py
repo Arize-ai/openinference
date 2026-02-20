@@ -1,10 +1,13 @@
-from typing import Any, Dict
+from typing import Any, Dict, Protocol
 
 import pytest
-from vcr.request import Request
 
 
-def method_case_insensitive(r1: Request, r2: Request) -> bool:
+class _VcrRequest(Protocol):
+    method: str
+
+
+def method_case_insensitive(r1: _VcrRequest, r2: _VcrRequest) -> bool:
     return r1.method.lower() == r2.method.lower()
 
 
