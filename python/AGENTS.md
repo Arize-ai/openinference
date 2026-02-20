@@ -63,7 +63,10 @@ Every Python instrumentor must implement these three features.
 
 ### Feature 1 — Suppress Tracing
 
-Check the OTel context key before creating any span. When suppressed, call through to the original function without tracing.
+`BaseInstrumentor` manages the instrumentation lifecycle (whether to call `_instrument()` /
+`_uninstrument()`), but it does not inject a suppression check into your wrapper functions.
+Each wrapper is invoked once per API call and must check the suppression key before creating
+a span for that specific request — the base class never sees those per-request calls.
 
 ```python
 from opentelemetry import context as context_api
@@ -71,11 +74,11 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 
 def patched_function(*args, **kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-        return original_function(*args, **kwargs)  # skip tracing
+        return original_function(*args, **kwargs)  # skip this request; no span created
     # ... tracing logic ...
 ```
 
-To permanently disable tracing, implement `_uninstrument()` to reverse all monkey-patching.
+Implement `_uninstrument()` to reverse all monkey-patching and restore the originals.
 
 ### Feature 2 — Context Attribute Propagation
 
