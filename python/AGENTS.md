@@ -37,41 +37,23 @@ Replace `openai` with any package token from the list below.
 
 ### Package tokens (use in tox commands)
 
-| Token               | Package directory                                                  |
-| ------------------- | ------------------------------------------------------------------ |
-| `semconv`           | `openinference-semantic-conventions/`                              |
-| `instrumentation`   | `openinference-instrumentation/`                                   |
-| `openai`            | `instrumentation/openinference-instrumentation-openai/`            |
-| `openai_agents`     | `instrumentation/openinference-instrumentation-openai-agents/`     |
-| `anthropic`         | `instrumentation/openinference-instrumentation-anthropic/`         |
-| `bedrock`           | `instrumentation/openinference-instrumentation-bedrock/`           |
-| `mistralai`         | `instrumentation/openinference-instrumentation-mistralai/`         |
-| `groq`              | `instrumentation/openinference-instrumentation-groq/`              |
-| `litellm`           | `instrumentation/openinference-instrumentation-litellm/`           |
-| `langchain`         | `instrumentation/openinference-instrumentation-langchain/`         |
-| `llama_index`       | `instrumentation/openinference-instrumentation-llama-index/`       |
-| `dspy`              | `instrumentation/openinference-instrumentation-dspy/`              |
-| `instructor`        | `instrumentation/openinference-instrumentation-instructor/`        |
-| `crewai`            | `instrumentation/openinference-instrumentation-crewai/`            |
-| `haystack`          | `instrumentation/openinference-instrumentation-haystack/`          |
-| `vertexai`          | `instrumentation/openinference-instrumentation-vertexai/`          |
-| `smolagents`        | `instrumentation/openinference-instrumentation-smolagents/`        |
-| `autogen`           | `instrumentation/openinference-instrumentation-autogen/`           |
-| `autogen_agentchat` | `instrumentation/openinference-instrumentation-autogen-agentchat/` |
-| `beeai`             | `instrumentation/openinference-instrumentation-beeai/`             |
-| `portkey`           | `instrumentation/openinference-instrumentation-portkey/`           |
-| `mcp`               | `instrumentation/openinference-instrumentation-mcp/`               |
-| `google_genai`      | `instrumentation/openinference-instrumentation-google-genai/`      |
-| `google_adk`        | `instrumentation/openinference-instrumentation-google-adk/`        |
-| `pydantic_ai`       | `instrumentation/openinference-instrumentation-pydantic-ai/`       |
-| `openllmetry`       | `instrumentation/openinference-instrumentation-openllmetry/`       |
-| `openlit`           | `instrumentation/openinference-instrumentation-openlit/`           |
-| `strands_agents`    | `instrumentation/openinference-instrumentation-strands-agents/`    |
-| `pipecat`           | `instrumentation/openinference-instrumentation-pipecat/`           |
-| `agent_framework`   | `instrumentation/openinference-instrumentation-agent-framework/`   |
-| `agno`              | `instrumentation/openinference-instrumentation-agno/`              |
-| `guardrails`        | `instrumentation/openinference-instrumentation-guardrails/`        |
-| `agentspec`         | `instrumentation/openinference-instrumentation-agentspec/`         |
+Token = directory name with the `openinference-instrumentation-` prefix stripped and
+hyphens replaced by underscores. Two top-level packages use short tokens:
+
+| Token | Package |
+|-------|---------|
+| `semconv` | `openinference-semantic-conventions/` |
+| `instrumentation` | `openinference-instrumentation/` |
+
+All instrumentors under `instrumentation/` follow the derivation rule:
+
+```
+instrumentation/openinference-instrumentation-openai/          → openai
+instrumentation/openinference-instrumentation-openai-agents/   → openai_agents
+instrumentation/openinference-instrumentation-llama-index/     → llama_index
+```
+
+For the full list, see the `changedir` section of `python/tox.ini`.
 
 ---
 
