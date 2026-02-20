@@ -1,5 +1,7 @@
 # Python Workspace Guide
 
+> **Always use the helpers from `openinference.instrumentation`**: `safe_json_dumps` for serialization, `get_attributes_from_context` for context attributes, `OITracer`/`TraceConfig` for masking. Rolling custom solutions for these is the most common review blocker.
+
 ## Setup
 
 ```bash
@@ -95,13 +97,12 @@ To permanently disable tracing, implement `_uninstrument()` to reverse all monke
 
 ### Feature 2 — Context Attribute Propagation
 
-Read session ID, user ID, metadata, and tags from OTel context and attach them to spans.
+**`OITracer` handles this automatically** when you use `OITracer.start_span()` or `OITracer.start_as_current_span()` — no extra code needed. Only call `get_attributes_from_context()` manually if your instrumentor uses a custom span-creation path that bypasses `OITracer`'s `start_span`.
 
 ```python
-from opentelemetry.trace import Tracer
 from openinference.instrumentation import get_attributes_from_context
 
-# Pass at span creation time:
+# Manual fallback — only needed if you bypass OITracer.start_span():
 span = tracer.start_span(
     name="my-span",
     attributes=dict(get_attributes_from_context()),
@@ -197,6 +198,19 @@ def test_trace_config_masking(tracer_provider):
     assert "input.value" not in spans[0].attributes
 ```
 
+### Preferred attribute assertion pattern
+
+Pop keys from a dict copy so the test fails loudly when an expected attribute is absent:
+
+```python
+# Preferred: pop the key so the test fails if the attribute is missing
+attributes = dict(span.attributes)
+assert attributes.pop("llm.model_name") == "gpt-4o"
+assert attributes.pop("input.value") == "hello"
+# Optional strict variant: assert no unexpected keys remain in a namespace
+# assert not any(k.startswith("input.") for k in attributes)
+```
+
 Pytest configuration in `pyproject.toml`:
 
 ```toml
@@ -239,22 +253,14 @@ if is_usage_dict(usage):
     span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage["prompt_tokens"])
 ```
 
-### Pattern 2 — Graceful serialization fallback chain
+### Pattern 2 — Use `safe_json_dumps` for all serialization
 
-For Pydantic/framework objects, never let serialization crash a span. Use a fallback chain:
+`safe_json_dumps` from `openinference.instrumentation` already handles Pydantic models, custom types, and serialization failures without crashing. Use it directly instead of writing a custom fallback chain:
 
 ```python
-def _serialize(obj: Any) -> str:
-    if hasattr(obj, "model_dump_json"):
-        try:
-            return obj.model_dump_json(exclude_unset=True)
-        except Exception:
-            pass
-    if hasattr(obj, "model_dump"):
-        return safe_json_dumps(obj.model_dump())
-    if hasattr(obj, "dict"):
-        return safe_json_dumps(obj.dict())
-    return safe_json_dumps(obj)
+from openinference.instrumentation import safe_json_dumps
+
+span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(params))
 ```
 
 ### Pattern 3 — Explicit PII masking at source
@@ -299,7 +305,7 @@ def _has_active_llm_parent_span() -> bool:
 
 ### Pattern 5 — Parametrized tests covering multiple input shapes
 
-Use `@pytest.mark.parametrize` to cover dict inputs, Pydantic model inputs, and framework-specific message types in the same test. Reviewers consistently flag missing input-variant coverage.
+Reviewers flag missing input-shape variants. Cover dict, Pydantic model, and framework-native types in one parametrized test rather than writing separate tests for each.
 
 ```python
 @pytest.mark.parametrize("messages", [
@@ -372,7 +378,7 @@ span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(par
 
 ### Pitfall 3 — Importing optional dependencies at module level
 
-A top-level `import my_framework` crashes the instrumentor module on load if the library isn't installed. Always defer to inside `_instrument()`:
+**Never import the instrumented library at module level** — not even as a type hint import outside `TYPE_CHECKING`. A top-level `import my_framework` crashes the instrumentor on load if the library isn't installed. All imports of the target library must be inside `_instrument()` or inside the wrapper functions.
 
 ```python
 # Wrong — top-level import crashes on load

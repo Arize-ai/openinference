@@ -10,11 +10,10 @@ TypeScript instrumentation packages for OpenInference. Uses pnpm workspaces, Typ
 cd js
 nvm use                               # uses .nvmrc for Node v20
 pnpm install --frozen-lockfile -r    # MUST be pnpm, not npm or yarn
-pnpm run -r prebuild                 # REQUIRED: generates version files + cross-package symlinks
-pnpm run -r build
+pnpm run -r build                    # prebuild runs automatically as part of build
 ```
 
-> **Why prebuild matters**: The prebuild script generates instrumentation version files and creates symlinks for cross-package dependencies. Cross-package imports will fail at test time if prebuild has not been run. Re-run it whenever you change packages in the repo.
+> **Why prebuild matters**: The prebuild script generates instrumentation version files and creates symlinks for cross-package dependencies. It runs automatically as part of `build`, but you can re-run `pnpm run -r prebuild` manually after adding new packages to the repo.
 
 Global pnpm version must be `>=9.7.0` (managed via `package.json`).
 
@@ -33,6 +32,8 @@ pnpm run prettier:write
 ---
 
 ## Package Inventory
+
+> **Keep this list current**: when you add a new package to `js/packages/`, update this table in the same PR.
 
 | Package | Description |
 |---------|-------------|
@@ -165,7 +166,9 @@ describe("MyInstrumentation", () => {
    - Add to `js/pnpm-workspace.yaml` under `packages:`
    - Run `pnpm install` to link it
 
-4. **Create a changeset** (required before PR merge): run `pnpm changeset` — see the Version Management section below for details.
+4. **Update `js/AGENTS.md`**: add the new package to the Package Inventory table above.
+
+5. **Create a changeset** (required before PR merge): run `pnpm changeset` — see the Version Management section below for details.
 
 ---
 

@@ -2,9 +2,9 @@
 
 OpenInference is an OpenTelemetry-based AI/ML instrumentation library — a multi-language monorepo published to PyPI, `@arizeai` npm, and Maven Central. Owned by Arize AI.
 
-- **Python**: 33 instrumentation packages for OpenAI, LangChain, LlamaIndex, DSPy, and more
-- **JavaScript/TypeScript**: 13 packages (core + instrumentors) with pnpm workspaces
-- **Java**: 4 packages covering LangChain4j and Spring AI
+- **Python**: instrumentation packages for OpenAI, LangChain, LlamaIndex, DSPy, and more
+- **JavaScript/TypeScript**: packages (core + instrumentors) with pnpm workspaces
+- **Java**: packages covering LangChain4j and Spring AI
 - **Specification**: Language-agnostic OpenInference semantic conventions in `spec/`
 
 ---
@@ -16,9 +16,9 @@ openinference/
 ├── python/
 │   ├── openinference-instrumentation/        # Core: OITracer, TraceConfig, suppress_tracing
 │   ├── openinference-semantic-conventions/   # Python semconv constants
-│   └── instrumentation/                      # 33 individual instrumentor packages
+│   └── instrumentation/                      # individual instrumentor packages
 ├── js/
-│   └── packages/                             # 13 packages (core + 8 instrumentors + specialized)
+│   └── packages/                             # core + instrumentors + specialized packages
 ├── java/
 │   ├── openinference-instrumentation/        # Core: OITracer, TraceConfig
 │   ├── openinference-semantic-conventions/   # Java semconv constants
@@ -48,8 +48,8 @@ See each workspace's `AGENTS.md` for language-specific implementation details.
 pip install tox-uv==1.11.2 && pip install -r python/dev-requirements.txt
 tox run -e add_symlinks && tox run-parallel
 
-# JavaScript — see js/AGENTS.md for full command reference (MUST use pnpm, not npm)
-pnpm install --frozen-lockfile -r && pnpm run -r prebuild && pnpm run -r build
+# JavaScript — see js/AGENTS.md for full command reference (MUST use pnpm, not npm or yarn)
+pnpm install --frozen-lockfile -r && pnpm run -r build
 
 # Java — see java/AGENTS.md for full command reference
 cd java && ./gradlew build && ./gradlew test
