@@ -63,7 +63,9 @@ cd java && ./gradlew build && ./gradlew test
 
 Key attribute namespaces: `input.*`, `output.*`, `llm.*`, `embedding.*`, `document.*`, `retrieval.*`, `session.*`, `user.*`, `tag.*`, `metadata`, `tool.*`
 
-See `spec/AGENTS.md` for the full attribute reference including flattened array format.
+See `spec/semantic_conventions.md` for the full attribute reference. The flattened array
+format (e.g. `llm.input_messages.0.message.role`) is documented in `spec/llm_spans.md`
+and `spec/tool_calling.md`.
 
 ---
 
@@ -101,4 +103,4 @@ See `spec/AGENTS.md` for the full attribute reference including flattened array 
 - `python/AGENTS.md` — Python workspace details, tox reference, instrumentor patterns
 - `js/AGENTS.md` — JavaScript workspace details, pnpm setup, TypeScript patterns
 - `java/AGENTS.md` — Java workspace details, Gradle setup, instrumentor patterns
-- `spec/AGENTS.md` — Full semantic conventions attribute reference
+- `spec/AGENTS.md` — Spec files index (see `spec/semantic_conventions.md` for the full attribute reference)

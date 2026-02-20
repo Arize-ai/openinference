@@ -423,4 +423,4 @@ The only exception is `TYPE_CHECKING`-guarded imports — those never execute at
 ## See Also
 
 - Root `AGENTS.md` — repository-wide guide, universal instrumentor requirements, release management
-- `spec/AGENTS.md` — full semantic conventions attribute reference (language-agnostic)
+- `spec/semantic_conventions.md` — full attribute reference (language-agnostic)
