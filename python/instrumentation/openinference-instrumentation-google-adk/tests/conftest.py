@@ -23,7 +23,7 @@ def vcr_config() -> Dict[str, Any]:
     return {
         "record_mode": "once",
         "match_on": ["scheme", "host", "port", "path", "query", "method"],
-        "custom_matchers": {
+        "custom_patches": {
             "method": method_case_insensitive,
         },
     }
