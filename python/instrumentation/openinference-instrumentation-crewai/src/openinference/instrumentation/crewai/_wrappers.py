@@ -1,3 +1,4 @@
+import contextvars
 import json
 import logging
 import time
@@ -19,6 +20,15 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# Contextvar used to coordinate between the sync Flow.kickoff wrapper and the
+# async Flow.kickoff_async wrapper.  When the sync wrapper creates the FLOW span
+# BEFORE calling asyncio.run(), it sets this flag so that the async wrapper
+# (which is called inside asyncio.run()) knows to skip creating a second,
+# duplicate FLOW span.
+_flow_span_in_progress: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_oi_flow_span_in_progress", default=False
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -257,6 +267,40 @@ class _ExecuteCoreWrapper:
         return response
 
 
+class _ExecuteWithTimeoutWrapper:
+    """Propagates OTel context across the ThreadPoolExecutor boundary in
+    Agent._execute_with_timeout.
+
+    crewAI submits _execute_without_timeout to a ThreadPoolExecutor without
+    copying contextvars, so the active AGENT span is invisible inside the
+    worker thread.  This wrapper captures the current context before the
+    submission and runs the task execution inside it, ensuring TOOL spans
+    created by BaseTool.run are nested under the enclosing AGENT span.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        ctx = contextvars.copy_context()
+        original_execute = instance._execute_without_timeout
+
+        def _execute_with_context(**kw: Any) -> Any:
+            return ctx.run(original_execute, **kw)
+
+        instance._execute_without_timeout = _execute_with_context
+        try:
+            return wrapped(*args, **kwargs)
+        finally:
+            instance._execute_without_timeout = original_execute
+
+
 class _CrewKickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -352,6 +396,70 @@ class _CrewKickoffWrapper:
         return crew_output
 
 
+class _FlowKickoffWrapper:
+    """Sync wrapper for Flow.kickoff().
+
+    Creates the FLOW CHAIN span *before* ``asyncio.run()`` is invoked so that
+    the span lives in the calling thread's context for the entire duration of
+    the synchronous call.  It sets ``_flow_span_in_progress`` so the inner
+    async wrapper (``_FlowKickoffAsyncWrapper``) knows to skip creating a
+    duplicate span.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            # Signal to the async wrapper that the span already exists.
+            token = _flow_span_in_progress.set(True)
+            try:
+                flow_output = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                _flow_span_in_progress.reset(token)
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
+
+
 class _FlowKickoffAsyncWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -364,6 +472,11 @@ class _FlowKickoffAsyncWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
+        # the FLOW span was already created in the calling thread's context and
+        # propagated into this task via contextvars.  Skip creating a duplicate.
+        if _flow_span_in_progress.get():
             return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)

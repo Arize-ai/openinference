@@ -207,6 +207,38 @@ def kickoff_flow() -> Flow[Any]:
     return flow
 
 
+def kickoff_flow_with_crew() -> None:
+    """Minimal Flow that calls crew.kickoff() — exercises Bug 2 (Flow→Crew context)."""
+    openai_api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    llm = LLM(model="gpt-4.1-nano", api_key=openai_api_key, temperature=0)
+
+    class CrewFlow(Flow[Any]):  # type: ignore[misc, unused-ignore]
+        @start()  # type: ignore[misc, unused-ignore]
+        def run_crew(self) -> Any:
+            scraper = Agent(
+                role="Website Scraper",
+                goal="Scrape content from URL",
+                backstory="You extract text from websites",
+                tools=[MockScrapeWebsiteTool()],
+                allow_delegation=False,
+                llm=llm,
+                max_iter=2,
+                max_retry_limit=0,
+            )
+            task = Task(
+                description=(
+                    "Call the scrape_website tool to fetch text from "
+                    "http://quotes.toscrape.com/ and return the result."
+                ),
+                expected_output="Text content from the website.",
+                agent=scraper,
+            )
+            crew = Crew(agents=[scraper], tasks=[task])
+            return crew.kickoff()
+
+    CrewFlow().kickoff()
+
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda request: request.headers.clear() or request,
@@ -242,6 +274,111 @@ def test_crewai_instrumentation_context_attributes(
     assert len(spans) > 0, "No spans created"
     for span in spans:
         _verify_context_attributes(span)
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda request: request.headers.clear() or request,
+    before_record_response=lambda response: dict(response, headers={}),
+)
+def test_tool_spans_nested_under_agent_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Regression test for Bug 1: TOOL spans must be nested under AGENT spans.
+
+    Root cause: Agent._execute_with_timeout submits _execute_without_timeout to a
+    ThreadPoolExecutor without copying contextvars. Fixed by _ExecuteWithTimeoutWrapper.
+    Removing _ExecuteWithTimeoutWrapper from __init__.py will cause this test to fail.
+    """
+    kickoff_crew()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span_by_id = {span.context.span_id: span for span in spans}
+
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    assert len(tool_spans) >= 1, "Expected at least one TOOL span"
+    assert len(agent_spans) >= 1, "Expected at least one AGENT span"
+
+    # All spans must be in a single trace — no orphaned root traces
+    trace_ids = {span.context.trace_id for span in spans}
+    assert len(trace_ids) == 1, (
+        f"Expected all spans in 1 trace, got {len(trace_ids)}. "
+        "TOOL spans are orphaned: _ExecuteWithTimeoutWrapper may be missing."
+    )
+
+    # The scraper agent is the one with tools
+    scraper_span = next(s for s in agent_spans if "Website Scraper" in s.name)
+    tool_span = tool_spans[0]
+
+    # TOOL span must be a direct child of the AGENT span
+    assert tool_span.parent is not None, "TOOL span must have a parent span"
+    assert tool_span.parent.span_id == scraper_span.context.span_id, (
+        f"TOOL span parent must be the AGENT span "
+        f"(expected {format(scraper_span.context.span_id, '016x')}, "
+        f"got {format(tool_span.parent.span_id, '016x')}). "
+        "Context is not crossing the ThreadPoolExecutor boundary."
+    )
+
+    _ = span_by_id  # used for context; referenced in test_flow_crew_spans_in_same_trace
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda request: request.headers.clear() or request,
+    before_record_response=lambda response: dict(response, headers={}),
+)
+def test_flow_crew_spans_in_same_trace(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Regression test for Bug 2: Flow CHAIN and Crew CHAIN must be in the same trace.
+
+    Root cause: Flow.kickoff() calls asyncio.run() which resets contextvars in the new
+    event loop. Fixed by _FlowKickoffWrapper creating the span before asyncio.run().
+    Removing _FlowKickoffWrapper from __init__.py will cause this test to fail.
+    """
+    kickoff_flow_with_crew()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span_by_id = {span.context.span_id: span for span in spans}
+
+    # All spans must be in a single trace
+    trace_ids = {span.context.trace_id for span in spans}
+    assert len(trace_ids) == 1, (
+        f"Expected all spans in 1 trace, got {len(trace_ids)}. "
+        "Flow CHAIN and Crew CHAIN are in separate traces: "
+        "_FlowKickoffWrapper may be missing."
+    )
+
+    chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    assert len(chain_spans) >= 2, (
+        f"Expected at least 2 CHAIN spans (Flow + Crew), got {len(chain_spans)}"
+    )
+
+    # The root span must be the Flow kickoff
+    root_spans = [s for s in spans if s.parent is None or s.parent.span_id not in span_by_id]
+    assert len(root_spans) == 1, f"Expected 1 root span, got {len(root_spans)}"
+    assert root_spans[0].name.endswith(".kickoff"), (
+        f"Root span should be the Flow kickoff span, got: {root_spans[0].name}"
+    )
+
+    # The Crew CHAIN span must be a descendant of the Flow root
+    crew_span = next(s for s in chain_spans if s.context.span_id != root_spans[0].context.span_id)
+    assert crew_span.parent is not None, "Crew CHAIN span must have a parent"
+    # Walk up the parent chain from crew_span to verify it reaches the Flow root
+    current = crew_span
+    found_root = False
+    for _ in range(10):  # guard against infinite loop
+        if current.parent is None or current.parent.span_id not in span_by_id:
+            break
+        current = span_by_id[current.parent.span_id]
+        if current.context.span_id == root_spans[0].context.span_id:
+            found_root = True
+            break
+    assert found_root, (
+        "Crew CHAIN span is not a descendant of the Flow root span. "
+        "asyncio.run() may have stripped the OTel context."
+    )
 
 
 def get_spans_by_kind(spans: Sequence[ReadableSpan], kind: str) -> Sequence[ReadableSpan]:

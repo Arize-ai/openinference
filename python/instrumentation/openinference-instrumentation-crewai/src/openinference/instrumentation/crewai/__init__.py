@@ -14,7 +14,9 @@ from openinference.instrumentation.crewai._wrappers import (
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
+    _ExecuteWithTimeoutWrapper,
     _FlowKickoffAsyncWrapper,
+    _FlowKickoffWrapper,
     _LongTermMemorySaveWrapper,
     _LongTermMemorySearchWrapper,
     _ShortTermMemorySaveWrapper,
@@ -31,7 +33,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_execute_core",
         "_original_crew_kickoff",
+        "_original_flow_kickoff",
         "_original_flow_kickoff_async",
+        "_original_execute_with_timeout",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
@@ -69,6 +73,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="crewai",
             name="Crew.kickoff",
             wrapper=crew_kickoff_wrapper,
+        )
+
+        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)
+        self._original_flow_kickoff = getattr(import_module("crewai").Flow, "kickoff", None)
+        wrap_function_wrapper(
+            module="crewai",
+            name="Flow.kickoff",
+            wrapper=flow_kickoff_wrapper,
         )
 
         flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)
@@ -135,6 +147,18 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=base_tool_run_wrapper,
         )
 
+        execute_with_timeout_wrapper = _ExecuteWithTimeoutWrapper(tracer=self._tracer)
+        self._original_execute_with_timeout = getattr(
+            import_module("crewai.agent.core").Agent,
+            "_execute_with_timeout",
+            None,
+        )
+        wrap_function_wrapper(
+            module="crewai.agent.core",
+            name="Agent._execute_with_timeout",
+            wrapper=execute_with_timeout_wrapper,
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_execute_core is not None:
             task_module = import_module("crewai")
@@ -145,6 +169,11 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Crew.kickoff = self._original_crew_kickoff
             self._original_crew_kickoff = None
+
+        if self._original_flow_kickoff is not None:
+            crew_module = import_module("crewai")
+            crew_module.Flow.kickoff = self._original_flow_kickoff
+            self._original_flow_kickoff = None
 
         if self._original_flow_kickoff_async is not None:
             crew_module = import_module("crewai")
@@ -177,3 +206,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_module = import_module("crewai.tools.base_tool")
             base_tool_module.BaseTool.run = self._original_base_tool_run
             self._original_base_tool_run = None
+
+        if self._original_execute_with_timeout is not None:
+            agent_module = import_module("crewai.agent.core")
+            agent_module.Agent._execute_with_timeout = self._original_execute_with_timeout
+            self._original_execute_with_timeout = None

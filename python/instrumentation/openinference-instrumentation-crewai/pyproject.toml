@@ -90,6 +90,11 @@ module = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]
