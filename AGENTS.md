@@ -33,7 +33,7 @@ openinference/
 
 Every instrumentor in **every language** must implement these three features:
 
-1. **Suppress Tracing** — check the suppression key before creating any spans; skip tracing when suppressed
+1. **Suppress Tracing** — check the suppression key **per request** before creating any spans; skip tracing when suppressed
 2. **Context Attribute Propagation** — read session ID, user ID, metadata, and tags from OTel context and attach to each span
 3. **Trace Configuration** — wrap the raw OTel tracer with `OITracer` to support `TraceConfig` masking
 

@@ -57,9 +57,11 @@ For the full list, see the `changedir` section of `python/tox.ini`.
 
 ---
 
-## The Three Required Features
+## The Required Features
 
-Every Python instrumentor must implement these three features.
+Every Python instrumentor must implement these features.
+
+All spans must set `openinference.span.kind` (use `get_span_kind_attributes(...)` or the appropriate helper/builder).
 
 ### Feature 1 — Suppress Tracing
 
@@ -82,7 +84,11 @@ Implement `_uninstrument()` to reverse all monkey-patching and restore the origi
 
 ### Feature 2 — Context Attribute Propagation
 
-**`OITracer` handles this automatically** when you use `OITracer.start_span()` or `OITracer.start_as_current_span()` — no extra code needed. Only call `get_attributes_from_context()` manually if your instrumentor uses a custom span-creation path that bypasses `OITracer`'s `start_span`.
+**`OITracer` handles this automatically** when you use `OITracer.start_span()` or
+`OITracer.start_as_current_span()` — no extra code needed. You may still pass
+`get_attributes_from_context()` explicitly when you defer attribute application (e.g., custom
+span wrappers) or need to control attribute timing. Only call it manually when you bypass
+`OITracer`'s `start_span`, and avoid double-setting unless you intentionally want overrides.
 
 ```python
 from openinference.instrumentation import get_attributes_from_context
@@ -387,7 +393,14 @@ span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(par
 
 ### Pitfall 3 — Importing optional dependencies at module level
 
-**Never import the instrumented library at module level** — not even as a type hint import outside `TYPE_CHECKING`. A top-level `import my_framework` crashes the instrumentor on load if the library isn't installed. All imports of the target library must be inside `_instrument()` or inside the wrapper functions.
+**Never import the instrumented library at module level in any module that is imported
+unconditionally** (e.g., the package `__init__.py`). A top-level `import my_framework` crashes
+the instrumentor on load if the library isn't installed. Imports of the target library must be
+inside `_instrument()` or inside wrapper functions.
+
+**Exception**: module-level imports inside helper modules are OK *only if* those helper modules
+are imported from inside `_instrument()` after confirming the dependency is installed. This keeps
+imports lazy while still allowing normal module-level usage patterns inside the helper.
 
 ```python
 # Wrong — top-level import crashes on load
@@ -399,6 +412,9 @@ def _instrument(self, **kwargs: Any) -> None:
         import my_framework
     except ImportError as e:
         raise RuntimeError("my-framework must be installed") from e
+
+    from ._helpers import add_wrappers  # helper module can import my_framework at module level
+    add_wrappers(my_framework)
 ```
 
 The only exception is `TYPE_CHECKING`-guarded imports — those never execute at runtime and are safe at module level. Everything else from the instrumented library must be a nested import inside `_instrument()` or the wrapper functions.
