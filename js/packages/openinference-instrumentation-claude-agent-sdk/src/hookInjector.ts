@@ -1,3 +1,11 @@
+import type {
+  HookCallback,
+  HookCallbackMatcher,
+  HookEvent,
+  PostToolUseFailureHookInput,
+  PostToolUseHookInput,
+  PreToolUseHookInput,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { Span } from "@opentelemetry/api";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 
@@ -10,28 +18,9 @@ import {
 } from "@arizeai/openinference-semantic-conventions";
 
 /**
- * Structural type for the hooks option in SDK Options/SDKSessionOptions.
- * Matches: Partial<Record<HookEvent, HookCallbackMatcher[]>>
+ * Hook configuration from SDK options, keyed by hook event name.
  */
-type HooksOption = Record<string, HookCallbackMatcher[]>;
-
-/**
- * Structural type matching SDK's HookCallbackMatcher interface.
- */
-interface HookCallbackMatcher {
-  matcher?: string;
-  hooks: HookCallback[];
-  timeout?: number;
-}
-
-/**
- * Structural type matching SDK's HookCallback function.
- */
-type HookCallback = (
-  input: Record<string, unknown>,
-  toolUseID: string | undefined,
-  options: { signal: AbortSignal },
-) => Promise<Record<string, unknown>>;
+type HooksOption = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 
 /**
  * Tracks in-flight tool spans, correlating PreToolUse → PostToolUse/PostToolUseFailure
@@ -129,52 +118,37 @@ export class ToolSpanTracker {
 function createToolHookMatchers(
   toolTracker: ToolSpanTracker,
   parentSpan: Span,
-): Record<string, HookCallbackMatcher[]> {
+): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
   const parentContext = trace.setSpan(context.active(), parentSpan);
 
-  const preToolUse: HookCallbackMatcher = {
-    hooks: [
-      async (input: Record<string, unknown>) => {
-        const toolName = typeof input.tool_name === "string" ? input.tool_name : "unknown";
-        const toolInput = input.tool_input;
-        const toolUseId = typeof input.tool_use_id === "string" ? input.tool_use_id : "";
-        if (toolUseId) {
-          toolTracker.startToolSpan(toolName, toolInput, toolUseId, parentContext);
-        }
-        return {};
-      },
-    ],
+  const preToolUseHook: HookCallback = async (input) => {
+    const { tool_name, tool_input, tool_use_id } = input as PreToolUseHookInput;
+    if (tool_use_id) {
+      toolTracker.startToolSpan(tool_name, tool_input, tool_use_id, parentContext);
+    }
+    return {};
   };
 
-  const postToolUse: HookCallbackMatcher = {
-    hooks: [
-      async (input: Record<string, unknown>) => {
-        const toolUseId = typeof input.tool_use_id === "string" ? input.tool_use_id : "";
-        if (toolUseId) {
-          toolTracker.endToolSpan(toolUseId, input.tool_response);
-        }
-        return {};
-      },
-    ],
+  const postToolUseHook: HookCallback = async (input) => {
+    const { tool_use_id, tool_response } = input as PostToolUseHookInput;
+    if (tool_use_id) {
+      toolTracker.endToolSpan(tool_use_id, tool_response);
+    }
+    return {};
   };
 
-  const postToolUseFailure: HookCallbackMatcher = {
-    hooks: [
-      async (input: Record<string, unknown>) => {
-        const toolUseId = typeof input.tool_use_id === "string" ? input.tool_use_id : "";
-        const error = typeof input.error === "string" ? input.error : "Unknown error";
-        if (toolUseId) {
-          toolTracker.endToolSpanWithError(toolUseId, error);
-        }
-        return {};
-      },
-    ],
+  const postToolUseFailureHook: HookCallback = async (input) => {
+    const { tool_use_id, error } = input as PostToolUseFailureHookInput;
+    if (tool_use_id) {
+      toolTracker.endToolSpanWithError(tool_use_id, error);
+    }
+    return {};
   };
 
   return {
-    PreToolUse: [preToolUse],
-    PostToolUse: [postToolUse],
-    PostToolUseFailure: [postToolUseFailure],
+    PreToolUse: [{ hooks: [preToolUseHook] }],
+    PostToolUse: [{ hooks: [postToolUseHook] }],
+    PostToolUseFailure: [{ hooks: [postToolUseFailureHook] }],
   };
 }
 
@@ -184,19 +158,23 @@ function createToolHookMatchers(
  *
  * Returns a new options object (does not mutate the original).
  */
-export function mergeHooks(
-  options: Record<string, unknown> | undefined,
-  toolTracker: ToolSpanTracker,
-  parentSpan: Span,
-): Record<string, unknown> {
+export function mergeHooks({
+  options,
+  toolTracker,
+  parentSpan,
+}: {
+  options: Record<string, unknown> | undefined;
+  toolTracker: ToolSpanTracker;
+  parentSpan: Span;
+}): Record<string, unknown> {
   const opts = options ?? {};
   const existingHooks = (opts.hooks ?? {}) as HooksOption;
   const ourHooks = createToolHookMatchers(toolTracker, parentSpan);
 
   const mergedHooks: HooksOption = { ...existingHooks };
   for (const [event, matchers] of Object.entries(ourHooks)) {
-    const existing = mergedHooks[event] ?? [];
-    mergedHooks[event] = [...existing, ...matchers];
+    const existing = mergedHooks[event as HookEvent] ?? [];
+    mergedHooks[event as HookEvent] = [...existing, ...matchers];
   }
 
   return { ...opts, hooks: mergedHooks };

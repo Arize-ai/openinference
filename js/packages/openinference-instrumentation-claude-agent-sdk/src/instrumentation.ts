@@ -1,3 +1,11 @@
+import type {
+  Options as SDKOptions,
+  SDKMessage,
+  SDKResultMessage,
+  SDKSession,
+  SDKSessionOptions,
+  SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { Tracer, TracerProvider } from "@opentelemetry/api";
 import { diag } from "@opentelemetry/api";
 import type {
@@ -43,18 +51,17 @@ export function _resetPatchState() {
 }
 
 /**
- * Structural type for the Claude Agent SDK module exports.
- * We use this instead of importing SDK types at runtime.
+ * Typed interface for the Claude Agent SDK module exports.
+ * Uses SDK types directly for compile-time safety.
  */
 interface ClaudeAgentSDKModule {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  query?: (...args: any[]) => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  unstable_v2_createSession?: (...args: any[]) => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  unstable_v2_resumeSession?: (...args: any[]) => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  unstable_v2_prompt?: (...args: any[]) => any;
+  query?: (params: {
+    prompt: string | AsyncIterable<SDKUserMessage>;
+    options?: SDKOptions;
+  }) => AsyncIterable<SDKMessage>;
+  unstable_v2_createSession?: (options: SDKSessionOptions) => SDKSession;
+  unstable_v2_resumeSession?: (sessionId: string, options: SDKSessionOptions) => SDKSession;
+  unstable_v2_prompt?: (message: string, options: SDKSessionOptions) => Promise<SDKResultMessage>;
   openInferencePatched?: boolean;
 }
 
@@ -146,30 +153,33 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
     // Patch V1: query()
     if (typeof sdkModule.query === "function") {
-      sdkModule.query = wrapQuery(sdkModule.query, this.oiTracer);
+      sdkModule.query = wrapQuery({ original: sdkModule.query, oiTracer: this.oiTracer });
     } else {
       diag.debug(`Cannot find query export in ${MODULE_NAME}@${moduleVersion}`);
     }
 
     // Patch V2: unstable_v2_prompt()
     if (typeof sdkModule.unstable_v2_prompt === "function") {
-      sdkModule.unstable_v2_prompt = wrapPrompt(sdkModule.unstable_v2_prompt, this.oiTracer);
+      sdkModule.unstable_v2_prompt = wrapPrompt({
+        original: sdkModule.unstable_v2_prompt,
+        oiTracer: this.oiTracer,
+      });
     }
 
     // Patch V2: unstable_v2_createSession()
     if (typeof sdkModule.unstable_v2_createSession === "function") {
-      sdkModule.unstable_v2_createSession = wrapCreateSession(
-        sdkModule.unstable_v2_createSession,
-        this.oiTracer,
-      );
+      sdkModule.unstable_v2_createSession = wrapCreateSession({
+        original: sdkModule.unstable_v2_createSession,
+        oiTracer: this.oiTracer,
+      });
     }
 
     // Patch V2: unstable_v2_resumeSession()
     if (typeof sdkModule.unstable_v2_resumeSession === "function") {
-      sdkModule.unstable_v2_resumeSession = wrapResumeSession(
-        sdkModule.unstable_v2_resumeSession,
-        this.oiTracer,
-      );
+      sdkModule.unstable_v2_resumeSession = wrapResumeSession({
+        original: sdkModule.unstable_v2_resumeSession,
+        oiTracer: this.oiTracer,
+      });
     }
 
     _isOpenInferencePatched = true;

@@ -109,3 +109,10 @@ export class MyInstrumentation extends InstrumentationBase {
 - Manual module mocking in tests is required due to instrumentation timing
 - Each instrumentor must implement the minimum feature set (suppress tracing, context attributes, trace config)
 - Packages publish to `@arizeai` organization on npm
+
+### Instrumentor Typing Conventions
+
+- **Use SDK types directly**: Import types from the instrumented SDK via `import type`. Do NOT create hand-rolled structural types that duplicate SDK types.
+- **Named object arguments**: Wrapper functions use named object parameters (`{ original, oiTracer }`) instead of positional arguments, for readability and refactor safety.
+- **No `any` types**: Module interfaces and wrapper functions must use strong types from the instrumented SDK. Types are the only thing that gives us confidence that we are instrumenting safely.
+- **Type guards**: Message/event type guards should narrow to actual SDK types, not hand-rolled structural equivalents.

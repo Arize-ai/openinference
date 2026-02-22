@@ -120,7 +120,7 @@ describe("mergeHooks", () => {
     const tracker = new ToolSpanTracker(oiTracer);
     const parentSpan = oiTracer.startSpan("parent");
 
-    const result = mergeHooks(undefined, tracker, parentSpan);
+    const result = mergeHooks({ options: undefined, toolTracker: tracker, parentSpan });
 
     expect(result).toBeDefined();
     const hooks = result.hooks as Record<string, unknown[]>;
@@ -145,7 +145,7 @@ describe("mergeHooks", () => {
       },
     };
 
-    const result = mergeHooks(options, tracker, parentSpan);
+    const result = mergeHooks({ options, toolTracker: tracker, parentSpan });
 
     const hooks = result.hooks as Record<string, unknown[]>;
     // User hook + our hook
@@ -159,7 +159,7 @@ describe("mergeHooks", () => {
     const tracker = new ToolSpanTracker(oiTracer);
     const parentSpan = oiTracer.startSpan("parent");
 
-    const result = mergeHooks({}, tracker, parentSpan);
+    const result = mergeHooks({ options: {}, toolTracker: tracker, parentSpan });
 
     const hooks = result.hooks as Record<
       string,

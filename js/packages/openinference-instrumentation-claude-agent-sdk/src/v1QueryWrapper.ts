@@ -1,3 +1,8 @@
+import type {
+  Options as SDKOptions,
+  SDKMessage,
+  SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { Span } from "@opentelemetry/api";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
@@ -20,25 +25,30 @@ import {
 } from "./messageProcessor";
 
 /**
- * Structural type for the query function's parameters.
- * Matches: query({ prompt, options })
+ * Parameters for the SDK query function.
  */
-interface QueryParams {
-  prompt: string | AsyncIterable<unknown>;
-  options?: Record<string, unknown>;
-}
+type QueryParams = {
+  prompt: string | AsyncIterable<SDKUserMessage>;
+  options?: SDKOptions;
+};
 
 /**
- * The original query function type — returns an async iterable (Query).
+ * The SDK query function type — returns an async iterable of SDK messages.
  */
-type QueryFunction = (params: QueryParams) => AsyncIterable<unknown>;
+type QueryFunction = (params: QueryParams) => AsyncIterable<SDKMessage>;
 
 /**
  * Creates a wrapped version of the SDK's `query()` function that produces
  * AGENT spans and TOOL child spans via hook injection.
  */
-export function wrapQuery(original: QueryFunction, oiTracer: OITracer): QueryFunction {
-  return function wrappedQuery(params: QueryParams): AsyncIterable<unknown> {
+export function wrapQuery({
+  original,
+  oiTracer,
+}: {
+  original: QueryFunction;
+  oiTracer: OITracer;
+}): QueryFunction {
+  return function wrappedQuery(params: QueryParams): AsyncIterable<SDKMessage> {
     const activeContext = context.active();
     if (isTracingSuppressed(activeContext)) {
       return original(params);
@@ -62,7 +72,11 @@ export function wrapQuery(original: QueryFunction, oiTracer: OITracer): QueryFun
         });
 
         // Inject hooks into options
-        const modifiedOptions = mergeHooks(params.options, toolTracker, span);
+        const modifiedOptions = mergeHooks({
+          options: params.options as Record<string, unknown> | undefined,
+          toolTracker,
+          parentSpan: span,
+        });
 
         const innerIterable = original({
           ...params,
@@ -137,7 +151,7 @@ export function wrapQuery(original: QueryFunction, oiTracer: OITracer): QueryFun
  * Processes a message from the SDK generator, setting span attributes
  * based on message type.
  */
-function processMessage(msg: unknown, span: Span): void {
+function processMessage(msg: SDKMessage, span: Span): void {
   if (isSystemInitMessage(msg)) {
     const { sessionId, model } = extractInitAttributes(msg);
     span.setAttributes({
@@ -150,7 +164,7 @@ function processMessage(msg: unknown, span: Span): void {
     span.setAttributes(extractResultErrorAttributes(msg));
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: `Result error: ${(msg as unknown as Record<string, unknown>).subtype}`,
+      message: `Result error: ${msg.subtype}`,
     });
   }
 }

@@ -1,60 +1,18 @@
+import type {
+  SDKResultError,
+  SDKResultMessage,
+  SDKResultSuccess,
+  SDKSystemMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { Attributes } from "@opentelemetry/api";
 
 import { safelyJSONStringify } from "@arizeai/openinference-core";
 import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 /**
- * Structural type for the SDK system init message.
- * Uses runtime shape checks instead of importing SDK types.
- */
-interface SystemInitMessage {
-  type: "system";
-  subtype: "init";
-  session_id: string;
-  model: string;
-  tools: string[];
-}
-
-/**
- * Structural type for usage data from SDK result messages.
- */
-interface UsageData {
-  input_tokens: number;
-  output_tokens: number;
-}
-
-/**
- * Structural type for the SDK result success message.
- */
-interface ResultSuccessMessage {
-  type: "result";
-  subtype: "success";
-  result: string;
-  usage: UsageData;
-  total_cost_usd: number;
-  num_turns: number;
-  duration_ms: number;
-  session_id: string;
-}
-
-/**
- * Structural type for the SDK result error message.
- */
-interface ResultErrorMessage {
-  type: "result";
-  subtype: string;
-  errors?: string[];
-  usage: UsageData;
-  total_cost_usd: number;
-  num_turns: number;
-  duration_ms: number;
-  session_id: string;
-}
-
-/**
  * Type guard: checks if a message is a system init message.
  */
-export function isSystemInitMessage(msg: unknown): msg is SystemInitMessage {
+export function isSystemInitMessage(msg: unknown): msg is SDKSystemMessage {
   return (
     msg != null &&
     typeof msg === "object" &&
@@ -70,7 +28,7 @@ export function isSystemInitMessage(msg: unknown): msg is SystemInitMessage {
 /**
  * Type guard: checks if a message is a result success message.
  */
-export function isResultSuccessMessage(msg: unknown): msg is ResultSuccessMessage {
+export function isResultSuccessMessage(msg: unknown): msg is SDKResultSuccess {
   return (
     msg != null &&
     typeof msg === "object" &&
@@ -86,7 +44,7 @@ export function isResultSuccessMessage(msg: unknown): msg is ResultSuccessMessag
 /**
  * Type guard: checks if a message is a result error message.
  */
-export function isResultErrorMessage(msg: unknown): msg is ResultErrorMessage {
+export function isResultErrorMessage(msg: unknown): msg is SDKResultError {
   return (
     msg != null &&
     typeof msg === "object" &&
@@ -102,14 +60,14 @@ export function isResultErrorMessage(msg: unknown): msg is ResultErrorMessage {
 /**
  * Type guard: checks if a message is any kind of result message (success or error).
  */
-export function isResultMessage(msg: unknown): msg is ResultSuccessMessage | ResultErrorMessage {
+export function isResultMessage(msg: unknown): msg is SDKResultMessage {
   return isResultSuccessMessage(msg) || isResultErrorMessage(msg);
 }
 
 /**
  * Extracts attributes from a system init message.
  */
-export function extractInitAttributes(msg: SystemInitMessage): {
+export function extractInitAttributes(msg: SDKSystemMessage): {
   sessionId: string;
   model: string;
   tools: string[];
@@ -124,7 +82,7 @@ export function extractInitAttributes(msg: SystemInitMessage): {
 /**
  * Extracts span attributes from a result success message.
  */
-export function extractResultSuccessAttributes(msg: ResultSuccessMessage): Attributes {
+export function extractResultSuccessAttributes(msg: SDKResultSuccess): Attributes {
   const attrs: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: msg.result,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
@@ -140,7 +98,7 @@ export function extractResultSuccessAttributes(msg: ResultSuccessMessage): Attri
 /**
  * Extracts span attributes from a result error message.
  */
-export function extractResultErrorAttributes(msg: ResultErrorMessage): Attributes {
+export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
   const attrs: Attributes = {
     [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
     [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: msg.usage.output_tokens,
