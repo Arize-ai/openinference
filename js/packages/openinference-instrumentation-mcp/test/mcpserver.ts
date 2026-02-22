@@ -114,7 +114,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer.address() as AddressInfo).port}/sse`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/sse`,
             );
             resolve();
           }
@@ -197,7 +197,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer.address() as AddressInfo).port}/mcp`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/mcp`,
             );
             resolve();
           }
