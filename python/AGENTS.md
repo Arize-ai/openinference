@@ -1,6 +1,11 @@
 # Python Workspace Guide
 
-> **Always use the helpers from `openinference.instrumentation`**: `safe_json_dumps` for serialization, `get_attributes_from_context` for context attributes, `OITracer`/`TraceConfig` for masking. Rolling custom solutions for these is the most common review blocker.
+> **Start here — two things matter most:**
+> 1. **VCR/cassette tests** are the workflow for both feature development and debugging —
+>    read [Testing Patterns](#testing-patterns) before writing any code or running tests.
+> 2. **Helpers from `openinference.instrumentation`** — check these before writing any
+>    attribute-setting or span-creation logic; rolling custom solutions is the #1 review
+>    blocker. See [Helper Functions](#helper-functions) for the full reference.
 
 ## Setup
 
@@ -14,46 +19,142 @@ pip install -e openinference-instrumentation  # editable install for development
 
 ---
 
-## tox Command Reference
+## Testing Patterns
 
-### How tox factors work (critical, non-obvious)
+Every instrumentor uses **pytest-recording** (built on vcrpy) to capture real API
+interactions as YAML cassettes, then replays them in CI. Combined with
+`InMemorySpanExporter`, you can assert on span attributes without a live API key after the
+initial recording.
 
-An environment string like `ruff-mypy-test-openai` is a **hyphen-delimited conjunction** of 4 factors: `ruff`, `mypy`, `test`, and `openai`. tox creates one virtual environment named after the concatenation and runs all matching factor actions inside it. You will **not** find `ruff-mypy-test-openai` literally defined in `tox.ini` — it is assembled at runtime from its component factors.
+### conftest.py setup
 
-The `-` is a conjunction, not a separator between distinct commands.
+```python
+import pytest
+from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from openinference.instrumentation.<name> import <Name>Instrumentor
 
-### Common commands
+@pytest.fixture(scope="session")
+def vcr_config():
+    return {
+        "filter_headers": ["authorization", "api-key", "x-api-key"],
+        "decode_compressed_response": True,
+        "record_mode": "once",       # record only if cassette is absent, then replay
+        "match_on": ["method", "scheme", "host", "port", "path", "query"],
+    }
+
+@pytest.fixture(scope="module")
+def in_memory_span_exporter() -> InMemorySpanExporter:
+    return InMemorySpanExporter()
+
+@pytest.fixture(scope="module")
+def tracer_provider(in_memory_span_exporter):
+    provider = trace_sdk.TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+    return provider
+
+@pytest.fixture(autouse=True)
+def instrument(tracer_provider, in_memory_span_exporter):
+    in_memory_span_exporter.clear()          # clean slate before each test
+    <Name>Instrumentor().instrument(tracer_provider=tracer_provider)
+    yield
+    <Name>Instrumentor().uninstrument()
+    in_memory_span_exporter.clear()          # don't leak spans into next test
+```
+
+### Recording cassettes
 
 ```bash
-tox run-parallel                     # all CI checks in parallel (all envlist entries)
-tox run -e ruff-openai               # format and lint the openai package
-tox run -e mypy-openai               # type-check the openai package
-tox run -e test-openai               # run tests for the openai package
-tox run -e ruff-mypy-test-openai     # all three checks at once for openai
-tox run -e ruff-openai,ruff-semconv  # multiple packages in one invocation (comma-separated)
+# Record against the real API (requires API key) — creates cassettes/
+pytest tests/ -k test_my_test --vcr-record=once
+
+# Subsequent runs replay cassettes without an API key
+pytest tests/
 ```
 
-Replace `openai` with any package token from the list below.
+Cassettes are stored in `tests/cassettes/` and committed to git so CI needs no API key.
 
-### Package tokens (use in tox commands)
+### Writing a test
 
-Token = directory name with the `openinference-instrumentation-` prefix stripped and
-hyphens replaced by underscores. Two top-level packages use short tokens:
+```python
+@pytest.mark.vcr
+def test_basic_call(in_memory_span_exporter):
+    my_framework_call(...)
 
-| Token | Package |
-|-------|---------|
-| `semconv` | `openinference-semantic-conventions/` |
-| `instrumentation` | `openinference-instrumentation/` |
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
 
-All instrumentors under `instrumentation/` follow the derivation rule:
-
+    # Pop pattern: test fails loudly if attribute is absent
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_MODEL_NAME) == "gpt-4o"
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert not attributes  # strict: no unexpected attributes remain
 ```
-instrumentation/openinference-instrumentation-openai/          → openai
-instrumentation/openinference-instrumentation-openai-agents/   → openai_agents
-instrumentation/openinference-instrumentation-llama-index/     → llama_index
+
+### Required test categories
+
+Test location: `tests/openinference/instrumentation/<name>/`
+
+All three categories must be present:
+
+- **Suppress tracing** — call inside `suppress_tracing()` context; assert zero spans produced.
+- **Context attribute propagation** — call inside `using_session("id")` context; assert `session.id` is set on the span.
+- **Trace config masking** — instrument with `TraceConfig(hide_inputs=True)`; assert `input.value` is absent from span attributes.
+
+Pytest configuration in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 ```
 
-For the full list, see the `changedir` section of `python/tox.ini`.
+### Debugging with cassettes
+
+To investigate unexpected span output or API response shape:
+
+```bash
+# Re-record a single test against the live API (overwrites existing cassette)
+pytest tests/ -k test_my_test --vcr-record=all
+
+# Record only cassettes that don't exist yet (safe default)
+pytest tests/ -k test_my_test --vcr-record=once
+
+# Run without cassettes (live API, no recording — useful for one-off inspection)
+pytest tests/ -k test_my_test --vcr-record=none
+```
+
+Cassette files are plain YAML in `tests/cassettes/`. Open one to inspect the exact
+request/response body the instrumentor saw — this is the fastest way to understand
+why an attribute is missing or has an unexpected value.
+
+---
+
+## Helper Functions
+
+**Check this before writing any attribute-setting or span-creation logic.**
+`openinference.instrumentation` exports typed builders for every common span kind and
+attribute group. Using them is required — not optional — because they handle edge cases
+(mime type inference, safe JSON serialization, correct attribute key names) and their
+absence is the #1 review blocker for new instrumentors.
+
+Key helpers (all importable from `openinference.instrumentation`):
+
+| Helper | Use case |
+|--------|----------|
+| `get_input_attributes(value)` | `input.value` + mime type, inferred or explicit |
+| `get_output_attributes(value)` | `output.value` + mime type |
+| `get_llm_attributes(...)` | model name, system, provider, messages, tools, token counts |
+| `get_embedding_attributes(...)` | model name, embeddings list |
+| `get_retriever_attributes(...)` | flattened `retrieval.documents` array |
+| `get_reranker_attributes(...)` | input/output documents, query, model, top_k |
+| `get_tool_attributes(...)` | name, description, parameters |
+| `get_span_kind_attributes(kind)` | `openinference.span.kind` |
+| `safe_json_dumps(obj)` | safe serializer for params, metadata, schemas |
+
+For the full list see
+`openinference-instrumentation/src/openinference/instrumentation/_attributes.py`.
 
 ---
 
@@ -90,20 +191,6 @@ Implement `_uninstrument()` to reverse all monkey-patching and restore the origi
 span wrappers) or need to control attribute timing. Only call it manually when you bypass
 `OITracer`'s `start_span`, and avoid double-setting unless you intentionally want overrides.
 
-```python
-from openinference.instrumentation import get_attributes_from_context
-
-# Manual fallback — only needed if you bypass OITracer.start_span():
-span = tracer.start_span(
-    name="my-span",
-    attributes=dict(get_attributes_from_context()),
-)
-
-# Or set after span creation:
-with tracer.start_as_current_span(name="my-span") as span:
-    span.set_attributes(dict(get_attributes_from_context()))
-```
-
 Available context managers (imported from `openinference.instrumentation`):
 
 | Context Manager                                       | Purpose                                          |
@@ -117,22 +204,7 @@ Available context managers (imported from `openinference.instrumentation`):
 
 ### Feature 3 — OITracer (TraceConfig masking)
 
-Wrap the raw OTel tracer with `OITracer` so every span respects the user's `TraceConfig` settings (e.g., masking PII).
-
-```python
-from openinference.instrumentation import OITracer, TraceConfig
-import opentelemetry.trace as trace_api
-
-def _instrument(self, **kwargs: Any) -> None:
-    tracer_provider = kwargs.get("tracer_provider") or trace_api.get_tracer_provider()
-    config = kwargs.get("config") or TraceConfig()
-    assert isinstance(config, TraceConfig)
-    tracer = OITracer(
-        trace_api.get_tracer(__name__, __version__, tracer_provider),
-        config=config,
-    )
-    # Use `tracer` (not the raw OTel tracer) for all span creation
-```
+Wrap the raw OTel tracer with `OITracer` so every span respects the user's `TraceConfig` settings (e.g., masking PII). Pass `tracer_provider` and `config` from `**kwargs` (defaulting to `TraceConfig()`) and use the resulting `OITracer` for all span creation — never the raw OTel tracer.
 
 ---
 
@@ -150,215 +222,84 @@ The instrumentor must subclass `BaseInstrumentor` and implement `_instrument()` 
 2. **Required files**:
    - `pyproject.toml` — package metadata, dependencies, tool config
    - `src/openinference/instrumentation/<name>/__init__.py` — instrumentor class
-   - `src/openinference/instrumentation/<name>/version.py` — `__version__` string
-   - `src/openinference/instrumentation/<name>/package.py` — package name constant
+   - `src/openinference/instrumentation/<name>/version.py` — `__version__ = "0.1.0"` (hatch reads via `pyproject.toml`)
+   - `src/openinference/instrumentation/<name>/package.py` — `_instruments` tuple and `_supports_metrics = False`
+   - **`pyproject.toml` entry points** (required for auto-discovery by OTel and OpenInference tooling):
+     ```toml
+     [project.entry-points.opentelemetry_instrumentor]
+     <name> = "openinference.instrumentation.<name>:<Name>Instrumentor"
 
-3. **Register in `python/tox.ini`**:
-   - Add `<token>: instrumentation/openinference-instrumentation-<name>/` under `changedir`
-   - Add `<token>: uv pip install ...` lines under `commands_pre`
+     [project.entry-points.openinference_instrumentor]
+     <name> = "openinference.instrumentation.<name>:<Name>Instrumentor"
+     ```
 
----
+3. **Register in `python/tox.ini`** (three sections must be updated):
+   - Add to **`envlist`**: `py3{9,14}-ci-{<token>,<token>-latest}`
+   - Add to **`changedir`**: `<token>: instrumentation/openinference-instrumentation-<name>/`
+   - Add to **`commands_pre`** (standard 4-line pattern — uninstall, reinstall package, smoke-import, install test deps; add a `-latest` line to upgrade the upstream):
+   ```ini
+   <token>: uv pip install --reinstall-package openinference-instrumentation-<name> .
+   # ... (see existing entries in tox.ini for the full pattern)
+   ```
 
-## Testing Patterns
-
-Test location: `tests/openinference/instrumentation/<name>/`
-
-Required test categories (all three must be present):
-
-```python
-# 1. Suppress tracing test
-def test_suppress_tracing(instrumentor, tracer_provider):
-    with suppress_tracing():
-        result = my_framework_call()
-    assert len(get_spans()) == 0  # no spans created
-
-# 2. Context attribute propagation test
-def test_context_attributes(instrumentor, tracer_provider):
-    with using_session("test-session-id"):
-        result = my_framework_call()
-    spans = get_spans()
-    assert spans[0].attributes["session.id"] == "test-session-id"
-
-# 3. Trace configuration masking test
-def test_trace_config_masking(tracer_provider):
-    config = TraceConfig(hide_inputs=True)
-    instrumentor = MyFrameworkInstrumentor()
-    instrumentor.instrument(tracer_provider=tracer_provider, config=config)
-    result = my_framework_call(input="sensitive data")
-    spans = get_spans()
-    assert "input.value" not in spans[0].attributes
-```
-
-### Preferred attribute assertion pattern
-
-Pop keys from a dict copy so the test fails loudly when an expected attribute is absent:
-
-```python
-# Preferred: pop the key so the test fails if the attribute is missing
-attributes = dict(span.attributes)
-assert attributes.pop("llm.model_name") == "gpt-4o"
-assert attributes.pop("input.value") == "hello"
-# Optional strict variant: assert no unexpected keys remain in a namespace
-# assert not any(k.startswith("input.") for k in attributes)
-```
-
-Pytest configuration in `pyproject.toml`:
-
-```toml
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-```
+4. **Add to `release-please-config.json`** (repo root) so the new package is published to PyPI
+   via release-please automation. See root `AGENTS.md` for details.
 
 ---
 
-## Publishing
+## tox Command Reference
 
-**Conda-Forge**: after initial PyPI publication, create a feedstock once using `grayskull pypi <package-name>` to generate `meta.yaml`, then open a PR to `conda-forge/staged-recipes`. Subsequent releases are handled automatically by the conda-forge bot.
+### How tox factors work (critical, non-obvious)
+
+An environment string like `ruff-mypy-test-openai` is a **hyphen-delimited conjunction** of 4 factors: `ruff`, `mypy`, `test`, and `openai`. tox creates one virtual environment named after the concatenation and runs all matching factor actions inside it. You will **not** find `ruff-mypy-test-openai` literally defined in `tox.ini` — it is assembled at runtime from its component factors.
+
+The `-` is a conjunction, not a separator between distinct commands.
+
+### Common commands
+
+```bash
+tox run-parallel                     # all CI checks in parallel (all envlist entries)
+tox run -e ruff-openai               # format and lint the openai package
+tox run -e mypy-openai               # type-check the openai package
+tox run -e test-openai               # run tests for the openai package
+tox run -e ruff-mypy-test-openai     # all three checks at once for openai
+tox run -e ruff-openai,ruff-semconv  # multiple packages in one invocation (comma-separated)
+```
+
+Replace `openai` with any package token from the list below.
+
+### Package tokens (use in tox commands)
+
+Token = strip the `openinference-instrumentation-` prefix, then replace **all** remaining hyphens with underscores. Two top-level packages use short tokens:
+
+| Token | Package |
+|-------|---------|
+| `semconv` | `openinference-semantic-conventions/` |
+| `instrumentation` | `openinference-instrumentation/` |
+
+All instrumentors under `instrumentation/` follow the derivation rule:
+
+```
+instrumentation/openinference-instrumentation-openai/          → openai
+instrumentation/openinference-instrumentation-openai-agents/   → openai_agents
+instrumentation/openinference-instrumentation-llama-index/     → llama_index
+```
+
+For the full list, see the `changedir` section of `python/tox.ini`.
 
 ---
 
-## Preferred Patterns
+## Additional Patterns
 
-### Pattern 1 — Use helpers from `openinference.instrumentation`
+### Pattern 2 — Explicit PII masking at source
 
-Before writing any attribute-setting logic, check whether `openinference.instrumentation`
-already provides a helper for it. The core library exports typed builders for every common
-span kind and attribute group — use them instead of hand-rolling.
+Don't rely solely on `TraceConfig` to strip secrets. Use one of three approaches in increasing safety order: **blacklist pop** (remove known-sensitive keys after copying the dict), **redact-list filter** (exclude at collection time with a deny-set), or **whitelist** (only collect explicitly known-safe keys — safest, won't leak new fields added by the upstream library).
 
-```python
-from openinference.instrumentation import (
-    get_input_attributes,
-    get_output_attributes,
-    get_llm_attributes,
-    get_tool_attributes,
-    get_retriever_attributes,
-    safe_json_dumps,
-)
+### Pattern 3 — Prevent duplicate spans when frameworks nest instrumented clients
 
-# Input / output (infers mime type automatically)
-span.set_attributes(get_input_attributes(prompt))
-span.set_attributes(get_output_attributes(response.content))
-
-# LLM attributes
-span.set_attributes(get_llm_attributes(
-    model_name=response.model,
-    invocation_parameters=safe_json_dumps(params),
-    token_count=TokenCount(prompt=usage.prompt_tokens, completion=usage.completion_tokens),
-))
-
-# Tool span
-span.set_attributes(get_tool_attributes(name=tool.name, parameters=tool.input_schema))
-
-# Retriever
-span.set_attributes(get_retriever_attributes(documents=docs))
-```
-
-Key helpers available (all importable from `openinference.instrumentation`):
-
-| Helper | Use case |
-|--------|----------|
-| `get_input_attributes(value)` | `input.value` + mime type, inferred or explicit |
-| `get_output_attributes(value)` | `output.value` + mime type |
-| `get_llm_attributes(...)` | model name, system, provider, messages, tools, token counts |
-| `get_embedding_attributes(...)` | model name, embeddings list |
-| `get_retriever_attributes(...)` | flattened `retrieval.documents` array |
-| `get_reranker_attributes(...)` | input/output documents, query, model, top_k |
-| `get_tool_attributes(...)` | name, description, parameters |
-| `get_span_kind_attributes(kind)` | `openinference.span.kind` |
-| `safe_json_dumps(obj)` | safe serializer for params, metadata, schemas |
-
-For the full list see `openinference-instrumentation/src/openinference/instrumentation/_attributes.py`.
-
-### Pattern 2 — TypedDict + TypeGuard for structured extraction
-
-When reading token counts or usage metadata from untyped dicts, define a `TypedDict` for the expected shape and a `TypeGuard` function for validation. This separates validation from extraction and enables mypy strictness.
-
-```python
-from typing import TypedDict
-from typing_extensions import TypeGuard
-
-class UsageDict(TypedDict):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-
-def is_usage_dict(obj: object) -> TypeGuard[UsageDict]:
-    return (
-        isinstance(obj, dict)
-        and isinstance(obj.get("prompt_tokens"), int)
-        and isinstance(obj.get("completion_tokens"), int)
-        and isinstance(obj.get("total_tokens"), int)
-    )
-
-if is_usage_dict(usage):
-    span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, usage["prompt_tokens"])
-```
-
-### Pattern 3 — Explicit PII masking at source
-
-Don't rely solely on `TraceConfig` to strip secrets. Three approaches, in increasing safety order:
-
-```python
-# Blacklist pop — remove known-sensitive keys (DSPy style)
-params = request_params.copy()
-params.pop("api_key", None)
-
-# Redact-list filter — exclude at collection time (LiteLLM style)
-params = {k: v for k, v in kwargs.items() if k not in {"api_key", "messages"}}
-
-# Whitelist — only collect known-safe keys; won't leak new fields (Anthropic style, safest)
-SAFE_PARAMS = {"max_tokens", "model", "temperature", "stream", "top_k", "top_p"}
-params = {k: v for k, v in kwargs.items() if k in SAFE_PARAMS}
-
-span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(params))
-```
-
-### Pattern 4 — Prevent duplicate spans when frameworks nest instrumented clients
-
-When instrumenting an agent framework that itself calls instrumented LLM clients, check for an active LLM parent span before creating a new one:
-
-```python
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from openinference.semconv.trace import SpanAttributes
-
-OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
-
-def _has_active_llm_parent_span() -> bool:
-    span = trace_api.get_current_span()
-    return (
-        span.get_span_context().is_valid
-        and span.is_recording()
-        and isinstance(span, ReadableSpan)
-        and (span.attributes or {}).get(OPENINFERENCE_SPAN_KIND) == "LLM"
-    )
-```
-
-### Pattern 5 — `assert_never` for exhaustive union matching
-
-At the end of a discriminated-union dispatch, add `assert_never` so mypy flags unhandled members when a library adds new types. Used throughout the OpenAI, OpenAI Agents, LlamaIndex, Haystack, and Bedrock instrumentors.
-
-**Variant A — `TYPE_CHECKING`-only** (preferred for external SDK types; zero runtime cost, mypy still enforces exhaustion):
-
-```python
-from typing import TYPE_CHECKING
-from typing_extensions import assert_never
-
-for item in content:
-    if item["type"] == "input_text":
-        yield from _get_text_attributes(item, prefix)
-    elif item["type"] == "input_image":
-        yield from _get_image_attributes(item, prefix)
-    elif TYPE_CHECKING:
-        assert_never(item["type"])  # never runs; mypy catches new union members
-```
-
-**Variant B — runtime assertion** (for internal enums you control; also raises `AssertionError` at runtime):
-
-```python
-else:
-    assert_never(component_type)
-```
+When instrumenting an agent framework that itself calls instrumented LLM clients, check
+`trace_api.get_current_span()` for an active span whose `OPENINFERENCE_SPAN_KIND` attribute
+equals `"LLM"` before creating a new LLM span.
 
 ---
 
@@ -366,58 +307,28 @@ else:
 
 ### Pitfall 1 — Truthiness checks on numeric attributes
 
-`if token_count:` silently drops legitimate zero values. Always use an explicit `None` check for any numeric span attribute (token counts, scores, etc.). This is especially common with cache/detail token fields where zero legitimately means "no cache activity".
-
-```python
-# Wrong — drops zero values (seen in LangChain cache token handling)
-if cache_creation_input_tokens:
-    yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
-
-# Correct
-if cache_creation_input_tokens is not None:
-    yield LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE, cache_creation_input_tokens
-```
+`if token_count:` silently drops legitimate zero values. Always use `if token_count is not None:`
+for any numeric span attribute (token counts, scores, etc.). This is especially common with
+cache/detail token fields where zero legitimately means "no cache activity".
 
 ### Pitfall 2 — `json.dumps()` instead of `safe_json_dumps()`
 
-`json.dumps()` raises on non-serializable objects (custom types, Pydantic models with non-JSON fields). Always use `safe_json_dumps` from `openinference.instrumentation` for all attribute serialization.
+`json.dumps()` raises on non-serializable objects. Always use:
 
 ```python
-# Wrong — raises TypeError on Pydantic models or custom objects
-span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, json.dumps(params))
-
-# Correct
 from openinference.instrumentation import safe_json_dumps
 span.set_attribute(SpanAttributes.LLM_INVOCATION_PARAMETERS, safe_json_dumps(params))
 ```
 
 ### Pitfall 3 — Importing optional dependencies at module level
 
-**Never import the instrumented library at module level in any module that is imported
-unconditionally** (e.g., the package `__init__.py`). A top-level `import my_framework` crashes
-the instrumentor on load if the library isn't installed. Imports of the target library must be
-inside `_instrument()` or inside wrapper functions.
+Never import the instrumented library at module level in any module imported unconditionally (e.g., the package `__init__.py`) — it will crash the instrumentor if the library isn't installed. All target-library imports must be inside `_instrument()` or wrapper functions. The only exception is `TYPE_CHECKING`-guarded imports, which never execute at runtime.
 
-**Exception**: module-level imports inside helper modules are OK *only if* those helper modules
-are imported from inside `_instrument()` after confirming the dependency is installed. This keeps
-imports lazy while still allowing normal module-level usage patterns inside the helper.
+---
 
-```python
-# Wrong — top-level import crashes on load
-import my_framework
+## Publishing
 
-# Correct — deferred inside _instrument
-def _instrument(self, **kwargs: Any) -> None:
-    try:
-        import my_framework
-    except ImportError as e:
-        raise RuntimeError("my-framework must be installed") from e
-
-    from ._helpers import add_wrappers  # helper module can import my_framework at module level
-    add_wrappers(my_framework)
-```
-
-The only exception is `TYPE_CHECKING`-guarded imports — those never execute at runtime and are safe at module level. Everything else from the instrumented library must be a nested import inside `_instrument()` or the wrapper functions.
+**Conda-Forge**: after initial PyPI publication, create a feedstock once using `grayskull pypi <package-name>` to generate `meta.yaml`, then open a PR to `conda-forge/staged-recipes`. Subsequent releases are handled automatically by the conda-forge bot.
 
 ---
 
