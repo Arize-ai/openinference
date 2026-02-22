@@ -34,5 +34,8 @@
   },
   "bugs": {
     "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
   }
 }
