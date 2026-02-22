@@ -291,7 +291,23 @@ function createSessionProxy(
 
           delegatingTracker.setDelegate(currentToolTracker, currentTurnSpan);
 
-          return target.send(message);
+          try {
+            return await target.send(message);
+          } catch (error) {
+            currentToolTracker?.endAllInFlight();
+            if (error instanceof Error) {
+              currentTurnSpan.recordException(error);
+              currentTurnSpan.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+            }
+            currentTurnSpan.end();
+            currentTurnSpan = undefined;
+            currentToolTracker = undefined;
+            delegatingTracker.clearDelegate();
+            throw error;
+          }
         };
       }
 
