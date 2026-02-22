@@ -1,4 +1,6 @@
+import base64
 import inspect
+import io
 import logging
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
@@ -311,7 +313,7 @@ class _RequestAttributesExtractor:
 
     def _get_attributes_from_message_param(
         self,
-        input_contents: Mapping[str, Any],
+        input_contents: Any,
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/6e55222895a6639d41e54202e3d9a963609a391f/google/genai/models.py#L3890 # noqa: E501
         if isinstance(input_contents, str):
@@ -324,9 +326,35 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
             yield from self._get_attributes_from_part(input_contents, 0)
+        elif _is_pil_image(input_contents):
+            # PIL images are accepted by the GenAI SDK as PartUnion and treated as user content
+            yield (MessageAttributes.MESSAGE_ROLE, "user")
+            yield (MessageAttributes.MESSAGE_CONTENT, _pil_image_to_base64_url(input_contents))
+        elif isinstance(input_contents, list):
+            # A list of PartUnion items (e.g., ["text", pil_image, Part(...)])
+            # represents a single user turn with multiple parts
+            yield (MessageAttributes.MESSAGE_ROLE, "user")
+            content_parts = []
+            for item in input_contents:
+                if isinstance(item, str):
+                    content_parts.append(item)
+                elif isinstance(item, Part):
+                    if text := get_attribute(item, "text"):
+                        content_parts.append(text)
+                    elif inline_data := get_attribute(item, "inline_data"):
+                        content_parts.append(
+                            _get_base64_url_from_inline_data(inline_data)
+                        )
+                    else:
+                        content_parts.append("[non-text content]")
+                elif _is_pil_image(item):
+                    content_parts.append(_pil_image_to_base64_url(item))
+                else:
+                    content_parts.append(f"[{type(item).__name__}]")
+            if content_parts:
+                yield (MessageAttributes.MESSAGE_CONTENT, "\n\n".join(content_parts))
         else:
-            # TODO: Implement for File, PIL_Image
-            logger.exception(f"Unexpected input contents type: {type(input_contents)}")
+            logger.warning(f"Unexpected input contents type: {type(input_contents)}")
 
     def _get_attributes_from_content(
         self, content: Content
@@ -427,8 +455,13 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_function_call(function_call, tool_call_index)
         elif function_response := get_attribute(part, "function_response"):
             yield from self._get_attributes_from_function_response(function_response)
+        elif inline_data := get_attribute(part, "inline_data"):
+            yield (
+                MessageAttributes.MESSAGE_CONTENT,
+                _get_base64_url_from_inline_data(inline_data),
+            )
         else:
-            logger.exception("Other field types of parts are not supported yet")
+            logger.warning("Unsupported part type encountered: %s", type(part))
 
 
 T = TypeVar("T", bound=type)
@@ -442,3 +475,59 @@ def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(attr_name, default)
     return getattr(obj, attr_name, default)
+
+def _is_pil_image(obj: Any) -> bool:
+    """Check if an object is a PIL Image without requiring PIL to be installed."""
+    if obj is None:
+        return False
+    # Use the same heuristic as the Google GenAI SDK: check if 'image' appears
+    # in the class name, then do a proper isinstance check.
+    if "image" not in obj.__class__.__name__.lower():
+        return False
+    try:
+        import PIL.Image
+
+        return isinstance(obj, PIL.Image.Image)
+    except ImportError:
+        return False
+
+
+def _pil_image_to_base64_url(image: Any) -> str:
+    """Convert a PIL Image to a base64 data URL string.
+
+    Returns a data URL like 'data:image/png;base64,...' or '[image]' on failure.
+    """
+    try:
+        image_format = "PNG"
+        if getattr(image, "format", None) == "JPEG":
+            image_format = "JPEG"
+
+        buffer = io.BytesIO()
+        image.save(buffer, format=image_format)
+        image_bytes = buffer.getvalue()
+        mime_type = f"image/{image_format.lower()}"
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:{mime_type};base64,{encoded}"
+    except Exception:
+        logger.debug("Failed to convert PIL image to base64", exc_info=True)
+        return "[image]"
+
+
+def _get_base64_url_from_inline_data(inline_data: Any) -> str:
+    """Convert inline_data (Blob) from a Part to a base64 data URL string."""
+    try:
+        mime_type = get_attribute(inline_data, "mime_type") or "application/octet-stream"
+        data = get_attribute(inline_data, "data")
+        if data is None:
+            return f"[{mime_type} content]"
+        if isinstance(data, bytes):
+            encoded = base64.b64encode(data).decode("utf-8")
+        elif isinstance(data, str):
+            # Already base64-encoded
+            encoded = data
+        else:
+            return f"[{mime_type} content]"
+        return f"data:{mime_type};base64,{encoded}"
+    except Exception:
+        logger.debug("Failed to convert inline_data to base64", exc_info=True)
+        return "[inline data]"
