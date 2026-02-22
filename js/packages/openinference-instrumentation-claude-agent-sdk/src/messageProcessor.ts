@@ -1,0 +1,174 @@
+import type { Attributes } from "@opentelemetry/api";
+
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+/**
+ * Structural type for the SDK system init message.
+ * Uses runtime shape checks instead of importing SDK types.
+ */
+interface SystemInitMessage {
+  type: "system";
+  subtype: "init";
+  session_id: string;
+  model: string;
+  tools: string[];
+}
+
+/**
+ * Structural type for usage data from SDK result messages.
+ */
+interface UsageData {
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/**
+ * Structural type for the SDK result success message.
+ */
+interface ResultSuccessMessage {
+  type: "result";
+  subtype: "success";
+  result: string;
+  usage: UsageData;
+  total_cost_usd: number;
+  num_turns: number;
+  duration_ms: number;
+  session_id: string;
+}
+
+/**
+ * Structural type for the SDK result error message.
+ */
+interface ResultErrorMessage {
+  type: "result";
+  subtype: string;
+  errors?: string[];
+  usage: UsageData;
+  total_cost_usd: number;
+  num_turns: number;
+  duration_ms: number;
+  session_id: string;
+}
+
+/**
+ * Type guard: checks if a message is a system init message.
+ */
+export function isSystemInitMessage(msg: unknown): msg is SystemInitMessage {
+  return (
+    msg != null &&
+    typeof msg === "object" &&
+    "type" in msg &&
+    (msg as Record<string, unknown>).type === "system" &&
+    "subtype" in msg &&
+    (msg as Record<string, unknown>).subtype === "init" &&
+    "session_id" in msg &&
+    "model" in msg
+  );
+}
+
+/**
+ * Type guard: checks if a message is a result success message.
+ */
+export function isResultSuccessMessage(msg: unknown): msg is ResultSuccessMessage {
+  return (
+    msg != null &&
+    typeof msg === "object" &&
+    "type" in msg &&
+    (msg as Record<string, unknown>).type === "result" &&
+    "subtype" in msg &&
+    (msg as Record<string, unknown>).subtype === "success" &&
+    "result" in msg &&
+    "usage" in msg
+  );
+}
+
+/**
+ * Type guard: checks if a message is a result error message.
+ */
+export function isResultErrorMessage(msg: unknown): msg is ResultErrorMessage {
+  return (
+    msg != null &&
+    typeof msg === "object" &&
+    "type" in msg &&
+    (msg as Record<string, unknown>).type === "result" &&
+    "subtype" in msg &&
+    typeof (msg as Record<string, unknown>).subtype === "string" &&
+    ((msg as Record<string, unknown>).subtype as string).startsWith("error") &&
+    "usage" in msg
+  );
+}
+
+/**
+ * Type guard: checks if a message is any kind of result message (success or error).
+ */
+export function isResultMessage(msg: unknown): msg is ResultSuccessMessage | ResultErrorMessage {
+  return isResultSuccessMessage(msg) || isResultErrorMessage(msg);
+}
+
+/**
+ * Extracts attributes from a system init message.
+ */
+export function extractInitAttributes(msg: SystemInitMessage): {
+  sessionId: string;
+  model: string;
+  tools: string[];
+} {
+  return {
+    sessionId: msg.session_id,
+    model: msg.model,
+    tools: msg.tools,
+  };
+}
+
+/**
+ * Extracts span attributes from a result success message.
+ */
+export function extractResultSuccessAttributes(msg: ResultSuccessMessage): Attributes {
+  const attrs: Attributes = {
+    [SemanticConventions.OUTPUT_VALUE]: msg.result,
+    [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
+    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
+    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: msg.usage.output_tokens,
+    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
+    [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
+    [SemanticConventions.SESSION_ID]: msg.session_id,
+  };
+  return attrs;
+}
+
+/**
+ * Extracts span attributes from a result error message.
+ */
+export function extractResultErrorAttributes(msg: ResultErrorMessage): Attributes {
+  const attrs: Attributes = {
+    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: msg.usage.input_tokens,
+    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: msg.usage.output_tokens,
+    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: msg.usage.input_tokens + msg.usage.output_tokens,
+    [SemanticConventions.LLM_COST_TOTAL]: msg.total_cost_usd,
+    [SemanticConventions.SESSION_ID]: msg.session_id,
+  };
+  const errorMessages = msg.errors;
+  if (errorMessages && errorMessages.length > 0) {
+    attrs[SemanticConventions.OUTPUT_VALUE] = safelyJSONStringify(errorMessages) ?? "";
+    attrs[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+  return attrs;
+}
+
+/**
+ * Formats a prompt value for setting as input.value on a span.
+ * Strings are set as text/plain, objects as application/json.
+ */
+export function formatPromptAttributes(prompt: string | unknown): {
+  inputValue: string;
+  inputMimeType: string;
+} {
+  if (typeof prompt === "string") {
+    return { inputValue: prompt, inputMimeType: MimeType.TEXT };
+  }
+  return {
+    inputValue: safelyJSONStringify(prompt) ?? "",
+    inputMimeType: MimeType.JSON,
+  };
+}
