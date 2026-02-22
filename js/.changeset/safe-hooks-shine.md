@@ -1,11 +1,12 @@
 ---
-"@arizeai/openinference-instrumentation-claude-agent-sdk": patch
+"@arizeai/openinference-instrumentation-claude-agent-sdk": minor
 ---
 
-fix: improve type safety and robustness of hook injection
+Initial release of OpenInference instrumentation for Claude Agent SDK
 
-- Make mergeHooks generic to eliminate unsafe Record<string, unknown> casts
-- Add asRecord helper for safe toolInput coercion
-- Wrap hook callbacks in try-catch to prevent instrumentation from breaking the SDK
-- Use hook_event_name discriminant narrowing instead of as casts
-- Store and restore original functions in unpatch() to prevent double-wrapping
+- Instruments V1 (`query()`) and V2 (`unstable_v2_prompt`, `unstable_v2_createSession`, `unstable_v2_resumeSession`) APIs
+- Produces AGENT spans for query/prompt/session-turn lifecycles
+- Produces TOOL child spans via hook injection (PreToolUse/PostToolUse/PostToolUseFailure)
+- Captures input/output values, token counts, cost, session ID, and model name
+- Supports trace configuration for masking sensitive data
+- Supports both CommonJS and ESM module loading
