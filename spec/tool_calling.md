@@ -78,11 +78,12 @@ Tool results are typically represented as input messages with role "tool":
 {
   "llm.input_messages.3.message.role": "tool",
   "llm.input_messages.3.message.content": "{\"temperature\": 72, \"condition\": \"sunny\"}",
-  "llm.input_messages.3.message.tool_call_id": "call_abc123"
+  "llm.input_messages.3.message.tool_call_id": "call_abc123",
+  "llm.input_messages.3.message.name": "get_weather"
 }
 ```
 
-The `message.tool_call_id` links the result back to the original tool call.
+The `message.tool_call_id` links the result back to the original tool call. The `message.name` attribute MAY be set to identify which function produced the result — it typically matches `tool_call.function.name` from the corresponding tool call.
 
 ## Complete Tool Call Flow Example
 

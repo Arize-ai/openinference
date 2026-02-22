@@ -21,6 +21,22 @@ LLM spans typically include:
 - `llm.output_messages`: Flattened list of output messages
 - `llm.token_count.*`: Token usage metrics
 
+## Context Attributes
+
+All LLM spans automatically inherit context attributes when they are set via the instrumentation context API. These attributes are propagated to every span in the trace without needing to be explicitly set on each span:
+
+| Attribute | Description |
+| --------- | ----------- |
+| `session.id` | Unique identifier for the session |
+| `user.id` | Unique identifier for the user |
+| `metadata` | JSON string of key-value metadata associated with the trace |
+| `tag.tags` | List of string tags for categorizing the span |
+| `llm.prompt_template.template` | The prompt template used to generate the LLM input |
+| `llm.prompt_template.variables` | JSON of key-value pairs applied to the prompt template |
+| `llm.prompt_template.version` | Version identifier for the prompt template |
+
+See [Configuration](./configuration.md) for details on how to set these context attributes.
+
 ## Attribute Flattening
 
 Note that while the examples below show attributes in a nested JSON format for readability, in actual OpenTelemetry spans, these attributes are flattened using indexed dot notation:
@@ -28,6 +44,21 @@ Note that while the examples below show attributes in a nested JSON format for r
 - `llm.input_messages.0.message.role` instead of `llm.input_messages[0].message.role`
 - `llm.output_messages.0.message.tool_calls.0.tool_call.function.name` for nested tool calls
 - `llm.tools.0.tool.json_schema` for tool definitions
+
+## Tool Role Messages
+
+When a message with `message.role` set to `"tool"` represents the result of a function call, the `message.name` attribute MAY be set to identify which function produced the result. This complements `message.tool_call_id`, which links the result back to the original tool call request. For example:
+
+```json
+{
+    "message.role": "tool",
+    "message.content": "2001",
+    "message.name": "multiply",
+    "message.tool_call_id": "call_62136355"
+}
+```
+
+See [Tool Calling](./tool_calling.md) for the complete tool calling flow.
 
 ## Examples
 
@@ -49,6 +80,8 @@ A span for a tool call with OpenAI (shown in logical JSON format for clarity)
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
         "llm.input_messages": [
             {
                 "message.role": "system",
@@ -88,13 +121,15 @@ A synthesis call using a function call output
         "trace_id": "409df945-e058-4829-b240-cfbdd2ff4488",
         "span_id": "f26d1f26-9671-435d-9716-14a87a3f228b"
     },
-    "span_kind": "LLM",
+    "span_kind": "SPAN_KIND_INTERNAL",
     "parent_id": "2fe8a793-2cf1-42d7-a1df-bd7d46e017ef",
     "start_time": "2024-01-11T16:45:18.519427-07:00",
     "end_time": "2024-01-11T16:45:19.159145-07:00",
     "status_code": "OK",
     "status_message": "",
     "attributes": {
+        "openinference.span.kind": "LLM",
+        "llm.system": "openai",
         "llm.input_messages": [
             {
                 "message.role": "system",
