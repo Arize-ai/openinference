@@ -66,7 +66,7 @@
     "@pollyjs/core": "^6.0.6",
     "@pollyjs/persister-fs": "^6.0.6",
     "@smithy/util-stream": "^4.2.3",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0"

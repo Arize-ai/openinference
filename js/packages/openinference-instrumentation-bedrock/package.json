@@ -61,7 +61,7 @@
     "nock": "^13.5.0",
     "tsx": "^4.7.0",
     "vitest": "^4.0.3",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.0.0"

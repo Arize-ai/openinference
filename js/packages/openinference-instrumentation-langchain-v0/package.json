@@ -57,6 +57,6 @@
     "dotenv": "^16.4.5",
     "langchain": "^0.3.3",
     "openai": "^4.52.7",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3"
   }
 }
