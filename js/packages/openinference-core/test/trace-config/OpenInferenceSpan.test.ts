@@ -1,12 +1,8 @@
-import { Span } from "@opentelemetry/api";
-
-import {
-  DefaultTraceConfig,
-  REDACTED_VALUE,
-} from "../../src/trace/trace-config/constants";
-import { OISpan } from "../../src/trace/trace-config/OISpan";
-
+import type { Span } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, type Mocked, vi } from "vitest";
+
+import { DefaultTraceConfig, REDACTED_VALUE } from "../../src/trace/trace-config/constants";
+import { OISpan } from "../../src/trace/trace-config/OISpan";
 describe("OISpan", () => {
   describe("OISpan", () => {
     let mockSpan: Mocked<Span>;
@@ -36,11 +32,7 @@ describe("OISpan", () => {
       openInferenceSpan.setAttributes({ key: "value" });
       expect(mockSpan.setAttributes).toHaveBeenCalledWith({ key: "value" });
       openInferenceSpan.addEvent("name");
-      expect(mockSpan.addEvent).toHaveBeenCalledWith(
-        "name",
-        undefined,
-        undefined,
-      );
+      expect(mockSpan.addEvent).toHaveBeenCalledWith("name", undefined, undefined);
       openInferenceSpan.addLink({
         context: { spanId: "spanId", traceId: "traceId", traceFlags: 1 },
       });
@@ -58,10 +50,7 @@ describe("OISpan", () => {
       openInferenceSpan.isRecording();
       expect(mockSpan.isRecording).toHaveBeenCalled();
       openInferenceSpan.recordException(new Error());
-      expect(mockSpan.recordException).toHaveBeenCalledWith(
-        new Error(),
-        undefined,
-      );
+      expect(mockSpan.recordException).toHaveBeenCalledWith(new Error(), undefined);
       openInferenceSpan.updateName("name");
       expect(mockSpan.updateName).toHaveBeenCalledWith("name");
       openInferenceSpan.setStatus({ code: 1 });
@@ -77,10 +66,7 @@ describe("OISpan", () => {
           config: { ...DefaultTraceConfig, hideInputs: true },
         });
         openInferenceSpan.setAttribute("input.value", "sensitiveValue");
-        expect(mockSpan.setAttribute).toHaveBeenCalledWith(
-          "input.value",
-          REDACTED_VALUE,
-        );
+        expect(mockSpan.setAttribute).toHaveBeenCalledWith("input.value", REDACTED_VALUE);
       });
 
       it("should not mask non-sensitive attributes", () => {
@@ -89,10 +75,7 @@ describe("OISpan", () => {
           config: { ...DefaultTraceConfig, hideInputs: true },
         });
         openInferenceSpan.setAttribute("normalKey", "normalValue");
-        expect(mockSpan.setAttribute).toHaveBeenCalledWith(
-          "normalKey",
-          "normalValue",
-        );
+        expect(mockSpan.setAttribute).toHaveBeenCalledWith("normalKey", "normalValue");
       });
     });
 

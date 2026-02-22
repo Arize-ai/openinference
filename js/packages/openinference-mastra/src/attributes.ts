@@ -1,15 +1,12 @@
-import {
-  safelyJSONParse,
-  safelyJSONStringify,
-} from "@arizeai/openinference-core";
+import { diag } from "@opentelemetry/api";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
+import { safelyJSONParse, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 import { addOpenInferenceAttributesToSpan as addOpenInferenceAttributesToSpanVercel } from "@arizeai/openinference-vercel/utils";
-
-import { diag } from "@opentelemetry/api";
-import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 
 // openinference-vercel is typed against OTel v1 ReadableSpan, while Mastra uses OTel v2.
 // At runtime we only need span.attributes, so keep the call but erase the type.
@@ -31,10 +28,7 @@ import { addOpenInferenceProjectResourceAttributeSpan } from "./utils.js";
  *
  * This function will add the OpenInference span kind to the given Mastra span.
  */
-const addOpenInferenceSpanKind = (
-  span: ReadableSpan,
-  kind: OpenInferenceSpanKind,
-) => {
+const addOpenInferenceSpanKind = (span: ReadableSpan, kind: OpenInferenceSpanKind) => {
   span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] = kind;
 };
 
@@ -64,9 +58,7 @@ const getOpenInferenceSpanKind = (span: ReadableSpan) => {
  */
 export const isAgentOperation = (span: ReadableSpan): boolean => {
   const spanName = span.name.toLowerCase();
-  return !!MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) =>
-    spanName.startsWith(prefix),
-  );
+  return !!MASTRA_AGENT_SPAN_NAME_PREFIXES.some((prefix) => spanName.startsWith(prefix));
 };
 
 /**
@@ -141,9 +133,7 @@ export const addOpenInferenceAttributesToMastraSpan = (span: ReadableSpan) => {
  */
 export const processMastraSpanAttributes = (span: ReadableSpan): void => {
   addOpenInferenceProjectResourceAttributeSpan(span);
-  addOpenInferenceAttributesToSpan(
-    span as unknown as { attributes: Record<string, unknown> },
-  );
+  addOpenInferenceAttributesToSpan(span as unknown as { attributes: Record<string, unknown> });
   addOpenInferenceAttributesToMastraSpan(span);
 };
 
@@ -202,9 +192,7 @@ const isChatMessages = (messages: unknown): messages is ChatMessage[] => {
  * @param messages - Array of chat messages to search through
  * @returns The content of the last user message as a string, or undefined if no user message is found
  */
-const extractLastUserMessage = (
-  messages: ChatMessage[],
-): string | undefined => {
+const extractLastUserMessage = (messages: ChatMessage[]): string | undefined => {
   // Find the last user message
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
@@ -227,14 +215,11 @@ const extractLastUserMessage = (
  * @param spans - Array of spans to search through from a given trace.
  * @returns The extracted user input or undefined if not found.
  */
-export const extractMastraUserInput = (
-  spans: ReadableSpan[],
-): string | null | undefined => {
+export const extractMastraUserInput = (spans: ReadableSpan[]): string | null | undefined => {
   for (const span of spans) {
     switch (span.name) {
       case MastraSpanNames.AGENT_GET_RECENT_MESSAGE: {
-        const result =
-          span.attributes[MastraSpanAttributes.AGENT_GET_RECENT_MESSAGE_RESULT];
+        const result = span.attributes[MastraSpanAttributes.AGENT_GET_RECENT_MESSAGE_RESULT];
         if (typeof result === "string") {
           const messageData = safelyJSONParse(result);
           if (
@@ -251,8 +236,7 @@ export const extractMastraUserInput = (
       }
 
       case MastraSpanNames.AGENT_GENERATE: {
-        const argument =
-          span.attributes[MastraSpanAttributes.AGENT_GENERATE_ARGUMENT];
+        const argument = span.attributes[MastraSpanAttributes.AGENT_GENERATE_ARGUMENT];
         if (typeof argument === "string") {
           const parsedArgument = safelyJSONParse(argument);
           if (parsedArgument === null) {
@@ -268,8 +252,7 @@ export const extractMastraUserInput = (
       }
 
       case MastraSpanNames.AGENT_STREAM: {
-        const argument =
-          span.attributes[MastraSpanAttributes.AGENT_STREAM_ARGUMENT];
+        const argument = span.attributes[MastraSpanAttributes.AGENT_STREAM_ARGUMENT];
         if (typeof argument === "string") {
           const messages = safelyJSONParse(argument);
           if (messages === null) {
@@ -300,9 +283,7 @@ export const extractMastraUserInput = (
  * @param spans - Array of spans to search through.
  * @returns The extracted agent output or undefined if not found.
  */
-export const extractMastraAgentOutput = (
-  spans: ReadableSpan[],
-): string | undefined => {
+export const extractMastraAgentOutput = (spans: ReadableSpan[]): string | undefined => {
   // Look for output.value in any span (typically ai.streamText or similar)
   for (const span of spans) {
     const outputValue = span.attributes[SemanticConventions.OUTPUT_VALUE];
@@ -324,9 +305,7 @@ export const extractMastraAgentOutput = (
  * @param spans - Array of spans to process.
  */
 export const addIOToRootSpans = (spans: ReadableSpan[]): void => {
-  const rootSpans = spans.filter(
-    (span) => span.parentSpanContext === undefined,
-  );
+  const rootSpans = spans.filter((span) => span.parentSpanContext === undefined);
 
   if (!rootSpans.length) {
     return;

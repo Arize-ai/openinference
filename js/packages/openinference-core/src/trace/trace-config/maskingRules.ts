@@ -1,9 +1,9 @@
+import type { AttributeValue } from "@opentelemetry/api";
+
 import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { AttributeValue } from "@opentelemetry/api";
-
 import { REDACTED_VALUE } from "./constants";
-import { MaskingRule, MaskingRuleArgs } from "./types";
+import type { MaskingRule, MaskingRuleArgs } from "./types";
 
 /**
  * Masks (redacts) input text in LLM input messages.
@@ -97,11 +97,7 @@ const maskInputImagesRule: MaskingRule = {
 };
 
 function isBase64Url(url?: AttributeValue): boolean {
-  return (
-    typeof url === "string" &&
-    url.startsWith("data:image/") &&
-    url.includes("base64")
-  );
+  return typeof url === "string" && url.startsWith("data:image/") && url.includes("base64");
 }
 
 /**
@@ -152,8 +148,7 @@ const maskEmbeddingVectorsRule: MaskingRule = {
  *  }) // returns true so the rule applies and the value will be redacted
  */
 const maskPromptsRule: MaskingRule = {
-  condition: ({ config, key }) =>
-    config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
+  condition: ({ config, key }) => config.hidePrompts && key === SemanticConventions.LLM_PROMPTS,
   action: () => REDACTED_VALUE,
 };
 
@@ -164,8 +159,7 @@ const maskPromptsRule: MaskingRule = {
  */
 const maskingRules: MaskingRule[] = [
   {
-    condition: ({ config, key }) =>
-      config.hideInputs && key === SemanticConventions.INPUT_VALUE,
+    condition: ({ config, key }) => config.hideInputs && key === SemanticConventions.INPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -174,8 +168,7 @@ const maskingRules: MaskingRule[] = [
     action: () => undefined,
   },
   {
-    condition: ({ config, key }) =>
-      config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
+    condition: ({ config, key }) => config.hideOutputs && key === SemanticConventions.OUTPUT_VALUE,
     action: () => REDACTED_VALUE,
   },
   {
@@ -213,11 +206,7 @@ const maskingRules: MaskingRule[] = [
  * @param params.value - The value of the attribute to mask
  * @returns The redacted value or undefined if the value should be masked, otherwise the original value
  */
-export function mask({
-  config,
-  key,
-  value,
-}: MaskingRuleArgs): AttributeValue | undefined {
+export function mask({ config, key, value }: MaskingRuleArgs): AttributeValue | undefined {
   for (const rule of maskingRules) {
     if (rule.condition({ config, key, value })) {
       return rule.action();

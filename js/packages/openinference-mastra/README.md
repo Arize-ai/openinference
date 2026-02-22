@@ -32,10 +32,7 @@ export PHOENIX_API_KEY="your-api-key"
 
 ```typescript
 import { Mastra } from "@mastra/core";
-import {
-  OpenInferenceOTLPTraceExporter,
-  isOpenInferenceSpan,
-} from "@arizeai/openinference-mastra";
+import { OpenInferenceOTLPTraceExporter, isOpenInferenceSpan } from "@arizeai/openinference-mastra";
 
 export const mastra = new Mastra({
   // ... other config
@@ -87,10 +84,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 import { Mastra } from "@mastra/core/mastra";
 import { createLogger } from "@mastra/core/logger";
 import { LibSQLStore } from "@mastra/libsql";
-import {
-  isOpenInferenceSpan,
-  OpenInferenceOTLPTraceExporter,
-} from "@arizeai/openinference-mastra";
+import { isOpenInferenceSpan, OpenInferenceOTLPTraceExporter } from "@arizeai/openinference-mastra";
 
 import { weatherAgent } from "./agents";
 

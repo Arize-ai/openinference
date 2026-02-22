@@ -1,4 +1,4 @@
-import { Attributes } from "@opentelemetry/api";
+import type { Attributes } from "@opentelemetry/api";
 import { isAttributeValue } from "@opentelemetry/core";
 
 /**
@@ -15,9 +15,7 @@ export function isStringArray(value: unknown): value is string[] {
  * @param value
  * @returns true if the value is an object, false otherwise.
  */
-function isObject(
-  value: unknown,
-): value is Record<string | number | symbol, unknown> {
+function isObject(value: unknown): value is Record<string | number | symbol, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -26,13 +24,8 @@ function isObject(
  * @param value
  * @returns true if the value is an object with string keys, false otherwise.
  */
-export function isObjectWithStringKeys(
-  value: unknown,
-): value is Record<string, unknown> {
-  return (
-    isObject(value) &&
-    Object.keys(value).every((key) => typeof key === "string")
-  );
+export function isObjectWithStringKeys(value: unknown): value is Record<string, unknown> {
+  return isObject(value) && Object.keys(value).every((key) => typeof key === "string");
 }
 
 /**

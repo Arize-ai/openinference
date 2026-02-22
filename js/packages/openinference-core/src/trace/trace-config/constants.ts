@@ -1,28 +1,23 @@
-import { TraceConfig, TraceConfigFlag, TraceConfigKey } from "./types";
+import type { TraceConfig, TraceConfigFlag, TraceConfigKey } from "./types";
 
 /** Hides input value & messages */
 export const OPENINFERENCE_HIDE_INPUTS = "OPENINFERENCE_HIDE_INPUTS";
 /** Hides output value & messages */
 export const OPENINFERENCE_HIDE_OUTPUTS = "OPENINFERENCE_HIDE_OUTPUTS";
 /** Hides all input messages */
-export const OPENINFERENCE_HIDE_INPUT_MESSAGES =
-  "OPENINFERENCE_HIDE_INPUT_MESSAGES";
+export const OPENINFERENCE_HIDE_INPUT_MESSAGES = "OPENINFERENCE_HIDE_INPUT_MESSAGES";
 /** Hides all output messages */
-export const OPENINFERENCE_HIDE_OUTPUT_MESSAGES =
-  "OPENINFERENCE_HIDE_OUTPUT_MESSAGES";
+export const OPENINFERENCE_HIDE_OUTPUT_MESSAGES = "OPENINFERENCE_HIDE_OUTPUT_MESSAGES";
 /** Hides images from input messages */
-export const OPENINFERENCE_HIDE_INPUT_IMAGES =
-  "OPENINFERENCE_HIDE_INPUT_IMAGES";
+export const OPENINFERENCE_HIDE_INPUT_IMAGES = "OPENINFERENCE_HIDE_INPUT_IMAGES";
 /** Hides text from input messages */
 export const OPENINFERENCE_HIDE_INPUT_TEXT = "OPENINFERENCE_HIDE_INPUT_TEXT";
 /** Hides text from output messages */
 export const OPENINFERENCE_HIDE_OUTPUT_TEXT = "OPENINFERENCE_HIDE_OUTPUT_TEXT";
 /** Hides embedding vectors */
-export const OPENINFERENCE_HIDE_EMBEDDING_VECTORS =
-  "OPENINFERENCE_HIDE_EMBEDDING_VECTORS";
+export const OPENINFERENCE_HIDE_EMBEDDING_VECTORS = "OPENINFERENCE_HIDE_EMBEDDING_VECTORS";
 /** Limits characters of a base64 encoding of an image */
-export const OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH =
-  "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH";
+export const OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH = "OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH";
 /** Hides LLM prompts */
 export const OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS";
 
@@ -48,9 +43,7 @@ export const REDACTED_VALUE = "__REDACTED__";
  * The default, environment, and type information for each value on the TraceConfig
  * Used to generate a full TraceConfig object with the correct types and default values
  */
-export const traceConfigMetadata: Readonly<
-  Record<TraceConfigKey, TraceConfigFlag>
-> = {
+export const traceConfigMetadata: Readonly<Record<TraceConfigKey, TraceConfigFlag>> = {
   hideInputs: {
     default: DEFAULT_HIDE_INPUTS,
     envKey: OPENINFERENCE_HIDE_INPUTS,

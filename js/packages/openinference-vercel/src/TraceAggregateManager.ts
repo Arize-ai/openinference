@@ -1,5 +1,5 @@
 import { SpanStatusCode } from "@opentelemetry/api";
-import { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
+import type { ReadableSpan, Span } from "@opentelemetry/sdk-trace-base";
 
 import { addOpenInferenceAttributesToSpan } from "./utils";
 
@@ -19,14 +19,10 @@ const isLikelyAISDKSpan = (span: ReadableSpan | Span): boolean => {
   if (typeof opId === "string" && opId.startsWith("ai.")) return true;
 
   // gen_ai.* indicates AI SDK v6+ GenAI spans
-  return (
-    attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai."))
-  );
+  return attrs != null && Object.keys(attrs).some((k) => k.startsWith("gen_ai."));
 };
 
-const spanHasErrorSignal = (
-  span: ReadableSpan,
-): { error: boolean; message?: string } => {
+const spanHasErrorSignal = (span: ReadableSpan): { error: boolean; message?: string } => {
   if (span.status.code === SpanStatusCode.ERROR) {
     return { error: true, message: span.status.message };
   }
@@ -60,9 +56,7 @@ const maybeSetRootStatus = (span: ReadableSpan, agg: TraceAggregate): void => {
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
   // ReadableSpan is typed as readonly; runtime Span objects are mutable.
-  (
-    span as unknown as { status: { code: SpanStatusCode; message?: string } }
-  ).status = agg.hadError
+  (span as unknown as { status: { code: SpanStatusCode; message?: string } }).status = agg.hadError
     ? { code: SpanStatusCode.ERROR, message: agg.firstErrorMessage }
     : { code: SpanStatusCode.OK };
 };
@@ -73,9 +67,9 @@ const maybeSetSpanOkStatus = (span: ReadableSpan): void => {
   if (span.status.code !== SpanStatusCode.UNSET) return;
 
   // ReadableSpan is typed as readonly; runtime Span objects are mutable.
-  (
-    span as unknown as { status: { code: SpanStatusCode; message?: string } }
-  ).status = { code: SpanStatusCode.OK };
+  (span as unknown as { status: { code: SpanStatusCode; message?: string } }).status = {
+    code: SpanStatusCode.OK,
+  };
 };
 
 const maybeRenameRootSpan = (span: ReadableSpan): void => {

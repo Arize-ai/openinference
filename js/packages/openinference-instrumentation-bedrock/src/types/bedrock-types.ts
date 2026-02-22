@@ -5,11 +5,6 @@
  * custom types for structures not exposed by the SDK.
  */
 
-// Import official AWS SDK types
-import { isObjectWithStringKeys } from "@arizeai/openinference-core";
-
-import { diag } from "@opentelemetry/api";
-
 import {
   // Core content and message types from SDK
   ContentBlock,
@@ -35,6 +30,10 @@ import {
   ToolResultBlock,
   ToolUseBlock,
 } from "@aws-sdk/client-bedrock-runtime";
+import { diag } from "@opentelemetry/api";
+
+// Import official AWS SDK types
+import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
 // Re-export AWS SDK types for convenience
 export {
@@ -320,9 +319,7 @@ export function isToolUseContent(content: unknown): content is ToolUseContent {
 }
 
 /** Type guard for legacy tool result content blocks. */
-export function isToolResultContent(
-  content: unknown,
-): content is ToolResultContent {
+export function isToolResultContent(content: unknown): content is ToolResultContent {
   return (
     content !== null &&
     typeof content === "object" &&
@@ -334,9 +331,7 @@ export function isToolResultContent(
 }
 
 /** Type guard for Converse text content. */
-export function isConverseTextContent(
-  content: unknown,
-): content is ConverseTextContent {
+export function isConverseTextContent(content: unknown): content is ConverseTextContent {
   return (
     content !== null &&
     typeof content === "object" &&
@@ -346,9 +341,7 @@ export function isConverseTextContent(
 }
 
 /** Type guard for Converse image content. */
-export function isConverseImageContent(
-  content: unknown,
-): content is ConverseImageContent {
+export function isConverseImageContent(content: unknown): content is ConverseImageContent {
   return (
     content !== null &&
     typeof content === "object" &&
@@ -365,9 +358,7 @@ export function isConverseImageContent(
 }
 
 /** Type guard for Converse tool call content. */
-export function isConverseToolUseContent(
-  content: unknown,
-): content is ConverseToolUseContent {
+export function isConverseToolUseContent(content: unknown): content is ConverseToolUseContent {
   return (
     content !== null &&
     typeof content === "object" &&
@@ -399,9 +390,7 @@ export function isConverseToolResultContent(
  * Ensures we have an object and at least one known event marker.
  * Exhaustive discrimination happens in toNormalizedConverseStreamEvent.
  */
-export function isValidConverseStreamEventData(
-  data: unknown,
-): data is ConverseStreamEventData {
+export function isValidConverseStreamEventData(data: unknown): data is ConverseStreamEventData {
   if (!isObjectWithStringKeys(data)) {
     return false;
   }
@@ -456,14 +445,10 @@ export function toNormalizedConverseStreamEvent(
 ): NormalizedConverseStreamEvent | undefined {
   // Structured SDK events
   if (e.messageStart) return { kind: "messageStart" };
-  if (e.messageStop)
-    return { kind: "messageStop", stopReason: e.messageStop.stopReason };
+  if (e.messageStop) return { kind: "messageStop", stopReason: e.messageStop.stopReason };
   if (e.contentBlockDelta?.delta?.text)
     return { kind: "textDelta", text: e.contentBlockDelta.delta.text };
-  if (
-    e.contentBlockStart?.start?.toolUse?.toolUseId &&
-    e.contentBlockStart.start.toolUse.name
-  ) {
+  if (e.contentBlockStart?.start?.toolUse?.toolUseId && e.contentBlockStart.start.toolUse.name) {
     return {
       kind: "toolUseStart",
       id: e.contentBlockStart.start.toolUse.toolUseId,
@@ -480,11 +465,7 @@ export function toNormalizedConverseStreamEvent(
   }
 
   // Raw wire events
-  if (
-    e.type === "content_block_delta" &&
-    e.delta?.type === "text_delta" &&
-    e.delta.text
-  ) {
+  if (e.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
     return { kind: "textDelta", text: e.delta.text };
   }
   if (

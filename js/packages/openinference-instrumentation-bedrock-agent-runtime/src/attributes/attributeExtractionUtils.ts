@@ -1,24 +1,20 @@
+import type { Attributes } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import {
   isObjectWithStringKeys,
   safelyJSONParse,
   safelyJSONStringify,
 } from "@arizeai/openinference-core";
-import {
-  LLMProvider,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { LLMProvider, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
-
-import { StringKeyedObject } from "../types";
+import type { StringKeyedObject } from "../types";
 import {
   fixLooseJsonString,
   getObjectDataFromUnknown,
   parseSanitizedJson,
 } from "../utils/jsonUtils";
 import { isArrayOfObjectWithStringKeys } from "../utils/typeUtils";
-
 import {
   getDocumentAttributes,
   getInputAttributes,
@@ -28,23 +24,15 @@ import {
   getOutputAttributes,
   getToolAttributes,
 } from "./attributeUtils";
-import {
-  CHUNK_TYPES,
-  ChunkType,
-  PolicyFilterType,
-  PolicyType,
-  TRACE_EVENT_TYPES,
-  TraceEventType,
-} from "./constants";
-import { Message, TokenCount, ToolCall, ToolCallFunction } from "./types";
+import type { ChunkType, TraceEventType } from "./constants";
+import { CHUNK_TYPES, PolicyFilterType, PolicyType, TRACE_EVENT_TYPES } from "./constants";
+import type { Message, TokenCount, ToolCall, ToolCallFunction } from "./types";
 
 /**
  * Return the first matching event type key discovered in {@link traceData}.
  * @returns {TraceEventType | undefined} The first matching trace event type key or undefined if not found.
  */
-export function getEventType(
-  traceData: StringKeyedObject,
-): TraceEventType | undefined {
+export function getEventType(traceData: StringKeyedObject): TraceEventType | undefined {
   for (const eventType of TRACE_EVENT_TYPES) {
     if (eventType in traceData) return eventType;
   }
@@ -54,9 +42,7 @@ export function getEventType(
  * Extract the trace ID from a trace object.
  * @returns {string | undefined} The trace ID or undefined if not found.
  */
-export function extractTraceId(
-  traceData: StringKeyedObject,
-): string | undefined {
+export function extractTraceId(traceData: StringKeyedObject): string | undefined {
   const eventType = getEventType(traceData);
   if (eventType == null) {
     return;
@@ -68,11 +54,7 @@ export function extractTraceId(
   if (!eventData) {
     return;
   }
-  if (
-    eventData &&
-    "traceId" in eventData &&
-    typeof eventData.traceId === "string"
-  ) {
+  if (eventData && "traceId" in eventData && typeof eventData.traceId === "string") {
     return eventData.traceId;
   }
 
@@ -81,11 +63,7 @@ export function extractTraceId(
       data: eventData,
       key: chunkType,
     });
-    if (
-      chunkData &&
-      "traceId" in chunkData &&
-      typeof chunkData["traceId"] === "string"
-    ) {
+    if (chunkData && "traceId" in chunkData && typeof chunkData["traceId"] === "string") {
       return chunkData["traceId"];
     }
   }
@@ -95,9 +73,7 @@ export function extractTraceId(
  * Return the first matching chunk type discovered in {@link eventData}.
  * @returns {ChunkType | undefined} The first matching chunk type or undefined if not found.
  */
-export function getChunkType(
-  eventData: StringKeyedObject,
-): ChunkType | undefined {
+export function getChunkType(eventData: StringKeyedObject): ChunkType | undefined {
   for (const chunkType of CHUNK_TYPES) {
     if (chunkType in eventData) return chunkType;
   }
@@ -106,9 +82,7 @@ export function getChunkType(
 /**
  * Returns a string from an unknown value or null if it cannot be safely stringified.
  */
-export function getStringAttributeValueFromUnknown(
-  value: unknown,
-): string | null {
+export function getStringAttributeValueFromUnknown(value: unknown): string | null {
   if (typeof value === "string") {
     return value;
   }
@@ -149,9 +123,7 @@ export function getInputMessagesObject(text: string): Message[] {
             if (typeof maybeType === "string") {
               const maybeContent = parsedContent[maybeType];
               // If we are unable to get the content, use the original content
-              messageContent =
-                getStringAttributeValueFromUnknown(maybeContent) ??
-                messageContent;
+              messageContent = getStringAttributeValueFromUnknown(maybeContent) ?? messageContent;
             }
           } else {
             messageContent = parsedContent;
@@ -182,8 +154,7 @@ export function getParentInputAttributesFromInvocationInput(
     key: "actionGroupInvocationInput",
   });
   if (actionGroup) {
-    const inputValue =
-      getObjectDataFromUnknown({ data: actionGroup, key: "text" }) || "";
+    const inputValue = getObjectDataFromUnknown({ data: actionGroup, key: "text" }) || "";
     if (inputValue) {
       return getInputAttributes(inputValue);
     }
@@ -194,8 +165,7 @@ export function getParentInputAttributesFromInvocationInput(
     key: "codeInterpreterInvocationInput",
   });
   if (codeInterpreter) {
-    const inputValue =
-      getObjectDataFromUnknown({ data: codeInterpreter, key: "code" }) || "";
+    const inputValue = getObjectDataFromUnknown({ data: codeInterpreter, key: "code" }) || "";
     if (inputValue) {
       return getInputAttributes(inputValue);
     }
@@ -206,8 +176,7 @@ export function getParentInputAttributesFromInvocationInput(
     key: "knowledgeBaseLookupInput",
   });
   if (kbLookup) {
-    const inputValue =
-      getObjectDataFromUnknown({ data: kbLookup, key: "text" }) || "";
+    const inputValue = getObjectDataFromUnknown({ data: kbLookup, key: "text" }) || "";
     if (inputValue) {
       return getInputAttributes(inputValue);
     }
@@ -263,9 +232,7 @@ function getTimeAttributeValue(value: unknown): number | undefined {
  * @param traceMetadata The trace metadata object.
  * @returns A record of extracted metadata attributes.
  */
-export function getMetadataAttributes(
-  traceMetadata: StringKeyedObject,
-): StringKeyedObject | null {
+export function getMetadataAttributes(traceMetadata: StringKeyedObject): StringKeyedObject | null {
   const metadata: StringKeyedObject = {};
   const clientRequestId = isAttributeValue(traceMetadata.clientRequestId)
     ? traceMetadata.clientRequestId
@@ -315,9 +282,7 @@ export function getAttributesFromModelInvocationInput(
   const llmAttributes: StringKeyedObject = {};
   let inputText: string | null = null;
   if (modelInvocationInput && "text" in modelInvocationInput) {
-    inputText = getStringAttributeValueFromUnknown(
-      modelInvocationInput["text"],
-    );
+    inputText = getStringAttributeValueFromUnknown(modelInvocationInput["text"]);
   }
   const modelName = getModelName(modelInvocationInput || {}, {});
   if (modelName) {
@@ -360,9 +325,7 @@ export function getAttributesFromModelInvocationOutput(
       modelInvocationOutput.inferenceConfiguration,
     );
   }
-  llmAttributes["outputMessages"] = getOutputMessages(
-    modelInvocationOutput || {},
-  );
+  llmAttributes["outputMessages"] = getOutputMessages(modelInvocationOutput || {});
   llmAttributes["tokenCount"] = getTokenCounts(modelInvocationOutput);
   let requestAttributes = {
     ...getLLMAttributes({ ...llmAttributes }),
@@ -430,9 +393,7 @@ function getOutputValue(outputParams: StringKeyedObject): string | undefined {
   return undefined;
 }
 
-function getValueFromRawResponse(
-  outputParams: StringKeyedObject,
-): string | undefined {
+function getValueFromRawResponse(outputParams: StringKeyedObject): string | undefined {
   const rawResponse = outputParams.rawResponse;
   if (!isObjectWithStringKeys(rawResponse) || rawResponse.content == null) {
     return undefined;
@@ -462,14 +423,10 @@ function getValueFromRawResponse(
     Array.isArray(message.content) && message.content.length > 0
       ? message.content[0]
       : message.content;
-  return typeof messageContent?.text === "string"
-    ? messageContent.text
-    : undefined;
+  return typeof messageContent?.text === "string" ? messageContent.text : undefined;
 }
 
-function getValueFromParsedResponse(
-  outputParams: StringKeyedObject,
-): string | undefined {
+function getValueFromParsedResponse(outputParams: StringKeyedObject): string | undefined {
   const parsedResponse = outputParams?.parsedResponse;
   if (!isObjectWithStringKeys(parsedResponse)) {
     return undefined;
@@ -484,9 +441,7 @@ function getValueFromParsedResponse(
  * @param modelInvocationOutput Model invocation output object.
  * @returns Array of output messages.
  */
-function getOutputMessages(
-  modelInvocationOutput: StringKeyedObject,
-): Message[] | null {
+function getOutputMessages(modelInvocationOutput: StringKeyedObject): Message[] | null {
   const messages: Message[] = [];
   const rawResponse = getObjectDataFromUnknown({
     data: modelInvocationOutput,
@@ -504,8 +459,7 @@ function getOutputMessages(
       messages.push({ content: outputContent, role: "assistant" });
       return messages;
     } else {
-      const stringifiedContent =
-        getStringAttributeValueFromUnknown(parsedContent);
+      const stringifiedContent = getStringAttributeValueFromUnknown(parsedContent);
       if (stringifiedContent) {
         messages.push({ content: stringifiedContent, role: "assistant" });
       }
@@ -513,8 +467,7 @@ function getOutputMessages(
   }
 
   if (!isObjectWithStringKeys(parsedContent)) {
-    const stringifiedContent =
-      getStringAttributeValueFromUnknown(outputContent);
+    const stringifiedContent = getStringAttributeValueFromUnknown(outputContent);
     if (stringifiedContent) {
       messages.push({ content: stringifiedContent, role: "assistant" });
     }
@@ -582,8 +535,7 @@ function getTokenCounts(outputParams: StringKeyedObject): TokenCount | null {
 function getAttributesFromAgentCollaboratorInvocationOutput(
   collaboratorOutput: StringKeyedObject,
 ): Attributes {
-  const outputData =
-    getObjectDataFromUnknown({ data: collaboratorOutput, key: "output" }) || {};
+  const outputData = getObjectDataFromUnknown({ data: collaboratorOutput, key: "output" }) || {};
   const outputType = outputData?.type || "TEXT";
   let outputValue: string | null = null;
   if (outputType === "TEXT") {
@@ -593,18 +545,12 @@ function getAttributesFromAgentCollaboratorInvocationOutput(
       outputValue = safelyJSONStringify(outputData?.returnControlPayload);
     }
   }
-  const messages: Message[] = [
-    { role: "assistant", content: outputValue ?? "" },
-  ];
+  const messages: Message[] = [{ role: "assistant", content: outputValue ?? "" }];
   const metadata = {
     agent_collaborator_name:
-      getStringAttributeValueFromUnknown(
-        collaboratorOutput.agentCollaboratorName,
-      ) ?? undefined,
+      getStringAttributeValueFromUnknown(collaboratorOutput.agentCollaboratorName) ?? undefined,
     agent_collaborator_alias_arn:
-      getStringAttributeValueFromUnknown(
-        collaboratorOutput.agentCollaboratorAliasArn,
-      ) ?? undefined,
+      getStringAttributeValueFromUnknown(collaboratorOutput.agentCollaboratorAliasArn) ?? undefined,
     output_type: outputType,
   };
   return {
@@ -618,17 +564,13 @@ function getAttributesFromAgentCollaboratorInvocationOutput(
  * Extract attributes from invocation input.
  * Checks for specific invocation input types and delegates to their respective extractors.
  */
-export function getAttributesFromInvocationInput(
-  invocationInput: StringKeyedObject,
-): Attributes {
+export function getAttributesFromInvocationInput(invocationInput: StringKeyedObject): Attributes {
   const maybeActionGroupInvocationInput = getObjectDataFromUnknown({
     data: invocationInput,
     key: "actionGroupInvocationInput",
   });
   if (maybeActionGroupInvocationInput) {
-    return getAttributesFromActionGroupInvocationInput(
-      maybeActionGroupInvocationInput,
-    );
+    return getAttributesFromActionGroupInvocationInput(maybeActionGroupInvocationInput);
   }
 
   const maybeCodeInterpreterInvocationInput = getObjectDataFromUnknown({
@@ -636,27 +578,21 @@ export function getAttributesFromInvocationInput(
     key: "codeInterpreterInvocationInput",
   });
   if (maybeCodeInterpreterInvocationInput) {
-    return getAttributesFromCodeInterpreterInput(
-      maybeCodeInterpreterInvocationInput,
-    );
+    return getAttributesFromCodeInterpreterInput(maybeCodeInterpreterInvocationInput);
   }
   const maybeKnowledgeBaseLookupInput = getObjectDataFromUnknown({
     data: invocationInput,
     key: "knowledgeBaseLookupInput",
   });
   if (maybeKnowledgeBaseLookupInput) {
-    return getAttributesFromKnowledgeBaseLookupInput(
-      maybeKnowledgeBaseLookupInput,
-    );
+    return getAttributesFromKnowledgeBaseLookupInput(maybeKnowledgeBaseLookupInput);
   }
   const maybeAgentCollaboratorInvocationInput = getObjectDataFromUnknown({
     data: invocationInput,
     key: "agentCollaboratorInvocationInput",
   });
   if (maybeAgentCollaboratorInvocationInput) {
-    return getAttributesFromAgentCollaboratorInvocationInput(
-      maybeAgentCollaboratorInvocationInput,
-    );
+    return getAttributesFromAgentCollaboratorInvocationInput(maybeAgentCollaboratorInvocationInput);
   }
   return {};
 }
@@ -665,15 +601,10 @@ export function getAttributesFromInvocationInput(
  * Extract attributes from action group invocation input.
  * Extracts tool call, messages, tool attributes, and metadata for action group invocation.
  */
-function getAttributesFromActionGroupInvocationInput(
-  actionInput: StringKeyedObject,
-): Attributes {
-  const name =
-    getStringAttributeValueFromUnknown(actionInput?.function) ?? undefined;
-  const parameters =
-    getStringAttributeValueFromUnknown(actionInput?.parameters) ?? "{}";
-  const description =
-    getStringAttributeValueFromUnknown(actionInput?.description) ?? undefined;
+function getAttributesFromActionGroupInvocationInput(actionInput: StringKeyedObject): Attributes {
+  const name = getStringAttributeValueFromUnknown(actionInput?.function) ?? undefined;
+  const parameters = getStringAttributeValueFromUnknown(actionInput?.parameters) ?? "{}";
+  const description = getStringAttributeValueFromUnknown(actionInput?.description) ?? undefined;
 
   // Build tool call function and tool call
   const toolCallFunction: ToolCallFunction = {
@@ -681,9 +612,7 @@ function getAttributesFromActionGroupInvocationInput(
     arguments: parameters,
   };
   const toolCalls: ToolCall[] = [{ id: "default", function: toolCallFunction }];
-  const messages: Message[] = [
-    { tool_call_id: "default", role: "tool", tool_calls: toolCalls },
-  ];
+  const messages: Message[] = [{ tool_call_id: "default", role: "tool", tool_calls: toolCalls }];
   // Prepare tool attributes
   const toolAttributes = getToolAttributes({
     name,
@@ -695,23 +624,17 @@ function getAttributesFromActionGroupInvocationInput(
     invocation_type: "action_group_invocation",
   };
   if (actionInput.actionGroupName) {
-    llmInvocationParameters["action_group_name"] = isAttributeValue(
-      actionInput.actionGroupName,
-    )
+    llmInvocationParameters["action_group_name"] = isAttributeValue(actionInput.actionGroupName)
       ? actionInput.actionGroupName
       : (safelyJSONStringify(actionInput.actionGroupName) ?? undefined);
   }
   if (actionInput.executionType) {
-    llmInvocationParameters["execution_type"] = isAttributeValue(
-      actionInput.executionType,
-    )
+    llmInvocationParameters["execution_type"] = isAttributeValue(actionInput.executionType)
       ? actionInput.executionType
       : (safelyJSONStringify(actionInput.executionType) ?? undefined);
   }
   if (actionInput.invocationId) {
-    llmInvocationParameters["invocation_id"] = isAttributeValue(
-      actionInput.invocationId,
-    )
+    llmInvocationParameters["invocation_id"] = isAttributeValue(actionInput.invocationId)
       ? actionInput.invocationId
       : (safelyJSONStringify(actionInput.invocationId) ?? undefined);
   }
@@ -737,9 +660,7 @@ function getAttributesFromActionGroupInvocationInput(
  * Extract attributes from code interpreter invocation input.
  * Extracts tool call, messages, tool attributes, and metadata for code interpreter invocation.
  */
-function getAttributesFromCodeInterpreterInput(
-  codeInput: StringKeyedObject,
-): Attributes {
+function getAttributesFromCodeInterpreterInput(codeInput: StringKeyedObject): Attributes {
   const toolCallFunction = {
     name: "code_interpreter",
     arguments: {
@@ -748,9 +669,7 @@ function getAttributesFromCodeInterpreterInput(
     },
   };
   const toolCalls = [{ id: "default", function: toolCallFunction }];
-  const messages = [
-    { tool_call_id: "default", role: "tool", tool_calls: toolCalls },
-  ];
+  const messages = [{ tool_call_id: "default", role: "tool", tool_calls: toolCalls }];
   const name = "code_interpreter";
   const description = "Executes code and returns results";
   const parameters = JSON.stringify({
@@ -772,13 +691,10 @@ function getAttributesFromCodeInterpreterInput(
  * Extract attributes from knowledge base lookup input.
  * Extracts input attributes and metadata for knowledge base lookup invocation.
  */
-function getAttributesFromKnowledgeBaseLookupInput(
-  kbData: StringKeyedObject,
-): Attributes {
+function getAttributesFromKnowledgeBaseLookupInput(kbData: StringKeyedObject): Attributes {
   const metadata = {
     invocation_type: "knowledge_base_lookup",
-    knowledge_base_id:
-      getStringAttributeValueFromUnknown(kbData?.knowledgeBaseId) ?? undefined,
+    knowledge_base_id: getStringAttributeValueFromUnknown(kbData?.knowledgeBaseId) ?? undefined,
   };
   return {
     ...getInputAttributes(kbData?.text ?? ""),
@@ -790,9 +706,7 @@ function getAttributesFromKnowledgeBaseLookupInput(
  * Extract span attributes from agent collaborator invocation input.
  * Extracts content, builds messages, and adds metadata for agent collaborator invocation.
  */
-function getAttributesFromAgentCollaboratorInvocationInput(
-  input: StringKeyedObject,
-): Attributes {
+function getAttributesFromAgentCollaboratorInvocationInput(input: StringKeyedObject): Attributes {
   const inputData = getObjectDataFromUnknown({ data: input, key: "input" });
   const inputType = inputData?.type || "TEXT";
   let content = "";
@@ -807,11 +721,9 @@ function getAttributesFromAgentCollaboratorInvocationInput(
   const metadata: Attributes = {
     invocation_type: "agent_collaborator_invocation",
     agent_collaborator_name:
-      getStringAttributeValueFromUnknown(input.agentCollaboratorName) ??
-      undefined,
+      getStringAttributeValueFromUnknown(input.agentCollaboratorName) ?? undefined,
     agent_collaborator_alias_arn:
-      getStringAttributeValueFromUnknown(input.agentCollaboratorAliasArn) ??
-      undefined,
+      getStringAttributeValueFromUnknown(input.agentCollaboratorAliasArn) ?? undefined,
     input_type: isAttributeValue(inputType) ? inputType : undefined,
   };
   return {
@@ -827,9 +739,7 @@ function getAttributesFromAgentCollaboratorInvocationInput(
  * @param observation The observation event object.
  * @returns A dictionary of extracted output attributes.
  */
-export function getAttributesFromObservation(
-  observation: StringKeyedObject,
-): Attributes {
+export function getAttributesFromObservation(observation: StringKeyedObject): Attributes {
   if (!observation || typeof observation !== "object") return {};
   if ("actionGroupInvocationOutput" in observation) {
     const toolOutput =
@@ -844,9 +754,7 @@ export function getAttributesFromObservation(
     key: "codeInterpreterInvocationOutput",
   });
   if (maybeCodeInterpreterInvocationOutput) {
-    return getAttributesFromCodeInterpreterOutput(
-      maybeCodeInterpreterInvocationOutput,
-    );
+    return getAttributesFromCodeInterpreterOutput(maybeCodeInterpreterInvocationOutput);
   }
 
   const maybeKnowledgeBaseLookupOutput = getObjectDataFromUnknown({
@@ -854,8 +762,7 @@ export function getAttributesFromObservation(
     key: "knowledgeBaseLookupOutput",
   });
   if (maybeKnowledgeBaseLookupOutput) {
-    const retrievedReferences =
-      maybeKnowledgeBaseLookupOutput?.retrievedReferences ?? [];
+    const retrievedReferences = maybeKnowledgeBaseLookupOutput?.retrievedReferences ?? [];
     if (isArrayOfObjectWithStringKeys(retrievedReferences)) {
       return getAttributesFromKnowledgeBaseLookupOutput(retrievedReferences);
     }
@@ -932,9 +839,7 @@ function getAttributesFromKnowledgeBaseLookupOutput(
  * @param traceData Failure trace data object.
  * @returns Output attributes for the failure message.
  */
-export function getFailureTraceAttributes(
-  traceData: StringKeyedObject,
-): Attributes {
+export function getFailureTraceAttributes(traceData: StringKeyedObject): Attributes {
   let failureMessage = "";
   if (traceData?.failureCode && typeof traceData.failureCode === "string") {
     failureMessage += `Failure Code: ${traceData.failureCode}\n`;
@@ -969,10 +874,7 @@ export function isBlockedGuardrail(guardrails: StringKeyedObject[]): boolean {
     },
     {
       policyType: PolicyType.WORD,
-      policyFilters: [
-        PolicyFilterType.CUSTOM_WORDS,
-        PolicyFilterType.MANAGED_WORD_LISTS,
-      ],
+      policyFilters: [PolicyFilterType.CUSTOM_WORDS, PolicyFilterType.MANAGED_WORD_LISTS],
     },
   ];
 
@@ -1012,15 +914,12 @@ function isAssessmentBlocked({
   policyType: string;
   policyFilters: string[];
 }): boolean {
-  const policy =
-    getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
+  const policy = getObjectDataFromUnknown({ data: assessment, key: policyType }) || {};
 
   // Collect all filters from the specified policy types
   const filters: StringKeyedObject[] = [];
   for (const filterType of policyFilters) {
-    const filterArray = isArrayOfObjectWithStringKeys(policy[filterType])
-      ? policy[filterType]
-      : [];
+    const filterArray = isArrayOfObjectWithStringKeys(policy[filterType]) ? policy[filterType] : [];
     filters.push(...filterArray);
   }
 
@@ -1043,8 +942,7 @@ export function extractMetadataAttributesFromObservation(
   ];
   for (const event of events) {
     if (event in observation && observation[event]) {
-      const observationConst =
-        getObjectDataFromUnknown({ data: observation, key: event }) || {};
+      const observationConst = getObjectDataFromUnknown({ data: observation, key: event }) || {};
       const metadata =
         getObjectDataFromUnknown({
           data: observationConst,
@@ -1081,8 +979,7 @@ function getAttributesFromOutputMessage({
       name: getStringAttributeValueFromUnknown(message?.name) ?? undefined,
       arguments: getStringAttributeValueFromUnknown(message?.input) ?? "{}",
     };
-    const toolCallId =
-      getStringAttributeValueFromUnknown(message?.id) ?? undefined;
+    const toolCallId = getStringAttributeValueFromUnknown(message?.id) ?? undefined;
     const toolCalls: ToolCall[] = [
       {
         id: toolCallId,

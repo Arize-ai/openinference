@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Attributes, SpanStatus, TimeInput } from "@opentelemetry/api";
+import type { Attributes, SpanStatus, TimeInput } from "@opentelemetry/api";
 
 export interface FrameworkSpan {
   attributes: {

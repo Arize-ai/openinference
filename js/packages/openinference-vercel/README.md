@@ -66,8 +66,7 @@ export function register() {
             Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` || "",
           },
           url:
-            process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
-            "https://app.phoenix.arize.com/v1/traces",
+            process.env["PHOENIX_COLLECTOR_ENDPOINT"] || "https://app.phoenix.arize.com/v1/traces",
         }),
         spanFilter: (span) => {
           // Only export spans that are OpenInference to negate non-generative spans

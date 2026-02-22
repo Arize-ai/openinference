@@ -1,28 +1,31 @@
-import {
-  getAttributesFromContext,
-  OITracer,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
+import { isPromise } from "util/types";
 
+import type {
+  BedrockRuntimeClient,
+  ConverseResponse,
+  InvokeModelResponse,
+} from "@aws-sdk/client-bedrock-runtime";
 import {
-  context,
-  diag,
-  SpanKind,
-  SpanStatusCode,
-  Tracer,
-  TracerProvider,
-} from "@opentelemetry/api";
-import {
-  InstrumentationBase,
+  ConverseCommand,
+  ConverseStreamCommand,
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { context, diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
+} from "@opentelemetry/instrumentation";
+import {
+  InstrumentationBase,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
 
-import {
-  getSystemFromModelId,
-  setBasicSpanAttributes,
-} from "./attributes/attribute-helpers";
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { getAttributesFromContext, OITracer } from "@arizeai/openinference-core";
+
+import { getSystemFromModelId, setBasicSpanAttributes } from "./attributes/attribute-helpers";
 import { extractConverseRequestAttributes } from "./attributes/converse-request-attributes";
 import { extractConverseResponseAttributes } from "./attributes/converse-response-attributes";
 import { consumeConverseStreamChunks } from "./attributes/converse-streaming-response-attributes";
@@ -33,17 +36,6 @@ import {
   safelySplitStream,
 } from "./attributes/invoke-model-streaming-response-attributes";
 import { VERSION } from "./version";
-
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-  ConverseResponse,
-  ConverseStreamCommand,
-  InvokeModelCommand,
-  InvokeModelResponse,
-  InvokeModelWithResponseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import { isPromise } from "util/types";
 
 const MODULE_NAME = "@aws-sdk/client-bedrock-runtime";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-bedrock";
@@ -117,16 +109,11 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
      */
     tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      INSTRUMENTATION_NAME,
-      INSTRUMENTATION_VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+    super(INSTRUMENTATION_NAME, INSTRUMENTATION_VERSION, Object.assign({}, instrumentationConfig));
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer:
-        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig,
     });
   }
@@ -144,13 +131,12 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @returns {InstrumentationModuleDefinition<BedrockModuleExports>[]} Array containing the module definition
    */
   protected init(): InstrumentationModuleDefinition<BedrockModuleExports>[] {
-    const module =
-      new InstrumentationNodeModuleDefinition<BedrockModuleExports>(
-        MODULE_NAME,
-        ["^3.0.0"],
-        this.patch.bind(this),
-        this.unpatch.bind(this),
-      );
+    const module = new InstrumentationNodeModuleDefinition<BedrockModuleExports>(
+      MODULE_NAME,
+      ["^3.0.0"],
+      this.patch.bind(this),
+      this.unpatch.bind(this),
+    );
     return [module];
   }
 
@@ -178,10 +164,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @param moduleVersion The version of the module being patched
    * @returns {BedrockModuleExports} The patched module exports
    */
-  private patch(
-    moduleExports: BedrockModuleExports,
-    moduleVersion?: string,
-  ): BedrockModuleExports {
+  private patch(moduleExports: BedrockModuleExports, moduleVersion?: string): BedrockModuleExports {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
@@ -189,56 +172,34 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
       const instrumentation = this;
 
       // Wrap the client's send method to intercept commands
-      this._wrap(
-        moduleExports.BedrockRuntimeClient.prototype,
-        "send",
-        (original: SendMethod) => {
-          return function patchedSend(
-            this: BedrockClient,
-            ...args: Parameters<SendMethod>
-          ) {
-            const command = args[0];
-            if (command instanceof InvokeModelCommand) {
-              return instrumentation.handleInvokeModelCommand(
-                args,
-                command,
-                original,
-                this,
-              );
-            }
+      this._wrap(moduleExports.BedrockRuntimeClient.prototype, "send", (original: SendMethod) => {
+        return function patchedSend(this: BedrockClient, ...args: Parameters<SendMethod>) {
+          const command = args[0];
+          if (command instanceof InvokeModelCommand) {
+            return instrumentation.handleInvokeModelCommand(args, command, original, this);
+          }
 
-            if (command instanceof InvokeModelWithResponseStreamCommand) {
-              return instrumentation.handleInvokeModelWithResponseStreamCommand(
-                args,
-                command,
-                original,
-                this,
-              );
-            }
+          if (command instanceof InvokeModelWithResponseStreamCommand) {
+            return instrumentation.handleInvokeModelWithResponseStreamCommand(
+              args,
+              command,
+              original,
+              this,
+            );
+          }
 
-            if (command instanceof ConverseCommand) {
-              return instrumentation.handleConverseCommand(
-                args,
-                command,
-                original,
-                this,
-              );
-            }
+          if (command instanceof ConverseCommand) {
+            return instrumentation.handleConverseCommand(args, command, original, this);
+          }
 
-            if (command instanceof ConverseStreamCommand) {
-              return instrumentation.handleConverseStreamCommand(
-                args,
-                command,
-                original,
-                this,
-              );
-            }
+          if (command instanceof ConverseStreamCommand) {
+            return instrumentation.handleConverseStreamCommand(args, command, original, this);
+          }
 
-            // Pass through other commands without instrumentation
-            return original.apply(this, args);
-          };
-        },
-      );
+          // Pass through other commands without instrumentation
+          return original.apply(this, args);
+        };
+      });
 
       _isBedrockPatched = true;
     }
@@ -253,10 +214,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
    * @param moduleExports The module exports from @aws-sdk/client-bedrock-runtime
    * @param moduleVersion The version of the module being unpatched
    */
-  private unpatch(
-    moduleExports: BedrockModuleExports,
-    moduleVersion?: string,
-  ): void {
+  private unpatch(moduleExports: BedrockModuleExports, moduleVersion?: string): void {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
 
     if (moduleExports?.BedrockRuntimeClient) {
@@ -298,10 +256,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
       // AWS SDK v3 send() method should always return a Promise
       if (!isPromise(result)) {
-        diag.warn(
-          "Expected Promise from AWS SDK send method, got:",
-          typeof result,
-        );
+        diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: "Unexpected return type from AWS SDK",
@@ -384,10 +339,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     // Validate that we got a Promise as expected
     if (!isPromise(result)) {
-      diag.warn(
-        "Expected Promise from AWS SDK send method, got:",
-        typeof result,
-      );
+      diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: "Unexpected return type from AWS SDK",
@@ -440,9 +392,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               });
           }
         } else {
-          diag.debug(
-            "No instrumentation stream available, ending span cleanly",
-          );
+          diag.debug("No instrumentation stream available, ending span cleanly");
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }
@@ -495,10 +445,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
       // AWS SDK v3 send() method should always return a Promise
       if (!isPromise(result)) {
-        diag.warn(
-          "Expected Promise from AWS SDK send method, got:",
-          typeof result,
-        );
+        diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: "Unexpected return type from AWS SDK",
@@ -576,10 +523,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
 
     // Validate that we got a Promise as expected
     if (!isPromise(result)) {
-      diag.warn(
-        "Expected Promise from AWS SDK send method, got:",
-        typeof result,
-      );
+      diag.warn("Expected Promise from AWS SDK send method, got:", typeof result);
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: "Unexpected return type from AWS SDK",
@@ -626,9 +570,7 @@ export class BedrockInstrumentation extends InstrumentationBase<BedrockModuleExp
               span.end();
             });
         } else {
-          diag.debug(
-            "No instrumentation stream available, ending span cleanly",
-          );
+          diag.debug("No instrumentation stream available, ending span cleanly");
           span.setStatus({ code: SpanStatusCode.OK });
           span.end();
         }

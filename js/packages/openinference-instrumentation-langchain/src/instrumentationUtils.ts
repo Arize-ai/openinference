@@ -1,8 +1,8 @@
-import { OITracer } from "@arizeai/openinference-core";
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
+
+import type { OITracer } from "@arizeai/openinference-core";
 
 import { LangChainTracer } from "./tracer";
-
-import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
 
 /**
  * Adds the {@link LangChainTracer} to the callback handlers if it is not already present
@@ -24,9 +24,7 @@ export function addTracerToHandlers(
     return [new LangChainTracer(tracer)];
   }
   if (Array.isArray(handlers)) {
-    const tracerAlreadyRegistered = handlers.some(
-      (handler) => handler instanceof LangChainTracer,
-    );
+    const tracerAlreadyRegistered = handlers.some((handler) => handler instanceof LangChainTracer);
     if (!tracerAlreadyRegistered) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       handlers.push(new LangChainTracer(tracer) as any);
@@ -34,9 +32,7 @@ export function addTracerToHandlers(
     return handlers;
   }
   const tracerAlreadyRegistered =
-    handlers.inheritableHandlers.some(
-      (handler) => handler instanceof LangChainTracer,
-    ) ||
+    handlers.inheritableHandlers.some((handler) => handler instanceof LangChainTracer) ||
     handlers.handlers.some((handler) => handler instanceof LangChainTracer);
   if (tracerAlreadyRegistered) {
     return handlers;

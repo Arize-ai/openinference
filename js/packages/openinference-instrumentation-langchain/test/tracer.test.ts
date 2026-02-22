@@ -1,30 +1,3 @@
-import {
-  OITracer,
-  setAttributes,
-  setSession,
-} from "@arizeai/openinference-core";
-import {
-  MESSAGE_FUNCTION_CALL_NAME,
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
-import { trace } from "@opentelemetry/api";
-import { context } from "@opentelemetry/api";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import "dotenv/config";
-
-import { isPatched, LangChainInstrumentation } from "../src";
-import { LangChainTracer } from "../src/tracer";
-
-import { completionsResponse, functionCallResponse } from "./fixtures";
-
 import { createStuffDocumentsChain } from "@langchain/classic/chains/combine_documents";
 import { createRetrievalChain } from "@langchain/classic/chains/retrieval";
 import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
@@ -32,51 +5,65 @@ import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
 import * as CallbackManager from "@langchain/core/callbacks/manager";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import "dotenv/config";
+import { trace } from "@opentelemetry/api";
+import { context } from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { tool } from "langchain";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
+import { OITracer, setAttributes, setSession } from "@arizeai/openinference-core";
+import {
+  MESSAGE_FUNCTION_CALL_NAME,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import { isPatched, LangChainInstrumentation } from "../src";
+import { LangChainTracer } from "../src/tracer";
+import { completionsResponse, functionCallResponse } from "./fixtures";
+
 // Set up MSW server to mock API calls
 const server = setupServer(
-  http.post(
-    "https://api.openai.com/v1/chat/completions",
-    async ({ request }) => {
-      const body = await request.text();
-      const requestData = JSON.parse(body);
+  http.post("https://api.openai.com/v1/chat/completions", async ({ request }) => {
+    const body = await request.text();
+    const requestData = JSON.parse(body);
 
-      // Check if this is a streaming request
-      if (requestData.stream === true) {
-        // Return streaming response
-        const encoder = new TextEncoder();
-        const stream = new ReadableStream({
-          start(controller) {
-            const chunks = [
-              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}\n\n',
-              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}\n\n',
-              'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}\n\n',
-              "data: [DONE]\n\n",
-            ];
+    // Check if this is a streaming request
+    if (requestData.stream === true) {
+      // Return streaming response
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          const chunks = [
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}\n\n',
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}\n\n',
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}\n\n',
+            "data: [DONE]\n\n",
+          ];
 
-            chunks.forEach((chunk) => {
-              controller.enqueue(encoder.encode(chunk));
-            });
-            controller.close();
-          },
-        });
+          chunks.forEach((chunk) => {
+            controller.enqueue(encoder.encode(chunk));
+          });
+          controller.close();
+        },
+      });
 
-        return new Response(stream, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          },
-        });
-      }
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
 
-      // Return regular completion response
-      return HttpResponse.json(completionsResponse);
-    },
-  ),
+    // Return regular completion response
+    return HttpResponse.json(completionsResponse);
+  }),
   http.post("https://api.openai.com/v1/embeddings", () => {
     return HttpResponse.json({
       object: "list",
@@ -176,8 +163,7 @@ describe("LangChainInstrumentation", () => {
 
     const spans = memoryExporter.getFinishedSpans();
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
     expect(llmSpan?.attributes).toMatchObject({
@@ -194,11 +180,7 @@ describe("LangChainInstrumentation", () => {
       [OUTPUT_MIME_TYPE]: "application/json",
     });
   });
-  const testDocuments = [
-    "dogs are cute",
-    "rainbows are colorful",
-    "water is wet",
-  ];
+  const testDocuments = ["dogs are cute", "rainbows are colorful", "water is wet"];
 
   it("should properly nest spans", async () => {
     const chatModel = new ChatOpenAI({
@@ -232,8 +214,7 @@ describe("LangChainInstrumentation", () => {
     const rootSpan = spans.find((span) => span.parentSpanId == null);
     const llmSpan = spans.find(
       (span) =>
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM,
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     const retrieverSpan = spans.find(
       (span) =>
@@ -241,22 +222,16 @@ describe("LangChainInstrumentation", () => {
         OpenInferenceSpanKind.RETRIEVER,
     );
 
-    const retrievalChainSpan = spans.find(
-      (span) => span.name === "retrieval_chain",
-    );
+    const retrievalChainSpan = spans.find((span) => span.name === "retrieval_chain");
 
-    const retrieveDocumentsSpan = spans.find(
-      (span) => span.name === "retrieve_documents",
-    );
+    const retrieveDocumentsSpan = spans.find((span) => span.name === "retrieve_documents");
 
     // Langchain creates a ton of generic spans that are deeply nested. This is a simple test to ensure we have the spans we care about and they are at least nested under something. It is not possible to test the exact nesting structure because it is too complex and generic.
     expect(rootSpan).toBe(retrievalChainSpan);
     expect(retrieverSpan).toBeDefined();
     expect(llmSpan).toBeDefined();
 
-    expect(retrieverSpan?.parentSpanId).toBe(
-      retrieveDocumentsSpan?.spanContext().spanId,
-    );
+    expect(retrieverSpan?.parentSpanId).toBe(retrieveDocumentsSpan?.spanContext().spanId);
     expect(llmSpan?.parentSpanId).toBeDefined();
   });
 
@@ -271,8 +246,7 @@ describe("LangChainInstrumentation", () => {
 
     const spans = memoryExporter.getFinishedSpans();
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
 
@@ -291,9 +265,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     // Test that invocation parameters contain expected fields
-    const invocationParams = JSON.parse(
-      String(llmSpan?.attributes[LLM_INVOCATION_PARAMETERS]),
-    );
+    const invocationParams = JSON.parse(String(llmSpan?.attributes[LLM_INVOCATION_PARAMETERS]));
     expect(invocationParams.model).toBe("gpt-3.5-turbo");
     expect(invocationParams.temperature).toBe(0);
   });
@@ -326,9 +298,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     // Test that invocation parameters contain streaming fields
-    const invocationParams = JSON.parse(
-      String(span.attributes[LLM_INVOCATION_PARAMETERS]),
-    );
+    const invocationParams = JSON.parse(String(span.attributes[LLM_INVOCATION_PARAMETERS]));
     expect(invocationParams.model).toBe("gpt-3.5-turbo");
     expect(invocationParams.stream).toBe(true);
     expect(invocationParams.stream_options).toBeDefined();
@@ -474,19 +444,15 @@ describe("LangChainInstrumentation", () => {
       },
     };
 
-    await chatModel.invoke(
-      "whats the weather like in seattle, wa in fahrenheit?",
-      {
-        functions: [weatherFunction],
-      },
-    );
+    await chatModel.invoke("whats the weather like in seattle, wa in fahrenheit?", {
+      functions: [weatherFunction],
+    });
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans).toBeDefined();
 
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
     // We strip out the input and output values because they are unstable
@@ -503,8 +469,7 @@ describe("LangChainInstrumentation", () => {
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]:
         "whats the weather like in seattle, wa in fahrenheit?",
-      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_FUNCTION_CALL_NAME}`]:
-        "get_current_weather",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_FUNCTION_CALL_NAME}`]: "get_current_weather",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [LLM_TOKEN_COUNT_COMPLETION]: 22,
@@ -546,8 +511,7 @@ describe("LangChainInstrumentation", () => {
     expect(spans).toBeDefined();
 
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
     const toolSchema = JSON.parse(
@@ -573,14 +537,10 @@ describe("LangChainInstrumentation", () => {
   });
 
   it("should add tool information to tool spans", async () => {
-    const simpleTool = tool(
-      async () => Promise.resolve("this is a test tool"),
-      {
-        name: "test_tool",
-        description:
-          "call this to get the value of a test, input should be an empty string",
-      },
-    );
+    const simpleTool = tool(async () => Promise.resolve("this is a test tool"), {
+      name: "test_tool",
+      description: "call this to get the value of a test, input should be an empty string",
+    });
 
     await simpleTool.invoke("hello");
 
@@ -588,8 +548,7 @@ describe("LangChainInstrumentation", () => {
     expect(spans).toBeDefined();
 
     const toolSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpan).toBeDefined();
     expect(toolSpan?.attributes).toMatchObject({
@@ -666,9 +625,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "test-session-123",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("test-session-123");
   });
 
   it("should extract session ID from run metadata with thread_id", async () => {
@@ -684,9 +641,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "thread-456",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("thread-456");
   });
 
   it("should extract session ID from run metadata with conversation_id", async () => {
@@ -702,9 +657,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "conv-789",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("conv-789");
   });
 
   it("should prioritize session_id over thread_id and conversation_id", async () => {
@@ -722,9 +675,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "session-123",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
   });
 
   it("should handle missing session identifiers in metadata", async () => {
@@ -802,19 +753,13 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     expect(spans.length).toBe(1);
     const span = spans[0];
     expect(span.attributes["input.value"]).toBe("__REDACTED__");
-    const invocationParams = JSON.parse(
-      String(span.attributes["llm.invocation_parameters"]),
-    );
+    const invocationParams = JSON.parse(String(span.attributes["llm.invocation_parameters"]));
     expect(invocationParams.model).toBe("gpt-3.5-turbo");
     expect(invocationParams.temperature).toBe(0);
     expect(span.attributes["test-attribute"]).toBe("test-value");
     expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo");
-    expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
-      "This is a test.",
-    );
-    expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-      "assistant",
-    );
+    expect(span.attributes["llm.output_messages.0.message.content"]).toBe("This is a test.");
+    expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
     expect(span.attributes["llm.token_count.completion"]).toBe(5);
     expect(span.attributes["llm.token_count.prompt"]).toBe(12);
     expect(span.attributes["llm.token_count.total"]).toBe(17);

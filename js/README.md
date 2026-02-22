@@ -33,9 +33,7 @@ To load the OpenAI instrumentation, specify it in the registerInstrumentations c
 
 ```typescript
 const { NodeTracerProvider } = require("@opentelemetry/sdk-trace-node");
-const {
-  OpenAIInstrumentation,
-} = require("@arizeai/openinference-instrumentation-openai");
+const { OpenAIInstrumentation } = require("@arizeai/openinference-instrumentation-openai");
 const { registerInstrumentations } = require("@opentelemetry/instrumentation");
 
 const provider = new NodeTracerProvider();

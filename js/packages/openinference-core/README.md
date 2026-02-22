@@ -172,27 +172,20 @@ const tracedAgent = traceAgent(
 ### Custom input/output processors
 
 ```typescript
-import {
-  getInputAttributes,
-  getRetrieverAttributes,
-  withSpan,
-} from "@arizeai/openinference-core";
+import { getInputAttributes, getRetrieverAttributes, withSpan } from "@arizeai/openinference-core";
 
-const retriever = withSpan(
-  async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`],
-  {
-    name: "retriever",
-    kind: "RETRIEVER",
-    processInput: (query) => getInputAttributes(query),
-    processOutput: (documents) =>
-      getRetrieverAttributes({
-        documents: documents.map((content, i) => ({
-          id: `doc-${i}`,
-          content,
-        })),
-      }),
-  },
-);
+const retriever = withSpan(async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`], {
+  name: "retriever",
+  kind: "RETRIEVER",
+  processInput: (query) => getInputAttributes(query),
+  processOutput: (documents) =>
+    getRetrieverAttributes({
+      documents: documents.map((content, i) => ({
+        id: `doc-${i}`,
+        content,
+      })),
+    }),
+});
 ```
 
 ## Decorators (`@observe`)
@@ -271,14 +264,11 @@ const tracer = new OITracer({
   },
 });
 
-const traced = withSpan(
-  async (prompt: string) => `model response for ${prompt}`,
-  {
-    tracer,
-    kind: OpenInferenceSpanKind.LLM,
-    name: "safe-llm-call",
-  },
-);
+const traced = withSpan(async (prompt: string) => `model response for ${prompt}`, {
+  tracer,
+  kind: OpenInferenceSpanKind.LLM,
+  name: "safe-llm-call",
+});
 ```
 
 You can also configure masking with environment variables:

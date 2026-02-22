@@ -37,8 +37,7 @@ export const PolicyFilterType = {
   MANAGED_WORD_LISTS: "managedWordLists",
 } as const;
 
-export type PolicyFilterType =
-  (typeof PolicyFilterType)[keyof typeof PolicyFilterType];
+export type PolicyFilterType = (typeof PolicyFilterType)[keyof typeof PolicyFilterType];
 
 export const PolicyType = {
   CONTENT: "contentPolicy",

@@ -1,6 +1,6 @@
 import { isObjectWithStringKeys } from "@arizeai/openinference-core";
 
-import { StringKeyedObject } from "../types";
+import type { StringKeyedObject } from "../types";
 
 /**
  * Checks if unknown data is an array of objects with string keys.

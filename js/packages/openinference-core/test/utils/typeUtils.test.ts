@@ -1,6 +1,6 @@
-import { isPromise } from "../../src/utils/typeUtils";
-
 import { describe, expect, it } from "vitest";
+
+import { isPromise } from "../../src/utils/typeUtils";
 
 describe("isPromise", () => {
   it("should correctly identify promises and non-promises", async () => {

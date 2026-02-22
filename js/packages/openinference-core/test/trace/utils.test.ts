@@ -1,8 +1,7 @@
 import { diag } from "@opentelemetry/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withSafety } from "../../src";
-
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("withSafety", () => {
   afterEach(() => {

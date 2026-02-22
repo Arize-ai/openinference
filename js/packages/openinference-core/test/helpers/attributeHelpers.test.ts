@@ -1,7 +1,6 @@
-import {
-  MimeType,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { describe, expect, it } from "vitest";
+
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 import {
   INPUT_MIME_TYPE,
   INPUT_VALUE,
@@ -23,8 +22,6 @@ import {
   toInputType,
   toOutputType,
 } from "../../src/helpers/attributeHelpers";
-
-import { describe, expect, it } from "vitest";
 
 describe("attributeHelpers", () => {
   describe("toInputType", () => {
@@ -214,12 +211,14 @@ describe("attributeHelpers", () => {
       expect(result).toEqual({
         [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
           "hello",
-        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]:
-          [0.1, 0.2, 0.3],
+        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_VECTOR}`]: [
+          0.1, 0.2, 0.3,
+        ],
         [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_TEXT}`]:
           "world",
-        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_VECTOR}`]:
-          [0.4, 0.5, 0.6],
+        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_VECTOR}`]: [
+          0.4, 0.5, 0.6,
+        ],
       });
     });
 
@@ -232,8 +231,9 @@ describe("attributeHelpers", () => {
       expect(result).toEqual({
         [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.0.${SemanticConventions.EMBEDDING_TEXT}`]:
           "hello",
-        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_VECTOR}`]:
-          [0.1, 0.2],
+        [`${SemanticConventions.EMBEDDING_EMBEDDINGS}.1.${SemanticConventions.EMBEDDING_VECTOR}`]: [
+          0.1, 0.2,
+        ],
       });
     });
 
@@ -252,13 +252,11 @@ describe("attributeHelpers", () => {
       expect(result).toEqual({
         [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.0.${SemanticConventions.DOCUMENT_CONTENT}`]:
           "Document 1",
-        [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.0.${SemanticConventions.DOCUMENT_ID}`]:
-          "doc1",
+        [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.0.${SemanticConventions.DOCUMENT_ID}`]: "doc1",
         [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.0.${SemanticConventions.DOCUMENT_SCORE}`]: 0.95,
         [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.1.${SemanticConventions.DOCUMENT_CONTENT}`]:
           "Document 2",
-        [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.1.${SemanticConventions.DOCUMENT_ID}`]:
-          "doc2",
+        [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.1.${SemanticConventions.DOCUMENT_ID}`]: "doc2",
         [`${SemanticConventions.RETRIEVAL_DOCUMENTS}.1.${SemanticConventions.DOCUMENT_METADATA}`]:
           JSON.stringify({ source: "web" }),
       });
@@ -284,11 +282,7 @@ describe("attributeHelpers", () => {
         score: 0.8,
         metadata: { source: "file" },
       };
-      const result = getDocumentAttributes(
-        document,
-        0,
-        "reranker.input_documents",
-      );
+      const result = getDocumentAttributes(document, 0, "reranker.input_documents");
       expect(result).toEqual({
         "reranker.input_documents.0.document.content": "Sample document",
         "reranker.input_documents.0.document.id": "doc123",
@@ -336,9 +330,7 @@ describe("attributeHelpers", () => {
       expect(result).toEqual({
         [SemanticConventions.TOOL_NAME]: "search_tool",
         [SemanticConventions.TOOL_DESCRIPTION]: "Search for information",
-        [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(
-          options.parameters,
-        ),
+        [SemanticConventions.TOOL_PARAMETERS]: JSON.stringify(options.parameters),
       });
     });
 
@@ -396,8 +388,7 @@ describe("attributeHelpers", () => {
       };
       const result = getLLMAttributes(options);
       expect(result).toEqual({
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
-          "user",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: "user",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]:
           "Hello",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]:
@@ -423,8 +414,7 @@ describe("attributeHelpers", () => {
         ],
       });
       expect(result).toEqual({
-        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]:
-          "user",
+        [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]: "user",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
           "text",
         [`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENTS}.0.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:

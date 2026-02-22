@@ -144,15 +144,12 @@ export const GraphPostfixes = {
  * The input to any span
  */
 export const INPUT_VALUE = `${SemanticAttributePrefixes.input}.value` as const;
-export const INPUT_MIME_TYPE =
-  `${SemanticAttributePrefixes.input}.mime_type` as const;
+export const INPUT_MIME_TYPE = `${SemanticAttributePrefixes.input}.mime_type` as const;
 /**
  * The output of any span
  */
-export const OUTPUT_VALUE =
-  `${SemanticAttributePrefixes.output}.value` as const;
-export const OUTPUT_MIME_TYPE =
-  `${SemanticAttributePrefixes.output}.mime_type` as const;
+export const OUTPUT_VALUE = `${SemanticAttributePrefixes.output}.value` as const;
+export const OUTPUT_MIME_TYPE = `${SemanticAttributePrefixes.output}.mime_type` as const;
 /**
  * The messages sent to the LLM for completions
  * Typically seen in OpenAI chat completions
@@ -277,8 +274,7 @@ export const LLM_TOKEN_COUNT_COMPLETION_DETAILS =
  * how these separate attributes can be conceptually organized.
  * All monetary values are in USD with floating point precision.
  */
-export const LLM_COST =
-  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}` as const;
+export const LLM_COST = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.cost}` as const;
 
 /** Cost of the prompt tokens in USD */
 export const LLM_COST_PROMPT =
@@ -462,14 +458,12 @@ const PROMPT_TEMPLATE_PREFIX =
 /**
  * The JSON representation of the variables used in the prompt template
  */
-export const PROMPT_TEMPLATE_VARIABLES =
-  `${PROMPT_TEMPLATE_PREFIX}.variables` as const;
+export const PROMPT_TEMPLATE_VARIABLES = `${PROMPT_TEMPLATE_PREFIX}.variables` as const;
 
 /**
  * A prompt template
  */
-export const PROMPT_TEMPLATE_TEMPLATE =
-  `${PROMPT_TEMPLATE_PREFIX}.template` as const;
+export const PROMPT_TEMPLATE_TEMPLATE = `${PROMPT_TEMPLATE_PREFIX}.template` as const;
 
 /**
  * The JSON representation of a function call of an LLM
@@ -480,8 +474,7 @@ export const LLM_FUNCTION_CALL =
 /**
  * List of tools that are advertised to the LLM to be able to call
  */
-export const LLM_TOOLS =
-  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.tools}` as const;
+export const LLM_TOOLS = `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.tools}` as const;
 
 /**
  * The name of a tool
@@ -517,8 +510,7 @@ export const SESSION_ID =
 /**
  * The user id of a trace. Used to correlate spans for a single user.
  */
-export const USER_ID =
-  `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
+export const USER_ID = `${SemanticAttributePrefixes.user}.${UserAttributePostfixes.id}` as const;
 
 /**
  * The documents used as input to the reranker
@@ -558,14 +550,12 @@ export const METADATA = "metadata" as const;
 /**
  * A prompt template version
  */
-export const PROMPT_TEMPLATE_VERSION =
-  `${PROMPT_TEMPLATE_PREFIX}.version` as const;
+export const PROMPT_TEMPLATE_VERSION = `${PROMPT_TEMPLATE_PREFIX}.version` as const;
 
 /**
  * The tags associated with a span
  */
-export const TAG_TAGS =
-  `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
+export const TAG_TAGS = `${SemanticAttributePrefixes.tag}.${TagAttributePostfixes.tags}` as const;
 
 /**
  * The url of an audio file
@@ -605,8 +595,7 @@ export const PROMPT_URL =
 /**
  * The name of the agent. Agents that perform the same functions should have the same name.
  */
-export const AGENT_NAME =
-  `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
+export const AGENT_NAME = `${SemanticAttributePrefixes.agent}.${AgentPostfixes.name}` as const;
 
 /**
  * The id of the node in the execution graph. This along with graph.node.parent_id are used to visualize the execution graph.

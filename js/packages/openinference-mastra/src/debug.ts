@@ -38,9 +38,7 @@ export const debug = async (spans: ReadableSpan[]) => {
         endTime: span.endTime,
       }))
       .filter((span) =>
-        ["post", "agent", "ai"].some((prefix) =>
-          span.name.toLocaleLowerCase().startsWith(prefix),
-        ),
+        ["post", "agent", "ai"].some((prefix) => span.name.toLocaleLowerCase().startsWith(prefix)),
       ),
   );
   const root = spans.find((span) => span.parentSpanContext?.spanId == null);
