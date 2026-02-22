@@ -92,7 +92,7 @@ describe("V1 query() wrapper", () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe("Claude Agent SDK query");
+    expect(span.name).toBe("ClaudeAgent.query");
     expect(span.status.code).toBe(SpanStatusCode.OK);
 
     const attrs = span.attributes;

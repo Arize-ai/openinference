@@ -33,6 +33,10 @@ type PromptFn = (message: string, options: SDKSessionOptions) => Promise<SDKResu
 /**
  * Wraps the `unstable_v2_prompt()` function.
  * Creates a single AGENT span for the entire prompt -> result lifecycle.
+ *
+ * @param options.original - The original SDK `unstable_v2_prompt()` function
+ * @param options.oiTracer - OITracer instance for creating spans
+ * @returns A wrapped prompt function with identical signature
  */
 export function wrapPrompt({
   original,
@@ -50,16 +54,15 @@ export function wrapPrompt({
       return original(message, options);
     }
 
-    const { inputValue, inputMimeType } = formatPromptAttributes(message);
+    const inputAttrs = formatPromptAttributes(message);
     const toolTracker = new ToolSpanTracker(oiTracer);
 
     return oiTracer.startActiveSpan(
-      `Claude Agent SDK prompt`,
+      `ClaudeAgent.prompt`,
       {
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-          [SemanticConventions.INPUT_VALUE]: inputValue,
-          [SemanticConventions.INPUT_MIME_TYPE]: inputMimeType,
+          ...inputAttrs,
         },
       },
       async (span: Span) => {
@@ -105,6 +108,10 @@ export function wrapPrompt({
 /**
  * Wraps `unstable_v2_createSession()` to return a proxied session
  * that instruments `send()` + `stream()` with AGENT and TOOL spans.
+ *
+ * @param options.original - The original SDK `unstable_v2_createSession()` function
+ * @param options.oiTracer - OITracer instance for creating spans
+ * @returns A wrapped createSession function that returns an instrumented session
  */
 export function wrapCreateSession({
   original,
@@ -121,6 +128,10 @@ export function wrapCreateSession({
 
 /**
  * Wraps `unstable_v2_resumeSession()` to return a proxied session.
+ *
+ * @param options.original - The original SDK `unstable_v2_resumeSession()` function
+ * @param options.oiTracer - OITracer instance for creating spans
+ * @returns A wrapped resumeSession function that returns an instrumented session
  */
 export function wrapResumeSession({
   original,
@@ -161,15 +172,13 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
             currentTurnSpan.end();
           }
 
-          const { inputValue, inputMimeType } = formatPromptAttributes(message);
+          const inputAttrs = formatPromptAttributes(message);
           currentToolTracker = new ToolSpanTracker(oiTracer);
 
-          currentTurnSpan = oiTracer.startSpan(`Claude Agent SDK turn`, {
+          currentTurnSpan = oiTracer.startSpan(`ClaudeAgent.turn`, {
             attributes: {
               [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-              [SemanticConventions.INPUT_VALUE]: inputValue,
-              [SemanticConventions.INPUT_MIME_TYPE]: inputMimeType,
-              [SemanticConventions.SESSION_ID]: target.sessionId,
+              ...inputAttrs,
             },
           });
 

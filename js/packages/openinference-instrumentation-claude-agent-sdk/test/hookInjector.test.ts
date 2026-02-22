@@ -40,7 +40,7 @@ describe("ToolSpanTracker", () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe("Tool: Bash");
+    expect(span.name).toBe("Bash");
     expect(span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.TOOL,
     );
@@ -216,7 +216,7 @@ describe("mergeHooks", () => {
         s.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpans).toHaveLength(1);
-    expect(toolSpans[0].name).toBe("Tool: Bash");
+    expect(toolSpans[0].name).toBe("Bash");
     expect(toolSpans[0].status.code).toBe(SpanStatusCode.OK);
   });
 });

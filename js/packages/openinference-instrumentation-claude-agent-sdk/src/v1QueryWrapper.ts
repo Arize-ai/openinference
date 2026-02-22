@@ -40,6 +40,10 @@ type QueryFunction = (params: QueryParams) => AsyncIterable<SDKMessage>;
 /**
  * Creates a wrapped version of the SDK's `query()` function that produces
  * AGENT spans and TOOL child spans via hook injection.
+ *
+ * @param options.original - The original SDK `query()` function
+ * @param options.oiTracer - OITracer instance for creating spans
+ * @returns A wrapped query function with identical signature
  */
 export function wrapQuery({
   original,
@@ -54,7 +58,7 @@ export function wrapQuery({
       return original(params);
     }
 
-    const { inputValue, inputMimeType } = formatPromptAttributes(params.prompt);
+    const inputAttrs = formatPromptAttributes(params.prompt);
 
     const toolTracker = new ToolSpanTracker(oiTracer);
 
@@ -63,11 +67,10 @@ export function wrapQuery({
     return {
       [Symbol.asyncIterator]() {
         // Start the AGENT span when iteration begins
-        const span: Span = oiTracer.startSpan(`Claude Agent SDK query`, {
+        const span: Span = oiTracer.startSpan(`ClaudeAgent.query`, {
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.AGENT,
-            [SemanticConventions.INPUT_VALUE]: inputValue,
-            [SemanticConventions.INPUT_MIME_TYPE]: inputMimeType,
+            ...inputAttrs,
           },
         });
 

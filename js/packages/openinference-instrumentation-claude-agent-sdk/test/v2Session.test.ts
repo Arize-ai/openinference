@@ -63,7 +63,7 @@ describe("V2 unstable_v2_prompt() wrapper", () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe("Claude Agent SDK prompt");
+    expect(span.name).toBe("ClaudeAgent.prompt");
     expect(span.status.code).toBe(SpanStatusCode.OK);
     expect(span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.AGENT,
@@ -175,7 +175,7 @@ describe("V2 session wrappers", () => {
     expect(spans).toHaveLength(1);
 
     const span = spans[0];
-    expect(span.name).toBe("Claude Agent SDK turn");
+    expect(span.name).toBe("ClaudeAgent.turn");
     expect(span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe(
       OpenInferenceSpanKind.AGENT,
     );
@@ -225,7 +225,7 @@ describe("V2 session wrappers", () => {
 
     const spans = exporter.getFinishedSpans();
     expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("Claude Agent SDK turn");
+    expect(spans[0].name).toBe("ClaudeAgent.turn");
   });
 
   it("should end span on session close()", async () => {

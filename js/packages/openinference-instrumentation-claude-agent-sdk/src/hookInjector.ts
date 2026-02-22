@@ -10,7 +10,12 @@ import type { Span } from "@opentelemetry/api";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 
 import type { OITracer } from "@arizeai/openinference-core";
-import { safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  getInputAttributes,
+  getOutputAttributes,
+  getToolAttributes,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import {
   MimeType,
   OpenInferenceSpanKind,
@@ -50,14 +55,12 @@ export class ToolSpanTracker {
     const inputStr = safelyJSONStringify(toolInput) ?? "";
     const ctx = parentContext ?? context.active();
     const span = this.oiTracer.startSpan(
-      `Tool: ${toolName}`,
+      `${toolName}`,
       {
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
-          [SemanticConventions.TOOL_NAME]: toolName,
-          [SemanticConventions.TOOL_PARAMETERS]: inputStr,
-          [SemanticConventions.INPUT_VALUE]: inputStr,
-          [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+          ...getToolAttributes({ name: toolName, parameters: (toolInput as Record<string, unknown>) ?? {} }),
+          ...getInputAttributes({ value: inputStr, mimeType: MimeType.JSON }),
         },
       },
       ctx,
@@ -75,10 +78,7 @@ export class ToolSpanTracker {
 
     if (toolResponse !== undefined) {
       const outputStr = safelyJSONStringify(toolResponse) ?? "";
-      span.setAttributes({
-        [SemanticConventions.OUTPUT_VALUE]: outputStr,
-        [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.JSON,
-      });
+      span.setAttributes(getOutputAttributes({ value: outputStr, mimeType: MimeType.JSON }));
     }
     span.setStatus({ code: SpanStatusCode.OK });
     span.end();
