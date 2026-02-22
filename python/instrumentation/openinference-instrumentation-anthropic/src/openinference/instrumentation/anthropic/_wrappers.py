@@ -183,7 +183,18 @@ class _MessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
+    Supports both regular messages.create() and beta.messages.parse()
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str = "Messages",
+        enable_streaming: bool = True,
+    ) -> None:
+        super().__init__(tracer)
+        self._span_name = span_name
+        self._enable_streaming = enable_streaming
 
     def __call__(
         self,
@@ -196,24 +207,9 @@ class _MessagesWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
-            span_name="Messages",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            span_name=self._span_name,
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -221,30 +217,32 @@ class _MessagesWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-                span.finish_tracing()
-                return response
+            if self._enable_streaming:
+                streaming = kwargs.get("stream", False)
+                if streaming:
+                    return _MessagesStream(response, span)
+            span.set_status(trace_api.StatusCode.OK)
+            _set_messages_span_output_attributes(span, response)
+            span.finish_tracing()
+            return response
 
 
 class _AsyncMessagesWrapper(_WithTracer):
     """
     Wrapper for the pipeline processing
     Captures all calls to the pipeline
+    Supports both regular messages.create() and beta.messages.parse()
     """
+
+    def __init__(
+        self,
+        tracer: trace_api.Tracer,
+        span_name: str = "AsyncMessages",
+        enable_streaming: bool = True,
+    ) -> None:
+        super().__init__(tracer)
+        self._span_name = span_name
+        self._enable_streaming = enable_streaming
 
     async def __call__(
         self,
@@ -257,24 +255,9 @@ class _AsyncMessagesWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
 
         arguments = kwargs
-        llm_input_messages = dict(arguments).pop("messages", None)
-        invocation_parameters = _get_invocation_parameters(arguments)
-
         with self._start_as_current_span(
-            span_name="AsyncMessages",
-            attributes=dict(
-                chain(
-                    get_attributes_from_context(),
-                    _get_llm_provider(),
-                    _get_llm_system(),
-                    _get_llm_model_name_from_input(arguments),
-                    _get_llm_span_kind(),
-                    _get_llm_input_messages(llm_input_messages),
-                    _get_llm_invocation_parameters(invocation_parameters),
-                    _get_llm_tools(invocation_parameters),
-                    _get_inputs(arguments),
-                )
-            ),
+            span_name=self._span_name,
+            attributes=_get_messages_span_input_attributes(arguments),
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -282,23 +265,14 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(
-                    dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    )
-                )
-                span.finish_tracing()
-                return response
+            if self._enable_streaming:
+                streaming = kwargs.get("stream", False)
+                if streaming:
+                    return _MessagesStream(response, span)
+            span.set_status(trace_api.StatusCode.OK)
+            _set_messages_span_output_attributes(span, response)
+            span.finish_tracing()
+            return response
 
 
 class _MessagesStreamWrapper(_WithTracer):
@@ -354,6 +328,11 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
     def __enter__(self) -> Iterator[str]:
         raw = self.__api_request()
         return _MessagesStream(raw, self._self_with_span)
+
+
+# Beta wrappers are now aliases to the main wrappers with different configuration
+_BetaMessagesParseWrapper = _MessagesWrapper
+_AsyncBetaMessagesParseWrapper = _AsyncMessagesWrapper
 
 
 def _get_inputs(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
@@ -429,6 +408,23 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
     """
     from anthropic.types import TextBlock, ToolUseBlock
 
+    # Import beta types for compatibility with beta API responses
+    try:
+        from anthropic.types.beta import BetaTextBlock, BetaToolUseBlock
+    except ImportError:
+        BetaTextBlock = None  # type: ignore[misc, assignment]
+        BetaToolUseBlock = None  # type: ignore[misc, assignment]
+
+    # Build tuple of text block types to check against
+    text_block_types: tuple[type, ...] = (TextBlock,)
+    if BetaTextBlock is not None:
+        text_block_types = (TextBlock, BetaTextBlock)
+
+    # Build tuple of tool use block types to check against
+    tool_use_block_types: tuple[type, ...] = (ToolUseBlock,)
+    if BetaToolUseBlock is not None:
+        tool_use_block_types = (ToolUseBlock, BetaToolUseBlock)
+
     for i in range(len(messages)):
         tool_index = 0
         if content := messages[i].get("content"):
@@ -436,7 +432,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                 yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
             elif isinstance(content, list):
                 for j, block in enumerate(content):
-                    if isinstance(block, ToolUseBlock):
+                    if isinstance(block, tool_use_block_types):
                         if tool_call_id := block.id:
                             yield (
                                 f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_ID}",
@@ -451,7 +447,7 @@ def _get_llm_input_messages(messages: List[Dict[str, str]]) -> Any:
                             safe_json_dumps(block.input),
                         )
                         tool_index += 1
-                    elif isinstance(block, TextBlock):
+                    elif isinstance(block, text_block_types):
                         yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", block.text
                     elif isinstance(block, dict):
                         block_type = block.get("type")
@@ -509,14 +505,32 @@ def _get_invocation_parameters(kwargs: Mapping[str, Any]) -> Any:
 
 def _get_output_messages(response: Any) -> Any:
     """
-    Extracts the tool call information from the response
+    Extracts the tool call information from the response.
+    Supports both regular Message responses and beta BetaMessage responses.
     """
     from anthropic.types import TextBlock, ToolUseBlock
+
+    # Import beta types for compatibility with beta API responses
+    try:
+        from anthropic.types.beta import BetaTextBlock, BetaToolUseBlock
+    except ImportError:
+        BetaTextBlock = None  # type: ignore[misc, assignment]
+        BetaToolUseBlock = None  # type: ignore[misc, assignment]
+
+    # Build tuple of text block types to check against
+    text_block_types: tuple[type, ...] = (TextBlock,)
+    if BetaTextBlock is not None:
+        text_block_types = (TextBlock, BetaTextBlock)
+
+    # Build tuple of tool use block types to check against
+    tool_use_block_types: tuple[type, ...] = (ToolUseBlock,)
+    if BetaToolUseBlock is not None:
+        tool_use_block_types = (ToolUseBlock, BetaToolUseBlock)
 
     tool_index = 0
     for block in response.content:
         yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_ROLE}", response.role
-        if isinstance(block, ToolUseBlock):
+        if isinstance(block, tool_use_block_types):
             yield (
                 f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_TOOL_CALLS}.{tool_index}.{TOOL_CALL_FUNCTION_NAME}",
                 block.name,
@@ -526,8 +540,48 @@ def _get_output_messages(response: Any) -> Any:
                 safe_json_dumps(block.input),
             )
             tool_index += 1
-        if isinstance(block, TextBlock):
+        if isinstance(block, text_block_types):
             yield f"{LLM_OUTPUT_MESSAGES}.{0}.{MESSAGE_CONTENT}", block.text
+
+
+def _get_messages_span_input_attributes(arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """Build input attributes for messages-style spans (create, parse).
+    Shared by Messages and BetaMessagesParse wrappers."""
+    llm_input_messages = dict(arguments).pop("messages", None)
+    invocation_parameters = _get_invocation_parameters(arguments)
+    return dict(
+        chain(
+            get_attributes_from_context(),
+            _get_llm_model_name_from_input(arguments),
+            _get_llm_provider(),
+            _get_llm_system(),
+            _get_llm_span_kind(),
+            _get_llm_input_messages(llm_input_messages),
+            _get_llm_invocation_parameters(invocation_parameters),
+            _get_llm_tools(invocation_parameters),
+            _get_inputs(arguments),
+        )
+    )
+
+
+def _set_messages_span_output_attributes(
+    span: Any,
+    response: Any,
+) -> None:
+    """
+    Set output attributes on a messages-style span.
+    Records model name from response, output messages, token counts, and outputs.
+    """
+    span.set_attributes(
+        dict(
+            chain(
+                _get_llm_model_name_from_response(response),
+                _get_output_messages(response),
+                _get_llm_token_counts(response.usage),
+                _get_outputs(response),
+            )
+        )
+    )
 
 
 def _validate_invocation_parameter(parameter: Any) -> bool:

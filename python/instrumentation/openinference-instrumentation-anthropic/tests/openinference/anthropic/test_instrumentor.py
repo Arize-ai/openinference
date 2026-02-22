@@ -1237,6 +1237,16 @@ def test_anthropic_uninstrumentation(
     assert isinstance(AsyncCompletions.create, BoundFunctionWrapper)
     assert isinstance(AsyncMessages.create, BoundFunctionWrapper)
 
+    # Check beta API instrumentation if available
+    try:
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
+
+        assert isinstance(BetaMessages.parse, BoundFunctionWrapper)
+        assert isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
+    except ImportError:
+        pass  # Beta API not available
+
     AnthropicInstrumentor().uninstrument()
 
     assert not isinstance(Completions.create, BoundFunctionWrapper)
@@ -1244,12 +1254,169 @@ def test_anthropic_uninstrumentation(
     assert not isinstance(AsyncCompletions.create, BoundFunctionWrapper)
     assert not isinstance(AsyncMessages.create, BoundFunctionWrapper)
 
+    # Check beta API uninstrumentation if it was instrumented
+    try:
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
+
+        assert not isinstance(BetaMessages.parse, BoundFunctionWrapper)
+        assert not isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
+    except ImportError:
+        pass  # Beta API not available
+
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg
 def test_oitracer(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_beta_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Test instrumentation for beta.messages.parse() method."""
+    try:
+        # Check if beta API is available first
+        from anthropic.resources.beta.messages import Messages as BetaMessages
+
+        if not hasattr(BetaMessages, "parse"):
+            pytest.skip("Beta messages parse API not available")
+
+        client = Anthropic(api_key="fake")
+        input_message = (
+            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        )
+
+        invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
+
+        # Call beta.messages.parse()
+        client.beta.messages.parse(
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": input_message,
+                }
+            ],
+            model="claude-sonnet-4-5-20250929",
+        )
+
+        spans = in_memory_span_exporter.get_finished_spans()
+
+        assert len(spans) > 0
+        assert spans[0].name == "BetaMessagesParse"
+        attributes = dict(spans[0].attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+        assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == invocation_params
+
+        # Verify output messages are captured for beta responses (BetaTextBlock handling)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        )
+        assert "March 15th" in msg_content  # Verify content matches expected response
+
+        # Verify token counts are captured
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
+    except (ImportError, AttributeError) as e:
+        # Beta API may not be available in all SDK versions
+        pytest.skip(f"Beta messages API not available: {e}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_beta_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    """Test instrumentation for async beta.messages.parse() method."""
+    try:
+        # Check if beta API is available first
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+
+        if not hasattr(AsyncBetaMessages, "parse"):
+            pytest.skip("Beta messages parse API not available")
+
+        client = AsyncAnthropic(api_key="fake")
+        input_message = (
+            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+        )
+
+        invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
+
+        # Call async beta.messages.parse()
+        await client.beta.messages.parse(
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": input_message,
+                }
+            ],
+            model="claude-sonnet-4-5-20250929",
+        )
+
+        spans = in_memory_span_exporter.get_finished_spans()
+
+        assert len(spans) > 0
+        assert spans[0].name == "AsyncBetaMessagesParse"
+        attributes = dict(spans[0].attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+        assert isinstance(attributes.pop(INPUT_VALUE), str)
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+        assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert json.loads(inv_params) == invocation_params
+
+        # Verify output messages are captured for beta responses (BetaTextBlock handling)
+        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+        assert isinstance(
+            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
+        )
+        assert "March 15th" in msg_content  # Verify content matches expected response
+
+        # Verify token counts are captured
+        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
+        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
+    except (ImportError, AttributeError) as e:
+        # Beta API may not be available in all SDK versions
+        pytest.skip(f"Beta messages API not available: {e}")
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN
