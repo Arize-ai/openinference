@@ -68,11 +68,11 @@ export function wrapPrompt({
       async (span: Span) => {
         try {
           const modifiedOptions = mergeHooks({
-            options: options as Record<string, unknown>,
+            options,
             toolTracker,
             parentSpan: span,
           });
-          const result = await original(message, modifiedOptions as SDKSessionOptions);
+          const result = await original(message, modifiedOptions);
 
           if (isResultSuccessMessage(result)) {
             span.setAttributes(extractResultSuccessAttributes(result));
@@ -151,6 +151,11 @@ export function wrapResumeSession({
  * - On `send(msg)`: Starts a per-turn AGENT span
  * - On `stream()`: Wraps the generator to process messages and end the span
  * - On `close()`: Ends any in-flight span
+ *
+ * **Sequential assumption:** The SDK's session API is inherently sequential —
+ * `send()` queues a message and `stream()` drains it. Concurrent `send()`/`stream()`
+ * calls on the same session are not supported by the SDK. The `currentTurnSpan` and
+ * `currentToolTracker` shared state is therefore safe without synchronization.
  */
 function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession {
   let currentTurnSpan: Span | undefined;

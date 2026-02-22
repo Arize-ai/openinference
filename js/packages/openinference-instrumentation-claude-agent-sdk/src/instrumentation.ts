@@ -66,6 +66,17 @@ interface ClaudeAgentSDKModule {
 }
 
 /**
+ * Returns true if a property on the given object can be assigned to.
+ * ESM namespace objects have getter-only, non-configurable descriptors.
+ */
+function isPropertyWritable(obj: object, prop: string): boolean {
+  const desc = Object.getOwnPropertyDescriptor(obj, prop);
+  if (!desc) return true; // no descriptor → assignment will create it
+  if (desc.get && !desc.set && !desc.configurable) return false;
+  return desc.writable !== false;
+}
+
+/**
  * OpenInference instrumentation for the Claude Agent SDK.
  *
  * Produces AGENT spans for query()/prompt() invocations and TOOL spans
@@ -83,6 +94,13 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
+  private _originals: Partial<
+    Pick<
+      ClaudeAgentSDKModule,
+      "query" | "unstable_v2_prompt" | "unstable_v2_createSession" | "unstable_v2_resumeSession"
+    >
+  > = {};
+  private _patchedModule?: ClaudeAgentSDKModule;
 
   constructor({
     instrumentationConfig,
@@ -139,6 +157,12 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
   /**
    * Patches the Claude Agent SDK module exports.
+   *
+   * ESM modules export read-only getters that cannot be reassigned directly.
+   * We first try in-place mutation (works for CJS / plain objects / tests),
+   * and fall back to returning a new module object when the property is
+   * non-writable (ESM).  `require-in-the-middle` uses the return value as
+   * the replacement module.
    */
   private patch(module: ClaudeAgentSDKModule, moduleVersion?: string): ClaudeAgentSDKModule {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
@@ -151,16 +175,34 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
     const sdkModule =
       (module as ClaudeAgentSDKModule & { default?: ClaudeAgentSDKModule }).default || module;
 
+    // Check if the module is mutable (CJS / plain objects) or frozen (ESM).
+    const isMutable = isPropertyWritable(sdkModule, "query") ||
+      !Object.getOwnPropertyDescriptor(sdkModule, "query");
+
+    // Target is either the original module (mutable) or a shallow copy (frozen ESM).
+    const target: ClaudeAgentSDKModule = isMutable
+      ? sdkModule
+      : ({ ...sdkModule } as ClaudeAgentSDKModule);
+
+    // Store originals for unpatch restoration
+    this._originals = {
+      query: sdkModule.query,
+      unstable_v2_prompt: sdkModule.unstable_v2_prompt,
+      unstable_v2_createSession: sdkModule.unstable_v2_createSession,
+      unstable_v2_resumeSession: sdkModule.unstable_v2_resumeSession,
+    };
+    this._patchedModule = target;
+
     // Patch V1: query()
     if (typeof sdkModule.query === "function") {
-      sdkModule.query = wrapQuery({ original: sdkModule.query, oiTracer: this.oiTracer });
+      target.query = wrapQuery({ original: sdkModule.query, oiTracer: this.oiTracer });
     } else {
       diag.debug(`Cannot find query export in ${MODULE_NAME}@${moduleVersion}`);
     }
 
     // Patch V2: unstable_v2_prompt()
     if (typeof sdkModule.unstable_v2_prompt === "function") {
-      sdkModule.unstable_v2_prompt = wrapPrompt({
+      target.unstable_v2_prompt = wrapPrompt({
         original: sdkModule.unstable_v2_prompt,
         oiTracer: this.oiTracer,
       });
@@ -168,7 +210,7 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
     // Patch V2: unstable_v2_createSession()
     if (typeof sdkModule.unstable_v2_createSession === "function") {
-      sdkModule.unstable_v2_createSession = wrapCreateSession({
+      target.unstable_v2_createSession = wrapCreateSession({
         original: sdkModule.unstable_v2_createSession,
         oiTracer: this.oiTracer,
       });
@@ -176,7 +218,7 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
     // Patch V2: unstable_v2_resumeSession()
     if (typeof sdkModule.unstable_v2_resumeSession === "function") {
-      sdkModule.unstable_v2_resumeSession = wrapResumeSession({
+      target.unstable_v2_resumeSession = wrapResumeSession({
         original: sdkModule.unstable_v2_resumeSession,
         oiTracer: this.oiTracer,
       });
@@ -184,19 +226,36 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
 
     _isOpenInferencePatched = true;
     try {
-      module.openInferencePatched = true;
-    } catch (e) {
-      diag.debug(`Failed to set ${MODULE_NAME} patched flag on the module`, e);
+      target.openInferencePatched = true;
+    } catch {
+      diag.debug(`Failed to set ${MODULE_NAME} patched flag on the module`);
     }
 
-    return module;
+    return target;
   }
 
   /**
-   * Un-patches the Claude Agent SDK module.
+   * Un-patches the Claude Agent SDK module, restoring original functions.
    */
   private unpatch(moduleExports: ClaudeAgentSDKModule, moduleVersion?: string) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
+
+    // Restore original functions on the patched target
+    const target = this._patchedModule ?? moduleExports;
+    if (this._originals.query) {
+      target.query = this._originals.query;
+    }
+    if (this._originals.unstable_v2_prompt) {
+      target.unstable_v2_prompt = this._originals.unstable_v2_prompt;
+    }
+    if (this._originals.unstable_v2_createSession) {
+      target.unstable_v2_createSession = this._originals.unstable_v2_createSession;
+    }
+    if (this._originals.unstable_v2_resumeSession) {
+      target.unstable_v2_resumeSession = this._originals.unstable_v2_resumeSession;
+    }
+    this._originals = {};
+    this._patchedModule = undefined;
 
     _isOpenInferencePatched = false;
     try {

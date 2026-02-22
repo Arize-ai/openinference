@@ -76,7 +76,7 @@ export function wrapQuery({
 
         // Inject hooks into options
         const modifiedOptions = mergeHooks({
-          options: params.options as Record<string, unknown> | undefined,
+          options: params.options,
           toolTracker,
           parentSpan: span,
         });

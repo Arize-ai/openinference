@@ -2,12 +2,9 @@ import type {
   HookCallback,
   HookCallbackMatcher,
   HookEvent,
-  PostToolUseFailureHookInput,
-  PostToolUseHookInput,
-  PreToolUseHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Span } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, diag, SpanStatusCode, trace } from "@opentelemetry/api";
 
 import type { OITracer } from "@arizeai/openinference-core";
 import {
@@ -26,6 +23,17 @@ import {
  * Hook configuration from SDK options, keyed by hook event name.
  */
 type HooksOption = Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+
+/**
+ * Safely coerces an unknown value to Record<string, unknown>.
+ * Returns an empty object for non-object values (strings, arrays, null, etc.).
+ */
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
 
 /**
  * Tracks in-flight tool spans, correlating PreToolUse → PostToolUse/PostToolUseFailure
@@ -59,7 +67,7 @@ export class ToolSpanTracker {
       {
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.TOOL,
-          ...getToolAttributes({ name: toolName, parameters: (toolInput as Record<string, unknown>) ?? {} }),
+          ...getToolAttributes({ name: toolName, parameters: asRecord(toolInput) }),
           ...getInputAttributes({ value: inputStr, mimeType: MimeType.JSON }),
         },
       },
@@ -122,25 +130,34 @@ function createToolHookMatchers(
   const parentContext = trace.setSpan(context.active(), parentSpan);
 
   const preToolUseHook: HookCallback = async (input) => {
-    const { tool_name, tool_input, tool_use_id } = input as PreToolUseHookInput;
-    if (tool_use_id) {
+    try {
+      if (input.hook_event_name !== "PreToolUse") return {};
+      const { tool_name, tool_input, tool_use_id } = input;
       toolTracker.startToolSpan(tool_name, tool_input, tool_use_id, parentContext);
+    } catch (e) {
+      diag.warn("OpenInference: PreToolUse hook error", e);
     }
     return {};
   };
 
   const postToolUseHook: HookCallback = async (input) => {
-    const { tool_use_id, tool_response } = input as PostToolUseHookInput;
-    if (tool_use_id) {
+    try {
+      if (input.hook_event_name !== "PostToolUse") return {};
+      const { tool_use_id, tool_response } = input;
       toolTracker.endToolSpan(tool_use_id, tool_response);
+    } catch (e) {
+      diag.warn("OpenInference: PostToolUse hook error", e);
     }
     return {};
   };
 
   const postToolUseFailureHook: HookCallback = async (input) => {
-    const { tool_use_id, error } = input as PostToolUseFailureHookInput;
-    if (tool_use_id) {
+    try {
+      if (input.hook_event_name !== "PostToolUseFailure") return {};
+      const { tool_use_id, error } = input;
       toolTracker.endToolSpanWithError(tool_use_id, error);
+    } catch (e) {
+      diag.warn("OpenInference: PostToolUseFailure hook error", e);
     }
     return {};
   };
@@ -158,17 +175,17 @@ function createToolHookMatchers(
  *
  * Returns a new options object (does not mutate the original).
  */
-export function mergeHooks({
+export function mergeHooks<T extends { hooks?: HooksOption }>({
   options,
   toolTracker,
   parentSpan,
 }: {
-  options: Record<string, unknown> | undefined;
+  options: T | undefined;
   toolTracker: ToolSpanTracker;
   parentSpan: Span;
-}): Record<string, unknown> {
-  const opts = options ?? {};
-  const existingHooks = (opts.hooks ?? {}) as HooksOption;
+}): T {
+  const opts = options ?? ({} as T);
+  const existingHooks = opts.hooks ?? {};
   const ourHooks = createToolHookMatchers(toolTracker, parentSpan);
 
   const mergedHooks: HooksOption = { ...existingHooks };
