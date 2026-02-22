@@ -2,42 +2,42 @@
   "name": "@arizeai/openinference-core",
   "version": "2.0.5",
   "private": false,
+  "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
+  "keywords": [
+    "llm",
+    "openinference",
+    "opentelemetry"
+  ],
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-core",
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
-  "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
-  "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
-    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json; rimraf dist/test",
-    "type:check": "tsc --noEmit",
-    "test": "vitest run --typecheck"
-  },
+  "esnext": "dist/esnext/index.js",
   "exports": {
     ".": {
       "import": "./dist/esm/index.js",
       "require": "./dist/src/index.js"
     }
   },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "keywords": [
-    "openinference",
-    "llm",
-    "opentelemetry"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-core",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Arize-ai/openinference.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Arize-ai/openinference/issues"
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json; rimraf dist/test",
+    "type:check": "tsc --noEmit",
+    "test": "vitest run --typecheck"
   },
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "workspace:*",
@@ -51,7 +51,7 @@
     "@opentelemetry/sdk-trace-node": "^2.2.0",
     "@opentelemetry/semantic-conventions": "^1.19.0",
     "@types/node": "^20.14.11",
-    "vitest": "^4.0.3",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.3"
   }
 }

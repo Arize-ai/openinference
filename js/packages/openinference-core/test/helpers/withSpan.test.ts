@@ -1,16 +1,12 @@
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
-
 import { SpanKind, trace } from "@opentelemetry/api";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-node";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 import { traceAgent, traceChain, traceTool, withSpan } from "../../src/helpers";
-
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let spanExporter: InMemorySpanExporter;
 let tracerProvider: NodeTracerProvider;
@@ -36,8 +32,7 @@ describe("withSpan", () => {
   });
 
   it("should wrap synchronous functions and create spans", () => {
-    const testFn = (...args: unknown[]) =>
-      (args[0] as number) + (args[1] as number);
+    const testFn = (...args: unknown[]) => (args[0] as number) + (args[1] as number);
 
     // Use the tracer from our test provider
     const tracer = tracerProvider.getTracer("test");
@@ -56,9 +51,7 @@ describe("withSpan", () => {
     const span = spans[0];
     expect(span.name).toBe("add-numbers");
     expect(span.kind).toBe(SpanKind.INTERNAL);
-    expect(span.attributes["openinference.span.kind"]).toBe(
-      OpenInferenceSpanKind.CHAIN,
-    );
+    expect(span.attributes["openinference.span.kind"]).toBe(OpenInferenceSpanKind.CHAIN);
     expect(span.status.code).toBe(1); // OK
   });
 
@@ -249,9 +242,7 @@ describe("traceChain", () => {
 
     const span = spans[0];
     expect(span.name).toBe("chain-operation");
-    expect(span.attributes["openinference.span.kind"]).toBe(
-      OpenInferenceSpanKind.CHAIN,
-    );
+    expect(span.attributes["openinference.span.kind"]).toBe(OpenInferenceSpanKind.CHAIN);
   });
 });
 
@@ -285,9 +276,7 @@ describe("withAgentSpan", () => {
 
     const span = spans[0];
     expect(span.name).toBe("agent-operation");
-    expect(span.attributes["openinference.span.kind"]).toBe(
-      OpenInferenceSpanKind.AGENT,
-    );
+    expect(span.attributes["openinference.span.kind"]).toBe(OpenInferenceSpanKind.AGENT);
   });
 });
 
@@ -321,8 +310,6 @@ describe("traceTool", () => {
 
     const span = spans[0];
     expect(span.name).toBe("tool-operation");
-    expect(span.attributes["openinference.span.kind"]).toBe(
-      OpenInferenceSpanKind.TOOL,
-    );
+    expect(span.attributes["openinference.span.kind"]).toBe(OpenInferenceSpanKind.TOOL);
   });
 });

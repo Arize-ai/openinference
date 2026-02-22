@@ -28,7 +28,11 @@ import {
   OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
-import { ConsoleSpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 
 import { withSpan } from "@arizeai/openinference-core";
@@ -156,36 +160,32 @@ const tracedTool = traceTool(async (city: string) => ({ temp: 72, city }), {
   name: "weather-tool",
 });
 
-const tracedAgent = traceAgent(async (q: string) => {
-  const toolResult = await tracedTool("seattle");
-  return tracedChain(`${q} (${toolResult.temp}F)`);
-}, { name: "qa-agent" });
+const tracedAgent = traceAgent(
+  async (q: string) => {
+    const toolResult = await tracedTool("seattle");
+    return tracedChain(`${q} (${toolResult.temp}F)`);
+  },
+  { name: "qa-agent" },
+);
 ```
 
 ### Custom input/output processors
 
 ```typescript
-import {
-  getInputAttributes,
-  getRetrieverAttributes,
-  withSpan,
-} from "@arizeai/openinference-core";
+import { getInputAttributes, getRetrieverAttributes, withSpan } from "@arizeai/openinference-core";
 
-const retriever = withSpan(
-  async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`],
-  {
-    name: "retriever",
-    kind: "RETRIEVER",
-    processInput: (query) => getInputAttributes(query),
-    processOutput: (documents) =>
-      getRetrieverAttributes({
-        documents: documents.map((content, i) => ({
-          id: `doc-${i}`,
-          content,
-        })),
-      }),
-  },
-);
+const retriever = withSpan(async (query: string) => [`Doc A for ${query}`, `Doc B for ${query}`], {
+  name: "retriever",
+  kind: "RETRIEVER",
+  processInput: (query) => getInputAttributes(query),
+  processOutput: (documents) =>
+    getRetrieverAttributes({
+      documents: documents.map((content, i) => ({
+        id: `doc-${i}`,
+        content,
+      })),
+    }),
+});
 ```
 
 ## Decorators (`@observe`)
@@ -264,14 +264,11 @@ const tracer = new OITracer({
   },
 });
 
-const traced = withSpan(
-  async (prompt: string) => `model response for ${prompt}`,
-  {
-    tracer,
-    kind: OpenInferenceSpanKind.LLM,
-    name: "safe-llm-call",
-  },
-);
+const traced = withSpan(async (prompt: string) => `model response for ${prompt}`, {
+  tracer,
+  kind: OpenInferenceSpanKind.LLM,
+  name: "safe-llm-call",
+});
 ```
 
 You can also configure masking with environment variables:

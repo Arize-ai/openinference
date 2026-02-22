@@ -2,16 +2,31 @@
   "name": "@arizeai/openinference-mastra",
   "version": "3.0.8",
   "private": false,
+  "description": "[DEPRECATED] OpenInference utilities for ingesting Mastra spans - Use @mastra/arize instead",
+  "keywords": [
+    "agent",
+    "deprecated",
+    "llm",
+    "mastra",
+    "openinference",
+    "opentelemetry"
+  ],
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-mastra",
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "type": "module",
   "types": "dist/esm/index.d.ts",
-  "description": "[DEPRECATED] OpenInference utilities for ingesting Mastra spans - Use @mastra/arize instead",
-  "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
-    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
-    "type:check": "tsc --noEmit",
-    "test": "vitest run"
-  },
   "exports": {
     ".": {
       "import": "./dist/esm/index.js"
@@ -20,27 +35,12 @@
       "import": "./dist/esm/utils.js"
     }
   },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "keywords": [
-    "openinference",
-    "llm",
-    "opentelemetry",
-    "mastra",
-    "agent",
-    "deprecated"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-mastra",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Arize-ai/openinference.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Arize-ai/openinference/issues"
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc --build tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
+    "type:check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@arizeai/openinference-core": "2.0.5",

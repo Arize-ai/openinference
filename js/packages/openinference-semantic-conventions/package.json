@@ -2,11 +2,32 @@
   "name": "@arizeai/openinference-semantic-conventions",
   "version": "2.1.7",
   "private": false,
+  "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
+  "keywords": [],
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
   "types": "dist/src/index.d.ts",
-  "description": "This package provides OpenInference semantic conventions for tracing of LLM Applications.",
+  "esnext": "dist/esnext/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
+  },
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
@@ -14,25 +35,7 @@
     "type:check": "tsc --noEmit",
     "test": "echo \"NOOP: semantic conventions has no tests\" && exit 0"
   },
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "keywords": [],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-semantic-conventions",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Arize-ai/openinference.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Arize-ai/openinference/issues"
+  "devDependencies": {
+    "typescript": "^5.8.3"
   }
 }

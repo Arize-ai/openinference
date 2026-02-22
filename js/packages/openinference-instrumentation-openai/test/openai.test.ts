@@ -1,22 +1,18 @@
-import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
-
 import { context } from "@opentelemetry/api";
 import { suppressTracing } from "@opentelemetry/core";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { isPatched, OpenAIInstrumentation } from "../src";
-
 import OpenAI, { APIPromise, AzureOpenAI } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { CreateEmbeddingResponse } from "openai/resources/embeddings";
+import type { CreateEmbeddingResponse } from "openai/resources/embeddings";
 import { Stream } from "openai/streaming";
 import { vi } from "vitest";
 import { z } from "zod";
+
+import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
+
+import { isPatched, OpenAIInstrumentation } from "../src";
 
 // Function tools
 async function getCurrentLocation() {
@@ -60,9 +56,7 @@ describe("OpenAIInstrumentation", () => {
     vi.clearAllMocks();
   });
   it("is patched", () => {
-    expect(
-      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
-    ).toBe(true);
+    expect((OpenAI as { openInferencePatched?: boolean }).openInferencePatched).toBe(true);
     expect(isPatched()).toBe(true);
   });
   it("sets a patched flag correctly to track whether or not openai is instrumented", () => {
@@ -288,12 +282,8 @@ describe("OpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Embeddings");
     // Check the attributes
-    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
-      "A happy moment",
-    );
-    expect(span.attributes["embedding.model_name"]).toBe(
-      "text-embedding-ada-003-small",
-    );
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe("A happy moment");
+    expect(span.attributes["embedding.model_name"]).toBe("text-embedding-ada-003-small");
     expect(span.attributes["input.mime_type"]).toBe("text/plain");
     expect(span.attributes["input.value"]).toBe("A happy moment");
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
@@ -321,8 +311,7 @@ describe("OpenAIInstrumentation", () => {
 
     let response = "";
     for await (const chunk of stream) {
-      if (chunk.choices[0].delta.content)
-        response += chunk.choices[0].delta.content;
+      if (chunk.choices[0].delta.content) response += chunk.choices[0].delta.content;
     }
     expect(response).toBe("This is a test.");
     const spans = memoryExporter.getFinishedSpans();
@@ -679,8 +668,7 @@ describe("OpenAIInstrumentation", () => {
 
     let response = "";
     for await (const chunk of stream) {
-      if (chunk.choices[0].delta.content)
-        response += chunk.choices[0].delta.content;
+      if (chunk.choices[0].delta.content) response += chunk.choices[0].delta.content;
     }
     // When a tool is called, the content is empty
     expect(response).toBe("");
@@ -796,8 +784,7 @@ describe("OpenAIInstrumentation", () => {
 
     let response = "";
     for await (const chunk of stream) {
-      if (chunk.choices[0].delta.content)
-        response += chunk.choices[0].delta.content;
+      if (chunk.choices[0].delta.content) response += chunk.choices[0].delta.content;
     }
     // When a tool is called, the content is empty
     expect(response).toBe("");
@@ -1019,8 +1006,7 @@ describe("OpenAIInstrumentation", () => {
           index: 0,
           message: {
             role: "assistant",
-            content:
-              '{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}',
+            content: '{"name":"science fair","date":"Friday","participants":["Alice","Bob"]}',
           },
           logprobs: null,
           finish_reason: "stop",
@@ -1076,8 +1062,7 @@ describe("OpenAIInstrumentation", () => {
           content: "Alice and Bob are going to a science fair on Friday.",
         },
       ],
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Type instantiation is excessively deep with zod helper
+      // @ts-expect-error - Type instantiation is excessively deep with zod helper
       response_format: zodResponseFormat(CalendarEvent, "event"),
     });
 
@@ -1141,9 +1126,7 @@ describe("OpenAIInstrumentation with TraceConfig", () => {
     vi.clearAllMocks();
   });
   it("is patched", () => {
-    expect(
-      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
-    ).toBe(true);
+    expect((OpenAI as { openInferencePatched?: boolean }).openInferencePatched).toBe(true);
     expect(isPatched()).toBe(true);
   });
   it("should respect a trace config and mask attributes accordingly", async () => {
@@ -1228,9 +1211,7 @@ describe("AzureOpenAIInstrumentation", () => {
   });
 
   it("is patched", () => {
-    expect(
-      (OpenAI as { openInferencePatched?: boolean }).openInferencePatched,
-    ).toBe(true);
+    expect((OpenAI as { openInferencePatched?: boolean }).openInferencePatched).toBe(true);
     expect(isPatched()).toBe(true);
   });
 
@@ -1341,12 +1322,8 @@ describe("AzureOpenAIInstrumentation", () => {
     const span = spans[0];
     expect(span.name).toBe("OpenAI Embeddings");
     // Check the attributes
-    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe(
-      "A happy moment",
-    );
-    expect(span.attributes["embedding.model_name"]).toBe(
-      "text-embedding-ada-002",
-    );
+    expect(span.attributes["embedding.embeddings.0.embedding.text"]).toBe("A happy moment");
+    expect(span.attributes["embedding.model_name"]).toBe("text-embedding-ada-002");
     expect(span.attributes["input.mime_type"]).toBe("text/plain");
     expect(span.attributes["input.value"]).toBe("A happy moment");
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
@@ -1375,8 +1352,7 @@ describe("AzureOpenAIInstrumentation", () => {
 
     let response = "";
     for await (const chunk of stream) {
-      if (chunk.choices[0].delta.content)
-        response += chunk.choices[0].delta.content;
+      if (chunk.choices[0].delta.content) response += chunk.choices[0].delta.content;
     }
     expect(response).toBe("This is a test.");
     const spans = memoryExporter.getFinishedSpans();

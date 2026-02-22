@@ -1,15 +1,28 @@
 {
   "name": "@arizeai/openinference-instrumentation-mcp",
   "version": "0.2.12",
-  "description": "OpenInference instrumentation for MCP",
   "private": false,
-  "main": "dist/src/index.js",
-  "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
-  "types": "dist/src/index.d.ts",
+  "description": "OpenInference instrumentation for MCP",
+  "keywords": [],
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/src/index.d.ts",
+  "esnext": "dist/esnext/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
   },
   "scripts": {
     "prebuild": "rimraf dist && pnpm run version:update",
@@ -19,12 +32,6 @@
     "type:check": "tsc --noEmit",
     "test": "vitest run --typecheck"
   },
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
-    }
-  },
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
@@ -32,15 +39,7 @@
     "@opentelemetry/core": "^1.30.1",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
-  "keywords": [],
-  "files": [
-    "dist",
-    "src"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
   "devDependencies": {
-    "express": "^5.1.0",
     "@modelcontextprotocol/sdk": "^1.10.2",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
     "@opentelemetry/resources": "^1.30.1",
@@ -48,9 +47,10 @@
     "@opentelemetry/sdk-trace-node": "^1.30.1",
     "@opentelemetry/semantic-conventions": "^1.30.1",
     "@types/express": "^5.0.1",
-    "vitest": "^4.0.3",
+    "express": "^5.1.0",
     "tsx": "^4.19.3",
-    "zod": "^3.24.3",
-    "typescript": "^5.5.4"
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.3",
+    "zod": "^3.24.3"
   }
 }

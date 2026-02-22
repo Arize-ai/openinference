@@ -1,231 +1,111 @@
-# JavaScript/TypeScript Workspace Guide
+# CLAUDE.md
 
-TypeScript instrumentation packages for OpenInference. Uses pnpm workspaces, TypeScript strict mode, Vitest for testing, and publishes to the `@arizeai/` npm organization. Requires Node.js v20.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
----
+## Repository Overview
 
-## Setup and Build
+This is the JavaScript/TypeScript workspace of OpenInference, providing OpenTelemetry-based instrumentation for AI/ML applications. The workspace contains core utilities and framework-specific instrumentors for popular AI libraries (OpenAI, LangChain, Bedrock, etc.).
+
+## Essential Commands
+
+### Package Management and Setup
 
 ```bash
-cd js
-nvm use                               # uses .nvmrc for Node v20
-pnpm install --frozen-lockfile -r    # MUST be pnpm, not npm or yarn
-pnpm run -r build                    # prebuild runs automatically as part of build
+# Install dependencies (MUST use pnpm, not npm)
+pnpm install --frozen-lockfile -r
+
+# Build all packages (includes prebuild for cross-package dependencies)
+pnpm run -r build
+
+# Run prebuild only (generates version files and symlinks)
+pnpm run -r prebuild
 ```
 
-> **Why prebuild matters**: The prebuild script generates instrumentation version files and creates symlinks for cross-package dependencies. It runs automatically as part of `build`, but you can re-run `pnpm run -r prebuild` manually after adding new packages to the repo.
-
-Global pnpm version must be `>=9.7.0` (managed via `package.json`).
-
----
-
-## Testing and Quality
+### Testing and Quality
 
 ```bash
+# Run tests for all packages
 pnpm run -r test
+
+# Type checking across all packages
 pnpm run type:check
+
+# Linting
 pnpm run lint
-pnpm run prettier:check
-pnpm run prettier:write
+
+# Code formatting
+pnpm run fmt:check
+pnpm run fmt
 ```
 
----
+### Release Management
 
-## Package Inventory
+```bash
+# Create changeset for version bumping
+pnpm changeset
 
-> **Keep this list current**: when you add a new package to `js/packages/`, update this table in the same PR.
+# Version bump and publish (CI handles this)
+pnpm ci:version
+pnpm ci:publish
+```
 
-| Package | Description |
-|---------|-------------|
-| `openinference-core` | Base utilities: `OITracer`, `OISpan`, `TraceConfig`, context attributes |
-| `openinference-semantic-conventions` | Standard attribute constants for AI observability |
-| `openinference-instrumentation-openai` | OpenAI SDK instrumentation |
-| `openinference-instrumentation-anthropic` | Anthropic SDK instrumentation |
-| `openinference-instrumentation-bedrock` | AWS Bedrock instrumentation |
-| `openinference-instrumentation-bedrock-agent-runtime` | AWS Bedrock Agent Runtime instrumentation |
-| `openinference-instrumentation-langchain` | LangChain.js instrumentation |
-| `openinference-instrumentation-langchain-v0` | LangChain.js v0 instrumentation |
-| `openinference-instrumentation-mcp` | MCP (Model Context Protocol) instrumentation |
-| `openinference-instrumentation-beeai` | BeeAI framework instrumentation |
-| `openinference-vercel` | Vercel AI SDK integration |
-| `openinference-mastra` | Mastra framework support |
-| `openinference-genai` | GenAI utilities |
+## Architecture Overview
 
----
+### Core Package Structure
 
-## The Three Required Features
+- **`openinference-core`**: Base utilities including `OITracer`, `OISpan`, trace configuration, and context attribute management
+- **`openinference-semantic-conventions`**: Standard attribute definitions for AI observability
+- **Framework Instrumentors**: Individual packages for each AI framework (OpenAI, LangChain, Bedrock, etc.)
+- **Specialized Packages**: Vercel AI SDK integration, Mastra framework support
 
-Every instrumentor must implement these three features.
+### Key Patterns
 
-### OITracer setup (handles features 2 and 3 automatically)
+#### Instrumentor Implementation
 
-Use `OITracer` from core as a private property on your instrumentor class. Use `this.oiTracer` — never `this.tracer` — to create spans.
+All instrumentors must extend `InstrumentationBase` and use `OITracer` from core:
 
 ```typescript
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-import { InstrumentationBase, InstrumentationConfig } from "@opentelemetry/instrumentation";
-
-export class MyInstrumentation extends InstrumentationBase<typeof moduleToInstrument> {
+export class MyInstrumentation extends InstrumentationBase {
   private oiTracer: OITracer;
 
-  constructor({
-    instrumentationConfig,
-    traceConfig,
-  }: {
-    instrumentationConfig?: InstrumentationConfig;
-    traceConfig?: TraceConfigOptions;
-  } = {}) {
-    super(
-      "@arizeai/openinference-instrumentation-<name>",
-      VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+  constructor({ traceConfig }: { traceConfig?: TraceConfigOptions } = {}) {
+    super(/* instrumentation config */);
     this.oiTracer = new OITracer({ tracer: this.tracer, traceConfig });
   }
-
-  // Always use this.oiTracer, not this.tracer:
-  protected patch(): void {
-    const span = this.oiTracer.startSpan("my-span");
-    // ...
-    span.end();
-  }
 }
 ```
 
-### Feature 1 — Suppress Tracing
+#### Required Features
 
-Check the OTel context suppression flag before creating any span.
+1. **Suppress Tracing**: Must respect `isTracingSuppressed()` from `@opentelemetry/core`
+2. **Context Attribute Propagation**: Use `OITracer` to automatically handle context attributes (session ID, user ID, etc.)
+3. **Trace Configuration**: Support masking sensitive data via `TraceConfig`
 
-```typescript
-import { context } from "@opentelemetry/api";
-import { isTracingSuppressed } from "@opentelemetry/core";
+### Testing Considerations
 
-function patchedFunction(original: (...args: unknown[]) => unknown) {
-  return function (...args: unknown[]) {
-    if (isTracingSuppressed(context.active())) {
-      return original.apply(this, args);  // skip tracing
-    }
-    // ... tracing logic ...
-  };
-}
-```
+- Uses Vite with manual module mocking due to instrumentation timing requirements
+- Pattern: `instrumentation._modules[0].moduleExports = module` for manual mocks
+- Must test suppress tracing, context propagation, and trace configuration features
 
-Also implement the `unpatch()` method to restore original functions when instrumentation is disabled.
+### Workspace Configuration
 
-### Feature 2 — Context Attribute Propagation
+- **pnpm workspaces**: All packages defined in `pnpm-workspace.yaml`
+- **Cross-package dependencies**: Handled via prebuild script with symlinks
+- **Changesets**: Version management system for coordinated releases
+- **Publishing**: Automated via GitHub Actions to `@arizeai` npm organization
 
-Handled automatically by `OITracer`. See `packages/openinference-core/src/trace/contextAttributes.ts` for the underlying implementation.
+## Development Workflow
 
-### Feature 3 — Trace Configuration
+1. **Prerequisites**: Node.js v20, pnpm (global version >=9.7.0)
+2. **Setup**: `pnpm install --frozen-lockfile -r`
+3. **Build**: Always run `pnpm run -r build` after changes (includes prebuild)
+4. **Testing**: Comprehensive tests including instrumentation-specific features
+5. **Versioning**: Create changesets with `pnpm changeset` before merging PRs
 
-Handled automatically by `OITracer` and `OISpan`. Pass `traceConfig` to `OITracer` at construction time (shown in the OITracer setup snippet above).
+## Important Notes
 
----
-
-## The Module Mocking Pattern (critical, non-obvious)
-
-Vitest's auto-mocking feature breaks instrumentation timing because instrumentation must run before the library is imported. Use manual module assignment instead:
-
-```typescript
-import { describe, it, expect, beforeAll } from "vitest";
-import * as myModule from "my-module";
-
-describe("MyInstrumentation", () => {
-  const instrumentation = new MyInstrumentation();
-
-  beforeAll(() => {
-    // Manually assign the module exports to bypass auto-mock timing issues:
-    instrumentation._modules[0].moduleExports = myModule;
-  });
-
-  it("creates a span", async () => {
-    // test body
-  });
-});
-```
-
----
-
-## Creating a New JS Instrumentor
-
-1. **Scaffold a new package** by copying an existing instrumentor:
-   ```bash
-   cp -r js/packages/openinference-instrumentation-openai \
-         js/packages/openinference-instrumentation-<name>
-   ```
-
-2. **Required files**:
-   - `package.json` — package name `@arizeai/openinference-instrumentation-<name>`, scripts
-   - `src/instrumentation.ts` — instrumentor class extending `InstrumentationBase`
-   - `src/index.ts` — public exports
-   - `src/version.ts` — `VERSION` constant (generated by prebuild)
-   - `tsconfig.json` — extending `../../tsconfig.base.json`
-   - `vitest.config.ts` — test configuration
-
-3. **Register the package**:
-   - Add to `js/pnpm-workspace.yaml` under `packages:`
-   - Run `pnpm install` to link it
-
-4. **Update `js/AGENTS.md`**: add the new package to the Package Inventory table above.
-
-5. **Create a changeset** (required before PR merge): run `pnpm changeset` — see the Version Management section below for details.
-
----
-
-## Semantic Conventions
-
-```typescript
-import {
-  SemanticConventions,
-  OpenInferenceSpanKind,
-} from "@arizeai/openinference-semantic-conventions";
-
-// Required on every span:
-span.setAttribute(
-  SemanticConventions.OPENINFERENCE_SPAN_KIND,
-  OpenInferenceSpanKind.LLM,
-);
-
-// Common LLM attributes:
-span.setAttribute(SemanticConventions.LLM_MODEL_NAME, "gpt-4o");
-span.setAttribute(SemanticConventions.INPUT_VALUE, promptText);
-span.setAttribute(SemanticConventions.OUTPUT_VALUE, responseText);
-span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_PROMPT, promptTokens);
-span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, completionTokens);
-
-// Flattened message arrays (zero-based index):
-messages.forEach((msg, i) => {
-  span.setAttribute(`llm.input_messages.${i}.message.role`, msg.role);
-  span.setAttribute(`llm.input_messages.${i}.message.content`, msg.content);
-});
-```
-
----
-
-## Version Management (Changesets)
-
-A changeset must be created for **every PR that touches `js/`** before it can be merged.
-
-```bash
-pnpm changeset
-# Interactive prompt:
-# 1. Select which packages are changed
-# 2. Choose semver bump type (patch / minor / major) per package
-# 3. Write a summary of the changes
-# Commit the generated .changeset/<id>.md file with your PR
-```
-
-On PR merge, GitHub Actions creates a release PR. When the release PR is merged, new versions are published to npm under the `@arizeai` organization.
-
----
-
-## Publishing
-
-Automated via GitHub Actions + changesets workflow. For manual publishing:
-
-```bash
-pnpm changeset          # create changeset
-pnpm changeset version  # bump package versions
-pnpm -r build           # build all packages
-pnpm -r publish         # publish to npm (requires @arizeai org membership)
-```
+- Always use `OITracer` instead of raw OpenTelemetry tracer for consistent behavior
+- Cross-package dependencies require prebuild step to generate symlinks
+- Manual module mocking in tests is required due to instrumentation timing
+- Each instrumentor must implement the minimum feature set (suppress tracing, context attributes, trace config)
+- Packages publish to `@arizeai` organization on npm

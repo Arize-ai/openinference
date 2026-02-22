@@ -1,8 +1,21 @@
-import {
-  OITracer,
-  setAttributes,
-  setSession,
-} from "@arizeai/openinference-core";
+import * as CallbackManager from "@langchain/core/callbacks/manager";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { DynamicTool } from "@langchain/core/tools";
+import { tool } from "@langchain/core/tools";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { trace } from "@opentelemetry/api";
+import { context } from "@opentelemetry/api";
+import "dotenv/config";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { createRetrievalChain } from "langchain/chains/retrieval";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { Stream } from "openai/streaming";
+
+import { OITracer, setAttributes, setSession } from "@arizeai/openinference-core";
 import {
   MESSAGE_FUNCTION_CALL_NAME,
   METADATA,
@@ -10,32 +23,9 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { trace } from "@opentelemetry/api";
-import { context } from "@opentelemetry/api";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import "dotenv/config";
-
 import { isPatched, LangChainInstrumentation } from "../src";
 import { LangChainTracer } from "../src/tracer";
-
 import { completionsResponse, functionCallResponse } from "./fixtures";
-
-import * as CallbackManager from "@langchain/core/callbacks/manager";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { DynamicTool } from "@langchain/core/tools";
-import { tool } from "@langchain/core/tools";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
-import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
-import { createRetrievalChain } from "langchain/chains/retrieval";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { Stream } from "openai/streaming";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -176,11 +166,7 @@ describe("LangChainInstrumentation", () => {
     expect(isPatched()).toBe(true);
   });
 
-  const testDocuments = [
-    "dogs are cute",
-    "rainbows are colorful",
-    "water is wet",
-  ];
+  const testDocuments = ["dogs are cute", "rainbows are colorful", "water is wet"];
 
   it("should properly nest spans", async () => {
     const chatModel = new ChatOpenAI({
@@ -214,8 +200,7 @@ describe("LangChainInstrumentation", () => {
     const rootSpan = spans.find((span) => span.parentSpanId == null);
     const llmSpan = spans.find(
       (span) =>
-        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
-        OpenInferenceSpanKind.LLM,
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     const retrieverSpan = spans.find(
       (span) =>
@@ -223,22 +208,16 @@ describe("LangChainInstrumentation", () => {
         OpenInferenceSpanKind.RETRIEVER,
     );
 
-    const retrievalChainSpan = spans.find(
-      (span) => span.name === "retrieval_chain",
-    );
+    const retrievalChainSpan = spans.find((span) => span.name === "retrieval_chain");
 
-    const retrieveDocumentsSpan = spans.find(
-      (span) => span.name === "retrieve_documents",
-    );
+    const retrieveDocumentsSpan = spans.find((span) => span.name === "retrieve_documents");
 
     // Langchain creates a ton of generic spans that are deeply nested. This is a simple test to ensure we have the spans we care about and they are at least nested under something. It is not possible to test the exact nesting structure because it is too complex and generic.
     expect(rootSpan).toBe(retrievalChainSpan);
     expect(retrieverSpan).toBeDefined();
     expect(llmSpan).toBeDefined();
 
-    expect(retrieverSpan?.parentSpanId).toBe(
-      retrieveDocumentsSpan?.spanContext().spanId,
-    );
+    expect(retrieverSpan?.parentSpanId).toBe(retrieveDocumentsSpan?.spanContext().spanId);
     expect(llmSpan?.parentSpanId).toBeDefined();
   });
 
@@ -253,8 +232,7 @@ describe("LangChainInstrumentation", () => {
 
     const spans = memoryExporter.getFinishedSpans();
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
 
@@ -300,9 +278,7 @@ describe("LangChainInstrumentation", () => {
       [METADATA]:
         '{"ls_provider":"openai","ls_model_name":"gpt-3.5-turbo","ls_model_type":"chat","ls_temperature":1}',
     };
-    delete expectedStreamingAttributes[
-      `${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`
-    ];
+    delete expectedStreamingAttributes[`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`];
 
     // Remove the id since it is randomly generated and inherited from the run
     const actualAttributes = { ...span.attributes };
@@ -432,9 +408,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (chatModel as any).client.chat.completions.create.mockResolvedValue(
-      functionCallResponse,
-    );
+    (chatModel as any).client.chat.completions.create.mockResolvedValue(functionCallResponse);
 
     const weatherFunction = {
       name: "get_current_weather",
@@ -452,19 +426,15 @@ describe("LangChainInstrumentation", () => {
       },
     };
 
-    await chatModel.invoke(
-      "whats the weather like in seattle, wa in fahrenheit?",
-      {
-        functions: [weatherFunction],
-      },
-    );
+    await chatModel.invoke("whats the weather like in seattle, wa in fahrenheit?", {
+      functions: [weatherFunction],
+    });
 
     const spans = memoryExporter.getFinishedSpans();
     expect(spans).toBeDefined();
 
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
     // We strip out the input and output values because they are unstable
@@ -481,8 +451,7 @@ describe("LangChainInstrumentation", () => {
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "user",
       [`${LLM_INPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]:
         "whats the weather like in seattle, wa in fahrenheit?",
-      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_FUNCTION_CALL_NAME}`]:
-        "get_current_weather",
+      [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_FUNCTION_CALL_NAME}`]: "get_current_weather",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_CONTENT}`]: "",
       [`${LLM_OUTPUT_MESSAGES}.0.${MESSAGE_ROLE}`]: "assistant",
       [LLM_TOKEN_COUNT_COMPLETION]: 22,
@@ -524,8 +493,7 @@ describe("LangChainInstrumentation", () => {
     expect(spans).toBeDefined();
 
     const llmSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     expect(llmSpan).toBeDefined();
     expect(llmSpan?.attributes[`${LLM_TOOLS}.0.${TOOL_JSON_SCHEMA}`]).toBe(
@@ -536,8 +504,7 @@ describe("LangChainInstrumentation", () => {
   it("should add tool information to tool spans", async () => {
     const simpleTool = new DynamicTool({
       name: "test_tool",
-      description:
-        "call this to get the value of a test, input should be an empty string",
+      description: "call this to get the value of a test, input should be an empty string",
       func: async () => Promise.resolve("this is a test tool"),
     });
 
@@ -547,8 +514,7 @@ describe("LangChainInstrumentation", () => {
     expect(spans).toBeDefined();
 
     const toolSpan = spans.find(
-      (span) =>
-        span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
+      (span) => span.attributes[OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpan).toBeDefined();
     expect(toolSpan?.attributes).toMatchObject({
@@ -625,9 +591,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "test-session-123",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("test-session-123");
   });
 
   it("should extract session ID from run metadata with thread_id", async () => {
@@ -643,9 +607,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "thread-456",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("thread-456");
   });
 
   it("should extract session ID from run metadata with conversation_id", async () => {
@@ -661,9 +623,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "conv-789",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("conv-789");
   });
 
   it("should prioritize session_id over thread_id and conversation_id", async () => {
@@ -681,9 +641,7 @@ describe("LangChainInstrumentation", () => {
     });
 
     const spans = memoryExporter.getFinishedSpans();
-    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe(
-      "session-123",
-    );
+    expect(spans[0].attributes[SemanticConventions.SESSION_ID]).toBe("session-123");
   });
 
   it("should handle missing session identifiers in metadata", async () => {
@@ -765,12 +723,8 @@ describe("LangChainInstrumentation with TraceConfigOptions", () => {
     );
     expect(span.attributes["test-attribute"]).toBe("test-value");
     expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo");
-    expect(span.attributes["llm.output_messages.0.message.content"]).toBe(
-      "This is a test.",
-    );
-    expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-      "assistant",
-    );
+    expect(span.attributes["llm.output_messages.0.message.content"]).toBe("This is a test.");
+    expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
     expect(span.attributes["llm.token_count.completion"]).toBe(5);
     expect(span.attributes["llm.token_count.prompt"]).toBe(12);
     expect(span.attributes["llm.token_count.total"]).toBe(17);

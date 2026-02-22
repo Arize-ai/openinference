@@ -9,6 +9,9 @@
  * - Safe stream splitting with original stream preservation
  */
 
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
 import {
   assertUnreachable,
   isObjectWithStringKeys,
@@ -16,20 +19,16 @@ import {
   safelyJSONStringify,
   withSafety,
 } from "@arizeai/openinference-core";
-import {
-  MimeType,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { diag, Span } from "@opentelemetry/api";
-
-import {
+import type {
   ConverseStreamEventData,
   ConverseStreamProcessingState,
+} from "../types/bedrock-types";
+import {
   isValidConverseStreamEventData,
   toNormalizedConverseStreamEvent,
 } from "../types/bedrock-types";
-
 import { setSpanAttribute } from "./attribute-helpers";
 
 /**
@@ -69,11 +68,7 @@ function resolveToolUseId({
  */
 function startToolCall(
   state: ConverseStreamProcessingState,
-  {
-    id,
-    name,
-    contentBlockIndex,
-  }: { id: string; name: string; contentBlockIndex?: number },
+  { id, name, contentBlockIndex }: { id: string; name: string; contentBlockIndex?: number },
 ) {
   if (contentBlockIndex !== undefined) {
     state.toolUseIdByIndex ??= {};
@@ -97,11 +92,7 @@ function startToolCall(
  */
 function appendToolInputChunk(
   state: ConverseStreamProcessingState,
-  {
-    chunk,
-    contentBlockIndex,
-    id,
-  }: { chunk: string; contentBlockIndex?: number; id?: string },
+  { chunk, contentBlockIndex, id }: { chunk: string; contentBlockIndex?: number; id?: string },
 ) {
   const targetId = resolveToolUseId({
     id,
@@ -207,11 +198,7 @@ function setConverseStreamingOutputAttributes({
   };
 
   // Set output value as JSON (matching converse response behavior)
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_VALUE,
-    safelyJSONStringify(outputValue),
-  );
+  setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, safelyJSONStringify(outputValue));
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   // Set the message role (always assistant for converse responses)
@@ -234,11 +221,7 @@ function setConverseStreamingOutputAttributes({
   toolCalls.forEach((toolCall, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
 
-    setSpanAttribute(
-      span,
-      `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
-      toolCall.id,
-    );
+    setSpanAttribute(span, `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`, toolCall.id);
     setSpanAttribute(
       span,
       `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
@@ -258,25 +241,13 @@ function setConverseStreamingOutputAttributes({
 
   // Set usage attributes
   if (usage.inputTokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-      usage.inputTokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.inputTokens);
   }
   if (usage.outputTokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-      usage.outputTokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.outputTokens);
   }
   if (usage.totalTokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-      usage.totalTokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.totalTokens);
   }
 }
 
@@ -302,13 +273,7 @@ function setConverseStreamingOutputAttributes({
  * ```
  */
 export const consumeConverseStreamChunks = withSafety({
-  fn: async ({
-    stream,
-    span,
-  }: {
-    stream: AsyncIterable<unknown>;
-    span: Span;
-  }): Promise<void> => {
+  fn: async ({ stream, span }: { stream: AsyncIterable<unknown>; span: Span }): Promise<void> => {
     const state: ConverseStreamProcessingState = {
       outputText: "",
       toolCalls: [],

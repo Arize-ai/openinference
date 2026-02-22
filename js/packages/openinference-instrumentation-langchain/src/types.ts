@@ -1,4 +1,4 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import type { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 type LLMMessageToolCall = {
   [SemanticConventions.TOOL_CALL_FUNCTION_NAME]?: string;
@@ -36,9 +36,7 @@ export type RetrievalDocument = {
 export type LLMParameterAttributes = {
   [SemanticConventions.LLM_MODEL_NAME]?: string;
   [SemanticConventions.LLM_INVOCATION_PARAMETERS]?: string;
-  [
-    key: `${typeof SemanticConventions.LLM_TOOLS}.${number}.${typeof SemanticConventions.TOOL_JSON_SCHEMA}`
-  ]: string;
+  [key: `${typeof SemanticConventions.LLM_TOOLS}.${number}.${typeof SemanticConventions.TOOL_JSON_SCHEMA}`]: string;
 };
 
 export type PromptTemplateAttributes = {

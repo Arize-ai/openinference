@@ -6,12 +6,9 @@
  * processing functions, and configuration options.
  */
 
-import {
-  MimeType,
-  OpenInferenceSpanKind,
-} from "@arizeai/openinference-semantic-conventions";
+import type { Attributes, SpanKind, Tracer } from "@opentelemetry/api";
 
-import { Attributes, SpanKind, Tracer } from "@opentelemetry/api";
+import type { MimeType, OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyFn = (...args: any[]) => any;
@@ -115,9 +112,7 @@ export type SpanOutput = {
  * };
  * ```
  */
-export type InputToAttributesFn<Fn extends AnyFn = AnyFn> = (
-  ...args: Parameters<Fn>
-) => Attributes;
+export type InputToAttributesFn<Fn extends AnyFn = AnyFn> = (...args: Parameters<Fn>) => Attributes;
 
 /**
  * Function type for processing function results into OpenTelemetry attributes.

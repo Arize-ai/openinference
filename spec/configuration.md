@@ -42,28 +42,28 @@ To set up this configuration you can either:
 
 If you are working in Python, and want to set up a configuration different than the default you can define the configuration in code as shown below, passing it to the `instrument()` method of your instrumentator (the example below demonstrates using the OpenAIInstrumentator)
 ```python
-    from openinference.instrumentation import TraceConfig
-    config = TraceConfig(
-        hide_llm_invocation_parameters=...,
-        hide_inputs=...,
-        hide_outputs=...,
-        hide_input_messages=...,
-        hide_output_messages=...,
-        hide_input_images=...,
-        hide_input_text=...,
-        hide_output_text=...,
-        hide_embeddings_vectors=...,
-        hide_embeddings_text=...,
-        base64_image_max_length=...,
-        hide_prompts=...,  # Hides LLM prompts (completions API)
-        hide_choices=...,  # Hides LLM choices (completions API outputs)
-    )
+from openinference.instrumentation import TraceConfig
+config = TraceConfig(
+    hide_llm_invocation_parameters=...,
+    hide_inputs=...,
+    hide_outputs=...,
+    hide_input_messages=...,
+    hide_output_messages=...,
+    hide_input_images=...,
+    hide_input_text=...,
+    hide_output_text=...,
+    hide_embeddings_vectors=...,
+    hide_embeddings_text=...,
+    base64_image_max_length=...,
+    hide_prompts=...,  # Hides LLM prompts (completions API)
+    hide_choices=...,  # Hides LLM choices (completions API outputs)
+)
 
-    from openinference.instrumentation.openai import OpenAIInstrumentor
-    OpenAIInstrumentor().instrument(
-        tracer_provider=tracer_provider,
-        config=config,
-    )
+from openinference.instrumentation.openai import OpenAIInstrumentor
+OpenAIInstrumentor().instrument(
+    tracer_provider=tracer_provider,
+    config=config,
+)
 ```
 
 ### Javascript

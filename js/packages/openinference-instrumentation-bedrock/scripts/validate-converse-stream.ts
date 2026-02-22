@@ -23,6 +23,17 @@
 
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 
+import { context, diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { Resource } from "@opentelemetry/resources";
+import type { SpanExporter } from "@opentelemetry/sdk-trace-node";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
+
 import {
   setMetadata,
   setPromptTemplate,
@@ -31,22 +42,6 @@ import {
   setUser,
 } from "@arizeai/openinference-core";
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-
-import {
-  context,
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
-} from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { Resource } from "@opentelemetry/resources";
-import {
-  ConsoleSpanExporter,
-  NodeTracerProvider,
-  SimpleSpanProcessor,
-  SpanExporter,
-} from "@opentelemetry/sdk-trace-node";
 
 import { BedrockInstrumentation, isPatched } from "../src/index";
 
@@ -58,16 +53,10 @@ const PHOENIX_ENDPOINT =
     : "http://localhost:6006/v1/traces");
 const PHOENIX_API_KEY = process.env.PHOENIX_API_KEY;
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const MODEL_ID =
-  process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20240620-v1:0";
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20240620-v1:0";
 
 // Test scenarios for Converse Stream validation
-type TestScenario =
-  | "basic-with-context"
-  | "tool-calling"
-  | "multi-modal"
-  | "amazon-nova"
-  | "all";
+type TestScenario = "basic-with-context" | "tool-calling" | "multi-modal" | "amazon-nova" | "all";
 
 interface ValidationOptions {
   scenario: TestScenario;
@@ -136,12 +125,9 @@ class ConverseStreamPhoenixValidator {
 
     this.provider = new NodeTracerProvider({
       resource: new Resource({
-        [SEMRESATTRS_PROJECT_NAME]:
-          "bedrock-converse-stream-phoenix-validation",
+        [SEMRESATTRS_PROJECT_NAME]: "bedrock-converse-stream-phoenix-validation",
       }),
-      spanProcessors: exporters.map(
-        (exporter) => new SimpleSpanProcessor(exporter),
-      ),
+      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
     });
 
     this.provider.register();
@@ -191,19 +177,14 @@ class ConverseStreamPhoenixValidator {
       sendMethod.toString().length < 100; // Wrapped methods are typically shorter
 
     if (globalPatchStatus && methodPatched) {
-      console.log(
-        "✅ Instrumentation verified: Both global status and method are patched",
-      );
+      console.log("✅ Instrumentation verified: Both global status and method are patched");
       return true;
     } else if (globalPatchStatus) {
       console.log("✅ Instrumentation verified: Global patch status is true");
       return true;
     } else {
       console.log("❌ Instrumentation verification failed");
-      console.log(
-        "   Send method signature:",
-        sendMethod.toString().substring(0, 100) + "...",
-      );
+      console.log("   Send method signature:", sendMethod.toString().substring(0, 100) + "...");
       console.log("   Global patch status:", globalPatchStatus);
       console.log("   Method appears patched:", methodPatched);
       return false;
@@ -213,9 +194,7 @@ class ConverseStreamPhoenixValidator {
   /**
    * Consumes a Converse Stream response and processes all streaming events
    */
-  private async consumeStreamResponse(
-    stream: any,
-  ): Promise<StreamProcessingResult> {
+  private async consumeStreamResponse(stream: any): Promise<StreamProcessingResult> {
     let fullText = "";
     const toolCalls: any[] = [];
     let tokenUsage: any = {};
@@ -261,9 +240,7 @@ class ConverseStreamPhoenixValidator {
               if (!toolCalls[toolCallIndex].partialInput) {
                 toolCalls[toolCallIndex].partialInput = "";
               }
-              toolCalls[toolCallIndex].partialInput += String(
-                delta.toolUse.input,
-              );
+              toolCalls[toolCallIndex].partialInput += String(delta.toolUse.input);
             }
           }
         } else if (chunk.contentBlockStop) {
@@ -320,20 +297,13 @@ class ConverseStreamPhoenixValidator {
 
     // Verify instrumentation is applied
     if (!this.verifyInstrumentation()) {
-      console.log(
-        "❌ Instrumentation verification failed - stopping validation",
-      );
+      console.log("❌ Instrumentation verification failed - stopping validation");
       return false;
     }
 
     const scenarios =
       this.options.scenario === "all"
-        ? ([
-            "basic-with-context",
-            "tool-calling",
-            "multi-modal",
-            "amazon-nova",
-          ] as TestScenario[])
+        ? (["basic-with-context", "tool-calling", "multi-modal", "amazon-nova"] as TestScenario[])
         : [this.options.scenario];
 
     let allPassed = true;
@@ -361,18 +331,13 @@ class ConverseStreamPhoenixValidator {
     }
 
     console.log("\n📊 Validation Summary:");
-    console.log(
-      allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed",
-    );
+    console.log(allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed");
 
     // Give time for traces to be exported to Phoenix
     console.log("\n⏳ Waiting for traces to be exported to Phoenix...");
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    console.log(
-      "🔍 Check Phoenix at:",
-      this.options.phoenixEndpoint.replace("/v1/traces", ""),
-    );
+    console.log("🔍 Check Phoenix at:", this.options.phoenixEndpoint.replace("/v1/traces", ""));
 
     return allPassed;
   }
@@ -393,9 +358,7 @@ class ConverseStreamPhoenixValidator {
   }
 
   private async runBasicWithContextScenario(): Promise<boolean> {
-    console.log(
-      "   📝 Testing basic streaming with full OpenInference context...",
-    );
+    console.log("   📝 Testing basic streaming with full OpenInference context...");
 
     const command = new this.ConverseStreamCommand({
       modelId: this.options.modelId,
@@ -427,8 +390,7 @@ class ConverseStreamPhoenixValidator {
           setMetadata(
             setTags(
               setPromptTemplate(context.active(), {
-                template:
-                  "System: {{system_prompt}}\n\nUser ({{user_name}}): {{user_message}}",
+                template: "System: {{system_prompt}}\n\nUser ({{user_name}}): {{user_message}}",
                 version: "1.0.0",
                 variables: {
                   system_prompt:
@@ -438,13 +400,7 @@ class ConverseStreamPhoenixValidator {
                     "Hello! My name is Alex. Can you tell me about the benefits of streaming responses?",
                 },
               }),
-              [
-                "converse-stream",
-                "phoenix",
-                "validation",
-                "context",
-                "streaming",
-              ],
+              ["converse-stream", "phoenix", "validation", "context", "streaming"],
             ),
             {
               experiment_name: "converse-stream-phoenix-validation",
@@ -475,12 +431,8 @@ class ConverseStreamPhoenixValidator {
 
     console.log("✅ Basic streaming with context completed successfully");
     console.log(`   📊 Events processed: ${streamResult.eventCount}`);
-    console.log(
-      `   📝 Response length: ${streamResult.fullText.length} characters`,
-    );
-    console.log(
-      `   💬 Response preview: ${streamResult.fullText.substring(0, 100)}...`,
-    );
+    console.log(`   📝 Response length: ${streamResult.fullText.length} characters`);
+    console.log(`   💬 Response preview: ${streamResult.fullText.substring(0, 100)}...`);
 
     if (streamResult.tokenUsage.inputTokens) {
       console.log(
@@ -495,12 +447,8 @@ class ConverseStreamPhoenixValidator {
     console.log("   📋 Context attributes configured:");
     console.log("      🆔 Session ID: phoenix-validation-session-001");
     console.log("      👤 User ID: phoenix-validation-user-alex");
-    console.log(
-      "      📊 Metadata: experiment_name=converse-stream-phoenix-validation",
-    );
-    console.log(
-      "      🏷️ Tags: [converse-stream, phoenix, validation, context, streaming]",
-    );
+    console.log("      📊 Metadata: experiment_name=converse-stream-phoenix-validation");
+    console.log("      🏷️ Tags: [converse-stream, phoenix, validation, context, streaming]");
     console.log("      📝 Prompt Template: System: {{system_prompt}}...");
 
     return true;
@@ -556,8 +504,7 @@ class ConverseStreamPhoenixValidator {
                   properties: {
                     expression: {
                       type: "string",
-                      description:
-                        "Mathematical expression to evaluate, e.g. '25 * 17'",
+                      description: "Mathematical expression to evaluate, e.g. '25 * 17'",
                     },
                   },
                   required: ["expression"],
@@ -588,18 +535,12 @@ class ConverseStreamPhoenixValidator {
 
     // Log tool call details
     streamResult.toolCalls.forEach((toolCall, index) => {
-      console.log(
-        `     Tool ${index + 1}: ${toolCall.name} - ${JSON.stringify(toolCall.input)}`,
-      );
+      console.log(`     Tool ${index + 1}: ${toolCall.name} - ${JSON.stringify(toolCall.input)}`);
     });
 
-    console.log(
-      `   📝 Response length: ${streamResult.fullText.length} characters`,
-    );
+    console.log(`   📝 Response length: ${streamResult.fullText.length} characters`);
     if (streamResult.fullText.length > 0) {
-      console.log(
-        `   💬 Text response preview: ${streamResult.fullText.substring(0, 100)}...`,
-      );
+      console.log(`   💬 Text response preview: ${streamResult.fullText.substring(0, 100)}...`);
     }
 
     if (streamResult.tokenUsage.inputTokens) {
@@ -664,12 +605,8 @@ class ConverseStreamPhoenixValidator {
 
     console.log("✅ Multi-modal streaming completed successfully");
     console.log(`   📊 Events processed: ${streamResult.eventCount}`);
-    console.log(
-      `   📝 Response length: ${streamResult.fullText.length} characters`,
-    );
-    console.log(
-      `   🖼️ Image analysis preview: ${streamResult.fullText.substring(0, 120)}...`,
-    );
+    console.log(`   📝 Response length: ${streamResult.fullText.length} characters`);
+    console.log(`   🖼️ Image analysis preview: ${streamResult.fullText.substring(0, 120)}...`);
 
     if (streamResult.tokenUsage.inputTokens) {
       console.log(
@@ -722,12 +659,8 @@ class ConverseStreamPhoenixValidator {
 
       console.log("✅ Amazon Nova streaming completed successfully");
       console.log(`   📊 Events processed: ${streamResult.eventCount}`);
-      console.log(
-        `   📝 Response length: ${streamResult.fullText.length} characters`,
-      );
-      console.log(
-        `   🟠 Nova response preview: ${streamResult.fullText.substring(0, 100)}...`,
-      );
+      console.log(`   📝 Response length: ${streamResult.fullText.length} characters`);
+      console.log(`   🟠 Nova response preview: ${streamResult.fullText.substring(0, 100)}...`);
 
       if (streamResult.tokenUsage.inputTokens) {
         console.log(
@@ -741,10 +674,7 @@ class ConverseStreamPhoenixValidator {
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ Amazon Nova model not available in this region, but instrumentation working",
         );

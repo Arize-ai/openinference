@@ -1,12 +1,3 @@
-import { context, diag, propagation } from "@opentelemetry/api";
-import {
-  InstrumentationBase,
-  InstrumentationConfig,
-  InstrumentationNodeModuleDefinition,
-} from "@opentelemetry/instrumentation";
-
-import { VERSION } from "./version";
-
 import type * as ClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
 import type * as ClientStdioModule from "@modelcontextprotocol/sdk/client/stdio";
 import type * as ClientStreamableHTTPModule from "@modelcontextprotocol/sdk/client/streamableHttp";
@@ -14,19 +5,22 @@ import type * as ServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import type * as ServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import type * as ServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
-import type {
-  JSONRPCMessage,
-  JSONRPCRequest,
-} from "@modelcontextprotocol/sdk/types";
+import type { JSONRPCMessage, JSONRPCRequest } from "@modelcontextprotocol/sdk/types";
+import { context, diag, propagation } from "@opentelemetry/api";
+import type { InstrumentationConfig } from "@opentelemetry/instrumentation";
+import {
+  InstrumentationBase,
+  InstrumentationNodeModuleDefinition,
+} from "@opentelemetry/instrumentation";
+
+import { VERSION } from "./version";
 
 const CLIENT_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/client/sse";
 const SERVER_SSE_MODULE_NAME = "@modelcontextprotocol/sdk/server/sse";
 const CLIENT_STDIO_MODULE_NAME = "@modelcontextprotocol/sdk/client/stdio";
 const SERVER_STDIO_MODULE_NAME = "@modelcontextprotocol/sdk/server/stdio";
-const CLIENT_STREAMABLE_HTTP_MODULE_NAME =
-  "@modelcontextprotocol/sdk/client/streamableHttp";
-const SERVER_STREAMABLE_HTTP_MODULE_NAME =
-  "@modelcontextprotocol/sdk/server/streamableHttp";
+const CLIENT_STREAMABLE_HTTP_MODULE_NAME = "@modelcontextprotocol/sdk/client/streamableHttp";
+const SERVER_STREAMABLE_HTTP_MODULE_NAME = "@modelcontextprotocol/sdk/server/streamableHttp";
 
 /**
  * Flags to check if a module has already been patched.
@@ -63,11 +57,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
      */
     instrumentationConfig?: InstrumentationConfig;
   } = {}) {
-    super(
-      "@arizeai/openinference-instrumentation-mcp",
-      VERSION,
-      instrumentationConfig,
-    );
+    super("@arizeai/openinference-instrumentation-mcp", VERSION, instrumentationConfig);
   }
 
   /**
@@ -113,15 +103,11 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
       this._patchServerStdioModule(serverStdioModule);
     }
     if (clientStreamableHTTPModule) {
-      diag.debug(
-        `Manually instrumenting ${CLIENT_STREAMABLE_HTTP_MODULE_NAME}`,
-      );
+      diag.debug(`Manually instrumenting ${CLIENT_STREAMABLE_HTTP_MODULE_NAME}`);
       this._patchClientStreamableHTTPModule(clientStreamableHTTPModule);
     }
     if (serverStreamableHTTPModule) {
-      diag.debug(
-        `Manually instrumenting ${SERVER_STREAMABLE_HTTP_MODULE_NAME}`,
-      );
+      diag.debug(`Manually instrumenting ${SERVER_STREAMABLE_HTTP_MODULE_NAME}`);
       this._patchServerStreamableHTTPModule(serverStreamableHTTPModule);
     }
   }
@@ -167,10 +153,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     ];
   }
 
-  private _patchClientSSEModule(
-    module: typeof ClientSSEModule,
-    moduleVersion?: string,
-  ) {
+  private _patchClientSSEModule(module: typeof ClientSSEModule, moduleVersion?: string) {
     return this._patchTransport(
       module,
       CLIENT_SSE_MODULE_NAME,
@@ -180,17 +163,10 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchClientSSEModule(module: typeof ClientSSEModule) {
-    return this._unpatchTransport(
-      module,
-      CLIENT_SSE_MODULE_NAME,
-      module.SSEClientTransport,
-    );
+    return this._unpatchTransport(module, CLIENT_SSE_MODULE_NAME, module.SSEClientTransport);
   }
 
-  private _patchServerSSEModule(
-    module: typeof ServerSSEModule,
-    moduleVersion?: string,
-  ) {
+  private _patchServerSSEModule(module: typeof ServerSSEModule, moduleVersion?: string) {
     return this._patchTransport(
       module,
       SERVER_SSE_MODULE_NAME,
@@ -200,17 +176,10 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchServerSSEModule(module: typeof ServerSSEModule) {
-    return this._unpatchTransport(
-      module,
-      SERVER_SSE_MODULE_NAME,
-      module.SSEServerTransport,
-    );
+    return this._unpatchTransport(module, SERVER_SSE_MODULE_NAME, module.SSEServerTransport);
   }
 
-  private _patchClientStdioModule(
-    module: typeof ClientStdioModule,
-    moduleVersion?: string,
-  ) {
+  private _patchClientStdioModule(module: typeof ClientStdioModule, moduleVersion?: string) {
     return this._patchTransport(
       module,
       CLIENT_STDIO_MODULE_NAME,
@@ -220,17 +189,10 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchClientStdioModule(module: typeof ClientStdioModule) {
-    return this._unpatchTransport(
-      module,
-      CLIENT_STDIO_MODULE_NAME,
-      module.StdioClientTransport,
-    );
+    return this._unpatchTransport(module, CLIENT_STDIO_MODULE_NAME, module.StdioClientTransport);
   }
 
-  private _patchServerStdioModule(
-    module: typeof ServerStdioModule,
-    moduleVersion?: string,
-  ) {
+  private _patchServerStdioModule(module: typeof ServerStdioModule, moduleVersion?: string) {
     return this._patchTransport(
       module,
       SERVER_STDIO_MODULE_NAME,
@@ -240,11 +202,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   }
 
   private _unpatchServerStdioModule(module: typeof ServerStdioModule) {
-    return this._unpatchTransport(
-      module,
-      SERVER_STDIO_MODULE_NAME,
-      module.StdioServerTransport,
-    );
+    return this._unpatchTransport(module, SERVER_STDIO_MODULE_NAME, module.StdioServerTransport);
   }
 
   private _patchClientStreamableHTTPModule(
@@ -259,9 +217,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchClientStreamableHTTPModule(
-    module: typeof ClientStreamableHTTPModule,
-  ) {
+  private _unpatchClientStreamableHTTPModule(module: typeof ClientStreamableHTTPModule) {
     return this._unpatchTransport(
       module,
       CLIENT_STREAMABLE_HTTP_MODULE_NAME,
@@ -281,9 +237,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
     );
   }
 
-  private _unpatchServerStreamableHTTPModule(
-    module: typeof ServerStreamableHTTPModule,
-  ) {
+  private _unpatchServerStreamableHTTPModule(module: typeof ServerStreamableHTTPModule) {
     return this._unpatchTransport(
       module,
       SERVER_STREAMABLE_HTTP_MODULE_NAME,
@@ -304,11 +258,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
 
     this._wrap(transportClass.prototype, "send", this._getTransportSendPatch());
 
-    this._wrap(
-      transportClass.prototype,
-      "start",
-      this._getTransportStartPatch(),
-    );
+    this._wrap(transportClass.prototype, "start", this._getTransportStartPatch());
 
     patchedModules[moduleName] = true;
     try {
@@ -342,10 +292,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
 
   private _getTransportSendPatch() {
     return (original: Transport["send"]) => {
-      return function send(
-        this: Transport,
-        ...args: Parameters<Transport["send"]>
-      ) {
+      return function send(this: Transport, ...args: Parameters<Transport["send"]>) {
         const message = args[0];
         if (!MCPInstrumentation._isJSONRPCRequest(message)) {
           return original.apply(this, args);
@@ -364,10 +311,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
 
   private _getTransportStartPatch() {
     return (original: Transport["start"]) => {
-      return function start(
-        this: Transport,
-        ...args: Parameters<Transport["start"]>
-      ) {
+      return function start(this: Transport, ...args: Parameters<Transport["start"]>) {
         const onmessage = this.onmessage;
         if (!onmessage) {
           return original.apply(this, args);
@@ -379,10 +323,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
             return onmessage.apply(this, args);
           }
 
-          const ctx = propagation.extract(
-            context.active(),
-            message.params?._meta,
-          );
+          const ctx = propagation.extract(context.active(), message.params?._meta);
           return context.with(ctx, () => {
             return onmessage.apply(this, args);
           });
@@ -396,9 +337,7 @@ export class MCPInstrumentation extends InstrumentationBase<InstrumentationConfi
   // A request has a method and request id. We check both primarily to differentiate from
   // a notification which only has method. If in the future we find we should propagate context
   // on notifications too, we can loosen the check.
-  private static _isJSONRPCRequest(
-    message: JSONRPCMessage,
-  ): message is JSONRPCRequest {
+  private static _isJSONRPCRequest(message: JSONRPCMessage): message is JSONRPCRequest {
     return (
       typeof message === "object" &&
       !!message &&

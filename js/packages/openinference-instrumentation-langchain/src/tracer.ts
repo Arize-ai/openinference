@@ -1,14 +1,11 @@
-import { OITracer } from "@arizeai/openinference-core";
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-
-import {
-  context,
-  Span,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from "@opentelemetry/api";
+import type { Run } from "@langchain/core/tracers/base";
+import { BaseTracer } from "@langchain/core/tracers/base";
+import type { Span } from "@opentelemetry/api";
+import { context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
+
+import type { OITracer } from "@arizeai/openinference-core";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import {
   safelyFlattenAttributes,
@@ -25,8 +22,6 @@ import {
   safelyFormatToolCalls,
   safelyGetOpenInferenceSpanKindFromRunType,
 } from "./utils";
-
-import { BaseTracer, Run } from "@langchain/core/tracers/base";
 
 type RunWithSpan = {
   run: Run;
@@ -53,11 +48,9 @@ export class LangChainTracer extends BaseTracer {
    * we support both 0.1 and 0.2 so we need to check if the method exists on the super class before calling it
    */
   protected async _startTrace(run: Run) {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+    // @ts-expect-error
     if (typeof super._startTrace === "function") {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
+      // @ts-expect-error
       await super._startTrace(run);
     }
     await this.startTracing(run);
@@ -97,8 +90,7 @@ export class LangChainTracer extends BaseTracer {
         kind: SpanKind.INTERNAL,
         attributes: {
           [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-            safelyGetOpenInferenceSpanKindFromRunType(run.run_type) ??
-            undefined,
+            safelyGetOpenInferenceSpanKindFromRunType(run.run_type) ?? undefined,
         },
       },
       activeContext,
