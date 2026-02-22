@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.13...python-openinference-instrumentation-instructor-v0.1.14) (2026-02-22)
+
+
+### Bug Fixes
+
+* Refactor Helpers With More Test Coverage ([#2750](https://github.com/Arize-ai/openinference/issues/2750)) ([6cf0cd3](https://github.com/Arize-ai/openinference/commit/6cf0cd3b47dc58f92ea6a35dd5ccc9dfa588effa))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-instructor-v0.1.12...python-openinference-instrumentation-instructor-v0.1.13) (2026-02-05)
 
 
