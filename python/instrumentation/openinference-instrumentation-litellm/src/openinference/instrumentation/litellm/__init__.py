@@ -386,6 +386,7 @@ def _finalize_span(span: trace_api.Span, result: Any) -> None:
         span.set_attributes(_get_attributes_from_response_output(result))
 
     _set_token_counts_from_usage(span, result)
+    _set_cost_from_response(span, result)
     _set_span_status(span, result)
 
 
@@ -478,6 +479,34 @@ def _set_token_counts_from_usage(span: trace_api.Span, result: Any) -> None:
         _set_span_attribute(
             span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ, cache_read_input_tokens
         )
+
+    _set_cost_from_usage(span, usage)
+
+
+def _set_cost_from_usage(span: trace_api.Span, usage: Any) -> None:
+    """
+    Sets cost attribute on a span from usage object (streaming responses).
+    """
+    if not usage:
+        return
+
+    cost = _get_value(usage, "cost")
+    if cost is not None:
+        _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, cost)
+
+
+def _set_cost_from_response(span: trace_api.Span, result: Any) -> None:
+    """
+    Sets cost attribute on a span from response's _hidden_params (non-streaming responses).
+    """
+    hidden_params = _get_value(result, "_hidden_params")
+    if not hidden_params:
+        return
+
+    if isinstance(hidden_params, dict):
+        response_cost = hidden_params.get("response_cost")
+        if response_cost is not None:
+            _set_span_attribute(span, SpanAttributes.LLM_COST_TOTAL, response_cost)
 
 
 def _set_span_status(span: trace_api.Span, result: Any) -> None:

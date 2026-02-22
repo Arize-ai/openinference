@@ -80,6 +80,8 @@ def test_batch_embedding(
         == '{"model": "openai/text-embedding-ada-002"}'
     )
 
+    assert attributes.pop("llm.cost.total") > 0
+
     # All attributes should be accounted for
     assert attributes == {}
 
@@ -144,6 +146,8 @@ def test_single_string_embedding(
         attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-ada-002"}'
     )
+
+    assert attributes.pop("llm.cost.total") > 0
 
     # All attributes should be accounted for
     assert attributes == {}
@@ -212,6 +216,8 @@ def test_batch_embedding_with_different_model(
         attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
         == '{"model": "openai/text-embedding-3-small"}'
     )
+
+    assert attributes.pop("llm.cost.total") > 0
 
     # All attributes should be accounted for
     assert attributes == {}

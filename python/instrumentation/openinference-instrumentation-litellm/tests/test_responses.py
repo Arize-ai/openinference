@@ -57,6 +57,7 @@ def test_responses_simple_input(
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
     assert attributes == {}
 
 
@@ -102,6 +103,8 @@ def test_responses_simple_input_stream(
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    # streams will not have cost unless litellm.include_cost_in_streaming_usage is set to True
+    attributes.pop("llm.cost.total", None)
     assert attributes == {}
 
 
@@ -153,6 +156,7 @@ def test_responses_websearch_input(
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
     assert attributes == {}
 
 
@@ -204,4 +208,5 @@ async def test_responses_websearch_input_async(
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
+    assert attributes.pop("llm.cost.total") > 0
     assert attributes == {}
