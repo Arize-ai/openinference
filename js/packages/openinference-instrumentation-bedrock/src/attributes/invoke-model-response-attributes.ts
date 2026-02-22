@@ -7,20 +7,16 @@
  * - Usage/token count processing
  */
 
+import type { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
 import { withSafety } from "@arizeai/openinference-core";
-import {
-  LLMSystem,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import type { LLMSystem } from "@arizeai/openinference-semantic-conventions";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
-import { diag, Span } from "@opentelemetry/api";
-
-import {
-  BedrockMessage,
-  isTextContent,
-  isToolUseContent,
-} from "../types/bedrock-types";
-
+import type { BedrockMessage } from "../types/bedrock-types";
+import { isTextContent, isToolUseContent } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 import {
   isSimpleTextResponse,
@@ -28,8 +24,6 @@ import {
   normalizeUsageAttributes,
   parseResponseBody,
 } from "./invoke-model-helpers";
-
-import { InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
 
 /**
  * Processes message content and extracts both text content and tool call attributes
@@ -84,11 +78,7 @@ function addOutputMessageContentAttributes({
       // Handle tool use content with sequential tool call indexing
       const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
 
-      setSpanAttribute(
-        span,
-        `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`,
-        content.id,
-      );
+      setSpanAttribute(span, `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`, content.id);
       setSpanAttribute(
         span,
         `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`,
@@ -115,13 +105,7 @@ function addOutputMessageContentAttributes({
  * @param params.span The OpenTelemetry span to set attributes on
  */
 const extractOutputMessagesAttributes = withSafety({
-  fn: ({
-    normalizedMessage,
-    span,
-  }: {
-    normalizedMessage: BedrockMessage;
-    span: Span;
-  }) => {
+  fn: ({ normalizedMessage, span }: { normalizedMessage: BedrockMessage; span: Span }) => {
     setSpanAttribute(
       span,
       `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`,
@@ -175,26 +159,14 @@ function extractUsageAttributes({
 
   // Token counts - only set if defined
   if (usage.input_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-      usage.input_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.input_tokens);
   }
   if (usage.output_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-      usage.output_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens);
   }
 
   if (usage.total_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-      usage.total_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.total_tokens);
   }
 
   if (usage.cache_read_input_tokens !== undefined) {
@@ -248,17 +220,10 @@ export const extractInvokeModelResponseAttributes = withSafety({
     //extract full response body as primary output
     const outputValue = JSON.stringify(responseBody);
     setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, outputValue);
-    setSpanAttribute(
-      span,
-      SemanticConventions.OUTPUT_MIME_TYPE,
-      "application/json",
-    );
+    setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
 
     // Normalize the response body to a standard BedrockMessage format
-    const normalizedMessage = normalizeResponseContentBlocks(
-      responseBody,
-      modelType,
-    );
+    const normalizedMessage = normalizeResponseContentBlocks(responseBody, modelType);
     if (normalizedMessage) {
       // Extract all response attributes using named parameters
       extractOutputMessagesAttributes({ normalizedMessage, span });

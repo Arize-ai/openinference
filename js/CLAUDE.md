@@ -34,8 +34,8 @@ pnpm run type:check
 pnpm run lint
 
 # Code formatting
-pnpm run prettier:check
-pnpm run prettier:write
+pnpm run fmt:check
+pnpm run fmt
 ```
 
 ### Release Management

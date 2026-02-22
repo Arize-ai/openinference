@@ -1,6 +1,6 @@
 import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
-import { AnyFn, SpanTraceOptions } from "./types";
+import type { AnyFn, SpanTraceOptions } from "./types";
 import { withSpan } from "./withSpan";
 
 /**
@@ -41,10 +41,7 @@ import { withSpan } from "./withSpan";
  * const tracedWorkflow = traceChain(executeWorkflow);
  * ```
  */
-export function traceChain<Fn extends AnyFn>(
-  fn: Fn,
-  options?: Omit<SpanTraceOptions, "kind">,
-): Fn {
+export function traceChain<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOptions, "kind">): Fn {
   return withSpan<Fn>(fn, {
     ...options,
     kind: OpenInferenceSpanKind.CHAIN,
@@ -92,10 +89,7 @@ export function traceChain<Fn extends AnyFn>(
  * const tracedChatbot = traceAgent(generateResponse);
  * ```
  */
-export function traceAgent<Fn extends AnyFn>(
-  fn: Fn,
-  options?: Omit<SpanTraceOptions, "kind">,
-): Fn {
+export function traceAgent<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOptions, "kind">): Fn {
   return withSpan<Fn>(fn, { ...options, kind: OpenInferenceSpanKind.AGENT });
 }
 
@@ -143,9 +137,6 @@ export function traceAgent<Fn extends AnyFn>(
  * const tracedDbTool = traceTool(queryDatabase);
  * ```
  */
-export function traceTool<Fn extends AnyFn>(
-  fn: Fn,
-  options?: Omit<SpanTraceOptions, "kind">,
-): Fn {
+export function traceTool<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOptions, "kind">): Fn {
   return withSpan<Fn>(fn, { ...options, kind: OpenInferenceSpanKind.TOOL });
 }

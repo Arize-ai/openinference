@@ -1,24 +1,17 @@
-import {
-  isObjectWithStringKeys,
-  withSafety,
-} from "@arizeai/openinference-core";
-import {
-  MimeType,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
-import { diag, Span } from "@opentelemetry/api";
-
-import { isConverseToolUseContent } from "../types/bedrock-types";
-
-import { processMessages, setSpanAttribute } from "./attribute-helpers";
-
-import {
+import type {
   ConverseOutput,
   ConverseResponse,
   Message,
   TokenUsage,
 } from "@aws-sdk/client-bedrock-runtime";
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import { isConverseToolUseContent } from "../types/bedrock-types";
+import { processMessages, setSpanAttribute } from "./attribute-helpers";
 
 /**
  * Type guard to safely validate ConverseResponse structure
@@ -32,11 +25,7 @@ function isConverseResponse(response: unknown): response is ConverseResponse {
     return false;
   }
 
-  return (
-    "output" in response &&
-    typeof response.output === "object" &&
-    response.output !== null
-  );
+  return "output" in response && typeof response.output === "object" && response.output !== null;
 }
 
 /**
@@ -54,11 +43,7 @@ function extractBaseResponseAttributes({
   span: Span;
   response: ConverseResponse;
 }): void {
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_VALUE,
-    JSON.stringify(response),
-  );
+  setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(response));
   setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, MimeType.JSON);
 
   setSpanAttribute(span, "llm.stop_reason", response.stopReason);
@@ -155,21 +140,9 @@ function extractUsageAttributes({
   const usage: TokenUsage | undefined = response.usage;
   if (!usage) return;
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-    usage.inputTokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-    usage.outputTokens,
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-    usage.totalTokens,
-  );
+  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.inputTokens);
+  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.outputTokens);
+  setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.totalTokens);
 }
 
 /**
@@ -187,13 +160,7 @@ function extractUsageAttributes({
  * @param params.response The ConverseResponse to extract attributes from
  */
 export const extractConverseResponseAttributes = withSafety({
-  fn: ({
-    span,
-    response,
-  }: {
-    span: Span;
-    response: ConverseResponse;
-  }): void => {
+  fn: ({ span, response }: { span: Span; response: ConverseResponse }): void => {
     if (!isConverseResponse(response)) {
       return;
     }

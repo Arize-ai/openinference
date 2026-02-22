@@ -1,7 +1,6 @@
 import { assertUnreachable, withSafety } from "../../utils";
-
 import { DefaultTraceConfig, traceConfigMetadata } from "./constants";
-import { TraceConfig, TraceConfigKey, TraceConfigOptions } from "./types";
+import type { TraceConfig, TraceConfigKey, TraceConfigOptions } from "./types";
 
 const safelyParseInt = withSafety({ fn: parseInt });
 
@@ -53,17 +52,14 @@ export function generateTraceConfig(options?: TraceConfigOptions): TraceConfig {
   if (options == null) {
     return DefaultTraceConfig;
   }
-  return Object.entries(traceConfigMetadata).reduce(
-    (config, [key, optionMetadata]) => {
-      const TraceConfigKey = key as TraceConfigKey;
-      return {
-        ...config,
-        [TraceConfigKey]: parseOption({
-          optionValue: options[TraceConfigKey],
-          optionMetadata,
-        }),
-      };
-    },
-    {} as TraceConfig,
-  );
+  return Object.entries(traceConfigMetadata).reduce((config, [key, optionMetadata]) => {
+    const TraceConfigKey = key as TraceConfigKey;
+    return {
+      ...config,
+      [TraceConfigKey]: parseOption({
+        optionValue: options[TraceConfigKey],
+        optionMetadata,
+      }),
+    };
+  }, {} as TraceConfig);
 }

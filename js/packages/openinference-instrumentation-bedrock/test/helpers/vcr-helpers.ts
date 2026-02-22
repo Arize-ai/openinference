@@ -1,13 +1,14 @@
+import * as fs from "fs";
+import * as path from "path";
+
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import nock from "nock";
+
 import {
   MOCK_AUTH_HEADERS,
   MOCK_AWS_CREDENTIALS,
   VALID_AWS_CREDENTIALS,
 } from "../config/constants";
-
-import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
-import * as fs from "fs";
-import nock from "nock";
-import * as path from "path";
 
 // Helper function to create nock mock for Bedrock API
 export const createNockMock = (
@@ -32,9 +33,9 @@ export const createNockMock = (
     endpoint = "invoke";
   }
 
-  const nockScope = nock(
-    "https://bedrock-runtime.us-east-1.amazonaws.com",
-  ).post(`/model/${encodeURIComponent(targetModelId)}/${endpoint}`);
+  const nockScope = nock("https://bedrock-runtime.us-east-1.amazonaws.com").post(
+    `/model/${encodeURIComponent(targetModelId)}/${endpoint}`,
+  );
 
   if (isStreaming && typeof mockResponse === "string") {
     // For streaming responses, convert hex string to binary buffer
@@ -113,9 +114,7 @@ export const setupTestRecording = (
       recordingData.forEach((recording: any) => {
         // Extract model ID from the path
         const invokeMatch = recording.path?.match(/\/model\/([^/]+)\/invoke/);
-        const converseMatch = recording.path?.match(
-          /\/model\/([^/]+)\/converse/,
-        );
+        const converseMatch = recording.path?.match(/\/model\/([^/]+)\/converse/);
         const modelId = invokeMatch
           ? decodeURIComponent(invokeMatch[1])
           : converseMatch
@@ -155,15 +154,10 @@ export const initializeRecordingMode = () => {
 };
 
 // Helper function to save recording mode data in afterEach hooks
-export const saveRecordingModeData = (
-  currentTestName: string,
-  recordingsPath: string,
-) => {
+export const saveRecordingModeData = (currentTestName: string, recordingsPath: string) => {
   const recordings = nock.recorder.play();
   // eslint-disable-next-line no-console
-  console.log(
-    `Captured ${recordings.length} recordings for test: ${currentTestName}`,
-  );
+  console.log(`Captured ${recordings.length} recordings for test: ${currentTestName}`);
   if (recordings.length > 0) {
     // Sanitize auth headers - replace with mock credentials for replay compatibility
     sanitizeAuthHeaders(recordings);
@@ -174,8 +168,6 @@ export const saveRecordingModeData = (
     }
     fs.writeFileSync(recordingsPath, JSON.stringify(recordings, null, 2));
     // eslint-disable-next-line no-console
-    console.log(
-      `Saved sanitized recordings to ${path.basename(recordingsPath)}`,
-    );
+    console.log(`Saved sanitized recordings to ${path.basename(recordingsPath)}`);
   }
 };

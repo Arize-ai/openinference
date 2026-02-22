@@ -1,8 +1,8 @@
-import { MimeType } from "@arizeai/openinference-semantic-conventions";
-
 import type { Attributes, AttributeValue } from "@opentelemetry/api";
 
-import { GenericFunction, SafeFunction } from "./types.js";
+import { MimeType } from "@arizeai/openinference-semantic-conventions";
+
+import type { GenericFunction, SafeFunction } from "./types.js";
 
 export const safelyJSONStringify = (value: unknown) => {
   try {
@@ -51,11 +51,7 @@ export const getMimeType = (value: unknown): MimeType => {
  * @param key - The key to assign the value to
  * @param value - The value to assign to the key
  */
-export const set = (
-  attrs: Attributes,
-  key: string,
-  value?: AttributeValue | null,
-) => {
+export const set = (attrs: Attributes, key: string, value?: AttributeValue | null) => {
   if (value === undefined || value === null) return;
   attrs[key] = value;
 };

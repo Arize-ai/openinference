@@ -1,15 +1,38 @@
 {
   "name": "@arizeai/openinference-instrumentation-bedrock-agent-runtime",
   "version": "1.1.8",
-  "description": "OpenInference instrumentation for AWS Bedrock Agent Runtime",
   "private": false,
-  "main": "dist/src/index.js",
-  "module": "dist/esm/index.js",
-  "esnext": "dist/esnext/index.js",
-  "types": "dist/src/index.d.ts",
+  "description": "OpenInference instrumentation for AWS Bedrock Agent Runtime",
+  "keywords": [
+    "agent",
+    "agent-runtime",
+    "ai",
+    "aws",
+    "bedrock",
+    "instrumentation",
+    "llm",
+    "openinference",
+    "opentelemetry"
+  ],
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "dist/src/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/src/index.d.ts",
+  "esnext": "dist/esnext/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/src/index.js"
+    }
   },
   "scripts": {
     "prebuild": "rimraf dist && pnpm run version:update",
@@ -21,12 +44,6 @@
     "validate:invoke-agent": "tsx --env-file examples/.env examples/run-invoke-agent.ts",
     "validate:invoke-rag": "tsx --env-file examples/.env examples/run-rag.ts"
   },
-  "exports": {
-    ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/src/index.js"
-    }
-  },
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
@@ -34,23 +51,6 @@
     "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
-  "keywords": [
-    "aws",
-    "bedrock",
-    "instrumentation",
-    "agent",
-    "agent-runtime",
-    "opentelemetry",
-    "openinference",
-    "ai",
-    "llm"
-  ],
-  "files": [
-    "dist",
-    "src"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
   "devDependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.844.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
@@ -59,14 +59,14 @@
     "@opentelemetry/sdk-trace-base": "^1.25.1",
     "@opentelemetry/sdk-trace-node": "^1.25.1",
     "@opentelemetry/semantic-conventions": "^1.25.1",
-    "@types/node": "^20.14.11",
-    "vitest": "^4.0.3",
-    "tsx": "^4.7.0",
     "@pollyjs/adapter-node-http": "^6.0.6",
     "@pollyjs/core": "^6.0.6",
     "@pollyjs/persister-fs": "^6.0.6",
     "@smithy/util-stream": "^4.2.3",
-    "typescript": "^5.8.3"
+    "@types/node": "^20.14.11",
+    "tsx": "^4.7.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.3"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0"

@@ -1,26 +1,24 @@
-import { Tracer } from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import {
-  BatchSpanProcessor,
-  NodeTracerProvider,
-} from "@opentelemetry/sdk-trace-node";
+import { randomUUID } from "crypto";
+import type http from "http";
+import type { AddressInfo } from "net";
 
-import { MCPInstrumentation } from "../src";
-
-import { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
+import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
 import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types";
-import { randomUUID } from "crypto";
+import type { Tracer } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
-import http from "http";
-import { AddressInfo } from "net";
 import { z } from "zod";
+
+import { MCPInstrumentation } from "../src";
 
 function newMcpServer(tracer: Tracer) {
   const server = new McpServer({
@@ -100,9 +98,7 @@ async function main() {
         const sessionId = req.query.sessionId;
         const transport = servers
           .map((s) => s.server.transport)
-          .find((t) => t!.sessionId === sessionId) as
-          | SSEServerTransport
-          | undefined;
+          .find((t) => t!.sessionId === sessionId) as SSEServerTransport | undefined;
         if (!transport) {
           res.status(404).send("Session not found");
           return;
@@ -118,7 +114,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/sse`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/sse`,
             );
             resolve();
           }
@@ -138,8 +134,7 @@ async function main() {
       app.use(express.json());
 
       const server = newMcpServer(tracer);
-      const transports: { [sessionId: string]: StreamableHTTPServerTransport } =
-        {};
+      const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
       app.post("/mcp", async (req, res) => {
         try {
@@ -202,7 +197,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/mcp`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/mcp`,
             );
             resolve();
           }

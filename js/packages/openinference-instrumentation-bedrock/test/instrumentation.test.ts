@@ -1,4 +1,16 @@
 import {
+  ConverseCommand,
+  ConverseStreamCommand,
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+import { context } from "@opentelemetry/api";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import nock from "nock";
+
+import {
   setMetadata,
   setPromptTemplate,
   setSession,
@@ -15,21 +27,8 @@ import {
   USER_ID,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { context } from "@opentelemetry/api";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
 import { BedrockInstrumentation } from "../src/instrumentation";
-
-import {
-  TEST_MAX_TOKENS,
-  TEST_MODEL_ID,
-  TEST_USER_MESSAGE,
-} from "./config/constants";
+import { TEST_MAX_TOKENS, TEST_MODEL_ID, TEST_USER_MESSAGE } from "./config/constants";
 import {
   commonTools,
   generateToolCallMessage,
@@ -47,14 +46,6 @@ import {
   saveRecordingModeData,
   setupTestRecording,
 } from "./helpers/vcr-helpers";
-
-import {
-  ConverseCommand,
-  ConverseStreamCommand,
-  InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand,
-} from "@aws-sdk/client-bedrock-runtime";
-import nock from "nock";
 
 describe("BedrockInstrumentation", () => {
   let instrumentation: BedrockInstrumentation;
@@ -96,12 +87,7 @@ describe("BedrockInstrumentation", () => {
   // Helper wrapper for tests to set up their specific recording
   const setupTestRecordingWrapper = (testName: string) => {
     currentTestName = testName;
-    recordingsPath = setupTestRecording(
-      testName,
-      __dirname,
-      isRecordingMode,
-      TEST_MODEL_ID,
-    );
+    recordingsPath = setupTestRecording(testName, __dirname, isRecordingMode, TEST_MODEL_ID);
   };
 
   beforeEach(() => {
@@ -186,9 +172,7 @@ describe("BedrockInstrumentation", () => {
     });
     describe("Tool Calling", () => {
       it("should handle tool calling with function definitions", async () => {
-        setupTestRecordingWrapper(
-          "should handle tool calling with function definitions",
-        );
+        setupTestRecordingWrapper("should handle tool calling with function definitions");
 
         const toolDefinition = {
           name: "get_weather",
@@ -317,19 +301,13 @@ The key things are to dress for the warm temperatures and have layers you can",
 `);
       });
       it("should handle multiple tools in single request", async () => {
-        setupTestRecordingWrapper(
-          "should handle multiple tools in single request",
-        );
+        setupTestRecordingWrapper("should handle multiple tools in single request");
 
         const client = createTestClient(isRecordingMode);
 
         const testData = generateToolCallMessage({
           prompt: "What's the weather in San Francisco and what's 15 * 23?",
-          tools: [
-            commonTools.weather,
-            commonTools.calculator,
-            commonTools.webSearch,
-          ],
+          tools: [commonTools.weather, commonTools.calculator, commonTools.webSearch],
         });
 
         const command = new InvokeModelCommand({
@@ -376,9 +354,7 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Multi-Modal", () => {
       it("should handle multi-modal messages with images", async () => {
-        setupTestRecordingWrapper(
-          "should handle multi-modal messages with images",
-        );
+        setupTestRecordingWrapper("should handle multi-modal messages with images");
 
         const client = createTestClient(isRecordingMode);
 
@@ -421,30 +397,22 @@ The key things are to dress for the warm temperatures and have layers you can",
         const span = verifySpanBasics(spanExporter);
 
         // Verify multi-modal message handling
-        expect(span.attributes["llm.model_name"]).toBe(
-          "claude-3-5-sonnet-20240620",
-        );
+        expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
         expect(span.attributes["llm.provider"]).toBe("aws");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
         // Check that input message content is properly handled
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
 
         // The input.value should contain the full JSON request body with image data
-        expect(span.attributes["input.value"]).toContain(
-          "What do you see in this image?",
-        );
+        expect(span.attributes["input.value"]).toContain("What do you see in this image?");
         expect(span.attributes["input.value"]).toContain(imageData);
 
         // Verify that multi-modal content is properly extracted
         // Text content should be captured in detailed structure
         expect(
-          span.attributes[
-            "llm.input_messages.0.message.contents.0.message_content.text"
-          ],
+          span.attributes["llm.input_messages.0.message.contents.0.message_content.text"],
         ).toContain("What do you see in this image?");
 
         // Image content should be captured in OpenInference format
@@ -457,12 +425,8 @@ The key things are to dress for the warm temperatures and have layers you can",
         expect(imageContent).toBe(expectedImageUrl);
 
         // Output message should be captured
-        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-          "assistant",
-        );
-        expect(
-          span.attributes["llm.output_messages.0.message.content"],
-        ).toBeDefined();
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+        expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
 
         // Snapshot the attributes to verify multi-modal message processing
         expect(span.attributes).toMatchInlineSnapshot(`
@@ -491,9 +455,7 @@ The key things are to dress for the warm temperatures and have layers you can",
     });
     describe("Error Handling", () => {
       it("should handle missing token counts gracefully", async () => {
-        setupTestRecordingWrapper(
-          "should handle missing token counts gracefully",
-        );
+        setupTestRecordingWrapper("should handle missing token counts gracefully");
 
         const client = createTestClient(isRecordingMode);
 
@@ -520,9 +482,7 @@ The key things are to dress for the warm temperatures and have layers you can",
 
         // Verify that span completes successfully even without token counts
         expect(span.status.code).toBe(1); // SpanStatusCode.OK
-        expect(span.attributes["llm.model_name"]).toBe(
-          "claude-3-5-sonnet-20240620",
-        );
+        expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
         expect(span.attributes["llm.provider"]).toBe("aws");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
@@ -531,17 +491,11 @@ The key things are to dress for the warm temperatures and have layers you can",
         expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
           "Tell me a short fact.",
         );
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
 
         // Output message should be captured
-        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-          "assistant",
-        );
-        expect(
-          span.attributes["llm.output_messages.0.message.content"],
-        ).toBeDefined();
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+        expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
 
         // Token count attributes should either be undefined or gracefully handled
         // This test verifies graceful handling when usage is missing
@@ -553,19 +507,13 @@ The key things are to dress for the warm temperatures and have layers you can",
         // If token counts are present, they should be valid numbers
         if (hasTokenCounts) {
           if (span.attributes["llm.token_count.prompt"] !== undefined) {
-            expect(typeof span.attributes["llm.token_count.prompt"]).toBe(
-              "number",
-            );
+            expect(typeof span.attributes["llm.token_count.prompt"]).toBe("number");
           }
           if (span.attributes["llm.token_count.completion"] !== undefined) {
-            expect(typeof span.attributes["llm.token_count.completion"]).toBe(
-              "number",
-            );
+            expect(typeof span.attributes["llm.token_count.completion"]).toBe("number");
           }
           if (span.attributes["llm.token_count.total"] !== undefined) {
-            expect(typeof span.attributes["llm.token_count.total"]).toBe(
-              "number",
-            );
+            expect(typeof span.attributes["llm.token_count.total"]).toBe("number");
           }
         }
 
@@ -711,16 +659,14 @@ Honeybees can recognize human faces.",
                 {
                   toolSpec: {
                     name: "get_weather",
-                    description:
-                      "Get current weather information for a location",
+                    description: "Get current weather information for a location",
                     inputSchema: {
                       json: {
                         type: "object",
                         properties: {
                           location: {
                             type: "string",
-                            description:
-                              "The city and state/country for weather lookup",
+                            description: "The city and state/country for weather lookup",
                           },
                           unit: {
                             type: "string",
@@ -933,15 +879,13 @@ This model is designed to avoid generating sensitive content. It is important to
                 type: "function",
                 function: {
                   name: "get_weather",
-                  description:
-                    "Get current weather information for a specific location",
+                  description: "Get current weather information for a specific location",
                   parameters: {
                     type: "object",
                     properties: {
                       location: {
                         type: "string",
-                        description:
-                          "The city and country/state for weather lookup",
+                        description: "The city and country/state for weather lookup",
                       },
                       unit: {
                         type: "string",
@@ -967,9 +911,7 @@ This model is designed to avoid generating sensitive content. It is important to
 
         const span = verifySpanBasics(spanExporter);
         // Basic verification that multimodal and tool attributes are present
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
         expect(span.attributes["llm.model_name"]).toContain("pixtral");
         expect(span.attributes["llm.system"]).toBe("mistralai");
       });
@@ -979,9 +921,7 @@ This model is designed to avoid generating sensitive content. It is important to
   describe("InvokeModelWithResponseStream", () => {
     describe("Basic Function and Tool Calling", () => {
       it("should handle InvokeModelWithResponseStream", async () => {
-        setupTestRecordingWrapper(
-          "should handle invoke model with response stream",
-        );
+        setupTestRecordingWrapper("should handle invoke model with response stream");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1031,9 +971,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
       });
 
       it("should handle streaming responses with tool calls", async () => {
-        setupTestRecordingWrapper(
-          "should handle streaming responses with tool calls",
-        );
+        setupTestRecordingWrapper("should handle streaming responses with tool calls");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1159,43 +1097,27 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         const span = verifySpanBasics(spanExporter);
 
         // Verify basic attributes are still captured
-        expect(span.attributes["llm.model_name"]).toBe(
-          "claude-3-5-sonnet-20240620",
-        );
+        expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
         expect(span.attributes["llm.provider"]).toBe("aws");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
         // Verify large message handling
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
-        expect(
-          span.attributes["llm.input_messages.0.message.content"],
-        ).toBeDefined();
-        expect(span.attributes["llm.input_messages.9.message.role"]).toBe(
-          "assistant",
-        );
-        expect(
-          span.attributes["llm.input_messages.9.message.content"],
-        ).toBeDefined();
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+        expect(span.attributes["llm.input_messages.0.message.content"]).toBeDefined();
+        expect(span.attributes["llm.input_messages.9.message.role"]).toBe("assistant");
+        expect(span.attributes["llm.input_messages.9.message.content"]).toBeDefined();
 
         // Verify response processing - model returned empty content array
-        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-          "assistant",
-        );
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
 
         // Verify token counting for large payloads matches recording
         expect(span.attributes["llm.token_count.prompt"]).toBe(35131);
         expect(span.attributes["llm.token_count.completion"]).toBe(3);
 
         // Verify cache-related token attributes are undefined (not in response)
-        expect(
-          span.attributes["llm.token_count.prompt.cache_read"],
-        ).toBeUndefined();
-        expect(
-          span.attributes["llm.token_count.prompt.cache_write"],
-        ).toBeUndefined();
+        expect(span.attributes["llm.token_count.prompt.cache_read"]).toBeUndefined();
+        expect(span.attributes["llm.token_count.prompt.cache_write"]).toBeUndefined();
       });
     });
     describe("Edge Cases", () => {
@@ -1229,8 +1151,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
               setMetadata(
                 setTags(
                   setPromptTemplate(context.active(), {
-                    template:
-                      "You are a helpful assistant. User message: {{message}}",
+                    template: "You are a helpful assistant. User message: {{message}}",
                     version: "1.0.0",
                     variables: {
                       message: "Hello! This is a test with context attributes.",
@@ -1260,26 +1181,18 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         const span = verifySpanBasics(spanExporter);
 
         // Verify core InvokeModel attributes are present
-        expect(span.attributes["llm.model_name"]).toBe(
-          "claude-3-5-sonnet-20240620",
-        );
+        expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
         expect(span.attributes["llm.provider"]).toBe("aws");
         expect(span.attributes["llm.system"]).toBe("anthropic");
         expect(span.attributes["openinference.span.kind"]).toBe("LLM");
 
         // Verify input/output message structure
-        expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-          "user",
-        );
+        expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
         expect(span.attributes["llm.input_messages.0.message.content"]).toBe(
           "Hello! This is a test with context attributes.",
         );
-        expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-          "assistant",
-        );
-        expect(
-          span.attributes["llm.output_messages.0.message.content"],
-        ).toBeDefined();
+        expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
+        expect(span.attributes["llm.output_messages.0.message.content"]).toBeDefined();
 
         // Verify context attributes are properly propagated to the span
         expect(span.attributes[SESSION_ID]).toBe("test-session-123");
@@ -1291,9 +1204,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
             environment: "testing",
           }),
         );
-        expect(span.attributes[TAG_TAGS]).toBe(
-          JSON.stringify(["test", "context", "attributes"]),
-        );
+        expect(span.attributes[TAG_TAGS]).toBe(JSON.stringify(["test", "context", "attributes"]));
         expect(span.attributes[PROMPT_TEMPLATE_TEMPLATE]).toBe(
           "You are a helpful assistant. User message: {{message}}",
         );
@@ -1341,17 +1252,13 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         // Verify input processing for Titan format
         // Now using full JSON body approach, so input.value contains the complete request
         expect(span.attributes["input.value"]).toContain("inputText");
-        expect(span.attributes["input.value"]).toContain(
-          "Write a short greeting message.",
-        );
+        expect(span.attributes["input.value"]).toContain("Write a short greeting message.");
         expect(span.attributes["input.mime_type"]).toBe("application/json");
 
         // Verify invocation parameters capture Titan-specific config
         // Note: Current instrumentation extracts anthropic_version, max_tokens, etc.
         // Titan uses different parameter names, so invocation_parameters may be empty
-        const invocationParamsStr = span.attributes[
-          "llm.invocation_parameters"
-        ] as string;
+        const invocationParamsStr = span.attributes["llm.invocation_parameters"] as string;
         if (invocationParamsStr) {
           const _invocationParams = JSON.parse(invocationParamsStr);
           // Titan-specific params are not currently extracted by Anthropic-focused extraction
@@ -1376,8 +1283,7 @@ She had been counting the ivy leaves as they fell, convinced that when the last 
         const command = new InvokeModelWithResponseStreamCommand({
           modelId: "amazon.titan-text-express-v1",
           body: JSON.stringify({
-            inputText:
-              "Tell me a very short story about a robot learning to paint.",
+            inputText: "Tell me a very short story about a robot learning to paint.",
             textGenerationConfig: {
               maxTokenCount: 100,
               temperature: 0.7,
@@ -1602,9 +1508,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
       });
 
       it("should handle basic converse stream responses", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-basic-converse-stream-responses",
-        );
+        setupTestRecordingWrapper("should-handle-basic-converse-stream-responses");
 
         const client = createTestClient(isRecordingMode);
 
@@ -1662,9 +1566,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
     describe("ConverseStream Functionality", () => {
       describe("Core Functionality", () => {
         it("should handle streaming tool calls and responses", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-streaming-tool-calls-and-responses",
-          );
+          setupTestRecordingWrapper("should-handle-streaming-tool-calls-and-responses");
 
           const client = createTestClient(isRecordingMode);
 
@@ -1692,8 +1594,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
                         properties: {
                           location: {
                             type: "string",
-                            description:
-                              "The city and state, e.g. San Francisco, CA",
+                            description: "The city and state, e.g. San Francisco, CA",
                           },
                           unit: {
                             type: "string",
@@ -1747,9 +1648,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
         });
 
         it("should handle multi-modal content in streaming responses", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-multi-modal-content-in-streaming-responses",
-          );
+          setupTestRecordingWrapper("should-handle-multi-modal-content-in-streaming-responses");
 
           const client = createTestClient(isRecordingMode);
 
@@ -1824,9 +1723,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Error Handling", () => {
         it("should handle streaming API errors gracefully", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-streaming-api-errors-gracefully",
-          );
+          setupTestRecordingWrapper("should-handle-streaming-api-errors-gracefully");
 
           const client = createTestClient(isRecordingMode);
 
@@ -1856,10 +1753,9 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
           // Validate the error contains the expected 400 status and error message
           expect(thrownError).toBeDefined();
-          expect(
-            thrownError.$response?.statusCode ||
-              thrownError.$metadata?.httpStatusCode,
-          ).toBe(400);
+          expect(thrownError.$response?.statusCode || thrownError.$metadata?.httpStatusCode).toBe(
+            400,
+          );
           expect(thrownError.message).toContain("model identifier is invalid");
 
           // Verify span was created and marked as error
@@ -1884,9 +1780,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
         });
 
         it("should handle large payloads and edge cases in streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-large-payloads-and-edge-cases-in-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-large-payloads-and-edge-cases-in-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -1918,30 +1812,16 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
           // Verify the streaming response contains the expected content from the recording
           // The response should end with "Message 6 in a complex conversation." as seen in the recording
-          const outputContent = span.attributes[
-            "llm.output_messages.0.message.content"
-          ] as string;
+          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
           expect(outputContent).toContain("This is a large test message");
-          expect(outputContent).toContain(
-            "Message 6 in a complex conversation",
-          );
+          expect(outputContent).toContain("Message 6 in a complex conversation");
 
           // Verify all input messages are captured correctly (5 messages total, indexed 0-4)
-          expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-            "user",
-          );
-          expect(span.attributes["llm.input_messages.1.message.role"]).toBe(
-            "assistant",
-          );
-          expect(span.attributes["llm.input_messages.2.message.role"]).toBe(
-            "user",
-          );
-          expect(span.attributes["llm.input_messages.3.message.role"]).toBe(
-            "assistant",
-          );
-          expect(span.attributes["llm.input_messages.4.message.role"]).toBe(
-            "user",
-          ); // 5th message (index 4) is user role
+          expect(span.attributes["llm.input_messages.0.message.role"]).toBe("user");
+          expect(span.attributes["llm.input_messages.1.message.role"]).toBe("assistant");
+          expect(span.attributes["llm.input_messages.2.message.role"]).toBe("user");
+          expect(span.attributes["llm.input_messages.3.message.role"]).toBe("assistant");
+          expect(span.attributes["llm.input_messages.4.message.role"]).toBe("user"); // 5th message (index 4) is user role
 
           // Verify token usage is captured from the streaming metadata
           expect(span.attributes["llm.token_count.prompt"]).toBe(3569);
@@ -1949,9 +1829,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(span.attributes["llm.token_count.total"]).toBe(4282);
 
           // Create reusable variables for the large text (same construction as in test setup)
-          const expectedLargeText = "This is a large test message. ".repeat(
-            100,
-          );
+          const expectedLargeText = "This is a large test message. ".repeat(100);
 
           // Create expected message content with variable interpolation for readability
           const expectedMessage1 = `${expectedLargeText} Message 1 in a complex conversation.`;
@@ -2018,9 +1896,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Configuration & Context", () => {
         it("should handle system prompts with streaming responses", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-system-prompts-with-streaming-responses",
-          );
+          setupTestRecordingWrapper("should-handle-system-prompts-with-streaming-responses");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2062,27 +1938,19 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(systemPromptText).toBe(
             "You are a helpful assistant that responds very concisely.\n\nAlways end your responses with 'Hope this helps!'",
           );
-          expect(span.attributes["llm.input_messages.0.message.role"]).toBe(
-            "system",
-          );
+          expect(span.attributes["llm.input_messages.0.message.role"]).toBe("system");
 
           // Verify user message is captured correctly
           expect(span.attributes["llm.input_messages.1.message.content"]).toBe(
             "What is the capital of France?",
           );
-          expect(span.attributes["llm.input_messages.1.message.role"]).toBe(
-            "user",
-          );
+          expect(span.attributes["llm.input_messages.1.message.role"]).toBe("user");
 
           // Verify the streaming response follows the system prompt instructions
-          const outputContent = span.attributes[
-            "llm.output_messages.0.message.content"
-          ] as string;
+          const outputContent = span.attributes["llm.output_messages.0.message.content"] as string;
           expect(outputContent).toContain("The capital of France is Paris");
           expect(outputContent).toContain("Hope this helps!"); // Should follow system instruction
-          expect(span.attributes["llm.output_messages.0.message.role"]).toBe(
-            "assistant",
-          );
+          expect(span.attributes["llm.output_messages.0.message.role"]).toBe("assistant");
 
           // Verify token usage from the actual recording (37 input, 14 output, 51 total)
           expect(span.attributes["llm.token_count.prompt"]).toBe(37);
@@ -2090,17 +1958,13 @@ In his imagination, this wasn't just any house. It was a magical place where hom
           expect(span.attributes["llm.token_count.total"]).toBe(51);
 
           // Verify system metadata
-          expect(span.attributes["llm.model_name"]).toBe(
-            "claude-3-5-sonnet-20240620",
-          );
+          expect(span.attributes["llm.model_name"]).toBe("claude-3-5-sonnet-20240620");
           expect(span.attributes["llm.system"]).toBe("anthropic");
           expect(span.attributes["llm.provider"]).toBe("aws");
           expect(span.attributes["llm.stop_reason"]).toBe("end_turn");
 
           // Verify input structure contains both system and user messages
-          const inputValue = JSON.parse(
-            span.attributes["input.value"] as string,
-          );
+          const inputValue = JSON.parse(span.attributes["input.value"] as string);
           expect(inputValue.system).toHaveLength(2);
           expect(inputValue.system[0].text).toBe(
             "You are a helpful assistant that responds very concisely.",
@@ -2109,14 +1973,10 @@ In his imagination, this wasn't just any house. It was a magical place where hom
             "Always end your responses with 'Hope this helps!'",
           );
           expect(inputValue.messages).toHaveLength(1);
-          expect(inputValue.messages[0].content[0].text).toBe(
-            "What is the capital of France?",
-          );
+          expect(inputValue.messages[0].content[0].text).toBe("What is the capital of France?");
 
           // Verify output value structure for streaming response
-          const outputValue = JSON.parse(
-            span.attributes["output.value"] as string,
-          );
+          const outputValue = JSON.parse(span.attributes["output.value"] as string);
           expect(outputValue.text).toContain("The capital of France is Paris");
           expect(outputValue.text).toContain("Hope this helps!");
           expect(outputValue.streaming).toBe(true);
@@ -2127,9 +1987,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
         });
 
         it("should propagate context attributes in streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-propagate-context-attributes-in-streaming",
-          );
+          setupTestRecordingWrapper("should-propagate-context-attributes-in-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2218,9 +2076,7 @@ In his imagination, this wasn't just any house. It was a magical place where hom
 
       describe("Cross-Provider Streaming Models", () => {
         it("should handle Meta Llama models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-meta-llama-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-meta-llama-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2283,9 +2139,7 @@ Quantum computers use "qubits" (quantum bits) instead of bits. Qubits are",
         });
 
         it("should handle Mistral models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-mistral-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-mistral-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2342,9 +2196,7 @@ Life in digital.",
         });
 
         it("should handle Amazon Titan models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-amazon-titan-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-amazon-titan-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2403,9 +2255,7 @@ Cloud computing offers several benefits, including:
         });
 
         it("should handle Amazon Nova models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-amazon-nova-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-amazon-nova-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2466,9 +2316,7 @@ Photosynthesis can",
         });
 
         it("should handle Cohere Command models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-cohere-command-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-cohere-command-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2523,9 +2371,7 @@ At its core, machine learning involves creating algorithms and models that can a
         });
 
         it("should handle AI21 Jamba models with streaming", async () => {
-          setupTestRecordingWrapper(
-            "should-handle-ai21-jamba-models-with-streaming",
-          );
+          setupTestRecordingWrapper("should-handle-ai21-jamba-models-with-streaming");
 
           const client = createTestClient(isRecordingMode);
 
@@ -2583,9 +2429,7 @@ At its core, machine learning involves creating algorithms and models that can a
 
     describe("System Prompts", () => {
       it("should handle single system prompt in Converse API", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-single-system-prompt-in-converse-api",
-        );
+        setupTestRecordingWrapper("should-handle-single-system-prompt-in-converse-api");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2708,9 +2552,7 @@ Respond briefly.",
 
     describe("Configuration", () => {
       it("should handle inference config in Converse API", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-inference-config-in-converse-api",
-        );
+        setupTestRecordingWrapper("should-handle-inference-config-in-converse-api");
 
         const client = createTestClient(isRecordingMode);
 
@@ -2798,9 +2640,7 @@ In essence, machine learning allows computers to learn from data and make predic
 
         const assistantResponse = {
           role: "assistant" as const,
-          content: [
-            { text: "I'm Claude, an AI assistant. How can I help you today?" },
-          ],
+          content: [{ text: "I'm Claude, an AI assistant. How can I help you today?" }],
         };
 
         const secondUserMessage = {
@@ -2869,16 +2709,12 @@ I hope that gave you a little chuckle. Do you have any favorite types of jokes?"
       });
 
       it("should handle system prompt with multi-turn conversation", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-system-prompt-with-multi-turn-conversation",
-        );
+        setupTestRecordingWrapper("should-handle-system-prompt-with-multi-turn-conversation");
 
         const client = createTestClient(isRecordingMode);
 
         // System prompts combined with conversation history
-        const systemPrompts = [
-          { text: "You are a helpful assistant that tells jokes." },
-        ];
+        const systemPrompts = [{ text: "You are a helpful assistant that tells jokes." }];
 
         const conversationHistory = [
           {
@@ -2966,9 +2802,7 @@ Ba dum tss! I hope that gave you a little chuckle. If not, don't worry - I've go
       // Multi-Modal Content Tests (Tests 7-8)
 
       it("should handle text plus image content with detailed structure", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-text-plus-image-content-with-detailed-structure",
-        );
+        setupTestRecordingWrapper("should-handle-text-plus-image-content-with-detailed-structure");
 
         const client = createTestClient(isRecordingMode);
 
@@ -3046,9 +2880,7 @@ While I can see the handwriting, I'm not able to read or transcribe the specific
       });
 
       it("should handle different image formats with correct MIME types", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-different-image-formats-with-correct-mime-types",
-        );
+        setupTestRecordingWrapper("should-handle-different-image-formats-with-correct-mime-types");
 
         const client = createTestClient(isRecordingMode);
 
@@ -3447,8 +3279,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
                     properties: {
                       location: {
                         type: "string",
-                        description:
-                          "The city and state, e.g. San Francisco, CA",
+                        description: "The city and state, e.g. San Francisco, CA",
                       },
                       unit: {
                         type: "string",
@@ -3620,9 +3451,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       // Context and VCR Infrastructure
 
       it("should handle context attributes with Converse", async () => {
-        setupTestRecordingWrapper(
-          "should-handle-context-attributes-with-converse",
-        );
+        setupTestRecordingWrapper("should-handle-context-attributes-with-converse");
 
         const client = createTestClient(isRecordingMode);
 
@@ -3719,9 +3548,7 @@ I'm designed to be helpful and informative, and I can assist with a wide range o
       });
 
       it("should comprehensively test all token count types", async () => {
-        setupTestRecordingWrapper(
-          "should-comprehensively-test-all-token-count-types",
-        );
+        setupTestRecordingWrapper("should-comprehensively-test-all-token-count-types");
 
         const client = createTestClient(isRecordingMode);
 
@@ -3920,9 +3747,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = await import(
-        "@aws-sdk/client-bedrock-runtime"
-      );
+      instrumentation._modules[0].moduleExports = await import("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
     });
@@ -3967,9 +3792,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-sonnet-20240229",
-      );
+      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
     });
   });
 
@@ -3988,9 +3811,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = await import(
-        "@aws-sdk/client-bedrock-runtime"
-      );
+      instrumentation._modules[0].moduleExports = await import("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
     });
@@ -4035,9 +3856,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-sonnet-20240229",
-      );
+      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
     });
   });
 
@@ -4059,9 +3878,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
 
       // Mock the module exports like in other tests
       // @ts-expect-error the moduleExports property is private. This is needed to make the test work with auto-mocking
-      instrumentation._modules[0].moduleExports = await import(
-        "@aws-sdk/client-bedrock-runtime"
-      );
+      instrumentation._modules[0].moduleExports = await import("@aws-sdk/client-bedrock-runtime");
 
       instrumentation.enable();
     });
@@ -4106,9 +3923,7 @@ describe("BedrockInstrumentation - custom tracing", () => {
       const globalSpans = spanExporter.getFinishedSpans();
       expect(globalSpans.length).toBe(0);
       expect(span.attributes["llm.provider"]).toBe("aws");
-      expect(span.attributes["llm.model_name"]).toBe(
-        "claude-3-sonnet-20240229",
-      );
+      expect(span.attributes["llm.model_name"]).toBe("claude-3-sonnet-20240229");
     });
   });
 });

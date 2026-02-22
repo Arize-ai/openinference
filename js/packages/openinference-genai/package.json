@@ -2,17 +2,31 @@
   "name": "@arizeai/openinference-genai",
   "version": "0.1.6",
   "private": false,
+  "description": "OpenInference utilities for converting OpenTelemetry GenAI span attributes to OpenInference span attributes",
+  "keywords": [
+    "agent",
+    "genai",
+    "llm",
+    "openinference",
+    "opentelemetry"
+  ],
+  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-genai",
+  "bugs": {
+    "url": "https://github.com/Arize-ai/openinference/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "oss-devs@arize.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arize-ai/openinference.git"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "main": "dist/commonjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/commonjs/index.d.ts",
-  "description": "OpenInference utilities for converting OpenTelemetry GenAI span attributes to OpenInference span attributes",
-  "scripts": {
-    "prebuild": "rimraf dist",
-    "build": "tsc --build tsconfig.commonjs.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
-    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test dist/examples",
-    "type:check": "tsc --noEmit",
-    "test": "vitest run"
-  },
   "exports": {
     ".": {
       "import": "./dist/esm/index.js",
@@ -31,26 +45,12 @@
       "require": "./dist/commonjs/types.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "keywords": [
-    "openinference",
-    "llm",
-    "opentelemetry",
-    "genai",
-    "agent"
-  ],
-  "author": "oss-devs@arize.com",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/arize-ai/openinference/tree/main/js/packages/openinference-genai",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Arize-ai/openinference.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Arize-ai/openinference/issues"
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "tsc --build tsconfig.commonjs.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
+    "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test dist/examples",
+    "type:check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@arizeai/openinference-semantic-conventions": "workspace:*"

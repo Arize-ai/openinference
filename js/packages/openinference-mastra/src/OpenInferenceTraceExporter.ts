@@ -89,10 +89,7 @@ export class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
       OpenInferenceOTLPTraceExporter.deprecationWarningShown = true;
     }
   }
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ) {
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void) {
     let processedSpans = spans.map((span) => {
       processMastraSpanAttributes(span);
       return span;
