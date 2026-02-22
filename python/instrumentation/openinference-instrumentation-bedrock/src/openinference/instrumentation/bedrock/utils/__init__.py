@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, ContextManager, Iterator, Mapping, Optional, cast
+from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, Mapping, Optional, cast
 
 import wrapt
 from botocore.eventstream import EventStream
@@ -19,6 +19,61 @@ from openinference.semconv.trace import (
 )
 
 
+class _AsyncIterator:
+    """
+    Async counterpart of _Iterator: wraps an async event stream, runs callback per
+    item and on stream end/error, and manages a context (e.g. span) so it is
+    closed when the stream is fully consumed or on exception.
+    """
+
+    def __init__(
+        self,
+        iterable: AsyncIterator[Any],
+        callback: Optional[_CallbackT[_AnyT]] = None,
+        context_manager_factory: Optional[Callable[[], ContextManager[Any]]] = None,
+    ) -> None:
+        self._iterator = iterable
+        # Ensure we always have a callable callback.
+        if callback is None:
+            self._callback: Callable[[Any], Any] = lambda _value: None
+        else:
+            # cast to a generic Callable that accepts Any to avoid type incompatibilities
+            self._callback = cast(Callable[[Any], Any], callback)
+        self._context_manager_factory = context_manager_factory
+        self._context_manager: Optional[Any] = None
+        self._finished = False
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._finished:
+            raise StopAsyncIteration
+        if self._context_manager is None and self._context_manager_factory is not None:
+            self._context_manager = self._context_manager_factory()
+            self._context_manager.__enter__()
+
+        try:
+            value = await self._iterator.__anext__()
+            if self._callback is not None:
+                self._callback(value)
+            return value
+        except StopAsyncIteration as e:
+            self._finished = True
+            if self._context_manager is not None:
+                self._context_manager.__exit__(None, None, None)
+                self._context_manager = None
+            # callback is always callable (no-op fallback), so safe to call with the exception
+            self._callback(e)
+            raise
+        except Exception as e:
+            if self._context_manager is not None:
+                self._context_manager.__exit__(type(e), e, e.__traceback__)
+                self._context_manager = None
+            self._callback(e)
+            raise
+
+
 class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
     __wrapped__: EventStream
 
@@ -31,10 +86,21 @@ class _EventStream(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(obj)
         self._self_callback = callback
         self._self_context_manager_factory = context_manager_factory
+        # aiobotocore event streams provide __aiter__; botocore's are sync-only.
+        self._self_is_async = hasattr(obj, "__aiter__")
 
     def __iter__(self) -> Iterator[Any]:
         return _Iterator(
             iter(self.__wrapped__),
+            self._self_callback,
+            self._self_context_manager_factory,
+        )
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        if not self._self_is_async:
+            raise TypeError("This is a sync stream. Use 'for' instead of 'async for'.")
+        return _AsyncIterator(
+            self.__wrapped__.__aiter__(),
             self._self_callback,
             self._self_context_manager_factory,
         )
