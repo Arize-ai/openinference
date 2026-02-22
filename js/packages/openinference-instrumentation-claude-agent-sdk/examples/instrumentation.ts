@@ -15,8 +15,6 @@ import {
 } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
-
 import { ClaudeAgentSDKInstrumentation } from "../src/index";
 
 // For troubleshooting, set the log level to DiagLogLevel.DEBUG
@@ -38,10 +36,9 @@ const provider = new NodeTracerProvider({
 });
 
 const agentInstrumentation = new ClaudeAgentSDKInstrumentation();
-const anthropicInstrumentation = new AnthropicInstrumentation();
 
 registerInstrumentations({
-  instrumentations: [agentInstrumentation, anthropicInstrumentation],
+  instrumentations: [agentInstrumentation],
 });
 
 provider.register();

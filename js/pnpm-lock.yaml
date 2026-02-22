@@ -381,9 +381,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.50
         version: 0.2.50(zod@4.3.6)
-      '@arizeai/openinference-instrumentation-anthropic':
-        specifier: workspace:*
-        version: link:../openinference-instrumentation-anthropic
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.50.0
         version: 0.50.0(@opentelemetry/api@1.9.0)

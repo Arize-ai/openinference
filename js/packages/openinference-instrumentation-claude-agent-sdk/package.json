@@ -51,7 +51,6 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.50",
-    "@arizeai/openinference-instrumentation-anthropic": "workspace:*",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
     "@opentelemetry/resources": "^1.25.1",
     "@opentelemetry/sdk-trace-base": "^1.25.1",

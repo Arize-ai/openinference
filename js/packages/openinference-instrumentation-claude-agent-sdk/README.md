@@ -86,15 +86,3 @@ The `query()` function is wrapped to produce:
 | `tool.parameters`         | Tool input (JSON)    |
 | `input.value`             | Tool input (JSON)    |
 | `output.value`            | Tool response (JSON) |
-
-## Combining with Anthropic Instrumentation
-
-For LLM-level spans (individual API calls), layer this with `@arizeai/openinference-instrumentation-anthropic`:
-
-```typescript
-import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
-import { ClaudeAgentSDKInstrumentation } from "@arizeai/openinference-instrumentation-claude-agent-sdk";
-
-const anthropicInstr = new AnthropicInstrumentation({ tracerProvider: provider });
-const agentInstr = new ClaudeAgentSDKInstrumentation({ tracerProvider: provider });
-```

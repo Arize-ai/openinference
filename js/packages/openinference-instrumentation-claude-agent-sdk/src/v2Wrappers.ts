@@ -6,7 +6,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Span } from "@opentelemetry/api";
-import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace, TraceFlags } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
 
 import type { OITracer } from "@arizeai/openinference-core";
@@ -121,8 +121,12 @@ export function wrapCreateSession({
   oiTracer: OITracer;
 }): CreateSessionFn {
   return function wrappedCreateSession(options: SDKSessionOptions): SDKSession {
-    const session = original({ ...options });
-    return createSessionProxy(session, oiTracer);
+    const { session, delegatingTracker } = createInstrumentedSession(
+      oiTracer,
+      options,
+      (modifiedOptions) => original(modifiedOptions),
+    );
+    return createSessionProxy(session, oiTracer, delegatingTracker);
   };
 }
 
@@ -141,9 +145,94 @@ export function wrapResumeSession({
   oiTracer: OITracer;
 }): ResumeSessionFn {
   return function wrappedResumeSession(sessionId: string, options: SDKSessionOptions): SDKSession {
-    const session = original(sessionId, { ...options });
-    return createSessionProxy(session, oiTracer);
+    const { session, delegatingTracker } = createInstrumentedSession(
+      oiTracer,
+      options,
+      (modifiedOptions) => original(sessionId, modifiedOptions),
+    );
+    return createSessionProxy(session, oiTracer, delegatingTracker);
   };
+}
+
+/**
+ * A delegating ToolSpanTracker that forwards calls to whichever
+ * per-turn tracker is currently active and injects the correct
+ * parent span context for tool spans.
+ */
+interface DelegatingTracker extends ToolSpanTracker {
+  /** Update the delegate target and parent span for the current turn. */
+  setDelegate(tracker: ToolSpanTracker, parentSpan: Span): void;
+  /** Clear the delegate (falls back to no-op). */
+  clearDelegate(): void;
+}
+
+/**
+ * Creates a delegating ToolSpanTracker, merges hooks into session options,
+ * and calls the factory to produce the real SDK session.
+ *
+ * The delegating tracker forwards tool span operations to whichever per-turn
+ * tracker is set via `setDelegate()`, allowing hooks registered at session
+ * creation to route to the correct per-turn parent span.
+ */
+function createInstrumentedSession(
+  oiTracer: OITracer,
+  options: SDKSessionOptions,
+  factory: (modifiedOptions: SDKSessionOptions) => SDKSession,
+): { session: SDKSession; delegatingTracker: DelegatingTracker } {
+  // Fallback tracker for calls that arrive before the first send()
+  const fallbackTracker = new ToolSpanTracker(oiTracer);
+  let activeTracker: ToolSpanTracker = fallbackTracker;
+  let currentParentSpan: Span | undefined;
+
+  // Build a delegating tracker that forwards to the per-turn active tracker.
+  // `startToolSpan` injects the current turn span as the parent context so
+  // tool spans are properly parented even when the SDK invokes hooks outside
+  // our OTel context.with() scope.
+  const delegatingTracker: DelegatingTracker = Object.create(fallbackTracker) as DelegatingTracker;
+  delegatingTracker.setDelegate = (tracker: ToolSpanTracker, parentSpan: Span) => {
+    activeTracker = tracker;
+    currentParentSpan = parentSpan;
+  };
+  delegatingTracker.clearDelegate = () => {
+    activeTracker = fallbackTracker;
+    currentParentSpan = undefined;
+  };
+  delegatingTracker.startToolSpan = (
+    toolName: string,
+    toolInput: unknown,
+    toolUseId: string,
+    _parentContext?: ReturnType<typeof context.active>,
+  ) => {
+    // Override the parent context with the current turn span
+    const parentCtx = currentParentSpan
+      ? trace.setSpan(context.active(), currentParentSpan)
+      : _parentContext;
+    activeTracker.startToolSpan(toolName, toolInput, toolUseId, parentCtx);
+  };
+  delegatingTracker.endToolSpan = (...args: Parameters<ToolSpanTracker["endToolSpan"]>) =>
+    activeTracker.endToolSpan(...args);
+  delegatingTracker.endToolSpanWithError = (...args: Parameters<ToolSpanTracker["endToolSpanWithError"]>) =>
+    activeTracker.endToolSpanWithError(...args);
+  delegatingTracker.endAllInFlight = () => activeTracker.endAllInFlight();
+
+  // Create a non-recording sentinel span for hook registration.
+  // The hooks themselves use the delegating tracker, so the sentinel is
+  // only needed to satisfy the mergeHooks signature. Using a non-recording
+  // span avoids polluting the exported trace with an internal-only span.
+  const sentinelSpan = trace.wrapSpanContext({
+    traceId: "0".repeat(32),
+    spanId: "0".repeat(16),
+    traceFlags: TraceFlags.NONE,
+  });
+
+  const modifiedOptions = mergeHooks({
+    options,
+    toolTracker: delegatingTracker,
+    parentSpan: sentinelSpan,
+  });
+
+  const session = factory(modifiedOptions);
+  return { session, delegatingTracker };
 }
 
 /**
@@ -152,14 +241,24 @@ export function wrapResumeSession({
  * - On `stream()`: Wraps the generator to process messages and end the span
  * - On `close()`: Ends any in-flight span
  *
+ * **Hook injection:** Tool hooks are injected at session creation time via
+ * `createInstrumentedSession`. Because the tracker and parent span change per
+ * turn, the hooks use a delegating tracker whose target is updated on each
+ * `send()`.
+ *
  * **Sequential assumption:** The SDK's session API is inherently sequential —
  * `send()` queues a message and `stream()` drains it. Concurrent `send()`/`stream()`
  * calls on the same session are not supported by the SDK. The `currentTurnSpan` and
  * `currentToolTracker` shared state is therefore safe without synchronization.
  */
-function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession {
+function createSessionProxy(
+  session: SDKSession,
+  oiTracer: OITracer,
+  delegatingTracker: DelegatingTracker,
+): SDKSession {
   let currentTurnSpan: Span | undefined;
   let currentToolTracker: ToolSpanTracker | undefined;
+  let hasError = false;
 
   return new Proxy(session, {
     get(target, prop, receiver) {
@@ -173,10 +272,13 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
           // End any previous turn span
           if (currentTurnSpan) {
             currentToolTracker?.endAllInFlight();
-            currentTurnSpan.setStatus({ code: SpanStatusCode.OK });
+            if (!hasError) {
+              currentTurnSpan.setStatus({ code: SpanStatusCode.OK });
+            }
             currentTurnSpan.end();
           }
 
+          hasError = false;
           const inputAttrs = formatPromptAttributes(message);
           currentToolTracker = new ToolSpanTracker(oiTracer);
 
@@ -186,6 +288,8 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
               ...inputAttrs,
             },
           });
+
+          delegatingTracker.setDelegate(currentToolTracker, currentTurnSpan);
 
           return target.send(message);
         };
@@ -204,17 +308,25 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
           const parentContext = trace.setSpan(context.active(), span);
 
           async function* wrappedGenerator(): AsyncGenerator<SDKMessage, void> {
+            let spanEnded = false;
             try {
               for await (const msg of innerGen) {
                 processSessionMessage(msg, span!);
+                if (isResultErrorMessage(msg)) {
+                  hasError = true;
+                }
                 yield msg;
               }
-              // Stream completed
+              // Stream completed normally
               toolTracker?.endAllInFlight();
-              span!.setStatus({ code: SpanStatusCode.OK });
+              if (!hasError) {
+                span!.setStatus({ code: SpanStatusCode.OK });
+              }
               span!.end();
+              spanEnded = true;
               currentTurnSpan = undefined;
               currentToolTracker = undefined;
+              delegatingTracker.clearDelegate();
             } catch (error) {
               toolTracker?.endAllInFlight();
               if (error instanceof Error) {
@@ -225,9 +337,23 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
                 });
               }
               span!.end();
+              spanEnded = true;
               currentTurnSpan = undefined;
               currentToolTracker = undefined;
+              delegatingTracker.clearDelegate();
               throw error;
+            } finally {
+              // Handle early termination (break / return())
+              if (!spanEnded && span) {
+                toolTracker?.endAllInFlight();
+                if (!hasError) {
+                  span.setStatus({ code: SpanStatusCode.OK });
+                }
+                span.end();
+                currentTurnSpan = undefined;
+                currentToolTracker = undefined;
+                delegatingTracker.clearDelegate();
+              }
             }
           }
 
@@ -239,10 +365,13 @@ function createSessionProxy(session: SDKSession, oiTracer: OITracer): SDKSession
         return function wrappedClose(): void {
           if (currentTurnSpan) {
             currentToolTracker?.endAllInFlight();
-            currentTurnSpan.setStatus({ code: SpanStatusCode.OK });
+            if (!hasError) {
+              currentTurnSpan.setStatus({ code: SpanStatusCode.OK });
+            }
             currentTurnSpan.end();
             currentTurnSpan = undefined;
             currentToolTracker = undefined;
+            delegatingTracker.clearDelegate();
           }
           return target.close();
         };

@@ -74,6 +74,10 @@ export function wrapQuery({
           },
         });
 
+        // Track whether an error result was received so we don't
+        // overwrite ERROR status with OK on normal completion.
+        let hasError = false;
+
         // Inject hooks into options
         const modifiedOptions = mergeHooks({
           options: params.options,
@@ -95,13 +99,18 @@ export function wrapQuery({
               );
 
               if (!result.done) {
+                if (isResultErrorMessage(result.value)) {
+                  hasError = true;
+                }
                 processMessage(result.value, span);
               }
 
               if (result.done) {
                 // Generator completed normally
                 toolTracker.endAllInFlight();
-                span.setStatus({ code: SpanStatusCode.OK });
+                if (!hasError) {
+                  span.setStatus({ code: SpanStatusCode.OK });
+                }
                 span.end();
               }
 
@@ -122,7 +131,9 @@ export function wrapQuery({
           async return(value?: unknown) {
             // Generator abandoned early (e.g., break)
             toolTracker.endAllInFlight();
-            span.setStatus({ code: SpanStatusCode.OK });
+            if (!hasError) {
+              span.setStatus({ code: SpanStatusCode.OK });
+            }
             span.end();
             if (innerIterator.return) {
               return innerIterator.return(value);
