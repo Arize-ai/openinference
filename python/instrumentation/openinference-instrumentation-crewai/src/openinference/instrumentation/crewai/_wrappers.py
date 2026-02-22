@@ -150,10 +150,13 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
         return str(base_method)
 
     # Get agent role for context - simplified to just use agent name
-    if agent and hasattr(agent, "role") and agent.role:
-        agent_role = str(agent.role).strip()
-        if agent_role:
-            return f"{agent_role}.{str(base_method)}"
+    agent_role = str(getattr(agent, "role", "")).strip()
+    task_name = str(getattr(instance, "name", "")).strip()
+
+    if agent_role and task_name:
+        return f"{agent_role}.{task_name}.{str(base_method)}"
+    if agent_role:
+        return f"{agent_role}.{str(base_method)}"
 
     # Fallback to original naming if no agent role available
     if instance:
