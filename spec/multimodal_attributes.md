@@ -6,8 +6,6 @@ This document describes how multimodal content (text, images, audio) is represen
 
 When a message contains multiple content items (e.g., text and images), the content is represented using the `message.contents` array structure with flattened attributes.
 
-> **Note:** The sub-attributes for individual content items use the prefix `message_content` (with an underscore), not `messagecontent`. For example, the correct attribute names are `message_content.type`, `message_content.text`, and `message_content.image` — matching the definitions in [Semantic Conventions](./semantic_conventions.md).
-
 ### Attribute Pattern
 
 `llm.input_messages.<messageIndex>.message.contents.<contentIndex>.message_content.<attribute>`
