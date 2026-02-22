@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.29...python-openinference-instrumentation-haystack-v0.1.30) (2026-02-22)
+
+
+### Features
+
+* **haystack:** Populate LLM Provider & System Attributes ([#2743](https://github.com/Arize-ai/openinference/issues/2743)) ([5f676be](https://github.com/Arize-ai/openinference/commit/5f676beadbb4398ca926dea3ac76422b52bd7005))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-haystack-v0.1.28...python-openinference-instrumentation-haystack-v0.1.29) (2025-12-04)
 
 
