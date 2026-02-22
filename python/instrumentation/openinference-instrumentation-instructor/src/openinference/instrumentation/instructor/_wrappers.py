@@ -211,7 +211,9 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := infer_llm_provider_from_endpoint(create, client):
+                    if provider := infer_llm_provider_from_endpoint(
+                        extract_llm_endpoint_from_sdk_instance(create, client)
+                    ):
                         span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
@@ -252,7 +254,9 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := infer_llm_provider_from_endpoint(create, client):
+                    if provider := infer_llm_provider_from_endpoint(
+                        extract_llm_endpoint_from_sdk_instance(create, client)
+                    ):
                         span.set_attribute(LLM_PROVIDER, provider.value)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
@@ -327,11 +331,11 @@ class _HandleResponseWrapper:
         return response
 
 
-def infer_llm_provider_from_endpoint(
+def extract_llm_endpoint_from_sdk_instance(
     create: Any = None,
     client: Any = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
-    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+) -> Optional[str]:
+    """Extract the LLM API endpoint from an SDK instance when possible."""
     instance = None
     if create is not None:
         # create is a bound method
@@ -351,20 +355,24 @@ def infer_llm_provider_from_endpoint(
         or getattr(instance, "host", None)
     )
 
-    if not endpoint:
+    if not isinstance(endpoint, str) and endpoint is not None:
+        return str(endpoint)
+
+    return endpoint
+
+
+def infer_llm_provider_from_endpoint(
+    endpoint: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+    if not isinstance(endpoint, str):
         return None
 
-    if hasattr(endpoint, "host"):
-        host = endpoint.host
-    elif isinstance(endpoint, str):
-        host = urlparse(endpoint).hostname
-    else:
+    hostname = urlparse(endpoint).hostname
+    if hostname is None:
         return None
 
-    if not isinstance(host, str):
-        return None
-
-    host = host.lower()
+    host = hostname.lower()
 
     if host.endswith("api.openai.com"):
         return OpenInferenceLLMProviderValues.OPENAI
