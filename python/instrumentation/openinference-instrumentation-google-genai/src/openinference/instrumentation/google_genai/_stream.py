@@ -25,6 +25,8 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_attributes_from_content_text,
+    _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _ValueAndType,
 )
@@ -178,23 +180,31 @@ class _ResponseExtractor:
                     usage_metadata
                 )
             except Exception:
-                logger.exception(f"Failed to validate usage metadata: {usage_metadata}")
+                logger.warning(f"Failed to validate usage metadata: {usage_metadata}")
             else:
                 yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
+                prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
                 if content := candidate.get("content"):
                     if role := content.get("role"):
                         yield (
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+                            f"{prefix}.{MessageAttributes.MESSAGE_ROLE}",
                             role,
                         )
                     if parts := content.get("parts"):
-                        text_parts = []
                         tool_call_index = 0
+                        content_index = 0
+                        is_single_part = len(parts) == 1
                         for part in parts:
                             if text := part.get("text"):
-                                text_parts.append(text)
+                                for key, value in _get_attributes_from_content_text(
+                                    text,
+                                    content_index,
+                                    is_single_part,
+                                ):
+                                    yield f"{prefix}.{key}", value
+
                             elif function_call := part.get("function_call"):
                                 # Handle function calls in streaming responses
                                 if function_name := function_call.get("name"):
@@ -208,11 +218,16 @@ class _ResponseExtractor:
                                         safe_json_dumps(function_args),
                                     )
                                 tool_call_index += 1
-                        if text_parts:
-                            yield (
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
-                                "".join(text_parts),
-                            )
+                            if inline_data := part.get("inline_data"):
+                                for key, value in _get_attributes_from_inline_data(
+                                    inline_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                            # Either image or text increments the content index
+                            # there are cases where both text and inline data are
+                            # present in single part
+                            if part.get("text") or part.get("inline_data"):
+                                content_index += 1
 
 
 class _ValuesAccumulator:
@@ -318,7 +333,7 @@ class _IndexedAccumulator:
             return self
         if isinstance(values, Mapping):
             values = [values]
-        for v in values:
+        for index, v in enumerate(values):
             if v and hasattr(v, "get"):
                 self._indexed[v.get("index") or 0] += v
         return self
