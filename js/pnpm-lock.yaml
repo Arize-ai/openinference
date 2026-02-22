@@ -135,6 +135,9 @@ importers:
       '@types/node':
         specifier: ^20.14.11
         version: 20.19.23
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
       vitest:
         specifier: ^4.0.3
         version: 4.0.4(@types/debug@4.1.12)(@types/node@20.19.23)(jiti@2.6.1)(msw@2.12.1(@types/node@20.19.23)(typescript@5.9.3))(tsx@4.20.6)(yaml@2.8.1)
@@ -616,6 +619,9 @@ importers:
         specifier: '>=1.34.0'
         version: 1.37.0
     devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
       vitest:
         specifier: ^4.0.3
         version: 4.0.4(@types/debug@4.1.12)(@types/node@24.9.1)(jiti@2.6.1)(msw@2.12.1(@types/node@24.9.1)(typescript@5.9.3))(tsx@4.20.6)(yaml@2.8.1)
