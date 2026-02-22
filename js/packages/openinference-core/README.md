@@ -28,7 +28,11 @@ import {
   OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
-import { ConsoleSpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node";
+import {
+  ConsoleSpanExporter,
+  NodeTracerProvider,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 
 import { withSpan } from "@arizeai/openinference-core";
@@ -156,10 +160,13 @@ const tracedTool = traceTool(async (city: string) => ({ temp: 72, city }), {
   name: "weather-tool",
 });
 
-const tracedAgent = traceAgent(async (q: string) => {
-  const toolResult = await tracedTool("seattle");
-  return tracedChain(`${q} (${toolResult.temp}F)`);
-}, { name: "qa-agent" });
+const tracedAgent = traceAgent(
+  async (q: string) => {
+    const toolResult = await tracedTool("seattle");
+    return tracedChain(`${q} (${toolResult.temp}F)`);
+  },
+  { name: "qa-agent" },
+);
 ```
 
 ### Custom input/output processors
