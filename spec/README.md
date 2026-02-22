@@ -1,24 +1,19 @@
 # OpenInference Tracing Specification
 
-This specification covers the OpenInference Tracing specification for capturing and storing LLM application executions. It is designed to be a category of telemetry data that is used to understand the execution of LLMs and the surrounding application context such as retrieval from vector stores and the usage of external tools such as search engines or APIs.
+OpenInference Tracing is a set of conventions for capturing observability data from AI/ML applications. It is built on top of [OpenTelemetry](https://opentelemetry.io/) and extends it with AI-specific semantic conventions — standardized attribute names and span kinds that describe LLM calls, embeddings, retrievals, tool use, and other operations common in modern AI systems.
 
-## Spans
+## Why OpenInference?
 
-A span represents a unit of work or operation. It tracks specific operations that a request makes, painting a picture of what happened during the time in which that operation was executed.
+OpenTelemetry provides a general-purpose, vendor-neutral framework for distributed tracing. OpenInference adds a semantic layer on top of it specifically for AI/ML workloads:
 
-A span contains name, time-related data, structured log messages, and other metadata (that is, Attributes) to provide information about the operation it tracks.
+- **Standardized span kinds** — `LLM`, `EMBEDDING`, `RETRIEVER`, `CHAIN`, `AGENT`, `TOOL`, `RERANKER`, `GUARDRAIL`, `EVALUATOR`, and `PROMPT` describe the role of each operation in an AI pipeline.
+- **Standardized attributes** — Consistent names for model parameters, token counts, input/output messages, tool calls, retrieved documents, and more.
+- **Privacy controls** — Built-in configuration for masking sensitive data (prompts, inputs, outputs, images) before export.
+- **Interoperability** — Any tracing backend that understands OTLP can consume OpenInference traces; observability platforms add richer AI-aware analysis on top.
 
-## Traces
+## How to Use This Spec
 
-A trace records the paths taken by requests (made by an application or end-user) as they propagate through multiple steps.
-
-Without tracing, it is challenging to pinpoint the cause of performance problems in a system.
-
-It improves the visibility of our application or system’s health and lets us debug behavior that is difficult to reproduce locally. Tracing is essential for LLM applications, which commonly have nondeterministic problems or are too complicated to reproduce locally.
-
-Tracing makes debugging and understanding LLM applications less daunting by breaking down what happens within a request as it flows through a system.
-
-A trace is made of one or more spans. The first span represents the root span. Each root span represents a request from start to finish. The spans underneath the parent provide a more in-depth context of what occurs during a request (or what steps make up a request).
+Start with the Core Specifications to understand the tracing model, then refer to the Span Type Specifications and Attribute Conventions for the details relevant to your implementation.
 
 ## Specifications
 
