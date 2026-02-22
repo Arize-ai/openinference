@@ -1,3 +1,5 @@
+/agent_framework
+/agentspec
 /agno
 /anthropic
 /autogen
@@ -19,8 +21,11 @@
 /mistralai
 /openai
 /openai_agents
+/openlit
 /openllmetry
+/pipecat
 /portkey
 /pydantic_ai
 /smolagents
+/strands_agents
 /vertexai
