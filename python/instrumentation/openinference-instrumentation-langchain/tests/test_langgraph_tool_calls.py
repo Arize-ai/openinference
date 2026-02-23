@@ -101,13 +101,14 @@ def test_tool_calls_propagated_to_parent_span() -> None:
 
     from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-    seen_attrs = {}
+    # Capture attributes per span name so we can assert tool calls are on the parent, not the LLM span
+    attrs_by_span_name = {}
 
     class CapturingSpanProcessor(trace_sdk.SpanProcessor):
         def on_end(self, span):  # noqa: ANN001
-            if hasattr(span, "attributes") and span.attributes:
-                for k, v in span.attributes.items():
-                    seen_attrs[k] = v
+            if hasattr(span, "name") and hasattr(span, "attributes") and span.attributes:
+                name = getattr(span, "name", None) or str(id(span))
+                attrs_by_span_name[name] = dict(span.attributes)
 
     tracer_provider = trace_sdk.TracerProvider()
     tracer_provider.add_span_processor(CapturingSpanProcessor())
@@ -173,6 +174,8 @@ def test_tool_calls_propagated_to_parent_span() -> None:
     tracer._end_trace(parent_run)  # End parent so processor sees it with attributes
 
     prefix = f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0"
-    assert any(prefix in k for k in seen_attrs), (
-        f"Expected some key containing {prefix!r} in captured attrs: {list(seen_attrs.keys())}"
+    parent_attrs = attrs_by_span_name.get("Agent", {})
+    assert any(prefix in k for k in parent_attrs), (
+        f"Expected parent span 'Agent' to have attributes containing {prefix!r}; "
+        f"Agent keys: {list(parent_attrs.keys())}"
     )
