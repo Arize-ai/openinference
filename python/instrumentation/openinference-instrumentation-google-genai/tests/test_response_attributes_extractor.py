@@ -76,7 +76,7 @@ def test_get_attributes_from_generate_content_usage(
                 "llm.token_count.prompt": 10,
                 "llm.token_count.completion": 100,
                 "llm.token_count.completion_details.reasoning": 20,
-                "llm.token_count.prompt_details.cache_input": 20,
+                "llm.token_count.prompt_details.cache_read": 20,
                 "llm.token_count.prompt_details.audio": 7,
                 "llm.token_count.completion_details.audio": 11,
             },
