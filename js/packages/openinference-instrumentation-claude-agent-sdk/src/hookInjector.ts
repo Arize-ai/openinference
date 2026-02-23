@@ -1,8 +1,4 @@
-import type {
-  HookCallback,
-  HookCallbackMatcher,
-  HookEvent,
-} from "@anthropic-ai/claude-agent-sdk";
+import type { HookCallback, HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
 import type { Span } from "@opentelemetry/api";
 import { context, diag, SpanStatusCode, trace } from "@opentelemetry/api";
 

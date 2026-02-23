@@ -6,7 +6,11 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Attributes } from "@opentelemetry/api";
 
-import { getInputAttributes, getOutputAttributes, safelyJSONStringify } from "@arizeai/openinference-core";
+import {
+  getInputAttributes,
+  getOutputAttributes,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
 import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 /**
@@ -100,7 +104,10 @@ export function extractResultErrorAttributes(msg: SDKResultError): Attributes {
   const errorMessages = msg.errors;
   const outputAttrs =
     errorMessages && errorMessages.length > 0
-      ? getOutputAttributes({ value: safelyJSONStringify(errorMessages) ?? "", mimeType: MimeType.JSON })
+      ? getOutputAttributes({
+          value: safelyJSONStringify(errorMessages) ?? "",
+          mimeType: MimeType.JSON,
+        })
       : {};
   return {
     ...outputAttrs,

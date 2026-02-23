@@ -211,8 +211,9 @@ function createInstrumentedSession(
   };
   delegatingTracker.endToolSpan = (...args: Parameters<ToolSpanTracker["endToolSpan"]>) =>
     activeTracker.endToolSpan(...args);
-  delegatingTracker.endToolSpanWithError = (...args: Parameters<ToolSpanTracker["endToolSpanWithError"]>) =>
-    activeTracker.endToolSpanWithError(...args);
+  delegatingTracker.endToolSpanWithError = (
+    ...args: Parameters<ToolSpanTracker["endToolSpanWithError"]>
+  ) => activeTracker.endToolSpanWithError(...args);
   delegatingTracker.endAllInFlight = () => activeTracker.endAllInFlight();
 
   // Create a non-recording sentinel span for hook registration.

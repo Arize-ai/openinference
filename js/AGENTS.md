@@ -114,11 +114,11 @@ export class MyInstrumentation extends InstrumentationBase {
 
 `@arizeai/openinference-core` exports attribute helpers that should be used instead of manually assembling span attributes:
 
-| Helper | Purpose |
-|--------|---------|
-| `getInputAttributes(input)` | Returns `{ INPUT_VALUE, INPUT_MIME_TYPE }`. Accepts a `string` (→ text/plain) or `{ value, mimeType }`. |
-| `getOutputAttributes(output)` | Returns `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }`. Same overloads as input. |
-| `getToolAttributes({ name, parameters })` | Returns `{ TOOL_NAME, TOOL_PARAMETERS }`. Stringifies parameters internally. |
+| Helper                                    | Purpose                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `getInputAttributes(input)`               | Returns `{ INPUT_VALUE, INPUT_MIME_TYPE }`. Accepts a `string` (→ text/plain) or `{ value, mimeType }`. |
+| `getOutputAttributes(output)`             | Returns `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }`. Same overloads as input.                                  |
+| `getToolAttributes({ name, parameters })` | Returns `{ TOOL_NAME, TOOL_PARAMETERS }`. Stringifies parameters internally.                            |
 
 Always prefer these over setting `SemanticConventions.INPUT_VALUE` / `OUTPUT_VALUE` / `TOOL_NAME` / `TOOL_PARAMETERS` by hand. They ensure consistent MIME-type handling and reduce duplicated logic across instrumentors.
 

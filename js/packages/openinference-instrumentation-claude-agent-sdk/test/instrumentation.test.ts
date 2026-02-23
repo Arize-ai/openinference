@@ -167,9 +167,9 @@ describe("ClaudeAgentSDKInstrumentation", () => {
   });
 
   it("should not double-wrap after disable() then enable() cycle", () => {
-    let callCount = 0;
+    let _callCount = 0;
     const originalQuery = function () {
-      callCount++;
+      _callCount++;
       return {
         [Symbol.asyncIterator]() {
           return {

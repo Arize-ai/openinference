@@ -176,7 +176,8 @@ export class ClaudeAgentSDKInstrumentation extends InstrumentationBase<ClaudeAge
       (module as ClaudeAgentSDKModule & { default?: ClaudeAgentSDKModule }).default || module;
 
     // Check if the module is mutable (CJS / plain objects) or frozen (ESM).
-    const isMutable = isPropertyWritable(sdkModule, "query") ||
+    const isMutable =
+      isPropertyWritable(sdkModule, "query") ||
       !Object.getOwnPropertyDescriptor(sdkModule, "query");
 
     // Target is either the original module (mutable) or a shallow copy (frozen ESM).
