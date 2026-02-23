@@ -110,20 +110,30 @@ class _ConverseStreamCallback:
 
     def __call__(self, obj: _AnyT) -> _AnyT:
         """Processes a streaming event object."""
-        try:
-            if isinstance(obj, dict):
+        if isinstance(obj, dict):
+            try:
                 self._handle_content_block(obj)
                 self._handle_metadata(obj)
                 self._handle_message_start(obj)
                 self._handle_message_stop(obj)
-            elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            except Exception:
+                logger.warning("Failed to process converse stream event", exc_info=True)
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            try:
                 self._span.set_attributes(
                     get_attributes_from_response_data(self.request, self._construct_final_message())
                 )
                 self._span.set_status(Status(StatusCode.OK))
+            except Exception:
+                logger.warning("Failed to set response attributes on span", exc_info=True)
+            finally:
                 self._span.end()
-        except Exception as e:
-            logger.error(f"Error in _ConverseStreamCallback: {e}", exc_info=True)
-            self._span.set_status(Status(StatusCode.ERROR, str(e)))
-            self._span.end()
+        elif isinstance(obj, BaseException):
+            try:
+                self._span.record_exception(obj)
+                self._span.set_status(Status(StatusCode.ERROR, str(obj)))
+            except Exception:
+                logger.warning("Failed to record exception on span", exc_info=True)
+            finally:
+                self._span.end()
         return obj

@@ -112,8 +112,8 @@ class _ResponseAccumulator:
         Raises:
             Exception: Re-raises any exception after recording it in the span
         """
-        try:
-            if isinstance(obj, dict):
+        if isinstance(obj, dict):
+            try:
                 if "chunk" in obj:
                     if "bytes" in obj["chunk"]:
                         output_text = obj["chunk"]["bytes"].decode("utf-8")
@@ -121,19 +121,22 @@ class _ResponseAccumulator:
                         self._span.set_attributes(get_output_attributes(self._final_response))
                 elif "trace" in obj:
                     self.trace_collector.collect(obj)
-            elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            except Exception:
+                logger.warning("Failed to process agent response event", exc_info=True)
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            try:
                 self._process_traces()
                 self._finish_tracing()
-
-            elif isinstance(obj, BaseException):
+            except Exception:
+                logger.warning("Failed to finish agent tracing", exc_info=True)
+                self._span.end()
+        elif isinstance(obj, BaseException):
+            try:
                 self._process_traces()
                 self._handle_exception(obj)
-        except Exception as e:
-            logger.exception(e)
-            self._span.record_exception(e)
-            self._span.set_status(Status(StatusCode.ERROR))
-            self._span.end()
-            raise e
+            except Exception:
+                logger.warning("Failed to handle agent exception", exc_info=True)
+                self._span.end()
         return obj
 
     def _process_traces(self) -> None:

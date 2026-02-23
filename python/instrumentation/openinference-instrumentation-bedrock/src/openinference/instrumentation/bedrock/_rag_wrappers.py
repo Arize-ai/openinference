@@ -5,6 +5,7 @@ This module provides OpenTelemetry instrumentation for Bedrock's retrieve and re
 operations, enabling distributed tracing and observability for RAG workflows.
 """
 
+import logging
 from functools import wraps
 from typing import Any, Callable, Dict, List, Mapping, TypeVar
 
@@ -17,6 +18,8 @@ from openinference.instrumentation import (
     get_attributes_from_context,
 )
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+
+logger = logging.getLogger(__name__)
 
 _AnyT = TypeVar("_AnyT")  # Type variable for generic return type
 
@@ -218,13 +221,16 @@ class _RagEventStream:
             the span with accumulated output and citations. On exceptions, it records the
             error and sets the span status to ERROR before ending the span.
         """
-        try:
-            if isinstance(obj, dict):
+        if isinstance(obj, dict):
+            try:
                 if output := obj.get("output", {}).get("text"):
                     self.output += output
                 if citation := obj.get("citation"):
                     self.citations += [citation]
-            elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            except Exception:
+                logger.warning("Failed to process RAG stream event", exc_info=True)
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            try:
                 self._span.set_attributes(dict(get_attributes_from_context()))
                 self._span.set_attributes(
                     AttributeExtractor.extract_bedrock_rag_response_attributes(
@@ -232,15 +238,17 @@ class _RagEventStream:
                     )
                 )
                 self._span.set_status(Status(StatusCode.OK))
+            except Exception:
+                logger.warning("Failed to set RAG response attributes on span", exc_info=True)
+            finally:
                 self._span.end()
-            elif isinstance(obj, BaseException):
+        elif isinstance(obj, BaseException):
+            try:
                 self._span.set_attributes(dict(get_attributes_from_context()))
                 self._span.record_exception(obj)
                 self._span.set_status(Status(StatusCode.ERROR))
+            except Exception:
+                logger.warning("Failed to record exception on span", exc_info=True)
+            finally:
                 self._span.end()
-        except Exception as e:
-            self._span.record_exception(obj)  # type: ignore
-            self._span.set_status(Status(StatusCode.ERROR))
-            self._span.end()
-            raise e
         return obj

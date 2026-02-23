@@ -40,7 +40,6 @@ class _AsyncIterator:
             # cast to a generic Callable that accepts Any to avoid type incompatibilities
             self._callback = cast(Callable[[Any], Any], callback)
         self._context_manager_factory = context_manager_factory
-        self._context_manager: Optional[Any] = None
         self._finished = False
 
     def __aiter__(self) -> AsyncIterator[Any]:
@@ -49,27 +48,24 @@ class _AsyncIterator:
     async def __anext__(self) -> Any:
         if self._finished:
             raise StopAsyncIteration
-        if self._context_manager is None and self._context_manager_factory is not None:
-            self._context_manager = self._context_manager_factory()
-            self._context_manager.__enter__()
-
+        cm = self._context_manager_factory() if self._context_manager_factory else None
+        if cm is not None:
+            cm.__enter__()
         try:
             value = await self._iterator.__anext__()
-            if self._callback is not None:
-                self._callback(value)
+            if cm is not None:
+                cm.__exit__(None, None, None)
+            self._callback(value)
             return value
         except StopAsyncIteration as e:
             self._finished = True
-            if self._context_manager is not None:
-                self._context_manager.__exit__(None, None, None)
-                self._context_manager = None
-            # callback is always callable (no-op fallback), so safe to call with the exception
+            if cm is not None:
+                cm.__exit__(None, None, None)
             self._callback(e)
             raise
         except Exception as e:
-            if self._context_manager is not None:
-                self._context_manager.__exit__(type(e), e, e.__traceback__)
-                self._context_manager = None
+            if cm is not None:
+                cm.__exit__(type(e), e, e.__traceback__)
             self._callback(e)
             raise
 

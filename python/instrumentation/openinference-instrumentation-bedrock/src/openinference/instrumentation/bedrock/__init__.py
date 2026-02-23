@@ -382,41 +382,44 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                 return wrapped_client._unwrapped_invoke_model(*args, **kwargs)  # type: ignore
 
             with tracer.start_as_current_span("bedrock.invoke_model") as span:
-                # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
-                request_body = json.loads(kwargs["body"])
-                model_id = str(kwargs.get("modelId"))
-                is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(
-                    model_id
-                )
-                if is_claude_message_api:
-                    anthropic_attributes.set_input_attributes(span, request_body, model_id)
-                else:
-                    _extract_invoke_model_attributes.set_input_attributes(span, request_body)
+                is_claude_message_api = False
+                try:
+                    # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
+                    if "body" in kwargs:
+                        request_body = json.loads(kwargs["body"])
+                        model_id = str(kwargs.get("modelId"))
+                        is_claude_message_api = (
+                            _extract_invoke_model_attributes.is_claude_message_api(model_id)
+                        )
+                        if is_claude_message_api:
+                            anthropic_attributes.set_input_attributes(span, request_body, model_id)
+                        else:
+                            _extract_invoke_model_attributes.set_input_attributes(
+                                span, request_body
+                            )
+                except Exception:
+                    logger.warning("Failed to extract input attributes", exc_info=True)
+
+                response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
 
                 try:
-                    response = wrapped_client._unwrapped_invoke_model(*args, **kwargs)
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR))
-                    span.end()
-                    raise e
+                    body = response.get("body")
+                    if body is not None:
+                        # Botocore response body has _raw_stream and _content_length.
+                        response["body"] = BufferedStreamingBody(
+                            body._raw_stream, body._content_length
+                        )
+                        response_body = json.loads(response.get("body").read())
+                        response["body"].reset()
+                        if is_claude_message_api:
+                            anthropic_attributes.set_response_attributes(span, response_body)
+                        else:
+                            _extract_invoke_model_attributes.set_response_attributes(
+                                span, kwargs, response_body, response
+                            )
+                except Exception:
+                    logger.warning("Failed to extract response attributes", exc_info=True)
 
-                body = response.get("body")
-                if body is None:
-                    span.set_status(Status(StatusCode.ERROR))
-                    span.end()
-                    raise ValueError("InvokeModel response missing 'body'")
-                # Botocore response body has _raw_stream and _content_length.
-                response["body"] = BufferedStreamingBody(body._raw_stream, body._content_length)
-                response_body = json.loads(response.get("body").read())
-                response["body"].reset()
-
-                if is_claude_message_api:
-                    anthropic_attributes.set_response_attributes(span, response_body)
-                else:
-                    _extract_invoke_model_attributes.set_response_attributes(
-                        span, kwargs, response_body, response
-                    )
                 span.set_attributes(dict(get_attributes_from_context()))
                 span.set_status(Status(StatusCode.OK))
                 return response  # type: ignore
@@ -445,28 +448,37 @@ def _async_model_invocation_wrapper(
                 "bedrock.invoke_model",
                 end_on_exit=False,
             ) as span:
-                # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
-                request_body = json.loads(kwargs["body"])
-                model_id = str(kwargs.get("modelId"))
-                is_claude_message_api = _extract_invoke_model_attributes.is_claude_message_api(
-                    model_id
-                )
-                if is_claude_message_api:
-                    anthropic_attributes.set_input_attributes(span, request_body, model_id)
-                else:
-                    _extract_invoke_model_attributes.set_input_attributes(span, request_body)
+                is_claude_message_api = False
+                try:
+                    # kwargs["body"] is InvokeModelRequest payload (blob: str or bytes).
+                    if "body" in kwargs:
+                        request_body = json.loads(kwargs["body"])
+                        model_id = str(kwargs.get("modelId"))
+                        is_claude_message_api = (
+                            _extract_invoke_model_attributes.is_claude_message_api(model_id)
+                        )
+                        if is_claude_message_api:
+                            anthropic_attributes.set_input_attributes(span, request_body, model_id)
+                        else:
+                            _extract_invoke_model_attributes.set_input_attributes(
+                                span, request_body
+                            )
+                except Exception:
+                    logger.warning("Failed to extract input attributes", exc_info=True)
                 try:
                     response = await wrapped_client._unwrapped_invoke_model(*args, **kwargs)
                 except Exception as e:
                     span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR))
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
                     span.end()
-                    raise e
+                    raise
                 body = response.get("body")
                 if body is None:
-                    span.set_status(Status(StatusCode.ERROR))
+                    logger.warning(
+                        "InvokeModel response missing 'body'; span ended without attributes"
+                    )
                     span.end()
-                    raise ValueError("InvokeModel response missing 'body'")
+                    return response  # type: ignore
                 # Lazy body: on first read() we consume the stream, set response attrs, end span.
                 response["body"] = _LazyAsyncInvokeModelBody(
                     body, span, kwargs, response, is_claude_message_api

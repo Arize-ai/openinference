@@ -145,7 +145,13 @@ class _InvokeModelWithResponseStream(_WithTracer):
             self._name,
             end_on_exit=False,
         ) as span:
-            response = await wrapped(*args, **kwargs)
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise
             self.handle_response(span, kwargs, response)
             return response
 
@@ -189,7 +195,7 @@ class _ConverseStream(_WithTracer):
         return _impl(wrapped)
 
     @staticmethod
-    def handle_response(response: Any, span: Any, kwargs: dict[str, Any]) -> Any:
+    def handle_response(span: Any, response: Any, kwargs: dict[str, Any]) -> Any:
         from botocore.eventstream import EventStream
 
         if isinstance(response["stream"], EventStream):
@@ -216,7 +222,7 @@ class _ConverseStream(_WithTracer):
             end_on_exit=False,
         ) as span:
             response = wrapped(*args, **kwargs)
-            self.handle_response(response, span, kwargs)
+            self.handle_response(span, response, kwargs)
             return response
 
     async def _async_call(
@@ -232,8 +238,14 @@ class _ConverseStream(_WithTracer):
             attributes=get_attributes_from_request_data(kwargs),
             end_on_exit=False,
         ) as span:
-            response = await wrapped(*args, **kwargs)
-            self.handle_response(response, span, kwargs)
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.end()
+                raise
+            self.handle_response(span, response, kwargs)
             return response
 
 
@@ -298,7 +310,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
-                raise e
+                raise
 
     async def _async_call(
         self, wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
@@ -322,7 +334,7 @@ class _InvokeAgentWithResponseStream(_WithTracer):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
-                raise e
+                raise
 
 
 class _RetrieveAndGenerateStream(_WithTracer):
@@ -379,7 +391,7 @@ class _RetrieveAndGenerateStream(_WithTracer):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
-                raise e
+                raise
 
     async def _async_call(
         self,
@@ -406,7 +418,7 @@ class _RetrieveAndGenerateStream(_WithTracer):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
-                raise e
+                raise
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
