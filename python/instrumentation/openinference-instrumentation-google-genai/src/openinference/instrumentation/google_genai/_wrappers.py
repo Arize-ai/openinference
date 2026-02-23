@@ -12,6 +12,7 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation.google_genai import cache_attributes
 from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -26,8 +27,6 @@ from openinference.instrumentation.google_genai.interactions_attributes import (
     get_attributes_from_request,
     get_attributes_from_response,
 )
-from openinference.instrumentation.google_genai import cache_attributes
-
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     MessageAttributes,
@@ -466,13 +465,44 @@ class _SyncCreateCachesWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-                if request_parameters.get("stream", False):
-                    return _InteractionsStream(
-                        stream=response,
-                        with_span=span,
-                        request_parameters=request_parameters,
-                    )
-                span.set_attributes(get_attributes_from_response(request_parameters, response))
+                span.set_attributes(cache_attributes.get_attributes_from_response(response))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+                span.finish_tracing(status=status)
+            except Exception as exception:
+                span.record_exception(exception)
+                status = trace_api.Status(
+                    status_code=trace_api.StatusCode.ERROR,
+                    description=f"{type(exception).__name__}: {exception}",
+                )
+                span.finish_tracing(status=status)
+                raise
+        return response
+
+
+class _AsyncCreateCachesWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "AsyncCaches.create"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=cache_attributes.get_attributes_from_request(request_parameters),
+            context_attributes=get_attributes_from_context(),
+            extra_attributes={},
+        ) as span:
+            try:
+                response = await wrapped(*args, **kwargs)
+                span.set_attributes(cache_attributes.get_attributes_from_response(response))
                 status = trace_api.Status(status_code=trace_api.StatusCode.OK)
                 span.finish_tracing(status=status)
             except Exception as exception:
