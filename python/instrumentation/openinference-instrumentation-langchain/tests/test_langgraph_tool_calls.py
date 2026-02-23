@@ -95,17 +95,16 @@ def test_tool_calls_from_llm_outputs() -> None:
 def test_tool_calls_propagated_to_parent_span() -> None:
     """Test that ending an LLM run with tool_calls sets those attributes on the parent span."""
     from langchain_core.tracers.schemas import Run
-
     from opentelemetry import trace as trace_api
     from opentelemetry.sdk import trace as trace_sdk
 
     from openinference.instrumentation.langchain._tracer import OpenInferenceTracer
 
-    # Capture attributes per span name so we can assert tool calls are on the parent, not the LLM span
+    # Capture attributes per span name so we assert tool calls are on parent, not LLM span.
     attrs_by_span_name = {}
 
     class CapturingSpanProcessor(trace_sdk.SpanProcessor):
-        def on_end(self, span):  # noqa: ANN001
+        def on_end(self, span: trace_sdk.ReadableSpan) -> None:
             if hasattr(span, "name") and hasattr(span, "attributes") and span.attributes:
                 name = getattr(span, "name", None) or str(id(span))
                 attrs_by_span_name[name] = dict(span.attributes)
