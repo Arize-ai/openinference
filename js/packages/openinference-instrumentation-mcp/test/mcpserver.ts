@@ -16,7 +16,7 @@ import type { Tracer } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 import { MCPInstrumentation } from "../src";
 
