@@ -591,32 +591,12 @@ def _tool_calls_from_llm_outputs(
     """
     Yields (LLM_OUTPUT_MESSAGES, parsed_messages) for messages that contain tool_calls.
     Used to propagate tool call attributes to the parent (agent/chain) span.
+    Reuses _output_messages and filters for messages with tool_calls to avoid duplicate logic.
     """
-    if not outputs or not hasattr(outputs, "get"):
-        return
-    multiple_generations = outputs.get("generations")
-    if not multiple_generations or not isinstance(multiple_generations, Iterable):
-        return
-    first_generations = next(iter(multiple_generations), None)
-    if not first_generations or not isinstance(first_generations, Iterable):
-        return
-    parsed_with_tool_calls = []
-    for generation in first_generations:
-        if not hasattr(generation, "get"):
-            continue
-        message_data = generation.get("message")
-        if not message_data:
-            continue
-        if isinstance(message_data, BaseMessage):
-            parsed = dict(_parse_message_data(message_data.to_json()))
-        elif hasattr(message_data, "get"):
-            parsed = dict(_parse_message_data(message_data))
-        else:
-            continue
-        if parsed.get(MESSAGE_TOOL_CALLS):
-            parsed_with_tool_calls.append(parsed)
-    if parsed_with_tool_calls:
-        yield LLM_OUTPUT_MESSAGES, parsed_with_tool_calls
+    for key, parsed_messages in _output_messages(outputs):
+        parsed_with_tool_calls = [m for m in parsed_messages if m.get(MESSAGE_TOOL_CALLS)]
+        if parsed_with_tool_calls:
+            yield key, parsed_with_tool_calls
 
 
 @stop_on_exception
