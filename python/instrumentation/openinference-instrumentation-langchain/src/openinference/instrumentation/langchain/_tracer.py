@@ -200,6 +200,25 @@ class OpenInferenceTracer(BaseTracer):
                 _update_span(span, run)
             except Exception:
                 logger.exception("Failed to update span with run data.")
+            # Propagate tool calls from this LLM run to the parent (agent/chain) span
+            # so they are visible at the parent span level in tracing UIs.
+            if (
+                run.run_type == "llm"
+                and run.parent_run_id is not None
+                and run.outputs
+            ):
+                parent_span = self._spans_by_run.get(run.parent_run_id)
+                if parent_span is not None:
+                    try:
+                        tool_call_attrs = dict(
+                            _flatten(_tool_calls_from_llm_outputs(run.outputs))
+                        )
+                        if tool_call_attrs:
+                            parent_span.set_attributes(tool_call_attrs)
+                    except Exception:
+                        logger.exception(
+                            "Failed to propagate tool calls to parent span."
+                        )
             # We can't use real time because the handler may be
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
@@ -563,6 +582,41 @@ def _output_messages(
                 raise ValueError(f"fail to parse message of type {type(message_data)}")
     if parsed_messages:
         yield LLM_OUTPUT_MESSAGES, parsed_messages
+
+
+@stop_on_exception
+def _tool_calls_from_llm_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    """
+    Yields (LLM_OUTPUT_MESSAGES, parsed_messages) for messages that contain tool_calls.
+    Used to propagate tool call attributes to the parent (agent/chain) span.
+    """
+    if not outputs or not hasattr(outputs, "get"):
+        return
+    multiple_generations = outputs.get("generations")
+    if not multiple_generations or not isinstance(multiple_generations, Iterable):
+        return
+    first_generations = next(iter(multiple_generations), None)
+    if not first_generations or not isinstance(first_generations, Iterable):
+        return
+    parsed_with_tool_calls = []
+    for generation in first_generations:
+        if not hasattr(generation, "get"):
+            continue
+        message_data = generation.get("message")
+        if not message_data:
+            continue
+        if isinstance(message_data, BaseMessage):
+            parsed = dict(_parse_message_data(message_data.to_json()))
+        elif hasattr(message_data, "get"):
+            parsed = dict(_parse_message_data(message_data))
+        else:
+            continue
+        if parsed.get(MESSAGE_TOOL_CALLS):
+            parsed_with_tool_calls.append(parsed)
+    if parsed_with_tool_calls:
+        yield LLM_OUTPUT_MESSAGES, parsed_with_tool_calls
 
 
 @stop_on_exception
