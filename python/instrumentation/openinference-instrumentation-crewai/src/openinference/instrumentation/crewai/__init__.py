@@ -14,6 +14,7 @@ from openinference.instrumentation.crewai._wrappers import (
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
+    _FlowDecoratorWrapper,
     _FlowKickoffAsyncWrapper,
     _LongTermMemorySaveWrapper,
     _LongTermMemorySearchWrapper,
@@ -32,6 +33,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_execute_core",
         "_original_crew_kickoff",
         "_original_flow_kickoff_async",
+        "_original_flow_start",
+        "_original_flow_listen",
+        "_original_flow_router",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
@@ -79,6 +83,30 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="crewai",
             name="Flow.kickoff_async",
             wrapper=flow_kickoff_async_wrapper,
+        )
+
+        flow_start_wrapper = _FlowDecoratorWrapper(tracer=self._tracer, decorator_type="start")
+        self._original_flow_start = getattr(import_module("crewai.flow.flow"), "start", None)
+        wrap_function_wrapper(
+            module="crewai.flow.flow",
+            name="start",
+            wrapper=flow_start_wrapper,
+        )
+
+        flow_listen_wrapper = _FlowDecoratorWrapper(tracer=self._tracer, decorator_type="listen")
+        self._original_flow_listen = getattr(import_module("crewai.flow.flow"), "listen", None)
+        wrap_function_wrapper(
+            module="crewai.flow.flow",
+            name="listen",
+            wrapper=flow_listen_wrapper,
+        )
+
+        flow_router_wrapper = _FlowDecoratorWrapper(tracer=self._tracer, decorator_type="router")
+        self._original_flow_router = getattr(import_module("crewai.flow.flow"), "router", None)
+        wrap_function_wrapper(
+            module="crewai.flow.flow",
+            name="router",
+            wrapper=flow_router_wrapper,
         )
 
         long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)
@@ -150,6 +178,21 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Flow.kickoff_async = self._original_flow_kickoff_async
             self._original_flow_kickoff_async = None
+
+        if self._original_flow_start is not None:
+            flow_module = import_module("crewai.flow.flow")
+            flow_module.start = self._original_flow_start
+            self._original_flow_start = None
+
+        if self._original_flow_listen is not None:
+            flow_module = import_module("crewai.flow.flow")
+            flow_module.listen = self._original_flow_listen
+            self._original_flow_listen = None
+
+        if self._original_flow_router is not None:
+            flow_module = import_module("crewai.flow.flow")
+            flow_module.router = self._original_flow_router
+            self._original_flow_router = None
 
         if self._original_long_term_memory_save is not None:
             long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")

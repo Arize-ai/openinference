@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import time
@@ -403,6 +404,117 @@ class _FlowKickoffAsyncWrapper:
             span.set_attributes(dict(get_output_attributes(flow_output)))
             span.set_attributes(dict(get_attributes_from_context()))
         return flow_output
+
+
+class _FlowMethodWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def wrap_method(self, method: Callable[..., Any], decorator_type: str) -> Callable[..., Any]:
+        tracer = self._tracer
+
+        @functools.wraps(method)
+        def sync_wrapper(instance: Any, *args: Any, **kwargs: Any) -> Any:
+            flow_name = _get_flow_name(instance)
+            span_name = f"{flow_name}.{method.__name__}"
+            with tracer.start_as_current_span(
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                            INPUT_VALUE: safe_json_dumps(
+                                {"args": list(args), **kwargs}, cls=SafeJSONEncoder
+                            ),
+                        }
+                    )
+                ),
+                record_exception=False,
+                set_status_on_exception=False,
+            ) as span:
+                span.set_attribute("flow.node.name", method.__name__)
+                span.set_attribute("flow.node.type", decorator_type)
+                try:
+                    response = method(instance, *args, **kwargs)
+                except Exception as exception:
+                    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                    span.record_exception(exception)
+                    raise
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(dict(get_output_attributes(response)))
+                span.set_attributes(dict(get_attributes_from_context()))
+            return response
+
+        @functools.wraps(method)
+        async def async_wrapper(instance: Any, *args: Any, **kwargs: Any) -> Any:
+            flow_name = _get_flow_name(instance)
+            span_name = f"{flow_name}.{method.__name__}"
+            with tracer.start_as_current_span(
+                span_name,
+                attributes=dict(
+                    _flatten(
+                        {
+                            OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                            INPUT_VALUE: safe_json_dumps(
+                                {"args": list(args), **kwargs}, cls=SafeJSONEncoder
+                            ),
+                        }
+                    )
+                ),
+                record_exception=False,
+                set_status_on_exception=False,
+            ) as span:
+                span.set_attribute("flow.node.name", method.__name__)
+                span.set_attribute("flow.node.type", decorator_type)
+                try:
+                    response = await method(instance, *args, **kwargs)
+                except Exception as exception:
+                    span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                    span.record_exception(exception)
+                    raise
+                span.set_status(trace_api.StatusCode.OK)
+                span.set_attributes(dict(get_output_attributes(response)))
+                span.set_attributes(dict(get_attributes_from_context()))
+            return response
+
+        import asyncio
+
+        if asyncio.iscoroutinefunction(method):
+            return async_wrapper
+        return sync_wrapper
+
+
+class _FlowDecoratorWrapper:
+    def __init__(self, tracer: trace_api.Tracer, decorator_type: str) -> None:
+        self._tracer = tracer
+        self._decorator_type = decorator_type
+        self._method_wrapper = _FlowMethodWrapper(tracer)
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        decorator = wrapped(*args, **kwargs)
+        decorator_type = self._decorator_type
+        method_wrapper = self._method_wrapper
+
+        def instrumented_decorator(method: Callable[..., Any]) -> Callable[..., Any]:
+            decorated = decorator(method)
+            instrumented = method_wrapper.wrap_method(method, decorator_type)
+            for attr in (
+                "__is_start_method__",
+                "__trigger_methods__",
+                "__condition_type__",
+                "__is_router__",
+            ):
+                if hasattr(decorated, attr):
+                    setattr(instrumented, attr, getattr(decorated, attr))
+            return instrumented
+
+        return instrumented_decorator
 
 
 class _LongTermMemorySaveWrapper:
