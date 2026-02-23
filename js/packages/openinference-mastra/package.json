@@ -48,6 +48,7 @@
     "@arizeai/openinference-vercel": "2.5.5"
   },
   "devDependencies": {
+    "typescript": "^5.8.3",
     "vitest": "^4.0.3"
   },
   "peerDependencies": {
