@@ -1,0 +1,40 @@
+[
+  {
+    "name": "ai.streamText",
+    "spanContext": {
+      "traceId": "8185b815e471184c6525a601a042be42",
+      "spanId": "c8be0dc143acbe03"
+    },
+    "attributes": {
+      "operation.name": "ai.streamText test-stream-text",
+      "resource.name": "test-stream-text",
+      "ai.operationId": "ai.streamText",
+      "ai.telemetry.functionId": "test-stream-text",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "streaming",
+      "ai.prompt": "{\"prompt\":\"Write a short poem about TypeScript.\"}",
+      "ai.response.finishReason": "stop",
+      "ai.response.text": "In code’s embrace, where types align,  \nTypeScript dances, clear and fine.  \nWith static grace, it catches errors,  \nA safety net for code creators.  \n\nNo more confusion, types defined,  \nIn every function, purpose finds.  \nFrom JavaScript’s roots, it takes its flight,  \nEnhancing clarity, bringing light.  \n\nSo write with joy, or craft with care,  \nTypeScript's here, let worries spare.  \nIn every line, precision sings,  \nA language woven with bright, safe strings.  ",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_07aff6ffa00269d50069821220f35c819dbbabe49b6cc82791\",\"serviceTier\":\"default\"}}",
+      "ai.usage.inputTokens": 15,
+      "ai.usage.outputTokens": 112,
+      "ai.usage.totalTokens": 127,
+      "ai.usage.reasoningTokens": 0,
+      "ai.usage.cachedInputTokens": 0
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770132000,
+      594000000
+    ],
+    "endTime": [
+      1770132005,
+      986741708
+    ],
+    "events": []
+  }
+]

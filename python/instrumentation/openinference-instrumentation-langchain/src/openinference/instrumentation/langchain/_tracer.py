@@ -203,6 +203,17 @@ class OpenInferenceTracer(BaseTracer):
                 _update_span(span, run)
             except Exception:
                 logger.exception("Failed to update span with run data.")
+            # Propagate tool calls from this LLM run to the parent (agent/chain) span
+            # so they are visible at the parent span level in tracing UIs.
+            if run.run_type == "llm" and run.parent_run_id is not None and run.outputs:
+                parent_span = self._spans_by_run.get(run.parent_run_id)
+                if parent_span is not None:
+                    try:
+                        tool_call_attrs = dict(_flatten(_tool_calls_from_llm_outputs(run.outputs)))
+                        if tool_call_attrs:
+                            parent_span.set_attributes(tool_call_attrs)
+                    except Exception:
+                        logger.exception("Failed to propagate tool calls to parent span.")
             # We can't use real time because the handler may be
             # called in a background thread.
             end_time_utc_nano = _as_utc_nano(run.end_time) if run.end_time else None
@@ -675,6 +686,21 @@ def _map_class_name_to_role(
         return None
     else:
         raise ValueError(f"Cannot parse message of type: {message_class_name}")
+
+
+@stop_on_exception
+def _tool_calls_from_llm_outputs(
+    outputs: Optional[Mapping[str, Any]],
+) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    """
+    Yields (LLM_OUTPUT_MESSAGES, parsed_messages) for messages that contain tool_calls.
+    Used to propagate tool call attributes to the parent (agent/chain) span.
+    Reuses _output_messages and filters for messages with tool_calls to avoid duplicate logic.
+    """
+    for key, parsed_messages in _output_messages(outputs):
+        parsed_with_tool_calls = [m for m in parsed_messages if m.get(MESSAGE_TOOL_CALLS)]
+        if parsed_with_tool_calls:
+            yield key, parsed_with_tool_calls
 
 
 @stop_on_exception

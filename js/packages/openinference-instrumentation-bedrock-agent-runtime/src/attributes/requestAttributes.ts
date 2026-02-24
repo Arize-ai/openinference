@@ -1,3 +1,14 @@
+import type {
+  InvokeAgentCommand,
+  RetrieveAndGenerateCommand,
+  RetrieveAndGenerateStreamCommand,
+  RetrieveCommand,
+  RetrieveCommandInput,
+} from "@aws-sdk/client-bedrock-agent-runtime";
+import type { Attributes } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+
 import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import {
   LLMProvider,
@@ -6,25 +17,8 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, diag } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
-
-import {
-  getInputAttributes,
-  getLLMInvocationParameterAttributes,
-} from "./attributeUtils";
-import {
-  extractRagInvocationParams,
-  getModelNameAttributes,
-} from "./ragAttributeExtractionUtils";
-
-import {
-  InvokeAgentCommand,
-  RetrieveAndGenerateCommand,
-  RetrieveAndGenerateStreamCommand,
-  RetrieveCommand,
-  RetrieveCommandInput,
-} from "@aws-sdk/client-bedrock-agent-runtime";
+import { getInputAttributes, getLLMInvocationParameterAttributes } from "./attributeUtils";
+import { extractRagInvocationParams, getModelNameAttributes } from "./ragAttributeExtractionUtils";
 
 function extractBaseRequestAttributes(command: InvokeAgentCommand): Attributes {
   const attributes: Attributes = {
@@ -37,9 +31,7 @@ function extractBaseRequestAttributes(command: InvokeAgentCommand): Attributes {
   // Add invocation parameters for model configuration
   const { inputText: _inputText, ...invocationParams } = command.input;
   const jsonParams = Object.fromEntries(
-    Object.entries(invocationParams).filter(([, value]) =>
-      isAttributeValue(value),
-    ),
+    Object.entries(invocationParams).filter(([, value]) => isAttributeValue(value)),
   );
   if (Object.keys(jsonParams).length > 0) {
     attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS] =
@@ -62,8 +54,7 @@ function extractRagBaseRequestAttributes(
   command: RetrieveAndGenerateStreamCommand | RetrieveAndGenerateCommand,
 ): Attributes {
   return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-      OpenInferenceSpanKind.RETRIEVER,
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.RETRIEVER,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
     ...getModelNameAttributes(command?.input),
     ...getInputAttributes(command?.input?.input?.text),
@@ -80,9 +71,7 @@ function extractRagBaseRequestAttributes(
  * @param command The RetrieveCommand instance.
  * @returns Attributes for OpenTelemetry span instrumentation.
  */
-function extractRetrieveBaseRequestAttributes(
-  command: RetrieveCommand,
-): Attributes {
+function extractRetrieveBaseRequestAttributes(command: RetrieveCommand): Attributes {
   const input: RetrieveCommandInput = command?.input || {};
   const invocationParams: Record<string, unknown> = {
     knowledgeBaseId: input.knowledgeBaseId,
@@ -94,8 +83,7 @@ function extractRetrieveBaseRequestAttributes(
     invocationParams["retrievalConfiguration"] = input.retrievalConfiguration;
   }
   return {
-    [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-      OpenInferenceSpanKind.RETRIEVER,
+    [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.RETRIEVER,
     [SemanticConventions.LLM_PROVIDER]: LLMProvider.AWS,
     ...getInputAttributes(command?.input?.retrievalQuery?.text),
     ...getLLMInvocationParameterAttributes(invocationParams),

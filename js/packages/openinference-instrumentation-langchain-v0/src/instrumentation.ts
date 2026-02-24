@@ -1,23 +1,25 @@
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-
-import { diag, Tracer, TracerProvider } from "@opentelemetry/api";
-import {
-  InstrumentationBase,
+import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
+} from "@opentelemetry/instrumentation";
+import {
+  InstrumentationBase,
   InstrumentationNodeModuleDefinition,
   isWrapped,
 } from "@opentelemetry/instrumentation";
 
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { OITracer } from "@arizeai/openinference-core";
+
 import { addTracerToHandlers } from "./instrumentationUtils";
 import { VERSION } from "./version";
 
-import type * as CallbackManagerModuleV02 from "@langchain/core/callbacks/manager";
-
 const MODULE_NAME = "@langchain/core/callbacks";
 
-const INSTRUMENTATION_NAME =
-  "@arizeai/openinference-instrumentation-langchain-v0";
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-langchain-v0";
 
 /**
  * Flag to check if the openai module has been patched
@@ -67,17 +69,11 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
      */
     tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      INSTRUMENTATION_NAME,
-      VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+    super(INSTRUMENTATION_NAME, VERSION, Object.assign({}, instrumentationConfig));
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer:
-        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
-        this.tracer,
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
     });
   }
@@ -88,22 +84,18 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
   }
 
   protected init(): InstrumentationModuleDefinition<CallbackManagerModule> {
-    const module =
-      new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
-        "@langchain/core/dist/callbacks/manager.cjs",
-        ["^0.3.0"],
-        this.patch.bind(this),
-        this.unpatch.bind(this),
-      );
+    const module = new InstrumentationNodeModuleDefinition<CallbackManagerModule>(
+      "@langchain/core/dist/callbacks/manager.cjs",
+      ["^0.3.0"],
+      this.patch.bind(this),
+      this.unpatch.bind(this),
+    );
     return module;
   }
 
   get tracer(): Tracer {
     if (this.tracerProvider) {
-      return this.tracerProvider.getTracer(
-        this.instrumentationName,
-        this.instrumentationVersion,
-      );
+      return this.tracerProvider.getTracer(this.instrumentationName, this.instrumentationVersion);
     }
     return super.tracer;
   }
@@ -124,9 +116,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
     moduleVersion?: string,
   ) {
     diag.debug(
-      `Applying patch for ${MODULE_NAME}${
-        moduleVersion != null ? `@${moduleVersion}` : ""
-      }`,
+      `Applying patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
     );
     if (module?.openInferencePatched || _isOpenInferencePatched) {
       // If already patched, unpatch first to allow re-patching with new instrumentation
@@ -147,9 +137,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       this._wrap(module.CallbackManager, "_configureSync", (original) => {
         return function (
           this: typeof CallbackManagerModuleV02,
-          ...args: Parameters<
-            (typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]
-          >
+          ...args: Parameters<(typeof CallbackManagerModuleV02.CallbackManager)["_configureSync"]>
         ) {
           const inheritableHandlers = args[0];
           const newInheritableHandlers = addTracerToHandlers(
@@ -183,9 +171,7 @@ export class LangChainInstrumentation extends InstrumentationBase<CallbackManage
       return;
     }
     diag.debug(
-      `Removing patch for ${MODULE_NAME}${
-        moduleVersion != null ? `@${moduleVersion}` : ""
-      }`,
+      `Removing patch for ${MODULE_NAME}${moduleVersion != null ? `@${moduleVersion}` : ""}`,
     );
     if (isWrapped(module.CallbackManager.configure)) {
       this._unwrap(module.CallbackManager, "configure");

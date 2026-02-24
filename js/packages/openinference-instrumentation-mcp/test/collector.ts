@@ -1,5 +1,6 @@
+import type http from "http";
+
 import express from "express";
-import http from "http";
 
 // We use JSON instead of protobuf because opentelemetry-js does not publish proto
 // generated code in a consumable form. We define the JSON interfaces here as
@@ -34,9 +35,7 @@ export class Telemetry {
   }
 }
 
-export async function startCollector(
-  telemetry: Telemetry,
-): Promise<http.Server> {
+export async function startCollector(telemetry: Telemetry): Promise<http.Server> {
   const app = express();
   app.use(express.json());
 

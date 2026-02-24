@@ -23,6 +23,7 @@ Running with existing cassettes:
 from typing import cast
 
 import pytest
+from agent_framework import tool
 from agent_framework.openai import OpenAIChatClient
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -105,6 +106,7 @@ async def test_agent_with_tool_calls(
     """Test agent with tool calls creates AGENT, LLM, and TOOL spans."""
 
     # Define a simple tool
+    @tool
     def get_weather(location: str) -> str:
         """Get the weather for a location."""
         return f"The weather in {location} is sunny and 72°F"
@@ -216,16 +218,19 @@ async def test_multiple_tools(
     """Test agent with multiple tools and complex tool interactions."""
 
     # Define multiple tools
+    @tool
     def get_temperature(location: str) -> str:
         """Get the temperature for a location."""
         temps = {"San Francisco": "72°F", "New York": "65°F", "London": "58°F"}
         return temps.get(location, "Unknown location")
 
+    @tool
     def get_humidity(location: str) -> str:
         """Get the humidity for a location."""
         humidity = {"San Francisco": "65%", "New York": "70%", "London": "80%"}
         return humidity.get(location, "Unknown location")
 
+    @tool
     def calculate_heat_index(temperature: str, humidity: str) -> str:
         """Calculate heat index from temperature and humidity."""
         return f"Heat index: Comfortable (based on {temperature} and {humidity})"
@@ -393,6 +398,7 @@ async def test_tool_with_complex_return_type(
     """Test tool that returns complex data structure."""
 
     # Define a tool that returns complex data
+    @tool
     def get_user_profile(user_id: str) -> str:
         """Get detailed user profile information."""
         import json

@@ -1,12 +1,8 @@
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AnthropicInstrumentation } from "../src/instrumentation";
-
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("AnthropicInstrumentation", () => {
   let instrumentation: AnthropicInstrumentation;

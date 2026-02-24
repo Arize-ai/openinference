@@ -32,8 +32,8 @@ jobs:
                         - "js/pnpm-lock.json"
                         - "js/pnpm-workspace.yaml"
                         - "js/tsconfig.*.json"
-                        - "js/eslint.config.mts"
-                        - "js/.prettierrc"
+                        - "js/.oxlintrc.json"
+                        - "js/.oxfmtrc.jsonc"
                         - "js/packages/**/*.js"
                         - "js/packages/**/*.ts"
                         - "js/packages/**/package.json"
@@ -44,6 +44,8 @@ jobs:
         needs: changes
         if: ${{ needs.changes.outputs.diff == 'true' }}
         runs-on: ubuntu-latest
+        env:
+            NODE_OPTIONS: "--max-old-space-size=8192"
         steps:
             - name: Checkout Repository
               uses: actions/checkout@v4
@@ -54,7 +56,7 @@ jobs:
             - name: Setup PNPM
               uses: pnpm/action-setup@v4
               with:
-                  version: 10.11.0
+                  version: 10.29.3
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile -r
@@ -70,7 +72,7 @@ jobs:
             - name: Formatting
               working-directory: ./js
               run: |
-                  pnpm run prettier:check
+                  pnpm run fmt:check
             - name: Type Checking
               working-directory: ./js
               run: |

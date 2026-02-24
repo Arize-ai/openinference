@@ -4,9 +4,10 @@
     "outDir": "dist",
     "rootDir": ".",
     "types": ["vitest/globals"],
-    "lib": ["ESNext"]
+    "lib": ["ESNext"],
+    "resolveJsonModule": true
   },
   "files": [],
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "test/**/*.json"],
   "references": []
 }

@@ -1,8 +1,3 @@
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
 import type { Attributes } from "@opentelemetry/api";
 import {
   ATTR_GEN_AI_AGENT_DESCRIPTION,
@@ -31,10 +26,12 @@ import {
   ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
 } from "@opentelemetry/semantic-conventions/incubating";
 
-import type {
-  ChatMessage,
-  GenericPart,
-} from "./__generated__/opentelemetryInputMessages.js";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
+
+import type { ChatMessage, GenericPart } from "./__generated__/opentelemetryInputMessages.js";
 import type { OutputMessage } from "./__generated__/opentelemetryOutputMessages.js";
 import {
   getMimeType,
@@ -80,8 +77,7 @@ type AnyPart = GenAIInputMessagePart | GenAIOutputMessagePart;
 const isGenAIChatMessage = (value: unknown): value is ChatMessage => {
   if (typeof value !== "object" || value === null) return false;
   if (!("role" in value) || !("parts" in value)) return false;
-  if (typeof value.role !== "string" || !Array.isArray(value.parts))
-    return false;
+  if (typeof value.role !== "string" || !Array.isArray(value.parts)) return false;
   if (!value.parts || !Array.isArray(value.parts)) return false;
   return true;
 };
@@ -120,16 +116,8 @@ const processMessageParts = ({
         if (text !== undefined) {
           // MESSAGE_CONTENTS entries
           const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-          set(
-            attrs,
-            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-            "text",
-          );
-          set(
-            attrs,
-            `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-            text,
-          );
+          set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "text");
+          set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`, text);
           contentIndex += 1;
         }
         continue;
@@ -140,11 +128,7 @@ const processMessageParts = ({
         const args = part.arguments ?? {};
         const toolPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolIndex}.`;
         set(attrs, `${toolPrefix}${SemanticConventions.TOOL_CALL_ID}`, id);
-        set(
-          attrs,
-          toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME,
-          name,
-        );
+        set(attrs, toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_NAME, name);
         set(
           attrs,
           toolPrefix + SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON,
@@ -157,22 +141,10 @@ const processMessageParts = ({
         const id = part.id ?? undefined;
         const response = toStringContent(part.response);
 
-        set(
-          attrs,
-          `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`,
-          id,
-        );
+        set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_TOOL_CALL_ID}`, id);
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-        set(
-          attrs,
-          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-          "text",
-        );
-        set(
-          attrs,
-          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-          response,
-        );
+        set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, "text");
+        set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`, response);
         contentIndex += 1;
         continue;
       }
@@ -181,21 +153,9 @@ const processMessageParts = ({
         const genericPart = part as GenericPart;
         const genericText = toStringContent(genericPart);
         const contentPrefix = `${msgPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
-        set(
-          attrs,
-          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`,
-          genericPart.type,
-        );
-        set(
-          attrs,
-          `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`,
-          genericText,
-        );
-        set(
-          attrs,
-          `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`,
-          genericText,
-        );
+        set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`, genericPart.type);
+        set(attrs, `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`, genericText);
+        set(attrs, `${msgPrefix}${SemanticConventions.MESSAGE_CONTENT}`, genericText);
         contentIndex += 1;
       }
     }
@@ -230,9 +190,7 @@ export const convertGenAISpanAttributesToOpenInferenceSpanAttributes = (
  * @param spanAttributes - The span attributes containing provider and system to map
  * @returns The mapped provider and system attributes
  */
-export const mapProviderAndSystem = (
-  spanAttributes: Attributes,
-): Attributes => {
+export const mapProviderAndSystem = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const provider = getString(spanAttributes[ATTR_GEN_AI_PROVIDER_NAME]);
   set(attrs, SemanticConventions.LLM_PROVIDER, provider);
@@ -281,42 +239,29 @@ export const mapSpanKind = (spanAttributes: Attributes): Attributes => {
  * @param spanAttributes - The span attributes containing invocation parameters to map
  * @returns The mapped invocation parameters attributes
  */
-export const mapInvocationParameters = (
-  spanAttributes: Attributes,
-): Attributes => {
+export const mapInvocationParameters = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const requestModel = getString(spanAttributes[ATTR_GEN_AI_REQUEST_MODEL]);
   const maxTokens = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_MAX_TOKENS]);
-  const temperature = getNumber(
-    spanAttributes[ATTR_GEN_AI_REQUEST_TEMPERATURE],
-  );
+  const temperature = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_TEMPERATURE]);
   const topP = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_TOP_P]);
   const topK = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_TOP_K]);
-  const presencePenalty = getNumber(
-    spanAttributes[ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY],
-  );
-  const frequencyPenalty = getNumber(
-    spanAttributes[ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY],
-  );
+  const presencePenalty = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_PRESENCE_PENALTY]);
+  const frequencyPenalty = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_FREQUENCY_PENALTY]);
   const seed = getNumber(spanAttributes[ATTR_GEN_AI_REQUEST_SEED]);
-  const stopSequences = getStringArray(
-    spanAttributes[ATTR_GEN_AI_REQUEST_STOP_SEQUENCES],
-  );
+  const stopSequences = getStringArray(spanAttributes[ATTR_GEN_AI_REQUEST_STOP_SEQUENCES]);
   const invocationParameters: Record<string, unknown> = {};
   if (requestModel) invocationParameters.model = requestModel;
-  if (typeof temperature === "number")
-    invocationParameters.temperature = temperature;
+  if (typeof temperature === "number") invocationParameters.temperature = temperature;
   if (typeof topP === "number") invocationParameters.top_p = topP;
   if (typeof topK === "number") invocationParameters.top_k = topK;
-  if (typeof presencePenalty === "number")
-    invocationParameters.presence_penalty = presencePenalty;
+  if (typeof presencePenalty === "number") invocationParameters.presence_penalty = presencePenalty;
   if (typeof frequencyPenalty === "number")
     invocationParameters.frequency_penalty = frequencyPenalty;
   if (typeof seed === "number") invocationParameters.seed = seed;
   if (stopSequences && stopSequences.length > 0)
     invocationParameters.stop_sequences = stopSequences;
-  if (typeof maxTokens === "number")
-    invocationParameters.max_completion_tokens = maxTokens;
+  if (typeof maxTokens === "number") invocationParameters.max_completion_tokens = maxTokens;
   if (Object.keys(invocationParameters).length > 0) {
     set(
       attrs,
@@ -374,9 +319,7 @@ export const mapOutputValue = (spanAttributes: Attributes): Attributes => {
  */
 export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIInputMessages = safelyParseJSON(
-    spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES],
-  );
+  const genAIInputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_INPUT_MESSAGES]);
 
   if (Array.isArray(genAIInputMessages)) {
     (genAIInputMessages as unknown[]).forEach((msg, msgIndex) => {
@@ -399,9 +342,7 @@ export const mapInputMessages = (spanAttributes: Attributes): Attributes => {
  */
 export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
-  const genAIOutputMessages = safelyParseJSON(
-    spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES],
-  );
+  const genAIOutputMessages = safelyParseJSON(spanAttributes[ATTR_GEN_AI_OUTPUT_MESSAGES]);
 
   if (Array.isArray(genAIOutputMessages) && genAIOutputMessages.length > 0) {
     // recast as unknown[] for safety, as Array.isArray() retypes to any[]
@@ -426,9 +367,7 @@ export const mapOutputMessages = (spanAttributes: Attributes): Attributes => {
 export const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const inputTokens = getNumber(spanAttributes[ATTR_GEN_AI_USAGE_INPUT_TOKENS]);
-  const outputTokens = getNumber(
-    spanAttributes[ATTR_GEN_AI_USAGE_OUTPUT_TOKENS],
-  );
+  const outputTokens = getNumber(spanAttributes[ATTR_GEN_AI_USAGE_OUTPUT_TOKENS]);
   if (typeof inputTokens === "number") {
     set(attrs, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, inputTokens);
   }
@@ -436,11 +375,7 @@ export const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
     set(attrs, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, outputTokens);
   }
   if (typeof inputTokens === "number" && typeof outputTokens === "number") {
-    set(
-      attrs,
-      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-      inputTokens + outputTokens,
-    );
+    set(attrs, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, inputTokens + outputTokens);
   }
   return attrs;
 };
@@ -454,9 +389,7 @@ export const mapTokenCounts = (spanAttributes: Attributes): Attributes => {
 export const mapToolExecution = (spanAttributes: Attributes): Attributes => {
   const attrs: Attributes = {};
   const toolName = getString(spanAttributes[ATTR_GEN_AI_TOOL_NAME]);
-  const toolDescription = getString(
-    spanAttributes[ATTR_GEN_AI_TOOL_DESCRIPTION],
-  );
+  const toolDescription = getString(spanAttributes[ATTR_GEN_AI_TOOL_DESCRIPTION]);
   const toolCallId = getString(spanAttributes[ATTR_GEN_AI_TOOL_CALL_ID]);
   // parse supported tool details
   // note: while openinference can track parameters, gen_ai does not provide this information

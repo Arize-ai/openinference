@@ -13,12 +13,7 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "files": [],
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts",
-    "test/__fixtures__/**/*.json",
-    "examples/**/*.ts"
-  ],
+  "include": ["src/**/*.ts", "test/**/*.ts", "test/__fixtures__/**/*.json", "examples/**/*.ts"],
   "exclude": ["test/__snapshots__/**/*.ts"],
   "references": []
 }

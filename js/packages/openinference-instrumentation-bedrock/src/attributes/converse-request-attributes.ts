@@ -1,22 +1,4 @@
-import {
-  isObjectWithStringKeys,
-  withSafety,
-} from "@arizeai/openinference-core";
-import {
-  MimeType,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
-import { diag, Span } from "@opentelemetry/api";
-
-import {
-  aggregateMessages,
-  extractModelName,
-  processMessages,
-  setSpanAttribute,
-} from "./attribute-helpers";
-
-import {
+import type {
   ConverseCommand,
   ConverseRequest,
   ConverseStreamCommand,
@@ -24,6 +6,18 @@ import {
   SystemContentBlock,
   ToolConfiguration,
 } from "@aws-sdk/client-bedrock-runtime";
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import {
+  aggregateMessages,
+  extractModelName,
+  processMessages,
+  setSpanAttribute,
+} from "./attribute-helpers";
 
 /**
  * Type guard to safely validate ConverseRequest structure
@@ -62,11 +56,7 @@ function extractBaseRequestAttributes({
 }): void {
   const modelId = input.modelId || "unknown";
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.LLM_MODEL_NAME,
-    extractModelName(modelId),
-  );
+  setSpanAttribute(span, SemanticConventions.LLM_MODEL_NAME, extractModelName(modelId));
 
   if (input.inferenceConfig && Object.keys(input.inferenceConfig).length > 0) {
     setSpanAttribute(
@@ -76,11 +66,7 @@ function extractBaseRequestAttributes({
     );
   }
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.INPUT_VALUE,
-    JSON.stringify(input),
-  );
+  setSpanAttribute(span, SemanticConventions.INPUT_VALUE, JSON.stringify(input));
   setSpanAttribute(span, SemanticConventions.INPUT_MIME_TYPE, MimeType.JSON);
 }
 
@@ -119,13 +105,7 @@ function extractInputMessagesAttributes({
  * @param params.span The OpenTelemetry span to set attributes on
  * @param params.input The ConverseRequest containing tool configuration
  */
-function extractInputToolAttributes({
-  span,
-  input,
-}: {
-  span: Span;
-  input: ConverseRequest;
-}): void {
+function extractInputToolAttributes({ span, input }: { span: Span; input: ConverseRequest }): void {
   const toolConfig: ToolConfiguration | undefined = input.toolConfig;
   if (!toolConfig?.tools) return;
 

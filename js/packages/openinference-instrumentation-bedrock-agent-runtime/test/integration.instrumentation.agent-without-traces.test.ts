@@ -1,20 +1,15 @@
 import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { BedrockAgentInstrumentation } from "../src";
-
-import { createPolly } from "./utils/polly.config";
-import { setModuleExportsForInstrumentation } from "./utils/test-utils";
-
-import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
-import { Polly } from "@pollyjs/core";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { Polly } from "@pollyjs/core";
+
+import { BedrockAgentInstrumentation } from "../src";
+import { createPolly } from "./utils/polly.config";
+import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 
 describe("BedrockAgentInstrumentation Integration - agent attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;

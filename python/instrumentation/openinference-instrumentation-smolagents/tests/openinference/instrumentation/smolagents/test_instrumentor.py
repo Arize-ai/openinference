@@ -943,81 +943,12 @@ class TestInferLLMProviderFromClassName:
 
 
 class TestInferLLMProviderFromEndpoint:
-    def test_returns_none_when_instance_is_none(self) -> None:
-        result = infer_llm_provider_from_endpoint(None)
-        assert result is None
-
-    def test_returns_none_when_no_endpoint_attributes_exist(self) -> None:
-        mock_instance = MagicMock()
-        del mock_instance.api_base
-        del mock_instance.base_url
-        del mock_instance.endpoint
-        del mock_instance.host
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
-        assert result is None
-
-    def test_returns_none_when_all_endpoint_attributes_are_none(self) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = None
-        mock_instance.base_url = None
-        mock_instance.endpoint = None
-        mock_instance.host = None
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
-        assert result is None
-
     @pytest.mark.parametrize(
-        "attr_name, endpoint_url, expected",
-        [
-            ("api_base", "https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
-            ("base_url", "https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
-            ("endpoint", "https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
-            ("host", "https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
-        ],
+        "endpoint",
+        [None, ""],
     )
-    def test_endpoint_attribute_priority(
-        self, attr_name: str, endpoint_url: str, expected: OpenInferenceLLMProviderValues
-    ) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = None
-        mock_instance.base_url = None
-        mock_instance.endpoint = None
-        mock_instance.host = None
-        setattr(mock_instance, attr_name, endpoint_url)
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
-        assert result == expected
-
-    def test_endpoint_with_host_attribute(self) -> None:
-        mock_endpoint = MagicMock()
-        mock_endpoint.host = "api.openai.com"
-
-        mock_instance = MagicMock()
-        mock_instance.api_base = mock_endpoint
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
-        assert result == OpenInferenceLLMProviderValues.OPENAI
-
-    @pytest.mark.parametrize(
-        "invalid_endpoint",
-        [12345, [], {}, None],
-    )
-    def test_invalid_endpoint_type_returns_none(self, invalid_endpoint: Any) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = invalid_endpoint
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
-        assert result is None
-
-    def test_host_not_string_returns_none(self) -> None:
-        mock_endpoint = MagicMock()
-        mock_endpoint.host = 12345
-
-        mock_instance = MagicMock()
-        mock_instance.api_base = mock_endpoint
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
+    def test_returns_none_for_invalid_input(self, endpoint: Optional[str]) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
         assert result is None
 
     @pytest.mark.parametrize(
@@ -1052,24 +983,23 @@ class TestInferLLMProviderFromEndpoint:
     def test_known_endpoints_return_expected_provider(
         self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
     ) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = endpoint_url
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
+        result = infer_llm_provider_from_endpoint(endpoint_url)
         assert result == expected
 
-    def test_unknown_endpoint_returns_none(self) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = "https://unknown-provider.com/v1"
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "https://unknown-provider-xyz.com/v1",
+            "https://custom-llm-provider.com/v1",
+            "https://my-provider-custom.com/v1",
+        ],
+    )
+    def test_unknown_endpoints_return_none(self, endpoint: str) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
         assert result is None
 
-    def test_case_insensitive_host_matching(self) -> None:
-        mock_instance = MagicMock()
-        mock_instance.api_base = "https://API.OPENAI.COM/v1"
-
-        result = infer_llm_provider_from_endpoint(mock_instance)
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_provider_from_endpoint("https://API.OPENAI.COM/v1")
         assert result == OpenInferenceLLMProviderValues.OPENAI
 
 
