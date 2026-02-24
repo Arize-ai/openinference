@@ -218,9 +218,10 @@ class _LazyAsyncInvokeModelBody:
             out: bytes = self._cached if amt is None else self._cached[:amt]
             return out
         # First read: pull full body, set span attributes, end span, then return.
-        body_bytes = cast(bytes, await self._real_stream.read())
-        self._cached = body_bytes
+        # The stream read is inside the try so that a stream failure also ends the span.
         try:
+            body_bytes = cast(bytes, await self._real_stream.read())
+            self._cached = body_bytes
             # json.loads() accepts bytes in Python 3.6+ (decodes as UTF-8).
             response_body = json.loads(body_bytes)
             if self._is_claude_message_api:

@@ -64,7 +64,7 @@ class _ConverseStreamCallback:
             delta = content_block_delta["delta"]
             if "text" in delta:
                 content[index]["text"] = content[index].get("text", "") + delta["text"]
-            if "toolUse" in delta:
+            if "toolUse" in delta and "input" in delta["toolUse"]:
                 tool_use = content[index].setdefault("toolUse", {})
                 tool_use["input"] = tool_use.get("input", "") + delta["toolUse"]["input"]
         if "contentBlockStart" in obj:
@@ -86,8 +86,11 @@ class _ConverseStreamCallback:
     def _handle_metadata(self, obj: ConverseStreamOutputTypeDef) -> None:
         """Extracts usage, metrics, and error information from metadata."""
         if "metadata" in obj:
-            self.usage = dict(obj["metadata"]["usage"])
-            self.metrics = dict(obj["metadata"]["metrics"])
+            metadata = obj["metadata"]
+            if "usage" in metadata:
+                self.usage = dict(metadata["usage"])
+            if "metrics" in metadata:
+                self.metrics = dict(metadata["metrics"])
         for key, value in obj.items():
             if "exception" in key:
                 self.error[key] = value
