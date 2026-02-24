@@ -1,11 +1,5 @@
 # @arizeai/openinference-vercel
 
-## 2.7.1
-
-### Patch Changes
-
-- d661617: fix: Add llm.input_messages attributes to AGENT spans and ensure proper input/output formatting on LLM spans
-
 ## 2.7.0
 
 ### Minor Changes
