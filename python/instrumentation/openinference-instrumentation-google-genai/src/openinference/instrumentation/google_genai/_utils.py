@@ -164,8 +164,7 @@ def _stop_on_exception_for_dict(
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return wrapped(*args, **kwargs)
-        except Exception as e:
-            logger.warning(str(e))
+        except Exception:
             return {}
 
     return wrapper
