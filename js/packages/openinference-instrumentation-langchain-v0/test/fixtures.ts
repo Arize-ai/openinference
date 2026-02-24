@@ -1,4 +1,4 @@
-import { Run } from "@langchain/core/tracers/base";
+import type { Run } from "@langchain/core/tracers/base";
 const baseLangchainMessage = {
   lc_id: ["human"],
   lc_kwargs: {

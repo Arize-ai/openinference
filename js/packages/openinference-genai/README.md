@@ -65,15 +65,11 @@ import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizea
 import type { Mutable } from "@arizeai/openinference-genai/types";
 
 class OpenInferenceOTLPTraceExporter extends OTLPTraceExporter {
-  export(
-    spans: ReadableSpan[],
-    resultCallback: (result: ExportResult) => void,
-  ) {
+  export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void) {
     const processedSpans = spans.map((span) => {
-      const processedAttributes =
-        convertGenAISpanAttributesToOpenInferenceSpanAttributes(
-          span.attributes,
-        );
+      const processedAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(
+        span.attributes,
+      );
       // optionally you can replace the entire attributes object with the
       // processed attributes if you want _only_ the OpenInference attributes
       (span as Mutable<ReadableSpan>).attributes = {
@@ -93,10 +89,7 @@ And then use it in the SpanProcessor of your choice.
 ```ts
 // instrumentation.ts
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  NodeTracerProvider,
-  BatchSpanProcessor,
-} from "@opentelemetry/sdk-trace-node";
+import { NodeTracerProvider, BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
 import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";

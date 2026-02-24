@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from typing import Any, Mapping, Sequence, Tuple, cast
 
 import pytest
@@ -84,8 +85,12 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
     _verify_crew_span(crew_span)
 
-    _verify_agent_span(agent_spans[0], agent_spans[0].name, scrape_task.description)
-    _verify_agent_span(agent_spans[1], agent_spans[1].name, analyze_task.description)
+    _verify_agent_span(
+        agent_spans[0], agent_spans[0].name, analyze_task.description, analyze_task.name
+    )
+    _verify_agent_span(
+        agent_spans[1], agent_spans[1].name, scrape_task.description, scrape_task.name
+    )
 
     _verify_tool_span(tool_span)
 
@@ -142,12 +147,14 @@ def kickoff_crew() -> Tuple[Task, Task]:
         description=f"Call the scrape_website tool to fetch text from {url} and return the result.",
         expected_output="Text content from the website.",
         agent=scraper_agent,
+        name="scrape-task",
     )
     analyze_task = Task(
         description="Extract the first quote from the content.",
         expected_output="Quote with author.",
         agent=analyzer_agent,
         context=[scrape_task],
+        name="analyze-task",
     )
 
     # Create Crew
@@ -155,7 +162,13 @@ def kickoff_crew() -> Tuple[Task, Task]:
         agents=[scraper_agent, analyzer_agent],
         tasks=[scrape_task, analyze_task],
     )
-    crew_output = crew.kickoff()
+
+    # NOTE: We manually set Kickoff ID for testing purposes to simulate the API behavior, that is
+    # automatically provided by the CrewAI AMP API when Crews are deployed & executed via REST API.
+    test_kickoff_id = str(uuid.uuid4())
+    inputs = {"id": test_kickoff_id}
+    crew_output = crew.kickoff(inputs=inputs)
+
     result = ""
     if isinstance(crew_output, CrewOutput):
         result = crew_output.raw
@@ -180,7 +193,13 @@ def kickoff_flow() -> Flow[Any]:
             return f"Step Two Received: {step_one_output}"
 
     flow = SimpleFlow()
-    result = flow.kickoff()
+
+    # NOTE: We manually set Kickoff ID for testing purposes to simulate the API behavior, that is
+    # automatically provided by the CrewAI AMP API when Flows are deployed & executed via REST API.
+    test_kickoff_id = str(uuid.uuid4())
+    inputs = {"id": test_kickoff_id}
+    result = flow.kickoff(inputs=inputs)
+
     assert isinstance(result, str)
 
     expected = "Step Two Received: Step One Output"
@@ -249,6 +268,14 @@ def _verify_crew_span(span: ReadableSpan) -> None:
     assert span.name.endswith(".kickoff"), (
         f"Expected span name to end with '.kickoff', got: {span.name}"
     )
+    # Verify Kickoff ID
+    kickoff_id = attributes.get("kickoff_id")
+    assert kickoff_id is not None, "Expected kickoff_id attribute to be present at root level."
+    assert isinstance(kickoff_id, str), f"Expected kickoff_id to be string, got {type(kickoff_id)}"
+    try:
+        uuid.UUID(kickoff_id)
+    except ValueError:
+        pytest.fail(f"kickoff_id '{kickoff_id}' is not a valid UUID.")
 
 
 def _verify_flow_span(span: ReadableSpan) -> None:
@@ -262,10 +289,21 @@ def _verify_flow_span(span: ReadableSpan) -> None:
     assert span.name.endswith(".kickoff"), (
         f"Expected span name to end with '.kickoff', got: {span.name}"
     )
+    # Verify Kickoff ID
+    kickoff_id = attributes.get("kickoff_id")
+    assert kickoff_id is not None, "Expected kickoff_id attribute to be present at root level."
+    assert isinstance(kickoff_id, str), f"Expected kickoff_id to be string, got {type(kickoff_id)}"
+    try:
+        uuid.UUID(kickoff_id)
+    except ValueError:
+        pytest.fail(f"kickoff_id '{kickoff_id}' is not a valid UUID.")
 
 
 def _verify_agent_span(
-    span: ReadableSpan, expected_name: str, expected_task_description: str
+    span: ReadableSpan,
+    expected_name: str,
+    expected_task_description: str,
+    expected_task_name: str | None = None,
 ) -> None:
     """Verify an AGENT span has correct attributes."""
     attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
@@ -273,6 +311,8 @@ def _verify_agent_span(
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.AGENT.value
     )
+    if expected_task_name is not None:
+        assert attributes.get("task_name") == expected_task_name
     # Enhanced naming: expect agent role in span name
     assert span.name.endswith("._execute_core"), (
         f"Expected span name to end with '._execute_core', got: {span.name}"

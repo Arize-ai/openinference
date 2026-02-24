@@ -3,9 +3,35 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union, cast
 
-from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+if TYPE_CHECKING:
+    from mypy_boto3_bedrock_agent_runtime.type_defs import (
+        FailureTraceTypeDef,
+        GuardrailTraceTypeDef,
+        OrchestrationTraceTypeDef,
+        PostProcessingTraceTypeDef,
+        PreProcessingTraceTypeDef,
+        ResponseStreamTypeDef,
+        RoutingClassifierTraceTypeDef,
+        TraceTypeDef,
+    )
+
+    TraceEventData = Union[
+        OrchestrationTraceTypeDef,
+        PreProcessingTraceTypeDef,
+        PostProcessingTraceTypeDef,
+        GuardrailTraceTypeDef,
+        FailureTraceTypeDef,
+        RoutingClassifierTraceTypeDef,
+    ]
+
+from openinference.instrumentation.bedrock._attribute_extractor import (
+    AttributeExtractor,
+    ChunkType,
+    TraceEventType,
+    TraceNodeType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,19 +63,19 @@ class TraceSpan:
     multiple chunks of data and can be linked to parent and child nodes.
     """
 
-    def __init__(self, span_type: str):
+    def __init__(self, span_type: ChunkType):
         """
         Initialize a new TraceSpan.
 
         Args:
             span_type: The type of span (e.g., 'modelInvocationInput')
         """
-        self.chunks: List[Dict[str, Any]] = []
-        self.span_type: str = span_type
+        self.chunks: List[TraceTypeDef] = []
+        self.span_type: ChunkType = span_type
         self.children_nodes: List["TraceNode"] = []
         self.parent_node: Optional["TraceNode"] = None
 
-    def add_chunk(self, chunk: Dict[str, Any]) -> None:
+    def add_chunk(self, chunk: TraceTypeDef) -> None:
         """
         Add a chunk of data to this span.
 
@@ -58,7 +84,7 @@ class TraceSpan:
         """
         self.chunks.append(chunk)
 
-    def add_child_node(self, trace_node: "TraceNode") -> None:
+    def add_child_node(self, trace_node: TraceNode) -> None:
         """
         Add a child node to this span.
 
@@ -67,7 +93,7 @@ class TraceSpan:
         """
         self.children_nodes.append(trace_node)
 
-    def set_parent_node(self, parent_node: "TraceNode") -> None:
+    def set_parent_node(self, parent_node: TraceNode) -> None:
         """
         Set the parent node for this span.
 
@@ -85,7 +111,7 @@ class TraceNode:
     logical component in the trace hierarchy, such as an agent or a model.
     """
 
-    def __init__(self, trace_id: str, event_type: Optional[str] = None):
+    def __init__(self, trace_id: str, event_type: Optional[TraceNodeType] = None):
         """
         Initialize a new TraceNode.
 
@@ -94,11 +120,11 @@ class TraceNode:
             event_type: The type of event this node represents (e.g., 'agent-collaborator')
         """
         self.node_trace_id: str = trace_id
-        self.node_type: Optional[str] = event_type
+        self.node_type: Optional[TraceNodeType] = event_type
         self.spans: List[Union[TraceSpan, "TraceNode"]] = []
         self.parent_trace_node: Optional["TraceNode"] = None
         self.current_span: Optional[TraceSpan] = None
-        self.chunks: List[Dict[str, Any]] = []
+        self.chunks: List[TraceTypeDef] = []
 
     def add_span(self, span: Union[TraceSpan, "TraceNode"]) -> None:
         """
@@ -111,7 +137,7 @@ class TraceNode:
         if isinstance(span, TraceSpan):
             self.current_span = span
 
-    def add_chunk(self, chunk: Dict[str, Any]) -> None:
+    def add_chunk(self, chunk: TraceTypeDef) -> None:
         """
         Add a chunk of data directly to this node.
 
@@ -196,7 +222,7 @@ class TraceCollector:
     def __init__(self) -> None:
         """Initialize a new TraceCollector with a default root node."""
         default_trace_id = "default-parent-node"
-        default_agent_name = "bedrock_agent.invoke_agent"
+        default_agent_name: TraceNodeType = "bedrock_agent.invoke_agent"
         self.initial_node = TraceNode(default_trace_id, default_agent_name)
         self.trace_stack: TraceStack = TraceStack()
         self.trace_stack.push(self.initial_node)
@@ -204,7 +230,7 @@ class TraceCollector:
         self.trace_ids: List[str] = [self.initial_node.node_trace_id]
 
     def _handle_chunk_for_current_node(
-        self, node: TraceNode, chunk_type: str, trace_data: Dict[str, Any]
+        self, node: TraceNode, chunk_type: ChunkType, trace_data: TraceTypeDef
     ) -> None:
         """
         Handle a chunk of data for the current node based on the chunk type.
@@ -228,9 +254,10 @@ class TraceCollector:
         self,
         parent_node: TraceNode,
         node_trace_id: str,
-        event_type: str,
-        chunk_type: str,
-        trace_data: Dict[str, Any],
+        event_type: TraceEventType,
+        chunk_type: ChunkType,
+        trace_data: TraceTypeDef,
+        event_data: TraceEventData,
     ) -> None:
         """
         Create and handle a new trace node.
@@ -243,10 +270,15 @@ class TraceCollector:
             node_trace_id: The unique ID for the new trace node
             event_type: The type of event for the new node
             chunk_type: The type of chunk being processed
-            trace_data: The trace data to add to the new node
+            trace_data: The full TraceTypeDef (stored in chunks)
+            event_data: The event-level sub-dict (e.g. OrchestrationTraceTypeDef)
         """
-        chunk_data = trace_data.get(event_type, {}).get(chunk_type, {})
-        if "agentCollaboratorInvocationInput" in chunk_data:
+        if (
+            "orchestrationTrace" in trace_data
+            and "invocationInput" in trace_data["orchestrationTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["orchestrationTrace"]["invocationInput"]
+        ):
             trace_node = TraceNode(node_trace_id, "agent-collaborator")
             trace_node.chunks.append(trace_data)
         elif event_type == "failureTrace":
@@ -276,8 +308,8 @@ class TraceCollector:
         self,
         parent_node: TraceNode,
         node_trace_id: str,
-        chunk_type: str,
-        trace_data: Dict[str, Any],
+        chunk_type: ChunkType,
+        trace_data: TraceTypeDef,
     ) -> None:
         """
         Handle an existing trace node.
@@ -304,7 +336,7 @@ class TraceCollector:
             logger.warning(f"Could not find trace node with ID {node_trace_id}")
 
     def _handle_chunk_for_parent_node(
-        self, parent_node: TraceNode, chunk_type: str, trace_data: Dict[str, Any]
+        self, parent_node: TraceNode, chunk_type: ChunkType, trace_data: TraceTypeDef
     ) -> None:
         """
         Handle a chunk of data for the parent node.
@@ -320,7 +352,7 @@ class TraceCollector:
             self._start_new_span(parent_node, chunk_type, trace_data)
 
     @staticmethod
-    def _start_new_span(node: TraceNode, chunk_type: str, trace_data: Dict[str, Any]) -> None:
+    def _start_new_span(node: TraceNode, chunk_type: ChunkType, trace_data: TraceTypeDef) -> None:
         """
         Start a new span for a node with the given chunk type and data.
 
@@ -334,7 +366,7 @@ class TraceCollector:
         trace_span.parent_node = node
         node.add_span(trace_span)
 
-    def collect(self, obj: Dict[str, Any]) -> TraceNode:
+    def collect(self, obj: ResponseStreamTypeDef) -> TraceNode:
         """
         Process and collect trace data from the provided object.
 
@@ -351,7 +383,7 @@ class TraceCollector:
         """
 
         # Extract trace data from the input object
-        trace_data: Dict[str, Any] = self._extract_trace_data(obj)
+        trace_data: TraceTypeDef = self._extract_trace_data(obj)
 
         # Get the current parent node from the stack
         parent_trace_node = self.trace_stack.head
@@ -359,29 +391,66 @@ class TraceCollector:
             logger.warning("No parent trace node found in stack")
             return self.initial_node
 
-        # Extract event type, chunk type and generate trace ID
-        event_type = AttributeExtractor.get_event_type(trace_data)
+        # Dispatch on trace event key. Pre-annotate event_data as TraceEventData so
+        # that mypy accepts assignments of all six concrete TypedDicts.
+        event_type: TraceEventType
+        event_data: TraceEventData
+        chunk_type: ChunkType
+        if "orchestrationTrace" in trace_data:
+            event_type = "orchestrationTrace"
+            event_data = trace_data["orchestrationTrace"]
+        elif "preProcessingTrace" in trace_data:
+            event_type = "preProcessingTrace"
+            event_data = trace_data["preProcessingTrace"]
+        elif "postProcessingTrace" in trace_data:
+            event_type = "postProcessingTrace"
+            event_data = trace_data["postProcessingTrace"]
+        elif "guardrailTrace" in trace_data:
+            event_type = "guardrailTrace"
+            event_data = trace_data["guardrailTrace"]
+        elif "failureTrace" in trace_data:
+            event_type = "failureTrace"
+            event_data = trace_data["failureTrace"]
+        elif "routingClassifierTrace" in trace_data:
+            event_type = "routingClassifierTrace"
+            event_data = trace_data["routingClassifierTrace"]
+        else:
+            return self.initial_node
+
         node_trace_id = generate_unique_trace_id(
             event_type, AttributeExtractor.extract_trace_id(trace_data)
         )
-        chunk_type = AttributeExtractor.get_chunk_type(trace_data.get(event_type, {}))
+        chunk_type = AttributeExtractor.get_chunk_type(event_data)
         if event_type == "guardrailTrace":
             chunk_type = "guardrail"
 
-        # Initialize variables
-        agent_node_trace_id = ""
-
-        # Generate agent node trace ID for agent collaborator invocations
-        if trace_data.get(event_type, {}).get(chunk_type, {}).get(
-            "agentCollaboratorInvocationInput"
-        ) or trace_data.get(event_type, {}).get(chunk_type, {}).get(
-            "agentCollaboratorInvocationOutput"
-        ):
-            agent_node_trace_id = f"{node_trace_id}-agent"
+        # Detect agent collaborator by re-dispatching through trace_data so mypy
+        # sees the concrete sub-TypedDict (only orchestration traces carry these keys).
+        is_agent_collab_input = (
+            "orchestrationTrace" in trace_data
+            and "invocationInput" in trace_data["orchestrationTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["orchestrationTrace"]["invocationInput"]
+        )
+        is_agent_collab_output = (
+            "orchestrationTrace" in trace_data
+            and "observation" in trace_data["orchestrationTrace"]
+            and "agentCollaboratorInvocationOutput"
+            in trace_data["orchestrationTrace"]["observation"]
+        ) or (
+            "routingClassifierTrace" in trace_data
+            and "observation" in trace_data["routingClassifierTrace"]
+            and "agentCollaboratorInvocationOutput"
+            in trace_data["routingClassifierTrace"]["observation"]
+        )
+        agent_node_trace_id = (
+            f"{node_trace_id}-agent" if is_agent_collab_input or is_agent_collab_output else ""
+        )
 
         # Process the trace data based on its characteristics
         return self._process_trace_data(
             trace_data,
+            event_data,
             parent_trace_node,
             node_trace_id,
             agent_node_trace_id,
@@ -390,7 +459,7 @@ class TraceCollector:
         )
 
     @classmethod
-    def _extract_trace_data(cls, obj: dict[str, Any]) -> dict[str, Any]:
+    def _extract_trace_data(cls, obj: ResponseStreamTypeDef) -> TraceTypeDef:
         """
         Extract trace data from the bedrock trace object.
 
@@ -398,21 +467,22 @@ class TraceCollector:
             obj: The input object containing trace data
 
         Returns:
-            Extracted trace data as a dictionary
+            Extracted trace data as a TraceTypeDef
         """
-        if "trace" in obj:
-            return obj["trace"].get("trace") or {}
-        else:
-            return obj
+        if "trace" not in obj:
+            return cast("TraceTypeDef", {})
+        trace_part = obj["trace"]
+        return trace_part["trace"] if "trace" in trace_part else cast("TraceTypeDef", {})
 
     def _process_trace_data(
         self,
-        trace_data: Dict[str, Any],
+        trace_data: TraceTypeDef,
+        event_data: TraceEventData,
         parent_trace_node: TraceNode,
         node_trace_id: str,
         agent_node_trace_id: str,
-        event_type: str,
-        chunk_type: str,
+        event_type: TraceEventType,
+        chunk_type: ChunkType,
     ) -> TraceNode:
         """
         Process the trace data based on its characteristics.
@@ -431,7 +501,7 @@ class TraceCollector:
         if node_trace_id not in self.trace_ids:
             # Handle new trace node
             self._handle_new_trace_node_scenario(
-                parent_trace_node, node_trace_id, event_type, chunk_type, trace_data
+                parent_trace_node, node_trace_id, event_type, chunk_type, trace_data, event_data
             )
         elif parent_trace_node and parent_trace_node.node_trace_id in [
             node_trace_id,
@@ -439,7 +509,12 @@ class TraceCollector:
         ]:
             # Handle case where parent node matches the trace ID
             self._handle_parent_node_match_scenario(
-                parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
+                parent_trace_node,
+                agent_node_trace_id,
+                event_type,
+                chunk_type,
+                trace_data,
+                event_data,
             )
         elif (
             parent_trace_node.parent_trace_node
@@ -457,7 +532,12 @@ class TraceCollector:
             if trace_node := self.trace_nodes.get(node_trace_id):
                 parent_trace_node = trace_node
             self._handle_existing_trace_id_scenario(
-                parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
+                parent_trace_node,
+                agent_node_trace_id,
+                event_type,
+                chunk_type,
+                trace_data,
+                event_data,
             )
         else:
             # Log unexpected case
@@ -469,9 +549,10 @@ class TraceCollector:
         self,
         parent_trace_node: TraceNode,
         node_trace_id: str,
-        event_type: str,
-        chunk_type: str,
-        trace_data: Dict[str, Any],
+        event_type: TraceEventType,
+        chunk_type: ChunkType,
+        trace_data: TraceTypeDef,
+        event_data: TraceEventData,
     ) -> None:
         """
         Handle scenario where a new trace node needs to be created.
@@ -481,7 +562,8 @@ class TraceCollector:
             node_trace_id: The trace ID for the new node
             event_type: The type of event
             chunk_type: The type of chunk
-            trace_data: The trace data to process
+            trace_data: The full TraceTypeDef (stored in chunks)
+            event_data: The event-level sub-dict (e.g. OrchestrationTraceTypeDef)
         """
         excluded_node_types = ["bedrock_agent.invoke_agent", "agent-collaborator"]
         if (
@@ -492,16 +574,17 @@ class TraceCollector:
             parent_trace_node = self.trace_stack.head or self.initial_node
 
         self._handle_new_trace_node(
-            parent_trace_node, node_trace_id, event_type, chunk_type, trace_data
+            parent_trace_node, node_trace_id, event_type, chunk_type, trace_data, event_data
         )
 
     def _handle_parent_node_match_scenario(
         self,
         parent_trace_node: TraceNode,
         agent_node_trace_id: str,
-        event_type: str,
-        chunk_type: str,
-        trace_data: Dict[str, Any],
+        event_type: TraceEventType,
+        chunk_type: ChunkType,
+        trace_data: TraceTypeDef,
+        event_data: TraceEventData,
     ) -> None:
         """
         Handle scenario where the parent node matches the trace ID.
@@ -511,16 +594,23 @@ class TraceCollector:
             agent_node_trace_id: The agent node trace ID
             event_type: The type of event
             chunk_type: The type of chunk
-            trace_data: The trace data to process
+            trace_data: The full TraceTypeDef (stored in chunks)
+            event_data: The event-level sub-dict (e.g. OrchestrationTraceTypeDef)
         """
         if (
-            trace_data.get(event_type, {})
-            .get(chunk_type, {})
-            .get("agentCollaboratorInvocationInput")
+            "orchestrationTrace" in trace_data
+            and "invocationInput" in trace_data["orchestrationTrace"]
+            and "agentCollaboratorInvocationInput"
+            in trace_data["orchestrationTrace"]["invocationInput"]
         ):
             # Create new Node for Agent Collaboration
             self._handle_new_trace_node(
-                parent_trace_node, agent_node_trace_id, event_type, chunk_type, trace_data
+                parent_trace_node,
+                agent_node_trace_id,
+                event_type,
+                chunk_type,
+                trace_data,
+                event_data,
             )
         else:
             # Node already existed, add the chunk to existing node
@@ -530,9 +620,10 @@ class TraceCollector:
         self,
         parent_trace_node: TraceNode,
         agent_node_trace_id: str,
-        event_type: str,
-        chunk_type: str,
-        trace_data: Dict[str, Any],
+        event_type: TraceEventType,
+        chunk_type: ChunkType,
+        trace_data: TraceTypeDef,
+        event_data: TraceEventData,
     ) -> None:
         """
         Handle scenario where the trace ID exists but parent node doesn't match.
@@ -542,13 +633,20 @@ class TraceCollector:
             agent_node_trace_id: The agent node trace ID
             event_type: The type of event
             chunk_type: The type of chunk
-            trace_data: The trace data to process
+            trace_data: The full TraceTypeDef (stored in chunks)
+            event_data: The event-level sub-dict (e.g. OrchestrationTraceTypeDef)
         """
         # We have received Trace with existing TraceID, but we are unable to locate the parent node
         if (
-            trace_data.get(event_type, {})
-            .get(chunk_type, {})
-            .get("agentCollaboratorInvocationOutput")
+            "orchestrationTrace" in trace_data
+            and "observation" in trace_data["orchestrationTrace"]
+            and "agentCollaboratorInvocationOutput"
+            in trace_data["orchestrationTrace"]["observation"]
+        ) or (
+            "routingClassifierTrace" in trace_data
+            and "observation" in trace_data["routingClassifierTrace"]
+            and "agentCollaboratorInvocationOutput"
+            in trace_data["routingClassifierTrace"]["observation"]
         ):
             try:
                 # This requires to pop the two parent nodes for the setting the Proper agent node

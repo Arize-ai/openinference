@@ -1,9 +1,10 @@
 // test/utils/polly.config.ts
 
+import path from "path";
+
 import NodeHttpAdapter from "@pollyjs/adapter-node-http";
 import { Polly } from "@pollyjs/core";
 import FsPersister from "@pollyjs/persister-fs";
-import path from "path";
 
 // Register globally once
 Polly.register(NodeHttpAdapter);
@@ -17,9 +18,7 @@ function sanitizeTestName(name: string): string {
 }
 
 export function createPolly(name: string, recordIfMissing = true): Polly {
-  const testName =
-    expect.getState().currentTestName?.replace(/[^\w\- ]+/g, "") ??
-    "unnamed-test";
+  const testName = expect.getState().currentTestName?.replace(/[^\w\- ]+/g, "") ?? "unnamed-test";
   const fullName = `${name} - ${sanitizeTestName(testName)}`;
 
   const polly = new Polly(fullName, {

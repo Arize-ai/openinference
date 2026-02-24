@@ -88,10 +88,7 @@ Utilities for converting data structures into OpenTelemetry attributes. See [att
 **Input/Output Processing** - Convert function arguments and return values to standardized span attributes:
 
 ```typescript
-import {
-  defaultProcessInput,
-  defaultProcessOutput,
-} from "@arizeai/openinference-core";
+import { defaultProcessInput, defaultProcessOutput } from "@arizeai/openinference-core";
 
 // Process input arguments
 const inputAttrs = defaultProcessInput("hello", { key: "value" });

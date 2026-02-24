@@ -2,9 +2,17 @@
 
 [![npm version](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel.svg)](https://badge.fury.io/js/@arizeai%2Fopeninference-vercel)
 
-This package provides a set of utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai)(>= 3.3) spans into platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
+This package provides utilities to ingest [Vercel AI SDK](https://github.com/vercel/ai) spans into platforms like [Arize](https://arize.com/) and [Phoenix](https://phoenix.arize.com/).
 
-> Note: This package requires you to be using the Vercel AI SDK version 3.3 or higher.
+> Note: This package targets AI SDK v6 and is tested against v6 telemetry. Older versions (>= 3.3) are best-effort compatible.
+
+## AI SDK Compatibility
+
+| AI SDK version | Support level | Notes                                                                                                                                          |
+| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| v6.x           | Targeted      | Emits `gen_ai.*` (OTel GenAI semconv) + `ai.*` (Vercel-specific). `@arizeai/openinference-vercel` prefers `gen_ai.*` and falls back to `ai.*`. |
+| v5.x           | Best effort   | Telemetry primarily uses `ai.*`. Some standard `gen_ai.*`-derived mappings may be unavailable.                                                 |
+| >= 3.3 and < 5 | Best effort   | Telemetry is experimental; attribute shapes may differ.                                                                                        |
 
 ## Installation
 
@@ -58,8 +66,7 @@ export function register() {
             Authorization: `Bearer ${process.env["PHOENIX_API_KEY"]}` || "",
           },
           url:
-            process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
-            "https://app.phoenix.arize.com/v1/traces",
+            process.env["PHOENIX_COLLECTOR_ENDPOINT"] || "https://app.phoenix.arize.com/v1/traces",
         }),
         spanFilter: (span) => {
           // Only export spans that are OpenInference to negate non-generative spans

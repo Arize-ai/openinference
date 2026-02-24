@@ -1,17 +1,13 @@
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { OpenAIInstrumentation } from "../src";
-
 import OpenAI, { APIPromise } from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import { Response as ResponseType } from "openai/resources/responses/responses";
+import type { Response as ResponseType } from "openai/resources/responses/responses";
 import { Stream } from "openai/streaming";
 import { vi } from "vitest";
 import { z } from "zod";
+
+import { OpenAIInstrumentation } from "../src";
 
 const memoryExporter = new InMemorySpanExporter();
 
@@ -419,10 +415,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     let functionName = "";
     let functionArgs = "";
     for await (const event of stream) {
-      if (
-        event.type === "response.output_item.added" &&
-        event.item.type === "function_call"
-      ) {
+      if (event.type === "response.output_item.added" && event.item.type === "function_call") {
         if (event.item.name) {
           functionName = event.item.name;
         }
@@ -573,10 +566,7 @@ describe("OpenAIInstrumentation - Responses", () => {
     let functionName = "";
     let functionArgs = "";
     for await (const event of stream) {
-      if (
-        event.type === "response.output_item.added" &&
-        event.item.type === "function_call"
-      ) {
+      if (event.type === "response.output_item.added" && event.item.type === "function_call") {
         if (event.item.name) {
           functionName = event.item.name;
         }
@@ -666,8 +656,7 @@ describe("OpenAIInstrumentation - Responses", () => {
       ],
       model: "gpt-4.1",
       text: {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore - Type instantiation is excessively deep with zod helper
+        // @ts-expect-error - Type instantiation is excessively deep with zod helper
         format: zodTextFormat(CalendarEvent, "event"),
       },
     });

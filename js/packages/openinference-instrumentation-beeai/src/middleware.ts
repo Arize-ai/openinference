@@ -14,30 +14,7 @@
  * limitations under the License.
  */
 
-import { OITracer } from "@arizeai/openinference-core";
-import {
-  OpenInferenceSpanKind,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
-
 import { diag } from "@opentelemetry/api";
-
-import { buildTraceTree } from "./helpers/buildTraceTree";
-import { createSpan } from "./helpers/create-span";
-import { getErrorSafe } from "./helpers/getErrorSafe";
-import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
-import { IdNameManager } from "./helpers/idNameManager";
-import { traceSerializer } from "./helpers/traceSerializer";
-import {
-  errorLLMEventName,
-  finishLLMEventName,
-  INSTRUMENTATION_IGNORED_KEYS,
-  newTokenLLMEventName,
-  partialUpdateEventName,
-  successLLMEventName,
-} from "./config";
-import { FrameworkSpan, GeneratedResponse } from "./types";
-
 import { BaseAgent } from "beeai-framework/agents/base";
 import { ReActAgent } from "beeai-framework/agents/react/agent";
 import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
@@ -51,6 +28,26 @@ import { FrameworkError } from "beeai-framework/errors";
 import { Version } from "beeai-framework/version";
 import { findLast, isEmpty } from "remeda";
 
+import type { OITracer } from "@arizeai/openinference-core";
+import type { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+
+import {
+  errorLLMEventName,
+  finishLLMEventName,
+  INSTRUMENTATION_IGNORED_KEYS,
+  newTokenLLMEventName,
+  partialUpdateEventName,
+  successLLMEventName,
+} from "./config";
+import { buildTraceTree } from "./helpers/buildTraceTree";
+import { createSpan } from "./helpers/create-span";
+import { getErrorSafe } from "./helpers/getErrorSafe";
+import { getSerializedObjectSafe } from "./helpers/getSerializedObjectSafe";
+import { IdNameManager } from "./helpers/idNameManager";
+import { traceSerializer } from "./helpers/traceSerializer";
+import type { FrameworkSpan, GeneratedResponse } from "./types";
+
 export const activeTracesMap = new Map<string, string>();
 
 /**
@@ -60,10 +57,7 @@ export const activeTracesMap = new Map<string, string>();
  * Then we create the open telemetry spans when all data are collected. We are retroactively deleting some unnecessary internal spans
  * see "emitter.match((event) => event.path === `${basePath}.run.${finishEventName}`" section
  */
-export function createTelemetryMiddleware(
-  tracer: OITracer,
-  mainSpanKind: OpenInferenceSpanKind,
-) {
+export function createTelemetryMiddleware(tracer: OITracer, mainSpanKind: OpenInferenceSpanKind) {
   return (context: GetRunContext<RunInstance, unknown>) => {
     if (!context.emitter?.trace?.id) {
       throw new FrameworkError(`Fatal error. Missing traceId`, [], { context });
@@ -149,13 +143,9 @@ export function createTelemetryMiddleware(
             )?.text;
 
             if (!prompt) {
-              throw new FrameworkError(
-                "The prompt must be defined for the Agent's run",
-                [],
-                {
-                  context,
-                },
-              );
+              throw new FrameworkError("The prompt must be defined for the Agent's run", [], {
+                context,
+              });
             }
           }
 
@@ -192,10 +182,7 @@ export function createTelemetryMiddleware(
      */
     emitter.match("*.*", (data, meta) => {
       // allow `run.error` event due to the runtime error information
-      if (
-        meta.path.includes(".run.") &&
-        meta.path !== `${basePath}.run.${errorLLMEventName}`
-      ) {
+      if (meta.path.includes(".run.") && meta.path !== `${basePath}.run.${errorLLMEventName}`) {
         return;
       }
       // skip all new token events
@@ -203,13 +190,9 @@ export function createTelemetryMiddleware(
         return;
       }
       if (!meta.trace?.runId) {
-        throw new FrameworkError(
-          `Fatal error. Missing runId for event: ${meta.path}`,
-          [],
-          {
-            context,
-          },
-        );
+        throw new FrameworkError(`Fatal error. Missing runId for event: ${meta.path}`, [], {
+          context,
+        });
       }
 
       try {
@@ -217,11 +200,7 @@ export function createTelemetryMiddleware(
          * create groupId span level (id does not exist)
          * I use only the top-level groups like iterations other nested groups like tokens would introduce unuseful complexity
          */
-        if (
-          meta.groupId &&
-          !meta.trace.parentRunId &&
-          !groupIterations.includes(meta.groupId)
-        ) {
+        if (meta.groupId && !meta.trace.parentRunId && !groupIterations.includes(meta.groupId)) {
           spansMap.set(
             meta.groupId,
             createSpan({
@@ -266,9 +245,7 @@ export function createTelemetryMiddleware(
         const lastIteration = groupIterations[groupIterations.length - 1];
 
         // delete the `partialUpdate` event if does not have nested spans
-        const lastIterationEventSpanId = eventsIterationsMap
-          .get(lastIteration)
-          ?.get(meta.name);
+        const lastIterationEventSpanId = eventsIterationsMap.get(lastIteration)?.get(meta.name);
         if (
           lastIterationEventSpanId &&
           partialUpdateEventName === meta.name &&
@@ -288,23 +265,15 @@ export function createTelemetryMiddleware(
         spansMap.set(span.context.span_id, span);
         // update number of nested spans for parent_id if exists
         if (span.parent_id) {
-          parentIdsMap.set(
-            span.parent_id,
-            (parentIdsMap.get(span.parent_id) || 0) + 1,
-          );
+          parentIdsMap.set(span.parent_id, (parentIdsMap.get(span.parent_id) || 0) + 1);
         }
 
         // save the last event for each iteration
         if (groupIterations.length > 0) {
           if (eventsIterationsMap.has(lastIteration)) {
-            eventsIterationsMap
-              .get(lastIteration)!
-              .set(meta.name, span.context.span_id);
+            eventsIterationsMap.get(lastIteration)!.set(meta.name, span.context.span_id);
           } else {
-            eventsIterationsMap.set(
-              lastIteration,
-              new Map().set(meta.name, span.context.span_id),
-            );
+            eventsIterationsMap.set(lastIteration, new Map().set(meta.name, span.context.span_id));
           }
         }
       } catch (e) {
@@ -314,9 +283,7 @@ export function createTelemetryMiddleware(
 
     // The generated response and message history are collected from the `success` event generated by ReActAgent
     emitter.match(
-      (event) =>
-        event.name === successLLMEventName &&
-        event.creator instanceof ReActAgent,
+      (event) => event.name === successLLMEventName && event.creator instanceof ReActAgent,
       (data: InferCallbackValue<ReActAgentCallbacks["success"]>) => {
         try {
           const { data: dataObject, memory } = data;
@@ -330,19 +297,14 @@ export function createTelemetryMiddleware(
             role: msg.role,
           }));
         } catch (e) {
-          diag.warn(
-            "Instrumentation error. Unable to map messages to history for ReActAgent",
-            e,
-          );
+          diag.warn("Instrumentation error. Unable to map messages to history for ReActAgent", e);
         }
       },
     );
 
     // The generated response and message history are collected from the `success` event generated by ToolCallingAgentCallbacks
     emitter.match(
-      (event) =>
-        event.name === successLLMEventName &&
-        event.creator instanceof ToolCallingAgent,
+      (event) => event.name === successLLMEventName && event.creator instanceof ToolCallingAgent,
       (data: InferCallbackValue<ToolCallingAgentCallbacks["success"]>) => {
         try {
           const { state } = data;

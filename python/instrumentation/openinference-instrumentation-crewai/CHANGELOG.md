@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.18...python-openinference-instrumentation-crewai-v0.1.19) (2026-02-18)
+
+
+### Features
+
+* **crewai:** Add Kickoff ID Attribute in Root Level ([#2742](https://github.com/Arize-ai/openinference/issues/2742)) ([8df5581](https://github.com/Arize-ai/openinference/commit/8df558116cd3e596818640b69d5192497c16266c))
+* **crewai:** add task name attribute to span ([#2740](https://github.com/Arize-ai/openinference/issues/2740)) ([66fb074](https://github.com/Arize-ai/openinference/commit/66fb074ff0dad21c6c4f8d5d0752f39ef87f13e8))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.17...python-openinference-instrumentation-crewai-v0.1.18) (2026-02-05)
 
 

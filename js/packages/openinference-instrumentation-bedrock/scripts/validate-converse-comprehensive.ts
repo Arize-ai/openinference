@@ -24,21 +24,7 @@
 
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 
-import {
-  setMetadata,
-  setPromptTemplate,
-  setSession,
-  setTags,
-  setUser,
-} from "@arizeai/openinference-core";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-
-import {
-  context,
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
-} from "@opentelemetry/api";
+import { context, diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { Resource } from "@opentelemetry/resources";
@@ -47,6 +33,15 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+
+import {
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+} from "@arizeai/openinference-core";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
 import { BedrockInstrumentation, isPatched } from "../src/index";
 
@@ -58,8 +53,7 @@ const PHOENIX_ENDPOINT =
     : "http://localhost:6006/v1/traces");
 const PHOENIX_API_KEY = process.env.PHOENIX_API_KEY;
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const MODEL_ID =
-  process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20240620-v1:0";
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-5-sonnet-20240620-v1:0";
 
 // Test scenarios covering major Converse API test cases
 type TestScenario =
@@ -134,9 +128,7 @@ class ConverseComprehensiveValidator {
       resource: new Resource({
         [SEMRESATTRS_PROJECT_NAME]: "bedrock-converse-comprehensive-validation",
       }),
-      spanProcessors: exporters.map(
-        (exporter) => new SimpleSpanProcessor(exporter),
-      ),
+      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
     });
 
     this.provider.register();
@@ -186,19 +178,14 @@ class ConverseComprehensiveValidator {
       sendMethod.toString().length < 100; // Wrapped methods are typically shorter
 
     if (globalPatchStatus && methodPatched) {
-      console.log(
-        "✅ Instrumentation verified: Both global status and method are patched",
-      );
+      console.log("✅ Instrumentation verified: Both global status and method are patched");
       return true;
     } else if (globalPatchStatus) {
       console.log("✅ Instrumentation verified: Global patch status is true");
       return true;
     } else {
       console.log("❌ Instrumentation verification failed");
-      console.log(
-        "   Send method signature:",
-        sendMethod.toString().substring(0, 100) + "...",
-      );
+      console.log("   Send method signature:", sendMethod.toString().substring(0, 100) + "...");
       console.log("   Global patch status:", globalPatchStatus);
       console.log("   Method appears patched:", methodPatched);
       return false;
@@ -221,9 +208,7 @@ class ConverseComprehensiveValidator {
 
     // Verify instrumentation is applied
     if (!this.verifyInstrumentation()) {
-      console.log(
-        "❌ Instrumentation verification failed - stopping validation",
-      );
+      console.log("❌ Instrumentation verification failed - stopping validation");
       return false;
     }
 
@@ -263,9 +248,7 @@ class ConverseComprehensiveValidator {
     }
 
     console.log("\n📊 Validation Summary:");
-    console.log(
-      allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed",
-    );
+    console.log(allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed");
 
     // Give time for traces to be exported
     console.log("\n⏳ Waiting for traces to be exported...");
@@ -336,10 +319,7 @@ class ConverseComprehensiveValidator {
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log(
-        "   💬 Response preview:",
-        textContent.text.substring(0, 50) + "...",
-      );
+      console.log("   💬 Response preview:", textContent.text.substring(0, 50) + "...");
     }
 
     // Check usage statistics
@@ -364,9 +344,7 @@ class ConverseComprehensiveValidator {
 
     const assistantResponse = {
       role: "assistant" as const,
-      content: [
-        { text: "I'm Claude, an AI assistant. How can I help you today?" },
-      ],
+      content: [{ text: "I'm Claude, an AI assistant. How can I help you today?" }],
     };
 
     const secondUserMessage = {
@@ -397,10 +375,7 @@ class ConverseComprehensiveValidator {
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log(
-        "   💬 Joke response preview:",
-        textContent.text.substring(0, 80) + "...",
-      );
+      console.log("   💬 Joke response preview:", textContent.text.substring(0, 80) + "...");
     }
 
     // Check usage statistics
@@ -494,8 +469,7 @@ class ConverseComprehensiveValidator {
     console.log("✅ Tool calling response received successfully");
 
     // Check for tool calls in the response
-    const toolCalls =
-      outputMessage.content?.filter((block: any) => block.toolUse) || [];
+    const toolCalls = outputMessage.content?.filter((block: any) => block.toolUse) || [];
     console.log(`   🔧 Tool calls in response: ${toolCalls.length}`);
 
     if (toolCalls.length > 0) {
@@ -507,10 +481,7 @@ class ConverseComprehensiveValidator {
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log(
-        "   💬 Text response preview:",
-        textContent.text.substring(0, 80) + "...",
-      );
+      console.log("   💬 Text response preview:", textContent.text.substring(0, 80) + "...");
     }
 
     // Check usage statistics
@@ -578,10 +549,7 @@ class ConverseComprehensiveValidator {
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log(
-        "   🖼️ Image analysis preview:",
-        textContent.text.substring(0, 100) + "...",
-      );
+      console.log("   🖼️ Image analysis preview:", textContent.text.substring(0, 100) + "...");
     }
 
     // Check usage statistics
@@ -631,10 +599,8 @@ class ConverseComprehensiveValidator {
                 template: "System: {{system_prompt}}\n\nUser: {{user_message}}",
                 version: "2.1.0",
                 variables: {
-                  system_prompt:
-                    "You are a helpful assistant for testing context attributes.",
-                  user_message:
-                    "Hello! This is a test with comprehensive context attributes.",
+                  system_prompt: "You are a helpful assistant for testing context attributes.",
+                  user_message: "Hello! This is a test with comprehensive context attributes.",
                 },
               }),
               ["validation", "converse", "context", "comprehensive", "bedrock"],
@@ -671,21 +637,14 @@ class ConverseComprehensiveValidator {
     console.log("   📋 Context attributes configured:");
     console.log("      🆔 Session ID: comprehensive-validation-session-001");
     console.log("      👤 User ID: comprehensive-validation-user-001");
-    console.log(
-      "      📊 Metadata: experiment_name=converse-comprehensive-validation",
-    );
-    console.log(
-      "      🏷️ Tags: [validation, converse, context, comprehensive, bedrock]",
-    );
+    console.log("      📊 Metadata: experiment_name=converse-comprehensive-validation");
+    console.log("      🏷️ Tags: [validation, converse, context, comprehensive, bedrock]");
     console.log("      📝 Prompt Template: System: {{system_prompt}}...");
 
     // Check for text content in the response
     const textContent = outputMessage.content?.find((block: any) => block.text);
     if (textContent) {
-      console.log(
-        "   💬 Response preview:",
-        textContent.text.substring(0, 80) + "...",
-      );
+      console.log("   💬 Response preview:", textContent.text.substring(0, 80) + "...");
     }
 
     // Check usage statistics
@@ -730,10 +689,7 @@ class ConverseComprehensiveValidator {
 
       // Additional error details
       if (error.message) {
-        console.log(
-          "   📝 Error message:",
-          error.message.substring(0, 100) + "...",
-        );
+        console.log("   📝 Error message:", error.message.substring(0, 100) + "...");
       }
 
       if (error.$metadata?.httpStatusCode) {
@@ -782,14 +738,9 @@ class ConverseComprehensiveValidator {
       console.log("✅ Amazon Nova Converse response received successfully");
 
       // Check for text content in the response
-      const textContent = outputMessage.content?.find(
-        (block: any) => block.text,
-      );
+      const textContent = outputMessage.content?.find((block: any) => block.text);
       if (textContent) {
-        console.log(
-          "   💬 Nova response preview:",
-          textContent.text.substring(0, 80) + "...",
-        );
+        console.log("   💬 Nova response preview:", textContent.text.substring(0, 80) + "...");
       }
 
       // Check Nova usage statistics
@@ -802,10 +753,7 @@ class ConverseComprehensiveValidator {
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ Amazon Nova model not available in this region, but instrumentation working",
         );
@@ -853,14 +801,9 @@ class ConverseComprehensiveValidator {
       console.log("✅ Meta Llama Converse response received successfully");
 
       // Check for text content in the response
-      const textContent = outputMessage.content?.find(
-        (block: any) => block.text,
-      );
+      const textContent = outputMessage.content?.find((block: any) => block.text);
       if (textContent) {
-        console.log(
-          "   💬 Llama response preview:",
-          textContent.text.substring(0, 80) + "...",
-        );
+        console.log("   💬 Llama response preview:", textContent.text.substring(0, 80) + "...");
       }
 
       // Check Meta usage statistics
@@ -873,10 +816,7 @@ class ConverseComprehensiveValidator {
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ Meta Llama model not available in this region, but instrumentation working",
         );

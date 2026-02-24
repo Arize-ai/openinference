@@ -1,0 +1,21 @@
+// oxfmt configuration
+// https://oxc.rs/docs/guide/tooling/formatter.html
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "experimentalSortImports": {
+    "internalPattern": ["@arizeai/"],
+  },
+  "experimentalSortPackageJson": true,
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/node_modules/**",
+    "**/examples/**",
+    "**/docs/**",
+    "**/__snapshots__/**",
+    "**/__fixtures__/**",
+    "pnpm-lock.yaml",
+    ".next/**",
+    ".mastra/**",
+  ],
+}

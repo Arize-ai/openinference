@@ -1,0 +1,50 @@
+[
+  {
+    "name": "ai.generateObject.doGenerate",
+    "spanContext": {
+      "traceId": "8f60802815d6e97da2dbc4708a8e5c7b",
+      "spanId": "bf098ec12458e605"
+    },
+    "attributes": {
+      "operation.name": "ai.generateObject.doGenerate test-generate-object",
+      "resource.name": "test-generate-object",
+      "ai.operationId": "ai.generateObject.doGenerate",
+      "ai.telemetry.functionId": "test-generate-object",
+      "ai.model.provider": "openai.responses",
+      "ai.model.id": "gpt-4o-mini",
+      "ai.settings.maxRetries": 2,
+      "ai.telemetry.metadata.testCategory": "structured-output",
+      "ai.request.headers.user-agent": "ai/6.0.68",
+      "ai.prompt.messages": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Generate a simple recipe for scrambled eggs.\"}]}]",
+      "gen_ai.system": "openai.responses",
+      "gen_ai.request.model": "gpt-4o-mini",
+      "ai.response.finishReason": "stop",
+      "ai.response.object": "{\"name\":\"Scrambled Eggs\",\"ingredients\":[\"2 eggs\",\"2 tablespoons milk\",\"Salt to taste\",\"Pepper to taste\",\"1 tablespoon butter\"],\"steps\":[\"Crack the eggs into a bowl and add the milk, salt, and pepper.\",\"Whisk the mixture until well combined and slightly frothy.\",\"Heat a non-stick skillet over medium heat and melt the butter.\",\"Once the butter is melted and bubbling, pour in the egg mixture.\",\"Allow the eggs to sit for a few moments, then gently stir with a spatula, pushing them from the edges towards the center.\",\"Continue to cook until the eggs are mostly set but still slightly runny.\",\"Remove from heat and let the residual heat finish cooking the eggs.\",\"Serve warm with additional salt and pepper if desired.\"]}",
+      "ai.response.id": "resp_03f2d825c7fc910c006982121d24948190b48cdbf3f4373dfe",
+      "ai.response.model": "gpt-4o-mini-2024-07-18",
+      "ai.response.timestamp": "2026-02-03T15:19:57.000Z",
+      "ai.response.providerMetadata": "{\"openai\":{\"responseId\":\"resp_03f2d825c7fc910c006982121d24948190b48cdbf3f4373dfe\",\"serviceTier\":\"default\"}}",
+      "ai.usage.promptTokens": 63,
+      "ai.usage.completionTokens": 156,
+      "gen_ai.response.finish_reasons": [
+        "stop"
+      ],
+      "gen_ai.response.id": "resp_03f2d825c7fc910c006982121d24948190b48cdbf3f4373dfe",
+      "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+      "gen_ai.usage.input_tokens": 63,
+      "gen_ai.usage.output_tokens": 156
+    },
+    "status": {
+      "code": 0
+    },
+    "startTime": [
+      1770131997,
+      66000000
+    ],
+    "endTime": [
+      1770132000,
+      585812667
+    ],
+    "events": []
+  }
+]

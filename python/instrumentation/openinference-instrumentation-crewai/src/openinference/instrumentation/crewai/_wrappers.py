@@ -150,10 +150,13 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
         return str(base_method)
 
     # Get agent role for context - simplified to just use agent name
-    if agent and hasattr(agent, "role") and agent.role:
-        agent_role = str(agent.role).strip()
-        if agent_role:
-            return f"{agent_role}.{str(base_method)}"
+    agent_role = str(getattr(agent, "role", "")).strip()
+    task_name = str(getattr(instance, "name", "")).strip()
+
+    if agent_role and task_name:
+        return f"{agent_role}.{task_name}.{str(base_method)}"
+    if agent_role:
+        return f"{agent_role}.{str(base_method)}"
 
     # Fallback to original naming if no agent role available
     if instance:
@@ -221,6 +224,9 @@ class _ExecuteCoreWrapper:
         ) as span:
             span.set_attribute("task_key", instance.key)
             span.set_attribute("task_id", str(instance.id))
+            task_name = getattr(instance, "name", None)
+            if task_name is not None:
+                span.set_attribute("task_name", task_name)
 
             agent = args[0] if args else None
             # Conditionally set attributes for the agent, crew, and task
@@ -287,6 +293,9 @@ class _CrewKickoffWrapper:
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
@@ -379,6 +388,9 @@ class _FlowKickoffAsyncWrapper:
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
+                # Extract Kickoff ID (Only available when using CrewAI AMP API)
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
             span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")

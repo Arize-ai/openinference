@@ -1,8 +1,20 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import type { Stream } from "@anthropic-ai/sdk/streaming";
+import type { Attributes, Span, Tracer, TracerProvider } from "@opentelemetry/api";
+import { context, diag, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
+import { isTracingSuppressed } from "@opentelemetry/core";
+import type {
+  InstrumentationConfig,
+  InstrumentationModuleDefinition,
+} from "@opentelemetry/instrumentation";
 import {
-  OITracer,
-  safelyJSONStringify,
-  TraceConfigOptions,
-} from "@arizeai/openinference-core";
+  InstrumentationBase,
+  InstrumentationNodeModuleDefinition,
+  safeExecuteInTheMiddle,
+} from "@opentelemetry/instrumentation";
+
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
 import {
   LLMProvider,
   LLMSystem,
@@ -11,32 +23,9 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import {
-  Attributes,
-  context,
-  diag,
-  Span,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-  Tracer,
-  TracerProvider,
-} from "@opentelemetry/api";
-import { isTracingSuppressed } from "@opentelemetry/core";
-import {
-  InstrumentationBase,
-  InstrumentationConfig,
-  InstrumentationModuleDefinition,
-  InstrumentationNodeModuleDefinition,
-  safeExecuteInTheMiddle,
-} from "@opentelemetry/instrumentation";
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// oxlint-disable-next-line typescript/prefer-ts-expect-error
 // @ts-ignore - No version file until build
 import { VERSION } from "./version";
-
-import type Anthropic from "@anthropic-ai/sdk";
-import type { Stream } from "@anthropic-ai/sdk/streaming";
 
 const MODULE_NAME = "@anthropic-ai/sdk";
 
@@ -63,9 +52,7 @@ export function isPatched() {
 function getExecContext(span: Span) {
   const activeContext = context.active();
   const suppressTracing = isTracingSuppressed(activeContext);
-  const execContext = suppressTracing
-    ? trace.setSpan(context.active(), span)
-    : activeContext;
+  const execContext = suppressTracing ? trace.setSpan(context.active(), span) : activeContext;
   // Drop the span from the context
   if (suppressTracing) {
     trace.deleteSpan(activeContext);
@@ -78,9 +65,7 @@ function getExecContext(span: Span) {
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
  * @param traceConfig The OpenInference trace configuration. Can be used to mask or redact sensitive information on spans. @see {@link TraceConfigOptions}
  */
-export class AnthropicInstrumentation extends InstrumentationBase<
-  typeof Anthropic
-> {
+export class AnthropicInstrumentation extends InstrumentationBase<typeof Anthropic> {
   private oiTracer: OITracer;
   private tracerProvider?: TracerProvider;
   private traceConfig?: TraceConfigOptions;
@@ -108,17 +93,11 @@ export class AnthropicInstrumentation extends InstrumentationBase<
      */
     tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      INSTRUMENTATION_NAME,
-      VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+    super(INSTRUMENTATION_NAME, VERSION, Object.assign({}, instrumentationConfig));
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer:
-        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ??
-        this.tracer,
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME, VERSION) ?? this.tracer,
       traceConfig,
     });
   }
@@ -144,10 +123,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
 
   get tracer(): Tracer {
     if (this.tracerProvider) {
-      return this.tracerProvider.getTracer(
-        this.instrumentationName,
-        this.instrumentationVersion,
-      );
+      return this.tracerProvider.getTracer(this.instrumentationName, this.instrumentationVersion);
     }
     return super.tracer;
   }
@@ -176,13 +152,10 @@ export class AnthropicInstrumentation extends InstrumentationBase<
 
     // Handle ES module default export structure
     const anthropicModule =
-      (module as typeof Anthropic & { default?: typeof Anthropic }).default ||
-      module;
+      (module as typeof Anthropic & { default?: typeof Anthropic }).default || module;
 
     if (!anthropicModule?.Messages?.prototype?.create) {
-      diag.warn(
-        `Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`,
-      );
+      diag.warn(`Cannot find Messages.prototype.create in ${MODULE_NAME}@${moduleVersion}`);
       return module;
     }
 
@@ -197,31 +170,23 @@ export class AnthropicInstrumentation extends InstrumentationBase<
       "create",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (original: MessagesCreateType): any => {
-        return function patchedCreate(
-          this: unknown,
-          ...args: Parameters<MessagesCreateType>
-        ) {
+        return function patchedCreate(this: unknown, ...args: Parameters<MessagesCreateType>) {
           const body = args[0] as Anthropic.Messages.MessageCreateParams;
           const { messages: _messages, ...invocationParameters } = body;
-          const span = instrumentation.oiTracer.startSpan(
-            `Anthropic Messages`,
-            {
-              kind: SpanKind.INTERNAL,
-              attributes: {
-                [SemanticConventions.OPENINFERENCE_SPAN_KIND]:
-                  OpenInferenceSpanKind.LLM,
-                [SemanticConventions.LLM_MODEL_NAME]: body.model,
-                [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
-                [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
-                [SemanticConventions.LLM_INVOCATION_PARAMETERS]:
-                  JSON.stringify(invocationParameters),
-                [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
-                [SemanticConventions.LLM_PROVIDER]: LLMProvider.ANTHROPIC,
-                ...getAnthropicInputMessagesAttributes(body),
-                ...getAnthropicToolsJSONSchema(body),
-              },
+          const span = instrumentation.oiTracer.startSpan(`Anthropic Messages`, {
+            kind: SpanKind.INTERNAL,
+            attributes: {
+              [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
+              [SemanticConventions.LLM_MODEL_NAME]: body.model,
+              [SemanticConventions.INPUT_VALUE]: JSON.stringify(body),
+              [SemanticConventions.INPUT_MIME_TYPE]: MimeType.JSON,
+              [SemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify(invocationParameters),
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.ANTHROPIC,
+              [SemanticConventions.LLM_PROVIDER]: LLMProvider.ANTHROPIC,
+              ...getAnthropicInputMessagesAttributes(body),
+              ...getAnthropicToolsJSONSchema(body),
             },
-          );
+          });
           const execContext = getExecContext(span);
           const execPromise = safeExecuteInTheMiddle(
             () => {
@@ -243,9 +208,7 @@ export class AnthropicInstrumentation extends InstrumentationBase<
           );
 
           const wrappedPromiseThen = (
-            result:
-              | Anthropic.Messages.Message
-              | Stream<Anthropic.Messages.RawMessageStreamEvent>,
+            result: Anthropic.Messages.Message | Stream<Anthropic.Messages.RawMessageStreamEvent>,
           ) => {
             if (isAnthropicMessageResponse(result)) {
               // Record the results
@@ -271,17 +234,15 @@ export class AnthropicInstrumentation extends InstrumentationBase<
             return result;
           };
 
-          const wrappedPromise = execPromise
-            .then(wrappedPromiseThen)
-            .catch((error: Error) => {
-              span.recordException(error);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: error.message,
-              });
-              span.end();
-              throw error;
+          const wrappedPromise = execPromise.then(wrappedPromiseThen).catch((error: Error) => {
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
             });
+            span.end();
+            throw error;
+          });
           return context.bind(execContext, wrappedPromise);
         };
       },
@@ -321,14 +282,9 @@ export class AnthropicInstrumentation extends InstrumentationBase<
 /**
  * type-guard that checks if the response is an Anthropic message response
  */
-function isAnthropicMessageResponse(
-  response: unknown,
-): response is Anthropic.Messages.Message {
+function isAnthropicMessageResponse(response: unknown): response is Anthropic.Messages.Message {
   return (
-    response != null &&
-    typeof response === "object" &&
-    "content" in response &&
-    "role" in response
+    response != null && typeof response === "object" && "content" in response && "role" in response
   );
 }
 
@@ -361,9 +317,7 @@ function getAnthropicInputMessagesAttributes(
 /**
  * Converts each tool definition into a json schema
  */
-function getAnthropicToolsJSONSchema(
-  body: Anthropic.Messages.MessageCreateParams,
-): Attributes {
+function getAnthropicToolsJSONSchema(body: Anthropic.Messages.MessageCreateParams): Attributes {
   if (!body.tools) {
     // If tools is undefined, return an empty object
     return {};
@@ -378,9 +332,7 @@ function getAnthropicToolsJSONSchema(
   }, {});
 }
 
-function getAnthropicInputMessageAttributes(
-  message: Anthropic.Messages.MessageParam,
-): Attributes {
+function getAnthropicInputMessageAttributes(message: Anthropic.Messages.MessageParam): Attributes {
   const role = message.role;
   const attributes: Attributes = {
     [SemanticConventions.MESSAGE_ROLE]: role,
@@ -393,46 +345,33 @@ function getAnthropicInputMessageAttributes(
     message.content.forEach((part, index) => {
       const contentsIndexPrefix = `${SemanticConventions.MESSAGE_CONTENTS}.${index}.`;
       if (part.type === "text") {
-        attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-        ] = "text";
-        attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-        ] = part.text;
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = part.text;
       } else if (part.type === "image") {
-        attributes[
-          `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-        ] = "image";
+        attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "image";
         if (part.source.type === "base64") {
           // For base64 images, we don't store the actual data but indicate it's base64
-          attributes[
-            `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.type`
-          ] = "base64";
+          attributes[`${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.type`] =
+            "base64";
           attributes[
             `${contentsIndexPrefix}${SemanticConventions.MESSAGE_CONTENT_IMAGE}.media_type`
           ] = part.source.media_type;
         }
       } else if (part.type === "tool_use") {
         const toolCallIndexPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}.`;
-        attributes[
-          `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`
-        ] = part.id;
-        attributes[
-          `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-        ] = part.name;
+        attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_ID}`] = part.id;
+        attributes[`${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+          part.name;
         attributes[
           `${toolCallIndexPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
         ] = JSON.stringify(part.input);
       } else if (part.type === "tool_result") {
-        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] =
-          part.tool_use_id;
+        attributes[`${SemanticConventions.MESSAGE_TOOL_CALL_ID}`] = part.tool_use_id;
         if (typeof part.content === "string") {
           attributes[SemanticConventions.MESSAGE_CONTENT] = part.content;
         } else if (Array.isArray(part.content)) {
           // Handle complex tool result content
-          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(
-            part.content,
-          );
+          attributes[SemanticConventions.MESSAGE_CONTENT] = JSON.stringify(part.content);
         }
       }
     });
@@ -444,36 +383,25 @@ function getAnthropicInputMessageAttributes(
 /**
  * Converts the Anthropic message result to LLM output attributes
  */
-function getAnthropicOutputMessagesAttributes(
-  message: Anthropic.Messages.Message,
-): Attributes {
+function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Message): Attributes {
   const attributes: Attributes = {};
   const indexPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.`;
 
-  attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] =
-    message.role;
+  attributes[`${indexPrefix}${SemanticConventions.MESSAGE_ROLE}`] = message.role;
 
   // Handle content array
   message.content.forEach((content, contentIndex) => {
     const contentPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}.`;
 
     if (content.type === "text") {
-      attributes[
-        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`
-      ] = "text";
-      attributes[
-        `${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`
-      ] = content.text;
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TYPE}`] = "text";
+      attributes[`${contentPrefix}${SemanticConventions.MESSAGE_CONTENT_TEXT}`] = content.text;
     } else if (content.type === "tool_use") {
       const toolCallPrefix = `${indexPrefix}${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}.`;
-      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] =
-        content.id;
-      attributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-      ] = content.name;
-      attributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`
-      ] = JSON.stringify(content.input);
+      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = content.id;
+      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] = content.name;
+      attributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`] =
+        JSON.stringify(content.input);
     }
   });
 
@@ -483,13 +411,10 @@ function getAnthropicOutputMessagesAttributes(
 /**
  * Get usage attributes from Anthropic response
  */
-function getAnthropicUsageAttributes(
-  message: Anthropic.Messages.Message,
-): Attributes {
+function getAnthropicUsageAttributes(message: Anthropic.Messages.Message): Attributes {
   if (message.usage) {
     return {
-      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]:
-        message.usage.output_tokens,
+      [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: message.usage.output_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: message.usage.input_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
         message.usage.input_tokens + message.usage.output_tokens,
@@ -509,29 +434,17 @@ async function consumeAnthropicStreamChunks(
   const toolCallAttributes: Attributes = {};
 
   for await (const chunk of stream) {
-    if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta.type === "text_delta"
-    ) {
+    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
       streamResponse += chunk.delta.text;
-    } else if (
-      chunk.type === "content_block_start" &&
-      chunk.content_block.type === "tool_use"
-    ) {
+    } else if (chunk.type === "content_block_start" && chunk.content_block.type === "tool_use") {
       const toolCall = chunk.content_block;
       const toolCallIndex = chunk.index;
       const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
 
-      toolCallAttributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`
-      ] = toolCall.id;
-      toolCallAttributes[
-        `${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-      ] = toolCall.name;
-    } else if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta.type === "input_json_delta"
-    ) {
+      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_ID}`] = toolCall.id;
+      toolCallAttributes[`${toolCallPrefix}${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+        toolCall.name;
+    } else if (chunk.type === "content_block_delta" && chunk.delta.type === "input_json_delta") {
       const toolCallIndex = chunk.index;
       const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}.`;
       const existingArgs =
@@ -550,8 +463,7 @@ async function consumeAnthropicStreamChunks(
   const attributes: Attributes = {
     [SemanticConventions.OUTPUT_VALUE]: streamResponse,
     [SemanticConventions.OUTPUT_MIME_TYPE]: MimeType.TEXT,
-    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]:
-      streamResponse,
+    [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]: streamResponse,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
 

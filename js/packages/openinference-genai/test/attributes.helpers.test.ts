@@ -122,9 +122,7 @@ describe("attributes helpers", () => {
         "gen_ai.request.temperature": "hot",
         "gen_ai.request.max_tokens": 150,
       });
-      const json = attrs[
-        SemanticConventions.LLM_INVOCATION_PARAMETERS
-      ] as string;
+      const json = attrs[SemanticConventions.LLM_INVOCATION_PARAMETERS] as string;
       expect(typeof json).toBe("string");
       const parsed = JSON.parse(json);
       expect(parsed).toEqual({ max_completion_tokens: 150 });
@@ -134,14 +132,10 @@ describe("attributes helpers", () => {
   describe("mapInputValue", () => {
     it("maps input value and mime type", () => {
       const attrs = mapInputValue({
-        input: JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        input: JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       });
       expect(attrs["input.value"]).toBe(
-        JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["input.mime_type"]).toBe("application/json");
     });
@@ -152,9 +146,7 @@ describe("attributes helpers", () => {
         ]),
       });
       expect(attrs["input.value"]).toBe(
-        JSON.stringify([
-          { role: "user", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "user", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["input.mime_type"]).toBe("application/json");
     });
@@ -163,14 +155,10 @@ describe("attributes helpers", () => {
   describe("mapOutputValue", () => {
     it("maps output value and mime type", () => {
       const attrs = mapOutputValue({
-        output: JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        output: JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       });
       expect(attrs["output.value"]).toBe(
-        JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["output.mime_type"]).toBe("application/json");
     });
@@ -181,9 +169,7 @@ describe("attributes helpers", () => {
         ]),
       });
       expect(attrs["output.value"]).toBe(
-        JSON.stringify([
-          { role: "assistant", parts: [{ type: "text", content: "Hi" }] },
-        ]),
+        JSON.stringify([{ role: "assistant", parts: [{ type: "text", content: "Hi" }] }]),
       );
       expect(attrs["output.mime_type"]).toBe("application/json");
     });
@@ -244,29 +230,23 @@ describe("attributes helpers", () => {
 
       // llm.input_messages.* extracted
       expect(attrs["llm.input_messages.0.message.role"]).toBe("system");
-      expect(
-        attrs["llm.input_messages.0.message.contents.0.message_content.text"],
-      ).toBe("You are a helpful assistant.");
-      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
-      expect(
-        attrs["llm.input_messages.1.message.contents.0.message_content.text"],
-      ).toBe("Weather in Paris?");
-      expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
-      expect(
-        attrs["llm.input_messages.2.message.contents.0.message_content.type"],
-      ).toBe("text");
-      expect(
-        attrs["llm.input_messages.2.message.contents.0.message_content.text"],
-      ).toBe("Absolutely! Let me check the weather for you.");
-      expect(
-        attrs[
-          "llm.input_messages.2.message.tool_calls.0.tool_call.function.name"
-        ],
-      ).toBe("get_weather");
-      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
-      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe(
-        "call_VSPygqK",
+      expect(attrs["llm.input_messages.0.message.contents.0.message_content.text"]).toBe(
+        "You are a helpful assistant.",
       );
+      expect(attrs["llm.input_messages.1.message.role"]).toBe("user");
+      expect(attrs["llm.input_messages.1.message.contents.0.message_content.text"]).toBe(
+        "Weather in Paris?",
+      );
+      expect(attrs["llm.input_messages.2.message.role"]).toBe("assistant");
+      expect(attrs["llm.input_messages.2.message.contents.0.message_content.type"]).toBe("text");
+      expect(attrs["llm.input_messages.2.message.contents.0.message_content.text"]).toBe(
+        "Absolutely! Let me check the weather for you.",
+      );
+      expect(attrs["llm.input_messages.2.message.tool_calls.0.tool_call.function.name"]).toBe(
+        "get_weather",
+      );
+      expect(attrs["llm.input_messages.3.message.role"]).toBe("tool");
+      expect(attrs["llm.input_messages.3.message.tool_call_id"]).toBe("call_VSPygqK");
 
       const inOutAttrs = {
         ...mapInputValue(spanAttrs),
@@ -303,9 +283,7 @@ describe("attributes helpers", () => {
       expect(attrs["input.value"]).toBe(undefined);
       expect(attrs["input.mime_type"]).toBe(undefined);
       // no llm.input_messages.* keys created
-      expect(
-        Object.keys(attrs).some((k) => k.startsWith("llm.input_messages.")),
-      ).toBe(false);
+      expect(Object.keys(attrs).some((k) => k.startsWith("llm.input_messages."))).toBe(false);
     });
   });
 
@@ -333,9 +311,9 @@ describe("attributes helpers", () => {
       };
       const attrs = mapOutputMessages(spanAttrs);
       expect(attrs["llm.output_messages.0.message.role"]).toBe("assistant");
-      expect(
-        attrs["llm.output_messages.0.message.contents.0.message_content.text"],
-      ).toBe("The weather is rainy.");
+      expect(attrs["llm.output_messages.0.message.contents.0.message_content.text"]).toBe(
+        "The weather is rainy.",
+      );
       const inOutAttrs = {
         ...mapInputValue(spanAttrs),
         ...mapOutputValue(spanAttrs),
@@ -395,8 +373,7 @@ describe("attributes helpers", () => {
     it("maps tool execution details", () => {
       const spanAttrs = {
         "gen_ai.tool.name": "get_weather",
-        "gen_ai.tool.description":
-          "Retrieves the current weather report for a specified city.",
+        "gen_ai.tool.description": "Retrieves the current weather report for a specified city.",
         "gen_ai.tool.call.id": "1234",
         "gen_ai.tool.type": "function",
         input: '{"city": "New York"}',

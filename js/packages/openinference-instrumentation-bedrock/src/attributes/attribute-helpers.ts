@@ -1,3 +1,12 @@
+import type {
+  ContentBlock,
+  ConversationRole,
+  Message,
+  SystemContentBlock,
+} from "@aws-sdk/client-bedrock-runtime";
+import type { Attributes, AttributeValue, Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+
 import { safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import {
   LLMProvider,
@@ -6,23 +15,13 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, AttributeValue, diag, Span } from "@opentelemetry/api";
-
 import {
   isConverseImageContent,
   isConverseTextContent,
   isConverseToolResultContent,
   isConverseToolUseContent,
 } from "../types/bedrock-types";
-
 import { formatImageUrl } from "./invoke-model-helpers";
-
-import {
-  ContentBlock,
-  ConversationRole,
-  Message,
-  SystemContentBlock,
-} from "@aws-sdk/client-bedrock-runtime";
 
 /**
  * Sets a span attribute only if the value is not null, undefined, or empty string
@@ -62,11 +61,7 @@ export function getSystemFromModelId(modelId: string): LLMSystem {
 export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem) {
   setSpanAttribute(span, SemanticConventions.LLM_PROVIDER, LLMProvider.AWS);
 
-  setSpanAttribute(
-    span,
-    SemanticConventions.OPENINFERENCE_SPAN_KIND,
-    OpenInferenceSpanKind.LLM,
-  );
+  setSpanAttribute(span, SemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.LLM);
 
   setSpanAttribute(span, SemanticConventions.LLM_SYSTEM, llm_system);
 }
@@ -78,9 +73,7 @@ export function setBasicSpanAttributes(span: Span, llm_system: LLMSystem) {
  * @param systemPrompts Array of system content blocks from Bedrock Converse API
  * @returns {string} Combined system prompt text with proper formatting
  */
-export function aggregateSystemPrompts(
-  systemPrompts: SystemContentBlock[],
-): string {
+export function aggregateSystemPrompts(systemPrompts: SystemContentBlock[]): string {
   return systemPrompts
     .map((prompt) => prompt.text || "")
     .filter(Boolean)
@@ -142,9 +135,7 @@ const toBase64ImageBytes = withSafety({
  * @param content The content block to extract attributes from
  * @returns {Record<string, AttributeValue>} Object containing content-specific attributes
  */
-export function getAttributesFromMessageContent(
-  content: ContentBlock,
-): Attributes {
+export function getAttributesFromMessageContent(content: ContentBlock): Attributes {
   const attributes: Attributes = {};
 
   if (isConverseTextContent(content)) {
@@ -155,17 +146,15 @@ export function getAttributesFromMessageContent(
     const base64 = toBase64ImageBytes(content.image.source.bytes);
     if (base64) {
       const mimeType = `image/${content.image.format}`;
-      attributes[
-        `${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`
-      ] = formatImageUrl({
-        type: "base64",
-        data: base64,
-        media_type: mimeType,
-      });
+      attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.${SemanticConventions.IMAGE_URL}`] =
+        formatImageUrl({
+          type: "base64",
+          data: base64,
+          media_type: mimeType,
+        });
     }
     // Add format attribute for image content
-    attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] =
-      content.image.format;
+    attributes[`${SemanticConventions.MESSAGE_CONTENT_IMAGE}.format`] = content.image.format;
   }
 
   return attributes;
@@ -187,10 +176,7 @@ export function getAttributesFromMessage(message: Message): Attributes {
 
   if (message.content) {
     // Check if this is a simple single text content case
-    if (
-      message.content.length === 1 &&
-      isConverseTextContent(message.content[0])
-    ) {
+    if (message.content.length === 1 && isConverseTextContent(message.content[0])) {
       // Use simple format for single text content
       attributes[SemanticConventions.MESSAGE_CONTENT] = message.content[0].text;
     } else {
@@ -201,9 +187,8 @@ export function getAttributesFromMessage(message: Message): Attributes {
         // Process content as our custom types for attribute extraction
         const contentAttributes = getAttributesFromMessageContent(content);
         for (const key in contentAttributes) {
-          attributes[
-            `${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`
-          ] = contentAttributes[key];
+          attributes[`${SemanticConventions.MESSAGE_CONTENTS}.${index}.${key}`] =
+            contentAttributes[key];
         }
 
         // Handle tool calls at the message level using proper semantic conventions
@@ -211,9 +196,8 @@ export function getAttributesFromMessage(message: Message): Attributes {
           const toolCallPrefix = `${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
           attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_ID}`] =
             content.toolUse.toolUseId;
-          attributes[
-            `${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
-          ] = content.toolUse.name;
+          attributes[`${toolCallPrefix}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`] =
+            content.toolUse.name;
           const argsJson = safelyJSONStringify(content.toolUse.input);
           if (argsJson) {
             attributes[
@@ -222,8 +206,7 @@ export function getAttributesFromMessage(message: Message): Attributes {
           }
           toolCallIndex++;
         } else if (isConverseToolResultContent(content)) {
-          attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] =
-            content.toolResult.toolUseId;
+          attributes[SemanticConventions.MESSAGE_TOOL_CALL_ID] = content.toolResult.toolUseId;
         }
       }
     }

@@ -10,13 +10,7 @@
   "exclude": ["packages/**/examples/**"],
   "packageOptions": {
     "entryPoints": ["src/**/*.ts"],
-    "exclude": [
-      "examples/**",
-      "test/**",
-      "tests/**",
-      "**/*.test.ts",
-      "**/*.spec.ts",
-    ],
+    "exclude": ["examples/**", "test/**", "tests/**", "**/*.test.ts", "**/*.spec.ts"],
   },
   "includeVersion": false,
   "excludeExternals": true,

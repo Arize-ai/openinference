@@ -29,6 +29,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.packages == 'true' || needs.changes.outputs.workflow_file == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=8192"
 
     steps:
       - name: Checkout code
