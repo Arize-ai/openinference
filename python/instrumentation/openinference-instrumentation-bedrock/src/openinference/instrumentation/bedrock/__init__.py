@@ -409,8 +409,11 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
                         response["body"] = BufferedStreamingBody(
                             body._raw_stream, body._content_length
                         )
-                        response_body = json.loads(response.get("body").read())
-                        response["body"].reset()
+                        try:
+                            response_body = json.loads(response.get("body").read())
+                        finally:
+                            response["body"].reset()
+
                         if is_claude_message_api:
                             anthropic_attributes.set_response_attributes(span, response_body)
                         else:

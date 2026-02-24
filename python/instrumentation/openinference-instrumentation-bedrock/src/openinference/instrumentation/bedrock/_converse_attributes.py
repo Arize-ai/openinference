@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Sequence, Union
 
 from openinference.instrumentation import (
     Image,
@@ -26,16 +26,31 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
 )
 
+if TYPE_CHECKING:
+    from mypy_boto3_bedrock_runtime.type_defs import (
+        ContentBlockOutputTypeDef,
+        ConverseRequestTypeDef,
+        ConverseResponseTypeDef,
+        ConverseStreamRequestTypeDef,
+        ImageBlockOutputTypeDef,
+        MessageOutputTypeDef,
+        MessageUnionTypeDef,
+        ToolResultBlockOutputTypeDef,
+        ToolResultContentBlockOutputTypeDef,
+        ToolUseBlockOutputTypeDef,
+    )
+
 logger = logging.getLogger(__name__)
 
 
-def get_message_objects(message_list: List[Any]) -> List[Message]:
+def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Message]:
     """
     Convert a list of message dictionaries into a list of Message objects with extracted content,
     tool calls, and tool results.
 
     Args:
-        message_list (List[Any]): List of message dictionaries from the request or response.
+        message_list: List of message dicts (request or response) conforming to
+            ``MessageUnionTypeDef``.
 
     Returns:
         List[Message]: List of processed Message objects with structured content and tool call
@@ -43,38 +58,45 @@ def get_message_objects(message_list: List[Any]) -> List[Message]:
     """
     messages: List[Message] = []
     for message in message_list or []:
-        role = message.get("role", "")
+        role = message["role"]
         contents: list[Any] = []  # Accept both TextMessageContent and ImageMessageContent
         tool_calls: list[ToolCall] = []
         message_obj = Message(role=role)
-        for message_content in message.get("content", []):
-            if message_text := message_content.get("text"):
-                contents.append(TextMessageContent(text=message_text, type="text"))
-            if image_content := message_content.get("image"):
-                if content_bytes := image_content.get("source", {}).get("bytes"):
-                    base64_img = base64.b64encode(content_bytes).decode("utf-8")
-                    image_url = f"data:{image_content.get('format')};base64,{base64_img}"
+        for message_content in message["content"]:
+            _content: ContentBlockOutputTypeDef = message_content  # type: ignore[assignment]
+            if "text" in _content:
+                contents.append(TextMessageContent(text=_content["text"], type="text"))
+            if "image" in _content:
+                _image: ImageBlockOutputTypeDef = _content["image"]
+                image_source = _image["source"]
+                if "bytes" in image_source:
+                    base64_img = base64.b64encode(image_source["bytes"]).decode("utf-8")
+                    image_url = f"data:{_image['format']};base64,{base64_img}"
                     contents.append(ImageMessageContent(type="image", image=Image(url=image_url)))
-            if tool_use_content := message_content.get("toolUse"):
-                tool_call_function = ToolCallFunction(
-                    name=tool_use_content.get("name", ""),
-                    arguments=tool_use_content.get("input", {}),
-                )
+            if "toolUse" in _content:
+                _tool_use: ToolUseBlockOutputTypeDef = _content["toolUse"]
                 tool_calls.append(
-                    ToolCall(id=tool_use_content.get("toolUseId", ""), function=tool_call_function)
+                    ToolCall(
+                        id=_tool_use["toolUseId"],
+                        function=ToolCallFunction(
+                            name=_tool_use["name"], arguments=_tool_use["input"]
+                        ),
+                    )
                 )
-            if tool_result := message_content.get("toolResult"):
-                message_obj["tool_call_id"] = tool_result.get("toolUseId", "")
-                for tool_result_content in tool_result.get("content", []):
-                    if message_text := tool_result_content.get("text"):
-                        message_obj["content"] = message_text
-                    if json_text := tool_result_content.get("json"):
-                        message_obj["content"] = safe_json_dumps(json_text)
-                    if tool_result_content.get("image"):
+            if "toolResult" in _content:
+                _tool_result: ToolResultBlockOutputTypeDef = _content["toolResult"]
+                message_obj["tool_call_id"] = _tool_result["toolUseId"]
+                for tool_result_content in _tool_result["content"]:
+                    _tr_content: ToolResultContentBlockOutputTypeDef = tool_result_content
+                    if "text" in _tr_content:
+                        message_obj["content"] = _tr_content["text"]
+                    if "json" in _tr_content:
+                        message_obj["content"] = safe_json_dumps(_tr_content["json"])
+                    if "image" in _tr_content:
                         pass  # TODO: handle image tool result
-                    if tool_result_content.get("video"):
+                    if "video" in _tr_content:
                         pass  # TODO: handle video tool result
-                    if tool_result_content.get("document"):
+                    if "document" in _tr_content:
                         pass  # TODO: handle document tool result
         if contents:
             message_obj["contents"] = contents
@@ -84,26 +106,34 @@ def get_message_objects(message_list: List[Any]) -> List[Message]:
     return messages
 
 
-def get_input_messages(request_data: Dict[str, Any]) -> List[Message]:
+def get_input_messages(
+    request_data: Union[ConverseRequestTypeDef, ConverseStreamRequestTypeDef],
+) -> List[Message]:
     """
     Extracts and constructs input message objects from the request data, including system prompts
      and user messages.
 
     Args:
-        request_data (Dict[str, Any]): The request data containing system and user messages.
+        request_data: The typed Bedrock converse (or converse_stream) request dict.
 
     Returns:
         List[Message]: List of Message objects representing the input messages.
     """
     messages: List[Message] = []
-    if system_prompts := request_data.get("system"):
-        for system_prompt in system_prompts:
-            messages.append(Message(content=system_prompt.get("text"), role="system"))
-    messages.extend(get_message_objects(request_data.get("messages") or []))
+    if "system" in request_data:
+        for system_prompt in request_data["system"]:
+            msg = Message(role="system")
+            if "text" in system_prompt:
+                msg["content"] = system_prompt["text"]
+            messages.append(msg)
+    if "messages" in request_data:
+        messages.extend(get_message_objects(list(request_data["messages"])))
     return messages
 
 
-def get_attributes_from_request_data(request_data: dict[str, Any]) -> dict[str, Any]:
+def get_attributes_from_request_data(
+    request_data: Union[ConverseRequestTypeDef, ConverseStreamRequestTypeDef],
+) -> dict[str, Any]:
     """
     Extract attributes from model invocation input.
 
@@ -112,84 +142,89 @@ def get_attributes_from_request_data(request_data: dict[str, Any]) -> dict[str, 
     these attributes with LLM-specific attributes and span kind attributes.
 
     Args:
-        request_data (dict[str, Any]): The model invocation input dictionary.
+        request_data: The typed Bedrock converse (or converse_stream) request dict.
 
     Returns:
         dict[str, Any]: A dictionary of extracted attributes.
     """
-    llm_attributes = {}
+    llm_attributes: dict[str, Any] = {"model_name": request_data["modelId"]}
 
-    if model_name := request_data.get("modelId"):
-        llm_attributes["model_name"] = model_name
+    if "inferenceConfig" in request_data:
+        llm_attributes["invocation_parameters"] = request_data["inferenceConfig"]
 
-    if invocation_parameters := request_data.get("inferenceConfig"):
-        llm_attributes["invocation_parameters"] = invocation_parameters
-
-    if tool_config := request_data.get("toolConfig"):
+    if "toolConfig" in request_data:
+        tool_config = request_data["toolConfig"]
         llm_attributes["tools"] = [
-            Tool(json_schema=tool.get("toolSpec")) for tool in tool_config.get("tools", [])
-        ] or tool_config.get("tools")
+            Tool(json_schema=dict(tool["toolSpec"]))
+            for tool in tool_config["tools"]
+            if "toolSpec" in tool
+        ] or list(tool_config["tools"])
 
-    # Get input and output messages
     llm_attributes["input_messages"] = get_input_messages(request_data)
 
-    # Set attributes
     return {
         **get_llm_attributes(**llm_attributes),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
-        **get_input_attributes(request_data.get("messages") or []),
+        **get_input_attributes(
+            list(request_data["messages"]) if "messages" in request_data else []
+        ),
     }
 
 
-def get_token_counts(output_params: dict[str, Any]) -> TokenCount | None:
+def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | None:
     """
     Get token counts from output parameters.
 
     Args:
-        output_params (dict[str, Any]): The output parameters.
+        output_params: The typed Bedrock converse response dict.
 
     Returns:
         TokenCount | None: A TokenCount object if token counts are found, None otherwise.
     """
-    if usage := output_params.get("usage"):
-        completion, prompt, total = 0, 0, 0
-        if input_tokens := usage.get("inputTokens"):
-            prompt = input_tokens
-        if output_tokens := usage.get("outputTokens"):
-            completion = output_tokens
-        if total_tokens := usage.get("totalTokens"):
-            total = total_tokens
-        return TokenCount(prompt=prompt, completion=completion, total=total)
-    return None
+    # usage is required in ConverseResponseTypeDef but may be absent from
+    # stream-constructed responses when no metadata event was received.
+    if "usage" not in output_params:
+        return None
+    usage = output_params["usage"]
+    return TokenCount(
+        prompt=usage["inputTokens"],
+        completion=usage["outputTokens"],
+        total=usage["totalTokens"],
+    )
 
 
 def get_attributes_from_response_data(
-    request_data: Dict[str, Any], response_data: Dict[str, Any]
-) -> Any:
+    request_data: Union[ConverseRequestTypeDef, ConverseStreamRequestTypeDef],
+    response_data: ConverseResponseTypeDef,
+) -> dict[str, Any]:
     """
     Extracts and compiles LLM request and response attributes into a single dictionary.
 
     Args:
-        request_data (dict[str, Any]): The original request payload sent to the LLM API.
-        response_data (dict[str, Any]): The response payload received from the LLM API.
+        request_data: The typed Bedrock converse (or converse_stream) request dict.
+        response_data: The typed Bedrock converse response dict.
 
     Returns:
         dict[str, Any]: A dictionary containing merged LLM attributes, token counts, and output
         message attributes.
     """
     llm_attributes: Dict[str, Any] = {}
-    stop_reason = response_data.get("stopReason")
-    if stop_reason:
-        llm_attributes["invocation_parameters"] = request_data.get("inferenceConfig") or {}
-        llm_attributes["invocation_parameters"]["stop_reason"] = stop_reason
+    # stopReason is required in ConverseResponseTypeDef but may be absent from
+    # stream-constructed responses when no messageStop event was received.
+    if "stopReason" in response_data:
+        llm_attributes["invocation_parameters"] = (
+            dict(request_data["inferenceConfig"]) if "inferenceConfig" in request_data else {}
+        )
+        llm_attributes["invocation_parameters"]["stop_reason"] = response_data["stopReason"]
 
-    message = response_data.get("output", {}).get("message")
+    # output is required in ConverseResponseTypeDef and always set by _construct_final_message.
+    output = response_data["output"]
+    message: MessageOutputTypeDef | None = output["message"] if "message" in output else None
     if message:
         llm_attributes["output_messages"] = get_message_objects([message])
 
-    request_attributes = {
+    return {
         **get_llm_attributes(**llm_attributes),
-        **get_llm_token_count_attributes(get_token_counts(response_data or {})),
-        **get_output_attributes(response_data.get("output", {}).get("message")),
+        **get_llm_token_count_attributes(get_token_counts(response_data)),
+        **get_output_attributes(message),
     }
-    return request_attributes

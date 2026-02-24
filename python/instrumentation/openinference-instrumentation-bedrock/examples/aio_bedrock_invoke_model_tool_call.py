@@ -47,7 +47,7 @@ async def tool_call_example():
     )
     async with session.client("bedrock-runtime") as client:
         response = await client.invoke_model(
-            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            modelId="us.anthropic.claude-sonnet-4-6",
             contentType="application/json",
             accept="application/json",
             body=json.dumps(body),
@@ -98,7 +98,7 @@ async def tool_call_with_response():
     )
     async with session.client("bedrock-runtime") as client:
         response = await client.invoke_model(
-            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            modelId="us.anthropic.claude-sonnet-4-6",
             contentType="application/json",
             accept="application/json",
             body=json.dumps(body),

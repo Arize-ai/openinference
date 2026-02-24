@@ -93,12 +93,12 @@ async def invoke_image_call():
     )
     async with session.client("bedrock-runtime") as client:
         response = await client.invoke_model_with_response_stream(
-            modelId="anthropic.claude-3-haiku-20240307-v1:0", body=json.dumps(message)
+            modelId="us.anthropic.claude-sonnet-4-6", body=json.dumps(message)
         )
         async for chunk in response["body"]:
             print(chunk)
 
 
 if __name__ == "__main__":
-    # asyncio.run(invoke_image_call())
+    asyncio.run(invoke_image_call())
     asyncio.run(claude3_invoke_model())

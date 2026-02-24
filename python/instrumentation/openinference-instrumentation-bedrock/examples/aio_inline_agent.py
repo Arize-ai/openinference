@@ -14,8 +14,7 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 
 BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
 
-FOUNDATION_MODEL_NAME = "anthropic.claude-3-sonnet-20240229-v1:0"
-HAIKU_FOUNDATION_MODEL = "anthropic.claude-3-haiku-20240307-v1:0"
+FOUNDATION_MODEL_NAME = "us.anthropic.claude-sonnet-4-6"
 
 KNOWLEDGE_BASE_ID = "<KnowledgeBaseID>"
 ACTION_GROUP_ARN = "ActionGroupLambdaARN"
@@ -40,7 +39,7 @@ async def call_agent(params, region_name="us-east-1"):
 
 def simple_agent():
     attributes = dict(
-        foundationModel="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        foundationModel=FOUNDATION_MODEL_NAME,
         instruction="You are a helpful assistant and need to help the user with your knowledge.",
         inputText="who is US President in 2001?",
         sessionId="default_session_id2",
@@ -74,12 +73,9 @@ def full_processing_agent():
         promptOverrideConfiguration={
             "promptConfigurations": [
                 {
-                    "foundationModel": HAIKU_FOUNDATION_MODEL,
+                    "foundationModel": FOUNDATION_MODEL_NAME,
                     "inferenceConfiguration": {
                         "maximumLength": 2048,
-                        "temperature": 0,
-                        "topK": 250,
-                        "topP": 0,
                     },
                     "parserMode": "DEFAULT",
                     "promptCreationMode": "DEFAULT",
@@ -87,12 +83,9 @@ def full_processing_agent():
                     "promptType": "PRE_PROCESSING",
                 },
                 {
-                    "foundationModel": HAIKU_FOUNDATION_MODEL,
+                    "foundationModel": FOUNDATION_MODEL_NAME,
                     "inferenceConfiguration": {
                         "maximumLength": 2048,
-                        "temperature": 0,
-                        "topK": 250,
-                        "topP": 0,
                     },
                     "parserMode": "DEFAULT",
                     "promptCreationMode": "DEFAULT",
@@ -195,9 +188,9 @@ def multi_agent_colab():
 
 
 if __name__ == "__main__":
-    # simple_agent()
+    simple_agent()
     code_gen_agent()
-    # full_processing_agent()
+    full_processing_agent()
     # knowledge_base_agent()
     # action_group()
     # multi_agent_colab()

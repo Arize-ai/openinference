@@ -7,7 +7,15 @@ operations, enabling distributed tracing and observability for RAG workflows.
 
 import logging
 from functools import wraps
-from typing import Any, Callable, Dict, List, Mapping, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, TypeVar, cast
+
+if TYPE_CHECKING:
+    from mypy_boto3_bedrock_agent_runtime.type_defs import (
+        RetrieveAndGenerateRequestTypeDef,
+        RetrieveAndGenerateResponseTypeDef,
+        RetrieveRequestTypeDef,
+        RetrieveResponseTypeDef,
+    )
 
 from botocore.client import BaseClient
 from opentelemetry import context as context_api
@@ -55,12 +63,16 @@ def _retrieve_wrapper(tracer: Tracer) -> Callable[[BaseClient], Callable[..., An
 
                 with tracer.start_as_current_span("bedrock.retrieve") as span:
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(kwargs)
+                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(
+                            cast("RetrieveRequestTypeDef", kwargs)
+                        )
                     )
                     response = await wrapped_client._unwrapped_retrieve(*args, **kwargs)
                     span.set_attributes(dict(get_attributes_from_context()))
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(response)
+                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(
+                            cast("RetrieveResponseTypeDef", response)
+                        )
                     )
                     span.set_status(Status(StatusCode.OK))
                     return response  # type: ignore
@@ -75,12 +87,16 @@ def _retrieve_wrapper(tracer: Tracer) -> Callable[[BaseClient], Callable[..., An
 
                 with tracer.start_as_current_span("bedrock.retrieve") as span:
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(kwargs)
+                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(
+                            cast("RetrieveRequestTypeDef", kwargs)
+                        )
                     )
                     response = wrapped_client._unwrapped_retrieve(*args, **kwargs)
                     span.set_attributes(dict(get_attributes_from_context()))
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(response)
+                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(
+                            cast("RetrieveResponseTypeDef", response)
+                        )
                     )
                     span.set_status(Status(StatusCode.OK))
                     return response  # type: ignore
@@ -122,14 +138,18 @@ def _retrieve_and_generate_wrapper(tracer: Tracer) -> Callable[[BaseClient], Cal
 
                 with tracer.start_as_current_span("bedrock.retrieve_and_generate") as span:
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs)
+                        AttributeExtractor.extract_bedrock_rag_input_attributes(
+                            cast("RetrieveAndGenerateRequestTypeDef", kwargs)
+                        )
                     )
                     response = await wrapped_client._unwrapped_retrieve_and_generate(
                         *args, **kwargs
                     )
                     span.set_attributes(dict(get_attributes_from_context()))
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_rag_response_attributes(response)
+                        AttributeExtractor.extract_bedrock_rag_response_attributes(
+                            cast("RetrieveAndGenerateResponseTypeDef", response)
+                        )
                     )
                     span.set_status(Status(StatusCode.OK))
                     return response  # type: ignore
@@ -144,12 +164,16 @@ def _retrieve_and_generate_wrapper(tracer: Tracer) -> Callable[[BaseClient], Cal
 
                 with tracer.start_as_current_span("bedrock.retrieve_and_generate") as span:
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs)
+                        AttributeExtractor.extract_bedrock_rag_input_attributes(
+                            cast("RetrieveAndGenerateRequestTypeDef", kwargs)
+                        )
                     )
                     response = wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)
                     span.set_attributes(dict(get_attributes_from_context()))
                     span.set_attributes(
-                        AttributeExtractor.extract_bedrock_rag_response_attributes(response)
+                        AttributeExtractor.extract_bedrock_rag_response_attributes(
+                            cast("RetrieveAndGenerateResponseTypeDef", response)
+                        )
                     )
                     span.set_status(Status(StatusCode.OK))
                     return response  # type: ignore
@@ -234,7 +258,10 @@ class _RagEventStream:
                 self._span.set_attributes(dict(get_attributes_from_context()))
                 self._span.set_attributes(
                     AttributeExtractor.extract_bedrock_rag_response_attributes(
-                        {"citations": self.citations, "output": {"text": self.output}}
+                        cast(
+                            "RetrieveAndGenerateResponseTypeDef",
+                            {"citations": self.citations, "output": {"text": self.output}},
+                        )
                     )
                 )
                 self._span.set_status(Status(StatusCode.OK))

@@ -44,5 +44,5 @@ def retrieve_and_generate():
 
 
 if __name__ == "__main__":
-    # run()
+    run()
     retrieve_and_generate()

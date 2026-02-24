@@ -75,5 +75,5 @@ def converse_example():
 
 
 if __name__ == "__main__":
-    # invoke_example()
+    invoke_example()
     converse_example()
