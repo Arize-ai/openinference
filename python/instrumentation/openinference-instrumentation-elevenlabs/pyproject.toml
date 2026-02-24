@@ -47,9 +47,9 @@ test = [
   "opentelemetry-exporter-otlp-proto-http",
 ]
 examples = [
-  "pip>=25.3",
-  "ipykernel>=6.31.0",
   "elevenlabs>=1.0.0",
+  "arize-otel",
+  "python-dotenv",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -104,7 +104,6 @@ line-length = 100
 target-version = "py38"
 
 [tool.ruff.lint.per-file-ignores]
-"*.ipynb" = ["E402", "E501"]
 "tests/**/*.py" = ["E501"]  # Ignore line length in tests
 
 [tool.ruff.lint]
