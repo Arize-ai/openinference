@@ -52,7 +52,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-bedrock-agent-runtime": "^3.844.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "3.918.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.46.0",
     "@opentelemetry/instrumentation": "^0.46.0",
     "@opentelemetry/resources": "^1.25.1",
