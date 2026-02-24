@@ -217,11 +217,23 @@ class _LazyAsyncInvokeModelBody:
         if self._cached is not None:
             out: bytes = self._cached if amt is None else self._cached[:amt]
             return out
-        # First read: pull full body, set span attributes, end span, then return.
-        # The stream read is inside the try so that a stream failure also ends the span.
+        # Stream read is a legitimate failure (network/service error): record and propagate.
         try:
             body_bytes = cast(bytes, await self._real_stream.read())
-            self._cached = body_bytes
+        except Exception as e:
+            try:
+                self._span.record_exception(e)
+                self._span.set_status(Status(StatusCode.ERROR))
+            finally:
+                if not self._span_ended:
+                    self._span.end()
+                    self._span_ended = True
+            raise
+        self._cached = body_bytes
+        # Instrumentation failures (JSON parsing, attribute extraction) are internal errors.
+        # Log and continue so the caller always receives their response bytes, mirroring the
+        # sync _model_invocation_wrapper which uses logger.warning for the same errors.
+        try:
             # json.loads() accepts bytes in Python 3.6+ (decodes as UTF-8).
             response_body = json.loads(body_bytes)
             if self._is_claude_message_api:
@@ -232,10 +244,8 @@ class _LazyAsyncInvokeModelBody:
                 )
             self._span.set_attributes(dict(get_attributes_from_context()))
             self._span.set_status(Status(StatusCode.OK))
-        except Exception as e:
-            self._span.record_exception(e)
-            self._span.set_status(Status(StatusCode.ERROR))
-            raise
+        except Exception:
+            logger.warning("Failed to extract response attributes", exc_info=True)
         finally:
             if not self._span_ended:
                 self._span.end()
