@@ -58,6 +58,7 @@
   "overrides": {
     "prismjs": ">=1.30.0",
     "nanoid": ">=3.3.8",
-    "on-headers": ">=1.1.0"
+    "on-headers": ">=1.1.0",
+    "fast-xml-parser": ">=5.3.5"
   }
 }
