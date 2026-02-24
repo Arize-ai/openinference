@@ -118,7 +118,7 @@ describe("MCPInstrumentation", () => {
       name: "MCP",
       version: "0.1.0",
     });
-    client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+    client.setRequestHandler(z.object({ method: z.literal("whoami") }) as any, () => {
       return tracer.startActiveSpan("whoami", (span) => {
         try {
           return {
@@ -218,7 +218,7 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
-      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }) as any, () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {
             return {
@@ -314,7 +314,7 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
-      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }) as any, () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {
             return {

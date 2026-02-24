@@ -28,12 +28,12 @@ function newMcpServer(tracer: Tracer) {
 
   server.tool("hello", () => {
     return tracer.startActiveSpan("hello", async (span) => {
-      const result = await server.server.request(
+      const result = (await server.server.request(
         {
           method: "whoami",
         },
-        z.object({ name: z.string() }),
-      );
+        z.object({ name: z.string() }) as any,
+      )) as { name: string };
       try {
         return {
           content: [
