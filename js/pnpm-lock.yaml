@@ -34,7 +34,7 @@ overrides:
   lodash-es@>=4.0.0 <=4.17.22: '>=4.17.23'
   lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
   diff@>=4.0.0 <4.0.4: '>=4.0.4'
-  fast-xml-parser@>=4.3.6 <=5.3.3: '>=5.3.4'
+  fast-xml-parser@>=4.3.6 <=5.3.4: '>=5.3.5'
   js-yaml@<3.14.2: '>=3.14.2'
   js-yaml@>=4.0.0 <4.1.1: '>=4.1.1'
   read-yaml-file@<2.0.0: '>=2.1.0'
@@ -342,7 +342,7 @@ importers:
         version: 7.7.0
       beeai-framework:
         specifier: ^0.1.13
-        version: 0.1.18(33d3d033a47dd29c38c48cec14de582a)
+        version: 0.1.18(80cf9b6c93caa1808dc4567d2de40e5f)
       import-in-the-middle:
         specifier: ^1.13.0
         version: 1.15.0
@@ -1731,7 +1731,7 @@ packages:
       duck-duck-scrape: ^2.2.5
       epub2: ^3.0.1
       faiss-node: '*'
-      fast-xml-parser: '>=5.3.4'
+      fast-xml-parser: '>=5.3.5'
       firebase-admin: ^11.9.0 || ^12.0.0 || ^13.0.0
       google-auth-library: '*'
       googleapis: '*'
@@ -4111,8 +4111,8 @@ packages:
   fast-uri@3.0.6:
     resolution: {integrity: sha512-Atfo14OibSv5wAp4VWNsFYE1AchQRTv9cBGWET4pZWHzYshFSS9NQI6I57rdKn9croWVMbYFbLhJ+yJvmZIIHw==}
 
-  fast-xml-parser@5.3.4:
-    resolution: {integrity: sha512-EFd6afGmXlCx8H8WTZHhAoDaWaGyuIBoZJ2mknrNxug+aZKjkp0a0dlars9Izl+jF+7Gu1/5f/2h68cQpe0IiA==}
+  fast-xml-parser@5.3.7:
+    resolution: {integrity: sha512-JzVLro9NQv92pOM/jTCR6mHlJh2FGwtomH8ZQjhFj/R29P2Fnj38OgPJVtcvYw6SuKClhgYuwUZf5b3rd8u2mA==}
     hasBin: true
 
   fastq@1.17.1:
@@ -5428,8 +5428,8 @@ packages:
     resolution: {integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==}
     engines: {node: '>=8'}
 
-  strnum@2.1.1:
-    resolution: {integrity: sha512-7ZvoFTiCnGxBtDqJ//Cu6fWtZtc7Y3x+QOirG15wztbdngGSkht27o2pyGWrVy0b4WAy3jbKmnoK6g5VlVNUUw==}
+  strnum@2.1.2:
+    resolution: {integrity: sha512-l63NF9y/cLROq/yqKXSLtcMeeyOfnSQlfMSlzFt/K73oIaD8DGaQWd7Z34X9GPiKqP5rbSh84Hl4bOlLcjiSrQ==}
 
   strtok3@6.3.0:
     resolution: {integrity: sha512-fZtbhtvI9I48xDSywd/somNqgUHl2L2cstmXCCif0itOf96jeW18MBSyrLuNicYQVkvpOxkZtkzujiTJ9LW5Jw==}
@@ -6287,7 +6287,7 @@ snapshots:
       '@smithy/smithy-client': 3.7.0
       '@smithy/types': 3.7.2
       '@smithy/util-middleware': 3.0.11
-      fast-xml-parser: 5.3.4
+      fast-xml-parser: 5.3.7
       tslib: 2.8.1
 
   '@aws-sdk/core@3.916.0':
@@ -6771,7 +6771,7 @@ snapshots:
   '@aws-sdk/xml-builder@3.914.0':
     dependencies:
       '@smithy/types': 4.8.0
-      fast-xml-parser: 5.3.4
+      fast-xml-parser: 5.3.7
       tslib: 2.8.1
 
   '@aws/lambda-invoke-store@0.0.1': {}
@@ -7340,7 +7340,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.0.0(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.918.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.56.1)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.7.0(ws@8.18.3)(zod@3.25.76)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.3.4)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.1)(jsonwebtoken@9.0.2)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(playwright@1.56.1)(ws@8.18.3)':
+  '@langchain/community@1.0.0(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.918.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.56.1)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.7.0(ws@8.18.3)(zod@3.25.76)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.3.7)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.1)(jsonwebtoken@9.0.2)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(playwright@1.56.1)(ws@8.18.3)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.56.1)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(zod@3.25.76)
       '@ibm-cloud/watsonx-ai': 1.7.0
@@ -7361,7 +7361,7 @@ snapshots:
       '@browserbasehq/sdk': 2.6.0
       '@smithy/util-utf8': 2.3.0
       duck-duck-scrape: 2.2.7
-      fast-xml-parser: 5.3.4
+      fast-xml-parser: 5.3.7
       ignore: 5.3.1
       jsonwebtoken: 9.0.2
       playwright: 1.56.1
@@ -9319,7 +9319,7 @@ snapshots:
     dependencies:
       safe-buffer: 5.1.2
 
-  beeai-framework@0.1.18(33d3d033a47dd29c38c48cec14de582a):
+  beeai-framework@0.1.18(80cf9b6c93caa1808dc4567d2de40e5f):
     dependencies:
       '@ai-sdk/xai': 1.2.18(zod@3.25.76)
       '@ai-zen/node-fetch-event-source': 2.1.4
@@ -9329,7 +9329,7 @@ snapshots:
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
       duck-duck-scrape: 2.2.7
-      fast-xml-parser: 5.3.4
+      fast-xml-parser: 5.3.7
       header-generator: 2.1.75
       joplin-turndown-plugin-gfm: 1.0.12
       jsonrepair: 3.13.1
@@ -9351,7 +9351,7 @@ snapshots:
       zod-to-json-schema: 3.24.6(zod@3.25.76)
     optionalDependencies:
       '@ibm-cloud/watsonx-ai': 1.7.0
-      '@langchain/community': 1.0.0(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.918.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.56.1)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.7.0(ws@8.18.3)(zod@3.25.76)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.3.4)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.1)(jsonwebtoken@9.0.2)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(playwright@1.56.1)(ws@8.18.3)
+      '@langchain/community': 1.0.0(@aws-crypto/sha256-js@5.2.0)(@aws-sdk/credential-provider-node@3.918.0)(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.56.1)(deepmerge@4.3.1)(dotenv@16.6.1)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.7.0(ws@8.18.3)(zod@3.25.76)))(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(@smithy/util-utf8@2.3.0)(duck-duck-scrape@2.2.7)(fast-xml-parser@5.3.7)(ibm-cloud-sdk-core@5.4.3)(ignore@5.3.1)(jsonwebtoken@9.0.2)(openai@6.7.0(ws@8.18.3)(zod@3.25.76))(playwright@1.56.1)(ws@8.18.3)
       '@langchain/core': 1.1.18(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.50.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.7.0(ws@8.18.3)(zod@3.25.76))
       '@modelcontextprotocol/sdk': 1.20.2
       express: 5.1.0
@@ -9815,9 +9815,9 @@ snapshots:
 
   fast-uri@3.0.6: {}
 
-  fast-xml-parser@5.3.4:
+  fast-xml-parser@5.3.7:
     dependencies:
-      strnum: 2.1.1
+      strnum: 2.1.2
 
   fastq@1.17.1:
     dependencies:
@@ -11239,7 +11239,7 @@ snapshots:
 
   strip-bom@4.0.0: {}
 
-  strnum@2.1.1: {}
+  strnum@2.1.2: {}
 
   strtok3@6.3.0:
     dependencies:
