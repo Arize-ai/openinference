@@ -1,3 +1,5 @@
+// @ts-nocheck – The MCP SDK's deeply recursive zod v4 types cause tsc to
+// stack-overflow (SIGABRT) during type-checking.  Runtime behavior is unaffected.
 import { randomUUID } from "crypto";
 import type http from "http";
 import type { AddressInfo } from "net";
@@ -17,7 +19,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 import { MCPInstrumentation } from "../src";
 

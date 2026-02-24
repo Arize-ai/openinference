@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.19...python-openinference-instrumentation-crewai-v0.1.20) (2026-02-24)
+
+
+### Bug Fixes
+
+* update agent span name to include task name ([#2767](https://github.com/Arize-ai/openinference/issues/2767)) ([99b8e4e](https://github.com/Arize-ai/openinference/commit/99b8e4e759eee98b34bb94d8f5489a52233f2bb3))
+
 ## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.18...python-openinference-instrumentation-crewai-v0.1.19) (2026-02-18)
 
 
