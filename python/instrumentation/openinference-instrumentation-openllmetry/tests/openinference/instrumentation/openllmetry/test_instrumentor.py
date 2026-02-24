@@ -10,7 +10,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
-
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
