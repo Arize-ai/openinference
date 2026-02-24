@@ -1,6 +1,7 @@
+import asyncio
 import time
 
-import boto3
+import aioboto3
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -14,38 +15,37 @@ tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint
 BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
 
 FOUNDATION_MODEL_NAME = "us.anthropic.claude-sonnet-4-6"
-HAIKU_FOUNDATION_MODEL = "us.anthropic.claude-sonnet-4-6"
 
 KNOWLEDGE_BASE_ID = "<KnowledgeBaseID>"
 ACTION_GROUP_ARN = "ActionGroupLambdaARN"
 AGENT_ALIAS_ARN = "CollaborationAgentAliasARN"
 
 
-def call_agent(params, region_name="us-east-1"):
+async def call_agent(params, region_name="us-east-1"):
     params["sessionId"] = f"default-session1_{int(time.time())}"
-    session = boto3.session.Session()
-    client = session.client("bedrock-agent-runtime", region_name)
-    response = client.invoke_inline_agent(**params)
-    for idx, event in enumerate(response["completion"]):
-        if "chunk" in event:
-            print(event)
-            chunk_data = event["chunk"]
-            if "bytes" in chunk_data:
-                output_text = chunk_data["bytes"].decode("utf8")
-                print(output_text)
-        elif "trace" in event:
-            print(event)
+    session = aioboto3.session.Session()
+    async with session.client("bedrock-agent-runtime", region_name) as client:
+        response = await client.invoke_inline_agent(**params)
+        async for event in response["completion"]:
+            if "chunk" in event:
+                print(event)
+                chunk_data = event["chunk"]
+                if "bytes" in chunk_data:
+                    output_text = chunk_data["bytes"].decode("utf8")
+                    print(output_text)
+            elif "trace" in event:
+                print(event)
 
 
 def simple_agent():
     attributes = dict(
-        foundationModel="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        foundationModel=FOUNDATION_MODEL_NAME,
         instruction="You are a helpful assistant and need to help the user with your knowledge.",
         inputText="who is US President in 2001?",
         sessionId="default_session_id2",
         enableTrace=True,
     )
-    call_agent(attributes)
+    asyncio.run(call_agent(attributes))
 
 
 def code_gen_agent():
@@ -61,7 +61,7 @@ def code_gen_agent():
         ],
         enableTrace=True,
     )
-    call_agent(attributes)
+    asyncio.run(call_agent(attributes))
 
 
 def full_processing_agent():
@@ -73,12 +73,9 @@ def full_processing_agent():
         promptOverrideConfiguration={
             "promptConfigurations": [
                 {
-                    "foundationModel": HAIKU_FOUNDATION_MODEL,
+                    "foundationModel": FOUNDATION_MODEL_NAME,
                     "inferenceConfiguration": {
                         "maximumLength": 2048,
-                        "temperature": 0,
-                        "topK": 250,
-                        "topP": 0,
                     },
                     "parserMode": "DEFAULT",
                     "promptCreationMode": "DEFAULT",
@@ -86,12 +83,9 @@ def full_processing_agent():
                     "promptType": "PRE_PROCESSING",
                 },
                 {
-                    "foundationModel": HAIKU_FOUNDATION_MODEL,
+                    "foundationModel": FOUNDATION_MODEL_NAME,
                     "inferenceConfiguration": {
                         "maximumLength": 2048,
-                        "temperature": 0,
-                        "topK": 250,
-                        "topP": 0,
                     },
                     "parserMode": "DEFAULT",
                     "promptCreationMode": "DEFAULT",
@@ -101,7 +95,7 @@ def full_processing_agent():
             ]
         },
     )
-    call_agent(attributes)
+    asyncio.run(call_agent(attributes))
 
 
 def knowledge_base_agent():
@@ -119,7 +113,7 @@ def knowledge_base_agent():
         ],
         enableTrace=True,
     )
-    call_agent(attributes, "ap-south-1")
+    asyncio.run(call_agent(attributes, "ap-south-1"))
 
 
 def action_group():
@@ -164,7 +158,7 @@ def action_group():
         inputText="What is the sum of 10 and 20?",
         enableTrace=True,
     )
-    call_agent(attributes, "us-east-1")
+    asyncio.run(call_agent(attributes, "us-east-1"))
 
 
 def multi_agent_colab():
@@ -190,13 +184,13 @@ def multi_agent_colab():
             },
         ],
     )
-    call_agent(attributes, "us-east-1")
+    asyncio.run(call_agent(attributes, "us-east-1"))
 
 
 if __name__ == "__main__":
     simple_agent()
     code_gen_agent()
     full_processing_agent()
-    knowledge_base_agent()
-    action_group()
-    multi_agent_colab()
+    # knowledge_base_agent()
+    # action_group()
+    # multi_agent_colab()

@@ -5,8 +5,17 @@ This module provides OpenTelemetry instrumentation for Bedrock's retrieve and re
 operations, enabling distributed tracing and observability for RAG workflows.
 """
 
+import logging
 from functools import wraps
-from typing import Any, Callable, Dict, List, Mapping, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, TypeVar, cast
+
+if TYPE_CHECKING:
+    from mypy_boto3_bedrock_agent_runtime.type_defs import (
+        RetrieveAndGenerateRequestTypeDef,
+        RetrieveAndGenerateResponseTypeDef,
+        RetrieveRequestTypeDef,
+        RetrieveResponseTypeDef,
+    )
 
 from botocore.client import BaseClient
 from opentelemetry import context as context_api
@@ -17,6 +26,8 @@ from openinference.instrumentation import (
     get_attributes_from_context,
 )
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
+
+logger = logging.getLogger(__name__)
 
 _AnyT = TypeVar("_AnyT")  # Type variable for generic return type
 
@@ -43,24 +54,54 @@ def _retrieve_wrapper(tracer: Tracer) -> Callable[[BaseClient], Callable[..., An
     """
 
     def _invocation_wrapper(wrapped_client: BaseClient) -> Callable[..., Any]:
-        @wraps(wrapped_client.retrieve)
-        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return wrapped_client._unwrapped_retrieve(*args, **kwargs)  # type: ignore
+        if hasattr(wrapped_client, "__aenter__"):
 
-            with tracer.start_as_current_span("bedrock.retrieve") as span:
-                span.set_attributes(
-                    AttributeExtractor.extract_bedrock_retrieve_input_attributes(kwargs)
-                )
-                response = wrapped_client._unwrapped_retrieve(*args, **kwargs)
-                span.set_attributes(dict(get_attributes_from_context()))
-                span.set_attributes(
-                    AttributeExtractor.extract_bedrock_retrieve_response_attributes(response)
-                )
-                span.set_status(Status(StatusCode.OK))
-                return response  # type: ignore
+            @wraps(wrapped_client.retrieve)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return await wrapped_client._unwrapped_retrieve(*args, **kwargs)  # type: ignore
 
-        return instrumented_response
+                with tracer.start_as_current_span("bedrock.retrieve") as span:
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(
+                            cast("RetrieveRequestTypeDef", kwargs)
+                        )
+                    )
+                    response = await wrapped_client._unwrapped_retrieve(*args, **kwargs)
+                    span.set_attributes(dict(get_attributes_from_context()))
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(
+                            cast("RetrieveResponseTypeDef", response)
+                        )
+                    )
+                    span.set_status(Status(StatusCode.OK))
+                    return response  # type: ignore
+
+            return async_instrumented_response
+        else:
+
+            @wraps(wrapped_client.retrieve)
+            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return wrapped_client._unwrapped_retrieve(*args, **kwargs)  # type: ignore
+
+                with tracer.start_as_current_span("bedrock.retrieve") as span:
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_retrieve_input_attributes(
+                            cast("RetrieveRequestTypeDef", kwargs)
+                        )
+                    )
+                    response = wrapped_client._unwrapped_retrieve(*args, **kwargs)
+                    span.set_attributes(dict(get_attributes_from_context()))
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_retrieve_response_attributes(
+                            cast("RetrieveResponseTypeDef", response)
+                        )
+                    )
+                    span.set_status(Status(StatusCode.OK))
+                    return response  # type: ignore
+
+            return sync_instrumented_response
 
     return _invocation_wrapper
 
@@ -88,22 +129,56 @@ def _retrieve_and_generate_wrapper(tracer: Tracer) -> Callable[[BaseClient], Cal
     """
 
     def _invocation_wrapper(wrapped_client: BaseClient) -> Callable[..., Any]:
-        @wraps(wrapped_client.retrieve_and_generate)
-        def instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
-            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-                return wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)  # type: ignore
+        if hasattr(wrapped_client, "__aenter__"):
 
-            with tracer.start_as_current_span("bedrock.retrieve_and_generate") as span:
-                span.set_attributes(AttributeExtractor.extract_bedrock_rag_input_attributes(kwargs))
-                response = wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)
-                span.set_attributes(dict(get_attributes_from_context()))
-                span.set_attributes(
-                    AttributeExtractor.extract_bedrock_rag_response_attributes(response)
-                )
-                span.set_status(Status(StatusCode.OK))
-                return response  # type: ignore
+            @wraps(wrapped_client.retrieve_and_generate)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return await wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)  # type: ignore
 
-        return instrumented_response
+                with tracer.start_as_current_span("bedrock.retrieve_and_generate") as span:
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_rag_input_attributes(
+                            cast("RetrieveAndGenerateRequestTypeDef", kwargs)
+                        )
+                    )
+                    response = await wrapped_client._unwrapped_retrieve_and_generate(
+                        *args, **kwargs
+                    )
+                    span.set_attributes(dict(get_attributes_from_context()))
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_rag_response_attributes(
+                            cast("RetrieveAndGenerateResponseTypeDef", response)
+                        )
+                    )
+                    span.set_status(Status(StatusCode.OK))
+                    return response  # type: ignore
+
+            return async_instrumented_response
+        else:
+
+            @wraps(wrapped_client.retrieve_and_generate)
+            def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)  # type: ignore
+
+                with tracer.start_as_current_span("bedrock.retrieve_and_generate") as span:
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_rag_input_attributes(
+                            cast("RetrieveAndGenerateRequestTypeDef", kwargs)
+                        )
+                    )
+                    response = wrapped_client._unwrapped_retrieve_and_generate(*args, **kwargs)
+                    span.set_attributes(dict(get_attributes_from_context()))
+                    span.set_attributes(
+                        AttributeExtractor.extract_bedrock_rag_response_attributes(
+                            cast("RetrieveAndGenerateResponseTypeDef", response)
+                        )
+                    )
+                    span.set_status(Status(StatusCode.OK))
+                    return response  # type: ignore
+
+            return sync_instrumented_response
 
     return _invocation_wrapper
 
@@ -170,31 +245,37 @@ class _RagEventStream:
             the span with accumulated output and citations. On exceptions, it records the
             error and sets the span status to ERROR before ending the span.
         """
-        try:
-            if isinstance(obj, dict):
+        if isinstance(obj, dict):
+            try:
                 if output := obj.get("output", {}).get("text"):
                     self.output += output
                 if citation := obj.get("citation"):
                     self.citations += [citation]
-                print("CITATIONS LEN", len(self.citations))
-                print(self.output)
-            elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            except Exception:
+                logger.warning("Failed to process RAG stream event", exc_info=True)
+        elif isinstance(obj, (StopIteration, StopAsyncIteration)):
+            try:
                 self._span.set_attributes(dict(get_attributes_from_context()))
                 self._span.set_attributes(
                     AttributeExtractor.extract_bedrock_rag_response_attributes(
-                        {"citations": self.citations, "output": {"text": self.output}}
+                        cast(
+                            "RetrieveAndGenerateResponseTypeDef",
+                            {"citations": self.citations, "output": {"text": self.output}},
+                        )
                     )
                 )
                 self._span.set_status(Status(StatusCode.OK))
+            except Exception:
+                logger.warning("Failed to set RAG response attributes on span", exc_info=True)
+            finally:
                 self._span.end()
-            elif isinstance(obj, BaseException):
+        elif isinstance(obj, BaseException):
+            try:
                 self._span.set_attributes(dict(get_attributes_from_context()))
                 self._span.record_exception(obj)
                 self._span.set_status(Status(StatusCode.ERROR))
+            except Exception:
+                logger.warning("Failed to record exception on span", exc_info=True)
+            finally:
                 self._span.end()
-        except Exception as e:
-            self._span.record_exception(obj)  # type: ignore
-            self._span.set_status(Status(StatusCode.ERROR))
-            self._span.end()
-            raise e
         return obj

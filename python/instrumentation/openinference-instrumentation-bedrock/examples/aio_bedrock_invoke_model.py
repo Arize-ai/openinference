@@ -1,14 +1,14 @@
+import asyncio
 import base64
 import json
 import os
 
-import boto3
+import aioboto3
 import requests
-from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
 from openinference.instrumentation.bedrock import BedrockInstrumentor
 
@@ -16,15 +16,12 @@ endpoint = "http://127.0.0.1:6006/v1/traces"
 resource = Resource(attributes={})
 tracer_provider = trace_sdk.TracerProvider(resource=resource)
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
-trace_api.set_tracer_provider(tracer_provider=tracer_provider)
+tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
-BedrockInstrumentor().instrument()
-
-session = boto3.session.Session()
-client = session.client("bedrock-runtime", "us-east-1")
+BedrockInstrumentor().instrument(tracer_provider=tracer_provider)
 
 
-def claude3_invoke_model():
+async def claude3_invoke_model():
     prompt = {
         "messages": [
             {"role": "user", "content": "Hello there."},
@@ -35,13 +32,15 @@ def claude3_invoke_model():
         "temperature": 0.7,
         "anthropic_version": "bedrock-2023-05-31",
     }
-
-    response = client.invoke_model(
-        modelId="us.anthropic.claude-sonnet-4-6", body=json.dumps(prompt)
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
     )
-
-    response_body = json.loads(response.get("body").read())
-    print(response_body)
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model_with_response_stream(
+            modelId="us.anthropic.claude-sonnet-4-6", body=json.dumps(prompt)
+        )
+        async for chunk in response["body"]:
+            print(chunk)
 
 
 def sanitize_format(fmt: str) -> str:
@@ -56,7 +55,7 @@ def download_img(url: str):
     return resp.content, img_format
 
 
-def invoke_image_call():
+async def invoke_image_call():
     input_text = "What's in this image?"
 
     img_url = (
@@ -89,14 +88,17 @@ def invoke_image_call():
         "temperature": 0.7,
         "anthropic_version": "bedrock-2023-05-31",
     }
-    response = client.invoke_model(
-        modelId="anthropic.claude-3-haiku-20240307-v1:0", body=json.dumps(message)
+    session = aioboto3.session.Session(
+        region_name="us-east-1",
     )
-
-    response_body = json.loads(response.get("body").read())
-    print(response_body)
+    async with session.client("bedrock-runtime") as client:
+        response = await client.invoke_model_with_response_stream(
+            modelId="us.anthropic.claude-sonnet-4-6", body=json.dumps(message)
+        )
+        async for chunk in response["body"]:
+            print(chunk)
 
 
 if __name__ == "__main__":
-    invoke_image_call()
-    claude3_invoke_model()
+    asyncio.run(invoke_image_call())
+    asyncio.run(claude3_invoke_model())
