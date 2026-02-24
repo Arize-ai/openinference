@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Iterable, Mapping, Tuple
+from typing import Any, Dict, Iterable, Mapping, Tuple
 
 from opentelemetry.util.types import AttributeValue
 
@@ -10,22 +10,13 @@ from openinference.instrumentation import (
     get_output_attributes,
     get_span_kind_attributes,
 )
+from openinference.instrumentation.google_genai._utils import (
+    _stop_on_exception_for_dict,
+    _stop_on_exception_for_iter,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-
-def _stop_on_exception(
-    wrapped: Callable[..., Any],
-) -> Callable[..., Any]:
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        try:
-            return wrapped(*args, **kwargs)
-        except Exception as e:
-            logger.warning(str(e))
-            return {}
-
-    return wrapper
 
 
 def get_attributes_from_request_object(
@@ -38,7 +29,7 @@ def get_attributes_from_request_object(
     }
 
 
-@_stop_on_exception
+@_stop_on_exception_for_iter
 def get_attributes_from_request(
     request_parameters: Mapping[str, Any],
 ) -> Iterable[Tuple[str, AttributeValue]]:
@@ -47,7 +38,7 @@ def get_attributes_from_request(
         yield key, value
 
 
-@_stop_on_exception
+@_stop_on_exception_for_dict
 def get_attributes_from_response(
     response: Any,
 ) -> Dict[str, AttributeValue]:

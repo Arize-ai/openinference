@@ -3,6 +3,7 @@ import warnings
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Iterable,
     Iterator,
     Mapping,
@@ -154,3 +155,29 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def _stop_on_exception_for_dict(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return wrapped(*args, **kwargs)
+        except Exception as e:
+            logger.warning(str(e))
+            return {}
+
+    return wrapper
+
+
+def _stop_on_exception_for_iter(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return wrapped(*args, **kwargs)
+        except Exception as e:
+            logger.warning(str(e))
+            return iter([])
+
+    return wrapper
