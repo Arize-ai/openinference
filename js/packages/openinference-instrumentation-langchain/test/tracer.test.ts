@@ -34,16 +34,25 @@ const server = setupServer(
 
     // Check if this is a streaming request
     if (requestData.stream === true) {
-      // Return streaming response as plain text (SSE format)
-      // MSW v2 requires proper handling of streaming responses
-      const streamContent = [
-        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}',
-        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}',
-        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}',
-        "data: [DONE]",
-      ].join("\n\n") + "\n\n";
+      // Return streaming response
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          const chunks = [
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":"This is "},"finish_reason":null}]}\n\n',
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"content":"a test stream."},"finish_reason":null}]}\n\n',
+            'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":6,"total_tokens":19}}\n\n',
+            "data: [DONE]\n\n",
+          ];
 
-      return new HttpResponse(streamContent, {
+          chunks.forEach((chunk) => {
+            controller.enqueue(encoder.encode(chunk));
+          });
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -261,11 +270,7 @@ describe("LangChainInstrumentation", () => {
     expect(invocationParams.temperature).toBe(0);
   });
 
-  // TODO: This test is skipped because MSW cannot properly mock OpenAI SDK streaming
-  // responses in Node.js. The OpenAI SDK uses a custom streaming mechanism that
-  // doesn't work with MSW's HTTP interception. Consider using vi.spyOn to mock
-  // the OpenAI client directly (similar to openinference-instrumentation-openai tests).
-  it.skip("should add attributes to llm spans when streaming", async () => {
+  it("should add attributes to llm spans when streaming", async () => {
     const chatModel = new ChatOpenAI({
       apiKey: "test-api-key",
       modelName: "gpt-3.5-turbo",
