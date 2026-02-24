@@ -701,7 +701,8 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
                 ),
             )
         except ImportError:
-            pass
+            # aiobotocore not installed; initialize slot so _uninstrument can always read it.
+            self._original_aio_client_creator = None
 
     def _uninstrument(self, **kwargs: Any) -> None:
         """Restore original create_client implementations."""
@@ -710,8 +711,11 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_client_creator = None
         try:
             aioboto = import_module(_AIO_MODULE)
-            aioboto.AioClientCreator.create_client = self._original_aio_client_creator
-            self._original_aio_client_creator = None
+            # Only restore if we actually patched it; _original_aio_client_creator is None when
+            # aiobotocore was unavailable at _instrument time.
+            if self._original_aio_client_creator is not None:
+                aioboto.AioClientCreator.create_client = self._original_aio_client_creator
+                self._original_aio_client_creator = None
         except ImportError:
             pass
 
