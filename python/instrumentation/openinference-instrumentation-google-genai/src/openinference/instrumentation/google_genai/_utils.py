@@ -164,7 +164,8 @@ def _stop_on_exception_for_dict(
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return wrapped(*args, **kwargs)
-        except Exception:
+        except Exception as e:
+            logger.debug(str(e))
             return {}
 
     return wrapper
@@ -180,7 +181,8 @@ def _stop_on_exception_for_iter(
         def guarded() -> Any:
             try:
                 yield from generator
-            except Exception:
+            except Exception as e:
+                logger.debug(str(e))
                 return
 
         return guarded()
