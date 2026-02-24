@@ -49,7 +49,7 @@ def get_attributes_from_response(
         usage = response.usage_metadata
         token_count = TokenCount(
             total=usage.total_token_count or 0,
-            prompt=usage.total_token_count or 0,
+            prompt=0,
             completion=0,
         )
     return {

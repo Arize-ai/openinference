@@ -55,7 +55,7 @@ def test_create_cache(
         OPENINFERENCE_SPAN_KIND: "CHAIN",
         LLM_TOKEN_COUNT_TOTAL: 1090,
         LLM_TOKEN_COUNT_COMPLETION: 0,
-        LLM_TOKEN_COUNT_PROMPT: 1090,
+        LLM_TOKEN_COUNT_PROMPT: 0,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
@@ -113,7 +113,7 @@ async def test_create_cache_async(
         OPENINFERENCE_SPAN_KIND: "CHAIN",
         LLM_TOKEN_COUNT_TOTAL: 1090,
         LLM_TOKEN_COUNT_COMPLETION: 0,
-        LLM_TOKEN_COUNT_PROMPT: 1090,
+        LLM_TOKEN_COUNT_PROMPT: 0,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
