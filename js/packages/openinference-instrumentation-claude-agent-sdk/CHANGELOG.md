@@ -5,7 +5,6 @@
 ### Minor Changes
 
 - 564723d: Initial release of OpenInference instrumentation for Claude Agent SDK
-
   - Instruments V1 (`query()`) and V2 (`unstable_v2_prompt`, `unstable_v2_createSession`, `unstable_v2_resumeSession`) APIs
   - Produces AGENT spans for query/prompt/session-turn lifecycles
   - Produces TOOL child spans via hook injection (PreToolUse/PostToolUse/PostToolUseFailure)
