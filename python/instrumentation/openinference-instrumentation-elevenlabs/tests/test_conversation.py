@@ -102,8 +102,9 @@ class TestConversationInstrumentation:
             # Start session - this creates the span
             conv.start_session()
 
-            # End the session to finish the span
+            # End the session and wait for it to finish the span
             conv.end_session()
+            conv.wait_for_session_end()
 
             # Now check spans
             spans = in_memory_span_exporter.get_finished_spans()
@@ -142,6 +143,7 @@ class TestConversationInstrumentation:
             assert conv._session_started
 
             conv.end_session()
+            conv.wait_for_session_end()
 
             spans = in_memory_span_exporter.get_finished_spans()
             assert len(spans) == 1
@@ -187,6 +189,49 @@ class TestConversationInstrumentation:
         finally:
             instrumentor.uninstrument()
 
+    def test_end_session_then_wait_captures_conversation_id(
+        self,
+        tracer_provider: TracerProvider,
+        in_memory_span_exporter: InMemorySpanExporter,
+        mock_conversation_module: None,
+    ) -> None:
+        """Test that end_session() followed by wait_for_session_end() captures conversation ID.
+
+        This is the standard ElevenLabs usage pattern. end_session() signals the session
+        to stop, and wait_for_session_end() blocks until complete and returns the
+        conversation_id. The span must remain open after end_session() so that
+        wait_for_session_end() can record the conversation_id attribute.
+        """
+        instrumentor = ElevenLabsInstrumentor()
+        instrumentor.instrument(tracer_provider=tracer_provider, skip_dep_check=True)
+
+        try:
+            from elevenlabs.conversational_ai.conversation import Conversation
+
+            conv = Conversation(
+                client=MagicMock(),
+                agent_id="agent_123",
+            )
+
+            conv.start_session()
+            conv.end_session()
+
+            # Span should NOT be finished yet after end_session
+            assert len(in_memory_span_exporter.get_finished_spans()) == 0
+
+            conversation_id = conv.wait_for_session_end()
+            assert conversation_id == "test_conversation_123"
+
+            # Now span should be finished with conversation_id
+            spans = in_memory_span_exporter.get_finished_spans()
+            assert len(spans) == 1
+
+            attrs = dict(spans[0].attributes or {})
+            assert attrs.get(ELEVENLABS_CONVERSATION_ID) == "test_conversation_123"
+
+        finally:
+            instrumentor.uninstrument()
+
     def test_conversation_without_user_id(
         self,
         tracer_provider: TracerProvider,
@@ -208,6 +253,7 @@ class TestConversationInstrumentation:
             # start_session() creates the span
             conv.start_session()
             conv.end_session()
+            conv.wait_for_session_end()
 
             spans = in_memory_span_exporter.get_finished_spans()
             assert len(spans) == 1
@@ -424,6 +470,7 @@ class TestConversationAttributes:
             # start_session() creates the span
             conv.start_session()
             conv.end_session()
+            conv.wait_for_session_end()
 
             spans = in_memory_span_exporter.get_finished_spans()
             attrs = dict(spans[0].attributes or {})

@@ -118,11 +118,10 @@ class _ConversationEndSessionWrapper:
                 with_span.finish_tracing()
             raise
 
-        # End the span on success
-        if with_span is not None and not with_span.is_finished:
-            with_span.finish_tracing(
-                status=trace_api.Status(trace_api.StatusCode.OK),
-            )
+        # Do NOT finish the span here. In the standard usage pattern,
+        # end_session() is called before wait_for_session_end(), which
+        # captures the conversation_id. Finishing the span here would
+        # prevent wait_for_session_end() from recording that attribute.
 
         return result
 
