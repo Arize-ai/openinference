@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "phoenix-cli": {
+      "source": "Arize-ai/phoenix",
+      "sourceType": "github",
+      "computedHash": "45ee9c6d6a3778b67e4c2e82b006ca76d673ed5dcfb811789ad7d492edd3ab01"
+    }
+  }
+}
