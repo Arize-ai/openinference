@@ -29,13 +29,11 @@ function newMcpServer(tracer: Tracer) {
 
   server.tool("hello", () => {
     return tracer.startActiveSpan("hello", async (span) => {
-      // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
-      const result = (await server.server.request(
-        {
-          method: "whoami",
-        },
-        z.object({ name: z.string() }),
-      )) as { name: string };
+      const whoamiResult = z.object({ name: z.string() });
+      // @ts-expect-error TS2589/TS2345: MCP SDK's deeply nested Zod generics
+      const result = (await server.server.request({ method: "whoami" }, whoamiResult)) as {
+        name: string;
+      };
       try {
         return {
           content: [

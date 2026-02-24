@@ -220,7 +220,7 @@ describe("MCPInstrumentation", () => {
         version: "0.1.0",
       });
       // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
-    client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {
             return {
@@ -317,7 +317,7 @@ describe("MCPInstrumentation", () => {
         version: "0.1.0",
       });
       // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
-    client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {
             return {
