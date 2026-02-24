@@ -1,9 +1,20 @@
 {
-  "name": "@arizeai/openinference-instrumentation-mcp",
-  "version": "0.2.12",
+  "name": "@arizeai/openinference-instrumentation-claude-agent-sdk",
+  "version": "0.1.0",
   "private": false,
-  "description": "OpenInference instrumentation for MCP",
-  "keywords": [],
+  "description": "OpenInference instrumentation for Claude Agent SDK",
+  "keywords": [
+    "agent",
+    "ai",
+    "anthropic",
+    "claude",
+    "instrumentation",
+    "llm",
+    "openinference",
+    "opentelemetry",
+    "sdk",
+    "tracing"
+  ],
   "license": "Apache-2.0",
   "author": "oss-devs@arize.com",
   "repository": {
@@ -17,7 +28,6 @@
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/src/index.d.ts",
-  "esnext": "dist/esnext/index.js",
   "exports": {
     ".": {
       "import": "./dist/esm/index.js",
@@ -26,31 +36,27 @@
   },
   "scripts": {
     "prebuild": "rimraf dist && pnpm run version:update",
-    "build": "tsc --build tsconfig.json tsconfig.esm.json tsconfig.esnext.json && tsc-alias -p tsconfig.esm.json",
+    "build": "tsc --build tsconfig.json tsconfig.esm.json && tsc-alias -p tsconfig.esm.json",
     "postbuild": "echo '{\"type\": \"module\"}' > ./dist/esm/package.json && rimraf dist/test",
     "version:update": "../../scripts/version-update.js",
     "type:check": "tsc --noEmit",
-    "test": "vitest run --typecheck"
+    "test": "vitest run"
   },
   "dependencies": {
     "@arizeai/openinference-core": "workspace:*",
     "@arizeai/openinference-semantic-conventions": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/core": "^1.30.1",
+    "@opentelemetry/core": "^1.25.1",
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.10.2",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.57.2",
-    "@opentelemetry/resources": "^1.30.1",
-    "@opentelemetry/sdk-trace-base": "^1.30.1",
-    "@opentelemetry/sdk-trace-node": "^1.30.1",
-    "@opentelemetry/semantic-conventions": "^1.30.1",
-    "@types/express": "^5.0.1",
-    "express": "^5.1.0",
-    "tsx": "^4.19.3",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.50",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.50.0",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@opentelemetry/sdk-trace-node": "^1.25.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
     "typescript": "^5.8.3",
-    "vitest": "^4.0.3",
-    "zod": "^4.0.0"
+    "vitest": "^4.0.3"
   }
 }
