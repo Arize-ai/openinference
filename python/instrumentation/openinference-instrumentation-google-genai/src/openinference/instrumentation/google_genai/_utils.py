@@ -1,5 +1,6 @@
 import logging
 import warnings
+from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -173,11 +174,16 @@ def _stop_on_exception_for_dict(
 def _stop_on_exception_for_iter(
     wrapped: Callable[..., Any],
 ) -> Callable[..., Any]:
+    @wraps(wrapped)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        try:
-            return wrapped(*args, **kwargs)
-        except Exception as e:
-            logger.warning(str(e))
-            return iter([])
+        generator = wrapped(*args, **kwargs)
+
+        def guarded() -> Any:
+            try:
+                yield from generator
+            except Exception:
+                return
+
+        return guarded()
 
     return wrapper

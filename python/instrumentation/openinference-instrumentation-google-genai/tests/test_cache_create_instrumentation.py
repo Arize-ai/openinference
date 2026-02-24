@@ -9,6 +9,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.semconv.trace import SpanAttributes
 
 
+def normalize_request(r: Any) -> Any:
+    r.method = r.method.lower()
+    r.headers.clear()
+    return r
+
+
 @pytest.mark.vcr(
     decode_compressed_response=True,
     before_record_request=lambda _: _.headers.clear() or _,
@@ -59,7 +65,7 @@ def test_create_cache(
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
-            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
+            f"Attribute {key} does not match expected value"
         )
     assert story_content in str(attributes.pop(INPUT_VALUE))
     assert cache_response_name in str(attributes.pop(OUTPUT_VALUE))
@@ -68,7 +74,7 @@ def test_create_cache(
 
 @pytest.mark.vcr(
     decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_request=normalize_request,
     before_record_response=lambda _: {**_, "headers": {}},
 )
 @pytest.mark.asyncio
@@ -117,7 +123,7 @@ async def test_create_cache_async(
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
-            f"Attribute {key} does not match expected value: got {attributes.get(key)}"
+            f"Attribute {key} does not match expected value"
         )
     assert story_content in str(attributes.pop(INPUT_VALUE))
     assert cache_response_name in str(attributes.pop(OUTPUT_VALUE))
