@@ -56,7 +56,7 @@ def _get_token_count_attributes_from_usage_metadata(
     if usage_metadata.cached_content_token_count:
         yield (
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
-            usage_metadata.cached_content_token_count
+            usage_metadata.cached_content_token_count,
         )
         prompt_token_count = max(prompt_token_count - usage_metadata.cached_content_token_count, 0)
     if prompt_token_count:
