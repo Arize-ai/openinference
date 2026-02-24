@@ -11,6 +11,7 @@ import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 import { BedrockAgentInstrumentation } from "../src";
 import { createPolly } from "./utils/polly.config";
@@ -63,12 +64,18 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
   });
 
   it("should record rag attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveAndGenerateCommandInput = {
       input: {
@@ -117,12 +124,18 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     }
   });
   it("should record rag external attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveAndGenerateCommandInput = {
       input: {
@@ -199,12 +212,18 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
   });
 
   it("should record retrieve attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveCommandInput = {
       retrievalQuery: {

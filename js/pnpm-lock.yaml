@@ -290,6 +290,9 @@ importers:
       '@pollyjs/persister-fs':
         specifier: ^6.0.6
         version: 6.0.6
+      '@smithy/node-http-handler':
+        specifier: ^4.0.0
+        version: 4.4.12
       '@smithy/util-stream':
         specifier: ^4.2.3
         version: 4.5.15
