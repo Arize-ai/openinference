@@ -392,7 +392,9 @@ class AttributeExtractor:
         name = action_input["function"] if "function" in action_input else ""
         has_params = "parameters" in action_input and bool(action_input["parameters"])
         tool_call_function = (
-            ToolCallFunction(name=name) if has_params else ToolCallFunction(name=name, arguments={})
+            ToolCallFunction(name=name, arguments=json.dumps(action_input["parameters"]))
+            if has_params
+            else ToolCallFunction(name=name, arguments={})
         )
         tool_calls = [ToolCall(id="default", function=tool_call_function)]
         messages = [Message(tool_call_id="default", role="tool", tool_calls=tool_calls)]

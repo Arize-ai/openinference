@@ -93,6 +93,13 @@ def _assert_tool_calls_with_input_params(events: list[Any], spans: Sequence[Any]
         == "add_two_numbers"
     )
     assert (
+        action_group_span_attributes.pop(
+            "llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"
+        )
+        == '[{"name": "n1", "type": "number", "value": "10"},'
+        ' {"name": "n2", "type": "number", "value": "20"}]'
+    )
+    assert (
         action_group_span_attributes.pop("llm.input_messages.0.message.tool_calls.0.tool_call.id")
         == "default"
     )

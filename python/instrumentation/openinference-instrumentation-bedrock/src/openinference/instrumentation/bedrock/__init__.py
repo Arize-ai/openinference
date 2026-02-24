@@ -190,6 +190,10 @@ class _LazyAsyncInvokeModelBody:
     - On later read(): returns from cache so the caller can read in chunks if desired.
     - If the body is never read (e.g. response discarded), __del__ ends the span
       as a best-effort fallback so we do not leave spans open indefinitely.
+
+    Limitation: only implements read() — does not subclass aiobotocore's StreamingBody,
+    so isinstance checks and methods beyond read() (iter_lines, iter_chunks, __aiter__,
+    etc.) are not available. Callers using only read() are unaffected.
     """
 
     def __init__(
