@@ -85,7 +85,10 @@ def _get_oi_provider_from_litellm_model_name(
     import litellm
 
     try:
-        _, litellm_provider, _, _ = litellm.get_llm_provider(model=model_name)
+        get_llm_provider = getattr(litellm, "get_llm_provider", None)
+        if get_llm_provider is None:
+            return None
+        _, litellm_provider, _, _ = get_llm_provider(model=model_name)
     except Exception:
         return None
     return _LITELLM_TO_OPENINFERENCE_PROVIDERS.get(litellm_provider)

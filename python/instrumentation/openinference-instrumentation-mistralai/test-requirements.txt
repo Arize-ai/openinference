@@ -1,5 +1,4 @@
-mistralai==1.9.0; python_version < "3.14"
-mistralai==1.9.11; python_version >= "3.14"
+mistralai==1.9.11
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx

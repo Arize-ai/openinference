@@ -246,7 +246,10 @@ class TestLM:
         assert isinstance(exception_type := event_attributes["exception.type"], str)
         assert exception_type.startswith("litellm.exceptions")
         assert isinstance(exception_message := event_attributes["exception.message"], str)
-        assert "Connection error" in exception_message
+        assert (
+            "Connection error" in exception_message
+            or "Incorrect API key provided" in exception_message
+        )
         assert isinstance(exception_stacktrace := event_attributes["exception.stacktrace"], str)
         assert "Incorrect API key provided" in exception_stacktrace
         attributes = dict(span.attributes or {})

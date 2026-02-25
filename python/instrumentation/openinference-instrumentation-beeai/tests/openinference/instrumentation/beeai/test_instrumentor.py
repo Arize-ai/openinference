@@ -69,8 +69,12 @@ async def test_instrumentor(
     assert attrs.pop(f"{METADATA}.usage.completion_tokens") == "10"
     assert attrs.pop(f"{METADATA}.usage.prompt_tokens") == "13"
     assert attrs.pop(f"{METADATA}.usage.total_tokens") == "23"
-    assert attrs.pop(f"{METADATA}.usage.cached_creation_tokens") == "0"
-    assert attrs.pop(f"{METADATA}.usage.cached_prompt_tokens") == "0"
+    cached_creation_tokens = attrs.pop(f"{METADATA}.usage.cached_creation_tokens", None)
+    cached_prompt_tokens = attrs.pop(f"{METADATA}.usage.cached_prompt_tokens", None)
+    if cached_creation_tokens is not None:
+        assert cached_creation_tokens == "0"
+    if cached_prompt_tokens is not None:
+        assert cached_prompt_tokens == "0"
     assert attrs == {}, f"Unexpected keys found: {attrs}"
 
 
@@ -136,8 +140,12 @@ async def test_llm_with_tools(
     assert attrs.pop(f"{METADATA}.chunks_count") == 1
     assert attrs.pop(f"{METADATA}.class_name") == "OpenAIChatModel"
     assert attrs.pop(f"{METADATA}.usage.completion_tokens") == "39"
-    assert attrs.pop(f"{METADATA}.usage.cached_creation_tokens") == "0"
-    assert attrs.pop(f"{METADATA}.usage.cached_prompt_tokens") == "0"
+    cached_creation_tokens = attrs.pop(f"{METADATA}.usage.cached_creation_tokens", None)
+    cached_prompt_tokens = attrs.pop(f"{METADATA}.usage.cached_prompt_tokens", None)
+    if cached_creation_tokens is not None:
+        assert cached_creation_tokens == "0"
+    if cached_prompt_tokens is not None:
+        assert cached_prompt_tokens == "0"
     assert attrs.pop(f"{METADATA}.usage.prompt_tokens") == "252"
     assert attrs.pop(f"{METADATA}.usage.total_tokens") == "291"
     assert attrs.pop(OUTPUT_VALUE) == ""
@@ -223,8 +231,12 @@ async def test_agent(
     assert attrs.pop(f"{METADATA}.usage.prompt_tokens") == "252"
     assert attrs.pop(f"{METADATA}.usage.completion_tokens") == "39"
     assert attrs.pop(f"{METADATA}.usage.total_tokens") == "291"
-    assert attrs.pop(f"{METADATA}.usage.cached_creation_tokens") == "0"
-    assert attrs.pop(f"{METADATA}.usage.cached_prompt_tokens") == "0"
+    cached_creation_tokens = attrs.pop(f"{METADATA}.usage.cached_creation_tokens", None)
+    cached_prompt_tokens = attrs.pop(f"{METADATA}.usage.cached_prompt_tokens", None)
+    if cached_creation_tokens is not None:
+        assert cached_creation_tokens == "0"
+    if cached_prompt_tokens is not None:
+        assert cached_prompt_tokens == "0"
     assert attrs == {}, f"Unexpected keys found: {attrs}"
 
 

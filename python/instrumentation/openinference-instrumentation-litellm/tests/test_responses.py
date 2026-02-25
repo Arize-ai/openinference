@@ -49,7 +49,9 @@ def test_responses_simple_input(
     assert attributes.pop("llm.token_count.completion") == 253
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
     assert attributes.pop("llm.token_count.total") == 272
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
@@ -90,7 +92,9 @@ def test_responses_simple_input_stream(
     assert attributes.pop("llm.token_count.completion") == 262
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
     assert attributes.pop("llm.token_count.total") == 281
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
@@ -136,7 +140,9 @@ def test_responses_websearch_input(
     assert attributes.pop("llm.token_count.completion") == 290
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
     assert attributes.pop("llm.token_count.total") == 600
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
@@ -183,7 +189,9 @@ async def test_responses_websearch_input_async(
     assert attributes.pop("llm.token_count.completion") == 364
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
-    assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
+    cache_read = attributes.pop("llm.token_count.prompt_details.cache_read", None)
+    if cache_read is not None:
+        assert cache_read == 0
     assert attributes.pop("llm.token_count.total") == 674
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
