@@ -37,10 +37,6 @@ dependencies = [
 instruments = [
   "google-cloud-aiplatform >= 1.49.0",
 ]
-test = [
-  "vertexai == 1.49.0",
-  "opentelemetry-sdk",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 vertexai = "openinference.instrumentation.vertexai:VertexAIInstrumentor"

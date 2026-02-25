@@ -32,14 +32,6 @@ dependencies = [
   "opentelemetry-semantic-conventions-ai>=0.4.13,<0.5.0"
 ]
 
-[project.optional-dependencies]
-test = [
-  "opentelemetry-instrumentation-openai>=0.50.1",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-exporter-otlp-proto-http",
-  "openai>=1.0.0,<2.0.0",
-  "pytest-recording",
-]
 
 [project.entry-points.openinference_instrumentor]
 openllmetry = "openinference.instrumentation.openllmetry:OpenInferenceSpanProcessor"

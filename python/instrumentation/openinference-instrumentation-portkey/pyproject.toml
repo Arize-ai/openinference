@@ -40,11 +40,6 @@ dependencies = [
 instruments = [
     "portkey_ai >= 0.1.0",
 ]
-test = [
-    "portkey_ai >= 0.1.0",
-    "opentelemetry-sdk",
-    "responses",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 portkey = "openinference.instrumentation.portkey:PortkeyInstrumentor"

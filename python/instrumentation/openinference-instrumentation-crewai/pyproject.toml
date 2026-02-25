@@ -37,12 +37,6 @@ dependencies = [
 instruments = [
   "crewai >= 1.9.0",
 ]
-test = [
-  "crewai == 1.9.0",
-  "opentelemetry-sdk",
-  "responses",
-  "pytest-vcr",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"

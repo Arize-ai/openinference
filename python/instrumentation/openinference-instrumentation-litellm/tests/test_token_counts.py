@@ -32,11 +32,7 @@ def patch_tiktoken_encoding() -> Generator[None, None, None]:
 
 @pytest.mark.usefixtures("patch_tiktoken_encoding")
 class TestTokenCounts:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -84,11 +80,7 @@ class TestTokenCounts:
                 == usage.completion_tokens_details.reasoning_tokens
             )
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,

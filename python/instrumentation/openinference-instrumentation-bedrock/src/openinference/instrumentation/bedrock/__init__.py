@@ -56,8 +56,6 @@ from typing import (
     cast,
 )
 
-from botocore.client import BaseClient
-from botocore.response import StreamingBody
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
@@ -100,7 +98,7 @@ from openinference.semconv.trace import (
 # Constants
 # -----------------------------------------------------------------------------
 
-ClientCreator = TypeVar("ClientCreator", bound=Callable[..., BaseClient])
+ClientCreator = TypeVar("ClientCreator", bound=Callable[..., Any])
 
 _MODULE = "botocore.client"
 _AIO_MODULE = "aiobotocore.client"
@@ -118,7 +116,7 @@ logger.addHandler(logging.NullHandler())
 # -----------------------------------------------------------------------------
 
 
-class InstrumentedClient(BaseClient):  # type: ignore
+class InstrumentedClient:
     """
     Type stub for an instrumented Bedrock client.
 
@@ -147,34 +145,6 @@ class InstrumentedClient(BaseClient):  # type: ignore
 
     retrieve_and_generate_stream: Callable[..., Any]
     _unwrapped_retrieve_and_generate_stream: Callable[..., Any]
-
-
-class BufferedStreamingBody(StreamingBody):  # type: ignore
-    """
-    Sync streaming body that buffers the full response on first read(), so we can
-    parse it for span attributes and then reset() to allow the caller to read again.
-
-    Used by the sync invoke_model wrapper: read once for attribution, reset(), then
-    return the same body to the caller. Expects botocore's StreamingBody interface
-    (_raw_stream, _content_length).
-    """
-
-    _raw_stream: IO[bytes]
-
-    def __init__(self, raw_stream: IO[bytes], content_length: int) -> None:
-        super().__init__(raw_stream, content_length)
-        self._buffer: Optional[io.IOBase] = None
-
-    def read(self, amt: Optional[int] = None) -> bytes:
-        if self._buffer is None:
-            self._buffer = io.BytesIO(self._raw_stream.read())
-        output: bytes = self._buffer.read(amt)
-        return output
-
-    def reset(self) -> None:
-        """Rewind the buffer so the body can be read again by the caller."""
-        if self._buffer is not None:
-            self._buffer.seek(0)
 
 
 class _LazyAsyncInvokeModelBody:
@@ -268,7 +238,7 @@ class _LazyAsyncInvokeModelBody:
 
 def _instrument_client(
     client: Any, bound_arguments: Any, tracer: Tracer, module_version: str, is_async: bool
-) -> BaseClient:
+) -> Any:
     """
     Attach tracing wrappers to a Bedrock client's API methods.
 
@@ -336,7 +306,7 @@ def _sync_client_creation_wrapper(tracer: Tracer, module_version: str) -> Any:
         instance: Optional[Any],
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
-    ) -> BaseClient:
+    ) -> Any:
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         call_signature = signature(wrapped)
@@ -368,7 +338,7 @@ def _async_client_creation_wrapper(tracer: Tracer, module_version: str) -> Any:
         bound_arguments = call_signature.bind(*args, **kwargs)
         bound_arguments.apply_defaults()
 
-        async def async_wrapper() -> BaseClient:
+        async def async_wrapper() -> Any:
             async_client = await wrapped(*args, **kwargs)
             return _instrument_client(
                 async_client, bound_arguments, tracer, module_version, is_async=True
@@ -389,6 +359,30 @@ def _model_invocation_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], 
     Wraps sync invoke_model: one span per call; body is buffered, read once for
     attribution, then reset so the caller can read it again.
     """
+    from botocore.response import StreamingBody
+
+    class BufferedStreamingBody(StreamingBody):  # type: ignore
+        """
+        Sync streaming body that buffers the full response on first read(), so we can
+        parse it for span attributes and then reset() to allow the caller to read again.
+        """
+
+        _raw_stream: IO[bytes]
+
+        def __init__(self, raw_stream: IO[bytes], content_length: int) -> None:
+            super().__init__(raw_stream, content_length)
+            self._buffer: Optional[io.IOBase] = None
+
+        def read(self, amt: Optional[int] = None) -> bytes:
+            if self._buffer is None:
+                self._buffer = io.BytesIO(self._raw_stream.read())
+            output: bytes = self._buffer.read(amt)
+            return output
+
+        def reset(self) -> None:
+            """Rewind the buffer so the body can be read again by the caller."""
+            if self._buffer is not None:
+                self._buffer.seek(0)
 
     def _invocation_wrapper(wrapped_client: InstrumentedClient) -> Callable[..., Any]:
         @wraps(wrapped_client.invoke_model)

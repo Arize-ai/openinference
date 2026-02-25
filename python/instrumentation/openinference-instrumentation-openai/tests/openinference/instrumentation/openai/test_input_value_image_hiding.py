@@ -32,11 +32,7 @@ def custom_instrumentation(
 class TestInputValueImageHiding:
     """Test that input.value respects hide_input_images configuration."""
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_input_value_hides_base64_images(
         self,
         custom_instrumentation: Callable[[TraceConfig], None],
@@ -95,11 +91,7 @@ class TestInputValueImageHiding:
         assert image_content is not None
         assert image_content["image_url"]["url"] == REDACTED_VALUE
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_input_value_preserves_images_when_disabled(
         self,
         custom_instrumentation: Callable[[TraceConfig], None],
@@ -157,11 +149,7 @@ class TestInputValueImageHiding:
         assert image_content is not None
         assert image_content["image_url"]["url"] == base64_image
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_input_value_hides_regular_url_images(
         self,
         custom_instrumentation: Callable[[TraceConfig], None],

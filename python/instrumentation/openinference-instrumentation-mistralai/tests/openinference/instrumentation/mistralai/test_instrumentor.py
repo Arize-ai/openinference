@@ -19,10 +19,6 @@ from mistralai.models import (
     ChatCompletionResponse,
     CompletionEvent,
 )
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from opentelemetry.util.types import AttributeValue
@@ -39,38 +35,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-
-
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
 
 
 class TestInstrumentor:
@@ -877,10 +841,7 @@ async def test_asynchronous_chat_completions_emits_span_with_exception_event_on_
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_emits_expected_span(
     use_context_attributes: bool,
@@ -998,10 +959,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 async def test_asynchronous_streaming_chat_completions_emits_expected_span(
@@ -1121,10 +1079,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     assert attributes == {}  # test should account for all span attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_expected_spans(
     use_context_attributes: bool,
@@ -1291,86 +1246,6 @@ def _check_context_attributes(
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
         prompt_template_variables
     )
-
-
-@pytest.fixture()
-def session_id() -> str:
-    return "my-test-session-id"
-
-
-@pytest.fixture()
-def user_id() -> str:
-    return "my-test-user-id"
-
-
-@pytest.fixture()
-def metadata() -> Dict[str, Any]:
-    return {
-        "test-int": 1,
-        "test-str": "string",
-        "test-list": [1, 2, 3],
-        "test-dict": {
-            "key-1": "val-1",
-            "key-2": "val-2",
-        },
-    }
-
-
-@pytest.fixture()
-def tags() -> List[str]:
-    return ["tag-1", "tag-2"]
-
-
-@pytest.fixture
-def prompt_template() -> str:
-    return (
-        "This is a test prompt template with int {var_int}, "
-        "string {var_string}, and list {var_list}"
-    )
-
-
-@pytest.fixture
-def prompt_template_version() -> str:
-    return "v1.0"
-
-
-@pytest.fixture
-def prompt_template_variables() -> Dict[str, Any]:
-    return {
-        "var_int": 1,
-        "var_str": "2",
-        "var_list": [1, 2, 3],
-    }
-
-
-@pytest.fixture(scope="module")
-def mistral_sync_client() -> Mistral:
-    return Mistral(api_key="123")
-
-
-@pytest.fixture(scope="module")
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture(scope="module")
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> trace_api.TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = trace_sdk.TracerProvider(resource=resource)
-    span_processor = SimpleSpanProcessor(span_exporter=in_memory_span_exporter)
-    tracer_provider.add_span_processor(span_processor=span_processor)
-    return tracer_provider
-
-
-@pytest.fixture(autouse=True)
-def instrument(
-    tracer_provider: trace_api.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[None, None, None]:
-    MistralAIInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    MistralAIInstrumentor().uninstrument()
-    in_memory_span_exporter.clear()
 
 
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND

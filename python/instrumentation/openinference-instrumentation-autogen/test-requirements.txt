@@ -1,0 +1,2 @@
+autogen>=0.5.0
+opentelemetry-sdk

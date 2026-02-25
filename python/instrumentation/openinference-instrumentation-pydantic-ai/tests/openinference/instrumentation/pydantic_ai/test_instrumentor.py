@@ -28,11 +28,7 @@ from openinference.semconv.trace import (
 )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_openai_agent_and_llm_spans_v1(
     in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
 ) -> None:
@@ -50,11 +46,7 @@ def test_openai_agent_and_llm_spans_v1(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_openai_agent_and_llm_spans_v2(
     in_memory_span_exporter: InMemorySpanExporter, tracer_provider: TracerProvider
 ) -> None:

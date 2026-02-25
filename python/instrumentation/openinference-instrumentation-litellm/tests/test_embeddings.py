@@ -17,11 +17,7 @@ def instrument(
     yield
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_batch_embedding(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -84,11 +80,7 @@ def test_batch_embedding(
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_single_string_embedding(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -149,11 +141,7 @@ def test_single_string_embedding(
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_batch_embedding_with_different_model(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:

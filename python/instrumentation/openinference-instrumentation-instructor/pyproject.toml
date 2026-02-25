@@ -37,12 +37,6 @@ dependencies = [
 instruments = [
   "instructor >= 1.3.7",
 ]
-test = [
-  "instructor == 1.3.7",
-  "opentelemetry-sdk",
-  "responses",
-  "vcrpy",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 instructor = "openinference.instrumentation.instructor:InstructorInstrumentor"

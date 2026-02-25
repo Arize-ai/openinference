@@ -16,11 +16,7 @@ def instrument(
     yield
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_simple_input(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -60,11 +56,7 @@ def test_responses_simple_input(
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_simple_input_stream(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -105,11 +97,7 @@ def test_responses_simple_input_stream(
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_responses_websearch_input(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -156,11 +144,7 @@ def test_responses_websearch_input(
     assert attributes == {}
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 async def test_responses_websearch_input_async(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:

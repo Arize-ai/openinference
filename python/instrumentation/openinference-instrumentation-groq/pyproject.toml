@@ -40,11 +40,6 @@ dependencies = [
 instruments = [
     "groq >= 0.6.0",
 ]
-test = [
-    "groq >= 0.6.0",
-    "opentelemetry-sdk",
-    "responses",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 groq = "openinference.instrumentation.groq:GroqInstrumentor"

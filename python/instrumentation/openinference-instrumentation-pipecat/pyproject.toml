@@ -26,6 +26,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "openinference-instrumentation>=0.1.17",
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
@@ -35,14 +36,6 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
   "pipecat-ai",
-]
-test = [
-  "mypy>=1.18.2",
-  "pipecat-ai",
-  "pytest-asyncio>=0.21.0",
-  "pytest-recording",
-  "opentelemetry-exporter-otlp-proto-http",
-  "opentelemetry-sdk>=1.20.0",
 ]
 examples = [
   "arize-phoenix",

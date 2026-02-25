@@ -38,15 +38,6 @@ dependencies = [
 instruments = [
   "agno>=2.5.0",
 ]
-test = [
-  "agno>=2.5.0",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "openai",
-  "ddgs",
-  "yfinance",
-  "fastapi",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 agno = "openinference.instrumentation.agno:AgnoInstrumentor"

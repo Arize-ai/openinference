@@ -13,11 +13,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -168,11 +164,7 @@ def test_tool_calls(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_cached_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,

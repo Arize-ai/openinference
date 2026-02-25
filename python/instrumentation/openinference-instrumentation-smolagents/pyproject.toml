@@ -38,12 +38,6 @@ dependencies = [
 instruments = [
   "smolagents>=1.21.2",
 ]
-test = [
-  "smolagents[litellm]==1.21.2",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "openai",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 smolagents = "openinference.instrumentation.smolagents:SmolagentsInstrumentor"

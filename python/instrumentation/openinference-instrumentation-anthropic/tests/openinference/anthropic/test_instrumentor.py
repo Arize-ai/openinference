@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Optional
 
 import anthropic
 import pytest
@@ -22,9 +22,7 @@ from anthropic.types import (
     ToolUseBlock,
     ToolUseBlockParam,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 from wrapt import BoundFunctionWrapper
@@ -47,37 +45,6 @@ from openinference.semconv.trace import (
 )
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
 
 def _get_tool_use_id(message: Message) -> Optional[str]:
     for block in message.content:
@@ -85,27 +52,6 @@ def _get_tool_use_id(message: Message) -> Optional[str]:
             return block.id
     return None
 
-
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture()
-def setup_anthropic_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    AnthropicInstrumentor().uninstrument()
 
 
 class TestInstrumentor:
@@ -121,11 +67,7 @@ class TestInstrumentor:
         assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_completions_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -172,11 +114,7 @@ def test_anthropic_instrumentation_completions_streaming(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_stream_message(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -233,11 +171,7 @@ def test_anthropic_instrumentation_stream_message(
 
 
 @pytest.mark.asyncio
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_anthropic_instrumentation_async_completions_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -284,11 +218,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -330,11 +260,7 @@ def test_anthropic_instrumentation_completions(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -385,11 +311,7 @@ def test_anthropic_instrumentation_messages(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_messages_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -449,11 +371,7 @@ def test_anthropic_instrumentation_messages_streaming(
 
 
 @pytest.mark.asyncio
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_anthropic_instrumentation_async_messages_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -512,11 +430,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_anthropic_instrumentation_async_completions(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -558,11 +472,7 @@ async def test_anthropic_instrumentation_async_completions(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_anthropic_instrumentation_async_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -614,11 +524,7 @@ async def test_anthropic_instrumentation_async_messages(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_multiple_tool_calling(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -717,11 +623,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -823,12 +725,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    record_mode="once",  # allow first recording
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_image_input_messages_with_stream(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -897,12 +794,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    record_mode="once",  # allow first recording
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_image_input_messages(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -966,11 +858,7 @@ def test_anthropic_instrumentation_image_input_messages(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.parametrize(
     "assistant_message",
     (
@@ -1090,11 +978,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.2.{MESSAGE_ROLE}") == "user"
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_context_attributes_existence(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1159,11 +1043,7 @@ def test_anthropic_instrumentation_context_attributes_existence(
         assert att.get(LLM_PROMPT_TEMPLATE_VARIABLES, None)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_anthropic_instrumentation_messages_token_counts(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,

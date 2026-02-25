@@ -59,11 +59,7 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -> None:
     """Verify spans are generated correctly for CrewAI Crews, Agents, Tasks & Flows."""
     analyze_task, scrape_task = kickoff_crew()
@@ -207,11 +203,7 @@ def kickoff_flow() -> Flow[Any]:
     return flow
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_crewai_instrumentation_context_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:

@@ -1,0 +1,6 @@
+mypy>=1.18.2
+pipecat-ai
+pytest-asyncio>=0.21.0
+pytest-recording
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk>=1.20.0

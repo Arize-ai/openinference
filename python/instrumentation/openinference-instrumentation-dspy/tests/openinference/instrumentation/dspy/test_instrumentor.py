@@ -1,6 +1,6 @@
 import json
 from importlib.metadata import version
-from typing import Any, Dict, Generator, List, Tuple, cast
+from typing import Any, Generator, List, Tuple, cast
 
 import dspy
 import pytest
@@ -30,37 +30,6 @@ from openinference.semconv.trace import (
 
 VERSION = cast(Tuple[int, int, int], tuple(map(int, version("dspy").split(".")[:3])))
 
-
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
 
 
 @pytest.fixture()
@@ -105,11 +74,7 @@ class TestInstrumentor:
 
 
 class TestLM:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_prompt_positional_argument(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -165,11 +130,7 @@ class TestLM:
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_openai_chat_completions_api_invoked_via_messages_kwarg(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -215,11 +176,7 @@ class TestLM:
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_openai_completions_api_invoked_via_prompt_positional_argument(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -268,11 +225,7 @@ class TestLM:
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-3.5-turbo-instruct"
         assert not attributes
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_exception_event_recorded_on_lm_error(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -318,11 +271,7 @@ class TestLM:
         assert attributes.pop(LLM_MODEL_NAME) == "gpt-4"
         assert not attributes
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_subclass(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -378,11 +327,7 @@ class TestLM:
         assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.parametrize("is_async", [False, True])
 async def test_rag_module(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -605,11 +550,7 @@ async def test_rag_module(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.parametrize("is_async", [False, True])
 async def test_react(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1064,11 +1005,7 @@ async def test_react(
     assert "[[ ## answer ## ]]\n4\n\n[[ ## completed ## ]]" in output_value[-1]
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 @pytest.mark.skipif(VERSION >= (2, 6, 22), reason="requires dspy < 2.6.22")
 def test_compilation(
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1121,11 +1058,7 @@ def test_compilation(
         assert not span.events
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_context_attributes_are_instrumented(
     in_memory_span_exporter: InMemorySpanExporter,
     openai_api_key: str,

@@ -1,0 +1,8 @@
+litellm
+fastapi
+orjson
+opentelemetry-sdk
+opentelemetry-instrumentation-httpx
+pytest-recording
+tenacity
+tokenizers==0.20.3; python_version == '3.8'
