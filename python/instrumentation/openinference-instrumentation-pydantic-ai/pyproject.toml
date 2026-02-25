@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "pydantic-ai>=0.2.0",
+  "pydantic-ai>=0.7.5",
 ]
 
 [project.urls]
