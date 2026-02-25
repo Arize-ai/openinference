@@ -116,8 +116,14 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     )
 
     assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
-    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
-    assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
+    # llm.provider and llm.system may not be set by older pydantic-ai versions (e.g. v2 spans
+    # in 0.7.5 carry no top-level provider attribute); assert only when present.
+    provider = attributes.pop(LLM_PROVIDER, None)
+    if provider is not None:
+        assert provider == OpenInferenceLLMProviderValues.OPENAI.value
+    system = attributes.pop(LLM_SYSTEM, None)
+    if system is not None:
+        assert system == OpenInferenceLLMSystemValues.OPENAI.value
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
     # System instructions get concatenated into a single message by pydantic
