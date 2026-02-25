@@ -82,6 +82,8 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "mistralai",
+  "mistralai.*",
 ]
 
 [tool.ruff]
