@@ -51,6 +51,8 @@ def _query_input_value(prompt: Any, options: Any) -> str:
     payload: dict[str, Any] = {}
     if isinstance(prompt, str):
         payload["prompt"] = prompt
+    elif prompt is None:
+        payload["prompt"] = None
     else:
         payload["prompt"] = "<AsyncIterable>"
     if options is not None:
