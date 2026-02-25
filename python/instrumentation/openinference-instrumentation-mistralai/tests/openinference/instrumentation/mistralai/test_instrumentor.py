@@ -1,4 +1,5 @@
 import json
+import os
 from types import AsyncGeneratorType
 from typing import (
     Any,
@@ -855,7 +856,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_variables: Dict[str, Any],
 ) -> None:
     def mistral_stream() -> Generator[CompletionEvent, None, None]:
-        mistral_client = Mistral(api_key="redacted")
+        mistral_client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY", "redacted"))
         return mistral_client.chat.stream(  # type: ignore
             model="mistral-small-latest",
             messages=[  # type: ignore
@@ -890,7 +891,7 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
                 response_content += chunk_content
 
     assert (
-        response_content == "France won World Cup"  # noqa: E501
+        response_content == "France won it all"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -940,8 +941,8 @@ def test_synchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 26
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 30
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 5
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
@@ -973,7 +974,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
 ) -> None:
-    mistral_client = Mistral(api_key="redacted")
+    mistral_client = Mistral(api_key=os.environ.get("MISTRAL_API_KEY", "redacted"))
 
     async def get_response_stream():  # type: ignore
         return await mistral_client.chat.stream_async(
@@ -1010,7 +1011,7 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
             response_content += chunk_content
 
     assert (
-        response_content == "France won"  # noqa: E501
+        response_content == "France won it"  # noqa: E501
     )  # noqa: E501
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1060,8 +1061,8 @@ async def test_asynchronous_streaming_chat_completions_emits_expected_span(
         == OpenInferenceMimeTypeValues.JSON
     )
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 24
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 2
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 26
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 4
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 28
     assert attributes.pop(LLM_MODEL_NAME, None) == "mistral-small-latest"
     assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.MISTRALAI.value
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.MISTRALAI.value
@@ -1109,7 +1110,7 @@ def test_synchronous_streaming_chat_completions_with_tool_call_response_emits_ex
             },
         },
     }
-    mistral = Mistral(api_key="redacted")
+    mistral = Mistral(api_key=os.environ.get("MISTRAL_API_KEY", "redacted"))
 
     def mistral_chat() -> Generator[CompletionEvent, None, None]:
         return mistral.chat.stream(

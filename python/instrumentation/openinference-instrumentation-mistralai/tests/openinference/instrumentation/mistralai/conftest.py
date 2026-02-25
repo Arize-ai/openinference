@@ -17,7 +17,10 @@ def _strip_request_headers(request: Any) -> Any:
 
 
 def _strip_response_headers(response: Any) -> Any:
-    return {**response, "headers": {}}
+    # Preserve Content-Type so streaming SDKs can identify SSE responses
+    content_type = response.get("headers", {}).get("Content-Type")
+    headers = {"Content-Type": content_type} if content_type else {}
+    return {**response, "headers": headers}
 
 
 @pytest.fixture(scope="session")
