@@ -1,6 +1,7 @@
 # type: ignore
 # ruff: noqa: E501
 import json
+import os
 from typing import Any, Dict, Iterator
 
 import pytest
@@ -66,7 +67,7 @@ def test_generate_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -185,7 +186,7 @@ def test_generate_content_with_config_as_dict(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -272,7 +273,7 @@ async def test_async_generate_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the async client
     client = genai.Client(api_key=api_key).aio
@@ -340,7 +341,7 @@ def test_multi_turn_conversation(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -435,7 +436,7 @@ def test_streaming_text_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Initialize the client
-    client = genai.Client(api_key="REDACTED")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
@@ -503,7 +504,7 @@ async def test_async_streaming_text_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Initialize the async client
-    client = genai.Client(api_key="REDACTED").aio
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED")).aio
 
     # Make the streaming API call
     stream = await client.models.generate_content_stream(
@@ -570,7 +571,7 @@ def test_generate_content_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -723,7 +724,7 @@ def test_generate_content_with_raw_json_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -875,7 +876,7 @@ def test_streaming_content_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1042,7 +1043,7 @@ def test_chat_session_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1300,7 +1301,7 @@ def test_generate_content_with_automatic_tool_calling(
 ) -> None:
     """Test automatic tool calling where Google GenAI executes the function and returns complete response."""
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1440,7 +1441,7 @@ def test_validate_token_counts(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    client = genai.Client(api_key="GEMINI_API_KEY")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents="What is the sum of the first 50 prime numbers? "
@@ -1476,7 +1477,7 @@ def test_validate_token_counts_stream(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    client = genai.Client(api_key="GEMINI_API_KEY")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content_stream(
         model="gemini-2.5-flash",
         contents="What is the sum of the first 50 prime numbers? "

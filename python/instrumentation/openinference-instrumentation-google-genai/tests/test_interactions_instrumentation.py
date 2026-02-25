@@ -1,5 +1,6 @@
 # type: ignore
 # ruff: noqa: E501
+import os
 from typing import Any, Dict, Iterator
 
 import pytest
@@ -54,7 +55,7 @@ def test_generate_interactions_simple_message(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_message = "Tell me a short joke about programming."
@@ -123,7 +124,7 @@ def test_generate_interactions_multi_model_messages(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
     # Initialize the client
     client = genai.Client(api_key=api_key)
     input_messages = [
@@ -211,7 +212,7 @@ async def test_generate_interactions_async(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key).aio
@@ -279,8 +280,7 @@ def test_agent_stream(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
-    # api_key = os.environ["GEMINI_API_KEY"]
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     input_message = "Research the history of the Google TPUs with a focus on 2025 and 2026."
