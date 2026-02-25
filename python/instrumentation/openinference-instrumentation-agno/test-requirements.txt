@@ -1,4 +1,4 @@
-agno>=2.5.0
+agno==2.5.0
 opentelemetry-sdk
 pytest-recording
 openai

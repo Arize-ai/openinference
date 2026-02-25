@@ -1,8 +1,7 @@
-beeai-framework>=0.1.51
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 pytest-recording
 vcrpy>=5.0.0,<8.0.0
-beeai-framework[duckduckgo]
+beeai-framework[duckduckgo]==0.1.51
 pytest-asyncio
 pytest

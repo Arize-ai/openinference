@@ -1,4 +1,4 @@
-dspy>=2.6.22
+dspy==2.6.22
 opentelemetry-sdk
 pytest-recording
 litellm
