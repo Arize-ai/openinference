@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Iterator
 
 import litellm
@@ -22,7 +23,7 @@ def test_responses_simple_input(
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input="Write a poem about a boy and his first pet dog.",
         max_tokens=100,
     )
@@ -45,11 +46,11 @@ def test_responses_simple_input(
     assert attributes.pop(f"{o}.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{o}.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 242
+    assert attributes.pop("llm.token_count.completion") == 253
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 261
+    assert attributes.pop("llm.token_count.total") == 272
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
@@ -62,7 +63,7 @@ def test_responses_simple_input_stream(
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input="Write a poem about a boy and his first pet dog.",
         max_tokens=100,
         stream=True,
@@ -82,15 +83,15 @@ def test_responses_simple_input_stream(
     assert attributes.pop("llm.invocation_parameters") == '{"max_tokens": 100, "stream": true}'
     assert attributes.pop("llm.model_name") == "gpt-4.1-2025-04-14"
     o = "llm.output_messages.0.message"
-    assert "In a small sunlit room" in attributes.pop(f"{o}.contents.0.message_content.text")
+    assert "Underneath a summer sky" in attributes.pop(f"{o}.contents.0.message_content.text")
     assert attributes.pop(f"{o}.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{o}.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 248
+    assert attributes.pop("llm.token_count.completion") == 262
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 19
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 267
+    assert attributes.pop("llm.token_count.total") == 281
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
     assert attributes.pop("output.value").startswith('[{"role": "assistant"')
@@ -103,7 +104,7 @@ def test_responses_websearch_input(
 ) -> None:
     response = litellm.responses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         tools=[{"type": "web_search_preview"}],
         input="What was a positive news story from today?",
     )
@@ -125,18 +126,18 @@ def test_responses_websearch_input(
     wot = "message.tool_calls"
     assert attributes.pop(f"{lom}.0.message.role") == "assistant"
     assert attributes.pop(f"{lom}.0.{wot}.0.tool_call.function.name") == "web_search_call"
-    assert "ws_68d" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
+    assert "ws_008" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.text").startswith(
-        "On September 22, 2025, several uplifting"
+        "As of February 25, 2026, a notable positive development"
     )
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{lom}.1.message.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 437
+    assert attributes.pop("llm.token_count.completion") == 290
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 747
+    assert attributes.pop("llm.token_count.total") == 600
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"
@@ -150,7 +151,7 @@ async def test_responses_websearch_input_async(
 ) -> None:
     response = await litellm.aresponses(
         model="openai/gpt-4.1",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         tools=[{"type": "web_search_preview"}],
         input="What was a positive news story from today?",
     )
@@ -172,18 +173,18 @@ async def test_responses_websearch_input_async(
     wot = "message.tool_calls"
     assert attributes.pop(f"{lom}.0.message.role") == "assistant"
     assert attributes.pop(f"{lom}.0.{wot}.0.tool_call.function.name") == "web_search_call"
-    assert "ws_68d" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
+    assert "ws_010" in attributes.pop(f"{lom}.0.{wot}.0.tool_call.id")
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.text").startswith(
-        "On September 22, 2025, a significant"
+        "As of February 25, 2026, a notable positive news story"
     )
     assert attributes.pop(f"{lom}.1.message.contents.0.message_content.type") == "text"
     assert attributes.pop(f"{lom}.1.message.role") == "assistant"
     assert attributes.pop("llm.provider") == "openai"
-    assert attributes.pop("llm.token_count.completion") == 239
+    assert attributes.pop("llm.token_count.completion") == 364
     assert attributes.pop("llm.token_count.completion_details.reasoning") == 0
     assert attributes.pop("llm.token_count.prompt") == 310
     assert attributes.pop("llm.token_count.prompt_details.cache_read") == 0
-    assert attributes.pop("llm.token_count.total") == 549
+    assert attributes.pop("llm.token_count.total") == 674
     assert attributes.pop("llm.tools.0.tool.json_schema") == '{"type": "web_search_preview"}'
     assert attributes.pop("openinference.span.kind") == "LLM"
     assert attributes.pop("output.mime_type") == "application/json"

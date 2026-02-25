@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Iterator
 
 import litellm
@@ -25,7 +26,7 @@ def test_batch_embedding(
 
     response = litellm.embedding(
         model="openai/text-embedding-ada-002",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_texts,
     )
 
@@ -88,7 +89,7 @@ def test_single_string_embedding(
 
     response = litellm.embedding(
         model="openai/text-embedding-ada-002",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_text,
     )
 
@@ -150,7 +151,7 @@ def test_batch_embedding_with_different_model(
 
     response = litellm.embedding(
         model="openai/text-embedding-3-small",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
         input=input_texts,
     )
 
