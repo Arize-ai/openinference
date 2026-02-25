@@ -40,7 +40,7 @@
     "@opentelemetry/instrumentation": "^0.46.0"
   },
   "devDependencies": {
-    "@langchain/core": "^0.3.13",
+    "@langchain/core": "^0.3.80",
     "@langchain/coreV0.2": "npm:@langchain/core@^0.2.0",
     "@langchain/openai": "^0.3.17",
     "@langchain/openaiV0.2": "npm:@langchain/openai@^0.2.0",
@@ -51,7 +51,7 @@
     "@opentelemetry/semantic-conventions": "^1.25.1",
     "@types/node": "^20.14.11",
     "dotenv": "^16.4.5",
-    "langchain": "^0.3.3",
+    "langchain": "^0.3.37",
     "openai": "^4.52.7",
     "typescript": "^5.8.3",
     "vitest": "^4.0.3"

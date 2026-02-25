@@ -25,7 +25,7 @@ client = session.client("bedrock-runtime", "us-east-1")
 
 
 def multimodal_example():
-    model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    model_id = "us.anthropic.claude-sonnet-4-6"
     input_text = "What's in this image?"
 
     img_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"

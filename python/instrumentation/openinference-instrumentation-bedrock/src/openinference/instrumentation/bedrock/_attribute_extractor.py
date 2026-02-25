@@ -5,7 +5,59 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
+
+if TYPE_CHECKING:
+    from typing import TypedDict
+
+    from mypy_boto3_bedrock_agent_runtime.type_defs import (
+        ActionGroupInvocationInputTypeDef,
+        AgentCollaboratorInvocationInputTypeDef,
+        AgentCollaboratorInvocationOutputTypeDef,
+        CodeInterpreterInvocationInputTypeDef,
+        CodeInterpreterInvocationOutputTypeDef,
+        FailureTraceTypeDef,
+        GuardrailAssessmentTypeDef,
+        GuardrailTraceTypeDef,
+        InvocationInputTypeDef,
+        KnowledgeBaseLookupInputTypeDef,
+        KnowledgeBaseRetrievalResultTypeDef,
+        MetadataTypeDef,
+        ModelInvocationInputTypeDef,
+        ObservationTypeDef,
+        OrchestrationModelInvocationOutputTypeDef,
+        PostProcessingModelInvocationOutputTypeDef,
+        PreProcessingModelInvocationOutputTypeDef,
+        RetrieveAndGenerateRequestTypeDef,
+        RetrieveAndGenerateResponseTypeDef,
+        RetrievedReferenceTypeDef,
+        RetrieveRequestTypeDef,
+        RetrieveResponseTypeDef,
+        RoutingClassifierModelInvocationOutputTypeDef,
+        TraceTypeDef,
+    )
+
+    class _ProcessedGuardrailTypeDef(TypedDict, total=False):
+        inputAssessments: list[GuardrailAssessmentTypeDef]
+        outputAssessments: list[GuardrailAssessmentTypeDef]
+
+    ModelInvocationOutputTypeDef = Union[
+        OrchestrationModelInvocationOutputTypeDef,
+        PreProcessingModelInvocationOutputTypeDef,
+        PostProcessingModelInvocationOutputTypeDef,
+        RoutingClassifierModelInvocationOutputTypeDef,
+    ]
 
 from opentelemetry.util.types import AttributeValue
 
@@ -39,6 +91,36 @@ from openinference.semconv.trace import (
 
 logger = logging.getLogger(__name__)
 
+TraceEventType = Literal[
+    "preProcessingTrace",
+    "orchestrationTrace",
+    "guardrailTrace",
+    "postProcessingTrace",
+    "failureTrace",
+    "routingClassifierTrace",
+]
+
+TraceNodeType = Literal[
+    "preProcessingTrace",
+    "orchestrationTrace",
+    "guardrailTrace",
+    "postProcessingTrace",
+    "failureTrace",
+    "routingClassifierTrace",
+    "agent-collaborator",
+    "bedrock_agent.invoke_agent",
+]
+
+ChunkType = Literal[
+    "modelInvocationInput",
+    "modelInvocationOutput",
+    "invocationInput",
+    "observation",
+    "rationale",
+    "guardrail",
+    "",
+]
+
 
 class AttributeExtractor:
     """
@@ -63,65 +145,80 @@ class AttributeExtractor:
         messages = list()
         try:
             input_messages = safe_json_loads(input_text)
-            if system_message := input_messages.get("system"):
+            if "system" in input_messages and (system_message := input_messages["system"]):
                 messages.append(Message(content=system_message, role="system"))
 
-            for message in input_messages.get("messages", []):
-                role = message.get("role", "")
-                if content := message.get("content"):
+            for message in input_messages["messages"] if "messages" in input_messages else []:
+                role = message["role"] if "role" in message else ""
+                if "content" in message and (content := message["content"]):
                     parsed_contents = fix_loose_json_string(content) or [content]
                     for parsed_content in parsed_contents:
                         message_content = content
                         if isinstance(parsed_content, dict):
-                            if parsed_content_type := parsed_content.get("type"):
-                                message_content = parsed_content.get(parsed_content_type, "")
+                            if "type" in parsed_content and (
+                                parsed_content_type := parsed_content["type"]
+                            ):
+                                message_content = (
+                                    parsed_content[parsed_content_type]
+                                    if parsed_content_type in parsed_content
+                                    else ""
+                                )
                         messages.append(Message(content=message_content, role=role))
         except Exception:
             return [Message(content=input_text, role="assistant")]
         return messages
 
     @classmethod
-    def get_attributes_from_message(cls, message: Dict[str, Any], role: str) -> Optional[Message]:
+    def get_attributes_from_message(
+        cls, message: Mapping[str, Any], role: str
+    ) -> Optional[Message]:
         """
         Extract attributes from a message dictionary.
 
         Args:
-            message (dict[str, Any]): The message dictionary.
+            message (Dict[str, Any]): The message dictionary.
             role (str): The role of the message.
 
         Returns:
             Message | None: A Message object if attributes can be extracted, None otherwise.
         """
-        if message.get("type") == "text":
-            return Message(content=message.get("text", ""), role=role)
-        if message.get("type") == "tool_use":
+        if "type" in message and message["type"] == "text":
+            return Message(content=message["text"] if "text" in message else "", role=role)
+        if "type" in message and message["type"] == "tool_use":
             tool_call_function = ToolCallFunction(
-                name=message.get("name", ""), arguments=message.get("input", {})
+                name=message["name"] if "name" in message else "",
+                arguments=message["input"] if "input" in message else {},
             )
-            tool_calls = [ToolCall(id=message.get("id", ""), function=tool_call_function)]
-            return Message(tool_call_id=message.get("id", ""), role="tool", tool_calls=tool_calls)
+            tool_calls = [
+                ToolCall(id=message["id"] if "id" in message else "", function=tool_call_function)
+            ]
+            return Message(
+                tool_call_id=message["id"] if "id" in message else "",
+                role="tool",
+                tool_calls=tool_calls,
+            )
         return None
 
     @classmethod
-    def get_output_messages(cls, model_output: dict[str, Any]) -> Any:
+    def get_output_messages(cls, model_output: ModelInvocationOutputTypeDef) -> List[Message]:
         """
         Extract output messages from model output.
 
         Args:
-            model_output (dict[str, Any]): The model output dictionary.
+            model_output (ModelInvocationOutputTypeDef): The model output dictionary.
 
         Returns:
             list[Message] | None: A list of Message objects if messages can be extracted,
             None otherwise.
         """
         messages = list()
-        if raw_response := model_output.get("rawResponse"):
-            if output_text := raw_response.get("content"):
+        if "rawResponse" in model_output and (raw_response := model_output["rawResponse"]):
+            if "content" in raw_response and (output_text := raw_response["content"]):
                 try:
                     data = json.loads(str(output_text))
-                    for content in data.get("content") or []:
+                    for content in data["content"] if "content" in data else []:
                         if message := cls.get_attributes_from_message(
-                            content, content.get("role", "assistant")
+                            content, content["role"] if "role" in content else "assistant"
                         ):
                             messages.append(message)
                 except Exception:
@@ -130,8 +227,8 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_model_invocation_input(
-        cls, model_invocation_input: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, model_invocation_input: ModelInvocationInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from model invocation input.
 
@@ -140,10 +237,11 @@ class AttributeExtractor:
         these attributes with LLM-specific attributes and span kind attributes.
 
         Args:
-            model_invocation_input (dict[str, Any]): The model invocation input dictionary.
+            model_invocation_input (ModelInvocationInputTypeDef): The model invocation
+            input dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
         llm_attributes = {}
 
@@ -173,8 +271,8 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_model_invocation_output(
-        cls, model_invocation_output: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, model_invocation_output: ModelInvocationOutputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from model invocation output.
 
@@ -183,12 +281,13 @@ class AttributeExtractor:
         It combines these attributes with LLM-specific attributes and output attributes.
 
         Args:
-            model_invocation_output (dict[str, Any]): The model invocation output dictionary.
+            model_invocation_output (ModelInvocationOutputTypeDef): The model invocation
+            output dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
-        llm_attributes = {}
+        llm_attributes: Dict[str, Any] = {}
         if model_name := AttributeExtractor.get_model_name({}, model_invocation_output or {}):
             llm_attributes["model_name"] = model_name
 
@@ -204,7 +303,7 @@ class AttributeExtractor:
 
         # Set attributes
         request_attributes = {
-            **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),  # type: ignore
+            **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),
             **get_llm_token_count_attributes(
                 AttributeExtractor.get_token_counts(model_invocation_output or {})
             ),
@@ -216,20 +315,24 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_code_interpreter_input(
-        cls, code_input: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, code_input: CodeInterpreterInvocationInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from code interpreter input.
 
         Args:
-            code_input (dict[str, Any]): The code interpreter input dictionary.
+            code_input (CodeInterpreterInvocationInputTypeDef): The code interpreter
+            input dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
         tool_call_function = ToolCallFunction(
             name="code_interpreter",
-            arguments={"code": code_input.get("code", ""), "files": code_input.get("files", "")},
+            arguments={
+                "code": code_input["code"] if "code" in code_input else "",
+                "files": code_input["files"] if "files" in code_input else "",
+            },
         )
         tool_calls = [ToolCall(id="default", function=tool_call_function)]
         messages = [Message(tool_call_id="default", role="tool", tool_calls=tool_calls)]
@@ -238,10 +341,9 @@ class AttributeExtractor:
         parameters = json.dumps({"code": {"type": "string", "description": "Code to execute"}})
         metadata = {
             "invocation_type": "code_execution",
-            "execution_context": code_input.get("context", {}),
         }
         return {
-            **get_input_attributes(code_input.get("code", "")),
+            **get_input_attributes(code_input["code"] if "code" in code_input else ""),
             **get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
             **get_llm_input_message_attributes(messages),
             **get_tool_attributes(name=name, description=description, parameters=parameters),
@@ -250,58 +352,68 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_knowledge_base_lookup_input(
-        cls, kb_data: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, kb_data: KnowledgeBaseLookupInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from knowledge base lookup input.
 
         Args:
-            kb_data (dict[str, Any]): The knowledge base lookup input dictionary.
+            kb_data (KnowledgeBaseLookupInputTypeDef): The knowledge base lookup input dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
         metadata = {
             "invocation_type": "knowledge_base_lookup",
-            "knowledge_base_id": kb_data.get("knowledgeBaseId"),
+            "knowledge_base_id": kb_data["knowledgeBaseId"]
+            if "knowledgeBaseId" in kb_data
+            else None,
         }
         return {
-            **get_input_attributes(kb_data.get("text", "")),
+            **get_input_attributes(kb_data["text"] if "text" in kb_data else ""),
             **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
             **{"metadata": metadata},
         }
 
     @classmethod
     def get_attributes_from_action_group_invocation_input(
-        cls, action_input: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, action_input: ActionGroupInvocationInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from action group invocation input.
 
         Args:
-            action_input (dict[str, Any]): The action group invocation input dictionary.
+            action_input (ActionGroupInvocationInputTypeDef): The action group invocation
+            input dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
-        name = action_input.get("function", "")
-        tool_call_function = ToolCallFunction(
-            name=name, arguments=action_input.get("parameters", {})
+        name = action_input["function"] if "function" in action_input else ""
+        has_params = "parameters" in action_input and bool(action_input["parameters"])
+        tool_call_function = (
+            ToolCallFunction(name=name, arguments=json.dumps(action_input["parameters"]))
+            if has_params
+            else ToolCallFunction(name=name, arguments={})
         )
         tool_calls = [ToolCall(id="default", function=tool_call_function)]
         messages = [Message(tool_call_id="default", role="tool", tool_calls=tool_calls)]
-        description = action_input.get("description", "")
-        parameters = json.dumps(action_input.get("parameters", []))
+        description = ""
+        parameters = json.dumps(action_input["parameters"] if "parameters" in action_input else [])
         llm_invocation_parameters = {
             "invocation_type": "action_group_invocation",
-            "action_group_name": action_input.get("actionGroupName"),
-            "execution_type": action_input.get("executionType"),
+            "action_group_name": action_input["actionGroupName"]
+            if "actionGroupName" in action_input
+            else None,
+            "execution_type": action_input["executionType"]
+            if "executionType" in action_input
+            else None,
         }
-        if invocation_id := action_input.get("invocationId"):
+        if "invocationId" in action_input and (invocation_id := action_input["invocationId"]):
             llm_invocation_parameters["invocation_id"] = invocation_id
-        if verb := action_input.get("verb"):
+        if "verb" in action_input and (verb := action_input["verb"]):
             llm_invocation_parameters["verb"] = verb
-        if api_path := action_input.get("apiPath"):
+        if "apiPath" in action_input and (api_path := action_input["apiPath"]):
             llm_invocation_parameters["api_path"] = api_path
         return {
             **get_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
@@ -311,71 +423,86 @@ class AttributeExtractor:
         }
 
     @classmethod
-    def get_metadata_attributes(cls, trace_metadata: dict[str, Any]) -> dict[str, Any]:
-        metadata: dict[str, Any] = {}
+    def get_metadata_attributes(cls, trace_metadata: Optional[MetadataTypeDef]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
         if not trace_metadata:
             return metadata
-        if client_request_id := trace_metadata.get("clientRequestId"):
+        if "clientRequestId" in trace_metadata and (
+            client_request_id := trace_metadata["clientRequestId"]
+        ):
             metadata["clientRequestId"] = client_request_id
-        if end_time := trace_metadata.get("endTime"):
+        if "endTime" in trace_metadata and (end_time := trace_metadata["endTime"]):
             metadata["endTime"] = end_time.timestamp() * 1_000_000_000
-        if start_time := trace_metadata.get("startTime"):
+        if "startTime" in trace_metadata and (start_time := trace_metadata["startTime"]):
             metadata["startTime"] = start_time.timestamp() * 1_000_000_000
-        if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
+        if "operationTotalTimeMs" in trace_metadata and (
+            operation_total_time_ms := trace_metadata["operationTotalTimeMs"]
+        ):
             metadata["operationTotalTimeMs"] = operation_total_time_ms
-        if total_time_ms := trace_metadata.get("totalTimeMs"):
+        if "totalTimeMs" in trace_metadata and (total_time_ms := trace_metadata["totalTimeMs"]):
             metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
-    def get_observation_metadata_attributes(cls, trace_metadata: dict[str, Any]) -> dict[str, Any]:
-        metadata: dict[str, Any] = {}
-        if client_request_id := trace_metadata.get("clientRequestId"):
+    def get_observation_metadata_attributes(cls, trace_metadata: MetadataTypeDef) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        if "clientRequestId" in trace_metadata and (
+            client_request_id := trace_metadata["clientRequestId"]
+        ):
             metadata["clientRequestId"] = client_request_id
-        if end_time := trace_metadata.get("endTime"):
+        if "endTime" in trace_metadata and (end_time := trace_metadata["endTime"]):
             metadata["endTime"] = int(end_time.timestamp() * 1_000_000_000)
-        if start_time := trace_metadata.get("startTime"):
+        if "startTime" in trace_metadata and (start_time := trace_metadata["startTime"]):
             metadata["startTime"] = int(start_time.timestamp() * 1_000_000_000)
-        if operation_total_time_ms := trace_metadata.get("operationTotalTimeMs"):
+        if "operationTotalTimeMs" in trace_metadata and (
+            operation_total_time_ms := trace_metadata["operationTotalTimeMs"]
+        ):
             metadata["operationTotalTimeMs"] = operation_total_time_ms
-        if total_time_ms := trace_metadata.get("totalTimeMs"):
+        if "totalTimeMs" in trace_metadata and (total_time_ms := trace_metadata["totalTimeMs"]):
             metadata["totalTimeMs"] = total_time_ms
         return metadata
 
     @classmethod
     def get_attributes_from_agent_collaborator_invocation_input(
-        cls, collaborator_input: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, collaborator_input: AgentCollaboratorInvocationInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from agent collaborator invocation input.
 
         Args:
-            collaborator_input (dict[str, Any]): The agent collaborator invocation input dictionary.
+            collaborator_input (AgentCollaboratorInvocationInputTypeDef): The agent collaborator
+            invocation input dictionary.
 
         Returns:
-            dict[str, Any]: A dictionary of extracted attributes.
+            Dict[str, Any]: A dictionary of extracted attributes.
         """
-        input_data = collaborator_input.get("input", {})
-        input_type = input_data.get("type", "TEXT")
+        input_data = collaborator_input["input"] if "input" in collaborator_input else {}
+        input_type = input_data["type"] if "type" in input_data else "TEXT"
 
         # Extract content based on input type
         content = ""
         if input_type == "TEXT":
-            content = input_data.get("text", "")
+            content = input_data["text"] if "text" in input_data else ""
         elif input_type == "RETURN_CONTROL":
-            if return_control_results := input_data.get("returnControlResults"):
+            if "returnControlResults" in input_data and (
+                return_control_results := input_data["returnControlResults"]
+            ):
                 content = json.dumps(return_control_results)
 
         # Create message
         messages = [Message(content=content, role="assistant")]
 
         # Create metadata - merge invocation metadata with agent-specific fields
-        metadata = cls.get_metadata_attributes(collaborator_input.get("metadata", {}))
+        metadata = cls.get_metadata_attributes(None)
         metadata.update(
             {
                 "invocation_type": "agent_collaborator_invocation",
-                "agent_collaborator_name": collaborator_input.get("agentCollaboratorName"),
-                "agent_collaborator_alias_arn": collaborator_input.get("agentCollaboratorAliasArn"),
+                "agent_collaborator_name": collaborator_input["agentCollaboratorName"]
+                if "agentCollaboratorName" in collaborator_input
+                else None,
+                "agent_collaborator_alias_arn": collaborator_input["agentCollaboratorAliasArn"]
+                if "agentCollaboratorAliasArn" in collaborator_input
+                else None,
                 "input_type": input_type,
             }
         )
@@ -389,13 +516,14 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_code_interpreter_output(
-        cls, code_invocation_output: dict[str, Any]
+        cls, code_invocation_output: CodeInterpreterInvocationOutputTypeDef
     ) -> Dict[str, AttributeValue]:
         """
         Extract attributes from code interpreter output.
 
         Args:
-            code_invocation_output (dict[str, Any]): The code interpreter output dictionary.
+            code_invocation_output (CodeInterpreterInvocationOutputTypeDef): The code interpreter
+            output dictionary.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
@@ -403,13 +531,20 @@ class AttributeExtractor:
         output_value = None
         files = None
 
-        if output_text := code_invocation_output.get("executionOutput"):
+        if "executionOutput" in code_invocation_output and (
+            output_text := code_invocation_output["executionOutput"]
+        ):
             output_value = output_text
-        elif execution_error := code_invocation_output.get("executionError"):
+        elif "executionError" in code_invocation_output and (
+            execution_error := code_invocation_output["executionError"]
+        ):
             output_value = execution_error
-        elif code_invocation_output.get("executionTimeout"):
+        elif (
+            "executionTimeout" in code_invocation_output
+            and code_invocation_output["executionTimeout"]
+        ):
             output_value = "Execution Timeout Error"
-        elif files := code_invocation_output.get("files"):
+        elif "files" in code_invocation_output and (files := code_invocation_output["files"]):
             output_value = json.dumps(files)
 
         content = json.dumps(files) if files else str(output_value) if output_value else ""
@@ -421,40 +556,46 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_agent_collaborator_invocation_output(
-        cls, collaborator_output: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, collaborator_output: AgentCollaboratorInvocationOutputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from agent collaborator invocation output.
 
         Args:
-            collaborator_output (dict[str, Any]): The agent collaborator invocation
-            output dictionary.
+            collaborator_output (AgentCollaboratorInvocationOutputTypeDef): The agent
+            collaborator invocation output dictionary.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
         """
-        output_data = collaborator_output.get("output", {})
-        output_type = output_data.get("type", "TEXT")
+        output_data = collaborator_output["output"] if "output" in collaborator_output else {}
+        output_type = output_data["type"] if "type" in output_data else "TEXT"
 
         # Extract content based on output type
         output_value = ""
         if output_type == "TEXT":
-            output_value = output_data.get("text", "")
+            output_value = output_data["text"] if "text" in output_data else ""
         elif output_type == "RETURN_CONTROL":
-            if return_control_payload := output_data.get("returnControlPayload"):
+            if "returnControlPayload" in output_data and (
+                return_control_payload := output_data["returnControlPayload"]
+            ):
                 output_value = json.dumps(return_control_payload)
 
         # Create message
         messages = [Message(role="assistant", content=output_value)]
 
         # Create metadata - merge observation metadata with agent-specific fields
-        metadata = cls.get_metadata_attributes(collaborator_output.get("metadata", {}))
+        metadata = cls.get_metadata_attributes(
+            collaborator_output["metadata"] if "metadata" in collaborator_output else None
+        )
         metadata.update(
             {
-                "agent_collaborator_name": collaborator_output.get("agentCollaboratorName"),
-                "agent_collaborator_alias_arn": collaborator_output.get(
-                    "agentCollaboratorAliasArn"
-                ),
+                "agent_collaborator_name": collaborator_output["agentCollaboratorName"]
+                if "agentCollaboratorName" in collaborator_output
+                else None,
+                "agent_collaborator_alias_arn": collaborator_output["agentCollaboratorAliasArn"]
+                if "agentCollaboratorAliasArn" in collaborator_output
+                else None,
                 "output_type": output_type,
             }
         )
@@ -466,7 +607,11 @@ class AttributeExtractor:
         }
 
     @classmethod
-    def get_document_attributes(cls, index: int, ref: Dict[str, Any]) -> Dict[str, Any]:
+    def get_document_attributes(
+        cls,
+        index: int,
+        ref: Mapping[str, Any],
+    ) -> Dict[str, Any]:
         """
         Extract document attributes from a retrieved reference for OpenTelemetry tracing.
 
@@ -477,7 +622,7 @@ class AttributeExtractor:
         Args:
             index (int): The index position of this document in the retrieval results,
                         used to create unique attribute keys.
-            ref (Dict[str, Any]): A document reference dictionary containing:
+            ref (KnowledgeBaseRetrievalResultTypeDef): A document reference dictionary containing:
                 - metadata: Document metadata including chunk ID
                 - content: Document content with text and type information
                 - score: Relevance score for the retrieved document
@@ -494,21 +639,31 @@ class AttributeExtractor:
             The method follows OpenInference semantic conventions for document attributes
             and handles missing fields gracefully by using default values.
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
         base_key = f"{RETRIEVAL_DOCUMENTS}.{index}"
-        if document_id := ref.get("metadata", {}).get("x-amz-bedrock-kb-chunk-id", ""):
-            attributes[f"{base_key}.{DOCUMENT_ID}"] = document_id
+        if (
+            "metadata" in ref
+            and "x-amz-bedrock-kb-chunk-id" in ref["metadata"]
+            and (document_id := ref["metadata"]["x-amz-bedrock-kb-chunk-id"])
+        ):
+            attributes[f"{base_key}.{DOCUMENT_ID}"] = str(document_id)
 
-        if document_content := ref.get("content", {}).get("text"):
+        if (
+            "content" in ref
+            and "text" in ref["content"]
+            and (document_content := ref["content"]["text"])
+        ):
             attributes[f"{base_key}.{DOCUMENT_CONTENT}"] = document_content
 
-        if document_score := ref.get("score", 0.0):
+        if "score" in ref and (document_score := ref["score"]):
             attributes[f"{base_key}.{DOCUMENT_SCORE}"] = document_score
         metadata = json.dumps(
             {
-                "location": ref.get("location", {}),
-                "metadata": ref.get("metadata", {}),
-                "type": ref.get("content", {}).get("type"),
+                "location": ref["location"] if "location" in ref else None,
+                "metadata": ref["metadata"] if "metadata" in ref else {},
+                "type": ref["content"]["type"]
+                if "content" in ref and "type" in ref["content"]
+                else None,
             }
         )
         attributes[f"{base_key}.{DOCUMENT_METADATA}"] = metadata
@@ -516,8 +671,11 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_knowledge_base_lookup_output(
-        cls, retrieved_refs: List[Dict[str, Any]]
-    ) -> dict[str, AttributeValue]:
+        cls,
+        retrieved_refs: Union[
+            Sequence[KnowledgeBaseRetrievalResultTypeDef], Sequence[RetrievedReferenceTypeDef]
+        ],
+    ) -> Dict[str, AttributeValue]:
         """
         Extract attributes from knowledge base lookup output.
 
@@ -533,50 +691,50 @@ class AttributeExtractor:
         return attributes
 
     @classmethod
-    def get_event_type(cls, trace_data: dict[str, Any]) -> str:
+    def get_event_type(cls, trace_data: TraceTypeDef) -> Optional[TraceEventType]:
         """
         Identifies the type of trace event from the provided trace data.
 
         Args:
-            trace_data (dict[str, Any]): The trace data containing information
+            trace_data (Dict[str, Any]): The trace data containing information
             about the event.
 
         Returns:
-            str: The identified event type if found, otherwise an empty string.
+            The identified event type if found, otherwise None.
         """
-        trace_events = [
+        trace_events: Tuple[TraceEventType, ...] = (
             "preProcessingTrace",
             "orchestrationTrace",
             "guardrailTrace",
             "postProcessingTrace",
             "failureTrace",
             "routingClassifierTrace",
-        ]
+        )
         for trace_event in trace_events:
             if trace_event in trace_data:
                 return trace_event
-        return ""
+        return None
 
     @classmethod
-    def get_chunk_type(cls, trace_event_data: dict[str, Any]) -> str:
+    def get_chunk_type(cls, trace_event_data: Mapping[str, Any]) -> ChunkType:
         """
         Identifies the type of trace event from the provided trace data.
 
         Args:
             trace_event str: The trace event type.
-            trace_event_data (dict[str, Any]): The trace data containing information
+            trace_event_data (Dict[str, Any]): The trace data containing information
             about the chunk.
 
         Returns:
-            str: The identified event type if found, otherwise an empty string.
+            ChunkType: The identified chunk type if found, otherwise an empty string.
         """
-        chunk_types = [
+        chunk_types: Tuple[ChunkType, ...] = (
             "modelInvocationInput",
             "modelInvocationOutput",
             "invocationInput",
             "observation",
             "rationale",
-        ]
+        )
         for chunk_type in chunk_types:
             if chunk_type in trace_event_data:
                 return chunk_type
@@ -584,16 +742,16 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_invocation_input(
-        cls, invocation_input: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls, invocation_input: InvocationInputTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from invocation input.
 
         Args:
-            invocation_input (dict[str, Any]): The trace data dictionary.
+            invocation_input (Dict[str, Any]): The trace data dictionary.
 
         Returns:
-            dict[str, Any] | None: A dictionary of extracted attributes if available,
+            Dict[str, Any] | None: A dictionary of extracted attributes if available,
             None otherwise.
         """
         if "actionGroupInvocationInput" in invocation_input:
@@ -628,27 +786,29 @@ class AttributeExtractor:
 
     @classmethod
     def get_attributes_from_observation(
-        cls, observation: dict[str, Any]
+        cls, observation: ObservationTypeDef
     ) -> Dict[str, AttributeValue]:
         """
         Extract attributes from observation data.
 
         Args:
-            observation (dict[str, Any]): The trace data dictionary.
+            observation (Dict[str, Any]): The trace data dictionary.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
         """
         if "actionGroupInvocationOutput" in observation:
             tool_output = observation["actionGroupInvocationOutput"]
-            return get_output_attributes(tool_output.get("text", ""))
+            return get_output_attributes(tool_output["text"] if "text" in tool_output else "")
         if "codeInterpreterInvocationOutput" in observation:
             return cls.get_attributes_from_code_interpreter_output(
                 observation["codeInterpreterInvocationOutput"]
             )
         if "knowledgeBaseLookupOutput" in observation:
             return cls.get_attributes_from_knowledge_base_lookup_output(
-                observation["knowledgeBaseLookupOutput"].get("retrievedReferences", [])
+                observation["knowledgeBaseLookupOutput"]["retrievedReferences"]
+                if "retrievedReferences" in observation["knowledgeBaseLookupOutput"]
+                else []
             )
         if "agentCollaboratorInvocationOutput" in observation:
             return cls.get_attributes_from_agent_collaborator_invocation_output(
@@ -658,50 +818,66 @@ class AttributeExtractor:
 
     @classmethod
     def get_metadata_from_observation(
-        cls, observation: dict[str, Any]
+        cls, observation: ObservationTypeDef
     ) -> Dict[str, AttributeValue]:
         """
         Extract attributes from observation data.
 
         Args:
-            observation (dict[str, Any]): The trace data dictionary.
+            observation (ObservationTypeDef): The trace data dictionary.
 
         Returns:
             Dict[str, AttributeValue]: A dictionary of extracted attributes.
         """
-        events = [
-            "actionGroupInvocationOutput",
-            "codeInterpreterInvocationOutput",
-            "knowledgeBaseLookupOutput",
-            "agentCollaboratorInvocationOutput",
-        ]
-        for event in events:
-            if event in observation and (event_data := observation[event]):
-                return cls.get_metadata_attributes(event_data.get("metadata", {}))
+        if "actionGroupInvocationOutput" in observation and (
+            ag_output := observation["actionGroupInvocationOutput"]
+        ):
+            return cls.get_metadata_attributes(
+                ag_output["metadata"] if "metadata" in ag_output else None
+            )
+        if "codeInterpreterInvocationOutput" in observation and (
+            ci_output := observation["codeInterpreterInvocationOutput"]
+        ):
+            return cls.get_metadata_attributes(
+                ci_output["metadata"] if "metadata" in ci_output else None
+            )
+        if "knowledgeBaseLookupOutput" in observation and (
+            kb_output := observation["knowledgeBaseLookupOutput"]
+        ):
+            return cls.get_metadata_attributes(
+                kb_output["metadata"] if "metadata" in kb_output else None
+            )
+        if "agentCollaboratorInvocationOutput" in observation and (
+            collab_output := observation["agentCollaboratorInvocationOutput"]
+        ):
+            return cls.get_metadata_attributes(
+                collab_output["metadata"] if "metadata" in collab_output else None
+            )
         return {}
 
     @classmethod
     def get_model_name(
-        cls, input_params: dict[str, Any], output_params: dict[str, Any]
+        cls,
+        input_params: Union[ModelInvocationInputTypeDef, Mapping[str, Any]],
+        output_params: Union[ModelInvocationOutputTypeDef, Mapping[str, Any]],
     ) -> str | None:
         """
         Get the model name from input or output parameters.
 
         Args:
-            input_params (dict[str, Any]): The input parameters.
-            output_params (dict[str, Any]): The output parameters.
+            input_params (Dict[str, Any]): The input parameters.
+            output_params (Dict[str, Any]): The output parameters.
 
         Returns:
             str | None: The model name if found, None otherwise.
         """
-        if model_name := input_params.get("foundationModel"):
+        if "foundationModel" in input_params and (model_name := input_params["foundationModel"]):
             return str(model_name)
-        if raw_response := output_params.get("rawResponse"):
-            if output_text := raw_response.get("content"):
+        if "rawResponse" in output_params and (raw_response := output_params["rawResponse"]):
+            if "content" in raw_response and (output_text := raw_response["content"]):
                 try:
                     data = json.loads(str(output_text))
-                    model = data.get("model")
-                    if model is not None:
+                    if "model" in data and (model := data["model"]) is not None:
                         return str(model)
                 except Exception as e:
                     logger.debug(str(e))
@@ -709,78 +885,92 @@ class AttributeExtractor:
 
     @classmethod
     def get_invocation_parameters(
-        cls, input_params: dict[str, Any], output_params: dict[str, Any]
+        cls,
+        input_params: Union[ModelInvocationInputTypeDef, Mapping[str, Any]],
+        output_params: Mapping[str, Any],
     ) -> str | None:
         """
         Get the invocation parameters from input or output parameters.
 
         Args:
-            input_params (dict[str, Any]): The input parameters.
-            output_params (dict[str, Any]): The output parameters.
+            input_params (Dict[str, Any]): The input parameters.
+            output_params (Dict[str, Any]): The output parameters.
 
         Returns:
             str | None: The invocation parameters as a JSON string if found, None otherwise.
         """
-        if inference_configuration := input_params.get("inferenceConfiguration"):
+        if "inferenceConfiguration" in input_params and (
+            inference_configuration := input_params["inferenceConfiguration"]
+        ):
             return json.dumps(inference_configuration)
-        if inference_configuration := output_params.get("inferenceConfiguration"):
+        if "inferenceConfiguration" in output_params and (
+            inference_configuration := output_params["inferenceConfiguration"]
+        ):
             return json.dumps(inference_configuration)
         return None
 
     @classmethod
-    def get_token_counts(cls, output_params: dict[str, Any]) -> TokenCount | None:
+    def get_token_counts(
+        cls, output_params: Union[ModelInvocationOutputTypeDef, Mapping[str, Any]]
+    ) -> TokenCount | None:
         """
         Get token counts from output parameters.
 
         Args:
-            output_params (dict[str, Any]): The output parameters.
+            output_params (Dict[str, Any]): The output parameters.
 
         Returns:
             TokenCount | None: A TokenCount object if token counts are found, None otherwise.
         """
-        if not output_params.get("metadata", {}):
+        if "metadata" not in output_params or not output_params["metadata"]:
             return None
-        if usage := output_params.get("metadata", {}).get("usage"):
+        metadata = output_params["metadata"]
+        if "usage" in metadata and (usage := metadata["usage"]):
             completion, prompt, total = 0, 0, 0
 
-            if input_tokens := usage.get("inputTokens"):
+            if "inputTokens" in usage and (input_tokens := usage["inputTokens"]):
                 prompt = input_tokens
-            if output_tokens := usage.get("outputTokens"):
+            if "outputTokens" in usage and (output_tokens := usage["outputTokens"]):
                 completion = output_tokens
-            if (input_tokens := usage.get("inputTokens")) and (
-                output_tokens := usage.get("outputTokens")
+            if (
+                "inputTokens" in usage
+                and (input_tokens := usage["inputTokens"])
+                and "outputTokens" in usage
+                and (output_tokens := usage["outputTokens"])
             ):
                 total = input_tokens + output_tokens
             return TokenCount(prompt=prompt, completion=completion, total=total)
         return None
 
     @classmethod
-    def get_output_value(cls, output_params: dict[str, Any]) -> str | None:
+    def get_output_value(cls, output_params: Mapping[str, Any]) -> str | None:
         """
         Get the output value from output parameters.
 
         Args:
-            output_params (dict[str, Any]): The output parameters.
+            output_params (Dict[str, Any]): The output parameters.
 
         Returns:
             str | None: The output value if found, None otherwise.
         """
-        if raw_response := output_params.get("rawResponse"):
-            if output_text := raw_response.get("content"):
+        if "rawResponse" in output_params and (raw_response := output_params["rawResponse"]):
+            if "content" in raw_response and (output_text := raw_response["content"]):
                 return str(output_text)
 
-        parsed_response = output_params.get("parsedResponse", {})
-        if output_text := parsed_response.get("text"):
+        parsed_response = (
+            output_params["parsedResponse"] if "parsedResponse" in output_params else {}
+        )
+        if "text" in parsed_response and (output_text := parsed_response["text"]):
             # This block will be executed for Post Processing trace
             return str(output_text)
-        if output_text := parsed_response.get("rationale"):
+        if "rationale" in parsed_response and (output_text := parsed_response["rationale"]):
             # This block will be executed for Pre Processing trace
             return str(output_text)
         return None
 
     @classmethod
     def get_parent_input_attributes_from_invocation_input(
-        cls, invocation_input: Dict[str, Any]
+        cls, invocation_input: Mapping[str, Any]
     ) -> Any:
         """
         Extract parent input attributes from invocation input.
@@ -790,10 +980,10 @@ class AttributeExtractor:
         to be set on the parent span.
 
         Args:
-            invocation_input (dict[str, Any]): The invocation input dictionary.
+            invocation_input (Dict[str, Any]): The invocation input dictionary.
 
         Returns:
-            Optional[dict[str, AttributeValue]]: A dictionary of input attributes if available,
+            Optional[Dict[str, AttributeValue]]: A dictionary of input attributes if available,
             None otherwise.
         """
         if action_group := invocation_input.get("actionGroupInvocationInput", {}):
@@ -822,7 +1012,7 @@ class AttributeExtractor:
         return None
 
     @classmethod
-    def extract_trace_id(cls, trace_data: dict[str, Any]) -> Any:
+    def extract_trace_id(cls, trace_data: TraceTypeDef) -> str:
         """
         Extract a unique trace ID from trace data.
 
@@ -832,58 +1022,99 @@ class AttributeExtractor:
         ID based on the event type and current span counts.
 
         Args:
-            trace_data (dict[str, Any]): The trace data containing trace information.
+            trace_data: The TraceTypeDef containing trace information.
 
         Returns:
             str: A unique trace ID extracted from the data or generated if none exists.
         """
-        trace_event = AttributeExtractor.get_event_type(trace_data)
-        event_data = trace_data.get(trace_event, {})
-
-        # Try to get trace ID from the trace data
-        if "traceId" in event_data:
-            return event_data["traceId"]
-
-        # For model invocation traces
-        if "modelInvocationInput" in event_data:
-            model_input = event_data["modelInvocationInput"]
-            if "traceId" in model_input:
-                return model_input["traceId"]
-
-        if "modelInvocationOutput" in event_data:
-            model_output = event_data["modelInvocationOutput"]
-            if "traceId" in model_output:
-                return model_output["traceId"]
-
-        # For invocation input traces
-        if "invocationInput" in event_data:
-            invocation_input = event_data["invocationInput"]
-            if "traceId" in invocation_input:
-                return invocation_input["traceId"]
-
-        # For observation traces
-        if "observation" in event_data:
-            observation = event_data["observation"]
-            if "traceId" in observation:
-                return observation["traceId"]
-        if "rationale" in event_data:
-            rationale = event_data["rationale"]
-            if "traceId" in rationale:
-                return rationale["traceId"]
+        if "orchestrationTrace" in trace_data:
+            orch_data = trace_data["orchestrationTrace"]
+            if "modelInvocationInput" in orch_data:
+                mi = orch_data["modelInvocationInput"]
+                if "traceId" in mi:
+                    return mi["traceId"]
+            if "modelInvocationOutput" in orch_data:
+                mo = orch_data["modelInvocationOutput"]
+                if "traceId" in mo:
+                    return mo["traceId"]
+            if "invocationInput" in orch_data:
+                inv_input = orch_data["invocationInput"]
+                if "traceId" in inv_input:
+                    return inv_input["traceId"]
+            if "observation" in orch_data:
+                obs = orch_data["observation"]
+                if "traceId" in obs:
+                    return obs["traceId"]
+            if "rationale" in orch_data:
+                rationale = orch_data["rationale"]
+                if "traceId" in rationale:
+                    return rationale["traceId"]
+        elif "preProcessingTrace" in trace_data:
+            pre_data = trace_data["preProcessingTrace"]
+            if "modelInvocationInput" in pre_data:
+                mi = pre_data["modelInvocationInput"]
+                if "traceId" in mi:
+                    return mi["traceId"]
+            if "modelInvocationOutput" in pre_data:
+                mo = pre_data["modelInvocationOutput"]
+                if "traceId" in mo:
+                    return mo["traceId"]
+        elif "postProcessingTrace" in trace_data:
+            post_data = trace_data["postProcessingTrace"]
+            if "modelInvocationInput" in post_data:
+                mi = post_data["modelInvocationInput"]
+                if "traceId" in mi:
+                    return mi["traceId"]
+            if "modelInvocationOutput" in post_data:
+                mo = post_data["modelInvocationOutput"]
+                if "traceId" in mo:
+                    return mo["traceId"]
+        elif "guardrailTrace" in trace_data:
+            guardrail_data = trace_data["guardrailTrace"]
+            if "traceId" in guardrail_data:
+                return guardrail_data["traceId"]
+        elif "failureTrace" in trace_data:
+            failure_data = trace_data["failureTrace"]
+            if "traceId" in failure_data:
+                return failure_data["traceId"]
+        elif "routingClassifierTrace" in trace_data:
+            routing_data = trace_data["routingClassifierTrace"]
+            if "modelInvocationInput" in routing_data:
+                routing_mi = routing_data["modelInvocationInput"]
+                if "traceId" in routing_mi:
+                    return routing_mi["traceId"]
+            if "modelInvocationOutput" in routing_data:
+                routing_mo = routing_data["modelInvocationOutput"]
+                if "traceId" in routing_mo:
+                    return routing_mo["traceId"]
+            if "invocationInput" in routing_data:
+                routing_inv = routing_data["invocationInput"]
+                if "traceId" in routing_inv:
+                    return routing_inv["traceId"]
+            if "observation" in routing_data:
+                obs = routing_data["observation"]
+                if "traceId" in obs:
+                    return obs["traceId"]
 
         # Generate a unique ID if none found
         return str(uuid.uuid4())
 
     @classmethod
-    def get_attributes_from_guardrail_trace(cls, guardrail_trace: dict[str, Any]) -> dict[str, Any]:
+    def get_attributes_from_guardrail_trace(
+        cls, guardrail_trace: GuardrailTraceTypeDef
+    ) -> Dict[str, Any]:
         """
         Extract attributes from guardrail trace data.
         """
         guardrail_trace_data = {}
 
         # Extract client_request_id from the guardrail metadata if present
-        metadata_attributes = cls.get_metadata_attributes(guardrail_trace.get("metadata", {}))
-        if client_request_id := metadata_attributes.get("clientRequestId"):
+        metadata_attributes = cls.get_metadata_attributes(
+            guardrail_trace["metadata"] if "metadata" in guardrail_trace else None
+        )
+        if "clientRequestId" in metadata_attributes and (
+            client_request_id := metadata_attributes["clientRequestId"]
+        ):
             guardrail_trace_data["clientRequestId"] = client_request_id
         if "startTime" in metadata_attributes:
             guardrail_trace_data["startTime"] = metadata_attributes["startTime"]
@@ -901,63 +1132,56 @@ class AttributeExtractor:
         return guardrail_trace_data
 
     @classmethod
-    def is_blocked_guardrail(cls, guardrails: List[dict[str, Any]]) -> bool:
+    def is_blocked_guardrail(cls, guardrails: Sequence[_ProcessedGuardrailTypeDef]) -> bool:
         """
         Determine whether an agent invocation was blocked by any intervening guardrails
         """
-
         for guardrail in guardrails:
-            assessments = guardrail.get("inputAssessments", []) + guardrail.get(
-                "outputAssessments", []
-            )
+            assessments = (
+                guardrail["inputAssessments"] if "inputAssessments" in guardrail else []
+            ) + (guardrail["outputAssessments"] if "outputAssessments" in guardrail else [])
             for assessment in assessments:
-                # Check each of the assessment policy types to see if the guardrail is blocked
-                if cls.is_assessment_blocked(assessment, "contentPolicy", ["filters"]):
-                    return True
-                if cls.is_assessment_blocked(
-                    assessment, "sensitiveInformationPolicy", ["piiEntities", "regexes"]
-                ):
-                    return True
-                if cls.is_assessment_blocked(assessment, "topicPolicy", ["topics"]):
-                    return True
-                if cls.is_assessment_blocked(
-                    assessment, "wordPolicy", ["customWords", "managedWordLists"]
-                ):
-                    return True
+                if "contentPolicy" in assessment:
+                    content_policy = assessment["contentPolicy"]
+                    for cf in content_policy["filters"] if "filters" in content_policy else []:
+                        if "action" in cf and cf["action"] == "BLOCKED":
+                            return True
+                if "sensitiveInformationPolicy" in assessment:
+                    sip = assessment["sensitiveInformationPolicy"]
+                    for sf in (sip["piiEntities"] if "piiEntities" in sip else []) + (
+                        sip["regexes"] if "regexes" in sip else []
+                    ):
+                        if "action" in sf and sf["action"] == "BLOCKED":
+                            return True
+                if "topicPolicy" in assessment:
+                    topic_policy = assessment["topicPolicy"]
+                    for tf in topic_policy["topics"] if "topics" in topic_policy else []:
+                        if "action" in tf and tf["action"] == "BLOCKED":
+                            return True
+                if "wordPolicy" in assessment:
+                    word_policy = assessment["wordPolicy"]
+                    for wf in (
+                        word_policy["customWords"] if "customWords" in word_policy else []
+                    ) + (
+                        word_policy["managedWordLists"] if "managedWordLists" in word_policy else []
+                    ):
+                        if "action" in wf and wf["action"] == "BLOCKED":
+                            return True
         return False
 
     @classmethod
-    def is_assessment_blocked(
-        cls, assessment: dict[str, Any], policy_type: str, policy_filters: List[str]
-    ) -> bool:
-        """
-        Parses through guardrail assessment to determine if the action is BLOCKED
-        """
-        blocked = "BLOCKED"
-        policy = assessment.get(policy_type, {})
-
-        filters = []
-        for filter_type in policy_filters:
-            filters += policy.get(filter_type, [])
-
-        for filter in filters:
-            if filter.get("action") == blocked:
-                return True
-        return False
-
-    @classmethod
-    def get_failure_trace_attributes(cls, trace_data: dict[str, Any]) -> dict[str, Any]:
+    def get_failure_trace_attributes(cls, trace_data: FailureTraceTypeDef) -> Dict[str, Any]:
         failure_message = ""
-        if failure_code := trace_data.get("failureCode"):
+        if "failureCode" in trace_data and (failure_code := trace_data["failureCode"]):
             failure_message += f"Failure Code: {failure_code}\n"
-        if failure_reason := trace_data.get("failureReason"):
+        if "failureReason" in trace_data and (failure_reason := trace_data["failureReason"]):
             failure_message += f"Failure Reason: {failure_reason}"
         if failure_message:
             return get_output_attributes(failure_message)
         return {}
 
     @classmethod
-    def extract_retrieve_invocation_params(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+    def extract_retrieve_invocation_params(cls, kwargs: "RetrieveRequestTypeDef") -> Dict[str, Any]:
         """
         Extract invocation parameters for Bedrock retrieve operations.
 
@@ -966,25 +1190,26 @@ class AttributeExtractor:
         pagination tokens, and retrieval configuration settings.
 
         Args:
-            kwargs (dict[str, Any]): Keyword arguments from the retrieve operation,
-                                   typically containing knowledgeBaseId, nextToken,
-                                   and retrievalConfiguration.
+            kwargs: Keyword arguments from the retrieve operation, typed as
+                    RetrieveRequestTypeDef (knowledgeBaseId is required).
 
         Returns:
-            dict[str, Any]: A dictionary containing extracted invocation parameters:
+            Dict[str, Any]: A dictionary containing extracted invocation parameters:
                 - knowledgeBaseId: The ID of the knowledge base being queried
                 - next_token: Pagination token for retrieving additional results (if present)
                 - retrieval_configuration: Configuration settings for the retrieval (if present)
         """
-        invocation_params = {"knowledgeBaseId": kwargs.get("knowledgeBaseId", "")}
-        if next_token := kwargs.get("nextToken"):
+        invocation_params: Dict[str, Any] = {"knowledgeBaseId": kwargs["knowledgeBaseId"]}
+        if "nextToken" in kwargs and (next_token := kwargs["nextToken"]):
             invocation_params["next_token"] = next_token
-        if retrieval_configuration := kwargs.get("retrievalConfiguration", {}):
+        if "retrievalConfiguration" in kwargs and (
+            retrieval_configuration := kwargs["retrievalConfiguration"]
+        ):
             invocation_params["retrieval_configuration"] = retrieval_configuration
         return invocation_params
 
     @classmethod
-    def get_model_name_for_rag(cls, kwargs: Dict[str, Any]) -> str:
+    def get_model_name_for_rag(cls, kwargs: "RetrieveAndGenerateRequestTypeDef") -> str:
         """
         Extract the model name/ARN from RAG (Retrieve and Generate) operation parameters.
 
@@ -1006,19 +1231,27 @@ class AttributeExtractor:
             The method checks the configuration type and extracts the model ARN from
             the appropriate configuration section (knowledge base or external sources).
         """
-        retrieve_and_generate_config = kwargs.get("retrieveAndGenerateConfiguration", {})
-        if retrieve_and_generate_config.get("type") == "KNOWLEDGE_BASE":
+        if "retrieveAndGenerateConfiguration" not in kwargs:
+            return ""
+        retrieve_and_generate_config = kwargs["retrieveAndGenerateConfiguration"]
+        if retrieve_and_generate_config["type"] == "KNOWLEDGE_BASE":
             return str(
-                retrieve_and_generate_config.get("knowledgeBaseConfiguration", {}).get(
-                    "modelArn", ""
-                )
+                retrieve_and_generate_config["knowledgeBaseConfiguration"]["modelArn"]
+                if "knowledgeBaseConfiguration" in retrieve_and_generate_config
+                and "modelArn" in retrieve_and_generate_config["knowledgeBaseConfiguration"]
+                else ""
             )
         return str(
-            retrieve_and_generate_config.get("externalSourcesConfiguration", {}).get("modelArn", "")
+            retrieve_and_generate_config["externalSourcesConfiguration"]["modelArn"]
+            if "externalSourcesConfiguration" in retrieve_and_generate_config
+            and "modelArn" in retrieve_and_generate_config["externalSourcesConfiguration"]
+            else ""
         )
 
     @classmethod
-    def extract_rag_invocation_params(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_rag_invocation_params(
+        cls, kwargs: "RetrieveAndGenerateRequestTypeDef"
+    ) -> Dict[str, Any]:
         """
         Extract invocation parameters for RAG (Retrieve and Generate) operations.
 
@@ -1040,17 +1273,23 @@ class AttributeExtractor:
             Only parameters that are present in the input kwargs are included in the
             returned dictionary, allowing for flexible parameter handling.
         """
-        invocation_params = {}
-        if rag_configuration := kwargs.get("retrieveAndGenerateConfiguration"):
+        invocation_params: Dict[str, Any] = {}
+        if "retrieveAndGenerateConfiguration" in kwargs and (
+            rag_configuration := kwargs["retrieveAndGenerateConfiguration"]
+        ):
             invocation_params["retrieveAndGenerateConfiguration"] = rag_configuration
-        if session_configuration := kwargs.get("sessionConfiguration"):
+        if "sessionConfiguration" in kwargs and (
+            session_configuration := kwargs["sessionConfiguration"]
+        ):
             invocation_params["sessionConfiguration"] = session_configuration
-        if session_id := kwargs.get("sessionId"):
+        if "sessionId" in kwargs and (session_id := kwargs["sessionId"]):
             invocation_params["sessionId"] = session_id
         return invocation_params
 
     @classmethod
-    def extract_bedrock_retrieve_input_attributes(cls, kwargs: dict[str, Any]) -> dict[str, Any]:
+    def extract_bedrock_retrieve_input_attributes(
+        cls, kwargs: "RetrieveRequestTypeDef"
+    ) -> Dict[str, Any]:
         """
         Extract input attributes for Bedrock retrieve operations for OpenTelemetry tracing.
 
@@ -1060,15 +1299,12 @@ class AttributeExtractor:
         attribute dictionary.
 
         Args:
-            kwargs (dict[str, Any]): Keyword arguments from the retrieve operation,
-                                   typically containing:
-                                   - retrievalQuery: Query object with text field
-                                   - knowledgeBaseId: ID of the knowledge base
-                                   - nextToken: Pagination token (optional)
-                                   - retrievalConfiguration: Retrieval settings (optional)
+            kwargs: Keyword arguments from the retrieve operation, typed as
+                    RetrieveRequestTypeDef (retrievalQuery is required; text within it is
+                    NotRequired).
 
         Returns:
-            dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
+            Dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
                 - Input attributes: Query text and MIME type
                 - Span kind: Set to RETRIEVER for retrieval operations
                 - Invocation parameters: Knowledge base ID, pagination, and configuration
@@ -1077,7 +1313,8 @@ class AttributeExtractor:
             The method follows OpenInference semantic conventions and sets the span
             kind to RETRIEVER to properly categorize the operation in traces.
         """
-        input_text = kwargs.get("retrievalQuery", {}).get("text", "")
+        retrieval_query = kwargs["retrievalQuery"]
+        input_text = retrieval_query["text"] if "text" in retrieval_query else ""
         return {
             **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
             **get_span_kind_attributes(OpenInferenceSpanKindValues.RETRIEVER),
@@ -1087,7 +1324,9 @@ class AttributeExtractor:
         }
 
     @classmethod
-    def extract_bedrock_rag_input_attributes(cls, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_bedrock_rag_input_attributes(
+        cls, kwargs: "RetrieveAndGenerateRequestTypeDef"
+    ) -> Dict[str, Any]:
         """
         Extract input attributes for Bedrock RAG (Retrieve and Generate) operations.
 
@@ -1097,12 +1336,9 @@ class AttributeExtractor:
         parameters into a complete attribute set.
 
         Args:
-            kwargs (Dict[str, Any]): Keyword arguments from the retrieve_and_generate
-                                   operation, containing:
-                                   - input: Input object with text field
-                                   - retrieveAndGenerateConfiguration: RAG configuration
-                                   - sessionConfiguration: Session settings (optional)
-                                   - sessionId: Session identifier (optional)
+            kwargs: Keyword arguments from the retrieve_and_generate operation, typed as
+                    RetrieveAndGenerateRequestTypeDef (input and input.text are both
+                    required fields).
 
         Returns:
             Dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
@@ -1115,7 +1351,7 @@ class AttributeExtractor:
             RAG operations are classified as RETRIEVER span kind since they combine
             both retrieval and generation phases in a single operation.
         """
-        input_text = kwargs.get("input", {}).get("text", "")
+        input_text = kwargs["input"]["text"]
         return {
             **get_llm_model_name_attributes(cls.get_model_name_for_rag(kwargs)),
             **get_input_attributes(input_text, mime_type=OpenInferenceMimeTypeValues.TEXT),
@@ -1125,7 +1361,7 @@ class AttributeExtractor:
 
     @classmethod
     def extract_bedrock_retrieve_response_attributes(
-        cls, response: Dict[str, Any]
+        cls, response: "RetrieveResponseTypeDef"
     ) -> Dict[str, Any]:
         """
         Extract response attributes from Bedrock retrieve operation results.
@@ -1136,10 +1372,8 @@ class AttributeExtractor:
         OpenTelemetry attributes.
 
         Args:
-            response (Dict[str, Any]): Response dictionary from the retrieve operation,
-                                     containing:
-                                     - retrievalResults: List of retrieved documents
-                                     - nextToken: Pagination token (optional)
+            response: Response from the retrieve operation, typed as
+                      RetrieveResponseTypeDef (retrievalResults is a required field).
 
         Returns:
             Dict[str, Any]: A dictionary of OpenTelemetry attributes containing
@@ -1152,11 +1386,12 @@ class AttributeExtractor:
             to ensure consistent document attribute formatting across different
             retrieval operation types.
         """
-        documents = response.get("retrievalResults", [])
-        return cls.get_attributes_from_knowledge_base_lookup_output(documents)
+        return cls.get_attributes_from_knowledge_base_lookup_output(response["retrievalResults"])
 
     @classmethod
-    def extract_bedrock_rag_response_attributes(cls, response: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_bedrock_rag_response_attributes(
+        cls, response: "RetrieveAndGenerateResponseTypeDef"
+    ) -> Dict[str, Any]:
         """
         Extract response attributes from Bedrock RAG (Retrieve and Generate) operation results.
 
@@ -1166,11 +1401,9 @@ class AttributeExtractor:
         results and retrieval citations.
 
         Args:
-            response (Dict[str, Any]): Response dictionary from the retrieve_and_generate
-                                     operation, containing:
-                                     - output: Generated text output
-                                     - citations: List of citations with retrieved references
-                                     - sessionId: Session identifier (optional)
+            response: Response from the retrieve_and_generate operation, typed as
+                      RetrieveAndGenerateResponseTypeDef (citations and output are required;
+                      output.text is required).
 
         Returns:
             Dict[str, Any]: A dictionary of OpenTelemetry attributes containing:
@@ -1186,14 +1419,14 @@ class AttributeExtractor:
         """
         index = 0
         attributes: Dict[str, Any] = {}
-        for citation in response.get("citations", []) or []:
-            documents = citation.get("retrievedReferences", [])
+        for citation in response["citations"]:
+            documents = citation["retrievedReferences"] if "retrievedReferences" in citation else []
             for document in documents:
                 attributes |= cls.get_document_attributes(index, document)
                 index += 1
         return {
             **attributes,
-            **get_output_attributes(response.get("output", {}).get("text")),
+            **get_output_attributes(response["output"]["text"]),
         }
 
 

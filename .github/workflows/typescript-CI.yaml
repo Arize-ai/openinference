@@ -44,6 +44,8 @@ jobs:
         needs: changes
         if: ${{ needs.changes.outputs.diff == 'true' }}
         runs-on: ubuntu-latest
+        env:
+            NODE_OPTIONS: "--max-old-space-size=8192"
         steps:
             - name: Checkout Repository
               uses: actions/checkout@v4
@@ -64,6 +66,8 @@ jobs:
             - name: Build
               working-directory: ./js
               run: pnpm run -r build
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
             - name: Test
               working-directory: ./js
               run: pnpm run -r test

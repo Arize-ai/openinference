@@ -42,9 +42,9 @@ _SPAN_KIND_MAPPING: Dict[str, str] = {
 }
 
 _INVOCATION_PARAMETER_KEYS: List[str] = [
-    SpanAttributes.LLM_REQUEST_MAX_TOKENS,
-    SpanAttributes.LLM_REQUEST_TEMPERATURE,
-    SpanAttributes.LLM_REQUEST_TOP_P,
+    GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
+    GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
+    GenAIAttributes.GEN_AI_REQUEST_TOP_P,
     SpanAttributes.LLM_TOP_K,
     SpanAttributes.LLM_CHAT_STOP_SEQUENCES,
     SpanAttributes.LLM_REQUEST_REPETITION_PENALTY,
@@ -208,7 +208,7 @@ def _extract_llm_provider_and_system(
     if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
         provider_val = None
 
-    system_val: Optional[str] = str(attrs.get(SpanAttributes.LLM_SYSTEM, "unknown")).lower()
+    system_val: Optional[str] = str(attrs.get(GenAIAttributes.GEN_AI_SYSTEM, "unknown")).lower()
     if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
         system_val = None
 
@@ -239,8 +239,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         outputs, output_finish_reasons = _collect_oi_messages(attrs, "gen_ai.completion.")
 
         # Token usage
-        prompt_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_PROMPT_TOKENS)) or 0
-        comp_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_COMPLETION_TOKENS)) or 0
+        prompt_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS)) or 0
+        comp_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_OUTPUT_TOKENS)) or 0
         total_toks = _safe_int(attrs.get(SpanAttributes.LLM_USAGE_TOTAL_TOKENS)) or (
             prompt_toks + comp_toks
         )
@@ -257,8 +257,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         for key in _INVOCATION_PARAMETER_KEYS:
             if key in attrs:
                 invocation_params[key.rsplit(".", 1)[-1]] = attrs[key]
-        if SpanAttributes.LLM_REQUEST_MODEL in attrs:
-            invocation_params.setdefault("model", attrs[SpanAttributes.LLM_REQUEST_MODEL])
+        if GenAIAttributes.GEN_AI_REQUEST_MODEL in attrs:
+            invocation_params.setdefault("model", attrs[GenAIAttributes.GEN_AI_REQUEST_MODEL])
         # Tools
         tool_key = (
             SpanAttributes.LLM_REQUEST_FUNCTIONS
@@ -272,7 +272,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         # Build bodies for OpenInference
         request_body = {
             "messages": [{"role": m.get("role"), "content": m.get("content", "")} for m in inputs],
-            "model": attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
+            "model": attrs.get(GenAIAttributes.GEN_AI_REQUEST_MODEL),
             "max_tokens": invocation_params.get("max_tokens"),
             "temperature": invocation_params.get("temperature"),
             "top_p": invocation_params.get("top_p"),
@@ -293,8 +293,8 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                     },
                 }
             ],
-            "model": attrs.get(SpanAttributes.LLM_RESPONSE_MODEL)
-            or attrs.get(SpanAttributes.LLM_REQUEST_MODEL),
+            "model": attrs.get(GenAIAttributes.GEN_AI_RESPONSE_MODEL)
+            or attrs.get(GenAIAttributes.GEN_AI_REQUEST_MODEL),
             "usage": {
                 "prompt_tokens": prompt_toks,
                 "completion_tokens": comp_toks,

@@ -7,6 +7,7 @@ import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { vi } from "vitest";
 
 import { BedrockAgentInstrumentation } from "../src";
@@ -61,6 +62,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",
@@ -127,6 +129,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",
@@ -197,6 +200,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",

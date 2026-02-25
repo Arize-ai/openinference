@@ -6,6 +6,7 @@ openinference-semantic-conventions
 wrapt
 typing-extensions
 dacite
+aioboto3
 boto3
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
