@@ -320,8 +320,6 @@ def _verify_flow_node_span(
     assert (
         attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
         == OpenInferenceSpanKindValues.CHAIN.value
-    ), (
-        f"Expected CHAIN span kind for node span, got: {attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)}"
     )
 
     # Enhanced naming: expect method name or fallback pattern
