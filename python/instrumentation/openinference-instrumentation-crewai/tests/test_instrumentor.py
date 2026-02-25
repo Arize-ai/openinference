@@ -110,7 +110,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     # Node spans are the ones NOT ending with ".kickoff"
     node_spans = sorted(
         [s for s in spans if not s.name.endswith(".kickoff")],
-        key=lambda s: s.start_time,
+        key=lambda s: s.start_time or 0,
     )
     assert len(node_spans) == 2
 
