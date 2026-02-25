@@ -1,6 +1,6 @@
-pytest>=7.4.0
-pytest-cov>=4.1.0
-opentelemetry-sdk>=1.20.0
+pytest
+pytest-cov
+opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
-pydantic-ai>=0.2.0
+pydantic-ai==0.2.0
 pytest-recording
