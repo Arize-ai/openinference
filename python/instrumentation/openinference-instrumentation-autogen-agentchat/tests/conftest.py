@@ -1,3 +1,4 @@
+import os
 from typing import Any, Generator
 
 import pytest
@@ -60,4 +61,5 @@ def instrument(
 def api_key(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
+    if not os.environ.get("OPENAI_API_KEY"):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-")
