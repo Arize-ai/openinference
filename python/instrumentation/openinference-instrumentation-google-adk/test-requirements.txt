@@ -1,1 +1,5 @@
 google-adk==1.2.1
+opentelemetry-sdk
+pytest
+pytest-asyncio
+pytest-recording
