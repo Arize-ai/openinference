@@ -858,7 +858,6 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
-
 @pytest.mark.skipif(
     condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",

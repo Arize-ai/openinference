@@ -48,7 +48,6 @@ from openinference.semconv.trace import (
 )
 
 
-
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
@@ -1348,7 +1347,6 @@ async def test_individual_component_run_async_without_child_components(
         assert score == document.score
         assert isinstance(attributes.pop(f"{prefix}.{DOCUMENT_METADATA}"), str)
     assert not attributes
-
 
 
 def _is_vector(

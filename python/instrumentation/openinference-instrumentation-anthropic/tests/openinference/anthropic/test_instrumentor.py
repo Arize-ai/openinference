@@ -45,13 +45,11 @@ from openinference.semconv.trace import (
 )
 
 
-
 def _get_tool_use_id(message: Message) -> Optional[str]:
     for block in message.content:
         if isinstance(block, ToolUseBlock):
             return block.id
     return None
-
 
 
 class TestInstrumentor:
