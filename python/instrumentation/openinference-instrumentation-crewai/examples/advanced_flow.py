@@ -94,6 +94,7 @@ class AdvancedFlow(Flow[MarketResearchState]):
 
         # Define Tasks
         analysis_task = Task(
+            name="analysis_task",
             description=(
                 f"Research the market for {product}. Include:\n"
                 "1. Key market trends\n"
@@ -107,6 +108,7 @@ class AdvancedFlow(Flow[MarketResearchState]):
         )
 
         summary_task = Task(
+            name="summary_task",
             description=(
                 "Summarize the research findings into a concise paragraph suitable "
                 "for an executive briefing."
@@ -170,6 +172,8 @@ class AdvancedFlow(Flow[MarketResearchState]):
             print("❌ No structured analysis available.")
             print("Raw Analysis:", analysis)
 
+        return market_analysis
+
 
 def create_advanced_flow(flow_name: Optional[str] = None) -> Flow:
     """
@@ -192,21 +196,25 @@ async def run_advanced_flow():
     Executes the advanced flow and handles any runtime exceptions.
     """
     try:
-        flow = create_advanced_flow("Advanced Flow Example")
-        flow.plot("AdvancedFlowPlot")
+        flow = create_advanced_flow("Market Research Flow")
+        flow.plot()
 
         # Inputs are passed here and injected into the @start() method
         inputs = {"product": "AI-powered Chatbots"}
 
         await flow.kickoff_async(inputs=inputs)
+        print("\n" + "=" * 80)
         print("✅ Flow execution completed successfully.")
+        print("=" * 80)
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
 
 
 def main():
     """Run the CrewAI instrumentation demonstration."""
+    print("=" * 80)
     print("CrewAI Instrumentation Demo - Advanced Flow")
+    print("=" * 80)
     print("Check Phoenix UI at http://localhost:6006 for trace visualization\n")
     asyncio.run(run_advanced_flow())
 

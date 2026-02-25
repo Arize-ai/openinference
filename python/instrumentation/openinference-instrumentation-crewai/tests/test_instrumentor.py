@@ -99,13 +99,24 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
 
     kickoff_flow()
     spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1, f"Expected 1 span (flow), got {len(spans)}"
+    expected_spans = 3
+    assert len(spans) == expected_spans, f"Expected {expected_spans} spans, got {len(spans)}"
 
-    flow_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
-    assert len(flow_spans) == 1
-    flow_span = flow_spans[0]
+    # The kickoff span is the one ending with ".kickoff"
+    kickoff_spans = [s for s in spans if s.name.endswith(".kickoff")]
+    assert len(kickoff_spans) == 1
+    flow_kickoff_span = kickoff_spans[0]
 
-    _verify_flow_span(flow_span)
+    # Node spans are the ones NOT ending with ".kickoff"
+    node_spans = sorted(
+        [s for s in spans if not s.name.endswith(".kickoff")],
+        key=lambda s: s.start_time,
+    )
+    assert len(node_spans) == 2
+
+    _verify_flow_span(flow_kickoff_span)
+    _verify_flow_node_span(node_spans[0], "step_one", "start")
+    _verify_flow_node_span(node_spans[1], "step_two", "listen")
 
 
 def kickoff_crew() -> Tuple[Task, Task]:
@@ -297,6 +308,46 @@ def _verify_flow_span(span: ReadableSpan) -> None:
         uuid.UUID(kickoff_id)
     except ValueError:
         pytest.fail(f"kickoff_id '{kickoff_id}' is not a valid UUID.")
+
+
+def _verify_flow_node_span(
+    span: ReadableSpan,
+    expected_method_name: str,
+    expected_node_type: str,
+) -> None:
+    """Verify a flow node span (from @start or @listen) has correct attributes."""
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.CHAIN.value
+    ), (
+        f"Expected CHAIN span kind for node span, got: {attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)}"
+    )
+
+    # Enhanced naming: expect method name or fallback pattern
+    assert span.name.endswith(f".{expected_method_name}"), (
+        f"Expected span name to end with '.{expected_method_name}', got: {span.name}"
+    )
+
+    # Verify node metadata attributes
+    node_name = attributes.get("flow.node.name")
+    assert node_name == expected_method_name, (
+        f"Expected flow.node.name='{expected_method_name}', got: {node_name}"
+    )
+    node_type = attributes.get("flow.node.type")
+    assert node_type == expected_node_type, (
+        f"Expected flow.node.type='{expected_node_type}', got: {node_type}"
+    )
+
+    # Verify output value is present
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, f"Node span '{span.name}' should have an output value"
+    assert isinstance(output_value, str), (
+        f"Output value should be string, got: {type(output_value)}"
+    )
+
+    # Verify node span is a child of the kickoff span
+    assert span.parent is not None, f"Node span '{span.name}' should be a child of the kickoff span"
 
 
 def _verify_agent_span(

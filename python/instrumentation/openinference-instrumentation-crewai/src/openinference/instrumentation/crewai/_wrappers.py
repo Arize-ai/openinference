@@ -422,7 +422,10 @@ class _FlowExecuteMethodWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
+        # args[0] is the method name and args[1:] are the method arguments
         method_name = args[0] if args else kwargs.get("method_name", "unknown")
+
+        # Determine node type from the actual method attributes
         actual_method = getattr(instance, method_name, None)
         if actual_method is not None:
             if getattr(actual_method, "__is_start_method__", False):
@@ -433,9 +436,6 @@ class _FlowExecuteMethodWrapper:
                 node_type = "listen"
         else:
             node_type = "unknown"
-
-        print("---method_name: ", method_name)
-        print("---node_type: ", node_type)
 
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.{method_name}"
@@ -457,7 +457,6 @@ class _FlowExecuteMethodWrapper:
 
             try:
                 response = await wrapped(*args, **kwargs)
-                print("---response: ", response)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)

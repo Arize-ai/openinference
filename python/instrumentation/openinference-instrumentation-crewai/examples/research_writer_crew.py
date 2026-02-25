@@ -187,6 +187,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 1: Research latest developments using search tool
     research_task = Task(
+        name="research_task",
         description="""Use the search_tool to conduct a comprehensive analysis of the latest
         advancements in AI in 2024. Search for 'AI advancements 2024' and identify key trends,
         breakthrough technologies, and potential industry impacts.""",
@@ -196,6 +197,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 2: Analyze research data using data analysis tool
     analysis_task = Task(
+        name="analysis_task",
         description="""Use the data_analysis_tool to analyze the research findings for technical
         insights and market implications. Perform a 'trends' analysis on the research data.
         Provide statistical analysis and data-driven conclusions.""",
@@ -206,6 +208,7 @@ def create_research_writer_crew(crew_name: Optional[str] = None) -> Crew:
 
     # Task 3: Create engaging content using content formatter tool
     writing_task = Task(
+        name="writing_task",
         description="""Using the insights provided, use the content_formatter tool to develop
         an engaging blog post that highlights the most significant AI advancements.
         Format the output as a 'blog' post. Your content should be informative yet accessible,

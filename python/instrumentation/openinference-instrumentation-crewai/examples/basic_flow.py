@@ -75,21 +75,25 @@ def run_basic_flow():
     Executes the basic flow and handles any runtime exceptions.
     """
     try:
-        flow = create_basic_flow("Basic Flow Example")
-        flow.plot("BasicFlowPlot")
+        flow = create_basic_flow("Summarize Content Flow")
+        flow.plot()
 
         # Inputs are passed here and injected into the @start() method
         inputs = {"topic": "Machine Learning"}
 
         flow.kickoff(inputs=inputs)
+        print("\n" + "=" * 80)
         print("✅ Flow execution completed successfully.")
+        print("=" * 80)
     except Exception as e:
         print(f"⚠️ Flow execution failed: {type(e).__name__}")
 
 
 def main():
     """Run the CrewAI instrumentation demonstration."""
+    print("=" * 80)
     print("CrewAI Instrumentation Demo - Basic Flow")
+    print("=" * 80)
     print("Check Phoenix UI at http://localhost:6006 for trace visualization\n")
     run_basic_flow()
 
