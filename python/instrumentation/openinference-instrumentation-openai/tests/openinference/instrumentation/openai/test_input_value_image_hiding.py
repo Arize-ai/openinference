@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Callable, Iterator
 
 import openai
@@ -53,7 +54,9 @@ class TestInputValueImageHiding:
             "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         )
 
-        client = openai.OpenAI(api_key="sk-fake-test-key-for-unit-tests")
+        client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY", "sk-fake-test-key-for-unit-tests")
+        )
         resp = client.chat.completions.create(
             extra_headers={"Accept-Encoding": "gzip"},
             model="gpt-4o-mini",
@@ -111,7 +114,9 @@ class TestInputValueImageHiding:
             "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         )
 
-        client = openai.OpenAI(api_key="sk-fake-test-key-for-unit-tests")
+        client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY", "sk-fake-test-key-for-unit-tests")
+        )
         resp = client.chat.completions.create(
             extra_headers={"Accept-Encoding": "gzip"},
             model="gpt-4o-mini",
@@ -163,7 +168,9 @@ class TestInputValueImageHiding:
         )
         custom_instrumentation(config)
 
-        client = openai.OpenAI(api_key="sk-fake-test-key-for-unit-tests")
+        client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY", "sk-fake-test-key-for-unit-tests")
+        )
 
         # The test URL will cause a 400 error, but we still want to check span data
         try:

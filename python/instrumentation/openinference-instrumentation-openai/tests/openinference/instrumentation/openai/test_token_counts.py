@@ -1,3 +1,4 @@
+import os
 from typing import Iterator
 
 import openai
@@ -16,7 +17,7 @@ class TestTokenCounts:
         self,
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
-        client = openai.OpenAI(api_key="sk-")
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
         resp = client.chat.completions.create(
             extra_headers={"Accept-Encoding": "gzip"},
             model="gpt-4o-mini",
