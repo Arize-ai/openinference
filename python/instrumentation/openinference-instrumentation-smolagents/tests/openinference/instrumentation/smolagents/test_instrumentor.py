@@ -79,7 +79,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -149,14 +149,16 @@ class TestModels:
         assert output_message_content is None
         tool_calls = output_message.tool_calls
         assert len(tool_calls) == 1
-        assert isinstance(tool_call := tool_calls[0], ChatMessageToolCall)
-        assert tool_call.function.name == "get_weather"
-        assert tool_call.function.arguments == '{"location":"Paris"}'
+        tool_call = tool_calls[0]
+        tool_function = getattr(tool_call, "function", None)
+        assert tool_function is not None
+        assert getattr(tool_function, "name", None) == "get_weather"
+        assert getattr(tool_function, "arguments", None) == '{"location":"Paris"}'
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM

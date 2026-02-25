@@ -583,7 +583,7 @@ def infer_llm_provider_from_class_name(
     if class_name == "InferenceClientModel":
         return None
 
-    if class_name == "OpenAIServerModel":
+    if class_name in {"OpenAIServerModel", "OpenAIModel"}:
         return OpenInferenceLLMProviderValues.OPENAI
 
     if class_name == "AzureOpenAIServerModel":
