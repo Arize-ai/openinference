@@ -38,12 +38,6 @@ dependencies = [
 instruments = [
   "google-adk >= 1.2.1",
 ]
-test = [
-  "opentelemetry-sdk",
-  "pytest",
-  "pytest-asyncio",
-  "pytest-recording",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 google_adk = "openinference.instrumentation.google_adk:GoogleADKInstrumentor"
