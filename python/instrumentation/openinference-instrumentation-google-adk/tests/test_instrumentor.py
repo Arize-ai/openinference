@@ -1,4 +1,5 @@
 # ruff: noqa: E501
+import base64
 from collections import defaultdict
 from secrets import token_hex
 from typing import Any, cast
@@ -15,11 +16,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -145,8 +142,8 @@ async def test_google_adk_instrumentor(
         == "get_weather"
     )
     assert call_llm_attributes0.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 106
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 112
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 107
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 113
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -157,8 +154,8 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 107
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes0
 
@@ -259,8 +256,8 @@ async def test_google_adk_instrumentor(
     )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
     assert call_llm_attributes1.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 140
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 165
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 141
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 166
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
@@ -271,17 +268,13 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 141
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 25
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes1
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_tool_call(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -418,10 +411,10 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 90
-    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 59
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 93
+    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 62
     assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 139
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 229
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 232
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -432,8 +425,8 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 139
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 31
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes0
 
@@ -586,10 +579,10 @@ async def test_google_adk_instrumentor_multi_tool_call(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 80
-    assert call_llm_attributes1.pop("llm.token_count.completion_details.reasoning", None) == 37
+    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 76
+    assert call_llm_attributes1.pop("llm.token_count.completion_details.reasoning", None) == 33
     assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 251
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 331
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 327
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
@@ -600,17 +593,13 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 251
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 43
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes1
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_agent(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -768,9 +757,9 @@ async def test_google_adk_instrumentor_multi_agent(
         )
         == "transfer_to_agent"
     )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 20
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 273
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 293
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 11
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 247
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 258
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -781,8 +770,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 247
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 11
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes0
 
@@ -936,8 +925,8 @@ async def test_google_adk_instrumentor_multi_agent(
         == "get_weather"
     )
     assert call_llm_attributes1.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 451
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 457
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 392
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 398
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
@@ -949,8 +938,8 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 392
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes1
 
@@ -1106,8 +1095,8 @@ async def test_google_adk_instrumentor_multi_agent(
     )
     assert call_llm_attributes2.pop("llm.output_messages.0.message.role", None) == "model"
     assert call_llm_attributes2.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 485
-    assert call_llm_attributes2.pop("llm.token_count.total", None) == 510
+    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 426
+    assert call_llm_attributes2.pop("llm.token_count.total", None) == 451
     assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
@@ -1119,17 +1108,13 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 426
+        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 25
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
     assert not call_llm_attributes2
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_image_artifacts(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1141,7 +1126,9 @@ async def test_google_adk_instrumentor_image_artifacts(
             tool_context:
             file_path: Remote location of file.
         """
-        image_bytes = b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+        image_bytes = base64.b64decode(
+            b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+        )
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
         filename = "sample.png"
         await tool_context.save_artifact(filename=filename, artifact=image_part)
@@ -1300,18 +1287,35 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.invocation_parameters", None)
     assert call_llm_attributes.pop("llm.model_name", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
-    assert str(
-        call_llm_attributes.pop("llm.output_messages.0.message.contents.0.message_content.text", "")
-    ).startswith("The image shows a serene, monochrome landscape")
+    assert call_llm_attributes.pop(
+        "llm.output_messages.0.message.contents.0.message_content.text", None
+    ) == (
+        "\nThe image is divided into four quadrants. Two quadrants are white, and the other two are light gray. "
+        "The transitions between the colors are blurred, creating a soft-edged effect. "
+        "The overall impression is a simple, minimalist composition with a focus on contrasting tones.\n\n"
+        "Here is a poem inspired by the image:\n\n"
+        "A canvas split, a gentle divide,\n"
+        "Where white and gray in soft embrace reside.\n"
+        "No sharp lines pierce, no edges defined,\n"
+        "Just hues that whisper, subtly entwined.\n\n"
+        "A muted dance of light and shade,\n"
+        "A quiet balance gently made.\n"
+        "Two worlds apart, yet side-by-side,\n"
+        "In blurred harmony, their stories hide.\n\n"
+        "A simple truth, a peaceful scene,\n"
+        "Where contrasts blend, and calm convene.\n"
+        "In gentle gradients, spirits sway,\n"
+        "A grayscale dream at close of day.\n"
+    )
     assert (
         call_llm_attributes.pop(
             "llm.output_messages.0.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert call_llm_attributes.pop("llm.token_count.completion", None) == 211
-    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 611
-    assert call_llm_attributes.pop("llm.token_count.total", None) == 822
+    assert call_llm_attributes.pop("llm.token_count.completion", None) == 175
+    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 544
+    assert call_llm_attributes.pop("llm.token_count.total", None) == 719
     assert call_llm_attributes.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes.pop("llm.provider", None) == "google"
     assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
@@ -1322,8 +1326,8 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) == 544
+        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) == 175
     call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes.pop("llm.tools.1.tool.json_schema", None)
     assert not call_llm_attributes

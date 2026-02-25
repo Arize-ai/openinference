@@ -1,4 +1,5 @@
-from typing import Iterator
+import os
+from typing import Any, Iterator
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -8,6 +9,25 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+
+
+def _strip_request_headers(request: Any) -> Any:
+    request.headers.clear()
+    return request
+
+
+def _strip_response_headers(response: Any) -> Any:
+    return {**response, "headers": {}}
+
+
+@pytest.fixture(scope="session")
+def vcr_config() -> dict[str, Any]:
+    return {
+        "before_record_request": _strip_request_headers,
+        "before_record_response": _strip_response_headers,
+        "decode_compressed_response": True,
+        "record_mode": "once",
+    }
 
 
 @pytest.fixture
@@ -39,4 +59,5 @@ def instrument(
 def api_key(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "xyz")
+    if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+        monkeypatch.setenv("GOOGLE_API_KEY", "xyz")
