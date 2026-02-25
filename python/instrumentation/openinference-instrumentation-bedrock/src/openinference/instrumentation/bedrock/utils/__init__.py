@@ -1,22 +1,10 @@
 from __future__ import annotations
 
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    AsyncIterator,
-    Callable,
-    ContextManager,
-    Iterator,
-    Mapping,
-    Optional,
-    cast,
-)
+from typing import Any, AsyncIterator, Callable, ContextManager, Iterator, Mapping, Optional, cast
 
 import wrapt
+from botocore.eventstream import EventStream
 from opentelemetry.trace import Span, Status, StatusCode, use_span
-
-if TYPE_CHECKING:
-    from botocore.eventstream import EventStream
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps

@@ -5,14 +5,11 @@ This module provides OpenTelemetry instrumentation for Bedrock's retrieve and re
 operations, enabling distributed tracing and observability for RAG workflows.
 """
 
-from __future__ import annotations
-
 import logging
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, TypeVar, cast
 
 if TYPE_CHECKING:
-    from botocore.client import BaseClient
     from mypy_boto3_bedrock_agent_runtime.type_defs import (
         RetrieveAndGenerateRequestTypeDef,
         RetrieveAndGenerateResponseTypeDef,
@@ -20,6 +17,7 @@ if TYPE_CHECKING:
         RetrieveResponseTypeDef,
     )
 
+from botocore.client import BaseClient
 from opentelemetry import context as context_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
