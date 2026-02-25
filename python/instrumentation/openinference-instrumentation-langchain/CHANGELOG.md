@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.60](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.59...python-openinference-instrumentation-langchain-v0.1.60) (2026-02-24)
+
+
+### Features
+
+* **langchain:** propagate LLM tool calls to parent (agent/chain) span ([#2781](https://github.com/Arize-ai/openinference/issues/2781)) ([c5a9ed6](https://github.com/Arize-ai/openinference/commit/c5a9ed61dd8d491274ca454e964167f9752eee32))
+
 ## [0.1.59](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.58...python-openinference-instrumentation-langchain-v0.1.59) (2026-02-12)
 
 

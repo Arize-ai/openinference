@@ -109,3 +109,22 @@ export class MyInstrumentation extends InstrumentationBase {
 - Manual module mocking in tests is required due to instrumentation timing
 - Each instrumentor must implement the minimum feature set (suppress tracing, context attributes, trace config)
 - Packages publish to `@arizeai` organization on npm
+
+### Reuse Core Helpers
+
+`@arizeai/openinference-core` exports attribute helpers that should be used instead of manually assembling span attributes:
+
+| Helper                                    | Purpose                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `getInputAttributes(input)`               | Returns `{ INPUT_VALUE, INPUT_MIME_TYPE }`. Accepts a `string` (→ text/plain) or `{ value, mimeType }`. |
+| `getOutputAttributes(output)`             | Returns `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }`. Same overloads as input.                                  |
+| `getToolAttributes({ name, parameters })` | Returns `{ TOOL_NAME, TOOL_PARAMETERS }`. Stringifies parameters internally.                            |
+
+Always prefer these over setting `SemanticConventions.INPUT_VALUE` / `OUTPUT_VALUE` / `TOOL_NAME` / `TOOL_PARAMETERS` by hand. They ensure consistent MIME-type handling and reduce duplicated logic across instrumentors.
+
+### Instrumentor Typing Conventions
+
+- **Use SDK types directly**: Import types from the instrumented SDK via `import type`. Do NOT create hand-rolled structural types that duplicate SDK types.
+- **Named object arguments**: Wrapper functions use named object parameters (`{ original, oiTracer }`) instead of positional arguments, for readability and refactor safety.
+- **No `any` types**: Module interfaces and wrapper functions must use strong types from the instrumented SDK. Types are the only thing that gives us confidence that we are instrumenting safely.
+- **Type guards**: Message/event type guards should narrow to actual SDK types, not hand-rolled structural equivalents.
