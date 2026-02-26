@@ -1,4 +1,5 @@
 import logging
+from collections import UserDict
 
 import pytest
 
@@ -49,6 +50,57 @@ def test_request_extractor_accepts_dict_part(caplog: pytest.LogCaptureFixture) -
     assert (
         attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
         == "just a part dict"
+    )
+
+    assert not any(
+        "Unexpected input contents type" in record.getMessage() for record in caplog.records
+    )
+
+
+def test_request_extractor_accepts_userdict_content(caplog: pytest.LogCaptureFixture) -> None:
+    extractor = _RequestAttributesExtractor()
+
+    request_parameters = UserDict(
+        {
+            "contents": [
+                UserDict({"role": "user", "parts": [UserDict({"text": "hello from userdict"})]}),
+            ]
+        }
+    )
+
+    caplog.set_level(logging.DEBUG)
+    attrs = dict(extractor.get_extra_attributes_from_request(request_parameters))
+
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"] == "user"
+    )
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "hello from userdict"
+    )
+
+    assert not any(
+        "Unexpected input contents type" in record.getMessage() for record in caplog.records
+    )
+
+
+def test_request_extractor_accepts_userdict_part(caplog: pytest.LogCaptureFixture) -> None:
+    extractor = _RequestAttributesExtractor()
+
+    request_parameters = UserDict(
+        {
+            "contents": [
+                UserDict({"text": "just a part userdict"}),
+            ]
+        }
+    )
+
+    caplog.set_level(logging.DEBUG)
+    attrs = dict(extractor.get_extra_attributes_from_request(request_parameters))
+
+    assert (
+        attrs[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+        == "just a part userdict"
     )
 
     assert not any(

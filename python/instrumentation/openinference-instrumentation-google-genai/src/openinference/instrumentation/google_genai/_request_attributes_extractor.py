@@ -450,6 +450,12 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(attr_name, default)
+    if isinstance(obj, Mapping):
+        get = getattr(obj, "get", None)
+        if callable(get):
+            return get(attr_name, default)
+        try:
+            return obj[attr_name]
+        except Exception:
+            return default
     return getattr(obj, attr_name, default)
