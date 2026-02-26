@@ -324,6 +324,17 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
             yield from self._get_attributes_from_part(input_contents, 0)
+        elif isinstance(input_contents, Mapping):
+            # The GenAI SDK (and wrappers like pydantic-ai) accept dict-shaped "content" objects,
+            # e.g. {'role': 'user', 'parts': [{'text': 'hi'}]} or a bare part dict like
+            # {'text': 'hi'}.
+            #
+            # We intentionally support these TypedDict-style inputs to avoid emitting high-volume
+            # exception logs for valid request payloads.
+            if "parts" in input_contents or "role" in input_contents:
+                yield from self._get_attributes_from_content(cast(Content, input_contents))
+            else:
+                yield from self._get_attributes_from_part(cast(Part, input_contents), 0)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
