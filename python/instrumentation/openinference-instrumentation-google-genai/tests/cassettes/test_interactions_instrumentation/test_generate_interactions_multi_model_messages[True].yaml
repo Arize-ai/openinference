@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.start
+
+        data: {"event_type":"interaction.start","interaction":{"id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","model":"gemini-2.5-flash","object":"interaction","status":"in_progress"}}
+
+
+        event: interaction.status_update
+
+        data: {"event_type":"interaction.status_update","interaction_id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","status":"in_progress"}
+
+
+        event: content.start
+
+        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
+
+
+        event: content.delta
+
+        data: {"delta":{"signature":"CiUBvj72+8sOQar5WouiidOGQUKDRaQF3Pqz+7eVM8nliImUtJnrCmkBvj72+6UUNcJBI1MyOlcryvuL0TSjgAQ0JF2OhtHs7Az+g6IQ18azTQ1VT/f7WcN7e8KEhdo8pyo1wVpRUCXdsHtHuqSUJK65Lq8CMKG/0nS3MpMhZ7jj5aq3Xp3QW9rFGKWbX9A1GcsKgwIBvj72+1UZztMZ3BcI3dnAQbyOXaDDA3StGVQU8efXSVFRLrIkI9E54JzLh/vVzQAgkQ2U/8ZSURTiEgodmKhNrhIHbKEE4ZzQ0cmDGEgvut8HqEP6Tr/lvjfOMavRevkU0LDvt0jHKa9vepx3cdxq+K3Ouf6f8iPFJYraqnd4CBb8bDmaf0ZhzNlxEtgGNc3frEpSzgXYCZ/j+O/wI+rD9Gyca9DSQ0Z1+as5u2/Jvo81yjjJG2GcjKMYAr89YK26dtfNZrFA61WpLb35wdrzAhEPTOh37FluuPft3wiXWQqpmezWJH7vyuiCj7LlInMI4JvW+KAGmfLjKFsHw/VjMYPKCrYBAb4+9vsTqxCdvSRSG1cHVontqYEbf9CzNlqLqr+RJMusNa2ngFTeD5tjCf+ojsYnjlDuM4bGqPPwrgVjftwXkOrYWCp3+LKgqbvN5+6nrVWyaOEFJ56X28b7o9TF7kMMrbxdg4wOAZruENRtEgLuqpMlnzmNvDI5zXZn6ktv1FpqZYx2To4NNU5u/ZMpnqCXQdhuPPsAtMtmdoAsyRb50y2Pm6OHj4NKuNlpkLDoXLtSt6Hi0BoK1QEBvj72+7qwRh53SQeoh0Lrr0gctb+UywYfI1tfm261lQEn1M/URpA8x1bG4Ht0jS30WySh3JrRd8wPBUewYGfLo8UyJYvSVGAc7ygv9m0xepB08q15At9Fo9we++rUCv4bAyiQf+y4Yvbs2s6eFj5qi2yZAleYosSOSsqBs/2WX5VHh748HG/lKDqC4mAqfteGXplNn8gpJJK8x57znIu4g0Ca2J4LMVr4ZuPLlm1HrC5RhFO5sQRsin/kESm3SI/cqUabB/LMwFMCSqyRSCfwU5MoHUsKbwG+Pvb7Fca37t6QMWbRJfWZe3RBxElQiu6PcHYJvzwR0a4HEfPTXUDpusyjMvUQzY8SfDQxJlOrmxSwlxTWtNrpT9jBRQ2VjdkRESvCWebLAUGFvB9wUttMUTQxIzgiXfIUelieZSgWj2hHi2PcoQ==","type":"thought_signature"},"event_type":"content.delta","index":0}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":0}
+
+
+        event: content.start
+
+        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":"This is a close-up, eye-level shot of an adorable
+        black Labrador Retriever puppy looking directly up at the viewer.\n\nThe puppy
+        is entirely black, with","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" short, sleek fur. Its large, dark eyes are bright
+        and expressive, reflecting a hint of light, giving it an innocent and engaging
+        gaze. Its ears are floppy and set wide, characteristic of the breed, and its
+        nose is a shiny","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" black. The puppy''s head is slightly tilted, adding
+        to its charming expression.\n\nIt''s positioned on what appears to be a rustic
+        wooden surface, possibly a deck or floor, with visible grain and subtle variations
+        in tone, providing","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" a textured, natural backdrop that contrasts softly
+        with the puppy''s dark fur. The lighting seems natural and gentle, highlighting
+        the puppy''s features without harsh shadows.","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":1}
+
+
+        event: interaction.complete
+
+        data: {"event_type":"interaction.complete","interaction":{"created":"2026-02-26T00:58:20Z","id":"v1_ChdxSnFmYVp1NEdLWHN6N0lQNDZHamdRVRIXcUpxZmFadTRHS1hzejdJUDQ2R2pnUVU","model":"gemini-2.5-flash","object":"interaction","role":"model","status":"completed","updated":"2026-02-26T00:58:20Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":5},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_input_tokens":263,"total_output_tokens":162,"total_thought_tokens":184,"total_tokens":609,"total_tool_use_tokens":0}}}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

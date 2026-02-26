@@ -15,14 +15,15 @@ interactions:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"The weather in San Francisco is foggy
-        with 85% humidity. The temperature is 65 degrees Fahrenheit.\\n\"\n          }\n
+        with a temperature of 65 degrees Fahrenheit and 85% humidity.\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.026007329424222309\n    }\n  ],\n  \"usageMetadata\":
-        {\n    \"promptTokenCount\": 45,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\":
-        69,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \"STOP\",\n      \"avgLogprobs\": -0.01104337365730949\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 45,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\":
+        68,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 45\n      }\n    ],\n    \"candidatesTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
-        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\"\n}\n"
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"hpGfaaH7BtWGz7IPv8HT6A0\"\n}\n"
     headers: {}
     status:
       code: 200
