@@ -1,2 +1,4 @@
 /js @arize-ai/oss-javascript
 /python @arize-ai/oss-python
+/java @arize-ai/oss-eng
+/spec @arize-ai/oss-eng
