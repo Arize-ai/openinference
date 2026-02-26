@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
+    _AgentKickoffWrapper,
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_execute_core",
+        "_original_agent_kickoff",
         "_original_crew_kickoff",
         "_original_flow_kickoff_async",
         "_original_long_term_memory_save",
@@ -61,6 +63,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="crewai",
             name="Task._execute_core",
             wrapper=execute_core_wrapper,
+        )
+
+        agent_kickoff_wrapper = _AgentKickoffWrapper(tracer=self._tracer)
+        self._original_agent_kickoff = getattr(import_module("crewai").Agent, "kickoff", None)
+        wrap_function_wrapper(
+            module="crewai",
+            name="Agent.kickoff",
+            wrapper=agent_kickoff_wrapper,
         )
 
         crew_kickoff_wrapper = _CrewKickoffWrapper(tracer=self._tracer)
@@ -140,6 +150,11 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             task_module = import_module("crewai")
             task_module.Task._execute_core = self._original_execute_core
             self._original_execute_core = None
+
+        if self._original_agent_kickoff is not None:
+            agent_module = import_module("crewai")
+            agent_module.Agent.kickoff = self._original_agent_kickoff
+            self._original_agent_kickoff = None
 
         if self._original_crew_kickoff is not None:
             crew_module = import_module("crewai")
