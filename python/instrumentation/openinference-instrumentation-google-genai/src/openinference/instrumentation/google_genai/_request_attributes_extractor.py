@@ -327,9 +327,13 @@ class _RequestAttributesExtractor:
         elif hasattr(input_contents, "__class__") and "PIL" in str(input_contents.__class__):
             # Handle PIL Image objects - yield a placeholder since we can't serialize the image directly
             # This prevents the error logging while still marking that an image was present
+            # PIL images passed to generate_content() are wrapped as UserContent by the SDK
             yield (MessageAttributes.MESSAGE_CONTENT, f"<PIL.Image: {type(input_contents).__name__}>")
-        elif isinstance(input_contents, str) or isinstance(input_contents, bytes):
-            yield (MessageAttributes.MESSAGE_CONTENT, str(input_contents))
+            yield (MessageAttributes.MESSAGE_ROLE, "user")
+        elif isinstance(input_contents, bytes):
+            # bytes content (e.g. raw image data) - use placeholder instead of raw str(bytes)
+            yield (MessageAttributes.MESSAGE_CONTENT, f"<bytes: {len(input_contents)} bytes>")
+            yield (MessageAttributes.MESSAGE_ROLE, "user")
         else:
             # Not an exception - use warning instead of exception
             logger.warning(f"Unexpected input contents type: {type(input_contents)}")
