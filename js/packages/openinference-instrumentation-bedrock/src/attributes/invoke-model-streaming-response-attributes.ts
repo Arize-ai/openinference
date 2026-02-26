@@ -9,23 +9,17 @@
  * - Safe stream splitting with original stream preservation
  */
 
-import {
-  isObjectWithStringKeys,
-  withSafety,
-} from "@arizeai/openinference-core";
-import {
-  LLMSystem,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import { PassThrough } from "stream";
 
-import { diag, Span } from "@opentelemetry/api";
+import type { Span } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
 
-import { UsageAttributes } from "../types/bedrock-types";
+import { isObjectWithStringKeys, withSafety } from "@arizeai/openinference-core";
+import { LLMSystem, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
+import type { UsageAttributes } from "../types/bedrock-types";
 import { setSpanAttribute } from "./attribute-helpers";
 import { normalizeUsageAttributes } from "./invoke-model-helpers";
-
-import { PassThrough } from "stream";
 
 /**
  * Interface for raw stream chunks from AWS SDK (network level)
@@ -283,12 +277,10 @@ function processNovaStreamChunk(
 
     // Specifically capture cache tokens if present
     if (typeof usage.cacheReadInputTokenCount === "number") {
-      state.rawUsageData.cacheReadInputTokenCount =
-        usage.cacheReadInputTokenCount;
+      state.rawUsageData.cacheReadInputTokenCount = usage.cacheReadInputTokenCount;
     }
     if (typeof usage.cacheWriteInputTokenCount === "number") {
-      state.rawUsageData.cacheWriteInputTokenCount =
-        usage.cacheWriteInputTokenCount;
+      state.rawUsageData.cacheWriteInputTokenCount = usage.cacheWriteInputTokenCount;
     }
   }
 
@@ -385,16 +377,8 @@ function setStreamingOutputAttributes({
   };
 
   // Set output value as JSON (matching original behavior)
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_VALUE,
-    JSON.stringify(outputValue),
-  );
-  setSpanAttribute(
-    span,
-    SemanticConventions.OUTPUT_MIME_TYPE,
-    "application/json",
-  );
+  setSpanAttribute(span, SemanticConventions.OUTPUT_VALUE, JSON.stringify(outputValue));
+  setSpanAttribute(span, SemanticConventions.OUTPUT_MIME_TYPE, "application/json");
 
   // Set the message role
   setSpanAttribute(
@@ -413,9 +397,7 @@ function setStreamingOutputAttributes({
   }
 
   // Set tool call attributes with sequential indexing
-  const toolUseBlocks = contentBlocks.filter(
-    (block) => block.type === "tool_use",
-  );
+  const toolUseBlocks = contentBlocks.filter((block) => block.type === "tool_use");
   toolUseBlocks.forEach((block, toolCallIndex) => {
     const toolCallPrefix = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.${toolCallIndex}`;
 
@@ -438,25 +420,13 @@ function setStreamingOutputAttributes({
 
   // Set usage attributes
   if (usage.input_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_PROMPT,
-      usage.input_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_PROMPT, usage.input_tokens);
   }
   if (usage.output_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_COMPLETION,
-      usage.output_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, usage.output_tokens);
   }
   if (usage.total_tokens !== undefined) {
-    setSpanAttribute(
-      span,
-      SemanticConventions.LLM_TOKEN_COUNT_TOTAL,
-      usage.total_tokens,
-    );
+    setSpanAttribute(span, SemanticConventions.LLM_TOKEN_COUNT_TOTAL, usage.total_tokens);
   }
   if (usage.cache_read_input_tokens !== undefined) {
     setSpanAttribute(
@@ -482,11 +452,7 @@ function setStreamingOutputAttributes({
  * @param originalStream The original stream to split
  * @returns Object with instrumentation and user streams, or just user stream on fallback
  */
-export function safelySplitStream({
-  originalStream,
-}: {
-  originalStream: AsyncIterable<unknown>;
-}): {
+export function safelySplitStream({ originalStream }: { originalStream: AsyncIterable<unknown> }): {
   instrumentationStream?: AsyncIterable<unknown>;
   userStream: AsyncIterable<unknown>;
 } {
@@ -522,10 +488,7 @@ export function safelySplitStream({
     };
   } catch (error) {
     // Fallback: preserve original stream for user, skip instrumentation
-    diag.warn(
-      "Failed to split stream using PassThrough, falling back to user-only stream:",
-      error,
-    );
+    diag.warn("Failed to split stream using PassThrough, falling back to user-only stream:", error);
     return {
       userStream: originalStream,
     };
@@ -608,10 +571,7 @@ export const consumeBedrockStreamChunks = withSafety({
     }
 
     // Normalize usage data once at the end
-    const normalizedUsage = normalizeStreamUsageData(
-      state.rawUsageData,
-      modelType,
-    );
+    const normalizedUsage = normalizeStreamUsageData(state.rawUsageData, modelType);
 
     setStreamingOutputAttributes({
       span,

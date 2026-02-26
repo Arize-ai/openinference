@@ -1,23 +1,21 @@
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { BedrockAgentInstrumentation } from "../src";
-
-import { createPolly } from "./utils/polly.config";
-import { setModuleExportsForInstrumentation } from "./utils/test-utils";
-
+import type {
+  RetrieveAndGenerateCommandInput,
+  RetrieveCommandInput,
+} from "@aws-sdk/client-bedrock-agent-runtime";
 import {
   BedrockAgentRuntimeClient,
   RetrieveAndGenerateCommand,
-  RetrieveAndGenerateCommandInput,
   RetrieveCommand,
-  RetrieveCommandInput,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
-import { Polly } from "@pollyjs/core";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+
+import { BedrockAgentInstrumentation } from "../src";
+import { createPolly } from "./utils/polly.config";
+import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 
 describe("BedrockAgent RAG Instrumentation - attributes and API recording", () => {
   let instrumentation: BedrockAgentInstrumentation;
@@ -66,12 +64,18 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
   });
 
   it("should record rag attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveAndGenerateCommandInput = {
       input: {
@@ -100,9 +104,7 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     expect(invocation).toContain('"retrieveAndGenerateConfiguration"');
     expect(invocation).toContain("SSGLURQ9A5");
 
-    expect(attrs["llm.model_name"]).toBe(
-      "anthropic.claude-3-haiku-20240307-v1:0",
-    );
+    expect(attrs["llm.model_name"]).toBe("anthropic.claude-3-haiku-20240307-v1:0");
     expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
     expect(attrs["output.mime_type"]).toBe("text/plain");
 
@@ -118,18 +120,22 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
 
       const metadata = attrs[`${prefix}.metadata`];
       expect(metadata).toContain('"customDocumentLocation":{"id":"2222"}');
-      expect(metadata).toContain(
-        '"x-amz-bedrock-kb-data-source-id":"VYV3J5D9O6"',
-      );
+      expect(metadata).toContain('"x-amz-bedrock-kb-data-source-id":"VYV3J5D9O6"');
     }
   });
   it("should record rag external attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveAndGenerateCommandInput = {
       input: {
@@ -159,22 +165,16 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
     const attrs = { ...spans[0].attributes };
     expect(attrs["input.mime_type"]).toBe("text/plain");
     expect(attrs["input.value"]).toBe("What is Telos?");
-    expect(attrs["llm.model_name"]).toBe(
-      "anthropic.claude-3-haiku-20240307-v1:0",
-    );
+    expect(attrs["llm.model_name"]).toBe("anthropic.claude-3-haiku-20240307-v1:0");
     expect(attrs["openinference.span.kind"]).toBe("RETRIEVER");
     expect(attrs["output.mime_type"]).toBe("text/plain");
 
     const output = attrs["output.value"];
     expect(output).toContain("Telos is a knowledge representation language");
     expect(output).toContain("Telos treats attributes as first-class citizens");
-    expect(output).toContain(
-      "Telos propositions are organized along three dimensions",
-    );
+    expect(output).toContain("Telos propositions are organized along three dimensions");
     expect(output).toContain("history time and belief time");
-    expect(output).toContain(
-      "assertion language for expressing deductive rules",
-    );
+    expect(output).toContain("assertion language for expressing deductive rules");
 
     // Validate retrieval documents
     for (let i = 0; i < 9; i++) {
@@ -186,9 +186,7 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
       }
       if (metadataKey in attrs) {
         const metadata = attrs[metadataKey];
-        expect(metadata).toContain(
-          "s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf",
-        );
+        expect(metadata).toContain("s3://bedrock-az-kb/knowledge_bases/VLDBJ96.pdf");
       }
     }
 
@@ -206,26 +204,26 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
       "output.value",
       "llm.invocation_parameters",
       "llm.provider",
-      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
-        (i) => `retrieval.documents.${i}.document.content`,
-      ),
-      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
-        (i) => `retrieval.documents.${i}.document.metadata`,
-      ),
-      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(
-        (i) => `retrieval.documents.${i}.document.score`,
-      ),
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => `retrieval.documents.${i}.document.content`),
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => `retrieval.documents.${i}.document.metadata`),
+      ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => `retrieval.documents.${i}.document.score`),
     ];
     expect(Object.keys(attrs).sort()).toEqual(expectedKeys.sort());
   });
 
   it("should record retrieve attributes and API response in span", async () => {
+    // Use NodeHttpHandler explicitly to ensure Polly can intercept requests
+    // AWS SDK v3.x defaults to fetch-based handler which Polly cannot intercept
     const client = new BedrockAgentRuntimeClient({
       region: "ap-south-1",
       credentials: {
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 5000,
+        requestTimeout: 10000,
+      }),
     });
     const params: RetrieveCommandInput = {
       retrievalQuery: {
@@ -268,12 +266,8 @@ describe("BedrockAgent RAG Instrumentation - attributes and API recording", () =
       "openinference.span.kind",
       "llm.invocation_parameters",
       "llm.provider",
-      ...[0, 1, 2, 3, 4].map(
-        (i) => `retrieval.documents.${i}.document.content`,
-      ),
-      ...[0, 1, 2, 3, 4].map(
-        (i) => `retrieval.documents.${i}.document.metadata`,
-      ),
+      ...[0, 1, 2, 3, 4].map((i) => `retrieval.documents.${i}.document.content`),
+      ...[0, 1, 2, 3, 4].map((i) => `retrieval.documents.${i}.document.metadata`),
       ...[0, 1, 2, 3, 4].map((i) => `retrieval.documents.${i}.document.score`),
     ];
     expect(Object.keys(attrs).sort()).toEqual(expectedKeys.sort());

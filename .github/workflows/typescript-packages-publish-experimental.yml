@@ -29,6 +29,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.packages == 'true' || needs.changes.outputs.workflow_file == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--max-old-space-size=8192"
 
     steps:
       - name: Checkout code
@@ -50,6 +52,8 @@ jobs:
       - name: Build
         working-directory: ./js
         run: pnpm -r build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
 
       - name: Publish
         working-directory: ./js

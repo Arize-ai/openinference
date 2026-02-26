@@ -1,22 +1,18 @@
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import {
-  InMemorySpanExporter,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { BedrockAgentInstrumentation } from "../src";
-
-import { createPolly } from "./utils/polly.config";
-import { setModuleExportsForInstrumentation } from "./utils/test-utils";
-
 import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from "@aws-sdk/client-bedrock-agent-runtime";
 import * as bedrockAgentRuntime from "@aws-sdk/client-bedrock-agent-runtime";
-import { Polly } from "@pollyjs/core";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { vi } from "vitest";
+
+import { BedrockAgentInstrumentation } from "../src";
+import { createPolly } from "./utils/polly.config";
+import { setModuleExportsForInstrumentation } from "./utils/test-utils";
 
 describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
   const cassettePrefix = "bedrock-agent-custom-trace-provider";
@@ -66,6 +62,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",
@@ -80,8 +77,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
         chunk: { bytes: Uint8Array };
       }>) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        const expected =
-          "The current price of Microsoft (MSFT) stock is $334.57.";
+        const expected = "The current price of Microsoft (MSFT) stock is $334.57.";
         expect(outputText).toContain(expected);
       }
       const spans = customMemoryExporter.getFinishedSpans();
@@ -133,6 +129,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",
@@ -147,8 +144,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
         chunk: { bytes: Uint8Array };
       }>) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        const expected =
-          "the current price of Microsoft (MSFT) stock is $334.57.";
+        const expected = "the current price of Microsoft (MSFT) stock is $334.57.";
         expect(outputText).toContain(expected);
       }
 
@@ -204,6 +200,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
           secretAccessKey: "test",
           sessionToken: "test",
         },
+        requestHandler: new NodeHttpHandler(),
       });
       const params = {
         inputText: "What is the current price of Microsoft?",
@@ -218,8 +215,7 @@ describe("BedrockAgentInstrumentation with a custom tracer provider", () => {
         chunk: { bytes: Uint8Array };
       }>) {
         const outputText = Buffer.from(event.chunk.bytes).toString("utf8");
-        const expected =
-          "the current price of Microsoft (MSFT) stock is $334.57.";
+        const expected = "the current price of Microsoft (MSFT) stock is $334.57.";
         expect(outputText).toContain(expected);
       }
       const spans = customMemoryExporter.getFinishedSpans();

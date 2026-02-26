@@ -1,0 +1,15 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"created":"2026-02-26T00:58:13Z","id":"v1_ChdvNXFmYWVMS09LanF6N0lQNzRpdzJBMBIXbzVxZmFlTEtPS2pxejdJUDc0aXcyQTA","model":"gemini-2.5-flash","object":"interaction","outputs":[{"signature":"Cv0FAb4+9vuAkWNc5pHZxaWzKOsnk4H7urZlcty0Us8MGxZG8aR7QsVt7JdYHU8UaAzyJxifGnErfvbkawVu9gwVSS1zUa+PSXSwmkDCENnvVkWqRzOiSleaf/5MA2NDXNvY5GyT2hsEOpgwNowz/vDvI0P1sP+uUhzTanp3zEDjJ95PA4s5eN+kA8cWV5mgvu56SKlRln40TU3sR8b3+4ANa0GRv23aMo6VfJkt+ubI9qLyTmLxydTEXH0kCqN17ut9dBsHbM2pfpG4MZN5er9ZpXPwOnPK4cKj3xN+X4gkv9URKVf4hKVaZc7Jbf3sjuKazTBPTpu07bc+INdBoCL/ruQE2FfN80ctKC9cnDBqaYRTB0UROK/dI/UCCVudxy7moZFneGxfZTsf9tcLp5fVspTTY/lJUBRkBaYrmMQKOqndtECVDOjiT0FRl9h4qRmebMPDC7pfkmkNMwo5ELepXxpmQK8YAqN5sbXIDxc23UBB8ZeLsvAzZoBksix698klYBJP1PLuqTzBG5il2f7oREzbET63XqJrYILotSbMNEKmvyIFjNcjhbFbVg2xp/JDaGjBilNAuqEst3nmsylNIlCheVw8iZ4nfi1KPXFex0je+640fMsla0It2tpONKCskDOf8QBiUkNJdIqh0azbFeflYyTW9ogMz3Adstleu0UEde67dlb+LyW482QPxsMjg/t3yerK81OC1jPcYT2FsdS4BZq2x5IhBfgYzbT0oM8noZIuPNvvZ9oRcWRVGY14qO+ModQcsIiMg96M+8whrb3LmiA/UfymCMGhucLTbfxLbbPXI+uOkdsUBiNZD/XouH7sABz+EOzC93uGGMeXkopbPrCT4Xxjj5Sk4zziSQDivUrTx9ChNsJPE5agIB+/a+VcwbgowdsE5zsAeeElgX51tMM3HSJT6CfIYNtFY9OJweGgFzXriYNAOSPEinzHWB3Q7OnL0cLOspfXPILWGd1UFu6dEPoL7UUttUafPzkVDfvId5rDj8HzEL8w","type":"thought"},{"text":"Why
+        do programmers prefer dark mode?\n\nBecause light attracts bugs!","type":"text"}],"role":"model","status":"completed","updated":"2026-02-26T00:58:13Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":203,"total_tokens":225,"total_tool_use_tokens":0}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

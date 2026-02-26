@@ -1,15 +1,9 @@
-import { Context } from "@opentelemetry/api";
-import {
-  BatchSpanProcessor,
-  BufferConfig,
-  ReadableSpan,
-  SimpleSpanProcessor,
-  Span,
-  SpanExporter,
-} from "@opentelemetry/sdk-trace-base";
+import type { Context } from "@opentelemetry/api";
+import type { BufferConfig, ReadableSpan, Span, SpanExporter } from "@opentelemetry/sdk-trace-base";
+import { BatchSpanProcessor, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 
 import { TraceAggregateManager } from "./TraceAggregateManager";
-import { SpanFilter } from "./types";
+import type { SpanFilter } from "./types";
 import { shouldExportSpan } from "./utils";
 
 /**

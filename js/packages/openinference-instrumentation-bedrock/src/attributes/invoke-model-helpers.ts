@@ -1,28 +1,23 @@
+import type { InvokeModelCommand, InvokeModelResponse } from "@aws-sdk/client-bedrock-runtime";
+import { diag } from "@opentelemetry/api";
+
 import { withSafety } from "@arizeai/openinference-core";
 import { LLMSystem } from "@arizeai/openinference-semantic-conventions";
 
-import { diag } from "@opentelemetry/api";
-
-import {
+import type {
   BedrockMessage,
   ConversationRole,
   ExtendedConversationRole,
   ImageContent,
   ImageSource,
   InvokeModelRequestBody,
-  isTextContent,
-  isToolResultContent,
   MessageContent,
   TextContent,
   ToolResultContent,
   ToolUseContent,
   UsageAttributes,
 } from "../types/bedrock-types";
-
-import {
-  InvokeModelCommand,
-  InvokeModelResponse,
-} from "@aws-sdk/client-bedrock-runtime";
+import { isTextContent, isToolResultContent } from "../types/bedrock-types";
 
 /**
  * Type guard to check if message contains a simple single text content
@@ -31,15 +26,13 @@ import {
  * @param message The bedrock message to check
  * @returns {boolean} True if message contains a single text content block
  */
-export function isSimpleTextResponse(
-  message: BedrockMessage,
-): message is BedrockMessage & {
+export function isSimpleTextResponse(message: BedrockMessage): message is BedrockMessage & {
   content: [TextContent];
 } {
   return Boolean(
     Array.isArray(message.content) &&
-      message.content.length === 1 &&
-      isTextContent(message.content[0]),
+    message.content.length === 1 &&
+    isTextContent(message.content[0]),
   );
 }
 
@@ -122,8 +115,7 @@ export function extractInvocationParameters(
     return requestBody.textGenerationConfig as Record<string, unknown>;
   } else {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { system, messages, tools, prompt, ...invocationParams } =
-      requestBody;
+    const { system, messages, tools, prompt, ...invocationParams } = requestBody;
     return invocationParams;
   }
 }
@@ -135,9 +127,7 @@ export function extractInvocationParameters(
  * @param content The message content to extract tool result blocks from
  * @returns {ToolResultContent[]} Array of tool result blocks, empty if none found
  */
-export function extractToolResultBlocks(
-  content: MessageContent,
-): ToolResultContent[] {
+export function extractToolResultBlocks(content: MessageContent): ToolResultContent[] {
   if (typeof content === "string" || !Array.isArray(content)) {
     return [];
   }
@@ -173,9 +163,7 @@ function isNovaRequest(requestBody: Record<string, unknown>): boolean {
  * @returns {boolean} True if request matches Titan format structure
  */
 function isTitanRequest(requestBody: Record<string, unknown>): boolean {
-  return (
-    "inputText" in requestBody && typeof requestBody.inputText === "string"
-  );
+  return "inputText" in requestBody && typeof requestBody.inputText === "string";
 }
 
 /**
@@ -209,9 +197,7 @@ function convertSimpleTextToBedrockMessages(
  * @param requestBody The Nova-formatted request body containing messages
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages with converted content
  */
-function convertNovaToBedrockMessages(
-  requestBody: Record<string, unknown>,
-): BedrockMessage[] {
+function convertNovaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
   const messages = requestBody.messages as Array<{
     role: string;
     content: Array<{
@@ -267,9 +253,7 @@ function convertNovaToBedrockMessages(
  * @param requestBody The request body to check
  * @returns {boolean} True if request matches Mistral Text Completion format structure
  */
-function isMistralTextCompletionRequest(
-  requestBody: Record<string, unknown>,
-): boolean {
+function isMistralTextCompletionRequest(requestBody: Record<string, unknown>): boolean {
   return "prompt" in requestBody && typeof requestBody.prompt === "string";
 }
 
@@ -336,14 +320,12 @@ function convertMistralChatToBedrockMessages(
 
     // Handle assistant messages with tool calls
     if (message.role === "assistant" && message.tool_calls) {
-      const content: (TextContent | ToolUseContent)[] = message.tool_calls.map(
-        (toolCall) => ({
-          type: "tool_use",
-          id: toolCall.id,
-          name: toolCall.function.name,
-          input: JSON.parse(toolCall.function.arguments),
-        }),
-      );
+      const content: (TextContent | ToolUseContent)[] = message.tool_calls.map((toolCall) => ({
+        type: "tool_use",
+        id: toolCall.id,
+        name: toolCall.function.name,
+        input: JSON.parse(toolCall.function.arguments),
+      }));
 
       // Add text content if present
       if (message.content && typeof message.content === "string") {
@@ -370,15 +352,10 @@ function convertMistralChatToBedrockMessages(
             type: "text",
             text: contentBlock.text,
           });
-        } else if (
-          contentBlock.type === "image_url" &&
-          contentBlock.image_url?.url
-        ) {
+        } else if (contentBlock.type === "image_url" && contentBlock.image_url?.url) {
           // Extract base64 data from data URL
           const dataUrl = contentBlock.image_url.url;
-          const base64Match = dataUrl.match(
-            /^data:image\/([^;]+);base64,(.+)$/,
-          );
+          const base64Match = dataUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
 
           if (base64Match) {
             const [, format, base64Data] = base64Match;
@@ -422,9 +399,7 @@ function convertMistralChatToBedrockMessages(
  * @param requestBody The AI21 Jamba-formatted request body containing messages array
  * @returns {BedrockMessage[]} Array of converted BedrockMessage objects
  */
-function convertAI21JambaToBedrockMessages(
-  requestBody: Record<string, unknown>,
-): BedrockMessage[] {
+function convertAI21JambaToBedrockMessages(requestBody: Record<string, unknown>): BedrockMessage[] {
   const messages = requestBody.messages as Array<{
     role: string;
     content: string;
@@ -471,15 +446,9 @@ function fallbackNormalizeRequestContentBlocks(
     requestBody.messages.length > 0
   ) {
     return requestBody.messages as BedrockMessage[];
-  } else if (
-    "prompt" in requestBody &&
-    typeof requestBody.prompt === "string"
-  ) {
+  } else if ("prompt" in requestBody && typeof requestBody.prompt === "string") {
     return convertSimpleTextToBedrockMessages(requestBody, "prompt");
-  } else if (
-    "inputText" in requestBody &&
-    typeof requestBody.inputText === "string"
-  ) {
+  } else if ("inputText" in requestBody && typeof requestBody.inputText === "string") {
     return convertSimpleTextToBedrockMessages(requestBody, "inputText");
   }
   return [];
@@ -495,10 +464,7 @@ function fallbackNormalizeRequestContentBlocks(
  * @returns {BedrockMessage[]} Array of normalized Bedrock messages or empty array on error
  */
 export const normalizeRequestContentBlocks = withSafety({
-  fn: (
-    requestBody: InvokeModelRequestBody,
-    llm_system: LLMSystem,
-  ): BedrockMessage[] => {
+  fn: (requestBody: InvokeModelRequestBody, llm_system: LLMSystem): BedrockMessage[] => {
     let messages: BedrockMessage[] = [];
 
     if (llm_system === LLMSystem.ANTHROPIC) {
@@ -629,11 +595,7 @@ export function coerceNovaToMessageContent(content: unknown): MessageContent {
       }
 
       // Nova tool use: { toolUse: { toolUseId, name, input } } -> { type: "tool_use", id, name, input }
-      if (
-        "toolUse" in obj &&
-        typeof obj.toolUse === "object" &&
-        obj.toolUse !== null
-      ) {
+      if ("toolUse" in obj && typeof obj.toolUse === "object" && obj.toolUse !== null) {
         const toolUse = obj.toolUse as Record<string, unknown>;
 
         if ("toolUseId" in toolUse && "name" in toolUse && "input" in toolUse) {
@@ -709,9 +671,7 @@ function isTitanResponse(responseBody: Record<string, unknown>): boolean {
  * @param responseBody The AI21 Jamba response body to convert
  * @returns {MessageContent} Array of converted content blocks including tool calls
  */
-function convertAI21JambaToMessageContent(
-  responseBody: Record<string, unknown>,
-): MessageContent {
+function convertAI21JambaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
   if (!Array.isArray(responseBody.choices)) {
     return [];
   }
@@ -772,9 +732,7 @@ function convertAI21JambaToMessageContent(
  * @param responseBody The Meta response body to convert
  * @returns {MessageContent} Array with single converted content block
  */
-export function convertMetaToMessageContent(
-  responseBody: Record<string, unknown>,
-): MessageContent {
+export function convertMetaToMessageContent(responseBody: Record<string, unknown>): MessageContent {
   const generation = responseBody.generation;
   if (typeof generation === "string") {
     return [
@@ -836,10 +794,7 @@ function convertArrayFieldToMessageContent(
  * @returns {BedrockMessage} Normalized assistant message with extracted content or empty fallback
  */
 export const normalizeResponseContentBlocks = withSafety({
-  fn: (
-    responseBody: Record<string, unknown>,
-    llm_system: LLMSystem,
-  ): BedrockMessage => {
+  fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): BedrockMessage => {
     const role = "assistant";
     let content: MessageContent = [];
 
@@ -858,11 +813,7 @@ export const normalizeResponseContentBlocks = withSafety({
         content = coerceNovaToMessageContent(novaContent);
       } else if (isTitanResponse(responseBody)) {
         // Titan format: { results: [{ outputText }] } - handle all results, not just first
-        content = convertArrayFieldToMessageContent(
-          responseBody,
-          "results",
-          "outputText",
-        );
+        content = convertArrayFieldToMessageContent(responseBody, "results", "outputText");
       }
     } else if (
       llm_system === LLMSystem.COHERE &&
@@ -871,11 +822,7 @@ export const normalizeResponseContentBlocks = withSafety({
       responseBody.generations.length > 0
     ) {
       // Cohere: { generations: [{ text }] } - handle all generations, not just first
-      content = convertArrayFieldToMessageContent(
-        responseBody,
-        "generations",
-        "text",
-      );
+      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
     } else if (
       llm_system === LLMSystem.META &&
       "generation" in responseBody &&
@@ -890,11 +837,7 @@ export const normalizeResponseContentBlocks = withSafety({
     ) {
       // Mistral: { generations: [{ text }] } - handle all generations, not just first
       // NOTE: Tool calls are not currently supported for Mistral models
-      content = convertArrayFieldToMessageContent(
-        responseBody,
-        "generations",
-        "text",
-      );
+      content = convertArrayFieldToMessageContent(responseBody, "generations", "text");
     } else if (
       llm_system === LLMSystem.AI21 &&
       "choices" in responseBody &&
@@ -927,28 +870,16 @@ export const normalizeResponseContentBlocks = withSafety({
  * @returns {UsageAttributes} Normalized usage object with comprehensive token information
  */
 export const normalizeUsageAttributes = withSafety({
-  fn: (
-    responseBody: Record<string, unknown>,
-    llm_system: LLMSystem,
-  ): UsageAttributes => {
+  fn: (responseBody: Record<string, unknown>, llm_system: LLMSystem): UsageAttributes => {
     if (llm_system === LLMSystem.ANTHROPIC) {
       // Anthropic format: { usage: { input_tokens: N, output_tokens: N, cache_read_input_tokens?: N, cache_creation_input_tokens?: N } }
       const usage = responseBody.usage as Record<string, unknown> | undefined;
       if (!usage) return {};
 
       return {
-        input_tokens:
-          typeof usage.input_tokens === "number"
-            ? usage.input_tokens
-            : undefined,
-        output_tokens:
-          typeof usage.output_tokens === "number"
-            ? usage.output_tokens
-            : undefined,
-        total_tokens:
-          typeof usage.total_tokens === "number"
-            ? usage.total_tokens
-            : undefined,
+        input_tokens: typeof usage.input_tokens === "number" ? usage.input_tokens : undefined,
+        output_tokens: typeof usage.output_tokens === "number" ? usage.output_tokens : undefined,
+        total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined,
         cache_read_input_tokens:
           typeof usage.cache_read_input_tokens === "number"
             ? usage.cache_read_input_tokens
@@ -966,18 +897,9 @@ export const normalizeUsageAttributes = withSafety({
         if (!usage) return {};
 
         return {
-          input_tokens:
-            typeof usage.inputTokens === "number"
-              ? usage.inputTokens
-              : undefined,
-          output_tokens:
-            typeof usage.outputTokens === "number"
-              ? usage.outputTokens
-              : undefined,
-          total_tokens:
-            typeof usage.totalTokens === "number"
-              ? usage.totalTokens
-              : undefined,
+          input_tokens: typeof usage.inputTokens === "number" ? usage.inputTokens : undefined,
+          output_tokens: typeof usage.outputTokens === "number" ? usage.outputTokens : undefined,
+          total_tokens: typeof usage.totalTokens === "number" ? usage.totalTokens : undefined,
           cache_read_input_tokens:
             typeof usage.cacheReadInputTokenCount === "number"
               ? usage.cacheReadInputTokenCount
@@ -995,9 +917,7 @@ export const normalizeUsageAttributes = withSafety({
             : undefined;
         const results = responseBody.results as Array<Record<string, unknown>>;
         const outputTokens =
-          typeof results?.[0]?.tokenCount === "number"
-            ? results[0].tokenCount
-            : undefined;
+          typeof results?.[0]?.tokenCount === "number" ? results[0].tokenCount : undefined;
 
         const result: UsageAttributes = {};
         if (inputTokens !== undefined) result.input_tokens = inputTokens;
@@ -1011,18 +931,10 @@ export const normalizeUsageAttributes = withSafety({
       if (!usage) return {};
 
       return {
-        input_tokens:
-          typeof usage.prompt_tokens === "number"
-            ? usage.prompt_tokens
-            : undefined,
+        input_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
         output_tokens:
-          typeof usage.completion_tokens === "number"
-            ? usage.completion_tokens
-            : undefined,
-        total_tokens:
-          typeof usage.total_tokens === "number"
-            ? usage.total_tokens
-            : undefined,
+          typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined,
+        total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined,
       };
     } else if (llm_system === LLMSystem.META) {
       // Meta format: { prompt_token_count: N, generation_token_count: N }

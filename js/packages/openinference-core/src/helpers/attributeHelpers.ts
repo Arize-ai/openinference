@@ -1,3 +1,5 @@
+import type { Attributes } from "@opentelemetry/api";
+
 import {
   INPUT_MIME_TYPE,
   INPUT_VALUE,
@@ -7,11 +9,8 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes } from "@opentelemetry/api";
-
 import { safelyJSONStringify } from "../utils";
-
-import {
+import type {
   Document,
   Embedding,
   InputToAttributesFn,
@@ -172,9 +171,7 @@ export const defaultProcessOutput: OutputToAttributesFn = (res: unknown) =>
  * getOutputAttributes(undefined) // Returns: {}
  * ```
  */
-export function getOutputAttributes(
-  output: SpanOutput | string | null | undefined,
-): Attributes {
+export function getOutputAttributes(output: SpanOutput | string | null | undefined): Attributes {
   if (output == null) {
     return {};
   }
@@ -213,9 +210,7 @@ export function getOutputAttributes(
  * getOutputAttributes(undefined) // Returns: {}
  * ```
  */
-export function getInputAttributes(
-  input: SpanInput | string | undefined,
-): Attributes {
+export function getInputAttributes(input: SpanInput | string | undefined): Attributes {
   if (input == null) {
     return {};
   }
@@ -302,9 +297,7 @@ export function getEmbeddingAttributes(options: {
  * });
  * ```
  */
-export function getRetrieverAttributes(options: {
-  documents: Document[];
-}): Attributes {
+export function getRetrieverAttributes(options: { documents: Document[] }): Attributes {
   const { documents } = options;
   const attributes: Attributes = {};
 
@@ -369,14 +362,11 @@ export function getDocumentAttributes(
   const attributes: Attributes = {};
 
   if (document.content != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_CONTENT}`
-    ] = document.content;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_CONTENT}`] =
+      document.content;
   }
   if (document.id != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_ID}`
-    ] = document.id;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_ID}`] = document.id;
   }
   if (document.metadata != null) {
     const key = `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_METADATA}`;
@@ -387,9 +377,8 @@ export function getDocumentAttributes(
     }
   }
   if (document.score != null) {
-    attributes[
-      `${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_SCORE}`
-    ] = document.score;
+    attributes[`${keyPrefix}.${documentIndex}.${SemanticConventions.DOCUMENT_SCORE}`] =
+      document.score;
   }
 
   return attributes;
@@ -406,9 +395,7 @@ export function getDocumentAttributes(
  * const attrs = getMetadataAttributes({ version: "1.0", env: "prod" });
  * ```
  */
-export function getMetadataAttributes(
-  metadata: Record<string, unknown>,
-): Attributes {
+export function getMetadataAttributes(metadata: Record<string, unknown>): Attributes {
   return {
     [SemanticConventions.METADATA]: safelyJSONStringify(metadata) ?? "{}",
   };
@@ -449,8 +436,7 @@ export function getToolAttributes(options: {
     attributes[SemanticConventions.TOOL_DESCRIPTION] = description;
   }
 
-  attributes[SemanticConventions.TOOL_PARAMETERS] =
-    safelyJSONStringify(parameters) ?? "{}";
+  attributes[SemanticConventions.TOOL_PARAMETERS] = safelyJSONStringify(parameters) ?? "{}";
 
   return attributes;
 }
@@ -497,8 +483,7 @@ export function getLLMAttributes(options: {
 
   // Provider attributes
   if (options.provider != null) {
-    attributes[SemanticConventions.LLM_PROVIDER] =
-      options.provider.toLowerCase();
+    attributes[SemanticConventions.LLM_PROVIDER] = options.provider.toLowerCase();
   }
 
   // System attributes
@@ -646,32 +631,26 @@ export function getLLMAttributes(options: {
   // Token count
   if (options.tokenCount != null) {
     if (options.tokenCount.prompt != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] =
-        options.tokenCount.prompt;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = options.tokenCount.prompt;
     }
     if (options.tokenCount.completion != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] =
-        options.tokenCount.completion;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = options.tokenCount.completion;
     }
     if (options.tokenCount.total != null) {
-      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
-        options.tokenCount.total;
+      attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = options.tokenCount.total;
     }
     if (options.tokenCount.promptDetails != null) {
       const details = options.tokenCount.promptDetails;
       if (details.audio != null) {
-        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] =
-          details.audio;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO] = details.audio;
       }
       if (details.cacheRead != null) {
-        attributes[
-          SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ
-        ] = details.cacheRead;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+          details.cacheRead;
       }
       if (details.cacheWrite != null) {
-        attributes[
-          SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
-        ] = details.cacheWrite;
+        attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+          details.cacheWrite;
       }
     }
   }
