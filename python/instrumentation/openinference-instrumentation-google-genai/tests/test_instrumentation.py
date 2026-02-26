@@ -2,7 +2,7 @@
 # ruff: noqa: E501
 import json
 import os
-from typing import Any, Dict, Iterator
+from typing import Any, Dict
 
 import pytest
 from google import genai
@@ -16,13 +16,10 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
 
-from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
     MessageAttributes,
     SpanAttributes,
@@ -33,28 +30,6 @@ from openinference.semconv.trace import (
 
 class Answer(BaseModel):
     answer: str
-
-
-@pytest.fixture
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    exporter = InMemorySpanExporter()
-    return exporter
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture
-def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Iterator[None]:
-    instrumentor = GoogleGenAIInstrumentor()
-    instrumentor.instrument(tracer_provider=tracer_provider)
-    yield
-    instrumentor.uninstrument()
 
 
 @pytest.mark.vcr(

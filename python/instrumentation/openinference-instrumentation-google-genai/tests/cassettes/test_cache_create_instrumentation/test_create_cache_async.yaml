@@ -1,0 +1,105 @@
+interactions:
+- request:
+    body: '{"model": "models/gemini-2.5-flash", "ttl": "300s", "displayName": "test
+      story cache", "contents": [{"parts": [{"text": "In the early days of software
+      development, productivity was measured in lines of code written and tickets
+      closed, and developers spent their hours navigating fragmented tools, switching
+      contexts between documentation, terminals, issue trackers, and monitoring dashboards,
+      constantly translating intent into syntax and syntax into execution; but as
+      systems grew more distributed, data-heavy, and AI-infused, the cognitive load
+      on engineers multiplied, and the gap between idea and implementation widened\u2014until
+      the emergence of agentic frameworks began to quietly reshape the rhythm of development
+      itself. At first, these frameworks appeared as helpful assistants embedded within
+      the workflow: they could read codebases, understand architectural patterns,
+      generate scaffolding, and summarize logs, but their real transformation began
+      when they evolved from reactive helpers into goal-driven collaborators capable
+      of planning, reasoning, and acting across tools in real time. Instead of merely
+      suggesting code snippets, an agentic system could interpret a developer\u2019s
+      high-level objective\u2014\u201coptimize API latency,\u201d \u201cimplement
+      a new onboarding flow,\u201d or \u201cadd observability to a microservice\u201d\u2014and
+      decompose it into structured subtasks, search the codebase for relevant modules,
+      analyze performance bottlenecks, propose architectural adjustments, write tests,
+      execute them in a sandbox, interpret failures, refine the implementation, and
+      present a validated pull request, all while explaining the rationale behind
+      each decision. This shift fundamentally altered the developer experience: productivity
+      was no longer about manual orchestration of micro-decisions but about supervising
+      intelligent agents that continuously reasoned over context. In real time, as
+      a developer typed a function signature, the framework would infer dependencies,
+      fetch relevant documentation, align with existing coding standards, and generate
+      context-aware implementations that adhered to security, scalability, and compliance
+      constraints. If a runtime error occurred, the agent would trace stack logs,
+      correlate them with recent commits, simulate edge cases, and propose fixes before
+      the engineer even switched tabs. Over time, these agents became deeply integrated
+      into the software lifecycle, monitoring CI pipelines, identifying flaky tests,
+      predicting merge conflicts, and even suggesting design refactors before technical
+      debt accumulated. The impact was not just speed but cognitive relief: developers
+      were freed from repetitive boilerplate, environment configuration, and manual
+      debugging cycles, allowing them to focus on system design, creative problem
+      solving, and strategic trade-offs. What made agentic frameworks especially transformative
+      was their persistent memory and contextual awareness; they could learn from
+      prior decisions, adapt to evolving code standards, and maintain a shared understanding
+      of architectural intent across teams. In collaborative environments, agents
+      acted as continuity layers, summarizing meeting discussions into actionable
+      development plans, mapping feature requests to technical tasks, and ensuring
+      alignment between product requirements and implementation details. When a new
+      team member joined, the agent could generate an interactive knowledge map of
+      the system, explain why certain trade-offs were made, and guide them through
+      their first feature deployment, effectively compressing onboarding time from
+      weeks to days. As real-time data streams fed into these frameworks\u2014logs,
+      metrics, user analytics\u2014the agents became proactive, surfacing anomalies,
+      suggesting performance tuning, and even drafting rollback strategies when deployment
+      risk exceeded defined thresholds. Security workflows evolved as well: agents
+      scanned dependencies for vulnerabilities, simulated attack vectors, and automatically
+      proposed patches with backward compatibility in mind. Over months and years,
+      organizations that embraced agentic development observed a subtle but powerful
+      cultural shift: engineering conversations moved from \u201chow do we implement
+      this?\u201d to \u201cwhat should we build next?\u201d, because the mechanics
+      of implementation were increasingly automated and validated by intelligent collaborators.
+      The framework\u2019s orchestration layer connected language models, retrieval
+      systems, execution sandboxes, and tool APIs into a cohesive reasoning engine
+      capable of iterative self-correction, enabling a closed feedback loop where
+      hypotheses could be tested and refined within minutes rather than sprint cycles.
+      Developers interacted with these agents through natural language, structured
+      prompts, and embedded commands, but under the surface, complex planning algorithms
+      determined optimal execution paths, balancing cost, latency, and accuracy in
+      real time. As the technology matured, agents began negotiating tasks among themselves\u2014one
+      specializing in performance profiling, another in UI consistency, another in
+      database schema evolution\u2014forming cooperative swarms that handled multi-layered
+      initiatives with parallel precision. Importantly, human oversight remained central:
+      developers defined guardrails, validated critical decisions, and shaped architectural
+      vision, while agents handled the heavy lifting of analysis and iteration. The
+      result was a dynamic partnership in which creativity and computational reasoning
+      complemented each other. Even incident response transformed: when production
+      metrics spiked unexpectedly, an agent could aggregate telemetry, identify root
+      causes, generate mitigation steps, and draft stakeholder communication summaries
+      within moments, dramatically reducing mean time to resolution. Documentation,
+      long a neglected afterthought, became living and synchronized, as agents updated
+      API references and architectural diagrams automatically with each code change.
+      In educational contexts, junior engineers leveraged agentic feedback loops that
+      not only corrected code but explained conceptual underpinnings, accelerating
+      skill acquisition and deepening understanding. Over time, the framework evolved
+      from a tool into an ecosystem, integrating with design platforms, testing harnesses,
+      deployment pipelines, and customer feedback channels, creating a continuous
+      flow from ideation to iteration. Real-time collaboration expanded beyond individuals:
+      distributed teams across time zones relied on agents to maintain momentum, handing
+      off context seamlessly and ensuring that work progressed even while humans rested.
+      Productivity metrics shifted from output volume to outcome velocity\u2014the
+      time it took to translate validated ideas into reliable user-facing capabilities."}],
+      "role": "user"}], "systemInstruction": {"parts": [{"text": "You are an expert
+      Agent, and your job is to answer the user query based on the Context you have
+      access to."}], "role": "user"}}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/cachedContents
+  response:
+    body:
+      string: "{\n  \"name\": \"cachedContents/sfxrxenk39uyl210qrj8cca9suzbgf94x6agipzz\",\n
+        \ \"model\": \"models/gemini-2.5-flash\",\n  \"createTime\": \"2026-02-24T17:13:04.282570Z\",\n
+        \ \"updateTime\": \"2026-02-24T17:13:04.282570Z\",\n  \"expireTime\": \"2026-02-24T17:18:02.144023669Z\",\n
+        \ \"displayName\": \"test story cache\",\n  \"usageMetadata\": {\n    \"totalTokenCount\":
+        1090\n  }\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,7 +1,35 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
 
 import pytest
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
+
+
+@pytest.fixture
+def in_memory_span_exporter() -> InMemorySpanExporter:
+    exporter = InMemorySpanExporter()
+    return exporter
+
+
+@pytest.fixture()
+def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
+    resource = Resource(attributes={})
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+    return tracer_provider
+
+
+@pytest.fixture
+def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Iterator[None]:
+    instrumentor = GoogleGenAIInstrumentor()
+    instrumentor.instrument(tracer_provider=tracer_provider)
+    yield
+    instrumentor.uninstrument()
 
 
 def _normalize_request(request: Any) -> Any:
@@ -70,7 +98,7 @@ def _bridge_google_api_key() -> None:
 try:
     import gzip
 
-    import vcr.stubs.aiohttp_stubs as _aiohttp_stubs  # type: ignore[import-untyped]
+    import vcr.stubs.aiohttp_stubs as _aiohttp_stubs
     from vcr.stubs.aiohttp_stubs import (
         MockClientResponse,
         MockStream,
