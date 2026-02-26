@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+  pull_request_target:
   workflow_dispatch:
 
 concurrency:
@@ -14,6 +15,7 @@ jobs:
   changes:
     name: Filter Changes
     runs-on: ubuntu-latest
+    if: ${{ !(github.event_name == 'pull_request_target' && startsWith(github.head_ref, 'release-please--')) }}
     outputs:
       diff: ${{ steps.filter.outputs.diff }}
       diff_files: ${{ steps.filter.outputs.diff_files }}
@@ -90,6 +92,10 @@ jobs:
     steps:
       - name: Check results
         run: |
+          if [[ "${{ github.event_name == 'pull_request_target' && startsWith(github.head_ref, 'release-please--') }}" == "true" ]]; then
+            echo "Release-please PR: skipping Python CI"
+            exit 0
+          fi
           if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
             echo "One or more CI jobs failed"
             exit 1
