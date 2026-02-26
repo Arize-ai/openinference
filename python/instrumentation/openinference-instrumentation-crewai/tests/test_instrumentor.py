@@ -381,6 +381,63 @@ def test_flow_crew_spans_in_same_trace(
     )
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda request: request.headers.clear() or request,
+    before_record_response=lambda response: dict(response, headers={}),
+)
+def test_nested_flow_gets_its_own_span(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    """Regression test: nested flows must each get their own CHAIN span.
+
+    Before the fix, _flow_span_in_progress was a plain boolean. Any
+    Flow.kickoff_async() called while the outer flow's sync kickoff() was running
+    (i.e. while the flag was True) would skip span creation — including nested flows
+    with a different flow_id.  The fix stores the outer flow's flow_id and only
+    skips when the id matches, so inner flows still create their own spans.
+    """
+
+    class InnerFlow(Flow[Any]):  # type: ignore[misc, unused-ignore]
+        @start()  # type: ignore[misc, unused-ignore]
+        def inner_step(self) -> str:
+            return "inner done"
+
+    class OuterFlow(Flow[Any]):  # type: ignore[misc, unused-ignore]
+        @start()  # type: ignore[misc, unused-ignore]
+        def outer_step(self) -> Any:
+            # Call a nested flow synchronously from within a flow step.
+            # The step runs in a thread (asyncio.to_thread) so there is no
+            # running event loop here — InnerFlow.kickoff() can call asyncio.run()
+            # without conflict, matching the real-world nested-flow pattern.
+            return InnerFlow().kickoff()
+
+    OuterFlow().kickoff()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    span_by_id = {s.context.span_id: s for s in spans}
+    chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+
+    # Expect exactly 2 CHAIN spans: one for OuterFlow, one for InnerFlow.
+    assert len(chain_spans) == 2, (
+        f"Expected 2 CHAIN spans (OuterFlow + InnerFlow), got {len(chain_spans)}. "
+        "_flow_span_in_progress may be suppressing the nested flow span."
+    )
+
+    # All spans must be in one trace — context must propagate into the nested flow.
+    trace_ids = {s.context.trace_id for s in spans}
+    assert len(trace_ids) == 1, (
+        f"Expected 1 trace, got {len(trace_ids)}. "
+        "InnerFlow spans are orphaned — context not propagated into nested flow."
+    )
+
+    # One CHAIN span must be the root, the other must be nested under it.
+    root_chains = [s for s in chain_spans if s.parent is None or s.parent.span_id not in span_by_id]
+    assert len(root_chains) == 1, f"Expected 1 root CHAIN span, got {len(root_chains)}"
+    nested_chain = next(s for s in chain_spans if s is not root_chains[0])
+    assert nested_chain.parent is not None, "Inner flow CHAIN span must have a parent"
+
+
 def get_spans_by_kind(spans: Sequence[ReadableSpan], kind: str) -> Sequence[ReadableSpan]:
     """Get all spans of a specific OpenInference kind."""
     return sorted(

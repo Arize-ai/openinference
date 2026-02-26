@@ -23,11 +23,11 @@ logger.addHandler(logging.NullHandler())
 
 # Contextvar used to coordinate between the sync Flow.kickoff wrapper and the
 # async Flow.kickoff_async wrapper.  When the sync wrapper creates the FLOW span
-# BEFORE calling asyncio.run(), it sets this flag so that the async wrapper
-# (which is called inside asyncio.run()) knows to skip creating a second,
-# duplicate FLOW span.
-_flow_span_in_progress: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "_oi_flow_span_in_progress", default=False
+# BEFORE calling asyncio.run(), it stores the flow_id so that the async wrapper
+# (which is called inside asyncio.run()) can skip creating a duplicate span for
+# that specific flow while still creating spans for any nested flows.
+_flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_oi_flow_span_in_progress", default=None
 )
 
 
@@ -446,8 +446,10 @@ class _FlowKickoffWrapper:
             span.set_attribute("flow_id", str(flow.flow_id))
             span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
 
-            # Signal to the async wrapper that the span already exists.
-            token = _flow_span_in_progress.set(True)
+            # Signal to the async wrapper that the span already exists for this flow.
+            # Store the flow_id (not a plain boolean) so that nested flows with different
+            # flow_ids still get their own spans.
+            token = _flow_span_in_progress.set(str(flow.flow_id))
             try:
                 flow_output = wrapped(*args, **kwargs)
             except Exception as exception:
@@ -478,8 +480,10 @@ class _FlowKickoffAsyncWrapper:
             return await wrapped(*args, **kwargs)
         # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
         # the FLOW span was already created in the calling thread's context and
-        # propagated into this task via contextvars.  Skip creating a duplicate.
-        if _flow_span_in_progress.get():
+        # propagated into this task via contextvars.  Skip creating a duplicate
+        # only for this specific flow (matched by flow_id); nested flows with a
+        # different flow_id still get their own span.
+        if _flow_span_in_progress.get() == str(instance.flow_id):
             return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)
