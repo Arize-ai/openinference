@@ -59,11 +59,7 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -> None:
     """Verify spans are generated correctly for CrewAI Crews, Agents, Tasks & Flows."""
     analyze_task, scrape_task = kickoff_crew()
@@ -239,11 +235,7 @@ def kickoff_flow_with_crew() -> None:
     CrewFlow().kickoff()
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_crewai_instrumentation_context_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -276,11 +268,7 @@ def test_crewai_instrumentation_context_attributes(
         _verify_context_attributes(span)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_tool_spans_nested_under_agent_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -323,11 +311,7 @@ def test_tool_spans_nested_under_agent_span(
     _ = span_by_id  # used for context; referenced in test_flow_crew_spans_in_same_trace
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_flow_crew_spans_in_same_trace(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -381,11 +365,7 @@ def test_flow_crew_spans_in_same_trace(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda request: request.headers.clear() or request,
-    before_record_response=lambda response: dict(response, headers={}),
-)
+@pytest.mark.vcr
 def test_nested_flow_gets_its_own_span(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
