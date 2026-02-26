@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 import pytest
@@ -25,20 +26,20 @@ def vcr_config() -> dict[str, Any]:
 
 @pytest.fixture
 def openai_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-key"
+    api_key = os.environ.get("OPENAI_API_KEY") or "sk-fake-key"
     monkeypatch.setenv("OPENAI_API_KEY", api_key)
     return api_key
 
 
 @pytest.fixture
 def anthropic_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "sk-fake-anthropic-key"
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or "sk-fake-anthropic-key"
     monkeypatch.setenv("ANTHROPIC_API_KEY", api_key)
     return api_key
 
 
 @pytest.fixture
 def cohere_api_key(monkeypatch: MonkeyPatch) -> str:
-    api_key = "fake-cohere-key"
+    api_key = os.environ.get("COHERE_API_KEY") or "fake-cohere-key"
     monkeypatch.setenv("COHERE_API_KEY", api_key)
     return api_key

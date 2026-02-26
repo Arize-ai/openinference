@@ -11,6 +11,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+from pytest import MonkeyPatch
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.dspy import (
@@ -229,7 +230,10 @@ class TestLM:
         self,
         in_memory_span_exporter: InMemorySpanExporter,
         openai_api_key: str,
+        monkeypatch: MonkeyPatch,
     ) -> None:
+        # Force an invalid key so the LM call reliably errors even when a real key is set.
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-key")
         lm = dspy.LM("openai/gpt-4", cache=False)
         prompt = "Who won the World Cup in 2018?"
         with pytest.raises(Exception):
@@ -251,7 +255,10 @@ class TestLM:
             or "Incorrect API key provided" in exception_message
         )
         assert isinstance(exception_stacktrace := event_attributes["exception.stacktrace"], str)
-        assert "Incorrect API key provided" in exception_stacktrace
+        assert (
+            "Connection error" in exception_stacktrace
+            or "Incorrect API key provided" in exception_stacktrace
+        )
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
         assert attributes.pop(INPUT_MIME_TYPE) == JSON
