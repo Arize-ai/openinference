@@ -161,6 +161,7 @@ def _finish_tracing(
 def _stop_on_exception_for_dict(
     wrapped: Callable[..., Any],
 ) -> Callable[..., Any]:
+    @wraps(wrapped)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return wrapped(*args, **kwargs)
