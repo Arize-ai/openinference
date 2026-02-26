@@ -8,14 +8,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: test-python-${{ github.head_ref }}
+  group: test-python-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   changes:
     name: Filter Changes
     runs-on: ubuntu-latest
-    if: ${{ !(github.event_name == 'pull_request_target' && startsWith(github.head_ref, 'release-please--')) }}
+    if: ${{ github.event_name != 'pull_request_target' }}
     outputs:
       diff: ${{ steps.filter.outputs.diff }}
       diff_files: ${{ steps.filter.outputs.diff_files }}
@@ -87,7 +87,7 @@ jobs:
   ci-required:
     name: Python CI Required
     needs: [changes, find-tox-testenv, run-tox-testenv]
-    if: always()
+    if: ${{ always() && (github.event_name != 'pull_request_target' || startsWith(github.head_ref, 'release-please--')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Check results

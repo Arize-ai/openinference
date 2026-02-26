@@ -9,14 +9,14 @@ on:
     workflow_dispatch:
 
 concurrency:
-    group: test-typescript-${{ github.head_ref }}
+    group: test-typescript-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
     cancel-in-progress: true
 
 jobs:
     changes:
         name: Filter Changes
         runs-on: ubuntu-latest
-        if: ${{ !(github.event_name == 'pull_request_target' && startsWith(github.head_ref, 'release-please--')) }}
+        if: ${{ github.event_name != 'pull_request_target' }}
         outputs:
             diff: ${{ steps.filter.outputs.diff }}
         steps:
@@ -86,7 +86,7 @@ jobs:
     ci-required:
         name: Typescript CI Required
         needs: [changes, ci]
-        if: always()
+        if: ${{ always() && (github.event_name != 'pull_request_target' || startsWith(github.head_ref, 'release-please--')) }}
         runs-on: ubuntu-latest
         steps:
             - name: Check results
