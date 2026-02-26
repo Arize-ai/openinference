@@ -73,7 +73,7 @@ def test_get_attributes_from_generate_content_usage(
             ),
             {
                 "llm.token_count.total": 110,
-                "llm.token_count.prompt": 10,
+                "llm.token_count.prompt": 30,
                 "llm.token_count.completion": 100,
                 "llm.token_count.completion_details.reasoning": 20,
                 "llm.token_count.prompt_details.cache_read": 20,
