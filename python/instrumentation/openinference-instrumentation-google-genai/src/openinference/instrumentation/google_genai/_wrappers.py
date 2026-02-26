@@ -457,6 +457,7 @@ class _SyncCreateCachesWrapper(_WithTracer):
             return wrapped(*args, **kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "Caches.create"
+        status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(
             span_name=span_name,
             attributes=cache_attributes.get_attributes_from_request(request_parameters),
@@ -465,7 +466,7 @@ class _SyncCreateCachesWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -474,7 +475,6 @@ class _SyncCreateCachesWrapper(_WithTracer):
                 raise
             else:
                 span.set_attributes(dict(cache_attributes.get_attributes_from_response(response)))
-                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
             finally:
                 span.finish_tracing(status=status)
         return response
@@ -495,6 +495,7 @@ class _AsyncCreateCachesWrapper(_WithTracer):
             return await wrapped(*args, **kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "AsyncCaches.create"
+        status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(
             span_name=span_name,
             attributes=cache_attributes.get_attributes_from_request(request_parameters),
@@ -503,7 +504,7 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-            except Exception as exception:
+            except BaseException as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -512,7 +513,6 @@ class _AsyncCreateCachesWrapper(_WithTracer):
                 raise
             else:
                 span.set_attributes(dict(cache_attributes.get_attributes_from_response(response)))
-                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
             finally:
                 span.finish_tracing(status=status)
         return response
