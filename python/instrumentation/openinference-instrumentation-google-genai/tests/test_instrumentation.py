@@ -440,7 +440,7 @@ def test_streaming_text_content(
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
+        model="gemini-2.0-flash",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat.")],
@@ -466,7 +466,7 @@ def test_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -508,7 +508,7 @@ async def test_async_streaming_text_content(
 
     # Make the streaming API call
     stream = await client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
+        model="gemini-2.0-flash",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat within 20 words.")],
@@ -534,7 +534,7 @@ async def test_async_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat within 20 words.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -1454,13 +1454,29 @@ def test_validate_token_counts(
     span = spans[0]
     attributes = dict(span.attributes or {})
 
-    expected_attributes = {
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1457,
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 767,
-        # Completion includes candidates (587) + thoughts/reasoning (103)
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 690,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 103,
-    }
+    usage_metadata = response.usage_metadata
+    assert usage_metadata is not None, "Expected usage metadata to be present"
+    prompt_token_count = 0
+    if usage_metadata.prompt_token_count:
+        prompt_token_count += usage_metadata.prompt_token_count
+    if usage_metadata.tool_use_prompt_token_count:
+        prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    completion_token_count = 0
+    if usage_metadata.candidates_token_count:
+        completion_token_count += usage_metadata.candidates_token_count
+    if usage_metadata.thoughts_token_count:
+        completion_token_count += usage_metadata.thoughts_token_count
+    expected_attributes = {}
+    if usage_metadata.total_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage_metadata.total_token_count
+    if prompt_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt_token_count
+    if completion_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = completion_token_count
+    if usage_metadata.thoughts_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = (
+            usage_metadata.thoughts_token_count
+        )
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
@@ -1484,21 +1500,39 @@ def test_validate_token_counts_stream(
         "Generate and run code for the calculation, and make sure you get all 50.",
         config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
     )
-    for _ in response:
-        ...
+    chunks = []
+    for chunk in response:
+        chunks.append(chunk)
     assert response is not None
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
     span = spans[0]
     attributes = dict(span.attributes or {})
 
-    expected_attributes = {
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1620,
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 850,
-        # Completion includes candidates (602) + thoughts/reasoning (168)
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 770,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 168,
-    }
+    assert chunks and hasattr(chunks[-1], "usage_metadata"), "Expected usage metadata"
+    usage_metadata = chunks[-1].usage_metadata
+    assert usage_metadata is not None, "Expected usage metadata to be present"
+    prompt_token_count = 0
+    if usage_metadata.prompt_token_count:
+        prompt_token_count += usage_metadata.prompt_token_count
+    if usage_metadata.tool_use_prompt_token_count:
+        prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    completion_token_count = 0
+    if usage_metadata.candidates_token_count:
+        completion_token_count += usage_metadata.candidates_token_count
+    if usage_metadata.thoughts_token_count:
+        completion_token_count += usage_metadata.thoughts_token_count
+    expected_attributes = {}
+    if usage_metadata.total_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage_metadata.total_token_count
+    if prompt_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt_token_count
+    if completion_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = completion_token_count
+    if usage_metadata.thoughts_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = (
+            usage_metadata.thoughts_token_count
+        )
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"

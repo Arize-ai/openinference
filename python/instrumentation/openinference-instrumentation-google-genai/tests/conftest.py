@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict
 
 import pytest
@@ -13,6 +14,10 @@ def _strip_response_headers(response: Any) -> Any:
     return {**response, "headers": {}}
 
 
+def _match_method_case_insensitive(r1: Any, r2: Any) -> bool:
+    return (r1.method or "").upper() == (r2.method or "").upper()
+
+
 @pytest.fixture(scope="session")
 def vcr_config() -> Dict[str, Any]:
     return {
@@ -20,7 +25,21 @@ def vcr_config() -> Dict[str, Any]:
         "before_record_response": _strip_response_headers,
         "decode_compressed_response": True,
         "record_mode": "once",
+        "match_on": ["method_case_insensitive", "scheme", "host", "port", "path", "query"],
+        "custom_matchers": {"method_case_insensitive": _match_method_case_insensitive},
     }
+
+
+def pytest_recording_configure(config: Any, vcr: Any) -> None:
+    vcr.register_matcher("method_case_insensitive", _match_method_case_insensitive)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _bridge_google_api_key() -> None:
+    if not os.environ.get("GEMINI_API_KEY"):
+        google_api_key = os.environ.get("GOOGLE_API_KEY")
+        if google_api_key:
+            os.environ["GEMINI_API_KEY"] = google_api_key
 
 
 # Three patches for vcrpy's aiohttp stubs (upstream bug: https://github.com/kevin1024/vcrpy/issues/927).
@@ -44,25 +63,49 @@ def vcr_config() -> Dict[str, Any]:
 #     { body: { string: "..." }, status: { code: 200, message: "OK" } }
 #   We patch build_response to silently upgrade old cassettes on the fly so
 #   they never need to be manually edited or re-recorded.
+#
+# Fix #4 — gzip decoding for aiohttp stubs.
+#   VCR's httpcore stubs handle gzip, but aiohttp stubs return raw gzip bytes.
+#   Decompress gzip in text(), read(), and the content stream.
 try:
-    import vcr.stubs.aiohttp_stubs as _aiohttp_stubs
-    from vcr.stubs.aiohttp_stubs import MockClientResponse, MockStream
+    import gzip
+
+    import vcr.stubs.aiohttp_stubs as _aiohttp_stubs  # type: ignore[import-untyped]
+    from vcr.stubs.aiohttp_stubs import (
+        MockClientResponse,
+        MockStream,
+    )
+
+    def _decompress_body(body: bytes) -> bytes:
+        if body and body[:2] == b"\x1f\x8b":
+            return gzip.decompress(body)
+        return body
+
+    async def _patched_text(self: Any, encoding: str = "utf-8", errors: str = "strict") -> str:
+        return _decompress_body(self._body).decode(encoding, errors=errors)
+
+    async def _patched_read(self: Any) -> bytes:
+        return _decompress_body(self._body)
+
+    MockClientResponse.text = _patched_text
+    MockClientResponse.read = _patched_read
 
     def _cached_content(self: Any) -> Any:
         if not hasattr(self, "_content_stream_cache"):
             s = MockStream()
-            if self._body:
-                s.feed_data(self._body)
+            body = _decompress_body(self._body)
+            if body:
+                s.feed_data(body)
             s.feed_eof()
             self._content_stream_cache = s
         return self._content_stream_cache
 
-    MockClientResponse.content = property(_cached_content)  # type: ignore[assignment]
+    MockClientResponse.content = property(_cached_content)
 
     def _noop_set_exception(self: Any, exc: Any) -> None:
         pass
 
-    MockStream.set_exception = _noop_set_exception  # type: ignore[assignment]
+    MockStream.set_exception = _noop_set_exception
 
     _original_build_response = _aiohttp_stubs.build_response
 
@@ -85,6 +128,6 @@ try:
     # the module attribute that play_responses calls through.
     import vcr.stubs.aiohttp_stubs as _m
 
-    _m.build_response = _build_response_compat  # type: ignore[attr-defined]
+    _m.build_response = _build_response_compat
 except ImportError:
     pass
