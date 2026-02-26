@@ -32,9 +32,6 @@ def _get_token_count_attributes_from_usage_metadata(
     """Extract token count attributes from usage metadata."""
     from google.genai import types
 
-    if usage_metadata.total_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_metadata.total_token_count
-
     # Extract prompt details audio tokens
     if usage_metadata.prompt_tokens_details:
         prompt_details_audio = 0
@@ -47,7 +44,7 @@ def _get_token_count_attributes_from_usage_metadata(
         if prompt_details_audio:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
 
-    # Calculate total prompt tokens (base + tool use)
+    # Calculate total prompt tokens (base + tool use + cached)
     prompt_token_count = 0
     if usage_metadata.prompt_token_count:
         prompt_token_count += usage_metadata.prompt_token_count
@@ -58,6 +55,7 @@ def _get_token_count_attributes_from_usage_metadata(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
             usage_metadata.cached_content_token_count,
         )
+        prompt_token_count += usage_metadata.cached_content_token_count
     if prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
 
@@ -85,6 +83,12 @@ def _get_token_count_attributes_from_usage_metadata(
         completion_token_count += usage_metadata.thoughts_token_count
     if completion_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_token_count
+
+    if total_token_count := max(
+        prompt_token_count + completion_token_count,
+        usage_metadata.total_token_count or 0,
+    ):
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
 
 
 class _ValueAndType(NamedTuple):
