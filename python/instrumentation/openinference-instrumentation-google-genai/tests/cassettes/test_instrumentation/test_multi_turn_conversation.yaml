@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The capital of France is **Paris**.\\n\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.021913599636819627\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 7,\n    \"candidatesTokenCount\": 9,\n    \"totalTokenCount\":
+        16,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 7\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 9\n      }\n
+        \   ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"hpGfaY-WOYTgz7IP4oyt2Q4\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"contents": [{"parts": [{"text": "What is the capital of France?"}], "role":
+      "user"}, {"parts": [{"text": "The capital of France is **Paris**.\n"}], "role":
+      "model"}, {"parts": [{"text": "Why is the sky blue?"}], "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"The sky is blue due to a phenomenon
+        called **Rayleigh scattering**. Here's a simplified explanation:\\n\\n*   **Sunlight
+        is made of all colors:** White sunlight is actually a mixture of all the colors
+        of the rainbow.\\n\\n*   **The atmosphere is full of particles:** The Earth's
+        atmosphere contains tiny air molecules (mostly nitrogen and oxygen).\\n\\n*
+        \  **Shorter wavelengths scatter more:** When sunlight enters the atmosphere,
+        it collides with these air molecules. This collision causes the light to scatter
+        in different directions. Shorter wavelengths of light (like blue and violet)
+        are scattered more strongly than longer wavelengths (like red and orange).\\n\\n*
+        \  **We see mostly blue:** Because blue light is scattered much more efficiently,
+        it gets dispersed all over the sky. This scattered blue light reaches our
+        eyes from all directions, making the sky appear blue.\\n\\n*   **Why not violet?**
+        Violet light is scattered even *more* than blue light. However, the sun emits
+        slightly less violet light than blue light, and our eyes are also less sensitive
+        to violet. Therefore, we perceive the sky as blue rather than violet.\\n\\nSo,
+        in short, the sky is blue because blue light from the sun is scattered more
+        by the atmosphere than other colors, reaching our eyes from all directions.\\n\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"avgLogprobs\": -0.22561236790248326\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 22,\n    \"candidatesTokenCount\": 266,\n    \"totalTokenCount\":
+        288,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 22\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 266\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
+        \"h5GfaYX9Jt_rz7IPjIvA4AM\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

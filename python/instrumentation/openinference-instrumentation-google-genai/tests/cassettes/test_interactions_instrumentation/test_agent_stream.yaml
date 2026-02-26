@@ -7,7 +7,7 @@ interactions:
     uri: https://generativelanguage.googleapis.com/v1beta/interactions
   response:
     body:
-      string: '{"agent":"deep-research-pro-preview-12-2025","created":"2026-01-23T18:40:50Z","id":"v1_ChdzTUJ6YWVIdE9QbmNxZmtQbi03dC1RdxIXc01CemFlSHRPUG5jcWZrUG4tN3QtUXc","object":"interaction","role":"agent","status":"in_progress","updated":"2026-01-23T18:40:50Z"}'
+      string: '{"agent":"deep-research-pro-preview-12-2025","created":"2026-02-26T00:19:18Z","id":"v1_ChdocEdmYVlQT0FiVHF6N0lQdk1yVXVBbxIXaHBHZmFZUE9BYlRxejdJUHZNclV1QW8","object":"interaction","role":"agent","status":"in_progress","updated":"2026-02-26T00:19:18Z"}'
     headers: {}
     status:
       code: 200

@@ -19,12 +19,12 @@ interactions:
         \             \"args\": {\n                \"location\": \"San Francisco\"\n
         \             }\n            }\n          }\n        ],\n        \"role\":
         \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.024333807329336803\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        -0.0059414530793825788\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
         63,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 69,\n    \"promptTokensDetails\":
         [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 63\n
         \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
         \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"BQY6aMbFGsiYxfcPxrP1mQQ\"\n}\n"
+        \"gemini-2.0-flash\",\n  \"responseId\": \"hpGfaaq7MsXez7IP_-XT4Ak\"\n}\n"
     headers: {}
     status:
       code: 200

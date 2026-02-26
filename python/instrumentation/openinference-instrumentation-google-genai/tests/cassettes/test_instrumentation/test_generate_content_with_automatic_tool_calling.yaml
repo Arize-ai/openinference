@@ -4,11 +4,10 @@ interactions:
       "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful
       assistant that can answer questions and help with tasks. Use the available tools
       when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "\n        This function will be automatically executed by Google GenAI.\n        It
-      must return a JSON-serializable value.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"location": {"type": "STRING"}, "unit": {"default": "fahrenheit",
-      "type": "STRING"}}, "required": ["location"], "type": "OBJECT"}}]}], "generationConfig":
-      {}}'
+      "This function will be automatically executed by Google GenAI.\nIt must return
+      a JSON-serializable value.", "name": "get_weather", "parameters": {"properties":
+      {"location": {"type": "STRING"}, "unit": {"default": "fahrenheit", "type": "STRING"}},
+      "required": ["location"], "type": "OBJECT"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
@@ -19,12 +18,12 @@ interactions:
         \             \"args\": {\n                \"location\": \"San Francisco\"\n
         \             }\n            }\n          }\n        ],\n        \"role\":
         \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"avgLogprobs\":
-        -0.061545997858047485\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        69,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 75,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 69\n
+        -0.0079295722146828975\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        64,\n    \"candidatesTokenCount\": 6,\n    \"totalTokenCount\": 70,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 64\n
         \     }\n    ],\n    \"candidatesTokensDetails\": [\n      {\n        \"modality\":
         \"TEXT\",\n        \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\":
-        \"gemini-2.0-flash\",\n  \"responseId\": \"DE4_aI-DAfyTmNAP44qv0AU\"\n}\n"
+        \"gemini-2.0-flash\",\n  \"responseId\": \"hpGfafeJA8OGz7IP2LSV2Qs\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -38,11 +37,10 @@ interactions:
       "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a helpful
       assistant that can answer questions and help with tasks. Use the available tools
       when appropriate."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "\n        This function will be automatically executed by Google GenAI.\n        It
-      must return a JSON-serializable value.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"location": {"type": "STRING"}, "unit": {"default": "fahrenheit",
-      "type": "STRING"}}, "required": ["location"], "type": "OBJECT"}}]}], "generationConfig":
-      {}}'
+      "This function will be automatically executed by Google GenAI.\nIt must return
+      a JSON-serializable value.", "name": "get_weather", "parameters": {"properties":
+      {"location": {"type": "STRING"}, "unit": {"default": "fahrenheit", "type": "STRING"}},
+      "required": ["location"], "type": "OBJECT"}}]}], "generationConfig": {}}'
     headers: {}
     method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
@@ -50,15 +48,15 @@ interactions:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"The weather in San Francisco is foggy
-        with a temperature of 65 degrees Fahrenheit and 85% humidity.\\n\"\n          }\n
+        with a temperature of 65 degrees Fahrenheit and 85% humidity.\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.0065877387921015424\n    }\n  ],\n  \"usageMetadata\":
-        {\n    \"promptTokenCount\": 94,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\":
-        118,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
-        \       \"tokenCount\": 94\n      }\n    ],\n    \"candidatesTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
+        \"STOP\",\n      \"avgLogprobs\": -0.010326016208399897\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 89,\n    \"candidatesTokenCount\": 23,\n    \"totalTokenCount\":
+        112,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 89\n      }\n    ],\n    \"candidatesTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 23\n
         \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"DE4_aOa4KfyTmNAP44qv0AU\"\n}\n"
+        \"hpGfaZ3dMo-cz7IPmcqV2QQ\"\n}\n"
     headers: {}
     status:
       code: 200
