@@ -20,7 +20,7 @@ interactions:
         63,\"candidatesTokenCount\": 6,\"totalTokenCount\": 69,\"promptTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 63}],\"candidatesTokensDetails\":
         [{\"modality\": \"TEXT\",\"tokenCount\": 6}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
-        \"HQs6aNCnPNHB7dcPwf7a4QY\"}\r\n\r\n"
+        \"hpGfaf6RBdy47PIPza-mqAk\"}\r\n\r\n"
     headers: {}
     status:
       code: 200

@@ -4,9 +4,6 @@ on:
     push:
         branches: [main]
     pull_request:
-        paths:
-            - ".github/workflows/typescript-CI.yaml"
-            - "js/**"
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
 
@@ -83,3 +80,21 @@ jobs:
               working-directory: ./js
               run: |
                   pnpm run lint
+
+    ci-required:
+        name: Typescript CI Required
+        needs: [changes, ci]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check results
+              run: |
+                  if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+                    echo "One or more CI jobs failed"
+                    exit 1
+                  fi
+                  if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+                    echo "One or more CI jobs were cancelled"
+                    exit 1
+                  fi
+                  echo "All CI jobs passed or were skipped"
