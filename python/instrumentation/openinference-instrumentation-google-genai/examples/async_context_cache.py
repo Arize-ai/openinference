@@ -16,6 +16,8 @@ tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
 
+GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+
 client = genai.Client().aio
 
 model = "gemini-2.5-flash"
@@ -45,5 +47,4 @@ async def create_text_cache():
 
 
 if __name__ == "__main__":
-    GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
     asyncio.run(create_text_cache())

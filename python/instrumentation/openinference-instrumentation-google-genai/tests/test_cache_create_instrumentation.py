@@ -60,8 +60,6 @@ def test_create_cache(
         OUTPUT_MIME_TYPE: "application/json",
         OPENINFERENCE_SPAN_KIND: "CHAIN",
         LLM_TOKEN_COUNT_TOTAL: 1090,
-        LLM_TOKEN_COUNT_COMPLETION: 0,
-        LLM_TOKEN_COUNT_PROMPT: 0,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
@@ -69,6 +67,7 @@ def test_create_cache(
         )
     assert story_content in str(attributes.pop(INPUT_VALUE))
     assert cache_response_name in str(attributes.pop(OUTPUT_VALUE))
+    assert attributes.pop("llm.model_name") == "models/gemini-2.5-flash"
     assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
@@ -118,8 +117,6 @@ async def test_create_cache_async(
         OUTPUT_MIME_TYPE: "application/json",
         OPENINFERENCE_SPAN_KIND: "CHAIN",
         LLM_TOKEN_COUNT_TOTAL: 1090,
-        LLM_TOKEN_COUNT_COMPLETION: 0,
-        LLM_TOKEN_COUNT_PROMPT: 0,
     }
     for key, expected_value in expected_attributes.items():
         assert attributes.pop(key) == expected_value, (
@@ -127,6 +124,7 @@ async def test_create_cache_async(
         )
     assert story_content in str(attributes.pop(INPUT_VALUE))
     assert cache_response_name in str(attributes.pop(OUTPUT_VALUE))
+    assert attributes.pop("llm.model_name") == "models/gemini-2.5-flash"
     assert not attributes, f"Unexpected attributes found: {attributes}"
 
 

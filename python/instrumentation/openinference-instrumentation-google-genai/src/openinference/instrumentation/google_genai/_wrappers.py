@@ -465,17 +465,18 @@ class _SyncCreateCachesWrapper(_WithTracer):
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
-                span.set_attributes(cache_attributes.get_attributes_from_response(response))
-                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                span.finish_tracing(status=status)
             except Exception as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
                     description=f"{type(exception).__name__}: {exception}",
                 )
-                span.finish_tracing(status=status)
                 raise
+            else:
+                span.set_attributes(dict(cache_attributes.get_attributes_from_response(response)))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+            finally:
+                span.finish_tracing(status=status)
         return response
 
 
@@ -502,17 +503,18 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
-                span.set_attributes(cache_attributes.get_attributes_from_response(response))
-                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
-                span.finish_tracing(status=status)
             except Exception as exception:
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
                     description=f"{type(exception).__name__}: {exception}",
                 )
-                span.finish_tracing(status=status)
                 raise
+            else:
+                span.set_attributes(dict(cache_attributes.get_attributes_from_response(response)))
+                status = trace_api.Status(status_code=trace_api.StatusCode.OK)
+            finally:
+                span.finish_tracing(status=status)
         return response
 
 
