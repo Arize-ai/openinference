@@ -17,6 +17,8 @@ jobs:
       paths_released: ${{ steps.release.outputs.paths_released }}
     steps:
       - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
         id: release
 
   separate-release-please:
