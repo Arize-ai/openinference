@@ -46,8 +46,7 @@ test = [
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agent-framework"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/agent_framework/__init__.py"
-pattern = '__version__ = "(?P<version>[^"]+)"'
+path = "src/openinference/instrumentation/agent_framework/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

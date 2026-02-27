@@ -17,9 +17,9 @@ from typing import Any, Dict, Optional
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
-from openinference.instrumentation.agent_framework import __version__
 from openinference.instrumentation.agent_framework.semantic_conventions import get_attributes
 from openinference.instrumentation.agent_framework.utils import SpanFilter, should_export_span
+from openinference.instrumentation.agent_framework.version import __version__
 
 logger = logging.getLogger(__name__)
 
