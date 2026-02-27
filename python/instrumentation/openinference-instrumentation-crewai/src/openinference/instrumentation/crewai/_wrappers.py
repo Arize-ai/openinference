@@ -189,6 +189,26 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
     span.set_attributes(prefixed_attributes)
 
 
+def _is_internal_agent_flow(flow: Any) -> bool:
+    """Check if flow was created internally by agent."""
+    try:
+        from crewai.flow.flow import Flow
+
+        # User-defined flows are always subclasses of Flow.
+        # The internal agent-kickoff flow is either Flow itself or a
+        # dynamically generated class with no user-defined methods.
+        flow_class = type(flow)
+        if flow_class is Flow:
+            return True
+        # Dynamically created classes have no module or are defined in CrewAI internals
+        flow_module = getattr(flow_class, "__module__", "") or ""
+        if flow_module.startswith("crewai"):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -423,6 +443,9 @@ class _FlowKickoffAsyncWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        # Suppress the span for flows created internally by Agent.kickoff()
+        if _is_internal_agent_flow(instance):
             return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)
