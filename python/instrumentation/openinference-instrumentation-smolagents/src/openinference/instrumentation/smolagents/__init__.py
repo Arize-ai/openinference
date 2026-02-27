@@ -1,3 +1,5 @@
+from concurrent.futures.thread import ThreadPoolExecutor
+from functools import partial
 from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
@@ -25,8 +27,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_step_stream_methods",
         "_original_tool_call_method",
         "_original_model_generate_methods",
+        "_original_submit",
         "_tracer",
     )
+    _original_submit: Optional[Callable[..., Any]]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -83,6 +87,20 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 name=model_subclass.__name__ + ".generate",
                 wrapper=model_subclass_wrapper,
             )
+        self._original_submit = ThreadPoolExecutor.submit
+
+        def _wrapped_submit(
+            executor_self: ThreadPoolExecutor, fn: Any, /, *args: Any, **kwargs: Any
+        ) -> Any:
+            # Capture current OpenTelemetry context
+            from contextvars import copy_context
+
+            ctx = copy_context()
+            assert self._original_submit is not None
+            # Submit function wrapped with context propagation
+            return self._original_submit(executor_self, ctx.run, partial(fn, *args, **kwargs))
+
+        setattr(ThreadPoolExecutor, "submit", _wrapped_submit)
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
@@ -115,3 +133,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_tool_call_method is not None:
             Tool.__call__ = self._original_tool_call_method
             self._original_tool_call_method = None
+
+        if hasattr(self, "_original_submit") and self._original_submit is not None:
+            setattr(ThreadPoolExecutor, "submit", self._original_submit)
+            self._original_submit = None
