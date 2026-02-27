@@ -124,6 +124,7 @@ def kickoff_crew() -> Tuple[Task, Task]:
         llm=llm,
         max_iter=2,
         max_retry_limit=0,
+        max_execution_time=120,  # force ThreadPoolExecutor path (agent/core.py)
         verbose=True,
     )
     analyzer_agent = Agent(
@@ -275,8 +276,12 @@ def test_tool_spans_nested_under_agent_span(
     """Regression test for Bug 1: TOOL spans must be nested under AGENT spans.
 
     Root cause: Agent._execute_with_timeout submits _execute_without_timeout to a
-    ThreadPoolExecutor without copying contextvars. Fixed by _ExecuteWithTimeoutWrapper.
-    Removing _ExecuteWithTimeoutWrapper from __init__.py will cause this test to fail.
+    ThreadPoolExecutor without copying contextvars. Fixed by patching the class with
+    _ExecuteWithoutTimeoutContextDescriptor on _execute_without_timeout.
+    Removing the descriptor patch from __init__.py will cause this test to fail.
+
+    kickoff_crew() uses a scraper agent with max_execution_time=120 so CrewAI
+    takes the _execute_with_timeout → executor.submit(...) path (agent/core.py 429-431).
     """
     kickoff_crew()
 
@@ -292,7 +297,7 @@ def test_tool_spans_nested_under_agent_span(
     trace_ids = {span.context.trace_id for span in spans}
     assert len(trace_ids) == 1, (
         f"Expected all spans in 1 trace, got {len(trace_ids)}. "
-        "TOOL spans are orphaned: _ExecuteWithTimeoutWrapper may be missing."
+        "TOOL spans are orphaned: _ExecuteWithoutTimeoutContextDescriptor may be missing."
     )
 
     # The scraper agent is the one with tools

@@ -270,38 +270,29 @@ class _ExecuteCoreWrapper:
         return response
 
 
-class _ExecuteWithTimeoutWrapper:
-    """Propagates OTel context across the ThreadPoolExecutor boundary in
-    Agent._execute_with_timeout.
+class _ExecuteWithoutTimeoutContextDescriptor:
+    """Descriptor placed on Agent._execute_without_timeout (class patch, no instance mutation).
 
-    crewAI submits _execute_without_timeout to a ThreadPoolExecutor without
-    copying contextvars, so the active AGENT span is invisible inside the
-    worker thread.  This wrapper captures the current context before the
-    submission and runs the task execution inside it, ensuring TOOL spans
-    created by BaseTool.run are nested under the enclosing AGENT span.
+    Each access to self._execute_without_timeout (e.g. in executor.submit(...)) runs
+    __get__ in the calling thread, captures contextvars, and returns a callable that
+    runs the original method in that context when invoked in the worker thread.
+    Concurrency-safe and aligned with wrapt's "patch the class with a descriptor"
+    guidance (see wrap_object_attribute in wrapt/patches.py).
     """
 
-    def __init__(self, tracer: trace_api.Tracer) -> None:
-        self._tracer = tracer
+    def __init__(self, original: Any) -> None:
+        self._original = original
 
-    def __call__(
-        self,
-        wrapped: Callable[..., Any],
-        instance: Any,
-        args: Tuple[Any, ...],
-        kwargs: Mapping[str, Any],
-    ) -> Any:
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
         ctx = contextvars.copy_context()
-        original_execute = instance._execute_without_timeout
+        bound = self._original.__get__(instance, owner)
 
-        def _execute_with_context(**kw: Any) -> Any:
-            return ctx.run(original_execute, **kw)
+        def run_in_context(*args: Any, **kwargs: Any) -> Any:
+            return ctx.run(bound, *args, **kwargs)
 
-        instance._execute_without_timeout = _execute_with_context
-        try:
-            return wrapped(*args, **kwargs)
-        finally:
-            instance._execute_without_timeout = original_execute
+        return run_in_context
 
 
 class _CrewKickoffWrapper:

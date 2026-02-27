@@ -14,7 +14,7 @@ from openinference.instrumentation.crewai._wrappers import (
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
-    _ExecuteWithTimeoutWrapper,
+    _ExecuteWithoutTimeoutContextDescriptor,
     _FlowKickoffAsyncWrapper,
     _FlowKickoffWrapper,
     _LongTermMemorySaveWrapper,
@@ -35,7 +35,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_crew_kickoff",
         "_original_flow_kickoff",
         "_original_flow_kickoff_async",
-        "_original_execute_with_timeout",
+        "_original_execute_without_timeout",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
@@ -155,17 +155,13 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=base_tool_run_wrapper,
         )
 
-        execute_with_timeout_wrapper = _ExecuteWithTimeoutWrapper(tracer=self._tracer)
-        self._original_execute_with_timeout = getattr(
-            import_module("crewai.agent.core").Agent,
-            "_execute_with_timeout",
-            None,
-        )
-        wrap_function_wrapper(
-            module="crewai.agent.core",
-            name="Agent._execute_with_timeout",
-            wrapper=execute_with_timeout_wrapper,
-        )
+        agent_module = import_module("crewai.agent.core")
+        Agent = agent_module.Agent
+        self._original_execute_without_timeout = getattr(Agent, "_execute_without_timeout", None)
+        if self._original_execute_without_timeout is not None:
+            Agent._execute_without_timeout = _ExecuteWithoutTimeoutContextDescriptor(
+                self._original_execute_without_timeout
+            )
 
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_execute_core is not None:
@@ -215,7 +211,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_module.BaseTool.run = self._original_base_tool_run
             self._original_base_tool_run = None
 
-        if self._original_execute_with_timeout is not None:
+        if self._original_execute_without_timeout is not None:
             agent_module = import_module("crewai.agent.core")
-            agent_module.Agent._execute_with_timeout = self._original_execute_with_timeout
-            self._original_execute_with_timeout = None
+            agent_module.Agent._execute_without_timeout = self._original_execute_without_timeout
+            self._original_execute_without_timeout = None
