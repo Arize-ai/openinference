@@ -1,10 +1,23 @@
+from __future__ import annotations
+
 import contextvars
 import json
 import logging
 import time
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -17,6 +30,9 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
+if TYPE_CHECKING:
+    from crewai import Flow
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -406,7 +422,7 @@ class _FlowKickoffWrapper:
     def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: Flow[Any],
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
@@ -463,7 +479,7 @@ class _FlowKickoffAsyncWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: Flow[Any],
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
