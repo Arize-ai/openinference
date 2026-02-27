@@ -14,7 +14,9 @@ from openinference.instrumentation.crewai._wrappers import (
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
+    _ExecuteWithoutTimeoutContextDescriptor,
     _FlowKickoffAsyncWrapper,
+    _FlowKickoffWrapper,
     _LongTermMemorySaveWrapper,
     _LongTermMemorySearchWrapper,
     _ShortTermMemorySaveWrapper,
@@ -31,7 +33,9 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
     __slots__ = (
         "_original_execute_core",
         "_original_crew_kickoff",
+        "_original_flow_kickoff",
         "_original_flow_kickoff_async",
+        "_original_execute_without_timeout",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
@@ -71,6 +75,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=crew_kickoff_wrapper,
         )
 
+        flow_kickoff_wrapper = _FlowKickoffWrapper(tracer=self._tracer)
+        self._original_flow_kickoff = getattr(import_module("crewai").Flow, "kickoff", None)
+        wrap_function_wrapper(
+            module="crewai",
+            name="Flow.kickoff",
+            wrapper=flow_kickoff_wrapper,
+        )
+
         flow_kickoff_async_wrapper = _FlowKickoffAsyncWrapper(tracer=self._tracer)
         self._original_flow_kickoff_async = getattr(
             import_module("crewai").Flow, "kickoff_async", None
@@ -81,49 +93,57 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=flow_kickoff_async_wrapper,
         )
 
-        long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)
-        self._original_long_term_memory_save = getattr(
-            import_module("crewai.memory.long_term.long_term_memory").LongTermMemory, "save", None
-        )
-        wrap_function_wrapper(
-            module="crewai.memory.long_term.long_term_memory",
-            name="LongTermMemory.save",
-            wrapper=long_term_memory_save_wrapper,
-        )
+        try:
+            long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")
+        except ModuleNotFoundError:
+            # CrewAI 1.10+ removed long_term in favor of unified Memory
+            self._original_long_term_memory_save = None
+            self._original_long_term_memory_search = None
+        else:
+            long_term_memory_save_wrapper = _LongTermMemorySaveWrapper(tracer=self._tracer)
+            long_term_memory_search_wrapper = _LongTermMemorySearchWrapper(tracer=self._tracer)
+            self._original_long_term_memory_save = getattr(
+                long_term_memory_module.LongTermMemory, "save", None
+            )
+            wrap_function_wrapper(
+                module="crewai.memory.long_term.long_term_memory",
+                name="LongTermMemory.save",
+                wrapper=long_term_memory_save_wrapper,
+            )
+            self._original_long_term_memory_search = getattr(
+                long_term_memory_module.LongTermMemory, "search", None
+            )
+            wrap_function_wrapper(
+                module="crewai.memory.long_term.long_term_memory",
+                name="LongTermMemory.search",
+                wrapper=long_term_memory_search_wrapper,
+            )
 
-        long_term_memory_search_wrapper = _LongTermMemorySearchWrapper(tracer=self._tracer)
-        self._original_long_term_memory_search = getattr(
-            import_module("crewai.memory.long_term.long_term_memory").LongTermMemory, "search", None
-        )
-        wrap_function_wrapper(
-            module="crewai.memory.long_term.long_term_memory",
-            name="LongTermMemory.search",
-            wrapper=long_term_memory_search_wrapper,
-        )
-
-        short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
-        self._original_short_term_memory_save = getattr(
-            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory,
-            "save",
-            None,
-        )
-        wrap_function_wrapper(
-            module="crewai.memory.short_term.short_term_memory",
-            name="ShortTermMemory.save",
-            wrapper=short_term_memory_save_wrapper,
-        )
-
-        short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)
-        self._original_short_term_memory_search = getattr(
-            import_module("crewai.memory.short_term.short_term_memory").ShortTermMemory,
-            "search",
-            None,
-        )
-        wrap_function_wrapper(
-            module="crewai.memory.short_term.short_term_memory",
-            name="ShortTermMemory.search",
-            wrapper=short_term_memory_search_wrapper,
-        )
+        try:
+            short_term_memory_module = import_module("crewai.memory.short_term.short_term_memory")
+        except ModuleNotFoundError:
+            # CrewAI 1.10+ removed short_term in favor of unified Memory
+            self._original_short_term_memory_save = None
+            self._original_short_term_memory_search = None
+        else:
+            short_term_memory_save_wrapper = _ShortTermMemorySaveWrapper(tracer=self._tracer)
+            short_term_memory_search_wrapper = _ShortTermMemorySearchWrapper(tracer=self._tracer)
+            self._original_short_term_memory_save = getattr(
+                short_term_memory_module.ShortTermMemory, "save", None
+            )
+            wrap_function_wrapper(
+                module="crewai.memory.short_term.short_term_memory",
+                name="ShortTermMemory.save",
+                wrapper=short_term_memory_save_wrapper,
+            )
+            self._original_short_term_memory_search = getattr(
+                short_term_memory_module.ShortTermMemory, "search", None
+            )
+            wrap_function_wrapper(
+                module="crewai.memory.short_term.short_term_memory",
+                name="ShortTermMemory.search",
+                wrapper=short_term_memory_search_wrapper,
+            )
 
         base_tool_run_wrapper = _BaseToolRunWrapper(tracer=self._tracer)
         self._original_base_tool_run = getattr(
@@ -135,6 +155,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=base_tool_run_wrapper,
         )
 
+        agent_module = import_module("crewai.agent.core")
+        Agent = agent_module.Agent
+        self._original_execute_without_timeout = getattr(Agent, "_execute_without_timeout", None)
+        if self._original_execute_without_timeout is not None:
+            Agent._execute_without_timeout = _ExecuteWithoutTimeoutContextDescriptor(
+                self._original_execute_without_timeout
+            )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         if self._original_execute_core is not None:
             task_module = import_module("crewai")
@@ -145,6 +173,11 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Crew.kickoff = self._original_crew_kickoff
             self._original_crew_kickoff = None
+
+        if self._original_flow_kickoff is not None:
+            crew_module = import_module("crewai")
+            crew_module.Flow.kickoff = self._original_flow_kickoff
+            self._original_flow_kickoff = None
 
         if self._original_flow_kickoff_async is not None:
             crew_module = import_module("crewai")
@@ -177,3 +210,8 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             base_tool_module = import_module("crewai.tools.base_tool")
             base_tool_module.BaseTool.run = self._original_base_tool_run
             self._original_base_tool_run = None
+
+        if self._original_execute_without_timeout is not None:
+            agent_module = import_module("crewai.agent.core")
+            agent_module.Agent._execute_without_timeout = self._original_execute_without_timeout
+            self._original_execute_without_timeout = None
