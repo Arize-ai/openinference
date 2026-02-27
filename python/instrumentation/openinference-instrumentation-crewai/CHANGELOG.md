@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.20...python-openinference-instrumentation-crewai-v0.1.21) (2026-02-27)
+
+
+### Bug Fixes
+
+* **crewai:** propagate OTel context across thread and async boundaries ([#2805](https://github.com/Arize-ai/openinference/issues/2805)) ([4637961](https://github.com/Arize-ai/openinference/commit/4637961621639a3f74191d4c3cebc2eb533aafb9))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.19...python-openinference-instrumentation-crewai-v0.1.20) (2026-02-24)
 
 
