@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.2...python-openinference-instrumentation-agent-framework-v0.1.3) (2026-02-28)
+
+
+### Bug Fixes
+
+* add version.py ([#2821](https://github.com/Arize-ai/openinference/issues/2821)) ([5ee2716](https://github.com/Arize-ai/openinference/commit/5ee271613c925a60f5e4127d063359c469be77b5))
+
 ## [0.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agent-framework-v0.1.1...python-openinference-instrumentation-agent-framework-v0.1.2) (2026-02-12)
 
 
