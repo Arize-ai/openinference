@@ -3,32 +3,32 @@ interactions:
     body: '{"contents": [{"parts": [{"text": "What is the weather in New York and
       London?"}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You
       must use the available tools to find an answer.\n\nYou are an agent. Your internal
-      name is \"_a2ce956f\".\n\n The description about you is \"Agent to answer questions
-      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
-      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
-      status and result or error msg.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
-      "generationConfig": {}}'
+      name is \"_b418f38b\". The description about you is \"Agent to answer questions
+      using tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.\n", "name": "get_weather", "parameters": {"properties":
+      {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
     headers: {}
-    method: post
+    method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
         \             \"args\": {\n                \"city\": \"New York\"\n              }\n
-        \           },\n            \"thoughtSignature\": \"CpICAb4+9vu3agfHJtLpXaXkFgV0+WQPQ2TnEmm4+tcHpO3GbFnbJ883hDYPl7sxVUA7jKrwcPpYuu7GJk1LUPfOdb1hk9MzEVK/O0N5eUG9Z2uULp44kt0NZ+JmjHbTD7MZ2sX0bznwbcjw45NTnJKIRlBKffkXYK3GGAoRFGTUt0n8UIWlwonfBaLaUmjOsI5vocU3ec80MHnfs9R5g332iCY/e+D/fSGxsvnitXSqcFpvDaFehx0yvZiNap9Ay+MdxFniBwap1872lzUtSnN+KDNNWOLEQpsDOB1tIJq7ioTqwTf5iDoDM0pA1T2/nTYF8QjHapmd1pS45cLPCCP7TuADAJz5AuX6I5itZD8jVyZNaA==\"\n
+        \           },\n            \"thoughtSignature\": \"CrYCAb4+9vv1fb28bfSy6rHvu8fFUQ9e4Q7vMJzxqXk/PV5w3z++W6LINcZWSOHEd6qdS6FeiRpaOcOa7KenqaoMlqj7d9EcSF9dmJf3FREadvO/SosJdvjBvzNMK7FTdGrUG/CedkRFxFcy+Ev5512bBnOB6GbF5XP39mr+57j5LbnGvH7H25ZQHbxMzMwJjhig1VW3xVkdnCAkVXcf6l88l7vdghB7uCTuzYiVKqT4OCxCXNR3YJElwMhXljscGQHXLTtthYmS7Om5Yz7s/Bq9IdqgmXu6xyjcqB+Br5jNwFyH3NOOcpGVkbnKgQkAVCJLBN6SqxkbJN4H4OgjGFtsiy4hqMILjDTfw1egoIRVMCQoBG/xFBV8xQvOoaVrXtuhw80ZzeRoZFy1cyQ8zNnShz62aEu50w==\"\n
         \         },\n          {\n            \"functionCall\": {\n              \"name\":
         \"get_weather\",\n              \"args\": {\n                \"city\": \"London\"\n
         \             }\n            }\n          }\n        ],\n        \"role\":
         \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0,\n
         \     \"finishMessage\": \"Model generated function call(s).\"\n    }\n  ],\n
-        \ \"usageMetadata\": {\n    \"promptTokenCount\": 139,\n    \"candidatesTokenCount\":
-        31,\n    \"totalTokenCount\": 232,\n    \"promptTokensDetails\": [\n      {\n
-        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 139\n      }\n    ],\n
-        \   \"thoughtsTokenCount\": 62\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
-        \ \"responseId\": \"TeSdaZj5Ipetz7IP1eqJgQI\"\n}\n"
+        \ \"usageMetadata\": {\n    \"promptTokenCount\": 137,\n    \"candidatesTokenCount\":
+        31,\n    \"totalTokenCount\": 234,\n    \"promptTokensDetails\": [\n      {\n
+        \       \"modality\": \"TEXT\",\n        \"tokenCount\": 137\n      }\n    ],\n
+        \   \"thoughtsTokenCount\": 66\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n
+        \ \"responseId\": \"jXChafv9L_O4juMP-fibeQ\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -36,7 +36,7 @@ interactions:
 - request:
     body: '{"contents": [{"parts": [{"text": "What is the weather in New York and
       London?"}], "role": "user"}, {"parts": [{"functionCall": {"args": {"city": "New
-      York"}, "name": "get_weather"}, "thoughtSignature": "CpICAb4-9vu3agfHJtLpXaXkFgV0-WQPQ2TnEmm4-tcHpO3GbFnbJ883hDYPl7sxVUA7jKrwcPpYuu7GJk1LUPfOdb1hk9MzEVK_O0N5eUG9Z2uULp44kt0NZ-JmjHbTD7MZ2sX0bznwbcjw45NTnJKIRlBKffkXYK3GGAoRFGTUt0n8UIWlwonfBaLaUmjOsI5vocU3ec80MHnfs9R5g332iCY_e-D_fSGxsvnitXSqcFpvDaFehx0yvZiNap9Ay-MdxFniBwap1872lzUtSnN-KDNNWOLEQpsDOB1tIJq7ioTqwTf5iDoDM0pA1T2_nTYF8QjHapmd1pS45cLPCCP7TuADAJz5AuX6I5itZD8jVyZNaA=="},
+      York"}, "name": "get_weather"}, "thoughtSignature": "CrYCAb4-9vv1fb28bfSy6rHvu8fFUQ9e4Q7vMJzxqXk_PV5w3z--W6LINcZWSOHEd6qdS6FeiRpaOcOa7KenqaoMlqj7d9EcSF9dmJf3FREadvO_SosJdvjBvzNMK7FTdGrUG_CedkRFxFcy-Ev5512bBnOB6GbF5XP39mr-57j5LbnGvH7H25ZQHbxMzMwJjhig1VW3xVkdnCAkVXcf6l88l7vdghB7uCTuzYiVKqT4OCxCXNR3YJElwMhXljscGQHXLTtthYmS7Om5Yz7s_Bq9IdqgmXu6xyjcqB-Br5jNwFyH3NOOcpGVkbnKgQkAVCJLBN6SqxkbJN4H4OgjGFtsiy4hqMILjDTfw1egoIRVMCQoBG_xFBV8xQvOoaVrXtuhw80ZzeRoZFy1cyQ8zNnShz62aEu50w=="},
       {"functionCall": {"args": {"city": "London"}, "name": "get_weather"}}], "role":
       "model"}, {"parts": [{"functionResponse": {"name": "get_weather", "response":
       {"status": "success", "report": "The weather in New York is sunny with a temperature
@@ -45,29 +45,28 @@ interactions:
       is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}}}],
       "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
       available tools to find an answer.\n\nYou are an agent. Your internal name is
-      \"_a2ce956f\".\n\n The description about you is \"Agent to answer questions
-      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
-      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
-      status and result or error msg.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
-      "generationConfig": {}}'
+      \"_b418f38b\". The description about you is \"Agent to answer questions using
+      tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.\n", "name": "get_weather", "parameters": {"properties":
+      {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
     headers: {}
-    method: post
+    method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"The weather in New York is sunny with
         a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in
-        London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\",\n
-        \           \"thoughtSignature\": \"CtABAb4+9vvVrvWpRL3/PN0RGkAAeNt9h3Kk0w96QQzaAlZVzjoxumYvzBoI7ggCsieO80q+ZEBKK/C6aANi/+/5vvGb6vOTnJbFrfTq3qTgkWg0JBLDhkD1AxD5+7ZVYhfZUjBPfQM2XjO6EAXRWZb7MVqMNdhLo+HpxFsjWvvFwZ1nPVsrTXrUOZLuPoyNNYsLk9hDJPVjni80P0I5yS8AAlK/w5DYO3rDh0X0OuxPhvhFAX8r+jRjYJK5FtdI/fu/KClhu6cguja429+zCSv/xg==\"\n
+        London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\"\n
         \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
         \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
-        251,\n    \"candidatesTokenCount\": 43,\n    \"totalTokenCount\": 327,\n    \"promptTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 251\n
-        \     }\n    ],\n    \"thoughtsTokenCount\": 33\n  },\n  \"modelVersion\":
-        \"gemini-2.5-flash\",\n  \"responseId\": \"T-Sdafi3AvWnqtsP7LLQsAM\"\n}\n"
+        249,\n    \"candidatesTokenCount\": 43,\n    \"totalTokenCount\": 292,\n    \"promptTokensDetails\":
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 249\n
+        \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.5-flash\",\n  \"responseId\":
+        \"j3ChadO6EK2KmNMP16XauAo\"\n}\n"
     headers: {}
     status:
       code: 200
