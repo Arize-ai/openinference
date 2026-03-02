@@ -1,5 +1,6 @@
-from concurrent.futures.thread import ThreadPoolExecutor
-from functools import partial
+from contextvars import copy_context
+from importlib import import_module
+from types import ModuleType
 from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
@@ -27,10 +28,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_step_stream_methods",
         "_original_tool_call_method",
         "_original_model_generate_methods",
-        "_original_submit",
+        "_original_executor",
         "_tracer",
     )
-    _original_submit: Optional[Callable[..., Any]]
+    _original_executor: Optional[type]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -87,20 +88,29 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 name=model_subclass.__name__ + ".generate",
                 wrapper=model_subclass_wrapper,
             )
-        self._original_submit = ThreadPoolExecutor.submit
+        self._original_executor: Optional[type] = None
 
-        def _wrapped_submit(
-            executor_self: ThreadPoolExecutor, fn: Any, /, *args: Any, **kwargs: Any
-        ) -> Any:
-            # Capture current OpenTelemetry context
-            from contextvars import copy_context
+        module: ModuleType = import_module("smolagents.local_python_executor")
+        # Added backward compatibility for smolagents versions that not use
+        # ThreadPoolExecutor in code agent
+        if hasattr(module, "ThreadPoolExecutor"):
+            _OriginalThreadPoolExecutor: type = getattr(module, "ThreadPoolExecutor")
+            self._original_executor = _OriginalThreadPoolExecutor
 
-            ctx = copy_context()
-            assert self._original_submit is not None
-            # Submit function wrapped with context propagation
-            return self._original_submit(executor_self, ctx.run, partial(fn, *args, **kwargs))
+            def _make_context_aware_executor(*args: Any, **_kwargs: Any) -> Any:
+                executor = _OriginalThreadPoolExecutor(*args, **_kwargs)
+                original_submit = executor.submit
 
-        setattr(ThreadPoolExecutor, "submit", _wrapped_submit)
+                def context_preserving_submit(
+                    fn: Callable[..., Any], *fn_args: Any, **fn_kwargs: Any
+                ) -> Any:
+                    ctx = copy_context()
+                    return original_submit(lambda: ctx.run(fn, *fn_args, **fn_kwargs))
+
+                executor.submit = context_preserving_submit
+                return executor
+
+            setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
@@ -134,6 +144,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             Tool.__call__ = self._original_tool_call_method
             self._original_tool_call_method = None
 
-        if hasattr(self, "_original_submit") and self._original_submit is not None:
-            setattr(ThreadPoolExecutor, "submit", self._original_submit)
-            self._original_submit = None
+        if self._original_executor is not None:
+            module: ModuleType = import_module("smolagents.local_python_executor")
+            setattr(module, "ThreadPoolExecutor", self._original_executor)
+            self._original_executor = None
