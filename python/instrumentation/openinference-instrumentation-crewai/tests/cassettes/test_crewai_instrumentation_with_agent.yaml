@@ -1,0 +1,41 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"system","content":"You are Helpful Assistant. You
+      are a helpful assistant that provides clear answers.\nYour personal goal is:
+      Answer questions clearly and concisely\nTo give my best complete final answer
+      to the task respond using the exact following format:\n\nThought: I now can
+      give a great answer\nFinal Answer: Your final answer must be the great and the
+      most complete as possible, it must be outcome described.\n\nI MUST use these
+      formats, my job depends on it!"},{"role":"user","content":"\nCurrent Task: What
+      is artificial intelligence?\n\nBegin! This is VERY important to you, use the
+      tools available and give your best Final Answer, your job depends on it!\n\nThought:"}],"model":"gpt-4.1-nano","temperature":0}'
+    headers: {}
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-DDxSFbAOkbMQOgm4KD7nccVStr8AQ\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772219179,\n  \"model\": \"gpt-4.1-nano-2025-04-14\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Final Answer: Artificial intelligence
+        (AI) is the branch of computer science focused on creating systems and machines
+        capable of performing tasks that typically require human intelligence. These
+        tasks include learning from data, recognizing patterns, understanding natural
+        language, solving problems, making decisions, and perceiving the environment
+        through sensors. AI can be categorized into narrow AI, which is designed for
+        specific tasks, and general AI, which would possess the ability to perform
+        any intellectual task a human can do. It is applied across various fields
+        such as healthcare, finance, transportation, and entertainment, revolutionizing
+        how we interact with technology and solve complex problems.\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        138,\n    \"completion_tokens\": 121,\n    \"total_tokens\": 259,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_a9208292f0\"\n}\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

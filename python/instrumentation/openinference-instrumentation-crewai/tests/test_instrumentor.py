@@ -414,3 +414,82 @@ def _verify_context_attributes(span: ReadableSpan) -> None:
             "var-2": "value-2",
         }
     )
+
+
+def kickoff_agent() -> Agent:
+    """Initialize a CrewAI setup with a standalone Agent."""
+    # API key from environment - only used when re-recording the cassette
+    # When using the cassette, the key is not needed
+    openai_api_key = os.getenv("OPENAI_API_KEY", "sk-test")
+    llm = LLM(
+        model="gpt-4.1-nano", api_key=openai_api_key, temperature=0
+    )  # Use a smaller model for tests
+
+    # Define Single Agent
+    agent = Agent(
+        role="Helpful Assistant",
+        goal="Answer questions clearly and concisely",
+        backstory="You are a helpful assistant that provides clear answers.",
+        verbose=False,
+        allow_delegation=False,
+        llm=llm,
+        max_iter=1,
+        max_retry_limit=0,
+    )
+    agent.kickoff("What is artificial intelligence?")
+    return agent
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda request: request.headers.clear() or request,
+    before_record_response=lambda response: dict(response, headers={}),
+)
+def test_crewai_instrumentation_with_agent(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    """Verify a standalone agent kickoff span has correct attributes."""
+    kickoff_agent()
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1, f"Expected 1 AGENT span, got {len(spans)}"
+    span = spans[0]
+    attributes = dict(cast(Mapping[str, AttributeValue], span.attributes))
+
+    # Verify span kind is AGENT
+    assert (
+        attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+        == OpenInferenceSpanKindValues.AGENT.value
+    )
+    # Verify span name is valid
+    assert span.name == "Helpful Assistant.kickoff", (
+        f"Expected 'Helpful Assistant.kickoff', got: {span.name}"
+    )
+    # Verify span is the at the root-level
+    assert span.parent is None, (
+        "Agent kickoff span should be a root span when called outside a Crew or Flow"
+    )
+
+    # Agent role should be set as the graph node ID
+    graph_node_id = attributes.get(SpanAttributes.GRAPH_NODE_ID)
+    assert graph_node_id is not None, "Expected graph_node_id to be set"
+    assert str(graph_node_id) in span.name, (
+        f"Expected agent role '{graph_node_id}' in span name '{span.name}'"
+    )
+
+    # Verify agent metadata attributes
+    assert attributes.get("agent.goal") is not None, "Expected agent.goal to be set"
+    assert attributes.get("agent.backstory") is not None, "Expected agent.backstory to be set"
+
+    # Verify input value is present
+    input_value = attributes.get(SpanAttributes.INPUT_VALUE)
+    assert input_value is not None, "Expected input.value to be set"
+    assert isinstance(input_value, str)
+
+    # Verify output value is present
+    output_value = attributes.get(SpanAttributes.OUTPUT_VALUE)
+    assert output_value is not None, "Expected output.value to be set"
+    assert isinstance(output_value, str)
+
+    # Verify span status is OK
+    assert span.status.status_code.name == "OK", (
+        f"Expected span status OK, got: {span.status.status_code.name}"
+    )
