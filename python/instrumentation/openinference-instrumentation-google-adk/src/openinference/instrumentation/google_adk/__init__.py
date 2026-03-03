@@ -158,7 +158,9 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
         if version >= (1, 15, 0):
-            from google.adk.telemetry import tracing as adk_tracing  # type: ignore[attr-defined]
+            from google.adk.telemetry import (
+                tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
+            )
 
             if isinstance(adk_tracing.tracer, Tracer):
                 setattr(adk_tracing, "tracer", _PassthroughTracer(adk_tracing.tracer))
@@ -188,7 +190,9 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
         if version >= (1, 15, 0):
-            from google.adk.telemetry import tracing as adk_tracing  # type: ignore[attr-defined]
+            from google.adk.telemetry import (
+                tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
+            )
 
             if isinstance(original := getattr(adk_tracing.tracer, "__wrapped__", None), Tracer):
                 setattr(adk_tracing, "tracer", original)
