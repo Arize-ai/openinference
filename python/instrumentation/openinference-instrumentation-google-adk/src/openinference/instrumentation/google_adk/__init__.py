@@ -153,10 +153,15 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(base_agent, "tracer", _PassthroughTracer(tracer))
 
-        from google.adk.telemetry import tracing as adk_tracing
+        from google.adk import __version__
 
-        if isinstance(adk_tracing.tracer, Tracer):
-            setattr(adk_tracing, "tracer", _PassthroughTracer(adk_tracing.tracer))
+        version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+        if version >= (1, 15, 0):
+            from google.adk.telemetry import tracing as adk_tracing  # type: ignore[attr-defined]
+
+            if isinstance(adk_tracing.tracer, Tracer):
+                setattr(adk_tracing, "tracer", _PassthroughTracer(adk_tracing.tracer))
 
     def _restore_existing_tracers(self) -> None:
         """Restore original tracers that were disabled during instrumentation."""
@@ -178,10 +183,15 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(base_agent, "tracer", original)
 
-        from google.adk.telemetry import tracing as adk_tracing
+        from google.adk import __version__
 
-        if isinstance(original := getattr(adk_tracing.tracer, "__wrapped__", None), Tracer):
-            setattr(adk_tracing, "tracer", original)
+        version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+        if version >= (1, 15, 0):
+            from google.adk.telemetry import tracing as adk_tracing  # type: ignore[attr-defined]
+
+            if isinstance(original := getattr(adk_tracing.tracer, "__wrapped__", None), Tracer):
+                setattr(adk_tracing, "tracer", original)
 
 
 class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
