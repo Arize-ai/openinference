@@ -331,6 +331,62 @@ class _ExecuteWithoutTimeoutContextDescriptor:
         return run_in_context
 
 
+class _AgentKickoffWrapper:
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        agent_role = getattr(instance, "role", None)
+        span_name = f"{agent_role}.kickoff" if agent_role else "Agent.kickoff"
+
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
+                        INPUT_VALUE: _get_input_value(wrapped, *args, **kwargs),
+                    }
+                )
+            ),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            if agent_role:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, agent_role)
+            if hasattr(instance, "goal") and instance.goal:
+                span.set_attribute("agent.goal", str(instance.goal))
+            if hasattr(instance, "backstory") and instance.backstory:
+                span.set_attribute("agent.backstory", str(instance.backstory))
+            if hasattr(instance, "tools") and instance.tools:
+                span.set_attribute(
+                    "agent.tools",
+                    json.dumps([tool.name for tool in instance.tools if hasattr(tool, "name")]),
+                )
+
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(response)))
+            span.set_attributes(dict(get_attributes_from_context()))
+
+        return response
+
+
 class _CrewKickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -448,6 +504,9 @@ class _FlowKickoffWrapper:
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
+        # Suppress the span for flows created internally by Agent.kickoff()
+        if _is_internal_agent_flow(instance):
+            return wrapped(*args, **kwargs)
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.kickoff"
         with self._tracer.start_as_current_span(
@@ -504,6 +563,9 @@ class _FlowKickoffAsyncWrapper:
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        # Suppress the span for flows created internally by Agent.kickoff()
+        if _is_internal_agent_flow(instance):
             return await wrapped(*args, **kwargs)
         # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
         # the FLOW span was already created in the calling thread's context and
