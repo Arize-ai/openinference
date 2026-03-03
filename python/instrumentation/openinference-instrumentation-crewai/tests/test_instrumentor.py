@@ -418,7 +418,7 @@ def test_nested_flow_gets_its_own_span(
     # 2 CHAIN spans for OuterFlow and InnerFlow.
     # 2 CHAIN spans for OuterFlow node and InnerFlow node.
     assert len(chain_spans) == 4, (
-        f"Expected 4 CHAIN spans (OuterFlow with node + InnerFlow with node), got {len(chain_spans)}. "
+        f"Expected 4 CHAIN spans (OuterFlow & node + InnerFlow & node), got {len(chain_spans)}."
         "_flow_span_in_progress may be suppressing the nested flow span."
     )
 
