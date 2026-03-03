@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.9...python-openinference-instrumentation-google-adk-v0.1.10) (2026-03-03)
+
+
+### Bug Fixes
+
+* **google-adk:** Suppress duplicate generate_content spans from native ADK tracing ([#2758](https://github.com/Arize-ai/openinference/issues/2758)) ([fb97839](https://github.com/Arize-ai/openinference/commit/fb978395b309e42fa58c80491ce0039506fd7149))
+
 ## [0.1.9](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-adk-v0.1.8...python-openinference-instrumentation-google-adk-v0.1.9) (2026-02-05)
 
 
