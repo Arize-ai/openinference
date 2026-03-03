@@ -1,8 +1,10 @@
 import logging
 import warnings
+from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Iterable,
     Iterator,
     Mapping,
@@ -32,9 +34,6 @@ def _get_token_count_attributes_from_usage_metadata(
     """Extract token count attributes from usage metadata."""
     from google.genai import types
 
-    if usage_metadata.total_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_metadata.total_token_count
-
     # Extract prompt details audio tokens
     if usage_metadata.prompt_tokens_details:
         prompt_details_audio = 0
@@ -47,12 +46,18 @@ def _get_token_count_attributes_from_usage_metadata(
         if prompt_details_audio:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
 
-    # Calculate total prompt tokens (base + tool use)
+    # Calculate total prompt tokens (base + tool use + cached)
     prompt_token_count = 0
     if usage_metadata.prompt_token_count:
         prompt_token_count += usage_metadata.prompt_token_count
     if usage_metadata.tool_use_prompt_token_count:
         prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    if usage_metadata.cached_content_token_count:
+        yield (
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            usage_metadata.cached_content_token_count,
+        )
+        prompt_token_count += usage_metadata.cached_content_token_count
     if prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
 
@@ -80,6 +85,12 @@ def _get_token_count_attributes_from_usage_metadata(
         completion_token_count += usage_metadata.thoughts_token_count
     if completion_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_token_count
+
+    if total_token_count := max(
+        prompt_token_count + completion_token_count,
+        usage_metadata.total_token_count or 0,
+    ):
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
 
 
 class _ValueAndType(NamedTuple):
@@ -154,3 +165,36 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def _stop_on_exception_for_dict(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    @wraps(wrapped)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return wrapped(*args, **kwargs)
+        except Exception as e:
+            logger.debug(str(e))
+            return {}
+
+    return wrapper
+
+
+def _stop_on_exception_for_iter(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    @wraps(wrapped)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        generator = wrapped(*args, **kwargs)
+
+        def guarded() -> Any:
+            try:
+                yield from generator
+            except Exception as e:
+                logger.debug(str(e))
+                return
+
+        return guarded()
+
+    return wrapper

@@ -1,0 +1,69 @@
+interactions:
+- request:
+    body: '{"input":"Tell me a short joke about programming.","model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":true}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: 'event: interaction.start
+
+        data: {"event_type":"interaction.start","interaction":{"id":"v1_ChdwcHFmYWIzS0M3R0h6N0lQNXZ1VHdBMBIXcHBxZmFiM0tDN0dIejdJUDV2dVR3QTA","model":"gemini-2.5-flash","object":"interaction","status":"in_progress"}}
+
+
+        event: interaction.status_update
+
+        data: {"event_type":"interaction.status_update","interaction_id":"v1_ChdwcHFmYWIzS0M3R0h6N0lQNXZ1VHdBMBIXcHBxZmFiM0tDN0dIejdJUDV2dVR3QTA","status":"in_progress"}
+
+
+        event: content.start
+
+        data: {"content":{"type":"thought"},"event_type":"content.start","index":0}
+
+
+        event: content.delta
+
+        data: {"delta":{"signature":"CiUBvj72+8Bxg3j7C+RW8DhcotM2CVgwdTyr+ytnupCa4+VX7NH5CmUBvj72++0hXgV+820g3iAFOqRWR4CWqhRAkSjL//3vwKf14ZVvyuc/xcMRJTX7QN4BMJQknIhwjAPBDKi1rz9LTiNggEc2VproCLejQWF6eDDWQlsvoRNpNlz3k6diakuhjgESzArqAQG+Pvb7Y5XSSpjo4lu/BoQqT7GNis0H1HGIqfgk2hjmjWDhD60wBtS7V73cDGfSnnLyJVxN3z7BJxpNpsEw4fA0zwT19sr/gLvKCPgZxiFS8s6vIvD8ALkKlVl3mz+nRA9Jcf0kEhPCcUp1DNSKIdZj7Ejsz0pw9t9cTtfXerLx5pX2K9Exn9NJqifhuvoLw2JfGiByfSoZ8uXbSAY8qhdK1DhNGjIw6HyQcfDfxC7/Vroo/kZ8PE0ZWMxrXlETD7hjx042TVtqeBwJf8l6Hxy2sc7LPx0LpZNbTlrecpEkfT2jpPjY9DM8VgrGAQG+Pvb7dVh2/ZkOw/vG2vOkDVAcNbmmEWh7ILLn2V5iLBzbu/IY5EnfJprFdB7OncY76/wTuQt+xSR+x7VetpPuW6ekOtao/KSTHiijxTZyqTygLCGyE2U5q4oGbIQPX9pRYcLBj8+uifrfecVAfBsLngZbQjJ920z/L5VMDThLiGMY34im88C4FmRUFXXIID7hdRVswBCpXw4s0Um73CXMm0ZK/05xItLlTPZBcVQPIZTjY18Jwbn8T2fpbRhuU/ElMuA61QrHAQG+Pvb7xkl1Ats1GdAwP4Hy8Cd/aBJhsjYfRlN493mAniMv1tc1i14VtkGdSK4iSRZ7wNT5u8dYHbSj/drQUm/X6Om4xmi+0wv4ajZNxAOw3f6OnW2aiDj0Bp3f9SZiu7jGWsqlHopDLwtEekQJVSiqdg8OJo7geFpKx1Ea7TUGdetk4g8/lATX/0Cv8JZKi++3f4e2xU4prdan3Y3xefoFIWxxBnkoBfWR3GMT862HkHVnvTf27SdacrSCnpUSlrGQoES+yPoKoAEBvj72+wl66eEz/mWaByG7fUFVxpagHE/qqzZuww2AWZUO9lrHabgChDCMtBasWMI529nQQnwbRhjMDVHD3loSlPUoipPQz77PDBXJzWdebBbJ6c+/WyZ7EwB+niXdODYlPEI57xQgrcFgXqhnXgO540NjbdbH03NSC/f6hXUfS40giB2e9o4PPQRgXMABDQO4amqb1ltOtK908SLhWwYE","type":"thought_signature"},"event_type":"content.delta","index":0}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":0}
+
+
+        event: content.start
+
+        data: {"content":{"type":"text"},"event_type":"content.start","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":"Why do programmers prefer dark mode?\n\nBecause","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.delta
+
+        data: {"delta":{"text":" light attracts bugs!","type":"text"},"event_type":"content.delta","index":1}
+
+
+        event: content.stop
+
+        data: {"event_type":"content.stop","index":1}
+
+
+        event: interaction.complete
+
+        data: {"event_type":"interaction.complete","interaction":{"created":"2026-02-26T00:58:16Z","id":"v1_ChdwcHFmYWIzS0M3R0h6N0lQNXZ1VHdBMBIXcHBxZmFiM0tDN0dIejdJUDV2dVR3QTA","model":"gemini-2.5-flash","object":"interaction","role":"model","status":"completed","updated":"2026-02-26T00:58:16Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":9}],"total_cached_tokens":0,"total_input_tokens":9,"total_output_tokens":13,"total_thought_tokens":204,"total_tokens":226,"total_tool_use_tokens":0}}}
+
+
+        event: done
+
+        data: [DONE]
+
+
+        '
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

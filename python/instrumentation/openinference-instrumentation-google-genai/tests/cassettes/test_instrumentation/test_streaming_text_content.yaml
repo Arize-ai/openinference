@@ -1,0 +1,96 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Tell me a short story about a cat."}],
+      "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"C\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
+        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"lementine, a ginger
+        tabby with perpetually sleepy eyes, considered herself the queen of Willow\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
+        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" Creek. Her kingdom,
+        however, was largely confined to Mrs. Abernathy\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \"'s overgrown garden. She ruled from the sun-drenched
+        stone birdbath, issuing pronouncements on the rustling leaves and scolding
+        the oblivious robins with\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" imperious meows.\\n\\nOne
+        sweltering afternoon, a strange sound disturbed her reign. A tiny, rhythmic
+        thump, thump, thump emanated from beneath the\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" sprawling rose bushes. Clementine, intrigued, cautiously
+        approached, her tail twitching.\\n\\nShe parted the thorny branches to reveal
+        a small, brown bird, lying on its side, its wing bent at an unnatural angle.
+        Fear, primal and sharp\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \", tightened Clementine's
+        chest. She'd never been faced with anything more challenging than evading
+        Mrs. Abernathy's clumsy attempts at affection.\\n\\nInstinct, honed over countless
+        generations of feline ancestors, screamed at her to\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" stalk, to pounce, to satisfy the hunter within.
+        But something else, a small, unfamiliar tug, pulled her in a different direction.\\n\\nHesitantly,
+        Clementine nudged the bird with her nose. It flinched, chirping weakly. She
+        nudged it again, then began to lick its\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" tiny head.\\n\\nHours passed. Clementine stayed
+        by the bird's side, chasing away buzzing flies and keeping a watchful eye
+        on the garden path. She didn't understand why she was doing it. She just knew
+        she couldn't leave it.\\n\\nAs dusk settled, Mrs. Abernathy emerged,\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 10,\"totalTokenCount\":
+        10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" watering can in
+        hand. She gasped when she saw Clementine nestled beside the bird. Her eyes
+        widened. \\\"Goodness, Clementine! What have you got there?\\\"\\n\\nMrs.
+        Abernathy, with surprising gentleness, scooped up the bird. \\\"I'll take
+        care of him,\\\" she promised. \\\"Maybe he\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" just needs a little rest.\\\"\\n\\nClementine watched
+        as Mrs. Abernathy disappeared into the house. She felt a strange mixture of
+        relief and emptiness. She\u2019d traded her queenly reign for a moment of
+        unexpected kindness.\\n\\nThe next morning, Clementine was back on her throne,
+        the sun warm on her fur.\"}],\"role\": \"model\"}}],\"usageMetadata\": {\"promptTokenCount\":
+        10,\"totalTokenCount\": 10,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" Mrs. Abernathy
+        emerged from the house, holding the little brown bird in her hand. She released
+        it, and it hopped hesitantly, then took flight, its wings beating strong and
+        true.\\n\\nClementine watched it soar into the sky. She didn't chase. She
+        didn't even meow. She simply\"}],\"role\": \"model\"}}],\"usageMetadata\":
+        {\"promptTokenCount\": 10,\"totalTokenCount\": 10,\"promptTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 10}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\ndata: {\"candidates\": [{\"content\":
+        {\"parts\": [{\"text\": \" closed her eyes, a tiny purr rumbling in her chest.
+        The queen of Willow Creek had learned that even the smallest act of kindness
+        could be a kingdom in itself.\\n\"}],\"role\": \"model\"},\"finishReason\":
+        \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\": 9,\"candidatesTokenCount\":
+        559,\"totalTokenCount\": 568,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        9}],\"candidatesTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\":
+        559}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\": \"pJqfaZKCB-T82cAP4sKamQk\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

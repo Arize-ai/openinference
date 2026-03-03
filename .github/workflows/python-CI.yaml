@@ -4,8 +4,6 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    paths:
-      - "python/**"
   workflow_dispatch:
 
 concurrency:
@@ -83,3 +81,21 @@ jobs:
       - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
         working-directory: python
         timeout-minutes: 15
+
+  ci-required:
+    name: Python CI Required
+    needs: [changes, find-tox-testenv, run-tox-testenv]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+            echo "One or more CI jobs failed"
+            exit 1
+          fi
+          if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more CI jobs were cancelled"
+            exit 1
+          fi
+          echo "All CI jobs passed or were skipped"

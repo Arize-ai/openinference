@@ -46,3 +46,49 @@ def test_get_attributes_from_generate_content_usage(
         _ResponseAttributesExtractor()._get_attributes_from_generate_content_usage(usage_metadata)
     )
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "usage_metadata, expected",
+    [
+        pytest.param(
+            types.GenerateContentResponseUsageMetadata(
+                cached_content_token_count=20,
+                cache_tokens_details=[
+                    types.ModalityTokenCount(modality=types.MediaModality.AUDIO, token_count=14),
+                    types.ModalityTokenCount(modality=types.MediaModality.TEXT, token_count=6),
+                ],
+                total_token_count=110,
+                prompt_token_count=30,
+                prompt_tokens_details=[
+                    types.ModalityTokenCount(modality=types.MediaModality.AUDIO, token_count=7),
+                    types.ModalityTokenCount(modality=types.MediaModality.TEXT, token_count=3),
+                ],
+                candidates_token_count=80,
+                candidates_tokens_details=[
+                    types.ModalityTokenCount(modality=types.MediaModality.AUDIO, token_count=11),
+                    types.ModalityTokenCount(modality=types.MediaModality.TEXT, token_count=69),
+                ],
+                thoughts_token_count=20,
+            ),
+            {
+                "llm.token_count.total": 150,
+                "llm.token_count.prompt": 50,
+                "llm.token_count.completion": 100,
+                "llm.token_count.completion_details.reasoning": 20,
+                "llm.token_count.prompt_details.cache_read": 20,
+                "llm.token_count.prompt_details.audio": 7,
+                "llm.token_count.completion_details.audio": 11,
+            },
+            id="all_fields",
+        ),
+    ],
+)
+def test_get_attributes_from_generate_content_usage_cached(
+    usage_metadata: types.GenerateContentResponseUsageMetadata,
+    expected: dict[str, Any],
+) -> None:
+    actual = dict(
+        _ResponseAttributesExtractor()._get_attributes_from_generate_content_usage(usage_metadata)
+    )
+    assert actual == expected
