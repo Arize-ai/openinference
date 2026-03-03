@@ -168,7 +168,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert "OpenAI" in span.name and "generate" in span.name
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -249,7 +249,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert "OpenAI" in span.name and "generate" in span.name
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM

@@ -583,7 +583,9 @@ def infer_llm_provider_from_class_name(
     if class_name == "InferenceClientModel":
         return None
 
-    if class_name == "OpenAIServerModel":
+    # Added backward compatibility for OpenAIServerModel which were renamed to
+    # OpenAIModel in newer versions
+    if class_name in ["OpenAIServerModel", "OpenAIModel"]:
         return OpenInferenceLLMProviderValues.OPENAI
 
     if class_name == "AzureOpenAIServerModel":
@@ -627,7 +629,6 @@ def infer_llm_provider_from_endpoint(
         return None
 
     host = hostname.lower()
-
     if host.endswith("api.openai.com"):
         return OpenInferenceLLMProviderValues.OPENAI
 
