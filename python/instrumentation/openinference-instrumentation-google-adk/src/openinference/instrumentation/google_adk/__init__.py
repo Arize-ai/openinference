@@ -158,7 +158,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
         if version >= (1, 15, 0):
-            from google.adk.telemetry import (
+            from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
             )
 
@@ -190,7 +190,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
         if version >= (1, 15, 0):
-            from google.adk.telemetry import (
+            from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
             )
 
