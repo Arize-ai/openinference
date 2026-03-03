@@ -45,6 +45,9 @@ logger.addHandler(logging.NullHandler())
 _flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "_oi_flow_span_in_progress", default=None
 )
+_agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_oi_agent_kickoff_active", default=False
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -215,26 +218,6 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
     span.set_attributes(prefixed_attributes)
 
 
-def _is_internal_agent_flow(flow: Any) -> bool:
-    """Check if flow was created internally by agent."""
-    try:
-        from crewai.flow.flow import Flow
-
-        # User-defined flows are always subclasses of Flow.
-        # The internal agent-kickoff flow is either Flow itself or a
-        # dynamically generated class with no user-defined methods.
-        flow_class = type(flow)
-        if flow_class is Flow:
-            return True
-        # Dynamically created classes have no module or are defined in CrewAI internals
-        flow_module = getattr(flow_class, "__module__", "") or ""
-        if flow_module.startswith("crewai."):
-            return True
-    except Exception:
-        pass
-    return False
-
-
 class _ExecuteCoreWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -373,12 +356,15 @@ class _AgentKickoffWrapper:
                     json.dumps([tool.name for tool in instance.tools if hasattr(tool, "name")]),
                 )
 
+            token = _agent_kickoff_active.set(True)
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
                 raise
+            finally:
+                _agent_kickoff_active.reset(token)
 
             span.set_status(trace_api.StatusCode.OK)
             span.set_attributes(dict(get_output_attributes(response)))
@@ -505,7 +491,7 @@ class _FlowKickoffWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
         # Suppress the span for flows created internally by Agent.kickoff()
-        if _is_internal_agent_flow(instance):
+        if _agent_kickoff_active.get():
             return wrapped(*args, **kwargs)
         flow_name = _get_flow_name(instance)
         span_name = f"{flow_name}.kickoff"
@@ -565,7 +551,7 @@ class _FlowKickoffAsyncWrapper:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
         # Suppress the span for flows created internally by Agent.kickoff()
-        if _is_internal_agent_flow(instance):
+        if _agent_kickoff_active.get():
             return await wrapped(*args, **kwargs)
         # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
         # the FLOW span was already created in the calling thread's context and
