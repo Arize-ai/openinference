@@ -228,7 +228,7 @@ def _is_internal_agent_flow(flow: Any) -> bool:
             return True
         # Dynamically created classes have no module or are defined in CrewAI internals
         flow_module = getattr(flow_class, "__module__", "") or ""
-        if flow_module.startswith("crewai"):
+        if flow_module.startswith("crewai."):
             return True
     except Exception:
         pass
