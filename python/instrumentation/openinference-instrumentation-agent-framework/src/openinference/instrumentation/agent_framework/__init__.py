@@ -33,12 +33,11 @@ Usage:
     ```
 """
 
-__version__ = "0.1.0"
-
 from openinference.instrumentation.agent_framework.processor import (
     AgentFrameworkToOpenInferenceProcessor,
 )
 from openinference.instrumentation.agent_framework.utils import is_openinference_span
+from openinference.instrumentation.agent_framework.version import __version__
 
 __all__ = [
     "AgentFrameworkToOpenInferenceProcessor",

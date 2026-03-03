@@ -1,9 +1,23 @@
+from __future__ import annotations
+
+import contextvars
 import json
 import logging
 import time
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -17,8 +31,20 @@ from openinference.instrumentation import (
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
+if TYPE_CHECKING:
+    from crewai import Flow
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# Contextvar used to coordinate between the sync Flow.kickoff wrapper and the
+# async Flow.kickoff_async wrapper.  When the sync wrapper creates the FLOW span
+# BEFORE calling asyncio.run(), it stores the flow_id so that the async wrapper
+# (which is called inside asyncio.run()) can skip creating a duplicate span for
+# that specific flow while still creating spans for any nested flows.
+_flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_oi_flow_span_in_progress", default=None
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -260,6 +286,31 @@ class _ExecuteCoreWrapper:
         return response
 
 
+class _ExecuteWithoutTimeoutContextDescriptor:
+    """Descriptor placed on Agent._execute_without_timeout (class patch, no instance mutation).
+
+    Each access to self._execute_without_timeout (e.g. in executor.submit(...)) runs
+    __get__ in the calling thread, captures contextvars, and returns a callable that
+    runs the original method in that context when invoked in the worker thread.
+    Concurrency-safe and aligned with wrapt's "patch the class with a descriptor"
+    guidance (see wrap_object_attribute in wrapt/patches.py).
+    """
+
+    def __init__(self, original: Any) -> None:
+        self._original = original
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
+        ctx = contextvars.copy_context()
+        bound = self._original.__get__(instance, owner)
+
+        def run_in_context(*args: Any, **kwargs: Any) -> Any:
+            return ctx.run(bound, *args, **kwargs)
+
+        return run_in_context
+
+
 class _CrewKickoffWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -355,6 +406,72 @@ class _CrewKickoffWrapper:
         return crew_output
 
 
+class _FlowKickoffWrapper:
+    """Sync wrapper for Flow.kickoff().
+
+    Creates the FLOW CHAIN span *before* ``asyncio.run()`` is invoked so that
+    the span lives in the calling thread's context for the entire duration of
+    the synchronous call.  It sets ``_flow_span_in_progress`` so the inner
+    async wrapper (``_FlowKickoffAsyncWrapper``) knows to skip creating a
+    duplicate span.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Flow[Any],
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            # Signal to the async wrapper that the span already exists for this flow.
+            # Store the flow_id (not a plain boolean) so that nested flows with different
+            # flow_ids still get their own spans.
+            token = _flow_span_in_progress.set(str(flow.flow_id))
+            try:
+                flow_output = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                _flow_span_in_progress.reset(token)
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
+
+
 class _FlowKickoffAsyncWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -362,11 +479,18 @@ class _FlowKickoffAsyncWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: Flow[Any],
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
+        # the FLOW span was already created in the calling thread's context and
+        # propagated into this task via contextvars.  Skip creating a duplicate
+        # only for this specific flow (matched by flow_id); nested flows with a
+        # different flow_id still get their own span.
+        if _flow_span_in_progress.get() == str(instance.flow_id):
             return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)
