@@ -43,11 +43,11 @@ Every instrumentor **must**:
 
 Use `@arizeai/openinference-core` attribute helpers instead of setting semantic conventions by hand:
 
-| Helper | Purpose |
-| --- | --- |
-| `getInputAttributes(input)` | `{ INPUT_VALUE, INPUT_MIME_TYPE }` — accepts `string` or `{ value, mimeType }` |
-| `getOutputAttributes(output)` | `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }` — same overloads |
-| `getToolAttributes({ name, parameters })` | `{ TOOL_NAME, TOOL_PARAMETERS }` — stringifies parameters |
+| Helper                                    | Purpose                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `getInputAttributes(input)`               | `{ INPUT_VALUE, INPUT_MIME_TYPE }` — accepts `string` or `{ value, mimeType }` |
+| `getOutputAttributes(output)`             | `{ OUTPUT_VALUE, OUTPUT_MIME_TYPE }` — same overloads                          |
+| `getToolAttributes({ name, parameters })` | `{ TOOL_NAME, TOOL_PARAMETERS }` — stringifies parameters                      |
 
 ## Typing Conventions
 
