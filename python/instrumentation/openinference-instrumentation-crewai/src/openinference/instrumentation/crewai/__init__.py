@@ -15,6 +15,7 @@ from openinference.instrumentation.crewai._wrappers import (
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _ExecuteWithoutTimeoutContextDescriptor,
+    _FlowExecuteMethodWrapper,
     _FlowKickoffAsyncWrapper,
     _FlowKickoffWrapper,
     _LongTermMemorySaveWrapper,
@@ -35,6 +36,7 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_crew_kickoff",
         "_original_flow_kickoff",
         "_original_flow_kickoff_async",
+        "_original_flow_execute_method",
         "_original_execute_without_timeout",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
@@ -91,6 +93,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="crewai",
             name="Flow.kickoff_async",
             wrapper=flow_kickoff_async_wrapper,
+        )
+
+        flow_execute_method_wrapper = _FlowExecuteMethodWrapper(tracer=self._tracer)
+        self._original_flow_execute_method = getattr(
+            import_module("crewai.flow.flow").Flow, "_execute_method", None
+        )
+        wrap_function_wrapper(
+            module="crewai.flow.flow",
+            name="Flow._execute_method",
+            wrapper=flow_execute_method_wrapper,
         )
 
         try:
