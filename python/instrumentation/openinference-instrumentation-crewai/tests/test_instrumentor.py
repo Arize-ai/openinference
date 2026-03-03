@@ -414,9 +414,11 @@ def test_nested_flow_gets_its_own_span(
     span_by_id = {s.context.span_id: s for s in spans}
     chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
 
-    # Expect exactly 2 CHAIN spans: one for OuterFlow, one for InnerFlow.
-    assert len(chain_spans) == 2, (
-        f"Expected 2 CHAIN spans (OuterFlow + InnerFlow), got {len(chain_spans)}. "
+    # Expect exactly 4 CHAIN spans.
+    # 2 CHAIN spans for OuterFlow and InnerFlow.
+    # 2 CHAIN spans for OuterFlow node and InnerFlow node.
+    assert len(chain_spans) == 4, (
+        f"Expected 4 CHAIN spans (OuterFlow with node + InnerFlow with node), got {len(chain_spans)}. "
         "_flow_span_in_progress may be suppressing the nested flow span."
     )
 
