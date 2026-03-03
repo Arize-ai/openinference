@@ -30,6 +30,7 @@ export class MyInstrumentation extends InstrumentationBase {
 ```
 
 Every instrumentor **must**:
+
 1. Respect `isTracingSuppressed()` from `@opentelemetry/core`
 2. Propagate context attributes via `OITracer` (session ID, user ID, metadata, tags)
 3. Support data masking via `TraceConfig`
