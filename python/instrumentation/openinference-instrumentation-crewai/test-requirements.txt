@@ -1,0 +1,4 @@
+crewai==1.9.0
+opentelemetry-sdk
+responses
+pytest-recording

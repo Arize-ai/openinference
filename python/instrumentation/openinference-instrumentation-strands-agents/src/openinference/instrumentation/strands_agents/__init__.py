@@ -39,7 +39,6 @@ For more information, see: https://github.com/Arize-ai/openinference
 from openinference.instrumentation.strands_agents.processor import (
     StrandsAgentsToOpenInferenceProcessor,
 )
+from openinference.instrumentation.strands_agents.version import __version__
 
-__all__ = ["StrandsAgentsToOpenInferenceProcessor"]
-
-__version__ = "0.1.0"
+__all__ = ["StrandsAgentsToOpenInferenceProcessor", "__version__"]

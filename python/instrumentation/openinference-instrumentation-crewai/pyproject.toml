@@ -37,12 +37,6 @@ dependencies = [
 instruments = [
   "crewai >= 1.9.0",
 ]
-test = [
-  "crewai == 1.9.0",
-  "opentelemetry-sdk",
-  "responses",
-  "pytest-vcr",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 crewai = "openinference.instrumentation.crewai:CrewAIInstrumentor"
@@ -90,6 +84,11 @@ module = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

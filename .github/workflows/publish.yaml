@@ -15,26 +15,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          sparse-checkout: python
+          sparse-checkout: |
+            .release-please-manifest.json
+            release-please-config.json
+          sparse-checkout-cone-mode: false
       - name: Get Python paths not yet on PyPI
         id: paths
         run: |
           NEED_PUBLISH='[]'
           while IFS= read -r path; do
             [ -z "$path" ] && continue
-            NAME=$(sed -n 's/^name = "\(.*\)"$/\1/p' "$path/pyproject.toml")
-            VERSION=$(jq -r ".\"$path\"" .release-please-manifest.json)
-            if [ -z "$NAME" ] || [ "$VERSION" = "null" ]; then
-              echo "Including $path (name or version missing)"
-              NEED_PUBLISH=$(jq -c --arg p "$path" '. + [$p]' <<< "$NEED_PUBLISH")
+            NAME=$(jq -r --arg p "$path" '.packages[$p]["package-name"] // empty' release-please-config.json)
+            VERSION=$(jq -r --arg p "$path" '.[$p] // empty' .release-please-manifest.json)
+            if [ -z "$NAME" ] || [ "$VERSION" = "null" ] || [ -z "$VERSION" ]; then
+              echo "::warning::Skipping $path (name or version missing in manifest)"
               continue
             fi
-            HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${NAME}/${VERSION}/json")
+            PYPI_NAME="${NAME#python-}"
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${PYPI_NAME}/${VERSION}/json")
             if [ "$HTTP" != "200" ]; then
-              echo "${NAME}==${VERSION} not on PyPI (HTTP ${HTTP}), will publish"
-              NEED_PUBLISH=$(jq -c --arg p "$path" '. + [$p]' <<< "$NEED_PUBLISH")
+              echo "${PYPI_NAME}==${VERSION} not on PyPI (HTTP ${HTTP}), will publish"
+              NEED_PUBLISH=$(jq -c --arg p "$path" --arg n "$NAME" --arg v "$VERSION" \
+                '. + [{"path": $p, "name": $n, "version": $v, "tag": ($n + "-v" + $v)}]' <<< "$NEED_PUBLISH")
             else
-              echo "${NAME}==${VERSION} already on PyPI, skipping"
+              echo "${PYPI_NAME}==${VERSION} already on PyPI, skipping"
             fi
           done <<< "$(jq -r 'keys[] | select(startswith("python/"))' .release-please-manifest.json)"
           echo "python_paths=$NEED_PUBLISH" >> $GITHUB_OUTPUT
@@ -48,14 +52,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        path: ${{ fromJSON(needs.list-python-packages.outputs.python_paths) }}
+        include: ${{ fromJSON(needs.list-python-packages.outputs.python_paths) }}
     defaults:
       run:
         working-directory: ${{ matrix.path }}
     steps:
       - uses: actions/checkout@v6
         with:
-          sparse-checkout: python
+          ref: refs/tags/${{ matrix.tag }}
+          sparse-checkout: ${{ matrix.path }}
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
@@ -71,19 +77,10 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           twine upload --skip-existing --verbose dist/*
-      - run: echo "NAME=python-$(basename ${{ matrix.path }})" >> $GITHUB_ENV
-        if: failure()
-      - run: touch ${{ runner.temp }}/${{ env.NAME }}
-        if: failure()
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: ${{ env.NAME }}
-          path: ${{ runner.temp }}/${{ env.NAME }}
-          retention-days: 1
 
   list-java-packages:
     name: List Java packages from manifest
+    if: false # TODO: re-enable Java publish
     runs-on: ubuntu-latest
     outputs:
       java_paths: ${{ steps.paths.outputs.java_paths }}
@@ -123,7 +120,8 @@ jobs:
     name: Publish Java packages
     runs-on: ubuntu-latest
     needs: list-java-packages
-    if: needs.list-java-packages.outputs.java_paths != '[]'
+    if: false # TODO: re-enable Java publish
+    # if: needs.list-java-packages.outputs.java_paths != '[]'
     strategy:
       fail-fast: false
       matrix:
@@ -183,52 +181,41 @@ jobs:
           RELATIVE_PATH="${RELATIVE_PATH#java/}"
           ./gradlew -PjreleaserStagingRepository=${RELATIVE_PATH}/build/staging-deploy jreleaserDeploy
 
-      - run: echo "NAME=java-$(basename ${{ matrix.path }})" >> $GITHUB_ENV
-        if: failure()
-      - run: touch ${{ runner.temp }}/${{ env.NAME }}
-        if: failure()
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: ${{ env.NAME }}
-          path: ${{ runner.temp }}/${{ env.NAME }}
-          retention-days: 1
-
       - name: Clean up
         if: always()
         run: |
           rm -rf ./java/build/staging-deploy
 
   slack:
-    name: Slack notification on failure
+    name: Slack notification
     needs: [publish-python, publish-java]
     if: always() && (needs.publish-python.result != 'skipped' || needs.publish-java.result != 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v8
-        continue-on-error: true
-      - name: List failures as markdown
+      - name: Set notification content
+        id: notify
+        env:
+          PYTHON_RESULT: ${{ needs.publish-python.result }}
+          JAVA_RESULT: ${{ needs.publish-java.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          {
-            echo "list<<EOF"
-            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | nl -w2 -s'. '
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: failures
-      - name: Create message text
-        if: steps.failures.outputs.list != ''
-        run: |
-          {
-            echo "text<<EOF"
-            echo "Publication failed for the following packages:"
-            echo "${{ steps.failures.outputs.list }}"
-            echo ""
-            echo "Re-run publish workflow if error is transient."
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: message
+          if [ "$PYTHON_RESULT" = "failure" ] || [ "$JAVA_RESULT" = "failure" ]; then
+            {
+              echo "text<<EOF"
+              echo "🚨🚨🚨 Package Publication Failed 🚨🚨🚨"
+              echo "$RUN_URL"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          elif [ "$PYTHON_RESULT" = "success" ] || [ "$JAVA_RESULT" = "success" ]; then
+            {
+              echo "text<<EOF"
+              echo "Package Publication Succeeded"
+              echo "$RUN_URL"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          fi
       - name: Send message to Slack
-        if: steps.failures.outputs.list != ''
+        if: steps.notify.outputs.text != ''
         uses: slackapi/slack-github-action@v2
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -236,5 +223,5 @@ jobs:
           payload: |
             {
               "type": "mrkdwn",
-              "text": ${{ toJSON(steps.message.outputs.text) }}
+              "text": ${{ toJSON(steps.notify.outputs.text) }}
             }
