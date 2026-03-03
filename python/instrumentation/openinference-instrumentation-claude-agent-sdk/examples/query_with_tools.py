@@ -41,8 +41,6 @@ async def main() -> None:
             print(message.result)
         elif getattr(message, "subtype", None) == "init":
             print("Session started.")
-        else:
-            print(message)
 
 
 if __name__ == "__main__":

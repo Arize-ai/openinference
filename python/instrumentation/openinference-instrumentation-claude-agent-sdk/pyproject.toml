@@ -69,6 +69,9 @@ asyncio_mode = "auto"
 testpaths = [
     "tests",
 ]
+filterwarnings = [
+    "ignore::requests.exceptions.RequestsDependencyWarning",
+]
 
 [tool.mypy]
 strict = true

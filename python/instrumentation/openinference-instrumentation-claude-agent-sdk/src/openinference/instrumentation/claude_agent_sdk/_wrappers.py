@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from claude_agent_sdk.types import Message
 
 AGENT = OpenInferenceSpanKindValues.AGENT.value
+TOOL = OpenInferenceSpanKindValues.TOOL.value
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 JSON = OpenInferenceMimeTypeValues.JSON.value
@@ -44,6 +45,7 @@ OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
+TOOL_NAME = SpanAttributes.TOOL_NAME
 
 
 def _query_input_value(prompt: Any, options: Any) -> str:
@@ -233,6 +235,98 @@ def _messages_summary(messages: list[Any]) -> str:
         return safe_json_dumps({"message_count": len(messages)})
 
 
+def _is_tool_use_block(block: Any) -> bool:
+    """Return True if block looks like a ToolUseBlock (has id, name, input)."""
+    return (
+        hasattr(block, "id")
+        and hasattr(block, "name")
+        and hasattr(block, "input")
+        and not hasattr(block, "tool_use_id")  # exclude ToolResultBlock
+    )
+
+
+def _is_tool_result_block(block: Any) -> bool:
+    """Return True if block looks like a ToolResultBlock (has tool_use_id)."""
+    return hasattr(block, "tool_use_id")
+
+
+def _update_tool_spans(
+    message: Any,
+    agent_span: trace_api.Span,
+    tracer: trace_api.Tracer,
+    in_flight: dict[str, trace_api.Span],
+) -> None:
+    """Create and complete TOOL child spans from streaming SDK messages.
+
+    Starts a TOOL span when an AssistantMessage contains a ToolUseBlock,
+    and ends it when the matching UserMessage contains a ToolResultBlock.
+    This works purely from the message stream without requiring SDK hook callbacks.
+    """
+    try:
+        content = getattr(message, "content", None)
+        if not isinstance(content, list):
+            return
+
+        for block in content:
+            if _is_tool_use_block(block):
+                tool_use_id = getattr(block, "id", "")
+                tool_name = getattr(block, "name", "")
+                tool_input = getattr(block, "input", {})
+                if not tool_use_id or not tool_name:
+                    continue
+                input_str = safe_json_dumps(tool_input) or ""
+                ctx = trace_api.set_span_in_context(agent_span)
+                tool_span = tracer.start_span(
+                    tool_name,
+                    context=ctx,
+                    attributes={
+                        OPENINFERENCE_SPAN_KIND: TOOL,
+                        TOOL_NAME: tool_name,
+                        INPUT_VALUE: input_str,
+                        INPUT_MIME_TYPE: JSON,
+                    },
+                )
+                in_flight[tool_use_id] = tool_span
+
+            elif _is_tool_result_block(block):
+                tool_use_id = getattr(block, "tool_use_id", "")
+                tool_span = in_flight.pop(tool_use_id, None)  # type: ignore[arg-type]
+                if tool_span is None:
+                    continue
+                result_content = getattr(block, "content", None)
+                if result_content is not None:
+                    output_str = (
+                        result_content
+                        if isinstance(result_content, str)
+                        else safe_json_dumps(result_content) or ""
+                    )
+                    if output_str:
+                        tool_span.set_attribute(OUTPUT_VALUE, output_str)
+                        tool_span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+                is_error = getattr(block, "is_error", None)
+                if is_error:
+                    tool_span.set_status(
+                        trace_api.Status(trace_api.StatusCode.ERROR, "Tool execution error")
+                    )
+                else:
+                    tool_span.set_status(trace_api.Status(trace_api.StatusCode.OK))
+                tool_span.end()
+
+    except Exception:
+        pass  # Never let tool span tracking break the main message flow
+
+
+def _end_abandoned_tool_spans(in_flight: dict[str, trace_api.Span]) -> None:
+    """End any tool spans that never received a result (e.g. on agent error)."""
+    for tool_span in in_flight.values():
+        try:
+            tool_span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, "Abandoned"))
+            tool_span.end()
+        except Exception:
+            pass
+    in_flight.clear()
+
+
 class _QueryWrapper:
     """Wraps the async generator returned by query() to trace the full agent run."""
 
@@ -270,10 +364,12 @@ class _QueryWrapper:
         ctx = trace_api.set_span_in_context(span)
         token = context_api.attach(ctx)
         messages: list[Any] = []
+        tool_spans_in_flight: dict[str, trace_api.Span] = {}
 
         try:
             async for message in wrapped(*args, **kwargs):
                 messages.append(message)
+                _update_tool_spans(message, span, self._tracer, tool_spans_in_flight)
                 yield message
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
@@ -282,6 +378,7 @@ class _QueryWrapper:
             span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, err_msg))
             raise
         finally:
+            _end_abandoned_tool_spans(tool_spans_in_flight)
             try:
                 span.set_attribute(OUTPUT_VALUE, _output_value_from_messages(messages))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
@@ -384,10 +481,12 @@ class _ClientReceiveResponseWrapper:
         ctx = trace_api.set_span_in_context(span)
         token = context_api.attach(ctx)
         messages: list[Any] = []
+        tool_spans_in_flight: dict[str, trace_api.Span] = {}
 
         try:
             async for message in wrapped(*args, **kwargs):
                 messages.append(message)
+                _update_tool_spans(message, span, self._tracer, tool_spans_in_flight)
                 yield message
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
@@ -395,6 +494,7 @@ class _ClientReceiveResponseWrapper:
             span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, err_msg))
             raise
         finally:
+            _end_abandoned_tool_spans(tool_spans_in_flight)
             try:
                 span.set_attribute(OUTPUT_VALUE, _output_value_from_messages(messages))
                 span.set_attribute(OUTPUT_MIME_TYPE, JSON)
