@@ -8,15 +8,16 @@ SHELL := /bin/bash
 RUFF_VERSION := 0.9.2
 RUFF := uvx ruff@$(RUFF_VERSION)
 PNPM := pnpm
-TOX := tox
+TOX := uvx --with tox-uv tox
 
 # Directories
 PYTHON_DIR := python
 JS_DIR := js
 
 # Source nvm and switch to the Node version in js/.nvmrc before running JS commands.
-# Each Make recipe runs in its own subshell, so this must be included in every JS target.
-NVM_USE = export NVM_DIR="$$HOME/.nvm" && [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh" && cd $(JS_DIR) && nvm use --silent &&
+# Falls back to system Node if nvm is unavailable. Each Make recipe runs in its own subshell,
+# so this must be included in every JS target.
+NVM_USE = export NVM_DIR="$$HOME/.nvm"; if [ -s "$$NVM_DIR/nvm.sh" ]; then . "$$NVM_DIR/nvm.sh" && cd $(JS_DIR) && nvm use --silent; else cd $(JS_DIR); fi &&
 
 # Colors for output
 CYAN := \033[0;36m
@@ -40,8 +41,8 @@ help: ## Show this help message
 	@echo -e "$(GREEN)Setup:$(NC)"
 	@echo -e "  $(YELLOW)setup$(NC)                 - Install all dependencies (Python + JS/TS)"
 	@echo -e "  install-python         - pip install deps + add_symlinks + editable install"
-	@echo -e "  install-js             - pnpm install + build (requires Node.js 20+)"
-	@echo -e "  check-tools            - Verify required tools are installed"
+	@echo -e "  install-js             - pnpm install + build (Node.js 20.19+ or 22.12+; uses nvm if available)"
+	@echo -e "  check-tools            - Verify required tools are installed (uv, node, pnpm)"
 	@echo -e ""
 	@echo -e "$(GREEN)Code Quality:$(NC)"
 	@echo -e "  $(YELLOW)format$(NC)                - Format all code (Python + JS/TS)"
@@ -58,9 +59,18 @@ check-tools: ## Verify required tools are installed
 	@echo -e "$(CYAN)Checking required tools...$(NC)"
 	@command -v uv >/dev/null 2>&1 || { echo -e "$(RED)ERROR: uv is not installed. Install from https://github.com/astral-sh/uv$(NC)"; exit 1; }
 	@echo -e "$(GREEN)✓$(NC) uv found: $$(uv --version)"
-	@command -v node >/dev/null 2>&1 || { echo -e "$(RED)ERROR: node is not installed. Install Node.js 20+ from https://nodejs.org$(NC)"; exit 1; }
-	@node -e "const v=process.versions.node.split('.').map(Number); if(v[0]<20||(v[0]===20&&v[1]<19)){process.stderr.write('\033[0;31mERROR: Node.js 20.19+ or 22.12+ required (oxfmt). Current: '+process.version+'\033[0m\n');process.exit(1);}" || exit 1
-	@echo -e "$(GREEN)✓$(NC) node found: $$(node --version)"
+	@if [ -s "$$HOME/.nvm/nvm.sh" ]; then \
+		export NVM_DIR="$$HOME/.nvm"; \
+		. "$$NVM_DIR/nvm.sh" && cd $(JS_DIR) && nvm use --silent && \
+		node -e "const v=process.versions.node.split('.').map(Number); const ok=(v[0]===20&&v[1]>=19)||(v[0]>=22&&(v[0]>22||v[1]>=12)); if(!ok){process.stderr.write('\033[0;31mERROR: Node.js 20.19+ or 22.12+ required (oxfmt). Current: '+process.version+'\033[0m\n');process.exit(1);}" && \
+		echo -e "$(GREEN)✓$(NC) node found: $$(node --version) (via nvm)"; \
+	elif command -v node >/dev/null 2>&1; then \
+		node -e "const v=process.versions.node.split('.').map(Number); const ok=(v[0]===20&&v[1]>=19)||(v[0]>=22&&(v[0]>22||v[1]>=12)); if(!ok){process.stderr.write('\033[0;31mERROR: Node.js 20.19+ or 22.12+ required (oxfmt). Current: '+process.version+'\033[0m\n');process.exit(1);}" && \
+		echo -e "$(GREEN)✓$(NC) node found: $$(node --version)"; \
+	else \
+		echo -e "$(RED)ERROR: node is not installed. Install Node.js 20.19+ or 22.12+ from https://nodejs.org$(NC)"; \
+		exit 1; \
+	fi
 	@command -v $(PNPM) >/dev/null 2>&1 || { echo -e "$(RED)ERROR: pnpm is not installed. Run: npm install -g pnpm$(NC)"; exit 1; }
 	@echo -e "$(GREEN)✓$(NC) pnpm found: $$($(PNPM) --version)"
 	@echo -e "$(GREEN)All required tools are installed!$(NC)"
@@ -80,7 +90,7 @@ install-python: ## Install Python dev dependencies (per python/DEVELOPMENT.md)
 
 install-js: ## Install JS/TS dependencies and build packages (per js/DEVELOPMENT.md)
 	@echo -e "$(CYAN)Installing JS/TS dependencies...$(NC)"
-	@$(NVM_USE) $(PNPM) install --frozen-lockfile -r || { echo -e "$(RED)ERROR: nvm not found. Install from https://github.com/nvm-sh/nvm and run: nvm install 20$(NC)"; exit 1; }
+	@$(NVM_USE) $(PNPM) install --frozen-lockfile -r
 	@echo -e "$(CYAN)Building JS/TS packages (includes prebuild)...$(NC)"
 	@$(NVM_USE) $(PNPM) run -r build
 	@echo -e "$(GREEN)✓ Done$(NC)"

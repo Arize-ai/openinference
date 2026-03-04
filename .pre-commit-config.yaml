@@ -20,13 +20,13 @@ repos:
       - id: oxfmt-js
         name: oxfmt (JS/TS)
         language: system
-        entry: pnpm --dir js run fmt
-        files: js/.*\.(jsx?|tsx?|json|ya?ml)$
-        pass_filenames: false
+        entry: scripts/pre-commit/oxfmt.sh
+        files: ^js/.*\.(jsx?|tsx?|json|ya?ml)$
+        pass_filenames: true
 
       - id: oxlint-js
         name: oxlint (JS/TS)
         language: system
-        entry: pnpm --dir js run lint:fix
-        files: js/.*\.[jt]sx?$
-        pass_filenames: false
+        entry: scripts/pre-commit/oxlint.sh
+        files: ^js/.*\.[jt]sx?$
+        pass_filenames: true
