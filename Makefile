@@ -110,7 +110,7 @@ setup: check-tools install-python install-js ## Install all dependencies (Python
 
 format-python: ## Format Python code with ruff
 	@echo -e "$(CYAN)Formatting Python code...$(NC)"
-	@$(RUFF) format $(PYTHON_DIR)/ --config $(PYTHON_DIR)/ruff.toml
+	@$(RUFF) format $(PYTHON_DIR)/
 	@echo -e "$(GREEN)✓ Done$(NC)"
 
 format-js: ## Format JS/TS code with oxfmt
@@ -125,9 +125,9 @@ fmt: format ## Alias for format
 fmt-python: format-python ## Alias for format-python
 fmt-js: format-js ## Alias for format-js
 
-lint-python: ## Lint Python code with ruff
+lint-python: ## Lint Python code with ruff (auto-fixes where possible)
 	@echo -e "$(CYAN)Linting Python code...$(NC)"
-	@$(RUFF) check $(PYTHON_DIR)/ --config $(PYTHON_DIR)/ruff.toml
+	@$(RUFF) check --fix $(PYTHON_DIR)/
 	@echo -e "$(GREEN)✓ Done$(NC)"
 
 lint-js: ## Lint JS/TS code with oxlint
