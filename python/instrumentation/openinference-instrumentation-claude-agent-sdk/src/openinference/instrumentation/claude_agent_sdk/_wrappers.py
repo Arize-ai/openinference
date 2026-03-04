@@ -8,8 +8,6 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
-from opentelemetry import trace as trace_api
-
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_input_attributes,
@@ -18,11 +16,14 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
+    MessageAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
+    ToolCallAttributes,
 )
+from opentelemetry import trace as trace_api
 
 if TYPE_CHECKING:
     from claude_agent_sdk.types import Message
@@ -48,6 +49,13 @@ LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
 # TODO: replace with SpanAttributes.TOOL_ID once semconv PR #2831 is merged
 TOOL_ID = "tool.id"
+LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
+MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
+MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+TOOL_CALL_ID = ToolCallAttributes.TOOL_CALL_ID
+TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
+TOOL_CALL_FUNCTION_ARGUMENTS_JSON = ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON
 
 
 def _get_field(obj: Any, key: str, default: Any = None) -> Any:
@@ -697,17 +705,23 @@ def _ensure_client_hooks(instance: Any, delegating_tracker: _DelegatingToolSpanT
     return True
 
 
+def _extract_message_content(message: Any) -> list[Any] | None:
+    content = getattr(message, "content", None)
+    if isinstance(content, list):
+        return content
+    inner = _get_field(message, "message")
+    content = _get_field(inner, "content")
+    return content if isinstance(content, list) else None
+
+
 def _update_tool_spans_from_messages(
     message: Any,
     tool_tracker: _ToolSpanTracker,
     parent_tool_use_id: Any = None,
 ) -> None:
     try:
-        content = getattr(message, "content", None)
-        if not isinstance(content, list):
-            inner = _get_field(message, "message")
-            content = _get_field(inner, "content")
-        if not isinstance(content, list):
+        content = _extract_message_content(message)
+        if content is None:
             return
 
         for block in content:
@@ -746,6 +760,51 @@ def _is_tool_use_block(block: Any) -> bool:
 
 def _is_tool_result_block(block: Any) -> bool:
     return _get_field(block, "tool_use_id") is not None
+
+
+def _is_text_block(block: Any) -> bool:
+    block_type = _get_field(block, "type")
+    if block_type:
+        return str(block_type) == "text"
+    # Duck-typing fallback: has 'text' but not 'id' or 'tool_use_id'
+    return (
+        _get_field(block, "text") is not None
+        and _get_field(block, "id") is None
+        and _get_field(block, "tool_use_id") is None
+    )
+
+
+def _get_output_message_attributes(message: Any, message_index: int) -> dict[str, Any]:
+    """Extract llm.output_messages.* attributes from an assistant message."""
+    attrs: dict[str, Any] = {}
+    try:
+        content = _extract_message_content(message)
+        if content is None:
+            return attrs
+        tool_index = 0
+        has_content = False
+        for block in content:
+            if _is_tool_use_block(block):
+                has_content = True
+                prefix = f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_TOOL_CALLS}.{tool_index}"
+                if tool_id := _get_field(block, "id"):
+                    attrs[f"{prefix}.{TOOL_CALL_ID}"] = str(tool_id)
+                if tool_name := _get_field(block, "name"):
+                    attrs[f"{prefix}.{TOOL_CALL_FUNCTION_NAME}"] = str(tool_name)
+                attrs[f"{prefix}.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"] = safe_json_dumps(
+                    _get_field(block, "input") or {}
+                )
+                tool_index += 1
+            elif _is_text_block(block):
+                has_content = True
+                if text := _get_field(block, "text"):
+                    attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}"] = str(text)
+        if has_content:
+            role = _get_field(message, "role") or "assistant"
+            attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}"] = str(role)
+    except Exception:
+        pass
+    return attrs
 
 
 class _SubagentState:
@@ -867,6 +926,7 @@ class _QueryWrapper:
         if merged_options is not None:
             args, kwargs = _apply_options(args, kwargs, merged_options)
 
+        output_message_index = 0
         try:
             async for message in wrapped(*args, **kwargs):
                 parent_tool_use_id = _get_field(message, "parent_tool_use_id")
@@ -884,6 +944,10 @@ class _QueryWrapper:
                     tool_tracker,
                     parent_tool_use_id=parent_tool_use_id,
                 )
+                msg_attrs = _get_output_message_attributes(message, output_message_index)
+                if msg_attrs:
+                    span.set_attributes(msg_attrs)
+                    output_message_index += 1
                 yield message
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)
@@ -998,6 +1062,7 @@ class _ClientReceiveResponseWrapper:
         if hooks_injected:
             delegating_tracker.set_delegate(tool_tracker)
 
+        output_message_index = 0
         try:
             async for message in wrapped(*args, **kwargs):
                 parent_tool_use_id = _get_field(message, "parent_tool_use_id")
@@ -1015,6 +1080,10 @@ class _ClientReceiveResponseWrapper:
                     tool_tracker,
                     parent_tool_use_id=parent_tool_use_id,
                 )
+                msg_attrs = _get_output_message_attributes(message, output_message_index)
+                if msg_attrs:
+                    span.set_attributes(msg_attrs)
+                    output_message_index += 1
                 yield message
         except Exception as exc:  # noqa: BLE001
             span.record_exception(exc)

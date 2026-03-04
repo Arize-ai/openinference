@@ -13,17 +13,17 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
-
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
+    MessageAttributes,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
@@ -266,9 +266,8 @@ async def test_task_subagent_span_parenting(
     tracer_provider: Any,
 ) -> None:
     """Task tool invocations should create a subagent span under the tool span."""
-    from opentelemetry import trace as trace_api
-
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from opentelemetry import trace as trace_api
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
@@ -550,9 +549,8 @@ async def test_query_tool_fallback_when_hooks_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If hooks cannot be injected, message-based tool tracking should work."""
-    from claude_agent_sdk import ClaudeAgentOptions, query
-
     import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
+    from claude_agent_sdk import ClaudeAgentOptions, query
 
     monkeypatch.setattr(wrappers, "_merge_hooks", lambda *args, **kwargs: None)
 
@@ -699,6 +697,15 @@ async def test_query_real_agent_span(
         assert total_tokens == prompt_tokens + completion_tokens
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
+    # Output messages — text-only assistant turn
+    output_msg_content = attrs.pop(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", None
+    )
+    assert isinstance(output_msg_content, str)
+    output_msg_role = attrs.pop(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}", None
+    )
+    assert output_msg_role == "assistant"
     assert not attrs
 
 
@@ -758,4 +765,13 @@ async def test_client_real_agent_span(
         assert total_tokens == prompt_tokens + completion_tokens
     cost_total = attrs.pop(SpanAttributes.LLM_COST_TOTAL, None)
     assert isinstance(cost_total, (int, float))
+    # Output messages — text-only assistant turn
+    output_msg_content = attrs.pop(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", None
+    )
+    assert isinstance(output_msg_content, str)
+    output_msg_role = attrs.pop(
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}", None
+    )
+    assert output_msg_role == "assistant"
     assert not attrs
