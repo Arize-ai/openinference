@@ -1,21 +1,15 @@
+import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
+
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
-
-import { OITracer } from "../trace";
+import type { OITracer } from "../trace";
 import { isPromise } from "../utils/typeUtils";
-
 import { defaultProcessInput, defaultProcessOutput } from "./attributeHelpers";
 import { getTracer, wrapTracer } from "./tracerHelpers";
-import {
-  AnyFn,
-  InputToAttributesFn,
-  OutputToAttributesFn,
-  SpanTraceOptions,
-} from "./types";
+import type { AnyFn, InputToAttributesFn, OutputToAttributesFn, SpanTraceOptions } from "./types";
 
 const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
 
@@ -70,10 +64,7 @@ const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
  * });
  * ```
  */
-export function withSpan<Fn extends AnyFn = AnyFn>(
-  fn: Fn,
-  options?: SpanTraceOptions<Fn>,
-): Fn {
+export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOptions<Fn>): Fn {
   const {
     tracer: _tracer,
     name: optionsName,
@@ -84,10 +75,8 @@ export function withSpan<Fn extends AnyFn = AnyFn>(
     attributes: baseAttributes,
   } = options || {};
   const tracer: OITracer = _tracer ? wrapTracer(_tracer) : getTracer();
-  const processInput: InputToAttributesFn =
-    _processInput ?? defaultProcessInput;
-  const processOutput: OutputToAttributesFn =
-    _processOutput ?? defaultProcessOutput;
+  const processInput: InputToAttributesFn = _processInput ?? defaultProcessInput;
+  const processOutput: OutputToAttributesFn = _processOutput ?? defaultProcessOutput;
   const spanName = optionsName || fn.name;
   // TODO: infer the name from the target
   const wrappedFn: Fn = function (...args: Parameters<Fn>) {

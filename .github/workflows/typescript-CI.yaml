@@ -4,9 +4,6 @@ on:
     push:
         branches: [main]
     pull_request:
-        paths:
-            - ".github/workflows/typescript-CI.yaml"
-            - "js/**"
     # Allows you to run this workflow manually from the Actions tab
     workflow_dispatch:
 
@@ -32,8 +29,8 @@ jobs:
                         - "js/pnpm-lock.json"
                         - "js/pnpm-workspace.yaml"
                         - "js/tsconfig.*.json"
-                        - "js/eslint.config.mts"
-                        - "js/.prettierrc"
+                        - "js/.oxlintrc.json"
+                        - "js/.oxfmtrc.jsonc"
                         - "js/packages/**/*.js"
                         - "js/packages/**/*.ts"
                         - "js/packages/**/package.json"
@@ -44,6 +41,8 @@ jobs:
         needs: changes
         if: ${{ needs.changes.outputs.diff == 'true' }}
         runs-on: ubuntu-latest
+        env:
+            NODE_OPTIONS: "--max-old-space-size=8192"
         steps:
             - name: Checkout Repository
               uses: actions/checkout@v4
@@ -54,7 +53,7 @@ jobs:
             - name: Setup PNPM
               uses: pnpm/action-setup@v4
               with:
-                  version: 10.11.0
+                  version: 10.29.3
             - name: Install Dependencies
               working-directory: ./js
               run: pnpm install --frozen-lockfile -r
@@ -64,13 +63,15 @@ jobs:
             - name: Build
               working-directory: ./js
               run: pnpm run -r build
+              env:
+                  NODE_OPTIONS: "--max-old-space-size=8192"
             - name: Test
               working-directory: ./js
               run: pnpm run -r test
             - name: Formatting
               working-directory: ./js
               run: |
-                  pnpm run prettier:check
+                  pnpm run fmt:check
             - name: Type Checking
               working-directory: ./js
               run: |
@@ -79,3 +80,21 @@ jobs:
               working-directory: ./js
               run: |
                   pnpm run lint
+
+    ci-required:
+        name: Typescript CI Required
+        needs: [changes, ci]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check results
+              run: |
+                  if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" ]]; then
+                    echo "One or more CI jobs failed"
+                    exit 1
+                  fi
+                  if [[ "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+                    echo "One or more CI jobs were cancelled"
+                    exit 1
+                  fi
+                  echo "All CI jobs passed or were skipped"

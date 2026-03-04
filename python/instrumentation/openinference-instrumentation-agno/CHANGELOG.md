@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.27...python-openinference-instrumentation-agno-v0.1.28) (2026-02-12)
+
+
+### Features
+
+* add updates for agno 2.5 release ([#2716](https://github.com/Arize-ai/openinference/issues/2716)) ([d32092e](https://github.com/Arize-ai/openinference/commit/d32092e0d2060feee4e230ee5d0b3644aa925d22))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.26...python-openinference-instrumentation-agno-v0.1.27) (2026-01-27)
 
 

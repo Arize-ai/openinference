@@ -1,11 +1,9 @@
-import { Tracer } from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-
-import { isPatched, MCPInstrumentation } from "../src";
-
-import { ExportedSpan, startCollector, Telemetry } from "./collector";
+// @ts-nocheck – The MCP SDK's deeply recursive zod v4 types cause tsc to
+// stack-overflow (SIGABRT) during type-checking.  Runtime tests are unaffected.
+import { spawn } from "child_process";
+import type http from "http";
+import type { AddressInfo } from "net";
+import path from "path";
 
 import * as MCPClientModule from "@modelcontextprotocol/sdk/client/index";
 import * as MCPClientSSEModule from "@modelcontextprotocol/sdk/client/sse";
@@ -17,12 +15,16 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { spawn } from "child_process";
-import http from "http";
-import { AddressInfo } from "net";
-import path from "path";
+import type { Tracer } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { z } from "zod";
+import { z } from "zod/v3";
+
+import { isPatched, MCPInstrumentation } from "../src";
+import type { ExportedSpan } from "./collector";
+import { startCollector, Telemetry } from "./collector";
 
 describe("MCPInstrumentation", () => {
   const telemetry = new Telemetry();
@@ -79,42 +81,32 @@ describe("MCPInstrumentation", () => {
     telemetry.clear();
   });
   it("is patched", () => {
-    expect(
-      (MCPClientSSEModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    expect((MCPClientSSEModule as { openInferencePatched?: boolean }).openInferencePatched).toBe(
+      true,
+    );
     expect(isPatched("@modelcontextprotocol/sdk/client/sse")).toBe(true);
-    expect(
-      (MCPServerSSEModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    expect((MCPServerSSEModule as { openInferencePatched?: boolean }).openInferencePatched).toBe(
+      true,
+    );
     expect(isPatched("@modelcontextprotocol/sdk/server/sse")).toBe(true);
-    expect(
-      (MCPClientStdioModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    expect((MCPClientStdioModule as { openInferencePatched?: boolean }).openInferencePatched).toBe(
+      true,
+    );
     expect(isPatched("@modelcontextprotocol/sdk/client/stdio")).toBe(true);
-    expect(
-      (MCPServerStdioModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
-    ).toBe(true);
+    expect((MCPServerStdioModule as { openInferencePatched?: boolean }).openInferencePatched).toBe(
+      true,
+    );
     expect(isPatched("@modelcontextprotocol/sdk/server/stdio")).toBe(true);
     expect(
-      (MCPClientStreamableHTTPModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
+      (MCPClientStreamableHTTPModule as { openInferencePatched?: boolean }).openInferencePatched,
     ).toBe(true);
-    expect(isPatched("@modelcontextprotocol/sdk/client/streamableHttp")).toBe(
-      true,
-    );
+    expect(isPatched("@modelcontextprotocol/sdk/client/streamableHttp")).toBe(true);
     expect(
-      (MCPServerStreamableHTTPModule as { openInferencePatched?: boolean })
-        .openInferencePatched,
+      (MCPServerStreamableHTTPModule as { openInferencePatched?: boolean }).openInferencePatched,
     ).toBe(true);
-    expect(isPatched("@modelcontextprotocol/sdk/server/streamableHttp")).toBe(
-      true,
-    );
+    expect(isPatched("@modelcontextprotocol/sdk/server/streamableHttp")).toBe(true);
   });
-  it("propagates context - stdio", async () => {
+  it("propagates context - stdio", { timeout: 30_000 }, async () => {
     const transport = new StdioClientTransport({
       command: "tsx",
       args: [path.join(__dirname, "mcpserver.ts")],
@@ -128,6 +120,7 @@ describe("MCPInstrumentation", () => {
       name: "MCP",
       version: "0.1.0",
     });
+    // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
     client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
       return tracer.startActiveSpan("whoami", (span) => {
         try {
@@ -162,11 +155,11 @@ describe("MCPInstrumentation", () => {
     await tracerProvider.forceFlush();
     // There does not seem to be a reliable way to wait for the child to exit completely with StdioClientTransport
     // so poll for the expected telemetry length instead.
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 500; i++) {
       if (telemetry.resourceSpans.length >= 2) {
         break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
     expect(telemetry.resourceSpans).toHaveLength(2);
     let rootSpan: ExportedSpan | undefined;
@@ -228,20 +221,18 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
-      client.setRequestHandler(
-        z.object({ method: z.literal("whoami") }),
-        () => {
-          return tracer.startActiveSpan("whoami", (span) => {
-            try {
-              return {
-                name: "OpenInference",
-              };
-            } finally {
-              span.end();
-            }
-          });
-        },
-      );
+      // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+        return tracer.startActiveSpan("whoami", (span) => {
+          try {
+            return {
+              name: "OpenInference",
+            };
+          } finally {
+            span.end();
+          }
+        });
+      });
       await client.connect(transport);
       try {
         await tracer.startActiveSpan("root", async (span) => {
@@ -327,20 +318,18 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
-      client.setRequestHandler(
-        z.object({ method: z.literal("whoami") }),
-        () => {
-          return tracer.startActiveSpan("whoami", (span) => {
-            try {
-              return {
-                name: "OpenInference",
-              };
-            } finally {
-              span.end();
-            }
-          });
-        },
-      );
+      // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
+      client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
+        return tracer.startActiveSpan("whoami", (span) => {
+          try {
+            return {
+              name: "OpenInference",
+            };
+          } finally {
+            span.end();
+          }
+        });
+      });
       await client.connect(transport);
       try {
         await tracer.startActiveSpan("root", async (span) => {

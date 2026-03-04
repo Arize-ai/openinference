@@ -1,4 +1,4 @@
-import {
+import type {
   Attributes,
   AttributeValue,
   Exception,
@@ -10,7 +10,7 @@ import {
 } from "@opentelemetry/api";
 
 import { mask } from "./maskingRules";
-import { TraceConfig } from "./types";
+import type { TraceConfig } from "./types";
 
 /**
  * A wrapper around the OpenTelemetry {@link Span} interface that masks sensitive information based on the passed in {@link TraceConfig}.
@@ -33,13 +33,10 @@ export class OISpan implements Span {
   }
 
   setAttributes(attributes: Attributes): this {
-    const maskedAttributes = Object.entries(attributes).reduce(
-      (maskedAttributes, [key, value]) => {
-        maskedAttributes[key] = mask({ config: this.config, key, value });
-        return maskedAttributes;
-      },
-      {} as Attributes,
-    );
+    const maskedAttributes = Object.entries(attributes).reduce((maskedAttributes, [key, value]) => {
+      maskedAttributes[key] = mask({ config: this.config, key, value });
+      return maskedAttributes;
+    }, {} as Attributes);
     this.span.setAttributes(maskedAttributes);
     return this;
   }

@@ -1,8 +1,9 @@
-import {
-  safelyJSONParse,
-  safelyJSONStringify,
-  withSafety,
-} from "@arizeai/openinference-core";
+import type { Attributes, AttributeValue } from "@opentelemetry/api";
+import { diag } from "@opentelemetry/api";
+import { isAttributeValue } from "@opentelemetry/core";
+import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+
+import { safelyJSONParse, safelyJSONStringify, withSafety } from "@arizeai/openinference-core";
 import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizeai/openinference-genai";
 import {
   MimeType,
@@ -10,12 +11,8 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
-import { Attributes, AttributeValue, diag } from "@opentelemetry/api";
-import { isAttributeValue } from "@opentelemetry/core";
-import { ReadableSpan } from "@opentelemetry/sdk-trace-base";
-
 import { VercelSDKFunctionNameToSpanKindMap } from "./constants";
-import { OpenInferenceIOConventionKey, SpanFilter } from "./types";
+import type { OpenInferenceIOConventionKey, SpanFilter } from "./types";
 import { isArrayOfObjects, isStringArray } from "./typeUtils";
 import { VercelAISemanticConventions } from "./VercelAISemanticConventions";
 
@@ -32,9 +29,7 @@ const onErrorCallback = (attributeType: string) => (error: unknown) => {
  * @example ai.generateText.doGenerate <functionId>
  * @returns the Vercel function name from the operation name or undefined if not found
  */
-const getVercelFunctionNameFromOperationName = (
-  operationName: string,
-): string | undefined => {
+const getVercelFunctionNameFromOperationName = (operationName: string): string | undefined => {
   return operationName.split(" ")[0];
 };
 
@@ -48,8 +43,7 @@ const getOISpanKindFromAttributes = (
   attributes: Attributes,
 ): OpenInferenceSpanKind | string | undefined => {
   // If the span kind is already set, just use it
-  const existingOISpanKind =
-    attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  const existingOISpanKind = attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
   if (existingOISpanKind != null && typeof existingOISpanKind === "string") {
     return existingOISpanKind;
   }
@@ -57,8 +51,7 @@ const getOISpanKindFromAttributes = (
   if (maybeOperationName == null || typeof maybeOperationName !== "string") {
     return;
   }
-  const maybeFunctionName =
-    getVercelFunctionNameFromOperationName(maybeOperationName);
+  const maybeFunctionName = getVercelFunctionNameFromOperationName(maybeOperationName);
   if (maybeFunctionName == null) {
     return;
   }
@@ -208,19 +201,16 @@ const getEmbeddingAttributes = (
   }
 
   // Handle multiple embedding texts (ai.values)
-  const embeddingTexts =
-    attributes[VercelAISemanticConventions.EMBEDDING_TEXTS];
+  const embeddingTexts = attributes[VercelAISemanticConventions.EMBEDDING_TEXTS];
   if (isStringArray(embeddingTexts)) {
     embeddingTexts.forEach((text, index) => {
-      result[
-        `${EMBEDDING_PREFIX}.${index}.${SemanticConventions.EMBEDDING_TEXT}`
-      ] = formatEmbeddingValue(text);
+      result[`${EMBEDDING_PREFIX}.${index}.${SemanticConventions.EMBEDDING_TEXT}`] =
+        formatEmbeddingValue(text);
     });
   }
 
   // Handle single embedding vector (ai.embedding)
-  const embeddingVector =
-    attributes[VercelAISemanticConventions.EMBEDDING_VECTOR];
+  const embeddingVector = attributes[VercelAISemanticConventions.EMBEDDING_VECTOR];
   if (embeddingVector != null) {
     if (typeof embeddingVector === "string") {
       result[`${EMBEDDING_PREFIX}.0.${SemanticConventions.EMBEDDING_VECTOR}`] =
@@ -229,13 +219,11 @@ const getEmbeddingAttributes = (
   }
 
   // Handle multiple embedding vectors (ai.embeddings)
-  const embeddingVectors =
-    attributes[VercelAISemanticConventions.EMBEDDING_VECTORS];
+  const embeddingVectors = attributes[VercelAISemanticConventions.EMBEDDING_VECTORS];
   if (isStringArray(embeddingVectors)) {
     embeddingVectors.forEach((vector, index) => {
-      result[
-        `${EMBEDDING_PREFIX}.${index}.${SemanticConventions.EMBEDDING_VECTOR}`
-      ] = formatEmbeddingValue(vector);
+      result[`${EMBEDDING_PREFIX}.${index}.${SemanticConventions.EMBEDDING_VECTOR}`] =
+        formatEmbeddingValue(vector);
     });
   }
 
@@ -283,54 +271,40 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
       // - message.content: the result content
       // - message.tool_call_id: linking back to the original tool call
       // When Vercel sends multiple tool results in one message, we expand them.
-      const toolResultAttributes = contentArray.reduce(
-        (toolAcc: Attributes, content) => {
-          if (typeof content !== "object" || content === null) {
-            // bail out if the content is not an object
-            return toolAcc;
-          }
-          if (!("output" in content) && !("result" in content)) {
-            // bail out if the content does not have an output or result property
-            return toolAcc;
-          }
-          const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${outputMessageIndex}`;
-          outputMessageIndex++;
+      const toolResultAttributes = contentArray.reduce((toolAcc: Attributes, content) => {
+        if (typeof content !== "object" || content === null) {
+          // bail out if the content is not an object
+          return toolAcc;
+        }
+        if (!("output" in content) && !("result" in content)) {
+          // bail out if the content does not have an output or result property
+          return toolAcc;
+        }
+        const MESSAGE_PREFIX = `${SemanticConventions.LLM_INPUT_MESSAGES}.${outputMessageIndex}`;
+        outputMessageIndex++;
 
-          // Extract tool output from various possible formats:
-          // 1. Newer AI SDK v6: content.output (the raw output value)
-          // 2. Legacy format: content.result
-          const TOOL_OUTPUT =
-            "output" in content
-              ? content.output
-              : "result" in content
-                ? content.result
-                : undefined;
-          const TOOL_OUTPUT_JSON =
-            typeof TOOL_OUTPUT === "string"
-              ? TOOL_OUTPUT
-              : TOOL_OUTPUT != null
-                ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
-                : undefined;
-          const TOOL_CALL_ID =
-            "toolCallId" in content && typeof content.toolCallId === "string"
-              ? content.toolCallId
+        // Extract tool output from various possible formats:
+        // 1. Newer AI SDK v6: content.output (the raw output value)
+        // 2. Legacy format: content.result
+        const TOOL_OUTPUT =
+          "output" in content ? content.output : "result" in content ? content.result : undefined;
+        const TOOL_OUTPUT_JSON =
+          typeof TOOL_OUTPUT === "string"
+            ? TOOL_OUTPUT
+            : TOOL_OUTPUT != null
+              ? (safelyJSONStringify(TOOL_OUTPUT) ?? undefined)
               : undefined;
-          const TOOL_NAME =
-            "toolName" in content && typeof content.toolName === "string"
-              ? content.toolName
-              : undefined;
-          return {
-            ...toolAcc,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "tool",
-            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]:
-              TOOL_OUTPUT_JSON,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]:
-              TOOL_CALL_ID,
-            [`${MESSAGE_PREFIX}.${SemanticConventions.TOOL_NAME}`]: TOOL_NAME,
-          };
-        },
-        {} as Attributes,
-      );
+        const TOOL_CALL_ID =
+          "toolCallId" in content && typeof content.toolCallId === "string"
+            ? content.toolCallId
+            : undefined;
+        return {
+          ...toolAcc,
+          [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "tool",
+          [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`]: TOOL_OUTPUT_JSON,
+          [`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]: TOOL_CALL_ID,
+        };
+      }, {} as Attributes);
 
       return {
         ...acc,
@@ -342,54 +316,42 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
     outputMessageIndex++;
 
     if (isArrayOfObjects(message.content)) {
-      const messageAttributes = message.content.reduce(
-        (acc: Attributes, content, contentIndex) => {
-          const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
-          const TOOL_CALL_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}`;
-          // prefer the input property over the args property
-          // newer versions of ai-sdk use the input property instead of the args property
-          const TOOL_CALL_ARGS =
-            content.input != null
-              ? content.input
-              : content.args != null
-                ? content.args
-                : undefined;
-          // Do not double-stringify the tool call arguments
-          const TOOL_CALL_ARGS_JSON =
-            typeof TOOL_CALL_ARGS === "string"
-              ? TOOL_CALL_ARGS
-              : TOOL_CALL_ARGS != null
-                ? (safelyJSONStringify(TOOL_CALL_ARGS) ?? undefined)
-                : undefined;
-          return {
-            ...acc,
-            [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
-              typeof content.type === "string" ? content.type : undefined,
-            [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
-              typeof content.text === "string" ? content.text : undefined,
-            [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
-              typeof content.image === "string" ? content.image : undefined,
-            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
-              typeof content.toolCallId === "string"
-                ? content.toolCallId
-                : undefined,
-            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
-              typeof content.toolName === "string"
-                ? content.toolName
-                : undefined,
-            [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
-              TOOL_CALL_ARGS_JSON,
-          };
-        },
-        {},
-      );
+      const messageAttributes = message.content.reduce((acc: Attributes, content, contentIndex) => {
+        const CONTENTS_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENTS}.${contentIndex}`;
+        const TOOL_CALL_PREFIX = `${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${contentIndex}`;
+        // prefer the input property over the args property
+        // newer versions of ai-sdk use the input property instead of the args property
+        const TOOL_CALL_ARGS =
+          content.input != null ? content.input : content.args != null ? content.args : undefined;
+        // Do not double-stringify the tool call arguments
+        const TOOL_CALL_ARGS_JSON =
+          typeof TOOL_CALL_ARGS === "string"
+            ? TOOL_CALL_ARGS
+            : TOOL_CALL_ARGS != null
+              ? (safelyJSONStringify(TOOL_CALL_ARGS) ?? undefined)
+              : undefined;
+        return {
+          ...acc,
+          [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TYPE}`]:
+            typeof content.type === "string" ? content.type : undefined,
+          [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_TEXT}`]:
+            typeof content.text === "string" ? content.text : undefined,
+          [`${CONTENTS_PREFIX}.${SemanticConventions.MESSAGE_CONTENT_IMAGE}`]:
+            typeof content.image === "string" ? content.image : undefined,
+          [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+            typeof content.toolCallId === "string" ? content.toolCallId : undefined,
+          [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
+            typeof content.toolName === "string" ? content.toolName : undefined,
+          [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
+            TOOL_CALL_ARGS_JSON,
+        };
+      }, {});
       acc = {
         ...acc,
         ...messageAttributes,
       };
     } else if (typeof message.content === "string") {
-      acc[`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`] =
-        message.content;
+      acc[`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_CONTENT}`] = message.content;
     }
     acc[`${MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`] =
       typeof message.role === "string" ? message.role : undefined;
@@ -403,6 +365,58 @@ const getInputMessageAttributes = (promptMessages?: AttributeValue) => {
 const safelyGetInputMessageAttributes = withSafety({
   fn: getInputMessageAttributes,
   onError: onErrorCallback("input message"),
+});
+
+/**
+ * Extracts messages from a prompt value and returns llm.input_messages attributes.
+ * The Vercel AI SDK sets `ai.prompt` on top level spans as a JSON string containing
+ * the full prompt object (e.g., { messages: [...], system: "..." }).
+ * This function parses the prompt, extracts messages, and converts them to
+ * OpenInference llm.input_messages format.
+ * @param promptValue the ai.prompt attribute value
+ * @returns llm.input_messages attributes or null if messages cannot be extracted
+ */
+const getInputMessagesFromPrompt = (promptValue?: AttributeValue) => {
+  if (typeof promptValue !== "string") {
+    return null;
+  }
+
+  const parsed = safelyJSONParse(promptValue);
+  if (parsed == null || typeof parsed !== "object") {
+    return null;
+  }
+
+  // If the prompt itself is an array of messages, use it directly
+  if (Array.isArray(parsed)) {
+    return getInputMessageAttributes(promptValue);
+  }
+
+  const prompt = parsed as Record<string, unknown>;
+  const messagesArray: unknown[] = [];
+
+  // Prepend system message if present at the top level
+  if (typeof prompt.system === "string") {
+    messagesArray.push({ role: "system", content: prompt.system });
+  }
+
+  // Extract the messages array
+  if (Array.isArray(prompt.messages)) {
+    messagesArray.push(...prompt.messages);
+  }
+
+  if (messagesArray.length === 0) {
+    return null;
+  }
+
+  return getInputMessageAttributes(JSON.stringify(messagesArray));
+};
+
+/**
+ * {@link getInputMessagesFromPrompt} wrapped in {@link withSafety} which will return null if any error is thrown
+ */
+const safelyGetInputMessagesFromPrompt = withSafety({
+  fn: getInputMessagesFromPrompt,
+  onError: onErrorCallback("input messages from prompt"),
 });
 
 /**
@@ -423,8 +437,7 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
 
   const OUTPUT_MESSAGE_PREFIX = `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0`;
   return {
-    [`${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]:
-      "assistant",
+    [`${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
     ...parsedToolCalls.reduce((acc: Attributes, toolCall, index) => {
       const TOOL_CALL_PREFIX = `${OUTPUT_MESSAGE_PREFIX}.${SemanticConventions.MESSAGE_TOOL_CALLS}.${index}`;
       // newer versions of Vercel use the input property instead of the args property
@@ -436,10 +449,15 @@ const getToolCallMessageAttributes = (toolCalls?: AttributeValue) => {
             : undefined;
       return {
         ...acc,
-        [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]:
-          isAttributeValue(toolCall.toolName) ? toolCall.toolName : undefined,
+        [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]: isAttributeValue(
+          toolCall.toolName,
+        )
+          ? toolCall.toolName
+          : undefined,
         [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`]:
           toolCallArgsJSON != null ? toolCallArgsJSON : undefined,
+        [`${TOOL_CALL_PREFIX}.${SemanticConventions.TOOL_CALL_ID}`]:
+          typeof toolCall.toolCallId === "string" ? toolCall.toolCallId : undefined,
       };
     }, {}),
   };
@@ -517,16 +535,13 @@ const getToolCallSpanAttributes = (
     result[SemanticConventions.TOOL_PARAMETERS] = toolCallArgs;
     // For tool spans, also set input value
     result[SemanticConventions.INPUT_VALUE] = toolCallArgs;
-    result[SemanticConventions.INPUT_MIME_TYPE] =
-      getMimeTypeFromValue(toolCallArgs);
+    result[SemanticConventions.INPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallArgs);
   }
 
-  const toolCallResult =
-    attributes[VercelAISemanticConventions.TOOL_CALL_RESULT];
+  const toolCallResult = attributes[VercelAISemanticConventions.TOOL_CALL_RESULT];
   if (toolCallResult != null) {
     result[SemanticConventions.OUTPUT_VALUE] = toolCallResult;
-    result[SemanticConventions.OUTPUT_MIME_TYPE] =
-      getMimeTypeFromValue(toolCallResult);
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = getMimeTypeFromValue(toolCallResult);
   }
 
   return Object.keys(result).length > 0 ? result : null;
@@ -549,28 +564,21 @@ const safelyGetToolCallSpanAttributes = withSafety({
 const getStreamingMetrics = (attributes: Attributes): Attributes | null => {
   const result: Attributes = {};
 
-  const msToFirstChunk =
-    attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FIRST_CHUNK];
+  const msToFirstChunk = attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FIRST_CHUNK];
   if (typeof msToFirstChunk === "number") {
-    result[`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`] =
-      msToFirstChunk;
+    result[`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`] = msToFirstChunk;
   }
 
-  const msToFinish =
-    attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FINISH];
+  const msToFinish = attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FINISH];
   if (typeof msToFinish === "number") {
-    result[`${SemanticConventions.METADATA}.ai.response.msToFinish`] =
-      msToFinish;
+    result[`${SemanticConventions.METADATA}.ai.response.msToFinish`] = msToFinish;
   }
 
   const avgTokensPerSec =
-    attributes[
-      VercelAISemanticConventions.RESPONSE_AVG_OUTPUT_TOKENS_PER_SECOND
-    ];
+    attributes[VercelAISemanticConventions.RESPONSE_AVG_OUTPUT_TOKENS_PER_SECOND];
   if (typeof avgTokensPerSec === "number") {
-    result[
-      `${SemanticConventions.METADATA}.ai.response.avgOutputTokensPerSecond`
-    ] = avgTokensPerSec;
+    result[`${SemanticConventions.METADATA}.ai.response.avgOutputTokensPerSecond`] =
+      avgTokensPerSec;
   }
 
   return Object.keys(result).length > 0 ? result : null;
@@ -626,12 +634,8 @@ const getVercelIOAttributes = (
   }
 
   // Output from ai.response.object (for generateObject)
-  const responseObject =
-    attributes[VercelAISemanticConventions.RESPONSE_OBJECT];
-  if (
-    typeof responseObject === "string" &&
-    !result[SemanticConventions.OUTPUT_VALUE]
-  ) {
+  const responseObject = attributes[VercelAISemanticConventions.RESPONSE_OBJECT];
+  if (typeof responseObject === "string" && !result[SemanticConventions.OUTPUT_VALUE]) {
     const ioAttrs = safelyGetIOValueAttributes({
       attributeValue: responseObject,
       OpenInferenceSemanticConventionKey: SemanticConventions.OUTPUT_VALUE,
@@ -703,8 +707,7 @@ const getTokenCountAttributes = (
   const result: Attributes = {};
 
   // Prompt/input tokens
-  const promptTokens =
-    attributes[VercelAISemanticConventions.TOKEN_COUNT_PROMPT];
+  const promptTokens = attributes[VercelAISemanticConventions.TOKEN_COUNT_PROMPT];
   const inputTokens = attributes[VercelAISemanticConventions.TOKEN_COUNT_INPUT];
   const promptCount = promptTokens ?? inputTokens;
   if (typeof promptCount === "number") {
@@ -712,10 +715,8 @@ const getTokenCountAttributes = (
   }
 
   // Completion/output tokens
-  const completionTokens =
-    attributes[VercelAISemanticConventions.TOKEN_COUNT_COMPLETION];
-  const outputTokens =
-    attributes[VercelAISemanticConventions.TOKEN_COUNT_OUTPUT];
+  const completionTokens = attributes[VercelAISemanticConventions.TOKEN_COUNT_COMPLETION];
+  const outputTokens = attributes[VercelAISemanticConventions.TOKEN_COUNT_OUTPUT];
   const completionCount = completionTokens ?? outputTokens;
   if (typeof completionCount === "number") {
     result[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = completionCount;
@@ -742,7 +743,7 @@ const getVercelSpecificAttributes = (
   attributes: Attributes,
   spanKind: OpenInferenceSpanKind | string | undefined,
 ): Attributes => {
-  return {
+  const result: Attributes = {
     // Embeddings (only for EMBEDDING spans)
     ...safelyGetEmbeddingAttributes(attributes, spanKind),
 
@@ -761,9 +762,11 @@ const getVercelSpecificAttributes = (
     ),
 
     // Input messages from ai.prompt.messages
-    ...safelyGetInputMessageAttributes(
-      attributes[VercelAISemanticConventions.PROMPT_MESSAGES],
-    ),
+    ...safelyGetInputMessageAttributes(attributes[VercelAISemanticConventions.PROMPT_MESSAGES]),
+
+    // Extract messages from ai.prompt for AGENT spans (e.g., ai.streamText, ai.generateText).
+    // ai.prompt contains the full prompt object with messages and optional system field.
+    ...safelyGetInputMessagesFromPrompt(attributes[VercelAISemanticConventions.PROMPT]),
 
     // Streaming performance metrics (store as metadata)
     ...safelyGetStreamingMetrics(attributes),
@@ -777,6 +780,28 @@ const getVercelSpecificAttributes = (
     // Token counts from ai.usage.* (fallback if gen_ai.* not present)
     ...safelyGetTokenCountAttributes(attributes, spanKind),
   };
+
+  // Set output.value from tool calls if output is not already meaningfully set
+  // (e.g., when ai.response.text is empty for tool-calls-only responses)
+  const toolCallsValue = attributes[VercelAISemanticConventions.RESPONSE_TOOL_CALLS];
+  if (
+    typeof toolCallsValue === "string" &&
+    (result[SemanticConventions.OUTPUT_VALUE] == null ||
+      result[SemanticConventions.OUTPUT_VALUE] === "")
+  ) {
+    result[SemanticConventions.OUTPUT_VALUE] = toolCallsValue;
+    result[SemanticConventions.OUTPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  // Set input.value from prompt messages if not already set
+  // (ai.prompt is not present on LLM spans, so this ensures input.value is populated)
+  const promptMessagesValue = attributes[VercelAISemanticConventions.PROMPT_MESSAGES];
+  if (typeof promptMessagesValue === "string" && !result[SemanticConventions.INPUT_VALUE]) {
+    result[SemanticConventions.INPUT_VALUE] = promptMessagesValue;
+    result[SemanticConventions.INPUT_MIME_TYPE] = MimeType.JSON;
+  }
+
+  return result;
 };
 
 /**
@@ -804,27 +829,21 @@ const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   // Only apply if there are actual gen_ai.* attributes
   const hasGenAI = hasGenAIAttributes(attributes);
   const genAIAttributes = hasGenAI
-    ? (convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes) ??
-      {})
+    ? (convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes) ?? {})
     : {};
 
   // Step 2: Determine span kind from operation.name (Vercel-specific, more precise)
   const spanKind = safelyGetOISpanKindFromAttributes(attributes) ?? undefined;
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
-  const vercelSpecificAttributes = getVercelSpecificAttributes(
-    attributes,
-    spanKind,
-  );
+  const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
 
   // Step 4: Determine final span kind
   // Use Vercel's operation.name-based span kind as it's more specific
   // Only fall back to genai span kind if we have gen_ai attributes
   const finalSpanKind =
     spanKind ??
-    (hasGenAI
-      ? genAIAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]
-      : undefined);
+    (hasGenAI ? genAIAttributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] : undefined);
 
   // Step 5: Merge with gen_ai attributes taking precedence for overlapping keys
   return {
@@ -843,8 +862,7 @@ export const safelyGetOpenInferenceAttributes = withSafety({
 });
 
 export const isOpenInferenceSpan = (span: ReadableSpan) => {
-  const maybeOpenInferenceSpanKind =
-    span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
+  const maybeOpenInferenceSpanKind = span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND];
   return typeof maybeOpenInferenceSpanKind === "string";
 };
 
@@ -882,4 +900,14 @@ export const addOpenInferenceAttributesToSpan = (span: ReadableSpan): void => {
   Object.entries(newAttributes).forEach(([key, value]) => {
     span.attributes[key] = value as AttributeValue;
   });
+
+  // Remove GenAI semantic convention events (e.g., ai.stream.firstChunk, ai.stream.finish)
+  // These are Vercel AI SDK stream events that are not needed for OpenInference.
+  // newer versions of opentelemetry will also not allow you to reassign
+  // the events object, so we must remove elements from the array directly
+  for (let i = span.events.length - 1; i >= 0; i--) {
+    if (span.events[i].name.startsWith("ai.stream.")) {
+      span.events.splice(i, 1);
+    }
+  }
 };

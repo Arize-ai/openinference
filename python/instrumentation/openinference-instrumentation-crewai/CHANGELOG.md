@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.20...python-openinference-instrumentation-crewai-v0.1.21) (2026-02-27)
+
+
+### Bug Fixes
+
+* **crewai:** propagate OTel context across thread and async boundaries ([#2805](https://github.com/Arize-ai/openinference/issues/2805)) ([4637961](https://github.com/Arize-ai/openinference/commit/4637961621639a3f74191d4c3cebc2eb533aafb9))
+
+## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.19...python-openinference-instrumentation-crewai-v0.1.20) (2026-02-24)
+
+
+### Bug Fixes
+
+* update agent span name to include task name ([#2767](https://github.com/Arize-ai/openinference/issues/2767)) ([99b8e4e](https://github.com/Arize-ai/openinference/commit/99b8e4e759eee98b34bb94d8f5489a52233f2bb3))
+
+## [0.1.19](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.18...python-openinference-instrumentation-crewai-v0.1.19) (2026-02-18)
+
+
+### Features
+
+* **crewai:** Add Kickoff ID Attribute in Root Level ([#2742](https://github.com/Arize-ai/openinference/issues/2742)) ([8df5581](https://github.com/Arize-ai/openinference/commit/8df558116cd3e596818640b69d5192497c16266c))
+* **crewai:** add task name attribute to span ([#2740](https://github.com/Arize-ai/openinference/issues/2740)) ([66fb074](https://github.com/Arize-ai/openinference/commit/66fb074ff0dad21c6c4f8d5d0752f39ef87f13e8))
+
 ## [0.1.18](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.17...python-openinference-instrumentation-crewai-v0.1.18) (2026-02-05)
 
 

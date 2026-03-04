@@ -22,6 +22,8 @@ Embedding spans typically include:
 - `input.mime_type`: Usually "application/json"
 - `output.value`: The raw output (embedding vectors as JSON or base64-encoded)
 - `output.mime_type`: Usually "application/json"
+- `llm.token_count.prompt`: Number of tokens in the input
+- `llm.token_count.total`: Total number of tokens used
 
 ### Text Attributes
 

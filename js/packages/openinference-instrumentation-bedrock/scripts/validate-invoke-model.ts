@@ -18,21 +18,7 @@
 
 /* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 
-import {
-  setMetadata,
-  setPromptTemplate,
-  setSession,
-  setTags,
-  setUser,
-} from "@arizeai/openinference-core";
-import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
-
-import {
-  context,
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
-} from "@opentelemetry/api";
+import { context, diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { Resource } from "@opentelemetry/resources";
@@ -41,6 +27,15 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+
+import {
+  setMetadata,
+  setPromptTemplate,
+  setSession,
+  setTags,
+  setUser,
+} from "@arizeai/openinference-core";
+import { SEMRESATTRS_PROJECT_NAME } from "@arizeai/openinference-semantic-conventions";
 
 import { BedrockInstrumentation, isPatched } from "../src/index";
 
@@ -52,8 +47,7 @@ const PHOENIX_ENDPOINT =
     : "http://localhost:6006/v1/traces");
 const PHOENIX_API_KEY = process.env.PHOENIX_API_KEY;
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const MODEL_ID =
-  process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0";
 
 // Test scenarios
 type TestScenario =
@@ -134,9 +128,7 @@ class InstrumentationValidator {
       resource: new Resource({
         [SEMRESATTRS_PROJECT_NAME]: "bedrock-validation-script",
       }),
-      spanProcessors: exporters.map(
-        (exporter) => new SimpleSpanProcessor(exporter),
-      ),
+      spanProcessors: exporters.map((exporter) => new SimpleSpanProcessor(exporter)),
     });
     this.provider.register();
   }
@@ -146,8 +138,7 @@ class InstrumentationValidator {
     const awsModule = await import("@aws-sdk/client-bedrock-runtime");
     this.BedrockRuntimeClient = awsModule.BedrockRuntimeClient;
     this.InvokeModelCommand = awsModule.InvokeModelCommand;
-    this.InvokeModelWithResponseStreamCommand =
-      awsModule.InvokeModelWithResponseStreamCommand;
+    this.InvokeModelWithResponseStreamCommand = awsModule.InvokeModelWithResponseStreamCommand;
 
     // Check if already patched
     if (!isPatched()) {
@@ -187,19 +178,14 @@ class InstrumentationValidator {
       sendMethod.toString().length < 100; // Wrapped methods are typically shorter
 
     if (globalPatchStatus && methodPatched) {
-      console.log(
-        "✅ Instrumentation verified: Both global status and method are patched",
-      );
+      console.log("✅ Instrumentation verified: Both global status and method are patched");
       return true;
     } else if (globalPatchStatus) {
       console.log("✅ Instrumentation verified: Global patch status is true");
       return true;
     } else {
       console.log("❌ Instrumentation verification failed");
-      console.log(
-        "   Send method signature:",
-        sendMethod.toString().substring(0, 100) + "...",
-      );
+      console.log("   Send method signature:", sendMethod.toString().substring(0, 100) + "...");
       console.log("   Global patch status:", globalPatchStatus);
       console.log("   Method appears patched:", methodPatched);
       return false;
@@ -222,9 +208,7 @@ class InstrumentationValidator {
 
     // Verify instrumentation is applied
     if (!this.verifyInstrumentation()) {
-      console.log(
-        "❌ Instrumentation verification failed - stopping validation",
-      );
+      console.log("❌ Instrumentation verification failed - stopping validation");
       return false;
     }
 
@@ -269,9 +253,7 @@ class InstrumentationValidator {
     }
 
     console.log("\n📊 Validation Summary:");
-    console.log(
-      allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed",
-    );
+    console.log(allPassed ? "✅ All scenarios passed" : "❌ Some scenarios failed");
 
     // Give time for traces to be exported
     console.log("\n⏳ Waiting for traces to be exported...");
@@ -333,10 +315,7 @@ class InstrumentationValidator {
     const response = await this.client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-    console.log(
-      "   💬 Response:",
-      responseBody.content[0].text.substring(0, 50) + "...",
-    );
+    console.log("   💬 Response:", responseBody.content[0].text.substring(0, 50) + "...");
     return true;
   }
 
@@ -360,18 +339,14 @@ class InstrumentationValidator {
             },
           },
         ],
-        messages: [
-          { role: "user", content: "What's the weather in San Francisco?" },
-        ],
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
       }),
     });
 
     const response = await this.client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-    const hasToolCall = responseBody.content.some(
-      (block: any) => block.type === "tool_use",
-    );
+    const hasToolCall = responseBody.content.some((block: any) => block.type === "tool_use");
     console.log("   🔧 Tool call detected:", hasToolCall);
 
     return true;
@@ -528,9 +503,7 @@ class InstrumentationValidator {
     const response = await this.client.send(command);
     const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-    const toolCalls = responseBody.content.filter(
-      (block: any) => block.type === "tool_use",
-    );
+    const toolCalls = responseBody.content.filter((block: any) => block.type === "tool_use");
     console.log("   🛠️ Multiple tool calls detected:", toolCalls.length);
 
     return true;
@@ -547,8 +520,7 @@ class InstrumentationValidator {
         messages: [
           {
             role: "user",
-            content:
-              "Tell me a very short story about a robot learning to paint.",
+            content: "Tell me a very short story about a robot learning to paint.",
           },
         ],
       }),
@@ -563,9 +535,7 @@ class InstrumentationValidator {
     // Process the streaming response
     for await (const chunk of response.body) {
       if (chunk.chunk?.bytes) {
-        const chunkData = JSON.parse(
-          new TextDecoder().decode(chunk.chunk.bytes),
-        );
+        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
         if (chunkData.type === "content_block_delta" && chunkData.delta?.text) {
           fullContent += chunkData.delta.text;
         }
@@ -633,9 +603,7 @@ class InstrumentationValidator {
     // Process the streaming response
     for await (const chunk of response.body) {
       if (chunk.chunk?.bytes) {
-        const chunkData = JSON.parse(
-          new TextDecoder().decode(chunk.chunk.bytes),
-        );
+        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
         if (
           chunkData.type === "content_block_start" &&
           chunkData.content_block?.type === "tool_use"
@@ -710,8 +678,7 @@ class InstrumentationValidator {
           setMetadata(
             setTags(
               setPromptTemplate(context.active(), {
-                template:
-                  "You are a helpful assistant. User message: {{message}}",
+                template: "You are a helpful assistant. User message: {{message}}",
                 version: "1.0.0",
                 variables: {
                   message: "Hello! This is a test with context attributes.",
@@ -742,15 +709,10 @@ class InstrumentationValidator {
     console.log("   📋 Context attributes configured:");
     console.log("      🆔 Session ID: validation-session-456");
     console.log("      👤 User ID: validation-user-123");
-    console.log(
-      "      📊 Metadata: experiment_name=bedrock-context-validation",
-    );
+    console.log("      📊 Metadata: experiment_name=bedrock-context-validation");
     console.log("      🏷️ Tags: [validation, context, bedrock, phoenix]");
     console.log("      📝 Prompt Template: You are a helpful assistant...");
-    console.log(
-      "   💬 Response:",
-      responseBody.content[0].text.substring(0, 50) + "...",
-    );
+    console.log("   💬 Response:", responseBody.content[0].text.substring(0, 50) + "...");
     console.log("   ✅ Context attributes should be visible in Phoenix trace");
 
     return true;
@@ -788,14 +750,9 @@ class InstrumentationValidator {
       // Check for Nova response structure
       const outputMessage = responseBody.output?.message;
       if (outputMessage?.content) {
-        const textContent = outputMessage.content.find(
-          (block: any) => block.text,
-        );
+        const textContent = outputMessage.content.find((block: any) => block.text);
         if (textContent) {
-          console.log(
-            "   💬 Nova response:",
-            textContent.text.substring(0, 60) + "...",
-          );
+          console.log("   💬 Nova response:", textContent.text.substring(0, 60) + "...");
         }
       }
 
@@ -809,13 +766,8 @@ class InstrumentationValidator {
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
-        console.log(
-          "   ⚠️ Nova model not available in this region, but instrumentation working",
-        );
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
+        console.log("   ⚠️ Nova model not available in this region, but instrumentation working");
         return true;
       }
       throw error;
@@ -843,10 +795,7 @@ class InstrumentationValidator {
 
       // Check for Meta response structure
       if (responseBody.generation) {
-        console.log(
-          "   💬 Llama response:",
-          responseBody.generation.substring(0, 60) + "...",
-        );
+        console.log("   💬 Llama response:", responseBody.generation.substring(0, 60) + "...");
       }
 
       // Check Meta usage statistics
@@ -856,17 +805,12 @@ class InstrumentationValidator {
       ) {
         console.log("   📈 Meta token usage:");
         console.log(`     Input tokens: ${responseBody.prompt_token_count}`);
-        console.log(
-          `     Output tokens: ${responseBody.generation_token_count}`,
-        );
+        console.log(`     Output tokens: ${responseBody.generation_token_count}`);
       }
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ Meta Llama model not available in this region, but instrumentation working",
         );
@@ -885,8 +829,7 @@ class InstrumentationValidator {
         messages: [
           {
             role: "user",
-            content:
-              "Hello! Tell me a brief fun fact about AI21's Jamba models.",
+            content: "Hello! Tell me a brief fun fact about AI21's Jamba models.",
           },
         ],
         max_tokens: 100,
@@ -904,10 +847,7 @@ class InstrumentationValidator {
       if (responseBody.choices && responseBody.choices.length > 0) {
         const message = responseBody.choices[0].message;
         if (message?.content) {
-          console.log(
-            "   💬 Jamba response:",
-            message.content.substring(0, 60) + "...",
-          );
+          console.log("   💬 Jamba response:", message.content.substring(0, 60) + "...");
         }
       }
 
@@ -915,18 +855,13 @@ class InstrumentationValidator {
       if (responseBody.usage) {
         console.log("   📈 AI21 token usage:");
         console.log(`     Input tokens: ${responseBody.usage.prompt_tokens}`);
-        console.log(
-          `     Output tokens: ${responseBody.usage.completion_tokens}`,
-        );
+        console.log(`     Output tokens: ${responseBody.usage.completion_tokens}`);
         console.log(`     Total tokens: ${responseBody.usage.total_tokens}`);
       }
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ AI21 Jamba model not available in this region, but instrumentation working",
         );
@@ -969,9 +904,7 @@ class InstrumentationValidator {
       // Process the streaming response
       for await (const chunk of response.body) {
         if (chunk.chunk?.bytes) {
-          const chunkData = JSON.parse(
-            new TextDecoder().decode(chunk.chunk.bytes),
-          );
+          const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
 
           // Nova streaming format is different from Anthropic
           if (chunkData.contentBlockDelta?.delta?.text) {
@@ -990,18 +923,12 @@ class InstrumentationValidator {
       );
 
       if (fullContent.length > 0) {
-        console.log(
-          "   💬 Nova content preview:",
-          fullContent.substring(0, 80) + "...",
-        );
+        console.log("   💬 Nova content preview:", fullContent.substring(0, 80) + "...");
       }
 
       return true;
     } catch (error: any) {
-      if (
-        error.name === "ValidationException" &&
-        error.message.includes("model identifier")
-      ) {
+      if (error.name === "ValidationException" && error.message.includes("model identifier")) {
         console.log(
           "   ⚠️ Nova streaming model not available in this region, but instrumentation working",
         );

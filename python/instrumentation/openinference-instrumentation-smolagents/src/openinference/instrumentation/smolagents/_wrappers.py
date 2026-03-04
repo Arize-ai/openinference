@@ -480,7 +480,9 @@ class _ModelWrapper:
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             if provider := (
                 infer_llm_provider_from_class_name(instance)
-                or infer_llm_provider_from_endpoint(instance)
+                or infer_llm_provider_from_endpoint(
+                    extract_llm_endpoint_from_sdk_instance(instance)
+                )
             ):
                 span.set_attribute(LLM_PROVIDER, provider.value)
             if system := infer_llm_system_from_model(model.model_id):
@@ -593,10 +595,10 @@ def infer_llm_provider_from_class_name(
     return None
 
 
-def infer_llm_provider_from_endpoint(
+def extract_llm_endpoint_from_sdk_instance(
     instance: Any = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
-    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+) -> Optional[str]:
+    """Extract the LLM API endpoint from an SDK instance when possible."""
     if instance is None:
         return None
 
@@ -607,20 +609,24 @@ def infer_llm_provider_from_endpoint(
         or getattr(instance, "host", None)
     )
 
-    if not endpoint:
+    if not isinstance(endpoint, str) and endpoint is not None:
+        return str(endpoint)
+
+    return endpoint
+
+
+def infer_llm_provider_from_endpoint(
+    endpoint: Optional[str] = None,
+) -> Optional[OpenInferenceLLMProviderValues]:
+    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
+    if not isinstance(endpoint, str):
         return None
 
-    if hasattr(endpoint, "host"):
-        host = endpoint.host
-    elif isinstance(endpoint, str):
-        host = urlparse(endpoint).hostname
-    else:
+    hostname = urlparse(endpoint).hostname
+    if hostname is None:
         return None
 
-    if not isinstance(host, str):
-        return None
-
-    host = host.lower()
+    host = hostname.lower()
 
     if host.endswith("api.openai.com"):
         return OpenInferenceLLMProviderValues.OPENAI
@@ -656,15 +662,14 @@ def infer_llm_system_from_model(
     model_name: Optional[str] = None,
 ) -> Optional[OpenInferenceLLMSystemValues]:
     """Infer the LLM system from a model identifier when possible."""
-    if not model_name:
+    if not isinstance(model_name, str):
         return None
 
     model = model_name.lower()
 
     if model.startswith(
         (
-            "gpt-",
-            "gpt.",
+            "gpt",
             "o1",
             "o3",
             "o4",
@@ -673,25 +678,22 @@ def infer_llm_system_from_model(
             "curie",
             "babbage",
             "ada",
-            "azure_openai",
-            "azure_ai",
             "azure",
+            "openai",
         )
     ):
         return OpenInferenceLLMSystemValues.OPENAI
 
-    if model.startswith(("anthropic.claude", "anthropic/", "claude-", "google_anthropic_vertex")):
+    if model.startswith(("anthropic", "claude", "google_anthropic_vertex")):
         return OpenInferenceLLMSystemValues.ANTHROPIC
 
-    if model.startswith(("cohere.command", "command", "cohere")):
+    if model.startswith(("cohere", "command")):
         return OpenInferenceLLMSystemValues.COHERE
 
-    if model.startswith(("mistralai", "mixtral", "mistral", "pixtral")):
+    if model.startswith(("mistral", "mixtral", "pixtral")):
         return OpenInferenceLLMSystemValues.MISTRALAI
 
-    if model.startswith(
-        ("google_vertexai", "google_genai", "vertexai", "vertex_ai", "vertex", "gemini", "google")
-    ):
+    if model.startswith(("vertex", "gemini", "google")):
         return OpenInferenceLLMSystemValues.VERTEXAI
 
     return None

@@ -1,14 +1,12 @@
-import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
-
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
+import type { Mock } from "vitest";
+
+import { SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { OpenInferenceOTLPTraceExporter } from "../src/OpenInferenceTraceExporter.js";
 import { isOpenInferenceSpan } from "../src/utils.js";
-
 import weatherAgentSpans from "./__fixtures__/weatherAgentSpans.json" with { type: "json" };
-
-import type { Mock } from "vitest";
 
 vi.mock(import("@opentelemetry/exporter-trace-otlp-proto"), () => {
   const mockedClass = vi.fn();
@@ -47,9 +45,7 @@ describe("OpenInferenceTraceExporter", () => {
     await expect(
       // @ts-expect-error - mock.calls is provided by vitest
       OTLPTraceExporter.prototype.export.mock.calls,
-    ).toMatchFileSnapshot(
-      `./__snapshots__/OpenInferenceTraceExporter.test.ts.export.json`,
-    );
+    ).toMatchFileSnapshot(`./__snapshots__/OpenInferenceTraceExporter.test.ts.export.json`);
   });
 
   it("should filter spans based on the spanFilter function", async () => {
@@ -58,8 +54,7 @@ describe("OpenInferenceTraceExporter", () => {
       headers: {
         Authorization: "Bearer test-api-key",
       },
-      spanFilter: (span) =>
-        span.name === "POST /api/agents/weatherAgent/stream",
+      spanFilter: (span) => span.name === "POST /api/agents/weatherAgent/stream",
     });
     exporter.export(weatherAgentSpans as unknown as ReadableSpan[], () => {});
     expect(
@@ -141,9 +136,7 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([mockSpan], () => {});
 
     // Check that the threadId was mapped to SESSION_ID
-    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe(
-      "test-thread-id-123",
-    );
+    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe("test-thread-id-123");
     // Original threadId should still be present
     expect(mockSpan.attributes.threadId).toBe("test-thread-id-123");
     // Other attributes should remain unchanged
@@ -256,9 +249,7 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([mockSpan], () => {});
 
     // Should preserve existing SESSION_ID, not overwrite with threadId
-    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe(
-      "existing-session-456",
-    );
+    expect(mockSpan.attributes[SemanticConventions.SESSION_ID]).toBe("existing-session-456");
     // threadId should remain unchanged
     expect(mockSpan.attributes.threadId).toBe("new-thread-123");
   });
@@ -297,20 +288,15 @@ describe("OpenInferenceTraceExporter", () => {
 
     exporter.export([rootSpan, agentSpan], () => {});
 
-    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock
-      .calls[0][0];
+    const exportedSpans = (OTLPTraceExporter.prototype.export as Mock).mock.calls[0][0];
 
     // Should have 2 spans: the filtered agent span + the added root span
     expect(exportedSpans).toHaveLength(2);
 
     // Check that root span was added
-    const addedRootSpan = exportedSpans.find(
-      (s: ReadableSpan) => s.name === "http.request",
-    );
+    const addedRootSpan = exportedSpans.find((s: ReadableSpan) => s.name === "http.request");
     expect(addedRootSpan).toBeDefined();
-    expect(
-      addedRootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND],
-    ).toBe("AGENT");
+    expect(addedRootSpan.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND]).toBe("AGENT");
   });
 
   it("should add input and output to root spans when I/O data is available", async () => {
@@ -362,8 +348,7 @@ describe("OpenInferenceTraceExporter", () => {
         traceState: undefined,
       }),
       attributes: {
-        [SemanticConventions.OUTPUT_VALUE]:
-          "The weather today is sunny with a high of 75°F.",
+        [SemanticConventions.OUTPUT_VALUE]: "The weather today is sunny with a high of 75°F.",
       },
       resource: { attributes: {} },
     } as unknown as ReadableSpan;
@@ -375,9 +360,7 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([rootSpan, userMessageSpan, outputSpan], () => {});
 
     // Check that input and output were added to root span
-    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
-      "what is the weather today?",
-    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe("what is the weather today?");
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
       "The weather today is sunny with a high of 75°F.",
     );
@@ -427,18 +410,10 @@ describe("OpenInferenceTraceExporter", () => {
     }).not.toThrow();
 
     // Root span should not have I/O attributes since no I/O data was found
-    expect(
-      rootSpan.attributes[SemanticConventions.INPUT_VALUE],
-    ).toBeUndefined();
-    expect(
-      rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE],
-    ).toBeUndefined();
-    expect(
-      rootSpan.attributes[SemanticConventions.OUTPUT_VALUE],
-    ).toBeUndefined();
-    expect(
-      rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE],
-    ).toBeUndefined();
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBeUndefined();
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBeUndefined();
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBeUndefined();
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBeUndefined();
 
     // Should still call the underlying exporter
     expect(OTLPTraceExporter.prototype.export).toHaveBeenCalled();
@@ -506,9 +481,7 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([rootSpan, streamSpan, outputSpan], () => {});
 
     // Check that input was extracted from the conversation messages (fallback method)
-    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
-      "Tell me a joke",
-    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe("Tell me a joke");
     expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
       "Why don't scientists trust atoms? Because they make up everything!",
     );
@@ -633,8 +606,7 @@ describe("OpenInferenceTraceExporter", () => {
         traceState: undefined,
       }),
       attributes: {
-        [SemanticConventions.OUTPUT_VALUE]:
-          "new output that should not overwrite",
+        [SemanticConventions.OUTPUT_VALUE]: "new output that should not overwrite",
       },
       resource: { attributes: {} },
     } as unknown as ReadableSpan;
@@ -646,18 +618,10 @@ describe("OpenInferenceTraceExporter", () => {
     exporter.export([rootSpan, userMessageSpan, outputSpan], () => {});
 
     // Check that existing I/O attributes were preserved (not overwritten)
-    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe(
-      "existing input value",
-    );
-    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe(
-      "application/json",
-    );
-    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
-      "existing output value",
-    );
-    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe(
-      "application/json",
-    );
+    expect(rootSpan.attributes[SemanticConventions.INPUT_VALUE]).toBe("existing input value");
+    expect(rootSpan.attributes[SemanticConventions.INPUT_MIME_TYPE]).toBe("application/json");
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("existing output value");
+    expect(rootSpan.attributes[SemanticConventions.OUTPUT_MIME_TYPE]).toBe("application/json");
   });
 
   it("should handle spans from different traces without cross-contamination", async () => {
@@ -780,19 +744,11 @@ describe("OpenInferenceTraceExporter", () => {
     );
 
     // Root span A should only have input/output from trace A
-    expect(rootSpanA.attributes[SemanticConventions.INPUT_VALUE]).toBe(
-      "Input for trace A",
-    );
-    expect(rootSpanA.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
-      "Output for trace A",
-    );
+    expect(rootSpanA.attributes[SemanticConventions.INPUT_VALUE]).toBe("Input for trace A");
+    expect(rootSpanA.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Output for trace A");
 
     // Root span B should only have input/output from trace B
-    expect(rootSpanB.attributes[SemanticConventions.INPUT_VALUE]).toBe(
-      "Input for trace B",
-    );
-    expect(rootSpanB.attributes[SemanticConventions.OUTPUT_VALUE]).toBe(
-      "Output for trace B",
-    );
+    expect(rootSpanB.attributes[SemanticConventions.INPUT_VALUE]).toBe("Input for trace B");
+    expect(rootSpanB.attributes[SemanticConventions.OUTPUT_VALUE]).toBe("Output for trace B");
   });
 });

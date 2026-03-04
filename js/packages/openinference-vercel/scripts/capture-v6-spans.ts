@@ -7,18 +7,18 @@
  * Run with: npx tsx scripts/capture-v6-spans.ts
  */
 
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+import { openai } from "@ai-sdk/openai";
 /* eslint-disable no-console */
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-
-import { openai } from "@ai-sdk/openai";
 import { embed, generateObject, generateText, streamText } from "ai";
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
 import { z } from "zod";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -156,11 +156,7 @@ async function captureEmbed(): Promise<void> {
     },
   });
 
-  console.log(
-    "embed result: embedding with",
-    result.embedding.length,
-    "dimensions",
-  );
+  console.log("embed result: embedding with", result.embedding.length, "dimensions");
 }
 
 type CaptureFunction = () => Promise<void>;
@@ -187,12 +183,7 @@ async function captureAllSpans(): Promise<void> {
 
   // Run all capture functions, collecting results
   results.push(await runCapture("generateText", captureGenerateText));
-  results.push(
-    await runCapture(
-      "generateTextWithMessages",
-      captureGenerateTextWithMessages,
-    ),
-  );
+  results.push(await runCapture("generateTextWithMessages", captureGenerateTextWithMessages));
   results.push(await runCapture("generateObject", captureGenerateObject));
   results.push(await runCapture("streamText", captureStreamText));
   results.push(await runCapture("embed", captureEmbed));
@@ -234,8 +225,7 @@ async function captureAllSpans(): Promise<void> {
   // Group spans by operation type for easier fixture generation
   const spansByOperation: Record<string, CapturedSpan[]> = {};
   for (const span of capturedSpans) {
-    const operationName =
-      (span.attributes["operation.name"] as string) || span.name;
+    const operationName = (span.attributes["operation.name"] as string) || span.name;
     const baseOperation = operationName.split(" ")[0]; // Remove functionId suffix
     if (!spansByOperation[baseOperation]) {
       spansByOperation[baseOperation] = [];
@@ -244,13 +234,7 @@ async function captureAllSpans(): Promise<void> {
   }
 
   // Write fixtures directory
-  const fixturesDir = path.join(
-    __dirname,
-    "..",
-    "test",
-    "__fixtures__",
-    "v6-spans",
-  );
+  const fixturesDir = path.join(__dirname, "..", "test", "__fixtures__", "v6-spans");
   fs.mkdirSync(fixturesDir, { recursive: true });
 
   // Write all spans to a single file
@@ -268,10 +252,7 @@ async function captureAllSpans(): Promise<void> {
   // Write individual operation files
   for (const [operation, opSpans] of Object.entries(spansByOperation)) {
     const filename = operation.replace(/\./g, "-") + ".json";
-    fs.writeFileSync(
-      path.join(fixturesDir, filename),
-      JSON.stringify(opSpans, null, 2),
-    );
+    fs.writeFileSync(path.join(fixturesDir, filename), JSON.stringify(opSpans, null, 2));
   }
 
   console.log(`\nFixtures written to: ${fixturesDir}`);

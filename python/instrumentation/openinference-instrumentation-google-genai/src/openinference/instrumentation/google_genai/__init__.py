@@ -25,6 +25,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_async_generate_content_stream",
         "_original_create_interactions_resource",
         "_original_async_create_interactions_resource",
+        "_original_create_caches",
+        "_original_async_create_caches",
         "_tracer",
     )
 
@@ -48,15 +50,18 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
                 AsyncInteractionsResource,
                 InteractionsResource,
             )
+            from google.genai.caches import AsyncCaches, Caches
             from google.genai.models import AsyncModels, Models
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
             ) from err
         from openinference.instrumentation.google_genai._wrappers import (
+            _AsyncCreateCachesWrapper,
             _AsyncCreateInteractionWrapper,
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
+            _SyncCreateCachesWrapper,
             _SyncCreateInteractionWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
@@ -67,6 +72,20 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="google.genai._interactions.resources",
             name="InteractionsResource.create",
             wrapper=_SyncCreateInteractionWrapper(tracer=self._tracer),
+        )
+
+        self._original_create_caches = Caches.create
+        wrap_function_wrapper(
+            module="google.genai.caches",
+            name="Caches.create",
+            wrapper=_SyncCreateCachesWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_create_caches = AsyncCaches.create
+        wrap_function_wrapper(
+            module="google.genai.caches",
+            name="AsyncCaches.create",
+            wrapper=_AsyncCreateCachesWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content
@@ -108,6 +127,7 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             AsyncInteractionsResource,
             InteractionsResource,
         )
+        from google.genai.caches import AsyncCaches, Caches
         from google.genai.models import AsyncModels, Models
 
         if self._original_generate_content is not None:
@@ -118,6 +138,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_generate_content_stream is not None:
             setattr(Models, "generate_content_stream", self._original_generate_content_stream)
+
+        if self._original_create_caches is not None:
+            setattr(Caches, "create", self._original_create_caches)
+
+        if self._original_async_create_caches is not None:
+            setattr(AsyncCaches, "create", self._original_async_create_caches)
 
         if self._original_async_generate_content_stream is not None:
             setattr(

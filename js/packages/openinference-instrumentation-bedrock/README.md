@@ -16,9 +16,7 @@ To load the Bedrock instrumentation, specify it in the registerInstrumentations 
 
 ```typescript
 const { NodeTracerProvider } = require("@opentelemetry/sdk-trace-node");
-const {
-  BedrockInstrumentation,
-} = require("@arizeai/openinference-instrumentation-bedrock");
+const { BedrockInstrumentation } = require("@arizeai/openinference-instrumentation-bedrock");
 const { registerInstrumentations } = require("@opentelemetry/instrumentation");
 
 const provider = new NodeTracerProvider();

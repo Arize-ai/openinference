@@ -1,30 +1,17 @@
-import { AttributeValue } from "@opentelemetry/api";
-
-import {
-  DefaultTraceConfig,
-  REDACTED_VALUE,
-} from "../../src/trace/trace-config/constants";
-import { mask } from "../../src/trace/trace-config/maskingRules";
-import {
-  TraceConfig,
-  TraceConfigKey,
-} from "../../src/trace/trace-config/types";
-import { assertUnreachable } from "../../src/utils";
-
+import type { AttributeValue } from "@opentelemetry/api";
 import { describe, expect, test } from "vitest";
+
+import { DefaultTraceConfig, REDACTED_VALUE } from "../../src/trace/trace-config/constants";
+import { mask } from "../../src/trace/trace-config/maskingRules";
+import type { TraceConfig, TraceConfigKey } from "../../src/trace/trace-config/types";
+import { assertUnreachable } from "../../src/utils";
 
 type Name = string;
 type ExpectedValue = AttributeValue | undefined;
 type AttributeKey = string;
 type InitialValue = AttributeValue;
 
-type MaskTestCases = [
-  Name,
-  TraceConfig,
-  ExpectedValue,
-  AttributeKey,
-  InitialValue,
-];
+type MaskTestCases = [Name, TraceConfig, ExpectedValue, AttributeKey, InitialValue];
 const generateMaskTestCases = (): MaskTestCases[] => {
   const testCases: MaskTestCases[] = [];
   Object.keys(DefaultTraceConfig).forEach((key) => {
@@ -132,10 +119,7 @@ const generateMaskTestCases = (): MaskTestCases[] => {
 };
 
 describe("mask", () => {
-  test.each(generateMaskTestCases())(
-    "%s",
-    (_, config, expected, key, initialValue) => {
-      expect(mask({ config, key, value: initialValue })).toEqual(expected);
-    },
-  );
+  test.each(generateMaskTestCases())("%s", (_, config, expected, key, initialValue) => {
+    expect(mask({ config, key, value: initialValue })).toEqual(expected);
+  });
 });

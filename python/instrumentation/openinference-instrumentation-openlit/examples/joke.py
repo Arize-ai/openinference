@@ -49,10 +49,7 @@ if __name__ == "__main__":
 
     tracer = provider.get_tracer(__name__)
 
-    openlit.init(
-        tracer=tracer,
-        otlp_endpoint=None,
-    )
+    openlit.init(otel_tracer=tracer)
 
 kernel = Kernel()
 
