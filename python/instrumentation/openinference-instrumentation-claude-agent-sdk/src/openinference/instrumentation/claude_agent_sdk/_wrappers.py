@@ -47,8 +47,7 @@ LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 AGENT_NAME = SpanAttributes.AGENT_NAME
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
-# TODO: replace with SpanAttributes.TOOL_ID once semconv PR #2831 is merged
-TOOL_ID = "tool.id"
+TOOL_ID = SpanAttributes.TOOL_ID
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT

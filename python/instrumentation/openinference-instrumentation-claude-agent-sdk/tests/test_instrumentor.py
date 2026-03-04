@@ -392,7 +392,7 @@ async def test_query_tool_spans_from_messages(
         attrs = dict(span.attributes or {})
         assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None) == TOOL_KIND
         assert attrs.pop(SpanAttributes.TOOL_NAME, None) == "Bash"
-        tool_id = attrs.pop("tool.id", None)
+        tool_id = attrs.pop(SpanAttributes.TOOL_ID, None)
         assert isinstance(tool_id, str)
         assert tool_id
         tool_params = attrs.pop(SpanAttributes.TOOL_PARAMETERS, None)
@@ -486,7 +486,7 @@ async def test_query_task_subagent_spans(
     parent_tool_attrs = dict(parent_tool_span.attributes or {})
     assert parent_tool_attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None) == TOOL_KIND
     assert parent_tool_attrs.pop(SpanAttributes.TOOL_NAME, None) == parent_tool_name
-    parent_tool_id = parent_tool_attrs.pop("tool.id", None)
+    parent_tool_id = parent_tool_attrs.pop(SpanAttributes.TOOL_ID, None)
     assert isinstance(parent_tool_id, str)
     assert parent_tool_id
     parent_tool_params = parent_tool_attrs.pop(SpanAttributes.TOOL_PARAMETERS, None)
@@ -566,7 +566,7 @@ async def test_query_tool_fallback_when_hooks_unavailable(
         attrs = dict(span.attributes or {})
         assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None) == TOOL_KIND
         assert attrs.pop(SpanAttributes.TOOL_NAME, None) == "Bash"
-        tool_id = attrs.pop("tool.id", None)
+        tool_id = attrs.pop(SpanAttributes.TOOL_ID, None)
         assert isinstance(tool_id, str)
         assert tool_id
         tool_params = attrs.pop(SpanAttributes.TOOL_PARAMETERS, None)
@@ -619,7 +619,7 @@ async def test_client_tool_hooks_create_tool_spans(
         attrs = dict(span.attributes or {})
         assert attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND, None) == TOOL_KIND
         assert attrs.pop(SpanAttributes.TOOL_NAME, None) == "Bash"
-        tool_id = attrs.pop("tool.id", None)
+        tool_id = attrs.pop(SpanAttributes.TOOL_ID, None)
         assert isinstance(tool_id, str)
         assert tool_id
         tool_params = attrs.pop(SpanAttributes.TOOL_PARAMETERS, None)
