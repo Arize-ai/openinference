@@ -18,6 +18,7 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -43,6 +44,9 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
 )
 LLM_COST_TOTAL = SpanAttributes.LLM_COST_TOTAL
 AGENT_NAME = SpanAttributes.AGENT_NAME
+LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
+LLM_SYSTEM_ANTHROPIC = OpenInferenceLLMSystemValues.ANTHROPIC.value
+# TODO: replace with SpanAttributes.TOOL_ID once semconv PR #2831 is merged
 TOOL_ID = "tool.id"
 
 
@@ -183,6 +187,9 @@ def _is_result_success_message(msg: Any) -> bool:
 
 
 def _is_result_error_message(msg: Any) -> bool:
+    # For SDK typed ResultMessage objects: use the authoritative is_error field.
+    if _get_field(msg, "is_error") is True:
+        return True
     msg_type = _get_field(msg, "type")
     subtype = _get_field(msg, "subtype")
     if msg_type == "result" and isinstance(subtype, str) and subtype.startswith("error"):
@@ -289,9 +296,9 @@ def _make_hook_matcher(callback: Callable[[Any], Any]) -> Any:
         if matcher_type is None:
             continue
         try:
-            matcher = matcher_type(hooks=[callback])
-            if isinstance(matcher, MappingABC):
-                return matcher
+            # HookMatcher is a @dataclass (not a Mapping). Return it directly so
+            # the SDK's _convert_hooks_to_internal_format can see hasattr(m, "hooks").
+            return matcher_type(hooks=[callback])
         except Exception:
             continue
     return {"hooks": [callback]}
@@ -467,14 +474,10 @@ def _merge_hooks(options: Any, tool_tracker: "_ToolSpanTrackerBase") -> Any | No
             if isinstance(matcher, MappingABC):
                 normalized.append(dict(matcher))
                 continue
-            data: dict[str, Any] = {}
-            for key in ("hooks", "matcher", "timeout"):
-                if hasattr(matcher, key):
-                    data[key] = getattr(matcher, key)
-            if data:
-                normalized.append(data)
-            else:
-                normalized.append(matcher)
+            # Keep HookMatcher (and any other non-Mapping) as-is.
+            # The SDK's _convert_hooks_to_internal_format uses hasattr(m, "hooks")
+            # which works on HookMatcher dataclasses but not on plain dicts.
+            normalized.append(matcher)
         merged_hooks[event] = [*normalized, *matchers]
     return _set_hooks(opts, merged_hooks)
 
@@ -835,6 +838,7 @@ class _QueryWrapper:
             attributes=dict(
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
+                    (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())
@@ -964,6 +968,7 @@ class _ClientReceiveResponseWrapper:
             attributes=dict(
                 [
                     (OPENINFERENCE_SPAN_KIND, AGENT),
+                    (LLM_SYSTEM, LLM_SYSTEM_ANTHROPIC),
                     *_format_prompt_attributes(prompt).items(),
                 ]
                 + list(get_attributes_from_context())

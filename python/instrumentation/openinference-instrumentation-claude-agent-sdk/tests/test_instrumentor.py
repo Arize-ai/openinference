@@ -19,6 +19,7 @@ from opentelemetry.trace import StatusCode
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
+    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -677,6 +678,8 @@ async def test_query_real_agent_span(
     assert isinstance(session_id, str)
     model_name = attrs.pop(SpanAttributes.LLM_MODEL_NAME, None)
     assert isinstance(model_name, str)
+    llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
+    assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
     assert isinstance(prompt_tokens, int)
@@ -734,6 +737,8 @@ async def test_client_real_agent_span(
     assert isinstance(session_id, str)
     model_name = attrs.pop(SpanAttributes.LLM_MODEL_NAME, None)
     assert isinstance(model_name, str)
+    llm_system = attrs.pop(SpanAttributes.LLM_SYSTEM, None)
+    assert llm_system == OpenInferenceLLMSystemValues.ANTHROPIC.value
     prompt_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, None)
     completion_tokens = attrs.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, None)
     assert isinstance(prompt_tokens, int)
