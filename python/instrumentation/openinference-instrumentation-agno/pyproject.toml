@@ -42,6 +42,7 @@ test = [
   "agno>=2.5.0",
   "opentelemetry-sdk",
   "pytest-recording",
+  "brotli",
   "openai",
   "ddgs",
   "yfinance",
