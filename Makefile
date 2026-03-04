@@ -8,7 +8,7 @@ SHELL := /bin/bash
 RUFF_VERSION := 0.9.2
 RUFF := uvx ruff@$(RUFF_VERSION)
 PNPM := pnpm
-TOX := uvx --with tox-uv==1.11.2 tox
+TOX := tox
 
 # Directories
 PYTHON_DIR := python
