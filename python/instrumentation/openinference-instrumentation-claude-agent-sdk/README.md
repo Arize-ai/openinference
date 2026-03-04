@@ -1,10 +1,10 @@
 # OpenInference Claude Agent SDK Instrumentation
 
-Python auto-instrumentation for the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) (Python). Traces **`query()`** and **`ClaudeSDKClient`** as OpenInference AGENT spans with input (prompt/options), tools (including MCP server tools), and output messages.
+Python auto-instrumentation for the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk/overview) (Python). Traces **`query()`** and **`ClaudeSDKClient`** as OpenInference AGENT spans with prompt input, result output, session/model metadata, token counts, and tool child spans via hook injection.
 
 - **`query()`** – One span per call (one-off sessions).
 - **`ClaudeSDKClient`** – One span per response turn: each time you iterate **`receive_response()`** (or **`receive_messages()`**), a span is created for that turn. Use for [continuous conversations](https://platform.claude.com/docs/en/agent-sdk/python#claudesdkclient).
-- **Tools** – `allowed_tools` and `tools` from `ClaudeAgentOptions` are recorded as `llm.tools`, including MCP tool names (e.g. `mcp__server__tool_name`).
+- **Tools** – Tool calls are captured as child **TOOL** spans via Claude Agent SDK hooks (PreToolUse/PostToolUse/PostToolUseFailure).
 
 For detailed LLM and tool spans inside agent runs, use [openinference-instrumentation-anthropic](https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-anthropic) together with this package; the Agent SDK uses the Anthropic API under the hood.
 
@@ -83,12 +83,13 @@ See [examples/README.md](examples/README.md) for details.
 ## What is instrumented
 
 - **`query()`** – Each call is wrapped in a single AGENT span named `ClaudeAgentSDK.query` with:
-  - **Input**: `prompt` (string or `<AsyncIterable>`) and serialized `options`
-  - **Tools**: `llm.tools` from `options.allowed_tools` and `options.tools` (including MCP tools, e.g. `mcp__calc__add`)
-  - **Output**: Message summary and per-message `llm.output_messages` (role, content, tool calls)
+  - **Input**: prompt text or JSON (for async message iterables)
+  - **Output**: result text/JSON from the SDK result message
+  - **Metadata**: `session.id`, `llm.model_name`, token counts, and `llm.cost.total` when available
+  - **Tools**: TOOL child spans created via SDK hooks
 
 - **`ClaudeSDKClient`** – For multi-turn conversations:
-  - **`connect(prompt=...)`** and **`query(prompt)`** record the prompt/options for the next response.
-  - Each **`receive_response()`** iteration is wrapped in an AGENT span named `ClaudeAgentSDK.ClaudeSDKClient.receive_response` with the same input/output/tools shape as above.
+  - **`connect(prompt=...)`** and **`query(prompt)`** record the prompt for the next response.
+  - Each **`receive_response()`** iteration is wrapped in an AGENT span named `ClaudeAgentSDK.ClaudeSDKClient.receive_response` with the same input/output/metadata/tool spans as above.
 
 Child LLM/tool spans (from the SDK’s internal Anthropic usage) are not created by this package; add `openinference-instrumentation-anthropic` and instrument Anthropic for that.

@@ -28,20 +28,15 @@ dependencies = [
     "opentelemetry-api",
     "opentelemetry-instrumentation",
     "opentelemetry-semantic-conventions",
-    "openinference-instrumentation>=0.1.27",
-    "openinference-semantic-conventions>=0.1.17",
-    "wrapt",
+    "openinference-instrumentation>=0.1.44",
+    "openinference-semantic-conventions>=0.1.26",
     "typing-extensions",
+    "wrapt",
 ]
 
 [project.optional-dependencies]
 instruments = [
-    "claude-agent-sdk>=0.1.0",
-]
-test = [
-    "claude-agent-sdk>=0.1.0",
-    "opentelemetry-sdk",
-    "pytest-asyncio",
+    "claude-agent-sdk>=0.1.45",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -69,9 +64,7 @@ asyncio_mode = "auto"
 testpaths = [
     "tests",
 ]
-filterwarnings = [
-    "ignore::requests.exceptions.RequestsDependencyWarning",
-]
+filterwarnings = []
 
 [tool.mypy]
 strict = true

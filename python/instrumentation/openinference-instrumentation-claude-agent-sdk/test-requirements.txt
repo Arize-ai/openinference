@@ -1,4 +1,7 @@
-claude-agent-sdk>=0.1.0
-opentelemetry-sdk
+claude-agent-sdk==0.1.45
+opentelemetry-sdk>=1.39.0
 pytest
 pytest-asyncio
+pytest-timeout
+pyyaml
+types-PyYAML
