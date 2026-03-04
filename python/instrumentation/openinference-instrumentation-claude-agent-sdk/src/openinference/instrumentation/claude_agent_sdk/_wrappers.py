@@ -215,10 +215,8 @@ def _is_result_error_message(msg: Any) -> bool:
     )
 
 
-def _extract_result_success_attributes(msg: Any) -> dict[str, Any]:
+def _extract_usage_and_cost_attributes(msg: Any) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
-    if (result := _get_field(msg, "result")) is not None:
-        attributes.update(get_output_attributes(result))
     if model := _extract_model_name(msg):
         attributes[LLM_MODEL_NAME] = model
     usage = _coerce_usage(_get_field(msg, "usage"))
@@ -247,36 +245,20 @@ def _extract_result_success_attributes(msg: Any) -> dict[str, Any]:
     return attributes
 
 
+def _extract_result_success_attributes(msg: Any) -> dict[str, Any]:
+    attributes: dict[str, Any] = {}
+    if (result := _get_field(msg, "result")) is not None:
+        attributes.update(get_output_attributes(result))
+    attributes.update(_extract_usage_and_cost_attributes(msg))
+    return attributes
+
+
 def _extract_result_error_attributes(msg: Any) -> dict[str, Any]:
     attributes: dict[str, Any] = {}
     errors = _get_field(msg, "errors")
     if errors:
         attributes.update(get_output_attributes(safe_json_dumps(errors), mime_type=JSON))
-    if model := _extract_model_name(msg):
-        attributes[LLM_MODEL_NAME] = model
-    usage = _coerce_usage(_get_field(msg, "usage"))
-    input_tokens = _safe_int(usage.get("input_tokens"))
-    output_tokens = _safe_int(usage.get("output_tokens"))
-    cache_read_tokens = _safe_int(usage.get("cache_read_input_tokens"))
-    cache_write_tokens = _safe_int(
-        usage.get("cache_write_input_tokens")
-        if usage.get("cache_write_input_tokens") is not None
-        else usage.get("cache_creation_input_tokens")
-    )
-    if input_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT] = input_tokens
-    if output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_COMPLETION] = output_tokens
-    if input_tokens is not None and output_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_TOTAL] = input_tokens + output_tokens
-    if cache_read_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cache_read_tokens
-    if cache_write_tokens is not None:
-        attributes[LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cache_write_tokens
-    if (cost := _safe_float(_get_field(msg, "total_cost_usd"))) is not None:
-        attributes[LLM_COST_TOTAL] = cost
-    if session_id := _get_field(msg, "session_id"):
-        attributes[SESSION_ID] = session_id
+    attributes.update(_extract_usage_and_cost_attributes(msg))
     return attributes
 
 
