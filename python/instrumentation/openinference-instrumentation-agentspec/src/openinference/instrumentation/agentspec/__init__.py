@@ -13,6 +13,7 @@ from openinference.instrumentation.agentspec._openinference_spanprocessor import
 )
 
 logger = logging.getLogger(__name__)
+
 logger.addHandler(logging.NullHandler())
 
 

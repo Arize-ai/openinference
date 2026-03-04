@@ -8,6 +8,8 @@ from collections.abc import Mapping as MappingABC
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple
 
 import opentelemetry.context as context_api
+from opentelemetry import trace as trace_api
+
 from openinference.instrumentation import (
     get_attributes_from_context,
     get_input_attributes,
@@ -23,7 +25,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolCallAttributes,
 )
-from opentelemetry import trace as trace_api
 
 if TYPE_CHECKING:
     from claude_agent_sdk.types import Message

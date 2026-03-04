@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
+
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrumentor
 from openinference.semconv.trace import (
@@ -22,8 +25,6 @@ from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
 
 TOOL_KIND = OpenInferenceSpanKindValues.TOOL.value
 AGENT_KIND = OpenInferenceSpanKindValues.AGENT.value
@@ -266,8 +267,9 @@ async def test_task_subagent_span_parenting(
     tracer_provider: Any,
 ) -> None:
     """Task tool invocations should create a subagent span under the tool span."""
-    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
     from opentelemetry import trace as trace_api
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
 
     trace_api.set_tracer_provider(tracer_provider)
     tracer = tracer_provider.get_tracer(__name__)
@@ -549,8 +551,9 @@ async def test_query_tool_fallback_when_hooks_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If hooks cannot be injected, message-based tool tracking should work."""
-    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
     from claude_agent_sdk import ClaudeAgentOptions, query
+
+    import openinference.instrumentation.claude_agent_sdk._wrappers as wrappers
 
     monkeypatch.setattr(wrappers, "_merge_hooks", lambda *args, **kwargs: None)
 
