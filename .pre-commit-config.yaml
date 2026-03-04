@@ -1,0 +1,32 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format-python
+        name: ruff format (Python)
+        language: system
+        entry: uvx ruff@0.9.2 format
+        args: [--config, python/ruff.toml]
+        files: \.py$
+        pass_filenames: true
+
+      - id: ruff-lint-python
+        name: ruff lint (Python)
+        language: system
+        entry: uvx ruff@0.9.2 check
+        args: [--config, python/ruff.toml, --fix]
+        files: \.py$
+        pass_filenames: true
+
+      - id: oxfmt-js
+        name: oxfmt (JS/TS)
+        language: system
+        entry: pnpm --dir js run fmt
+        files: js/.*\.(jsx?|tsx?|json|ya?ml)$
+        pass_filenames: false
+
+      - id: oxlint-js
+        name: oxlint (JS/TS)
+        language: system
+        entry: pnpm --dir js run lint:fix
+        files: js/.*\.[jt]sx?$
+        pass_filenames: false

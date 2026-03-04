@@ -5,3 +5,4 @@ pytest-asyncio==0.23.8
 pytest-xdist==3.6.1
 pytest-socket==0.7.0
 packaging
+pre-commit
