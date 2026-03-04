@@ -5,4 +5,3 @@ respx
 numpy
 pytest-vcr
 httpx<0.28
- 
