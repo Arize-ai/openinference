@@ -505,8 +505,7 @@ export const TOOL_JSON_SCHEMA =
 /**
  * The identifier for the result of the tool call (corresponding to tool_call.id).
  */
-export const TOOL_ID =
-  `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.id}` as const;
+export const TOOL_ID = `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.id}` as const;
 
 /**
  * The session id of a trace. Used to correlate spans in a single session.
