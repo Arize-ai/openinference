@@ -4,7 +4,7 @@ from openinference.instrumentation.claude_agent_sdk import ClaudeAgentSDKInstrum
 
 
 def test_entrypoint_opentelemetry_instrumentor() -> None:
-    (ep,) = entry_points(  # type: ignore[no-untyped-call]
+    (ep,) = entry_points(
         group="opentelemetry_instrumentor",
         name="claude_agent_sdk",
     )
@@ -13,7 +13,7 @@ def test_entrypoint_opentelemetry_instrumentor() -> None:
 
 
 def test_entrypoint_openinference_instrumentor() -> None:
-    (ep,) = entry_points(  # type: ignore[no-untyped-call]
+    (ep,) = entry_points(
         group="openinference_instrumentor",
         name="claude_agent_sdk",
     )
