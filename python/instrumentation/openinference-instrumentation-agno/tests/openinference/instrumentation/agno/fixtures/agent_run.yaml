@@ -44,28 +44,23 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D07s99FLwa4Z1r1cGuxMtRLiuoKbY\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1768922633,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
-        : [\n          {\n            \"id\": \"call_6aUxrbwJhnznOn8ql6heK7K9\",\n\
-        \            \"type\": \"function\",\n            \"function\": {\n      \
-        \        \"name\": \"web_search\",\n              \"arguments\": \"{\\\"query\\\
-        \":\\\"trending on Twitter\\\"}\"\n            }\n          }\n        ],\n\
-        \        \"refusal\": null,\n        \"annotations\": []\n      },\n     \
-        \ \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n\
-        \  \"usage\": {\n    \"prompt_tokens\": 139,\n    \"completion_tokens\": 17,\n\
-        \    \"total_tokens\": 156,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\"\
-        : 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
-        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
-        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
-        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
-        \ \"fp_c4585b5b9c\"\n}\n"
+      string: !!binary |
+        YwBYIgBA/G9Nu3s5/Xln3ZTOeUvpDOKPEgsEMWWL//9XOz6OIzpif6NZFx5cKq/b/s7YWKuHg500
+        /JYHGnGY5vt6LazHU/m5y1ZRn/2NiGAyCIIuVNC1q5LD/qxdLI4vt2r8PvADfdLtrsL9pensRfqG
+        OCKCTVesA6dzMMSgMraByDeX6ziDoMFsOl8Mh9PRiPhubTOuIAi5C8nYJrVpTDLsD8dJf5YM5hK0
+        hTWaWwj6iIiIfs8OiDAH/gaC+vFVOSIjhQB+iQjeVgxBUG1r2qCagBgAJexGBTVdVRHvBWsrqVVV
+        KecH+tuGgP1UVZWcqqedT7fnRfPT3DTzdTUt+GJ2sdDJxYd7Z5QajbESo2h9QuEMERpV89dbTuWo
+        nd4Yp7L9txCE30+sO/b7T4hPBM9NZpqcbEOPWxMC+0/8wyv67yO06VfcYMr+JqqCDstW+0ua8x/z
+        x1DZ3HmbtuwOauAR+b2xQ4gMOJExzIwhuiQ/hfO2dkEGW7LiajBabAQdERH2bIH/RoC0c5NpLNOR
+        Zftom4wxaKULztihA96qLjOWyLQJ/9dYtFY+j8HVpsl3IC5ozS5wJgs/LnsNUGueV6ydKNLGv6pW
+        OC+DYQ9BeL5ygG7fBq7l0jQ5e+fNLfQClk7q8WQ+SSfpQiP6jwwD
     headers:
       CF-RAY:
       - 9c0f93558f218e3a-KHI
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -80,6 +75,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -139,393 +136,84 @@ interactions:
     uri: https://html.duckduckgo.com/html/
   response:
     body:
-      string: "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"\
-        http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n\n<!--[if IE 6]><html\
-        \ class=\"ie6\" xmlns=\"http://www.w3.org/1999/xhtml\"><![endif]-->\n<!--[if\
-        \ IE 7]><html class=\"lt-ie8 lt-ie9\" xmlns=\"http://www.w3.org/1999/xhtml\"\
-        ><![endif]-->\n<!--[if IE 8]><html class=\"lt-ie9\" xmlns=\"http://www.w3.org/1999/xhtml\"\
-        ><![endif]-->\n<!--[if gt IE 8]><!--><html xmlns=\"http://www.w3.org/1999/xhtml\"\
-        ><!--<![endif]-->\n<head>\n  <meta http-equiv=\"content-type\" content=\"\
-        text/html; charset=UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width,\
-        \ initial-scale=1.0, maximum-scale=3.0, user-scalable=1\" />\n  <meta name=\"\
-        referrer\" content=\"origin\" />\n  <meta name=\"HandheldFriendly\" content=\"\
-        true\" />\n  <meta name=\"robots\" content=\"noindex, nofollow\" />\n  <title>trending\
-        \ on Twitter at DuckDuckGo</title>\n  <link title=\"DuckDuckGo (HTML)\" type=\"\
-        application/opensearchdescription+xml\" rel=\"search\" href=\"//duckduckgo.com/opensearch_html_v2.xml\"\
-        \ />\n  <link href=\"//duckduckgo.com/favicon.ico\" rel=\"shortcut icon\"\
-        \ />\n  <link rel=\"icon\" href=\"//duckduckgo.com/favicon.ico\" type=\"image/x-icon\"\
-        \ />\n  <link id=\"icon60\" rel=\"apple-touch-icon\" href=\"//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_60x60.png?v=2\"\
-        />\n  <link id=\"icon76\" rel=\"apple-touch-icon\" sizes=\"76x76\" href=\"\
-        //duckduckgo.com/assets/icons/meta/DDG-iOS-icon_76x76.png?v=2\"/>\n  <link\
-        \ id=\"icon120\" rel=\"apple-touch-icon\" sizes=\"120x120\" href=\"//duckduckgo.com/assets/icons/meta/DDG-iOS-icon_120x120.png?v=2\"\
-        />\n  <link id=\"icon152\" rel=\"apple-touch-icon\" sizes=\"152x152\" href=\"\
-        //duckduckgo.com/assets/icons/meta/DDG-iOS-icon_152x152.png?v=2\"/>\n  <link\
-        \ rel=\"image_src\" href=\"//duckduckgo.com/assets/icons/meta/DDG-icon_256x256.png\"\
-        >\n  <link rel=\"stylesheet\" media=\"handheld, all\" href=\"//duckduckgo.com/dist/h.048d08a46e4d9eef6e45.css\"\
-        \ type=\"text/css\"/>\n</head>\n\n<body class=\"body--html\">\n  <a name=\"\
-        top\" id=\"top\"></a>\n\n  <form action=\"/html/\" method=\"post\">\n    <input\
-        \ type=\"text\" name=\"state_hidden\" id=\"state_hidden\" />\n  </form>\n\n\
-        \  <div>\n    <div class=\"site-wrapper-border\"></div>\n\n    <div id=\"\
-        header\" class=\"header cw header--html\">\n      <a title=\"DuckDuckGo\"\
-        \ href=\"/html/\" class=\"header__logo-wrap\"></a>\n\n      <form name=\"\
-        x\" class=\"header__form\" action=\"/html/\" method=\"post\">\n        <div\
-        \ class=\"search search--header\">\n          <input name=\"q\" autocomplete=\"\
-        off\" class=\"search__input\" id=\"search_form_input_homepage\" type=\"text\"\
-        \ value=\"trending on Twitter\" />\n          <input name=\"b\" id=\"search_button_homepage\"\
-        \ class=\"search__button search__button--html\" value=\"\" title=\"Search\"\
-        \ alt=\"Search\" type=\"submit\" />\n        </div>\n\n        \n        \n\
-        \        \n        \n\n        <div class=\"frm__select\">\n          <select\
-        \ name=\"kl\">\n            \n              <option value=\"\" >All Regions</option>\n\
-        \            \n              <option value=\"ar-es\" >Argentina</option>\n\
-        \            \n              <option value=\"au-en\" >Australia</option>\n\
-        \            \n              <option value=\"at-de\" >Austria</option>\n \
-        \           \n              <option value=\"be-fr\" >Belgium (fr)</option>\n\
-        \            \n              <option value=\"be-nl\" >Belgium (nl)</option>\n\
-        \            \n              <option value=\"br-pt\" >Brazil</option>\n  \
-        \          \n              <option value=\"bg-bg\" >Bulgaria</option>\n  \
-        \          \n              <option value=\"ca-en\" >Canada (en)</option>\n\
-        \            \n              <option value=\"ca-fr\" >Canada (fr)</option>\n\
-        \            \n              <option value=\"ct-ca\" >Catalonia</option>\n\
-        \            \n              <option value=\"cl-es\" >Chile</option>\n   \
-        \         \n              <option value=\"cn-zh\" >China</option>\n      \
-        \      \n              <option value=\"co-es\" >Colombia</option>\n      \
-        \      \n              <option value=\"hr-hr\" >Croatia</option>\n       \
-        \     \n              <option value=\"cz-cs\" >Czech Republic</option>\n \
-        \           \n              <option value=\"dk-da\" >Denmark</option>\n  \
-        \          \n              <option value=\"ee-et\" >Estonia</option>\n   \
-        \         \n              <option value=\"fi-fi\" >Finland</option>\n    \
-        \        \n              <option value=\"fr-fr\" >France</option>\n      \
-        \      \n              <option value=\"de-de\" >Germany</option>\n       \
-        \     \n              <option value=\"gr-el\" >Greece</option>\n         \
-        \   \n              <option value=\"hk-tzh\" >Hong Kong</option>\n       \
-        \     \n              <option value=\"hu-hu\" >Hungary</option>\n        \
-        \    \n              <option value=\"is-is\" >Iceland</option>\n         \
-        \   \n              <option value=\"in-en\" >India (en)</option>\n       \
-        \     \n              <option value=\"id-en\" >Indonesia (en)</option>\n \
-        \           \n              <option value=\"ie-en\" >Ireland</option>\n  \
-        \          \n              <option value=\"il-en\" >Israel (en)</option>\n\
-        \            \n              <option value=\"it-it\" >Italy</option>\n   \
-        \         \n              <option value=\"jp-jp\" >Japan</option>\n      \
-        \      \n              <option value=\"kr-kr\" >Korea</option>\n         \
-        \   \n              <option value=\"lv-lv\" >Latvia</option>\n           \
-        \ \n              <option value=\"lt-lt\" >Lithuania</option>\n          \
-        \  \n              <option value=\"my-en\" >Malaysia (en)</option>\n     \
-        \       \n              <option value=\"mx-es\" >Mexico</option>\n       \
-        \     \n              <option value=\"nl-nl\" >Netherlands</option>\n    \
-        \        \n              <option value=\"nz-en\" >New Zealand</option>\n \
-        \           \n              <option value=\"no-no\" >Norway</option>\n   \
-        \         \n              <option value=\"pk-en\" >Pakistan (en)</option>\n\
-        \            \n              <option value=\"pe-es\" >Peru</option>\n    \
-        \        \n              <option value=\"ph-en\" >Philippines (en)</option>\n\
-        \            \n              <option value=\"pl-pl\" >Poland</option>\n  \
-        \          \n              <option value=\"pt-pt\" >Portugal</option>\n  \
-        \          \n              <option value=\"ro-ro\" >Romania</option>\n   \
-        \         \n              <option value=\"ru-ru\" >Russia</option>\n     \
-        \       \n              <option value=\"xa-ar\" >Saudi Arabia</option>\n \
-        \           \n              <option value=\"sg-en\" >Singapore</option>\n\
-        \            \n              <option value=\"sk-sk\" >Slovakia</option>\n\
-        \            \n              <option value=\"sl-sl\" >Slovenia</option>\n\
-        \            \n              <option value=\"za-en\" >South Africa</option>\n\
-        \            \n              <option value=\"es-ca\" >Spain (ca)</option>\n\
-        \            \n              <option value=\"es-es\" >Spain (es)</option>\n\
-        \            \n              <option value=\"se-sv\" >Sweden</option>\n  \
-        \          \n              <option value=\"ch-de\" >Switzerland (de)</option>\n\
-        \            \n              <option value=\"ch-fr\" >Switzerland (fr)</option>\n\
-        \            \n              <option value=\"tw-tzh\" >Taiwan</option>\n \
-        \           \n              <option value=\"th-en\" >Thailand (en)</option>\n\
-        \            \n              <option value=\"tr-tr\" >Turkey</option>\n  \
-        \          \n              <option value=\"us-en\" >US (English)</option>\n\
-        \            \n              <option value=\"us-es\" >US (Spanish)</option>\n\
-        \            \n              <option value=\"ua-uk\" >Ukraine</option>\n \
-        \           \n              <option value=\"uk-en\" >United Kingdom</option>\n\
-        \            \n              <option value=\"vn-en\" >Vietnam (en)</option>\n\
-        \            \n          </select>\n        </div>\n\n        <div class=\"\
-        frm__select frm__select--last\">\n          <select class=\"\" name=\"df\"\
-        >\n            \n              <option value=\"\" selected>Any Time</option>\n\
-        \            \n              <option value=\"d\" >Past Day</option>\n    \
-        \        \n              <option value=\"w\" >Past Week</option>\n       \
-        \     \n              <option value=\"m\" >Past Month</option>\n         \
-        \   \n              <option value=\"y\" >Past Year</option>\n            \n\
-        \          </select>\n        </div>\n      </form>\n    </div>\n\n    \n\n\
-        \    \n      <!-- Web results are present -->\n      <div>\n        <div class=\"\
-        serp__results\">\n          <div id=\"links\" class=\"results\">\n       \
-        \     \n\n            \n              \n                <div class=\"result\
-        \ results_links results_links_deep web-result \">\n                  <div\
-        \ class=\"links_main links_deep result__body\"> <!-- This is the visible part\
-        \ -->\n                    \n                      <h2 class=\"result__title\"\
-        >\n                        <a rel=\"nofollow\" class=\"result__a\" href=\"\
-        https://trends24.in/united-states/\">United States — X (Twitter) trending\
-        \ topics and hashtags today ...</a>\n                      </h2>\n\n     \
-        \               \n\n                    \n                      <div class=\"\
-        result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://trends24.in/united-states/\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/trends24.in.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://trends24.in/united-states/\">\n                            trends24.in/united-states/\n\
-        \                          </a>\n                          \n            \
-        \            </div>\n                      </div>\n                    \n\n\
-        \                    \n                      \n                        <a\
-        \ class=\"result__snippet\" href=\"https://trends24.in/united-states/\">Today&#x27;s\
-        \ top X (<b>Twitter</b>) trends and hashtags in United States: Broncos, Jayda,\
-        \ Jake Lang, Josh Allen, Virginia. Explore more locations and <b>trending</b>\
-        \ topics on trends24.in</a>\n                      \n                    \n\
-        \n                    <div class=\"clear\"></div>\n                  </div>\n\
-        \                </div>\n              \n            \n              \n  \
-        \              <div class=\"result results_links results_links_deep web-result\
-        \ \">\n                  <div class=\"links_main links_deep result__body\"\
-        > <!-- This is the visible part -->\n                    \n              \
-        \        <h2 class=\"result__title\">\n                        <a rel=\"nofollow\"\
-        \ class=\"result__a\" href=\"https://whatstrends.com/united-states/\">United\
-        \ States ~ X (Twitter) Trending Today ~ Now</a>\n                      </h2>\n\
-        \n                    \n\n                    \n                      <div\
-        \ class=\"result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://whatstrends.com/united-states/\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/whatstrends.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://whatstrends.com/united-states/\">\n                            whatstrends.com/united-states/\n\
-        \                          </a>\n                          \n            \
-        \            </div>\n                      </div>\n                    \n\n\
-        \                    \n                      \n                        <a\
-        \ class=\"result__snippet\" href=\"https://whatstrends.com/united-states/\"\
-        >The most recent <b>trending</b> topics and hashtags on X (<b>Twitter</b>)\
-        \ in United States: 49ers, 49ers, Bills, Josh Allen, Niners and more. To explore\
-        \ more locations and <b>trending</b> topics visit here.</a>\n            \
-        \          \n                    \n\n                    <div class=\"clear\"\
-        ></div>\n                  </div>\n                </div>\n              \n\
-        \            \n              \n                <div class=\"result results_links\
-        \ results_links_deep web-result \">\n                  <div class=\"links_main\
-        \ links_deep result__body\"> <!-- This is the visible part -->\n         \
-        \           \n                      <h2 class=\"result__title\">\n       \
-        \                 <a rel=\"nofollow\" class=\"result__a\" href=\"https://twittertrending.net/united-states/\"\
-        >United States | X (Twitter) trending topics and hashtags for 24 hours</a>\n\
-        \                      </h2>\n\n                    \n\n                 \
-        \   \n                      <div class=\"result__extras\">\n             \
-        \           <div class=\"result__extras__url\">\n                        \
-        \  <span class=\"result__icon\">\n                            <a rel=\"nofollow\"\
-        \ href=\"https://twittertrending.net/united-states/\">\n                 \
-        \             <img class=\"result__icon__img\" width=\"16\" height=\"16\"\
-        \ alt=\"\" src=\"//external-content.duckduckgo.com/ip3/twittertrending.net.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://twittertrending.net/united-states/\">\n                          \
-        \  twittertrending.net/united-states/\n                          </a>\n  \
-        \                        \n                        </div>\n              \
-        \        </div>\n                    \n\n                    \n          \
-        \            \n                        <a class=\"result__snippet\" href=\"\
-        https://twittertrending.net/united-states/\">Track the hottest X (<b>Twitter</b>)\
-        \ trends and <b>trending</b> topics across the globe updates hourly, 24/7.\
-        \ Explore trends history by the hours and discover what&#x27;s buzzing worldwide.</a>\n\
-        \                      \n                    \n\n                    <div\
-        \ class=\"clear\"></div>\n                  </div>\n                </div>\n\
-        \              \n            \n              \n                <div class=\"\
-        result results_links results_links_deep web-result \">\n                 \
-        \ <div class=\"links_main links_deep result__body\"> <!-- This is the visible\
-        \ part -->\n                    \n                      <h2 class=\"result__title\"\
-        >\n                        <a rel=\"nofollow\" class=\"result__a\" href=\"\
-        https://globaltwittertrends.com/united-states/\">Trending on Twitter United\
-        \ States today - Global Twitter Trends</a>\n                      </h2>\n\n\
-        \                    \n\n                    \n                      <div\
-        \ class=\"result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://globaltwittertrends.com/united-states/\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/globaltwittertrends.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://globaltwittertrends.com/united-states/\">\n                      \
-        \      globaltwittertrends.com/united-states/\n                          </a>\n\
-        \                          \n                        </div>\n            \
-        \          </div>\n                    \n\n                    \n        \
-        \              \n                        <a class=\"result__snippet\" href=\"\
-        https://globaltwittertrends.com/united-states/\">Today&#x27;s top <b>twitter</b>\
-        \ trends in United States with tweet volume and rank. Get to know what&#x27;s\
-        \ <b>trending</b> in United States. Every 30 minutes <b>trending</b> topics\
-        \ and hashtags are updated.</a>\n                      \n                \
-        \    \n\n                    <div class=\"clear\"></div>\n               \
-        \   </div>\n                </div>\n              \n            \n       \
-        \       \n                <div class=\"result results_links results_links_deep\
-        \ web-result \">\n                  <div class=\"links_main links_deep result__body\"\
-        > <!-- This is the visible part -->\n                    \n              \
-        \        <h2 class=\"result__title\">\n                        <a rel=\"nofollow\"\
-        \ class=\"result__a\" href=\"https://tweets24.com/trending-on-twitter-in-united-states\"\
-        >Trending on Twitter in United States Today - tweets24.com</a>\n         \
-        \             </h2>\n\n                    \n\n                    \n    \
-        \                  <div class=\"result__extras\">\n                      \
-        \  <div class=\"result__extras__url\">\n                          <span class=\"\
-        result__icon\">\n                            <a rel=\"nofollow\" href=\"https://tweets24.com/trending-on-twitter-in-united-states\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/tweets24.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://tweets24.com/trending-on-twitter-in-united-states\">\n           \
-        \                 tweets24.com/trending-on-twitter-in-united-states\n    \
-        \                      </a>\n                          \n                \
-        \        </div>\n                      </div>\n                    \n\n  \
-        \                  \n                      \n                        <a class=\"\
-        result__snippet\" href=\"https://tweets24.com/trending-on-twitter-in-united-states\"\
-        >Discover what&#x27;s <b>trending</b> <b>on</b> <b>Twitter</b> (X) in United\
-        \ States today. Updated live — see the latest <b>trending</b> topics, viral\
-        \ tweets, and popular hashtags from United States right now.</a>\n       \
-        \               \n                    \n\n                    <div class=\"\
-        clear\"></div>\n                  </div>\n                </div>\n       \
-        \       \n            \n              \n                <div class=\"result\
-        \ results_links results_links_deep web-result \">\n                  <div\
-        \ class=\"links_main links_deep result__body\"> <!-- This is the visible part\
-        \ -->\n                    \n                      <h2 class=\"result__title\"\
-        >\n                        <a rel=\"nofollow\" class=\"result__a\" href=\"\
-        https://xtrends.iamrohit.in/united-states\">United States - X (Twitter) trending\
-        \ hashtags and topics today</a>\n                      </h2>\n\n         \
-        \           \n\n                    \n                      <div class=\"\
-        result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://xtrends.iamrohit.in/united-states\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/xtrends.iamrohit.in.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://xtrends.iamrohit.in/united-states\">\n                           \
-        \ xtrends.iamrohit.in/united-states\n                          </a>\n    \
-        \                      \n                        </div>\n                \
-        \      </div>\n                    \n\n                    \n            \
-        \          \n                        <a class=\"result__snippet\" href=\"\
-        https://xtrends.iamrohit.in/united-states\">United States <b>Twitter</b> Trends\
-        \ Now | Top <b>Twitter</b> <b>Trending</b> Topics &amp; Hashtags Today This\
-        \ page shows you recent <b>twitter</b> <b>trending</b> hashtags and topics\
-        \ in United States, This page automatically pull recent most talked <b>trending</b>\
-        \ hashtags &amp; topics in United States every 30 minutes from <b>twitter</b>\
-        \ using official <b>twitter</b> API, so that you can see most recent today&#x27;s\
-        \ <b>trending</b> hashtags or topics which are ...</a>\n                 \
-        \     \n                    \n\n                    <div class=\"clear\"></div>\n\
-        \                  </div>\n                </div>\n              \n      \
-        \      \n              \n                <div class=\"result results_links\
-        \ results_links_deep web-result \">\n                  <div class=\"links_main\
-        \ links_deep result__body\"> <!-- This is the visible part -->\n         \
-        \           \n                      <h2 class=\"result__title\">\n       \
-        \                 <a rel=\"nofollow\" class=\"result__a\" href=\"https://91trends.com/twitter/united-states/\"\
-        >United States Latest Trending X (Twitter) hashtag and topics</a>\n      \
-        \                </h2>\n\n                    \n\n                    \n \
-        \                     <div class=\"result__extras\">\n                   \
-        \     <div class=\"result__extras__url\">\n                          <span\
-        \ class=\"result__icon\">\n                            <a rel=\"nofollow\"\
-        \ href=\"https://91trends.com/twitter/united-states/\">\n                \
-        \              <img class=\"result__icon__img\" width=\"16\" height=\"16\"\
-        \ alt=\"\" src=\"//external-content.duckduckgo.com/ip3/91trends.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://91trends.com/twitter/united-states/\">\n                         \
-        \   91trends.com/twitter/united-states/\n                          </a>\n\
-        \                          \n                        </div>\n            \
-        \          </div>\n                    \n\n                    \n        \
-        \              \n                        <a class=\"result__snippet\" href=\"\
-        https://91trends.com/twitter/united-states/\">United States X (<b>Twitter</b>)\
-        \ Trends Now | Top X (<b>Twitter</b>) <b>Trending</b> Topics &amp; Hashtags\
-        \ Today Get real-time updates on the hottest <b>trending</b> hashtags and\
-        \ topics on X (<b>Twitter</b>) United States with our automated page.</a>\n\
-        \                      \n                    \n\n                    <div\
-        \ class=\"clear\"></div>\n                  </div>\n                </div>\n\
-        \              \n            \n              \n                <div class=\"\
-        result results_links results_links_deep web-result \">\n                 \
-        \ <div class=\"links_main links_deep result__body\"> <!-- This is the visible\
-        \ part -->\n                    \n                      <h2 class=\"result__title\"\
-        >\n                        <a rel=\"nofollow\" class=\"result__a\" href=\"\
-        https://twitter-trends.fontsig.com/united-states/\">United States - Twitter\
-        \ trending topics &amp; hashtags now</a>\n                      </h2>\n\n\
-        \                    \n\n                    \n                      <div\
-        \ class=\"result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://twitter-trends.fontsig.com/united-states/\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/twitter-trends.fontsig.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://twitter-trends.fontsig.com/united-states/\">\n                   \
-        \         twitter-trends.fontsig.com/united-states/\n                    \
-        \      </a>\n                          \n                        </div>\n\
-        \                      </div>\n                    \n\n                  \
-        \  \n                      \n                        <a class=\"result__snippet\"\
-        \ href=\"https://twitter-trends.fontsig.com/united-states/\"><b>Twitter</b>\
-        \ <b>trending</b> hashtags and topics in United States <b>Twitter</b> is a\
-        \ social microblogging platform, where peoples from all over the world interact\
-        \ and express their thought in the form of tweets with hashtags. But how we\
-        \ track the recent <b>Twitter</b> <b>trending</b> hashtags and topics around\
-        \ the United States.</a>\n                      \n                    \n\n\
-        \                    <div class=\"clear\"></div>\n                  </div>\n\
-        \                </div>\n              \n            \n              \n  \
-        \              <div class=\"result results_links results_links_deep web-result\
-        \ \">\n                  <div class=\"links_main links_deep result__body\"\
-        > <!-- This is the visible part -->\n                    \n              \
-        \        <h2 class=\"result__title\">\n                        <a rel=\"nofollow\"\
-        \ class=\"result__a\" href=\"https://www.twitter-trending.com/united-states/en\"\
-        >United States Trends » X (Twitter) Trending</a>\n                      </h2>\n\
-        \n                    \n\n                    \n                      <div\
-        \ class=\"result__extras\">\n                        <div class=\"result__extras__url\"\
-        >\n                          <span class=\"result__icon\">\n             \
-        \               <a rel=\"nofollow\" href=\"https://www.twitter-trending.com/united-states/en\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/www.twitter-trending.com.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://www.twitter-trending.com/united-states/en\">\n                   \
-        \         www.twitter-trending.com/united-states/en\n                    \
-        \      </a>\n                          \n                        </div>\n\
-        \                      </div>\n                    \n\n                  \
-        \  \n                      \n                        <a class=\"result__snippet\"\
-        \ href=\"https://www.twitter-trending.com/united-states/en\"><b>Twitter</b>\
-        \ Trends United States: Verizon, Ford, FINALLY DID IT, Scott Adams, Iran,\
-        \ Renee, DeepNodeAI, Powell, Christmas, Happy New Year, Venezuela, #WWERaw..</a>\n\
-        \                      \n                    \n\n                    <div\
-        \ class=\"clear\"></div>\n                  </div>\n                </div>\n\
-        \              \n            \n              \n                <div class=\"\
-        result results_links results_links_deep web-result \">\n                 \
-        \ <div class=\"links_main links_deep result__body\"> <!-- This is the visible\
-        \ part -->\n                    \n                      <h2 class=\"result__title\"\
-        >\n                        <a rel=\"nofollow\" class=\"result__a\" href=\"\
-        https://tweethunter.io/trending\">Top X Trends</a>\n                     \
-        \ </h2>\n\n                    \n\n                    \n                \
-        \      <div class=\"result__extras\">\n                        <div class=\"\
-        result__extras__url\">\n                          <span class=\"result__icon\"\
-        >\n                            <a rel=\"nofollow\" href=\"https://tweethunter.io/trending\"\
-        >\n                              <img class=\"result__icon__img\" width=\"\
-        16\" height=\"16\" alt=\"\" src=\"//external-content.duckduckgo.com/ip3/tweethunter.io.ico\"\
-        \ name=\"i15\" />\n                            </a>\n                    \
-        \      </span>\n                          <a class=\"result__url\" href=\"\
-        https://tweethunter.io/trending\">\n                            tweethunter.io/trending\n\
-        \                          </a>\n                          \n            \
-        \            </div>\n                      </div>\n                    \n\n\
-        \                    \n                      \n                        <a\
-        \ class=\"result__snippet\" href=\"https://tweethunter.io/trending\">Discover\
-        \ what&#x27;s <b>trending</b> <b>on</b> X right now. Our AI analyzes millions\
-        \ of tweets every day to uncover <b>trending</b> topics.</a>\n           \
-        \           \n                    \n\n                    <div class=\"clear\"\
-        ></div>\n                  </div>\n                </div>\n              \n\
-        \            \n\n            \n              \n              \n          \
-        \      <div class=\"nav-link\">\n                  <form action=\"/html/\"\
-        \ method=\"post\">\n                    <input type=\"submit\" class='btn\
-        \ btn--alt' value=\"Next\" />\n                    <input type=\"hidden\"\
-        \ name=\"q\" value=\"trending on Twitter\" />\n                    <input\
-        \ type=\"hidden\" name=\"s\" value=\"10\" />\n                    <input type=\"\
-        hidden\" name=\"nextParams\" value=\"\" />\n                    <input type=\"\
-        hidden\" name=\"v\" value=\"l\" />\n                    <input type=\"hidden\"\
-        \ name=\"o\" value=\"json\" />\n                    <input type=\"hidden\"\
-        \ name=\"dc\" value=\"11\" />\n                    <input type=\"hidden\"\
-        \ name=\"api\" value=\"d.js\" />\n                    <input type=\"hidden\"\
-        \ name=\"vqd\" value=\"4-178851521983377716252985057727355476498\" />\n\n\
-        \                    \n                    \n                    \n      \
-        \                <input name=\"kl\" value=\"wt-wt\" type=\"hidden\" />\n \
-        \                   \n                    \n                    \n       \
-        \             \n                  </form>\n                </div>\n      \
-        \        \n            \n\n            <div class=\"feedback-btn\">\n    \
-        \          <a rel=\"nofollow\" href=\"//duckduckgo.com/feedback.html\" target=\"\
-        _new\">Feedback</a>\n            </div>\n            <div class=\"clear\"\
-        ></div>\n          </div>\n        </div>\n      </div> <!-- links wrapper\
-        \ //-->\n    \n  </div>\n\n  <div id=\"bottom_spacing2\"></div>\n\n  \n  \
-        \  <img src=\"//duckduckgo.com/t/sl_h\"/>\n  \n</body>\n</html>"
+      string: !!binary |
+        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
+        sDaum5cdTV5k3SXr9nAS2CezYJ/1aTenTY5iAw==
     headers:
       cache-control:
       - max-age=1
@@ -656,32 +344,27 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D07sB8DYNY3kNAmF2N8CjYqyf9oMm\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1768922635,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": \"Here are some of the\
-        \ trending topics on Twitter (now called X) in the United States today:\\\
-        n\\n1. **Broncos**\\n2. **Jayda**\\n3. **Jake Lang**\\n4. **Josh Allen**\\\
-        n5. **Virginia**\\n\\nFor the latest updates and more details, you can check\
-        \ out the following links:\\n- [Trends24](https://trends24.in/united-states/)\\\
-        n- [WhatsTrends](https://whatstrends.com/united-states/)\\n- [Twitter Trending](https://twittertrending.net/united-states/)\\\
-        n- [Global Twitter Trends](https://globaltwittertrends.com/united-states/)\\\
-        n- [Tweets24](https://tweets24.com/trending-on-twitter-in-united-states)\\\
-        n\\nFeel free to explore these resources for real-time updates and additional\
-        \ trending topics!\",\n        \"refusal\": null,\n        \"annotations\"\
-        : []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\
-        \n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 574,\n    \"completion_tokens\"\
-        : 169,\n    \"total_tokens\": 743,\n    \"prompt_tokens_details\": {\n   \
-        \   \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
-        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
-        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
-        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
-        \ \"fp_c4585b5b9c\"\n}\n"
+      string: !!binary |
+        YwBYLgBA/N6mdudy+qtTwjNuhduW0snzk8UYFIsZVhrS1+e53PPD4wOwE1sTt907GoHM31hgc2p2
+        pWNbnJUmfBhgO10t4iBoQZK/T5x66fW79xlgfG1KGNdadV0fimfTTXqyffb7w+/F6cPj7sX8w/bp
+        5e9/t8edvO/MKAOMHC7JKac+nmLgeWES/pfL71FtSsw26+1uPl8vVshXO6kpmBKm6bVYStF59sV8
+        Ol8W000x20q424p3lEyJvxkA3L+1AeY/8GdMiekIys/IME1J+CPARAlkShibkk9qWc2IAFLYpS9h
+        XlEk2EhI0hEWLfvHGolrzw1Ueu8ShPHt2qtSxBnLNZwNgWr8OsfSWsuka3j7V7VKCSq1vS0rrng2
+        Rp4/icJOUp5XPB8jz9/Y29rmecULyN4T4Z3lJs8rXpbnJbV4HAJxnle8GiPPf/jYePacYcUvJJq6
+        J1ilpBj6WnWh5RqdRELeuRNphFsZ4Cyn/PMhg3rI57z7gOcGwfMplRUX+PstEtdpvrw4a1X7VE4m
+        Cg3HnifDTRbp4OS84gJ/f7ZWEyuc0XVrNRXYToGKB1+d2reaRrXspWkTzB4zqfrNL4McbIAwNERp
+        SEoEVm1QFyL1nYMybLw5QSFcWDhZeC7qRDlvl5NEAcdIBBXMq0oDbSkRIiUZoqMlz26PZEOhvqO2
+        gwBXtgO2POq8sG8CyTaYEjyE0KshajDDRrtgM/4PlJ2CNH2UQ2LXTSLCpv2ib7NNCZNUeqM1/J8B
+        FwOydRhje00fpet1r3Iild5qs3yaTBwACmq23sG+HQBy1ma5GAnV9l1Y0JkEGGddSzU7BIB1O9Re
+        kIw2zvUKJlWUz7o/sOemALLIOeqV6n3izVK3gZRepEtyelbVxH8hW2ThXj1FU8J831iCR7dJqdsf
+        PTcU++hD2O1jv3fL1XZ1WB12zmT/MwMD
     headers:
       CF-RAY:
       - 9c0f93659d384b13-KHI
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -690,6 +373,8 @@ interactions:
       - cloudflare
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:

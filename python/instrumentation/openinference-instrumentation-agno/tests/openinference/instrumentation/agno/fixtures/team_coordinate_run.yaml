@@ -71,34 +71,25 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKXDkxP2suVtCJtLycTpotlP6VyB\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583139,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
-        : [\n          {\n            \"id\": \"call_gkmMloRMKIk0W0w1MtZdTGdd\",\n\
-        \            \"type\": \"function\",\n            \"function\": {\n      \
-        \        \"name\": \"delegate_task_to_member\",\n              \"arguments\"\
-        : \"{\\\"member_id\\\": \\\"finance-agent\\\", \\\"task\\\": \\\"Get financial\
-        \ performance data for NVIDIA, including income statements and key financial\
-        \ ratios.\\\"}\"\n            }\n          },\n          {\n            \"\
-        id\": \"call_aMqmhJodbC4PRS0JXbxvaw1j\",\n            \"type\": \"function\"\
-        ,\n            \"function\": {\n              \"name\": \"delegate_task_to_member\"\
-        ,\n              \"arguments\": \"{\\\"member_id\\\": \\\"finance-agent\\\"\
-        , \\\"task\\\": \\\"Get analyst recommendations and market outlook for NVIDIA.\\\
-        \"}\"\n            }\n          }\n        ],\n        \"refusal\": null,\n\
-        \        \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"\
-        finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
-        : 616,\n    \"completion_tokens\": 82,\n    \"total_tokens\": 698,\n    \"\
-        prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"audio_tokens\"\
-        : 0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\"\
-        : 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\": 0,\n\
-        \      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
-        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        AwsDAGTTaTvLpNMMn9K9fWnVp2CFOBjMY6U0//+vBiiJ/WWobVm82/5Otm4YzonmpIMT5YEGnoVh
+        opxNG/rQt2YbV0BoeSypYF+7jQDQGlSA6ZQkLSqXHL9df5zkq4d2mL/J8ZXcrNOXyot76L+tjzCO
+        ANCPZ5xKS8vBFIOQ9SVEPrnciA0qaA36rd6w0+qMiM8W3rBDBZhVknR9UtjSJu1mu5s0B0lryMFw
+        6m3KARV8RwAA209rAPgO/BVU0Ix/lTMyvKiAXwLA2jtGBUgh2CBUCsYASGGnqqCcO0fUEu+dTsk5
+        4fxCt9/BYD8l53SWF7fOP91eX+bN9+aydStf5uXcGJmcvXNdKaXMxuiKUWjjlMAmACypaP+ZYccZ
+        CWuhkGvxujrUbuyiAOj6VlSA2x/EamlrflDBD9bSep8TyriUH4zhB4VCDkidswDo3JKDzpIFQ1Iv
+        7bVw93Z5cnn4/zqsHkAzQxASFo5v27ie85rduzWJ9eHgB/eoM93fweL72PB/33T7X0yvvBkfdx+e
+        nptXH+PVgpat2abUehsNAnGqRGJ9aU3lef2a4OfivM8dMYhJFSr97emw+gIzyA0BiD3sMP82Uxxz
+        GzqfVbUfh+YWTGdIdOm4k6gGkyVSjKkxifPxqotV7YtKtPicBYf6rb5EgjEFEO5he4clQABauD8a
+        Hp08LToDIw0uVsOU0imbE2LJJc2N9UQadcoeGvXkz21wsC2zE4htacqVsNE5PDvvGqCm1Tzj1BK5
+        nznMioknS1os19EjNaG5C4RWzMShoye2zLiuahsNH8BJpXv9Jk363OuNMNpHAw==
     headers:
       CF-RAY:
       - 9953a06f0a45c230-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -113,6 +104,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -216,31 +209,24 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKXG7uyiVpJP59sGZ0dVmdilQmqR\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583142,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
-        : [\n          {\n            \"id\": \"call_Nxrbmytq1NgiJqMuakMO9YoB\",\n\
-        \            \"type\": \"function\",\n            \"function\": {\n      \
-        \        \"name\": \"get_income_statements\",\n              \"arguments\"\
-        : \"{\\\"symbol\\\": \\\"NVDA\\\"}\"\n            }\n          },\n      \
-        \    {\n            \"id\": \"call_HYhcvepGxnfUL8HbuRWA9IgU\",\n         \
-        \   \"type\": \"function\",\n            \"function\": {\n              \"\
-        name\": \"get_key_financial_ratios\",\n              \"arguments\": \"{\\\"\
-        symbol\\\": \\\"NVDA\\\"}\"\n            }\n          }\n        ],\n    \
-        \    \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\"\
-        : null,\n      \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\"\
-        : {\n    \"prompt_tokens\": 598,\n    \"completion_tokens\": 52,\n    \"total_tokens\"\
-        : 650,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n  \
-        \    \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n \
-        \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\"\
-        : 0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
-        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        YwAYKgBA/P+p+ruW6Z07W3HpbKn1t8LB6FkmphlQ0uf/cs/P8URP7C+6NdpgY9utZc2B4b2ol4bf
+        8kATz8JAMCBsUW/g5aj15de+V0QwDQRBb1TRLtr68Pvlz9N592q+x4u76TKf/h40311j7L3bPaBX
+        ESGsHlkXSmEviUHVBI+Ccy6ncQNBw/lsOF2Mh5MR8FkXGrYQhDaWehJqZ7ypR4PRpB7M6+GCA3UT
+        jOYMQX8qIqL3txUitIG/CUGD3l+cIsOEQPwQEVKwDEFQOZtclC/oIbiKsCsU5DtrgddKCFZqZa1w
+        eEu/f7sM7KvKWnnzklbuteyGN6252F13ant9u/wVDmRC9uprVBRJjeGLQ2B5QmAPEbxy9CctF9lO
+        /wtY5qJKbRHyMrMGESx+FILw/hclB7z5F4L+4ub70f5ffIIu/cll/s+e1v+WZ782+onj6Ytff7ta
+        nK26hx/7y/P223Cy5VeZBOhnyaSKCScxifQ/9+LqqgAWZV0eFaz8P3MkZngbbGhjCqtMLqDsv5Ss
+        Z+04hMsTKsUAZYyjc9x3EVNwscgStiy4Ol0uOKfgAd0Y/Ghx9ZeBC6bPpv7Hh6cgiytMZ9soglZ6
+        ww25ONDIueoaE4BAkUj/ASoK5A/NYG/j28sFdGjNsXAjC7z06tqFyi3xI2uhMmnmk5TSaJfFcIIg
+        xCsQgfaaCzu5Nr7lFJMJOh7AOsrpbKDWM55Ol6g+KwMD
     headers:
       CF-RAY:
       - 9953a08b799fdf6e-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -255,6 +241,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -519,53 +507,34 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKXKfA6nhBPVGvlkpjbTHOA48TV0\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583146,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": \"### NVIDIA Income\
-        \ Statement Data\\n\\n| Year                  | 2023                     \
-        \ | 2022                      | 2021                     | 2020          \
-        \           |\\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\\\
-        n| Total Revenue         | $130.50 billion           | $60.92 billion    \
-        \        | $26.97 billion           | $26.91 billion           |\\n| Cost\
-        \ of Revenue       | $32.64 billion            | $16.62 billion          \
-        \  | $11.62 billion           | $9.44 billion            |\\n| Gross Profit\
-        \          | $97.86 billion            | $44.30 billion            | $15.36\
-        \ billion           | $17.48 billion           |\\n| Operating Income    \
-        \   | $81.45 billion            | $32.97 billion            | $5.58 billion\
-        \            | $10.04 billion           |\\n| Net Income            | $72.88\
-        \ billion            | $29.76 billion            | $4.36 billion         \
-        \   | $9.75 billion            |\\n| Diluted EPS           | $2.94       \
-        \              | $1.19                     | $0.17                    | $0.39\
-        \                    |\\n\\n### NVIDIA Key Financial Ratios\\n\\n| Ratio \
-        \                             | Value          |\\n|-------------------------------------|----------------|\\\
-        n| Price to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings\
-        \ (Forward PE)     | 46.32          |\\n| Price to Book                  \
-        \     | 46.40          |\\n| Profit Margin                       | 52.41%\
-        \         |\\n| Gross Margin                        | 69.85%         |\\n|\
-        \ Operating Margin                    | 60.84%         |\\n| EBITDA Margin\
-        \                       | 59.49%         |\\n| Return on Assets (ROA)    \
-        \         | 53.09%         |\\n| Return on Equity (ROE)             | 109.41%\
-        \        |\\n| Debt to Equity                      | 10.58          |\\n|\
-        \ Current Ratio                       | 4.21           |\\n| Quick Ratio \
-        \                        | 3.49           |\\n| Free Cash Flow           \
-        \           | $52.44 billion  |\\n\\n### Summary\\nNVIDIA has shown significant\
-        \ growth in revenue and net income over the past few years, reflecting its\
-        \ strong position in the semiconductor market. The key financial ratios suggest\
-        \ robust profitability and efficient use of equity.\",\n        \"refusal\"\
-        : null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n\
-        \      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\"\
-        : 6244,\n    \"completion_tokens\": 478,\n    \"total_tokens\": 6722,\n  \
-        \  \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"audio_tokens\"\
-        : 0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\"\
-        : 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\": 0,\n\
-        \      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\"\
-        : \"default\",\n  \"system_fingerprint\": \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        gwkGAMT/lur/3pvVGaL3uxlU6i6ldL/xYOnaJpFBH1DyCvn7sXmd1ihREkdIkqQR4vuIVjxB0yb+
+        ELGJelOPW6gLebSJP2CbuxXr02I+7+8JwFTHGrB2LX27Gfrp7sPp0+lyu9DrnauHw4/+fXhb3B1d
+        bmfV3YNg/00AZhZv1HpKNf+KgVEZjSL+5fLzqGMN4rKI8yqNswL41I3pqGcN2Grw08xMN0qraSKS
+        bCrKaVxxOHdtVEuONXidAMDvW20A+w/8DtZA/Peo+BsZGtYg/hLArOmJNWDSOeW81J79h4Bc2P2f
+        BmxrawsXD8d7x9s41q3ZEG699Odh8O7Yk17O9EwHPJO0GAgfkIgkBVSMJvRjSBgQY5jpMI3i6lIV
+        x51cP9MBd8bLHjf0QXokbV8fEMWp4LnAQvW9Mno6dhUQFYLXSbQXCIiSgtclKb+k4HUMyqxs1zgP
+        s8x3FRClCS8ySlC0TwUv4jriGL4GAVHNM66vmumAQ2ucw5U1S+WDPQmI6pJXRSRQlvFUcJHztJg1
+        LnlW6Xn0TAdcDmSlV3q1VpPBngREVcyzXGIdabIM9ggBUc7zStExCS4ybXq4IK+HmHJMZcIrrmNL
+        al7OsjjmClk+rJV513uqHz112L+6RTBrwusMg7UKiGIe13COgsclJLlT0qlhpmd6l/OgU/qJA6Wl
+        bpXscSO9Mi6B+/ljMDXgQfYbX77YQ0R5LDomrMCPvbKqJXiDfWm10iuHv+6sVL3SK1zt/y2WR57x
+        PI1J7Hpg7Ke0XbI0ArKCp/vDKPUcdox5xwBq5pmAzWz6ubQrtbhxHBaQJzyLvz2ON9P4iXeEgKLm
+        VZ6i7SpODisLKASvsmjd9neO7/a2NWZX86z+4xvyo9UwGtvOkXf46+Zy++9gDQPylIuKav//Ufmf
+        NPc7YlHPJEjMe7Twy5OQxh4sFRALnlcMgXrtd0drSfvVd3hAxg99IHfu16Nq32mXAwJSnm1YoPEn
+        OrBE2JVujYPefAadUZ7suSWbYvDtuNlI+3OmTYAu1tLBrc2nhlko8V4b5eRNyEEmUOoOmjyUyTDU
+        fJD9m7DOQToPK9/vP1ha9tSuN7+qvIPz1ugVBuOUV0bjpJyvcbRRrdHd2Hpj4ZblBRx3a8I7/YTR
+        q7D7iAxcQQd/WLMYncdwxMEuaYZI3cFbbZmH0x8FLc8MbgKhq++wtexZAz32PRDZnmB8qb6Tqb/o
+        d8Z6sxqsWbhEzdzZps1PHdqfNWDOm4FRWr8mwHezLnO01PZlgzWbwc+9eSeRliLJMmFpzJxEKKas
+        rBJ0+ScQcLaiTJL/2Krn7nfTnW24FGtlu6aOHhmSU+XYKQMEKtHEx9ApJn8yA/qt9KpHwLC2pcFT
+        N3fgHDndCFUwS2/Uqiczm/Il8TocOveKLGvAnicRhIt+Ok+b+VLpFdnBKlP47OUwzwshlwXlec0m
+        XxMDAw==
     headers:
       CF-RAY:
       - 9953a0a4e864162a-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -580,6 +549,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -718,32 +689,24 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKXZ5G1eH5rC4ABbFchWM9inhQo5\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583161,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
-        : [\n          {\n            \"id\": \"call_OKnCqIxY5hbwdIjVbyigKd7F\",\n\
-        \            \"type\": \"function\",\n            \"function\": {\n      \
-        \        \"name\": \"get_analyst_recommendations\",\n              \"arguments\"\
-        : \"{\\\"symbol\\\": \\\"NVDA\\\"}\"\n            }\n          },\n      \
-        \    {\n            \"id\": \"call_RWVrsookQ9NlSkEclIq9YeNu\",\n         \
-        \   \"type\": \"function\",\n            \"function\": {\n              \"\
-        name\": \"get_company_news\",\n              \"arguments\": \"{\\\"symbol\\\
-        \": \\\"NVDA\\\", \\\"num_stories\\\": 5}\"\n            }\n          }\n\
-        \        ],\n        \"refusal\": null,\n        \"annotations\": []\n   \
-        \   },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\
-        \n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 592,\n    \"completion_tokens\"\
-        : 58,\n    \"total_tokens\": 650,\n    \"prompt_tokens_details\": {\n    \
-        \  \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
-        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
-        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
-        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
-        \ \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        MVQVACD/r6l3L6f//lmbiYncOtbkIRIlzAq2e/6vCSgn9osuVo2zaLsqWxU13hvtTYff5gOdYFmk
+        KG5Rb7wdl5eP+5sBoGqQAoqOJ2GDKbbvjh+eyP5EHpB+e765Ve+J7v60Uq679ATzDAB9vZYiUXIb
+        RQySyjsUXHM5TTZIYbIoJ2Q5m5QT4KHWN9IgBWxDKua+sMqpYjqezovxopgsOVA7r4SMSOE5AwD4
+        fesDwDHw55DCOP+LS2REkCLeCAB7byRSQB6jiom7hDmCrAk7TwpuMAa4KXlvmODGCIc3+++3zMF+
+        yo1h58du+/3w65F09WdzuL6rv1V73Cz2ZEL2ge+gFCmNoYpDYG5UYBkAOm7ps61MrEewmZhYaF6L
+        J+VdZJkBQO+vRwr4+4LtB1z5ghRe8OxuZ/MF/5HO/s/F8b/pdIC/5dX9XR+915fVmbnWu8IcvleP
+        8mxYTr3wNnD3zZz8tPol5/CCbrAsJt8rGV+QAnEJArW/BhTZ5AW04CYEyaIuONlXMuKe26Hxbeh9
+        Hck5bA3Qxnpe24g0LHKZ9wA1GnEI7jsx9N6GxJLXUnCSVFOJNoyScgx2echm0EBGOa0k45wnxxow
+        tMfY5YWCi042QmVRcZUPjfJAQIXCkoZGmvyhG0ysXHvJgBIhZEiyYU1gKq2WoTLr5VoKLosEIPDz
+        2G6jmCUle6SAOQ1EoH3HJC1bKdfKPvQqMdkDV4GRcsxXpSSkwuw/MwAD
     headers:
       CF-RAY:
       - 9953a0ff0f8b49d5-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -758,6 +721,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -1020,61 +985,48 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKXd3BPci4LfkyXpQjmco1VKRQKG\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583165,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": \"### Analyst Recommendations\
-        \ for NVIDIA (NVDA)\\n\\nHere is the summary of analyst recommendations over\
-        \ the last few months:\\n\\n| Recommendation     | Current Month | Last Month\
-        \ | 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\\
-        n| Strong Buy         | 10            | 11         | 11           | 11   \
-        \        |\\n| Buy                | 49            | 48         | 47      \
-        \     | 48           |\\n| Hold               | 4             | 4        \
-        \  | 6            | 6            |\\n| Sell               | 1            \
-        \ | 1          | 1            | 1            |\\n| Strong Sell        | 0\
-        \             | 0          | 0            | 0            |\\n\\n### Recent\
-        \ Market Outlook and News for NVIDIA\\n\\nHere are some recent news articles\
-        \ that might reflect the current market outlook:\\n\\n1. **[Stock market today:\
-        \ Dow, S&P 500, Nasdaq head toward records as Trump stokes hopes US-China\
-        \ trade deal is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**\
-        \ \\n   - Published on: **October 26, 2025**\\n   - Summary: Wall Street is\
-        \ in an upbeat mood as it gears up for a pivotal week featuring the Federal\
-        \ Reserve’s expected interest rate cut and a barrage of Big Tech earnings,\
-        \ as well as Trump's visit to Asia.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\\\
-        n\\n2. **[Qualcomm stock spikes more than 20% as company enters AI chip race,\
-        \ taking on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\\\
-        n   - Published on: **October 26, 2025**\\n   - Summary: Qualcomm has seen\
-        \ a significant rise in stock value as it enters the competitive AI chip market,\
-        \ directly competing with NVIDIA and AMD.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\\\
-        n\\n3. **[US Equity Indexes Touch Record Highs in Anticipation of China Trade\
-        \ Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\\\
-        n   - Published on: **October 27, 2025**\\n   - Summary: US equity indexes\
-        \ rose in midday trading, breaking records, amid expectations of a trade deal\
-        \ with China.\\n   \\n4. **[The 'Debasement Trade' Just Hit A Wall—And The\
-        \ Bond Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\\\
-        n   - Published on: **October 27, 2025**\\n   - Summary: Investors are reassessing\
-        \ the conditions in gold and Bitcoin as the bond market signals shifts in\
-        \ the economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes;\
-        \ These Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\\\
-        n   - Published on: **October 27, 2025**\\n   - Summary: The Dow Jones index\
-        \ rose on U.S.-China trade optimism, leading to a rally in stocks like NVIDIA\
-        \ and Tesla.\\n   - ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\\\
-        n\\nThis information suggests a strong optimistic sentiment among analysts\
-        \ regarding NVIDIA, alongside notable market developments that could impact\
-        \ its stock performance.\",\n        \"refusal\": null,\n        \"annotations\"\
-        : []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\
-        \n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 5382,\n    \"completion_tokens\"\
-        : 877,\n    \"total_tokens\": 6259,\n    \"prompt_tokens_details\": {\n  \
-        \    \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
-        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
-        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
-        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
-        \ \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        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
+        USm5W4FIZXpkAAM=
     headers:
       CF-RAY:
       - 9953a11b89c7ac91-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -1089,6 +1041,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -1163,104 +1117,105 @@ interactions:
       code: 201
       message: Created
 - request:
-    body: '{"messages":[{"role":"developer","content":"You are the leader of a team
-      and sub-teams of AI Agents.\nYour task is to coordinate the team to complete
-      the user''s request.\n\nHere are the members in your team:\n<team_members>\n
-      - Agent 1:\n   - ID: web-agent\n   - Name: Web Agent\n   - Role: Search the
-      web for information\n   - Member tools:\n    - duckduckgo_search\n    - duckduckgo_news\n
-      - Agent 2:\n   - ID: finance-agent\n   - Name: Finance Agent\n   - Role: Get
-      financial data\n   - Member tools:\n    - get_current_stock_price\n    - get_company_info\n    -
-      get_stock_fundamentals\n    - get_income_statements\n    - get_key_financial_ratios\n    -
-      get_analyst_recommendations\n    - get_company_news\n    - get_technical_indicators\n    -
-      get_historical_stock_prices\n</team_members>\n\n<how_to_respond>\n- Your role
-      is to delegate tasks to members in your team with the highest likelihood of
-      completing the user''s request.\n- Carefully analyze the tools available to
-      the members and their roles before delegating tasks.\n- You cannot use a member
-      tool directly. You can only delegate tasks to members.\n- When you delegate
-      a task to another member, make sure to include:\n  - member_id (str): The ID
+    body: "{\"messages\":[{\"role\":\"developer\",\"content\":\"You are the leader
+      of a team and sub-teams of AI Agents.\\nYour task is to coordinate the team
+      to complete the user's request.\\n\\nHere are the members in your team:\\n<team_members>\\n
+      - Agent 1:\\n   - ID: web-agent\\n   - Name: Web Agent\\n   - Role: Search the
+      web for information\\n   - Member tools:\\n    - duckduckgo_search\\n    - duckduckgo_news\\n
+      - Agent 2:\\n   - ID: finance-agent\\n   - Name: Finance Agent\\n   - Role:
+      Get financial data\\n   - Member tools:\\n    - get_current_stock_price\\n    -
+      get_company_info\\n    - get_stock_fundamentals\\n    - get_income_statements\\n
+      \   - get_key_financial_ratios\\n    - get_analyst_recommendations\\n    - get_company_news\\n
+      \   - get_technical_indicators\\n    - get_historical_stock_prices\\n</team_members>\\n\\n<how_to_respond>\\n-
+      Your role is to delegate tasks to members in your team with the highest likelihood
+      of completing the user's request.\\n- Carefully analyze the tools available
+      to the members and their roles before delegating tasks.\\n- You cannot use a
+      member tool directly. You can only delegate tasks to members.\\n- When you delegate
+      a task to another member, make sure to include:\\n  - member_id (str): The ID
       of the member to delegate the task to. Use only the ID of the member, not the
-      ID of the team followed by the ID of the member.\n  - task (str): A clear description
-      of the task. Determine the best way to describe the task to the member.\n- You
-      can delegate tasks to multiple members at once.\n- You must always analyze the
-      responses from members before responding to the user.\n- After analyzing the
-      responses from the members, if you feel the task has been completed, you can
-      stop and respond to the user.\n- If you are NOT satisfied with the responses
-      from the members, you should re-assign the task to a different member.\n- For
+      ID of the team followed by the ID of the member.\\n  - task (str): A clear description
+      of the task. Determine the best way to describe the task to the member.\\n-
+      You can delegate tasks to multiple members at once.\\n- You must always analyze
+      the responses from members before responding to the user.\\n- After analyzing
+      the responses from the members, if you feel the task has been completed, you
+      can stop and respond to the user.\\n- If you are NOT satisfied with the responses
+      from the members, you should re-assign the task to a different member.\\n- For
       simple greetings, thanks, or questions about the team itself, you should respond
-      directly.\n- For all work requests, tasks, or questions requiring expertise,
-      route to appropriate team members.\n</how_to_respond>\n\n<instructions>\n- Always
-      include sources\n- Use tables to display data\n</instructions>"},{"role":"user","content":"What''s
-      the market outlook and financial performance of NVIDIA?"},{"role":"assistant","tool_calls":[{"id":"call_gkmMloRMKIk0W0w1MtZdTGdd","function":{"arguments":"{\"member_id\":
-      \"finance-agent\", \"task\": \"Get financial performance data for NVIDIA, including
-      income statements and key financial ratios.\"}","name":"delegate_task_to_member"},"type":"function"},{"id":"call_aMqmhJodbC4PRS0JXbxvaw1j","function":{"arguments":"{\"member_id\":
-      \"finance-agent\", \"task\": \"Get analyst recommendations and market outlook
-      for NVIDIA.\"}","name":"delegate_task_to_member"},"type":"function"}],"content":""},{"role":"tool","content":"###
-      NVIDIA Income Statement Data\n\n| Year                  | 2023                      |
-      2022                      | 2021                     | 2020                     |\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\n|
+      directly.\\n- For all work requests, tasks, or questions requiring expertise,
+      route to appropriate team members.\\n</how_to_respond>\\n\\n<instructions>\\n-
+      Always include sources\\n- Use tables to display data\\n</instructions>\"},{\"role\":\"user\",\"content\":\"What's
+      the market outlook and financial performance of NVIDIA?\"},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_gkmMloRMKIk0W0w1MtZdTGdd\",\"function\":{\"arguments\":\"{\\\"member_id\\\":
+      \\\"finance-agent\\\", \\\"task\\\": \\\"Get financial performance data for
+      NVIDIA, including income statements and key financial ratios.\\\"}\",\"name\":\"delegate_task_to_member\"},\"type\":\"function\"},{\"id\":\"call_aMqmhJodbC4PRS0JXbxvaw1j\",\"function\":{\"arguments\":\"{\\\"member_id\\\":
+      \\\"finance-agent\\\", \\\"task\\\": \\\"Get analyst recommendations and market
+      outlook for NVIDIA.\\\"}\",\"name\":\"delegate_task_to_member\"},\"type\":\"function\"}],\"content\":\"\"},{\"role\":\"tool\",\"content\":\"###
+      NVIDIA Income Statement Data\\n\\n| Year                  | 2023                      |
+      2022                      | 2021                     | 2020                     |\\n|-----------------------|---------------------------|---------------------------|--------------------------|--------------------------|\\n|
       Total Revenue         | $130.50 billion           | $60.92 billion            |
-      $26.97 billion           | $26.91 billion           |\n| Cost of Revenue       |
+      $26.97 billion           | $26.91 billion           |\\n| Cost of Revenue       |
       $32.64 billion            | $16.62 billion            | $11.62 billion           |
-      $9.44 billion            |\n| Gross Profit          | $97.86 billion            |
-      $44.30 billion            | $15.36 billion           | $17.48 billion           |\n|
+      $9.44 billion            |\\n| Gross Profit          | $97.86 billion            |
+      $44.30 billion            | $15.36 billion           | $17.48 billion           |\\n|
       Operating Income       | $81.45 billion            | $32.97 billion            |
-      $5.58 billion            | $10.04 billion           |\n| Net Income            |
+      $5.58 billion            | $10.04 billion           |\\n| Net Income            |
       $72.88 billion            | $29.76 billion            | $4.36 billion            |
-      $9.75 billion            |\n| Diluted EPS           | $2.94                     |
-      $1.19                     | $0.17                    | $0.39                    |\n\n###
-      NVIDIA Key Financial Ratios\n\n| Ratio                              | Value          |\n|-------------------------------------|----------------|\n|
-      Price to Earnings (Trailing PE)    | 54.53          |\n| Price to Earnings (Forward
-      PE)     | 46.32          |\n| Price to Book                       | 46.40          |\n|
-      Profit Margin                       | 52.41%         |\n| Gross Margin                        |
-      69.85%         |\n| Operating Margin                    | 60.84%         |\n|
-      EBITDA Margin                       | 59.49%         |\n| Return on Assets (ROA)             |
-      53.09%         |\n| Return on Equity (ROE)             | 109.41%        |\n|
-      Debt to Equity                      | 10.58          |\n| Current Ratio                       |
-      4.21           |\n| Quick Ratio                         | 3.49           |\n|
-      Free Cash Flow                      | $52.44 billion  |\n\n### Summary\nNVIDIA
-      has shown significant growth in revenue and net income over the past few years,
-      reflecting its strong position in the semiconductor market. The key financial
-      ratios suggest robust profitability and efficient use of equity.","tool_call_id":"call_gkmMloRMKIk0W0w1MtZdTGdd"},{"role":"tool","content":"###
-      Analyst Recommendations for NVIDIA (NVDA)\n\nHere is the summary of analyst
-      recommendations over the last few months:\n\n| Recommendation     | Current
-      Month | Last Month | 2 Months Ago | 3 Months Ago |\n|--------------------|---------------|------------|--------------|--------------|\n|
-      Strong Buy         | 10            | 11         | 11           | 11           |\n|
-      Buy                | 49            | 48         | 47           | 48           |\n|
-      Hold               | 4             | 4          | 6            | 6            |\n|
-      Sell               | 1             | 1          | 1            | 1            |\n|
-      Strong Sell        | 0             | 0          | 0            | 0            |\n\n###
-      Recent Market Outlook and News for NVIDIA\n\nHere are some recent news articles
-      that might reflect the current market outlook:\n\n1. **[Stock market today:
+      $9.75 billion            |\\n| Diluted EPS           | $2.94                     |
+      $1.19                     | $0.17                    | $0.39                    |\\n\\n###
+      NVIDIA Key Financial Ratios\\n\\n| Ratio                              | Value
+      \         |\\n|-------------------------------------|----------------|\\n| Price
+      to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings (Forward
+      PE)     | 46.32          |\\n| Price to Book                       | 46.40          |\\n|
+      Profit Margin                       | 52.41%         |\\n| Gross Margin                        |
+      69.85%         |\\n| Operating Margin                    | 60.84%         |\\n|
+      EBITDA Margin                       | 59.49%         |\\n| Return on Assets
+      (ROA)             | 53.09%         |\\n| Return on Equity (ROE)             |
+      109.41%        |\\n| Debt to Equity                      | 10.58          |\\n|
+      Current Ratio                       | 4.21           |\\n| Quick Ratio                         |
+      3.49           |\\n| Free Cash Flow                      | $52.44 billion  |\\n\\n###
+      Summary\\nNVIDIA has shown significant growth in revenue and net income over
+      the past few years, reflecting its strong position in the semiconductor market.
+      The key financial ratios suggest robust profitability and efficient use of equity.\",\"tool_call_id\":\"call_gkmMloRMKIk0W0w1MtZdTGdd\"},{\"role\":\"tool\",\"content\":\"###
+      Analyst Recommendations for NVIDIA (NVDA)\\n\\nHere is the summary of analyst
+      recommendations over the last few months:\\n\\n| Recommendation     | Current
+      Month | Last Month | 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\n|
+      Strong Buy         | 10            | 11         | 11           | 11           |\\n|
+      Buy                | 49            | 48         | 47           | 48           |\\n|
+      Hold               | 4             | 4          | 6            | 6            |\\n|
+      Sell               | 1             | 1          | 1            | 1            |\\n|
+      Strong Sell        | 0             | 0          | 0            | 0            |\\n\\n###
+      Recent Market Outlook and News for NVIDIA\\n\\nHere are some recent news articles
+      that might reflect the current market outlook:\\n\\n1. **[Stock market today:
       Dow, S&P 500, Nasdaq head toward records as Trump stokes hopes US-China trade
       deal is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**
-      \n   - Published on: **October 26, 2025**\n   - Summary: Wall Street is in an
-      upbeat mood as it gears up for a pivotal week featuring the Federal Reserve’s
-      expected interest rate cut and a barrage of Big Tech earnings, as well as Trump''s
-      visit to Asia.\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\n\n2.
+      \\n   - Published on: **October 26, 2025**\\n   - Summary: Wall Street is in
+      an upbeat mood as it gears up for a pivotal week featuring the Federal Reserve\u2019s
+      expected interest rate cut and a barrage of Big Tech earnings, as well as Trump's
+      visit to Asia.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/4c4966c0-b2bc-11f0-8b7f-a17e314b66e2)\\n\\n2.
       **[Qualcomm stock spikes more than 20% as company enters AI chip race, taking
-      on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\n   -
-      Published on: **October 26, 2025**\n   - Summary: Qualcomm has seen a significant
-      rise in stock value as it enters the competitive AI chip market, directly competing
-      with NVIDIA and AMD.\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\n\n3.
-      **[US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\n   -
-      Published on: **October 27, 2025**\n   - Summary: US equity indexes rose in
-      midday trading, breaking records, amid expectations of a trade deal with China.\n   \n4.
-      **[The ''Debasement Trade'' Just Hit A Wall—And The Bond Market Knows Something
-      Gold Bugs Don''t](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\n   -
-      Published on: **October 27, 2025**\n   - Summary: Investors are reassessing
+      on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\\n
+      \  - Published on: **October 26, 2025**\\n   - Summary: Qualcomm has seen a
+      significant rise in stock value as it enters the competitive AI chip market,
+      directly competing with NVIDIA and AMD.\\n   - ![News Thumbnail](https://s.yimg.com/os/creatr-uploaded-images/2025-10/268b72e0-b0f3-11f0-bfcf-816f87be6591)\\n\\n3.
+      **[US Equity Indexes Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: US equity indexes rose
+      in midday trading, breaking records, amid expectations of a trade deal with
+      China.\\n   \\n4. **[The 'Debasement Trade' Just Hit A Wall\u2014And The Bond
+      Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: Investors are reassessing
       the conditions in gold and Bitcoin as the bond market signals shifts in the
-      economy.\n\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes; These
-      Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\n   -
-      Published on: **October 27, 2025**\n   - Summary: The Dow Jones index rose on
-      U.S.-China trade optimism, leading to a rally in stocks like NVIDIA and Tesla.\n   -
-      ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\n\nThis
+      economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China Trade Hopes; These
+      Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\\n
+      \  - Published on: **October 27, 2025**\\n   - Summary: The Dow Jones index
+      rose on U.S.-China trade optimism, leading to a rally in stocks like NVIDIA
+      and Tesla.\\n   - ![News Thumbnail](https://media.zenfs.com/en/ibd.com/02b044ee0973ef3ce2867b041245f60d)\\n\\nThis
       information suggests a strong optimistic sentiment among analysts regarding
-      NVIDIA, alongside notable market developments that could impact its stock performance.","tool_call_id":"call_aMqmhJodbC4PRS0JXbxvaw1j"}],"model":"gpt-4o-mini","tools":[{"type":"function","function":{"name":"delegate_task_to_member","description":"Use
-      this function to delegate a task to the selected team member.\nYou must provide
+      NVIDIA, alongside notable market developments that could impact its stock performance.\",\"tool_call_id\":\"call_aMqmhJodbC4PRS0JXbxvaw1j\"}],\"model\":\"gpt-4o-mini\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"delegate_task_to_member\",\"description\":\"Use
+      this function to delegate a task to the selected team member.\\nYou must provide
       a clear and concise description of the task the member should achieve AND the
-      expected output.","parameters":{"type":"object","properties":{"member_id":{"type":"string","description":"(str)
+      expected output.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"member_id\":{\"type\":\"string\",\"description\":\"(str)
       The ID of the member to delegate the task to. Use only the ID of the member,
-      not the ID of the team followed by the ID of the member."},"task":{"type":"string","description":"(str)
-      A clear and concise description of the task the member should achieve."}},"required":["member_id","task"],"additionalProperties":false}}}]}'
+      not the ID of the team followed by the ID of the member.\"},\"task\":{\"type\":\"string\",\"description\":\"(str)
+      A clear and concise description of the task the member should achieve.\"}},\"required\":[\"member_id\",\"task\"],\"additionalProperties\":false}}}]}"
     headers:
       accept:
       - application/json
@@ -1298,82 +1253,55 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-CVKY0M6globzUlK6tznOIYmA8Kr8c\",\n  \"object\"\
-        : \"chat.completion\",\n  \"created\": 1761583188,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
-        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
-        \      \"role\": \"assistant\",\n        \"content\": \"Here is the financial\
-        \ performance data and market outlook for NVIDIA:\\n\\n### NVIDIA Income Statement\
-        \ Data\\n| Year          | 2023           | 2022          | 2021         \
-        \ | 2020          |\\n|---------------|----------------|---------------|---------------|---------------|\\\
-        n| Total Revenue | $130.50 billion | $60.92 billion | $26.97 billion | $26.91\
-        \ billion |\\n| Cost of Revenue | $32.64 billion | $16.62 billion | $11.62\
-        \ billion | $9.44 billion  |\\n| Gross Profit  | $97.86 billion  | $44.30\
-        \ billion | $15.36 billion | $17.48 billion |\\n| Operating Income | $81.45\
-        \ billion | $32.97 billion | $5.58 billion  | $10.04 billion |\\n| Net Income\
-        \    | $72.88 billion  | $29.76 billion | $4.36 billion  | $9.75 billion \
-        \ |\\n| Diluted EPS   | $2.94           | $1.19         | $0.17         |\
-        \ $0.39         |\\n\\n### NVIDIA Key Financial Ratios\\n| Ratio         \
-        \                     | Value          |\\n|------------------------------------|----------------|\\\
-        n| Price to Earnings (Trailing PE)    | 54.53          |\\n| Price to Earnings\
-        \ (Forward PE)     | 46.32          |\\n| Price to Book                  \
-        \     | 46.40          |\\n| Profit Margin                       | 52.41%\
-        \         |\\n| Gross Margin                        | 69.85%         |\\n|\
-        \ Operating Margin                    | 60.84%         |\\n| EBITDA Margin\
-        \                       | 59.49%         |\\n| Return on Assets (ROA)    \
-        \         | 53.09%         |\\n| Return on Equity (ROE)             | 109.41%\
-        \        |\\n| Debt to Equity                      | 10.58          |\\n|\
-        \ Current Ratio                       | 4.21           |\\n| Quick Ratio \
-        \                        | 3.49           |\\n| Free Cash Flow           \
-        \           | $52.44 billion  |\\n\\n### Summary\\nNVIDIA has shown significant\
-        \ growth in revenue and net income over the past few years, reflecting its\
-        \ strong position in the semiconductor market. The key financial ratios suggest\
-        \ robust profitability and efficient use of equity.\\n\\n### Analyst Recommendations\
-        \ for NVIDIA (NVDA)\\n| Recommendation     | Current Month | Last Month |\
-        \ 2 Months Ago | 3 Months Ago |\\n|--------------------|---------------|------------|--------------|--------------|\\\
-        n| Strong Buy         | 10            | 11         | 11           | 11   \
-        \        |\\n| Buy                | 49            | 48         | 47      \
-        \     | 48           |\\n| Hold               | 4             | 4        \
-        \  | 6            | 6            |\\n| Sell               | 1            \
-        \ | 1          | 1            | 1            |\\n| Strong Sell        | 0\
-        \             | 0          | 0            | 0            |\\n\\n### Recent\
-        \ Market Outlook and News for NVIDIA\\n1. **[Stock market today: Dow, S&P\
-        \ 500, Nasdaq head toward records as Trump stokes hopes US-China trade deal\
-        \ is near](https://finance.yahoo.com/news/live/stock-market-today-dow-sp-500-nasdaq-head-toward-records-as-trump-stokes-hopes-us-china-trade-deal-is-near-225050682.html)**\
-        \ \\n   - Published on: **October 26, 2025**  \\n   - Summary: Wall Street\
-        \ is in an upbeat mood as it gears up for a pivotal week featuring the Federal\
-        \ Reserve’s expected interest rate cut and a barrage of Big Tech earnings,\
-        \ as well as Trump's visit to Asia.\\n\\n2. **[Qualcomm stock spikes more\
-        \ than 20% as company enters AI chip race, taking on Nvidia, AMD](https://finance.yahoo.com/news/qualcomm-stock-spikes-more-than-20-as-company-enters-ai-chip-race-taking-on-nvidia-amd-140024616.html)**\
-        \  \\n   - Published on: **October 26, 2025**  \\n   - Summary: Qualcomm has\
-        \ seen a significant rise in stock value as it enters the competitive AI chip\
-        \ market, directly competing with NVIDIA and AMD.\\n\\n3. **[US Equity Indexes\
-        \ Touch Record Highs in Anticipation of China Trade Deal](https://finance.yahoo.com/news/us-equity-indexes-touch-record-163107921.html)**\
-        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: US equity\
-        \ indexes rose in midday trading, breaking records, amid expectations of a\
-        \ trade deal with China.\\n\\n4. **[The 'Debasement Trade' Just Hit A Wall—And\
-        \ The Bond Market Knows Something Gold Bugs Don't](https://finance.yahoo.com/news/debasement-trade-just-hit-wall-163103160.html)**\
-        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: Investors\
-        \ are reassessing the conditions in gold and Bitcoin as the bond market signals\
-        \ shifts in the economy.\\n\\n5. **[Stock Market Today: Dow Up On U.S.-China\
-        \ Trade Hopes; These Stocks Clear Entries (Live Coverage)](https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-us-china-trade-optimism-nvda-tsla-stock/?src=A00220&yptr=yahoo)**\
-        \  \\n   - Published on: **October 27, 2025**  \\n   - Summary: The Dow Jones\
-        \ index rose on U.S.-China trade optimism, leading to a rally in stocks like\
-        \ NVIDIA and Tesla.\\n\\nThis information indicates a strong optimistic sentiment\
-        \ among analysts regarding NVIDIA, alongside notable market developments that\
-        \ could impact its stock performance.\",\n        \"refusal\": null,\n   \
-        \     \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\"\
-        : \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 2140,\n  \
-        \  \"completion_tokens\": 1180,\n    \"total_tokens\": 3320,\n    \"prompt_tokens_details\"\
-        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
-        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
-        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
-        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
-        : \"fp_560af6e559\"\n}\n"
+      string: !!binary |
+        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
     headers:
       CF-RAY:
       - 9953a1b0cd47162a-HYD
       Connection:
       - keep-alive
+      Content-Encoding:
+      - br
       Content-Type:
       - application/json
       Date:
@@ -1388,6 +1316,8 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:

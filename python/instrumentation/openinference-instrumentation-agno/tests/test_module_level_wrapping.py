@@ -400,7 +400,7 @@ class TestAsyncMethods:
         agent, exporter, _ = instrumented_agent
 
         try:
-            await agent.arun("Async test message")
+            await agent.arun("Async test message")  # type: ignore[misc]
         except Exception:
             pass
 
@@ -444,7 +444,7 @@ class TestAsyncMethods:
         team, exporter, _ = instrumented_team
 
         try:
-            await team.arun("Async team test message")
+            await team.arun("Async team test message")  # type: ignore[misc]
         except Exception:
             pass
 
