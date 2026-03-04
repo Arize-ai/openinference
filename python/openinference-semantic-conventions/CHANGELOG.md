@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.26...python-openinference-semantic-conventions-v0.1.27) (2026-03-04)
+
+
+### Features
+
+* **semconv:** add TOOL_ID (tool.id) to Python and JS semconv ([#2831](https://github.com/Arize-ai/openinference/issues/2831)) ([0b70006](https://github.com/Arize-ai/openinference/commit/0b700063be06ff135cb4210ff8243c4a67f9b765))
+
 ## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.25...python-openinference-semantic-conventions-v0.1.26) (2026-02-01)
 
 
