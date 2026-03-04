@@ -289,7 +289,9 @@ def _make_hook_matcher(callback: Callable[[Any], Any]) -> Any:
         if matcher_type is None:
             continue
         try:
-            return matcher_type(hooks=[callback])
+            matcher = matcher_type(hooks=[callback])
+            if isinstance(matcher, MappingABC):
+                return matcher
         except Exception:
             continue
     return {"hooks": [callback]}
@@ -305,42 +307,57 @@ def _hook_event_name(payload: Any) -> str | None:
 def _create_tool_hook_matchers(
     tool_tracker: "_ToolSpanTrackerBase",
 ) -> dict[str, list[Any]]:
-    async def pre_tool_use(payload: Any) -> dict[str, Any]:
+    async def pre_tool_use(
+        input_data: Any,
+        tool_use_id: Any | None = None,
+        context: Any | None = None,
+    ) -> dict[str, Any]:
+        del context
         try:
-            if (name := _hook_event_name(payload)) and name != "PreToolUse":
+            if (name := _hook_event_name(input_data)) and name != "PreToolUse":
                 return {}
-            tool_name = _get_field(payload, "tool_name")
-            tool_input = _get_field(payload, "tool_input")
-            tool_use_id = _get_field(payload, "tool_use_id")
-            parent_tool_use_id = _get_field(payload, "parent_tool_use_id")
+            tool_name = _get_field(input_data, "tool_name")
+            tool_input = _get_field(input_data, "tool_input")
+            resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
+            parent_tool_use_id = _get_field(input_data, "parent_tool_use_id")
             tool_tracker.start_tool_span(
                 tool_name,
                 tool_input,
-                tool_use_id,
+                resolved_tool_use_id,
                 parent_tool_use_id,
             )
         except Exception:
             pass
         return {}
 
-    async def post_tool_use(payload: Any) -> dict[str, Any]:
+    async def post_tool_use(
+        input_data: Any,
+        tool_use_id: Any | None = None,
+        context: Any | None = None,
+    ) -> dict[str, Any]:
+        del context
         try:
-            if (name := _hook_event_name(payload)) and name != "PostToolUse":
+            if (name := _hook_event_name(input_data)) and name != "PostToolUse":
                 return {}
-            tool_use_id = _get_field(payload, "tool_use_id")
-            tool_response = _get_field(payload, "tool_response")
-            tool_tracker.end_tool_span(tool_use_id, tool_response)
+            resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
+            tool_response = _get_field(input_data, "tool_response")
+            tool_tracker.end_tool_span(resolved_tool_use_id, tool_response)
         except Exception:
             pass
         return {}
 
-    async def post_tool_use_failure(payload: Any) -> dict[str, Any]:
+    async def post_tool_use_failure(
+        input_data: Any,
+        tool_use_id: Any | None = None,
+        context: Any | None = None,
+    ) -> dict[str, Any]:
+        del context
         try:
-            if (name := _hook_event_name(payload)) and name != "PostToolUseFailure":
+            if (name := _hook_event_name(input_data)) and name != "PostToolUseFailure":
                 return {}
-            tool_use_id = _get_field(payload, "tool_use_id")
-            error = _get_field(payload, "error")
-            tool_tracker.end_tool_span_with_error(tool_use_id, error)
+            resolved_tool_use_id = tool_use_id or _get_field(input_data, "tool_use_id")
+            error = _get_field(input_data, "error")
+            tool_tracker.end_tool_span_with_error(resolved_tool_use_id, error)
         except Exception:
             pass
         return {}
@@ -445,7 +462,20 @@ def _merge_hooks(options: Any, tool_tracker: "_ToolSpanTrackerBase") -> Any | No
         current = merged_hooks.get(event, [])
         if not isinstance(current, list):
             current = [current]
-        merged_hooks[event] = [*current, *matchers]
+        normalized: list[Any] = []
+        for matcher in current:
+            if isinstance(matcher, MappingABC):
+                normalized.append(dict(matcher))
+                continue
+            data: dict[str, Any] = {}
+            for key in ("hooks", "matcher", "timeout"):
+                if hasattr(matcher, key):
+                    data[key] = getattr(matcher, key)
+            if data:
+                normalized.append(data)
+            else:
+                normalized.append(matcher)
+        merged_hooks[event] = [*normalized, *matchers]
     return _set_hooks(opts, merged_hooks)
 
 
