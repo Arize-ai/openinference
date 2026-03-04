@@ -101,6 +101,8 @@ def _coerce_usage(usage: Any) -> Mapping[str, Any]:
 
 
 def _format_prompt_attributes(prompt: Any) -> dict[str, Any]:
+    if prompt is None:
+        return {}
     if isinstance(prompt, str):
         return get_input_attributes(prompt, mime_type=TEXT)
     return get_input_attributes(safe_json_dumps(prompt), mime_type=JSON)
@@ -189,9 +191,13 @@ def _extract_init_attributes(msg: Any) -> dict[str, Any]:
 def _is_result_success_message(msg: Any) -> bool:
     msg_type = _get_field(msg, "type")
     subtype = _get_field(msg, "subtype")
-    if msg_type == "result" and subtype == "success":
+    if msg_type == "result" and subtype == "success" and not _get_field(msg, "is_error"):
         return True
-    return subtype == "success" and _get_field(msg, "usage") is not None
+    return (
+        subtype == "success"
+        and _get_field(msg, "usage") is not None
+        and not _get_field(msg, "is_error")
+    )
 
 
 def _is_result_error_message(msg: Any) -> bool:
@@ -699,9 +705,9 @@ def _ensure_client_hooks(instance: Any, delegating_tracker: _DelegatingToolSpanT
         return False
     try:
         setattr(instance, "options", merged)
+        setattr(instance, _OINFERENCE_HOOKS_INJECTED, True)
     except Exception:
-        pass
-    setattr(instance, _OINFERENCE_HOOKS_INJECTED, True)
+        return False
     return True
 
 
@@ -782,6 +788,7 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
         if content is None:
             return attrs
         tool_index = 0
+        text_index = 0
         has_content = False
         for block in content:
             if _is_tool_use_block(block):
@@ -798,7 +805,10 @@ def _get_output_message_attributes(message: Any, message_index: int) -> dict[str
             elif _is_text_block(block):
                 has_content = True
                 if text := _get_field(block, "text"):
-                    attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}"] = str(text)
+                    attrs[
+                        f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_CONTENT}.{text_index}"
+                    ] = str(text)
+                    text_index += 1
         if has_content:
             role = _get_field(message, "role") or "assistant"
             attrs[f"{LLM_OUTPUT_MESSAGES}.{message_index}.{MESSAGE_ROLE}"] = str(role)

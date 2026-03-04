@@ -171,9 +171,11 @@ def cassette_transport(
 
         setattr(_sc_mod, "SubprocessCLITransport", _CapturingTransport)
         setattr(_client_mod, "SubprocessCLITransport", _CapturingTransport)
-        yield None  # test uses transport=None → SDK creates _CapturingTransport
-        setattr(_sc_mod, "SubprocessCLITransport", OrigTransport)
-        setattr(_client_mod, "SubprocessCLITransport", OrigTransport)
+        try:
+            yield None  # test uses transport=None → SDK creates _CapturingTransport
+        finally:
+            setattr(_sc_mod, "SubprocessCLITransport", OrigTransport)
+            setattr(_client_mod, "SubprocessCLITransport", OrigTransport)
     except Exception:
         yield None
         return

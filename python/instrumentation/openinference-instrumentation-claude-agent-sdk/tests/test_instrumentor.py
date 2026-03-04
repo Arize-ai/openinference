@@ -702,7 +702,7 @@ async def test_query_real_agent_span(
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
     output_msg_content = attrs.pop(
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", None
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}.0", None
     )
     assert isinstance(output_msg_content, str)
     output_msg_role = attrs.pop(
@@ -770,7 +770,7 @@ async def test_client_real_agent_span(
     assert isinstance(cost_total, (int, float))
     # Output messages — text-only assistant turn
     output_msg_content = attrs.pop(
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}", None
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}.0", None
     )
     assert isinstance(output_msg_content, str)
     output_msg_role = attrs.pop(
