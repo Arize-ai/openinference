@@ -50,7 +50,7 @@ class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc, unused-ignore]
 def test_entrypoint_for_opentelemetry_instrument() -> None:
     """Test that the instrumentor is properly registered and implements OITracer."""
     instrumentor_entrypoints = list(
-        entry_points(  # type: ignore[no-untyped-call]
+        entry_points(
             group="opentelemetry_instrumentor",
             name="crewai",
         )
