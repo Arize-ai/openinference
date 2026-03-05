@@ -97,40 +97,85 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     attributes.pop("crew_tasks")
     assert not attributes
 
-    # Verify AGENT spans
-    for agent_span in agent_spans:
-        attributes = dict(agent_span.attributes or {})
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
-        assert agent_span.name.endswith("._execute_core")
-        assert attributes.pop(INPUT_VALUE)
-        assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert attributes.pop(OUTPUT_VALUE)
-        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-        assert attributes.pop(GRAPH_NODE_ID)
-        attributes.pop("task_key")
-        attributes.pop("task_id")
-        attributes.pop("task_name", None)
-        attributes.pop("crew_key", None)
-        attributes.pop("crew_id", None)
-        attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID, None)
-        assert not attributes
+    # Verify AGENT spans — split by role for specific value assertions
+    scraper_span = next(s for s in agent_spans if "Website Scraper" in s.name)
+    analyzer_span = next(s for s in agent_spans if "Content Analyzer" in s.name)
 
-    # Verify TOOL span
-    attributes = dict(tool_span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
-    assert tool_span.name.endswith(".run")
-    assert attributes.pop(TOOL_NAME)
-    assert attributes.pop(TOOL_DESCRIPTION)
-    assert attributes.pop(TOOL_PARAMETERS)
+    attributes = dict(scraper_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert scraper_span.name == "Website Scraper.scrape-task._execute_core"
+    assert attributes.pop(GRAPH_NODE_ID) == "Website Scraper"
+    assert attributes.pop("task_name") == "scrape-task"
     assert attributes.pop(INPUT_VALUE)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
-    attributes.pop(OUTPUT_MIME_TYPE, None)  # text/plain for string outputs
-    attributes.pop("tool.description_updated", None)
-    attributes.pop("tool.cache_function", None)
-    attributes.pop("tool.result_as_answer", None)
-    attributes.pop("tool.max_usage_count", None)
-    attributes.pop("tool.current_usage_count", None)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    attributes.pop("task_key")
+    attributes.pop("task_id")
+    attributes.pop("crew_key")
+    attributes.pop("crew_id")
+    assert not attributes
+
+    attributes = dict(analyzer_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert analyzer_span.name == "Content Analyzer.analyze-task._execute_core"
+    assert attributes.pop(GRAPH_NODE_ID) == "Content Analyzer"
+    assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Website Scraper"
+    assert attributes.pop("task_name") == "analyze-task"
+    assert attributes.pop(INPUT_VALUE)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_VALUE)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    attributes.pop("task_key")
+    attributes.pop("task_id")
+    attributes.pop("crew_key")
+    attributes.pop("crew_id")
+    assert not attributes
+
+    # Verify TOOL span
+    _tool_description = (
+        "Tool Name: scrape_website\n"
+        "Tool Arguments: {\n"
+        '  "properties": {\n'
+        '    "url": {\n'
+        '      "description": "The website URL to scrape",\n'
+        '      "title": "Url",\n'
+        '      "type": "string"\n'
+        "    }\n"
+        "  },\n"
+        '  "required": [\n'
+        '    "url"\n'
+        "  ],\n"
+        '  "title": "MockScrapeWebsiteToolSchema",\n'
+        '  "type": "object",\n'
+        '  "additionalProperties": false\n'
+        "}\n"
+        "Tool Description: Scrape text content from a website URL"
+    )
+    _tool_parameters = (
+        '{"properties": {"url": {"description": "The website URL to scrape",'
+        ' "title": "Url", "type": "string"}}, "required": ["url"],'
+        ' "title": "MockScrapeWebsiteToolSchema", "type": "object"}'
+    )
+    _tool_output = (
+        '"The world as we have created it is a process of our thinking.'
+        ' It cannot be changed without changing our thinking."'
+        " by Albert Einstein"
+    )
+    attributes = dict(tool_span.attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert tool_span.name == "scrape_website.run"
+    assert attributes.pop(TOOL_NAME) == "scrape_website"
+    assert attributes.pop(TOOL_DESCRIPTION) == _tool_description
+    assert attributes.pop(TOOL_PARAMETERS) == _tool_parameters
+    assert attributes.pop(INPUT_VALUE) == '{"url": "http://quotes.toscrape.com/"}'
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop(OUTPUT_VALUE) == _tool_output
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop("tool.description_updated") == False  # noqa: E712
+    assert attributes.pop("tool.cache_function") == "<lambda>"
+    assert attributes.pop("tool.result_as_answer") == False  # noqa: E712
+    assert attributes.pop("tool.current_usage_count") == 0
     assert not attributes
 
     # Clear spans exporter
@@ -155,25 +200,30 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert isinstance(kickoff_id, str) and uuid.UUID(kickoff_id)
     assert attributes.pop(INPUT_VALUE)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert attributes.pop(OUTPUT_VALUE)
-    attributes.pop(OUTPUT_MIME_TYPE, None)  # text/plain for string flow output
+    assert attributes.pop(OUTPUT_VALUE) == "Step Two Received: Step One Output"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
     attributes.pop("flow_id")
     attributes.pop("flow_inputs")
     assert not attributes
 
     # Verify flow node CHAIN spans
-    node_names = set()
-    for node_span in node_spans:
-        attributes = dict(node_span.attributes or {})
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
-        node_names.add(attributes.pop("flow.node.name"))
-        assert attributes.pop("flow.node.type") in ("start", "listen", "router")
-        attributes.pop(OUTPUT_VALUE, None)
-        attributes.pop(OUTPUT_MIME_TYPE, None)
-        assert not attributes
+    node_spans_by_name = {s.attributes["flow.node.name"]: s for s in node_spans if s.attributes}
 
-    assert "step_one" in node_names
-    assert "step_two" in node_names
+    attributes = dict(node_spans_by_name["step_one"].attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert attributes.pop("flow.node.name") == "step_one"
+    assert attributes.pop("flow.node.type") == "start"
+    assert attributes.pop(OUTPUT_VALUE) == "Step One Output"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert not attributes
+
+    attributes = dict(node_spans_by_name["step_two"].attributes or {})
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert attributes.pop("flow.node.name") == "step_two"
+    assert attributes.pop("flow.node.type") == "listen"
+    assert attributes.pop(OUTPUT_VALUE) == "Step Two Received: Step One Output"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
+    assert not attributes
 
 
 def kickoff_crew() -> Tuple[Task, Task]:
@@ -586,9 +636,11 @@ def test_crewai_instrumentation_with_agent(
     assert attributes.pop(GRAPH_NODE_ID) == "Helpful Assistant"
     assert attributes.pop("agent.goal") == "Answer questions clearly and concisely"
     assert attributes.pop("agent.backstory") == "You are a helpful assistant."
-    assert attributes.pop(INPUT_VALUE)
+    assert attributes.pop(INPUT_VALUE) == '{"messages": "What is 2+2?"}'
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
-    assert attributes.pop(OUTPUT_VALUE)
+    output = json.loads(str(attributes.pop(OUTPUT_VALUE)))
+    assert output["raw"] == "2 + 2 equals 4."
+    assert output["agent_role"] == "Helpful Assistant"
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert not attributes
 
