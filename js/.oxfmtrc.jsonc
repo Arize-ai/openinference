@@ -18,5 +18,6 @@
     ".next/**",
     ".mastra/**",
     "**/CHANGELOG.md",
+    "**/AGENTS.md",
   ],
 }

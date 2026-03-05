@@ -206,6 +206,10 @@ class SpanAttributes:
     Parameters of the tool represented a dictionary JSON string, e.g.
     see https://platform.openai.com/docs/guides/gpt/function-calling
     """
+    TOOL_ID = "tool.id"
+    """
+    The identifier for the result of the tool call (corresponding to tool_call.id).
+    """
 
     RETRIEVAL_DOCUMENTS = "retrieval.documents"
 

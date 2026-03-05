@@ -52,17 +52,24 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: !!binary |
-        YwA4JQBA/Jqa36updl598oVM90PI8jAI1joMCD4gO/v/fzUQGNER25eWFWzH9U7rO9lYq3eiOVEn
-        Db+1UqCBF1DYgtsA9YtcxUW/974hgjUQBH1SVYfk22fxWeEPf4fbUp5w3vRvnj916+Xv7++f3j1Z
-        YNYQIfaXrCulfbaIQcnGEUVeczmLDQQt97vd4rA8bg7AV0M07CEIQ6rtJrbBjrZdLVabdrFvlwcO
-        zFO0mgsE/WuIiO6/LRDhGPhrELSY/SsvkZGFQPwREXL0DEFQpdhS1VgxQ4BN2KUKGifvgcdqjF5q
-        5b1w8Y3e/waH/VV5L5dXT398dj++m6df/c/h/x+1+nuMxxcsU2Qf3CallKUxhuIosHlCYBsRRhXo
-        v/cp8fiBK8fvMXomVSIE/HAIwn2HWTyelqMK3EF0eK8K/eRBlQ6zDmt/N26hxR/fnvwvr6m+QxpV
-        uYPw0L4OPJo7s3JInFWdMstptFXAp5p9sVPp8AiP0Uf/wW96HhM4HQAcykMxCDfrnJv9GM/T4OOQ
-        cuwLuY3t6xG5L7NJiOjajTKCGklMCXQWKceQqqzRseDSart6EiQ5YETr4xXOSQHAyqvjkjLO05ab
-        BKQl0GnQSp/YkENy76rJ2Aikjf0jNBrJX/TB1nYcXgAc0JpTZSM3Khm3GlD5Zb5kbTchF5R2sCXE
-        flktZwhC7xYRWLelcpAXdhw4p2zL8wJcJKk328O23/ZHjeaxMQAD
+      string: "{\n  \"id\": \"chatcmpl-CoCseMZgyssAer4bIDBk31XTLBzA0\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1766081948,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_1vBUPkUTdBRlVgqYa2Z9o9Ee\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"OpenMeteoTool\",\n              \"arguments\": \"{\\\"\
+        location_name\\\":\\\"Las Vegas\\\",\\\"country\\\":\\\"USA\\\",\\\"start_date\\\
+        \":null,\\\"end_date\\\":null,\\\"temperature_unit\\\":\\\"celsius\\\"}\"\n\
+        \            }\n          }\n        ],\n        \"refusal\": null,\n    \
+        \    \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\"\
+        : \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 252,\n\
+        \    \"completion_tokens\": 39,\n    \"total_tokens\": 291,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_c4585b5b9c\"\n}\n"
     headers:
       Access-Control-Expose-Headers:
       - X-Request-ID
@@ -70,8 +77,6 @@ interactions:
       - 9b00aab00be6fbde-HYD
       Connection:
       - keep-alive
-      Content-Encoding:
-      - br
       Content-Type:
       - application/json
       Date:
@@ -86,8 +91,6 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
       X-Content-Type-Options:
       - nosniff
       alt-svc:
@@ -184,8 +187,6 @@ interactions:
       - 9b00aab00be6fbde-HYD
       Connection:
       - keep-alive
-      Content-Encoding:
-      - br
       Content-Type:
       - application/json
       Date:

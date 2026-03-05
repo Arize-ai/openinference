@@ -2,6 +2,7 @@ import json
 import os
 import uuid
 from typing import Any, Mapping, Sequence, Tuple, cast
+from unittest.mock import MagicMock
 
 import pytest
 from crewai import LLM, Agent, Crew, Task
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -48,7 +50,7 @@ class MockScrapeWebsiteTool(BaseTool):  # type: ignore[misc, unused-ignore]
 def test_entrypoint_for_opentelemetry_instrument() -> None:
     """Test that the instrumentor is properly registered and implements OITracer."""
     instrumentor_entrypoints = list(
-        entry_points(  # type: ignore[no-untyped-call]
+        entry_points(
             group="opentelemetry_instrumentor",
             name="crewai",
         )
@@ -434,6 +436,42 @@ def test_nested_flow_gets_its_own_span(
     assert len(root_chains) == 1, f"Expected 1 root CHAIN span, got {len(root_chains)}"
     nested_chain = next(s for s in chain_spans if s is not root_chains[0])
     assert nested_chain.parent is not None, "Inner flow CHAIN span must have a parent"
+
+
+def test_execute_core_span_name_with_none_attributes() -> None:
+    """
+    Verify span names never contain the literal string 'None' when
+    agent.role or task.name is None.
+    """
+    wrapped = MagicMock()
+    wrapped.__name__ = "_execute_core"
+
+    # Verify when agent.role is None
+    agent = MagicMock()
+    agent.role = None
+    instance = MagicMock()
+    instance.name = "my-task"
+    result = _get_execute_core_span_name(instance, wrapped, agent)
+    assert "None" not in result, f"Literal 'None' in span name: {result}"
+
+    # Verify when task.name is None
+    agent.role = "Research Analyst"
+    instance.name = None
+    result = _get_execute_core_span_name(instance, wrapped, agent)
+    assert "None" not in result, f"Literal 'None' in span name: {result}"
+    assert result == "Research Analyst._execute_core"
+
+    # Verify when both are None
+    agent.role = None
+    instance.name = None
+    result = _get_execute_core_span_name(instance, wrapped, agent)
+    assert "None" not in result, f"Literal 'None' in span name: {result}"
+
+    # Verify when both present
+    agent.role = "Research Analyst"
+    instance.name = "research-task"
+    result = _get_execute_core_span_name(instance, wrapped, agent)
+    assert result == "Research Analyst.research-task._execute_core"
 
 
 def get_spans_by_kind(spans: Sequence[ReadableSpan], kind: str) -> Sequence[ReadableSpan]:
