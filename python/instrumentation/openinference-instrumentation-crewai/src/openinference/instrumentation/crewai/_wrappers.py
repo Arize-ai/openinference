@@ -178,20 +178,16 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
     if not instance:
         return str(base_method)
 
-    # Get agent role for context - simplified to just use agent name
-    agent_role = str(getattr(agent, "role", "")).strip()
-    task_name = str(getattr(instance, "name", "")).strip()
+    agent_role = str(getattr(agent, "role", "") or "").strip()
+    task_name = str(getattr(instance, "name", "") or "").strip()
 
     if agent_role and task_name:
-        return f"{agent_role}.{task_name}.{str(base_method)}"
+        return f"{agent_role}.{task_name}.{base_method}"
     if agent_role:
-        return f"{agent_role}.{str(base_method)}"
-
-    # Fallback to original naming if no agent role available
+        return f"{agent_role}.{base_method}"
     if instance:
-        return f"{instance.__class__.__name__}.{str(base_method)}"
-    else:
-        return str(base_method)
+        return f"{instance.__class__.__name__}.{base_method}"
+    return base_method
 
 
 def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
