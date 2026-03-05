@@ -11,10 +11,12 @@ from openinference.instrumentation import (
     TraceConfig,
 )
 from openinference.instrumentation.crewai._wrappers import (
+    _AgentKickoffWrapper,
     _BaseToolRunWrapper,
     _CrewKickoffWrapper,
     _ExecuteCoreWrapper,
     _ExecuteWithoutTimeoutContextDescriptor,
+    _FlowExecuteMethodWrapper,
     _FlowKickoffAsyncWrapper,
     _FlowKickoffWrapper,
     _LongTermMemorySaveWrapper,
@@ -35,12 +37,14 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_crew_kickoff",
         "_original_flow_kickoff",
         "_original_flow_kickoff_async",
+        "_original_flow_execute_method",
         "_original_execute_without_timeout",
         "_original_long_term_memory_save",
         "_original_long_term_memory_search",
         "_original_short_term_memory_save",
         "_original_short_term_memory_search",
         "_original_base_tool_run",
+        "_original_agent_kickoff",
         "_tracer",
     )
 
@@ -92,6 +96,26 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             name="Flow.kickoff_async",
             wrapper=flow_kickoff_async_wrapper,
         )
+
+        flow_execute_method_wrapper = _FlowExecuteMethodWrapper(tracer=self._tracer)
+        self._original_flow_execute_method = getattr(
+            import_module("crewai.flow.flow").Flow, "_execute_method", None
+        )
+        if self._original_flow_execute_method is not None:
+            wrap_function_wrapper(
+                module="crewai.flow.flow",
+                name="Flow._execute_method",
+                wrapper=flow_execute_method_wrapper,
+            )
+
+        agent_kickoff_wrapper = _AgentKickoffWrapper(tracer=self._tracer)
+        self._original_agent_kickoff = getattr(import_module("crewai").Agent, "kickoff", None)
+        if self._original_agent_kickoff is not None:
+            wrap_function_wrapper(
+                module="crewai",
+                name="Agent.kickoff",
+                wrapper=agent_kickoff_wrapper,
+            )
 
         try:
             long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")
@@ -183,6 +207,16 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             crew_module = import_module("crewai")
             crew_module.Flow.kickoff_async = self._original_flow_kickoff_async
             self._original_flow_kickoff_async = None
+
+        if self._original_flow_execute_method is not None:
+            import_module(
+                "crewai.flow.flow"
+            ).Flow._execute_method = self._original_flow_execute_method
+            self._original_flow_execute_method = None
+
+        if self._original_agent_kickoff is not None:
+            import_module("crewai").Agent.kickoff = self._original_agent_kickoff
+            self._original_agent_kickoff = None
 
         if self._original_long_term_memory_save is not None:
             long_term_memory_module = import_module("crewai.memory.long_term.long_term_memory")
