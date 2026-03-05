@@ -26,7 +26,7 @@ from openinference.instrumentation.crewai._wrappers import (
 )
 from openinference.instrumentation.crewai.version import __version__
 
-_instruments = ("crewai >= 1.9.0",)
+_instruments = ("crewai >= 1.10.1",)
 
 logger = logging.getLogger(__name__)
 
