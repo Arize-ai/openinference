@@ -205,6 +205,7 @@ def test_instrumentor_context_triggers_processors_and_exports_tool_spans(
         assert attrs.pop(SpanAttributes.OUTPUT_VALUE) == '{"z": 3}'
 
     trace = get_trace()
+    assert 1 == 1
     assert trace is None
 
 
