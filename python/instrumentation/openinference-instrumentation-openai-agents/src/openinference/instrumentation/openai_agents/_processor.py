@@ -314,10 +314,10 @@ def _get_attributes_from_input(
             continue
         elif item["type"] == "tool_search_call":
             # TODO: Handle tool search call response
-            pass
+            continue
         elif item["type"] == "tool_search_output":
             # TODO: Handle tool search output response
-            pass
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
