@@ -312,6 +312,12 @@ def _get_attributes_from_input(
         elif item["type"] == "compaction":
             # TODO: Handle compaction response
             continue
+        elif item["type"] == "tool_search_call":
+            # TODO: Handle tool search call response
+            continue
+        elif item["type"] == "tool_search_output":
+            # TODO: Handle tool search output response
+            continue
         elif TYPE_CHECKING and item["type"] is not None:
             assert_never(item["type"])
 
@@ -667,6 +673,10 @@ def _get_attributes_from_response_output(
         elif item.type == "apply_patch_call_output":
             ...  # TODO
         elif item.type == "compaction":
+            ...  # TODO
+        elif item.type == "tool_search_call":
+            ...  # TODO
+        elif item.type == "tool_search_output":
             ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
