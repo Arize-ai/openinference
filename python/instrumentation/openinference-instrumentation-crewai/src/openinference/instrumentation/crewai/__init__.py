@@ -209,13 +209,13 @@ class CrewAIInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_flow_kickoff_async = None
 
         if self._original_flow_execute_method is not None:
-            import_module(
-                "crewai.flow.flow"
-            ).Flow._execute_method = self._original_flow_execute_method
+            flow_module = import_module("crewai.flow.flow")
+            flow_module.Flow._execute_method = self._original_flow_execute_method
             self._original_flow_execute_method = None
 
         if self._original_agent_kickoff is not None:
-            import_module("crewai").Agent.kickoff = self._original_agent_kickoff
+            agent_module = import_module("crewai")
+            agent_module.Agent.kickoff = self._original_agent_kickoff
             self._original_agent_kickoff = None
 
         if self._original_long_term_memory_save is not None:
