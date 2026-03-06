@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.20...python-openinference-instrumentation-anthropic-v1.0.0) (2026-03-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* Add support for messages.parse()  ([#2694](https://github.com/Arize-ai/openinference/issues/2694))
+
+### Features
+
+* Add support for messages.parse()  ([#2694](https://github.com/Arize-ai/openinference/issues/2694)) ([298e48b](https://github.com/Arize-ai/openinference/commit/298e48b52845319f814162b4a92a593d0b8d9ae2))
+
 ## [0.1.20](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-anthropic-v0.1.19...python-openinference-instrumentation-anthropic-v0.1.20) (2025-10-10)
 
 
