@@ -19,5 +19,5 @@ with client.messages.stream(
     messages=[{"role": "user", "content": "Hello!"}],
     model="claude-sonnet-4-6",
 ) as stream:
-    for text in stream:
+    for text in stream.text_stream:
         print(text, end="", flush=True)

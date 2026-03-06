@@ -28,6 +28,7 @@ from wrapt import ObjectProxy
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (
     _MessagesStream,
+    _RawStreamInterceptor,
     _Stream,
 )
 from openinference.instrumentation.anthropic._with_span import _WithSpan
@@ -507,16 +508,13 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
 
 
 # Sync stream manager proxies.
-# The class name determines which SDK private attribute Python's name-mangling
-# resolves __api_request to. Each proxy class name, when leading underscores
-# are stripped, must match the SDK manager class name so that
-# self.__api_request inside the proxy resolves to the same mangled attribute
-# stored on the SDK object (e.g. _MessageStreamManager strips to
-# MessageStreamManager → accesses _MessageStreamManager__api_request).
+# These proxy the SDK's MessageStreamManager, intercept the raw HTTP stream for
+# span accumulation via _RawStreamInterceptor, and return the real MessageStream
+# so callers have full access to .text_stream, .get_final_message(), etc.
 
 
 class _MessageStreamManager(ObjectProxy):  # type: ignore
-    __slots__ = ("_self_with_span", "_self_stream")
+    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
@@ -525,12 +523,18 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
-        self._self_stream: Optional["_MessagesStream"] = None
+        self._self_interceptor: Optional[_RawStreamInterceptor] = None
+        self._self_message_stream: Any = None
 
-    def __enter__(self) -> "_MessagesStream":
-        raw = self.__api_request()
-        self._self_stream = _MessagesStream(raw, self._self_with_span)
-        return self._self_stream
+    def __enter__(self) -> Any:
+        message_stream = self.__wrapped__.__enter__()
+        interceptor = _RawStreamInterceptor(
+            message_stream._raw_stream, self._self_with_span, message_stream
+        )
+        message_stream._raw_stream = interceptor
+        self._self_interceptor = interceptor
+        self._self_message_stream = message_stream
+        return message_stream
 
     def __exit__(
         self,
@@ -538,13 +542,14 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
         exc_val: Optional[BaseException],
         exc_tb: Any,
     ) -> None:
-        if self._self_stream is not None:
-            self._self_stream._finish_tracing()
-            self._self_stream.close()
+        if self._self_interceptor is not None:
+            self._self_interceptor._finish_tracing()
+        if self._self_message_stream is not None:
+            self._self_message_stream.close()
 
 
 class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
-    __slots__ = ("_self_with_span", "_self_stream")
+    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
@@ -553,12 +558,18 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
-        self._self_stream: Optional["_MessagesStream"] = None
+        self._self_interceptor: Optional[_RawStreamInterceptor] = None
+        self._self_message_stream: Any = None
 
-    def __enter__(self) -> "_MessagesStream":
-        raw = self.__api_request()
-        self._self_stream = _MessagesStream(raw, self._self_with_span)
-        return self._self_stream
+    def __enter__(self) -> Any:
+        message_stream = self.__wrapped__.__enter__()
+        interceptor = _RawStreamInterceptor(
+            message_stream._raw_stream, self._self_with_span, message_stream
+        )
+        message_stream._raw_stream = interceptor
+        self._self_interceptor = interceptor
+        self._self_message_stream = message_stream
+        return message_stream
 
     def __exit__(
         self,
@@ -566,16 +577,17 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
         exc_val: Optional[BaseException],
         exc_tb: Any,
     ) -> None:
-        if self._self_stream is not None:
-            self._self_stream._finish_tracing()
-            self._self_stream.close()
+        if self._self_interceptor is not None:
+            self._self_interceptor._finish_tracing()
+        if self._self_message_stream is not None:
+            self._self_message_stream.close()
 
 
-# Async stream manager proxies — same name-mangling constraint applies.
+# Async stream manager proxies.
 
 
 class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
-    __slots__ = ("_self_with_span", "_self_stream")
+    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
@@ -584,12 +596,18 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
-        self._self_stream: Optional["_MessagesStream"] = None
+        self._self_interceptor: Optional[_RawStreamInterceptor] = None
+        self._self_message_stream: Any = None
 
-    async def __aenter__(self) -> "_MessagesStream":
-        raw = await self.__api_request
-        self._self_stream = _MessagesStream(raw, self._self_with_span)
-        return self._self_stream
+    async def __aenter__(self) -> Any:
+        message_stream = await self.__wrapped__.__aenter__()
+        interceptor = _RawStreamInterceptor(
+            message_stream._raw_stream, self._self_with_span, message_stream
+        )
+        message_stream._raw_stream = interceptor
+        self._self_interceptor = interceptor
+        self._self_message_stream = message_stream
+        return message_stream
 
     async def __aexit__(
         self,
@@ -597,13 +615,14 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
         exc_val: Optional[BaseException],
         exc_tb: Any,
     ) -> None:
-        if self._self_stream is not None:
-            self._self_stream._finish_tracing()
-            await self._self_stream.close()
+        if self._self_interceptor is not None:
+            self._self_interceptor._finish_tracing()
+        if self._self_message_stream is not None:
+            await self._self_message_stream.close()
 
 
 class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore
-    __slots__ = ("_self_with_span", "_self_stream")
+    __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
         self,
@@ -612,12 +631,18 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
-        self._self_stream: Optional["_MessagesStream"] = None
+        self._self_interceptor: Optional[_RawStreamInterceptor] = None
+        self._self_message_stream: Any = None
 
-    async def __aenter__(self) -> "_MessagesStream":
-        raw = await self.__api_request
-        self._self_stream = _MessagesStream(raw, self._self_with_span)
-        return self._self_stream
+    async def __aenter__(self) -> Any:
+        message_stream = await self.__wrapped__.__aenter__()
+        interceptor = _RawStreamInterceptor(
+            message_stream._raw_stream, self._self_with_span, message_stream
+        )
+        message_stream._raw_stream = interceptor
+        self._self_interceptor = interceptor
+        self._self_message_stream = message_stream
+        return message_stream
 
     async def __aexit__(
         self,
@@ -625,9 +650,10 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore
         exc_val: Optional[BaseException],
         exc_tb: Any,
     ) -> None:
-        if self._self_stream is not None:
-            self._self_stream._finish_tracing()
-            await self._self_stream.close()
+        if self._self_interceptor is not None:
+            self._self_interceptor._finish_tracing()
+        if self._self_message_stream is not None:
+            await self._self_message_stream.close()
 
 
 @_stop_on_exception

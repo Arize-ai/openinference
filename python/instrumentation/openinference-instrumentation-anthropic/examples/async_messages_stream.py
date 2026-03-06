@@ -23,8 +23,19 @@ async def main():
         messages=[{"role": "user", "content": "Hello!"}],
         model="claude-sonnet-4-6",
     ) as stream:
-        async for text in stream:
+        async for text in stream.text_stream:
             print(text, end="", flush=True)
+        print()
+
+    stream = await client.messages.create(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": "Hello!"}],
+        model="claude-sonnet-4-6",
+        stream=True,
+    )
+    async for event in stream:
+        if event.type == "content_block_delta" and event.delta.type == "text_delta":
+            print(event.delta.text, end="", flush=True)
 
 
 asyncio.run(main())
