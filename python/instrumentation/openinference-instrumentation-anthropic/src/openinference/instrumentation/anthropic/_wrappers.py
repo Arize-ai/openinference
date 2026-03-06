@@ -84,6 +84,7 @@ class _Params:
         self._get_attributes = get_attributes or (lambda kwargs: iter(kwargs.items()))
         self._kwargs = dict(kwargs)
         self._token: Optional[Token[Optional[_Params]]] = None
+        self._updated = False  # prevent spurious updates
 
     def __iter__(self) -> Iterator[Tuple[str, AttributeValue]]:
         return self._get_attributes(dict(self._kwargs))
@@ -102,7 +103,10 @@ class _Params:
             _params.reset(self._token)
 
     def update(self, **kwargs: Any) -> None:
+        if self._updated:
+            return
         self._kwargs.update(kwargs)
+        self._updated = True
 
 
 _params: ContextVar[Optional[_Params]] = ContextVar("params", default=None)
@@ -237,15 +241,15 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
+        span.set_status(trace_api.StatusCode.OK)
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _Stream(response, span)
+        else:
             span.set_status(trace_api.StatusCode.OK)
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _Stream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(dict(_get_outputs(response)))
-                span.finish_tracing()
-                return response
+            span.set_attributes(dict(_get_outputs(response)))
+            span.finish_tracing()
+            return response
 
 
 class _AsyncCompletionsWrapper(_WithTracer):
@@ -282,15 +286,15 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
+        span.set_status(trace_api.StatusCode.OK)
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _Stream(response, span)
+        else:
             span.set_status(trace_api.StatusCode.OK)
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _Stream(response, span)
-            else:
-                span.set_status(trace_api.StatusCode.OK)
-                span.set_attributes(dict(_get_outputs(response)))
-                span.finish_tracing()
-                return response
+            span.set_attributes(dict(_get_outputs(response)))
+            span.finish_tracing()
+            return response
 
 
 @_stop_on_exception
@@ -344,22 +348,22 @@ class _MessagesWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
-            else:
-                span.finish_tracing(
-                    status=trace_api.Status(trace_api.StatusCode.OK),
-                    extra_attributes=dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    ),
-                )
-                return response
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _MessagesStream(response, span)
+        else:
+            span.finish_tracing(
+                status=trace_api.Status(trace_api.StatusCode.OK),
+                extra_attributes=dict(
+                    chain(
+                        _get_llm_model_name_from_response(response),
+                        _get_output_messages(response),
+                        _get_llm_token_counts(response.usage),
+                        _get_outputs(response),
+                    )
+                ),
+            )
+            return response
 
 
 class _AsyncMessagesWrapper(_WithTracer):
@@ -396,22 +400,22 @@ class _AsyncMessagesWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-            streaming = kwargs.get("stream", False)
-            if streaming:
-                return _MessagesStream(response, span)
-            else:
-                span.finish_tracing(
-                    status=trace_api.Status(trace_api.StatusCode.OK),
-                    extra_attributes=dict(
-                        chain(
-                            _get_llm_model_name_from_response(response),
-                            _get_output_messages(response),
-                            _get_llm_token_counts(response.usage),
-                            _get_outputs(response),
-                        )
-                    ),
-                )
-                return response
+        streaming = kwargs.get("stream", False)
+        if streaming:
+            return _MessagesStream(response, span)
+        else:
+            span.finish_tracing(
+                status=trace_api.Status(trace_api.StatusCode.OK),
+                extra_attributes=dict(
+                    chain(
+                        _get_llm_model_name_from_response(response),
+                        _get_output_messages(response),
+                        _get_llm_token_counts(response.usage),
+                        _get_outputs(response),
+                    )
+                ),
+            )
+            return response
 
 
 class _MessagesStreamWrapper(_WithTracer):
@@ -456,8 +460,7 @@ class _MessagesStreamWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-
-            return self._manager_class(response, span)
+        return self._manager_class(response, span)
 
 
 class _AsyncMessagesStreamWrapper(_WithTracer):
@@ -498,8 +501,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-
-            return self._manager_class(response, span)
+        return self._manager_class(response, span)
 
 
 # Sync stream manager proxies.
