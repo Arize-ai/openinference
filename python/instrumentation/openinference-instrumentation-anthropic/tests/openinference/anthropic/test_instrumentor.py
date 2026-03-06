@@ -1672,7 +1672,7 @@ def test_anthropic_instrumentation_messages_parse(
         "content": [
             {
                 "citations": None,
-                "text": "{\"city\":\"Paris\",\"country\":\"France\"}",
+                "text": '{"city":"Paris","country":"France"}',
                 "type": "text",
                 "parsed_output": {"city": "Paris", "country": "France"},
             }
@@ -1776,7 +1776,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
         "content": [
             {
                 "citations": None,
-                "text": "{\"city\":\"Paris\",\"country\":\"France\"}",
+                "text": '{"city":"Paris","country":"France"}',
                 "type": "text",
                 "parsed_output": {"city": "Paris", "country": "France"},
             }
@@ -1879,7 +1879,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         "content": [
             {
                 "citations": None,
-                "text": "{\"city\":\"Paris\",\"country\":\"France\"}",
+                "text": '{"city":"Paris","country":"France"}',
                 "type": "text",
                 "parsed_output": {"city": "Paris", "country": "France"},
             }
@@ -1986,7 +1986,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         "content": [
             {
                 "citations": None,
-                "text": "{\"city\":\"Paris\",\"country\":\"France\"}",
+                "text": '{"city":"Paris","country":"France"}',
                 "type": "text",
                 "parsed_output": {"city": "Paris", "country": "France"},
             }
