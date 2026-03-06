@@ -77,7 +77,7 @@ class _RequestAttributesExtractor:
                 system_instruction = config.get("system_instruction", None)
             else:
                 system_instruction = getattr(config, "system_instruction", None)
-            if system_instruction:
+            if system_instruction is not None:
                 # Convert Content objects to satisfy OTel scalar attribute requirement
                 system_instruction_str = self._extract_text_from_content(system_instruction)
                 yield (
@@ -115,16 +115,24 @@ class _RequestAttributesExtractor:
         if isinstance(content, str):
             return content
 
+        # Handle a bare Part (may be None for function-call parts)
+        if isinstance(content, Part):
+            return getattr(content, "text", None) or str(content)
+
         # Handle parts from Google GenAI Content object
         if isinstance(content, Content):
-            text_parts = []
-            parts = getattr(content, "parts", None)
-            if parts:
-                for part in parts:
-                    text = getattr(part, "text", None)
-                    if text:
-                        text_parts.append(text)
-            return "\n\n".join(text_parts) if text_parts else str(content)
+            parts = getattr(content, "parts", None) or []
+            texts = [
+                getattr(part, "text", None)
+                for part in parts
+                if getattr(part, "text", None)
+            ]
+            return "\n\n".join(texts) if texts else str(content)
+
+        # Handle multiple content types - list[Content | Part | str]
+        if isinstance(content, list):
+            resolved = [self._extract_text_from_content(item) for item in content if item is not None]
+            return "\n\n".join(resolved) if resolved else ""
 
         # Fallback for unexpected types
         return str(content)
