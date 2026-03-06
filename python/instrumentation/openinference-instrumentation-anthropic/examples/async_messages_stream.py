@@ -7,7 +7,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from openinference.instrumentation.anthropic import AnthropicInstrumentor
 
-# Configure HaystackInstrumentor with Phoenix endpoint
+# Configure AnthropicInstrumentor with Phoenix endpoint
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))

@@ -512,6 +512,8 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
 
 
 class _MessageStreamManager(ObjectProxy):  # type: ignore
+    __slots__ = ("_self_with_span", "_self_stream")
+
     def __init__(
         self,
         manager: "MessageStreamManager",
@@ -519,13 +521,27 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_stream: Optional["_MessagesStream"] = None
 
     def __enter__(self) -> "_MessagesStream":
         raw = self.__api_request()
-        return _MessagesStream(raw, self._self_with_span)
+        self._self_stream = _MessagesStream(raw, self._self_with_span)
+        return self._self_stream
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
+        if self._self_stream is not None:
+            self._self_stream._finish_tracing()
+            self._self_stream.close()
 
 
 class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
+    __slots__ = ("_self_with_span", "_self_stream")
+
     def __init__(
         self,
         manager: "BetaMessageStreamManager",
@@ -533,10 +549,22 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
     ) -> None:
         super().__init__(manager)
         self._self_with_span = with_span
+        self._self_stream: Optional["_MessagesStream"] = None
 
     def __enter__(self) -> "_MessagesStream":
         raw = self.__api_request()
-        return _MessagesStream(raw, self._self_with_span)
+        self._self_stream = _MessagesStream(raw, self._self_with_span)
+        return self._self_stream
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
+        if self._self_stream is not None:
+            self._self_stream._finish_tracing()
+            self._self_stream.close()
 
 
 # Async stream manager proxies — same name-mangling constraint applies.
@@ -566,6 +594,7 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
         exc_tb: Any,
     ) -> None:
         if self._self_stream is not None:
+            self._self_stream._finish_tracing()
             await self._self_stream.close()
 
 
@@ -593,6 +622,7 @@ class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore
         exc_tb: Any,
     ) -> None:
         if self._self_stream is not None:
+            self._self_stream._finish_tracing()
             await self._self_stream.close()
 
 
