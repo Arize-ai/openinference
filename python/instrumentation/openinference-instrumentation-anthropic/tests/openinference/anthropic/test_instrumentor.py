@@ -203,8 +203,8 @@ def test_anthropic_instrumentation_stream_message(
         messages=chat,  # type: ignore
         model="claude-sonnet-4-6",
     ) as stream:
-        for _ in stream.text_stream:
-            pass
+        text = "".join(stream.text_stream)
+    assert text == "The capital of France is **Paris**."
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
@@ -295,8 +295,8 @@ async def test_anthropic_instrumentation_async_stream_message(
         messages=chat,  # type: ignore
         model="claude-sonnet-4-6",
     ) as stream:
-        async for _ in stream.text_stream:
-            pass
+        text = "".join([chunk async for chunk in stream.text_stream])
+    assert text == "The capital of France is **Paris**."
 
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
