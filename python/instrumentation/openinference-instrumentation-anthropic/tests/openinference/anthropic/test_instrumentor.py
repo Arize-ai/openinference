@@ -131,7 +131,7 @@ def test_anthropic_instrumentation_completions_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -140,7 +140,7 @@ def test_anthropic_instrumentation_completions_streaming(
     )
 
     stream = client.completions.create(
-        model="claude-2.1",
+        model="claude-sonnet-4-6",
         prompt=prompt,
         max_tokens_to_sample=1000,
         stream=True,
@@ -163,7 +163,7 @@ def test_anthropic_instrumentation_completions_streaming(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
 
     invocation_params = {"max_tokens_to_sample": 1000, "stream": True}
@@ -182,7 +182,7 @@ def test_anthropic_instrumentation_stream_message(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
     chat = [{"role": "user", "content": input_message}]
     invocation_params = {"max_tokens": 1024, "stream": True}
@@ -190,7 +190,7 @@ def test_anthropic_instrumentation_stream_message(
     with client.messages.stream(
         max_tokens=1024,
         messages=chat,  # type: ignore
-        model="claude-3-opus-latest",
+        model="claude-sonnet-4-6",
     ) as stream:
         for _ in stream:
             pass
@@ -224,7 +224,7 @@ def test_anthropic_instrumentation_stream_message(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-latest"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
@@ -243,7 +243,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
     chat = [{"role": "user", "content": input_message}]
     invocation_params = {"max_tokens": 1024, "stream": True}
@@ -251,7 +251,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     async with client.messages.stream(
         max_tokens=1024,
         messages=chat,  # type: ignore
-        model="claude-3-opus-latest",
+        model="claude-sonnet-4-6",
     ) as stream:
         async for _ in stream:
             pass
@@ -285,7 +285,7 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-latest"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
     assert isinstance(raw_inv, str)
     assert json.loads(raw_inv) == invocation_params
@@ -304,7 +304,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -355,7 +355,7 @@ def test_anthropic_instrumentation_completions(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
 
     invocation_params = {"max_tokens_to_sample": 1000}
 
@@ -366,7 +366,7 @@ def test_anthropic_instrumentation_completions(
     )
 
     client.completions.create(
-        model="claude-2.1",
+        model="claude-sonnet-4-6",
         prompt=prompt,
         max_tokens_to_sample=1000,
     )
@@ -385,7 +385,7 @@ def test_anthropic_instrumentation_completions(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -401,7 +401,7 @@ def test_anthropic_instrumentation_messages(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
 
     invocation_params = {"max_tokens": 1024}
@@ -414,7 +414,7 @@ def test_anthropic_instrumentation_messages(
                 "content": input_message,
             }
         ],
-        model="claude-3-opus-latest",
+        model="claude-sonnet-4-6",
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -440,7 +440,7 @@ def test_anthropic_instrumentation_messages(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -456,7 +456,7 @@ def test_anthropic_instrumentation_messages_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
 
     invocation_params = {"max_tokens": 1024, "stream": True}
@@ -469,7 +469,7 @@ def test_anthropic_instrumentation_messages_streaming(
                 "content": input_message,
             }
         ],
-        model="claude-2.1",
+        model="claude-sonnet-4-6",
         stream=True,
     )
 
@@ -489,11 +489,11 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(
         msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
     )
-    assert "Light scatters blue." in msg_content
+    assert "Sunlight scatters off air molecules." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 21
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 13
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 34
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -503,7 +503,7 @@ def test_anthropic_instrumentation_messages_streaming(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -520,7 +520,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
 
     invocation_params = {"max_tokens": 1024, "stream": True}
@@ -533,7 +533,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
                 "content": input_message,
             }
         ],
-        model="claude-2.1",
+        model="claude-sonnet-4-6",
         stream=True,
     )
 
@@ -553,11 +553,11 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert isinstance(
         msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
     )
-    assert "Light scatters blue." in msg_content
+    assert "Sunlight scatters off air molecules." in msg_content
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 21
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 10
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 31
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 13
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 34
 
     assert isinstance(attributes.pop(INPUT_VALUE), str)
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
@@ -567,7 +567,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -583,7 +583,7 @@ async def test_anthropic_instrumentation_async_completions(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
 
     invocation_params = {"max_tokens_to_sample": 1000}
 
@@ -594,7 +594,7 @@ async def test_anthropic_instrumentation_async_completions(
     )
 
     await client.completions.create(
-        model="claude-2.1",
+        model="claude-sonnet-4-6",
         prompt=prompt,
         max_tokens_to_sample=1000,
     )
@@ -613,7 +613,7 @@ async def test_anthropic_instrumentation_async_completions(
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
     assert not attributes
@@ -629,7 +629,7 @@ async def test_anthropic_instrumentation_async_messages(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = "What's the capital of France?"
 
     invocation_params = {"max_tokens": 1024}
@@ -642,7 +642,7 @@ async def test_anthropic_instrumentation_async_messages(
                 "content": input_message,
             }
         ],
-        model="claude-3-opus-20240229",
+        model="claude-sonnet-4-6",
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -668,7 +668,7 @@ async def test_anthropic_instrumentation_async_messages(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-20240229"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
@@ -685,7 +685,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = anthropic.Anthropic(api_key="fake")
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
 
     input_message = (
         "What is the weather like right now in New York?"
@@ -725,7 +725,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         },
     )
     client.messages.create(
-        model="claude-3-5-sonnet-20240620",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         tools=[get_weather_tool_schema, get_time_tool_schema],
         messages=[{"role": "user", "content": input_message}],
@@ -788,7 +788,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = anthropic.Anthropic(api_key="fake")
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
 
     input_message = (
         "What is the weather like right now in New York?"
@@ -828,7 +828,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         },
     )
     stream = client.messages.create(
-        model="claude-3-5-sonnet-20240620",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         tools=[get_weather_tool_schema, get_time_tool_schema],
         messages=[{"role": "user", "content": input_message}],
@@ -869,10 +869,10 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     get_weather_input_str = attributes.pop(
         f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_TOOL_CALLS}.0.{TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
     )
-    assert json.loads(get_weather_input_str) == {"location": "New York, NY", "unit": "celsius"}  # type: ignore
-    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 518
-    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 149
-    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 667
+    assert json.loads(get_weather_input_str) == {"location": "New York, NY"}  # type: ignore
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 721
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 113
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 834
     # TODO(harrison): the output here doesn't look properly
     # serialized but looks like openai, mistral accumulators do
     # the same thing. need to look into why this might be wrong
@@ -895,7 +895,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = anthropic.Anthropic(api_key="fake")
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
     base64_image = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wC="
     image_block = ImageBlockParam(
         type="image",
@@ -967,7 +967,7 @@ def test_anthropic_instrumentation_image_input_messages(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = anthropic.Anthropic(api_key="fake")
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
     base64_image = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wC="
     image_block = ImageBlockParam(
         type="image",
@@ -1079,7 +1079,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
     setup_anthropic_instrumentation: Any,
     assistant_message: MessageParam,
 ) -> None:
-    client = anthropic.Anthropic(api_key="fake")
+    client = anthropic.Anthropic(api_key="sk-ant-fake")
     messages = [
         {"role": "user", "content": "What is the weather like in San Francisco in Fahrenheit?"},
         assistant_message,
@@ -1097,7 +1097,7 @@ def test_anthropic_instrumentation_tool_use_in_input(
     ]
 
     client.messages.create(
-        model="claude-3-5-sonnet-20240620",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         tools=[
             {
@@ -1180,7 +1180,7 @@ def test_anthropic_instrumentation_context_attributes_existence(
         "var_list": [1, 2, 3],
     }
 
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -1198,7 +1198,7 @@ def test_anthropic_instrumentation_context_attributes_existence(
         prompt_template_variables=prompt_template_variables,
     ):
         client.completions.create(
-            model="claude-2.1",
+            model="claude-sonnet-4-6",
             prompt=prompt,
             max_tokens_to_sample=1000,
         )
@@ -1226,7 +1226,7 @@ def test_anthropic_instrumentation_messages_token_counts(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    client = Anthropic(api_key="sk-")
+    client = Anthropic(api_key="sk-ant-fake")
     random_1024_token = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
     novel_text = """Full Text of Novel <Pride and Prejudice>""" + random_1024_token
     client.messages.create(
@@ -1298,7 +1298,7 @@ def test_anthropic_instrumentation_messages_parse(
         city: str
         country: str
 
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = client.messages.parse(
@@ -1374,7 +1374,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
         city: str
         country: str
 
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = await client.messages.parse(
@@ -1449,7 +1449,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         city: str
         country: str
 
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = client.beta.messages.parse(
@@ -1525,7 +1525,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         city: str
         country: str
 
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = "What is the capital of France? Respond with the city and country."
 
     result = await client.beta.messages.parse(
@@ -1646,7 +1646,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for beta.messages.create() method."""
-    client = Anthropic(api_key="fake")
+    client = Anthropic(api_key="sk-ant-fake")
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -1655,7 +1655,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     client.beta.messages.create(
         max_tokens=1024,
         messages=[{"role": "user", "content": input_message}],
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1674,7 +1674,7 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
@@ -1699,7 +1699,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     setup_anthropic_instrumentation: Any,
 ) -> None:
     """Test instrumentation for async beta.messages.create() method."""
-    client = AsyncAnthropic(api_key="fake")
+    client = AsyncAnthropic(api_key="sk-ant-fake")
     input_message = (
         "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
     )
@@ -1708,7 +1708,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     await client.beta.messages.create(
         max_tokens=1024,
         messages=[{"role": "user", "content": input_message}],
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
     )
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -1727,7 +1727,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert isinstance(attributes.pop(OUTPUT_VALUE), str)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(inv_params) == invocation_params
 
