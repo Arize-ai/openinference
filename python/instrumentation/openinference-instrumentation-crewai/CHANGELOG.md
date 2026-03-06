@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.21...python-openinference-instrumentation-crewai-v0.1.22) (2026-03-06)
+
+
+### Bug Fixes
+
+* **crewai:** None Literal Showing For Agent Span Names ([#2836](https://github.com/Arize-ai/openinference/issues/2836)) ([6ab5758](https://github.com/Arize-ai/openinference/commit/6ab5758813d0d268243826cdca494ff941de7902))
+
 ## [0.1.21](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.20...python-openinference-instrumentation-crewai-v0.1.21) (2026-02-27)
 
 
