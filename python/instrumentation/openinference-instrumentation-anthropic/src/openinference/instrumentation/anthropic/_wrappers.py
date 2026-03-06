@@ -193,7 +193,6 @@ class _WithTracer(ABC):
 def _get_attributes_from_completions_create(
     kwargs: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    yield from _get_inputs(kwargs)
     yield from _get_llm_model_name_from_input(kwargs)
     invocation_parameters = dict(kwargs)
     invocation_parameters.pop("extra_headers", None)
@@ -231,6 +230,7 @@ class _CompletionsWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
@@ -275,6 +275,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
@@ -299,7 +300,6 @@ class _AsyncCompletionsWrapper(_WithTracer):
 def _get_attributes_from_messages_create(
     kwargs: Mapping[str, Any],
 ) -> Iterator[Tuple[str, AttributeValue]]:
-    yield from _get_inputs(kwargs)
     yield from _get_llm_model_name_from_input(kwargs)
     invocation_parameters = dict(kwargs)
     invocation_parameters.pop("extra_headers", None)
@@ -336,6 +336,7 @@ class _MessagesWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
@@ -388,6 +389,7 @@ class _AsyncMessagesWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
@@ -448,6 +450,7 @@ class _MessagesStreamWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
@@ -489,6 +492,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
                     _get_llm_provider(),
                     _get_llm_system(),
                     _get_llm_span_kind(),
+                    _get_inputs(kwargs),
                 )
             ),
         ) as span:
