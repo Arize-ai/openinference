@@ -21,7 +21,7 @@ class SimpleResponse(BaseModel):
     confidence: str = Field(description="Confidence level: high, medium, or low")
 
 
-response = client.messages.parse(
+response = client.beta.messages.parse(
     max_tokens=16000,
     messages=[
         {

@@ -235,6 +235,7 @@ class _CompletionsWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
             span.set_status(trace_api.StatusCode.OK)
             streaming = kwargs.get("stream", False)
@@ -279,6 +280,7 @@ class _AsyncCompletionsWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
             span.set_status(trace_api.StatusCode.OK)
             streaming = kwargs.get("stream", False)
@@ -340,6 +342,7 @@ class _MessagesWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
             streaming = kwargs.get("stream", False)
             if streaming:
@@ -391,6 +394,7 @@ class _AsyncMessagesWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
             streaming = kwargs.get("stream", False)
             if streaming:
@@ -450,6 +454,7 @@ class _MessagesStreamWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
 
             return self._manager_class(response, span)
@@ -491,6 +496,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
             except Exception as exception:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR))
                 span.record_exception(exception)
+                span.finish_tracing()
                 raise
 
             return self._manager_class(response, span)
@@ -653,13 +659,6 @@ def _get_llm_model_name_from_input(arguments: Mapping[str, Any]) -> Iterator[Tup
 def _get_llm_model_name_from_response(message: "Message") -> Iterator[Tuple[str, Any]]:
     if model_name := message.model:
         yield LLM_MODEL_NAME, model_name
-
-
-@_stop_on_exception
-def _get_llm_invocation_parameters(
-    invocation_parameters: Mapping[str, Any],
-) -> Iterator[Tuple[str, Any]]:
-    yield LLM_INVOCATION_PARAMETERS, safe_json_dumps(invocation_parameters)
 
 
 @_stop_on_exception
