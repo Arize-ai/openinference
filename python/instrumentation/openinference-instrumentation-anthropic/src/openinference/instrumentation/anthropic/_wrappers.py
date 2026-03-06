@@ -241,7 +241,6 @@ class _CompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        span.set_status(trace_api.StatusCode.OK)
         streaming = kwargs.get("stream", False)
         if streaming:
             return _Stream(response, span)
@@ -286,7 +285,6 @@ class _AsyncCompletionsWrapper(_WithTracer):
                 span.record_exception(exception)
                 span.finish_tracing()
                 raise
-        span.set_status(trace_api.StatusCode.OK)
         streaming = kwargs.get("stream", False)
         if streaming:
             return _Stream(response, span)
