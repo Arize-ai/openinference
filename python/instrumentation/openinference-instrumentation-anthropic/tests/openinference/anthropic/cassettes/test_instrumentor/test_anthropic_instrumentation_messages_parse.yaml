@@ -4,7 +4,7 @@ interactions:
       of France? Respond with the city and country."}],"model":"claude-sonnet-4-6","output_config":{"format":{"schema":{"type":"object","title":"Capital","properties":{"city":{"type":"string","title":"City"},"country":{"type":"string","title":"Country"}},"additionalProperties":false,"required":["city","country"]},"type":"json_schema"}}}'
     headers: {}
     method: POST
-    uri: https://api.anthropic.com/v1/messages?beta=true
+    uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: '{"model":"claude-sonnet-4-6","id":"msg_01Pz4ioiCmoZaLEPRpzLW4rP","type":"message","role":"assistant","content":[{"type":"text","text":"{\"city\":\"Paris\",\"country\":\"France\"}"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":210,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":12,"service_tier":"standard","inference_geo":"global"}}'

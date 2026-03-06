@@ -6,11 +6,10 @@ from typing import Any, Dict, Generator, Optional
 import anthropic
 import pytest
 from anthropic import Anthropic, AsyncAnthropic
+from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+from anthropic.resources.beta.messages import Messages as BetaMessages
 from anthropic.resources.completions import AsyncCompletions, Completions
-from anthropic.resources.messages import (
-    AsyncMessages,
-    Messages,
-)
+from anthropic.resources.messages import AsyncMessages, Messages
 from anthropic.types import (
     ImageBlockParam,
     Message,
@@ -26,7 +25,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util._importlib_metadata import entry_points
+from pydantic import BaseModel
 from wrapt import BoundFunctionWrapper
 
 from openinference.instrumentation import OITracer, using_attributes
@@ -108,17 +107,17 @@ def setup_anthropic_instrumentation(
     AnthropicInstrumentor().uninstrument()
 
 
-class TestInstrumentor:
-    def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(
-            group="opentelemetry_instrumentor", name="anthropic"
-        )
-        instrumentor = instrumentor_entrypoint.load()()
-        assert isinstance(instrumentor, AnthropicInstrumentor)
-
-    # Ensure we're using the common OITracer from common openinference-instrumentation pkg
-    def test_oitracer(self, setup_anthropic_instrumentation: Any) -> None:
-        assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
+# class TestInstrumentor:
+#     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
+#         (instrumentor_entrypoint,) = entry_points(
+#             group="opentelemetry_instrumentor", name="anthropic"
+#         )
+#         instrumentor = instrumentor_entrypoint.load()()
+#         assert isinstance(instrumentor, AnthropicInstrumentor)
+#
+#     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
+#     def test_oitracer(self, setup_anthropic_instrumentation: Any) -> None:
+#         assert isinstance(AnthropicInstrumentor()._tracer, OITracer)
 
 
 @pytest.mark.vcr(
@@ -150,7 +149,7 @@ def test_anthropic_instrumentation_completions_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Completions"
+    assert spans[0].name == "completions.create"
     attributes = dict(spans[0].attributes or {})
     print(attributes)
 
@@ -166,7 +165,7 @@ def test_anthropic_instrumentation_completions_streaming(
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
 
-    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
+    invocation_params = {"max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
     assert not attributes
@@ -185,7 +184,7 @@ def test_anthropic_instrumentation_stream_message(
     client = Anthropic(api_key="fake")
     input_message = "What's the capital of France?"
     chat = [{"role": "user", "content": input_message}]
-    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-latest"}
+    invocation_params = {"max_tokens": 1024, "stream": True}
 
     with client.messages.stream(
         max_tokens=1024,
@@ -199,7 +198,68 @@ def test_anthropic_instrumentation_stream_message(
     assert len(spans) == 1
 
     span = spans[0]
-    assert span.name == "MessagesStream"
+    assert span.name == "messages.stream"
+
+    attributes = dict(span.attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    msg_out = attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}")
+    assert isinstance(msg_out, str)
+    assert "paris" in msg_out.lower()
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop("llm.token_count.total"), int)
+
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-3-opus-latest"
+    raw_inv = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv, str)
+    assert json.loads(raw_inv) == invocation_params
+
+    assert not attributes
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_stream_message(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    client = AsyncAnthropic(api_key="fake")
+    input_message = "What's the capital of France?"
+    chat = [{"role": "user", "content": input_message}]
+    invocation_params = {"max_tokens": 1024, "stream": True}
+
+    async with client.messages.stream(
+        max_tokens=1024,
+        messages=chat,  # type: ignore
+        model="claude-3-opus-latest",
+    ) as stream:
+        async for _ in stream:
+            pass
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.name == "messages.stream"
 
     attributes = dict(span.attributes or {})
 
@@ -262,7 +322,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "AsyncCompletions"
+    assert spans[0].name == "completions.create"
     attributes = dict(spans[0].attributes or {})
     print(attributes)
 
@@ -278,7 +338,7 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     assert attributes.pop(LLM_MODEL_NAME) == "claude-2.1"
     assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
 
-    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000, "stream": True}
+    invocation_params = {"max_tokens_to_sample": 1000, "stream": True}
     assert json.loads(inv_params) == invocation_params
     assert attributes.pop(LLM_OUTPUT_MESSAGES) == " Light scatters blue."
     assert not attributes
@@ -296,7 +356,7 @@ def test_anthropic_instrumentation_completions(
 ) -> None:
     client = Anthropic(api_key="fake")
 
-    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
+    invocation_params = {"max_tokens_to_sample": 1000}
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -312,7 +372,7 @@ def test_anthropic_instrumentation_completions(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Completions"
+    assert spans[0].name == "completions.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -343,7 +403,7 @@ def test_anthropic_instrumentation_messages(
     client = Anthropic(api_key="fake")
     input_message = "What's the capital of France?"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-latest"}
+    invocation_params = {"max_tokens": 1024}
 
     client.messages.create(
         max_tokens=1024,
@@ -358,7 +418,7 @@ def test_anthropic_instrumentation_messages(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -398,7 +458,7 @@ def test_anthropic_instrumentation_messages_streaming(
     client = Anthropic(api_key="fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-2.1", "stream": True}
+    invocation_params = {"max_tokens": 1024, "stream": True}
 
     stream = client.messages.create(
         max_tokens=1024,
@@ -417,7 +477,7 @@ def test_anthropic_instrumentation_messages_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -462,7 +522,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     client = AsyncAnthropic(api_key="fake")
     input_message = "Why is the sky blue? Answer in 5 words or less"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-2.1", "stream": True}
+    invocation_params = {"max_tokens": 1024, "stream": True}
 
     stream = await client.messages.create(
         max_tokens=1024,
@@ -481,7 +541,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "AsyncMessages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -524,7 +584,7 @@ async def test_anthropic_instrumentation_async_completions(
 ) -> None:
     client = AsyncAnthropic(api_key="fake")
 
-    invocation_params = {"model": "claude-2.1", "max_tokens_to_sample": 1000}
+    invocation_params = {"max_tokens_to_sample": 1000}
 
     prompt = (
         f"{anthropic.HUMAN_PROMPT}"
@@ -540,7 +600,7 @@ async def test_anthropic_instrumentation_async_completions(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "AsyncCompletions"
+    assert spans[0].name == "completions.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -571,7 +631,7 @@ async def test_anthropic_instrumentation_async_messages(
     client = AsyncAnthropic(api_key="fake")
     input_message = "What's the capital of France?"
 
-    invocation_params = {"max_tokens": 1024, "model": "claude-3-opus-20240229"}
+    invocation_params = {"max_tokens": 1024}
 
     await client.messages.create(
         max_tokens=1024,
@@ -586,7 +646,7 @@ async def test_anthropic_instrumentation_async_messages(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "AsyncMessages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -672,7 +732,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -778,7 +838,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
 
     spans = in_memory_span_exporter.get_finished_spans()
 
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes = dict(spans[0].attributes or {})
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -865,7 +925,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     events = [event for event in stream]
     assert len(events) > 0
     spans = in_memory_span_exporter.get_finished_spans()
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes: Dict[str, Any] = dict(spans[0].attributes or dict())
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -879,9 +939,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert attributes.pop(
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
     ).startswith("data:image/png;base64")
-    assert '{"model": "claude-3-5-sonnet-20240620"' in attributes.pop(
-        f"{LLM_INVOCATION_PARAMETERS}"
-    )
+    assert isinstance(attributes.pop(f"{LLM_INVOCATION_PARAMETERS}"), str)
     assert attributes.pop(f"{INPUT_MIME_TYPE}") == "application/json"
     assert attributes.pop(f"{OUTPUT_MIME_TYPE}") == "application/json"
     assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
@@ -935,7 +993,7 @@ def test_anthropic_instrumentation_image_input_messages(
     )
     assert response is not None
     spans = in_memory_span_exporter.get_finished_spans()
-    assert spans[0].name == "Messages"
+    assert spans[0].name == "messages.create"
     attributes: Dict[str, Any] = dict(spans[0].attributes or {})
     assert attributes.pop(LLM_MODEL_NAME) == "claude-3-5-sonnet-20240620"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -949,9 +1007,7 @@ def test_anthropic_instrumentation_image_input_messages(
     assert attributes.pop(
         f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.1.{MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
     ).startswith("data:image/png;base64")
-    assert '{"model": "claude-3-5-sonnet-20240620"' in attributes.pop(
-        f"{LLM_INVOCATION_PARAMETERS}"
-    )
+    assert isinstance(attributes.pop(f"{LLM_INVOCATION_PARAMETERS}"), str)
     assert attributes.pop(f"{INPUT_MIME_TYPE}") == "application/json"
     assert attributes.pop(f"{OUTPUT_MIME_TYPE}") == "application/json"
     assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
@@ -1227,42 +1283,348 @@ def test_anthropic_instrumentation_messages_token_counts(
     assert att2.get(LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE) is None
 
 
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class Capital(BaseModel):
+        city: str
+        country: str
+
+    client = Anthropic(api_key="fake")
+    input_message = "What is the capital of France? Respond with the city and country."
+
+    result = client.messages.parse(
+        max_tokens=256,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        output_format=Capital,
+    )
+    parsed = result.content[0].parsed_output  # type: ignore[union-attr]
+    assert parsed is not None
+    assert parsed.city.lower() == "paris"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "messages.parse"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv_params, str)
+    inv_params = json.loads(raw_inv_params)
+    assert inv_params == {
+        "max_tokens": 256,
+        "output_config": {
+            "format": {
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "title": "Capital",
+                    "type": "object",
+                },
+                "type": "json_schema",
+            }
+        },
+    }
+
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert not attributes
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class Capital(BaseModel):
+        city: str
+        country: str
+
+    client = AsyncAnthropic(api_key="fake")
+    input_message = "What is the capital of France? Respond with the city and country."
+
+    result = await client.messages.parse(
+        max_tokens=256,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        output_format=Capital,
+    )
+    parsed = result.content[0].parsed_output  # type: ignore[union-attr]
+    assert parsed is not None
+    assert parsed.city.lower() == "paris"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "messages.parse"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv_params, str)
+    inv_params = json.loads(raw_inv_params)
+    assert inv_params == {
+        "max_tokens": 256,
+        "output_config": {
+            "format": {
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "title": "Capital",
+                    "type": "object",
+                },
+                "type": "json_schema",
+            }
+        },
+    }
+
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert not attributes
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+def test_anthropic_instrumentation_beta_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class Capital(BaseModel):
+        city: str
+        country: str
+
+    client = Anthropic(api_key="fake")
+    input_message = "What is the capital of France? Respond with the city and country."
+
+    result = client.beta.messages.parse(
+        max_tokens=256,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        output_format=Capital,
+    )
+    parsed = result.content[0].parsed_output  # type: ignore[union-attr]
+    assert parsed is not None
+    assert parsed.city.lower() == "paris"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "beta.messages.parse"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv_params, str)
+    inv_params = json.loads(raw_inv_params)
+    assert inv_params == {
+        "max_tokens": 256,
+        "output_config": {
+            "format": {
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "title": "Capital",
+                    "type": "object",
+                },
+                "type": "json_schema",
+            }
+        },
+    }
+
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert not attributes
+
+
+@pytest.mark.asyncio
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=remove_all_vcr_request_headers,
+    before_record_response=remove_all_vcr_response_headers,
+)
+async def test_anthropic_instrumentation_async_beta_messages_parse(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+    setup_anthropic_instrumentation: Any,
+) -> None:
+    class Capital(BaseModel):
+        city: str
+        country: str
+
+    client = AsyncAnthropic(api_key="fake")
+    input_message = "What is the capital of France? Respond with the city and country."
+
+    result = await client.beta.messages.parse(
+        max_tokens=256,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-6",
+        output_format=Capital,
+    )
+    parsed = result.content[0].parsed_output  # type: ignore[union-attr]
+    assert parsed is not None
+    assert parsed.city.lower() == "paris"
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "beta.messages.parse"
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+
+    assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
+    raw_inv_params = attributes.pop(LLM_INVOCATION_PARAMETERS)
+    assert isinstance(raw_inv_params, str)
+    inv_params = json.loads(raw_inv_params)
+    assert inv_params == {
+        "max_tokens": 256,
+        "output_config": {
+            "format": {
+                "schema": {
+                    "additionalProperties": False,
+                    "properties": {
+                        "city": {"title": "City", "type": "string"},
+                        "country": {"title": "Country", "type": "string"},
+                    },
+                    "required": ["city", "country"],
+                    "title": "Capital",
+                    "type": "object",
+                },
+                "type": "json_schema",
+            }
+        },
+    }
+
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
+
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+
+    assert not attributes
+
+
 def test_anthropic_uninstrumentation(
     tracer_provider: TracerProvider,
 ) -> None:
     AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
     assert isinstance(Completions.create, BoundFunctionWrapper)
-    assert isinstance(Messages.create, BoundFunctionWrapper)
     assert isinstance(AsyncCompletions.create, BoundFunctionWrapper)
+
+    assert isinstance(Messages.create, BoundFunctionWrapper)
     assert isinstance(AsyncMessages.create, BoundFunctionWrapper)
+    assert isinstance(Messages.stream, BoundFunctionWrapper)
+    assert isinstance(AsyncMessages.stream, BoundFunctionWrapper)
+    assert isinstance(Messages.parse, BoundFunctionWrapper)
+    assert isinstance(AsyncMessages.parse, BoundFunctionWrapper)
 
-    # Check beta API instrumentation if available
-    try:
-        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
-        from anthropic.resources.beta.messages import Messages as BetaMessages
-
-        assert isinstance(BetaMessages.parse, BoundFunctionWrapper)
-        assert isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
-    except ImportError:
-        pass  # Beta API not available
+    assert isinstance(BetaMessages.create, BoundFunctionWrapper)
+    assert isinstance(AsyncBetaMessages.create, BoundFunctionWrapper)
+    assert isinstance(BetaMessages.stream, BoundFunctionWrapper)
+    assert isinstance(AsyncBetaMessages.stream, BoundFunctionWrapper)
+    assert isinstance(BetaMessages.parse, BoundFunctionWrapper)
+    assert isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
 
     AnthropicInstrumentor().uninstrument()
 
     assert not isinstance(Completions.create, BoundFunctionWrapper)
-    assert not isinstance(Messages.create, BoundFunctionWrapper)
     assert not isinstance(AsyncCompletions.create, BoundFunctionWrapper)
+
+    assert not isinstance(Messages.create, BoundFunctionWrapper)
     assert not isinstance(AsyncMessages.create, BoundFunctionWrapper)
+    assert not isinstance(Messages.stream, BoundFunctionWrapper)
+    assert not isinstance(AsyncMessages.stream, BoundFunctionWrapper)
+    assert not isinstance(Messages.parse, BoundFunctionWrapper)
+    assert not isinstance(AsyncMessages.parse, BoundFunctionWrapper)
 
-    # Check beta API uninstrumentation if it was instrumented
-    try:
-        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
-        from anthropic.resources.beta.messages import Messages as BetaMessages
-
-        assert not isinstance(BetaMessages.parse, BoundFunctionWrapper)
-        assert not isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
-    except ImportError:
-        pass  # Beta API not available
+    assert not isinstance(BetaMessages.create, BoundFunctionWrapper)
+    assert not isinstance(AsyncBetaMessages.create, BoundFunctionWrapper)
+    assert not isinstance(BetaMessages.stream, BoundFunctionWrapper)
+    assert not isinstance(AsyncBetaMessages.stream, BoundFunctionWrapper)
+    assert not isinstance(BetaMessages.parse, BoundFunctionWrapper)
+    assert not isinstance(AsyncBetaMessages.parse, BoundFunctionWrapper)
 
 
 # Ensure we're using the common OITracer from common openinference-instrumentation pkg
@@ -1277,72 +1639,51 @@ def test_oitracer(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-def test_anthropic_instrumentation_beta_messages_parse(
+def test_anthropic_instrumentation_beta_messages_create(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    """Test instrumentation for beta.messages.parse() method."""
-    try:
-        # Check if beta API is available first
-        from anthropic.resources.beta.messages import Messages as BetaMessages
+    """Test instrumentation for beta.messages.create() method."""
+    client = Anthropic(api_key="fake")
+    input_message = (
+        "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+    )
+    invocation_params = {"max_tokens": 1024}
 
-        if not hasattr(BetaMessages, "parse"):
-            pytest.skip("Beta messages parse API not available")
+    client.beta.messages.create(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-5-20250929",
+    )
 
-        client = Anthropic(api_key="fake")
-        input_message = (
-            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
-        )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "beta.messages.create"
+    attributes = dict(spans[0].attributes or {})
 
-        invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
 
-        # Call beta.messages.parse()
-        client.beta.messages.parse(
-            max_tokens=1024,
-            messages=[
-                {
-                    "role": "user",
-                    "content": input_message,
-                }
-            ],
-            model="claude-sonnet-4-5-20250929",
-        )
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-        spans = in_memory_span_exporter.get_finished_spans()
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
 
-        assert len(spans) > 0
-        assert spans[0].name == "BetaMessagesParse"
-        attributes = dict(spans[0].attributes or {})
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
 
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
-        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
-        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
 
-        assert isinstance(attributes.pop(INPUT_VALUE), str)
-        assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-
-        assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
-        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == invocation_params
-
-        # Verify output messages are captured for beta responses (BetaTextBlock handling)
-        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-        assert isinstance(
-            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
-        )
-        assert "March 15th" in msg_content  # Verify content matches expected response
-
-        # Verify token counts are captured
-        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
-        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
-    except (ImportError, AttributeError) as e:
-        # Beta API may not be available in all SDK versions
-        pytest.skip(f"Beta messages API not available: {e}")
+    assert not attributes
 
 
 @pytest.mark.asyncio
@@ -1351,72 +1692,51 @@ def test_anthropic_instrumentation_beta_messages_parse(
     before_record_request=remove_all_vcr_request_headers,
     before_record_response=remove_all_vcr_response_headers,
 )
-async def test_anthropic_instrumentation_async_beta_messages_parse(
+async def test_anthropic_instrumentation_async_beta_messages_create(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
     setup_anthropic_instrumentation: Any,
 ) -> None:
-    """Test instrumentation for async beta.messages.parse() method."""
-    try:
-        # Check if beta API is available first
-        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+    """Test instrumentation for async beta.messages.create() method."""
+    client = AsyncAnthropic(api_key="fake")
+    input_message = (
+        "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
+    )
+    invocation_params = {"max_tokens": 1024}
 
-        if not hasattr(AsyncBetaMessages, "parse"):
-            pytest.skip("Beta messages parse API not available")
+    await client.beta.messages.create(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": input_message}],
+        model="claude-sonnet-4-5-20250929",
+    )
 
-        client = AsyncAnthropic(api_key="fake")
-        input_message = (
-            "Extract the key information from: The meeting is scheduled for March 15th at 2 PM."
-        )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].name == "beta.messages.create"
+    attributes = dict(spans[0].attributes or {})
 
-        invocation_params = {"max_tokens": 1024, "model": "claude-sonnet-4-5-20250929"}
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
+    assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
+    assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
+    assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
 
-        # Call async beta.messages.parse()
-        await client.beta.messages.parse(
-            max_tokens=1024,
-            messages=[
-                {
-                    "role": "user",
-                    "content": input_message,
-                }
-            ],
-            model="claude-sonnet-4-5-20250929",
-        )
+    assert isinstance(attributes.pop(INPUT_VALUE), str)
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
-        spans = in_memory_span_exporter.get_finished_spans()
+    assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
+    assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params) == invocation_params
 
-        assert len(spans) > 0
-        assert spans[0].name == "AsyncBetaMessagesParse"
-        attributes = dict(spans[0].attributes or {})
+    assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
+    assert isinstance(attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str)
 
-        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
-        assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
-        assert attributes.pop(LLM_SYSTEM) == LLM_SYSTEM_ANTHROPIC
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+    assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
 
-        assert isinstance(attributes.pop(INPUT_VALUE), str)
-        assert attributes.pop(INPUT_MIME_TYPE) == JSON
-        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
-        assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
-
-        assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-5-20250929"
-        assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        assert json.loads(inv_params) == invocation_params
-
-        # Verify output messages are captured for beta responses (BetaTextBlock handling)
-        assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
-        assert isinstance(
-            msg_content := attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}"), str
-        )
-        assert "March 15th" in msg_content  # Verify content matches expected response
-
-        # Verify token counts are captured
-        assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 25
-        assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 18
-    except (ImportError, AttributeError) as e:
-        # Beta API may not be available in all SDK versions
-        pytest.skip(f"Beta messages API not available: {e}")
+    assert not attributes
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN

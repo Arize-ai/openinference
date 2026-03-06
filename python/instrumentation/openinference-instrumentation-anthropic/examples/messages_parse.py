@@ -17,21 +17,20 @@ client = Anthropic()
 
 
 class SimpleResponse(BaseModel):
-    """Simple structured output model for testing beta.messages.parse()."""
-
     answer: str = Field(description="A brief answer to the question")
     confidence: str = Field(description="Confidence level: high, medium, or low")
 
 
-response = client.beta.messages.parse(
-    max_tokens=1024,
+response = client.messages.parse(
+    max_tokens=16000,
     messages=[
         {
             "role": "user",
             "content": "What is 2 + 2? Provide a brief answer and your confidence level.",
         }
     ],
-    model="claude-sonnet-4-5-20250929",
+    model="claude-sonnet-4-6",
+    thinking={"type": "adaptive"},
     output_format=SimpleResponse,
 )
 print(response.parsed_output)

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Collection, Optional
+from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -9,19 +9,24 @@ from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
-    _AsyncBetaMessagesParseWrapper,
     _AsyncCompletionsWrapper,
+    _AsyncMessagesStreamWrapper,
+    _AsyncMessageStreamManager,
     _AsyncMessagesWrapper,
-    _BetaMessagesParseWrapper,
+    _AsyncTransformWrapper,
+    _BetaAsyncMessageStreamManager,
+    _BetaMessageStreamManager,
     _CompletionsWrapper,
     _MessagesStreamWrapper,
+    _MessageStreamManager,
     _MessagesWrapper,
+    _TransformWrapper,
 )
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("anthropic >= 0.70.0",)
+_instruments = ("anthropic >= 0.84.0",)
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -33,19 +38,27 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_messages_create",
         "_original_async_messages_create",
         "_original_messages_stream",
+        "_original_async_messages_stream",
+        "_original_messages_parse",
+        "_original_async_messages_parse",
+        "_original_beta_messages_create",
+        "_original_async_beta_messages_create",
+        "_original_beta_messages_stream",
+        "_original_async_beta_messages_stream",
         "_original_beta_messages_parse",
         "_original_async_beta_messages_parse",
+        "_original_transform",
+        "_original_async_transform",
         "_instruments",
         "_tracer",
     )
-
-    _original_beta_messages_parse: Optional[Callable[..., Any]]
-    _original_async_beta_messages_parse: Optional[Callable[..., Any]]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
@@ -64,85 +77,166 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            wrapper=_CompletionsWrapper(
+                tracer=self._tracer,
+                span_name="completions.create",
+            ),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            wrapper=_AsyncCompletionsWrapper(
+                tracer=self._tracer,
+                span_name="completions.create",
+            ),
         )
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="Messages.create",
-            wrapper=_MessagesWrapper(tracer=self._tracer),
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.create",
+            ),
         )
 
         self._original_async_messages_create = AsyncMessages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="AsyncMessages.create",
-            wrapper=_AsyncMessagesWrapper(tracer=self._tracer),
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.create",
+            ),
         )
 
         self._original_messages_stream = Messages.stream
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="Messages.stream",
-            wrapper=_MessagesStreamWrapper(tracer=self._tracer),
+            wrapper=_MessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="messages.stream",
+                manager_class=_MessageStreamManager,
+            ),
         )
 
-        # Instrument beta.messages.parse() (sync and async in separate try/except so partial
-        # failure does not clear the other's original ref; uninstrument can still restore either)
-        self._original_beta_messages_parse = None
-        self._original_async_beta_messages_parse = None
-        try:
-            from anthropic.resources.beta.messages import Messages as BetaMessages
+        self._original_async_messages_stream = AsyncMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="AsyncMessages.stream",
+            wrapper=_AsyncMessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="messages.stream",
+                manager_class=_AsyncMessageStreamManager,
+            ),
+        )
 
-            self._original_beta_messages_parse = BetaMessages.parse
-            wrap_function_wrapper(
-                module="anthropic.resources.beta.messages",
-                name="Messages.parse",
-                wrapper=_BetaMessagesParseWrapper(
-                    tracer=self._tracer,
-                    span_name="BetaMessagesParse",
-                    enable_streaming=False,
-                ),
-            )
-            logger.debug("Successfully instrumented beta.messages.parse()")
-        except ImportError as e:
-            logger.debug(f"Beta messages API not available, skipping instrumentation: {e}")
-            self._original_beta_messages_parse = None
-        except Exception as e:
-            logger.warning(f"Failed to instrument beta.messages.parse(): {e}", exc_info=True)
-            self._original_beta_messages_parse = None
+        self._original_messages_parse = Messages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="Messages.parse",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.parse",
+            ),
+        )
 
-        # Instrument async beta.messages.parse() if available
-        try:
-            from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        self._original_async_messages_parse = AsyncMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="AsyncMessages.parse",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.parse",
+            ),
+        )
 
-            self._original_async_beta_messages_parse = AsyncBetaMessages.parse
-            wrap_function_wrapper(
-                module="anthropic.resources.beta.messages",
-                name="AsyncMessages.parse",
-                wrapper=_AsyncBetaMessagesParseWrapper(
-                    tracer=self._tracer,
-                    span_name="AsyncBetaMessagesParse",
-                    enable_streaming=False,
-                ),
-            )
-            logger.debug("Successfully instrumented async beta.messages.parse()")
-        except ImportError as e:
-            logger.debug(f"Async beta messages API not available, skipping instrumentation: {e}")
-            self._original_async_beta_messages_parse = None
-        except Exception as e:
-            logger.warning(f"Failed to instrument async beta.messages.parse(): {e}", exc_info=True)
-            self._original_async_beta_messages_parse = None
+        self._original_beta_messages_create = BetaMessages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.create",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.create",
+            ),
+        )
+
+        self._original_async_beta_messages_create = AsyncBetaMessages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.create",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.create",
+            ),
+        )
+
+        self._original_beta_messages_stream = BetaMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.stream",
+            wrapper=_MessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaMessageStreamManager,
+            ),
+        )
+
+        self._original_async_beta_messages_stream = AsyncBetaMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.stream",
+            wrapper=_AsyncMessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaAsyncMessageStreamManager,
+            ),
+        )
+
+        self._original_beta_messages_parse = BetaMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.parse",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.parse",
+            ),
+        )
+
+        self._original_async_beta_messages_parse = AsyncBetaMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.parse",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.parse",
+            ),
+        )
+
+        import anthropic._utils._transform as _transform_module
+
+        self._original_transform = _transform_module.transform
+        wrap_function_wrapper(
+            module="anthropic._utils._transform",
+            name="transform",
+            wrapper=_TransformWrapper(),
+        )
+
+        self._original_async_transform = _transform_module.async_transform
+        wrap_function_wrapper(
+            module="anthropic._utils._transform",
+            name="async_transform",
+            wrapper=_AsyncTransformWrapper(),
+        )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        import anthropic._utils._transform as _transform_module
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
@@ -156,19 +250,32 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         if self._original_async_messages_create is not None:
             AsyncMessages.create = self._original_async_messages_create  # type: ignore[method-assign]
 
-        # Uninstrument beta.messages.parse() if it was instrumented
+        if self._original_messages_stream is not None:
+            Messages.stream = self._original_messages_stream  # type: ignore[method-assign]
+        if self._original_async_messages_stream is not None:
+            AsyncMessages.stream = self._original_async_messages_stream  # type: ignore[method-assign]
+
+        if self._original_messages_parse is not None:
+            Messages.parse = self._original_messages_parse  # type: ignore[method-assign]
+        if self._original_async_messages_parse is not None:
+            AsyncMessages.parse = self._original_async_messages_parse  # type: ignore[method-assign]
+
+        if self._original_beta_messages_create is not None:
+            BetaMessages.create = self._original_beta_messages_create  # type: ignore[method-assign]
+        if self._original_async_beta_messages_create is not None:
+            AsyncBetaMessages.create = self._original_async_beta_messages_create  # type: ignore[method-assign]
+
+        if self._original_beta_messages_stream is not None:
+            BetaMessages.stream = self._original_beta_messages_stream  # type: ignore[method-assign]
+        if self._original_async_beta_messages_stream is not None:
+            AsyncBetaMessages.stream = self._original_async_beta_messages_stream  # type: ignore[method-assign]
+
         if self._original_beta_messages_parse is not None:
-            try:
-                from anthropic.resources.beta.messages import Messages as BetaMessages
-
-                BetaMessages.parse = self._original_beta_messages_parse  # type: ignore[method-assign]
-            except ImportError:
-                pass
-
+            BetaMessages.parse = self._original_beta_messages_parse  # type: ignore[method-assign]
         if self._original_async_beta_messages_parse is not None:
-            try:
-                from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+            AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
 
-                AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
-            except ImportError:
-                pass
+        if self._original_transform is not None:
+            _transform_module.transform = self._original_transform
+        if self._original_async_transform is not None:
+            _transform_module.async_transform = self._original_async_transform

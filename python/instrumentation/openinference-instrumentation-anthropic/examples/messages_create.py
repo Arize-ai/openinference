@@ -22,6 +22,6 @@ response = client.messages.create(
             "content": "Hello!",
         }
     ],
-    model="claude-3-opus-20240229",
+    model="claude-sonnet-4-6",
 )
 print(response)
