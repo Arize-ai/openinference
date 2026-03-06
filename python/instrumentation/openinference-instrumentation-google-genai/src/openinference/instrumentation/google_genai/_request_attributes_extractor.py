@@ -73,11 +73,16 @@ class _RequestAttributesExtractor:
             )
 
             # We push the system instruction to the first message for replay and consistency
-            system_instruction = getattr(config, "system_instruction", None)
+            if isinstance(config, dict):
+                system_instruction = config.get("system_instruction", None)
+            else:
+                system_instruction = getattr(config, "system_instruction", None)
             if system_instruction:
+                # Convert Content objects to satisfy OTel scalar attribute requirement
+                system_instruction_str = self._extract_text_from_content(system_instruction)
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                    system_instruction,
+                    system_instruction_str,
                 )
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
@@ -104,6 +109,25 @@ class _RequestAttributesExtractor:
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                         value,
                     )
+
+    def _extract_text_from_content(self, content: Any) -> str:
+        """Extract a single UTF-8 string from Google GenAI Content object for OTel attributes."""
+        if isinstance(content, str):
+            return content
+
+        # Handle parts from Google GenAI Content object
+        if isinstance(content, Content):
+            text_parts = []
+            parts = getattr(content, "parts", None)
+            if parts:
+                for part in parts:
+                    text = getattr(part, "text", None)
+                    if text:
+                        text_parts.append(text)
+            return "\n\n".join(text_parts) if text_parts else str(content)
+
+        # Fallback for unexpected types
+        return str(content)
 
     def _serialize_config_safely(self, config: Any) -> str:
         """
