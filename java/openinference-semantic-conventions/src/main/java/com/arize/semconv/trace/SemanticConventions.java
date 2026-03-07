@@ -685,12 +685,7 @@ public class SemanticConventions {
         ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
         COHERE("cohere"),
-        VERTEXAI("vertexai"),
-        XAI("xai"),
-        DEEPSEEK("deepseek"),
-        AI21("ai21"),
-        META("meta"),
-        AMAZON("amazon");
+        VERTEXAI("vertexai");
 
         private final String value;
 
