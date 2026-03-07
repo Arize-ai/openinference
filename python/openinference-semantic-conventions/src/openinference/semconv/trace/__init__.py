@@ -506,6 +506,11 @@ class OpenInferenceLLMSystemValues(Enum):
     COHERE = "cohere"
     MISTRALAI = "mistralai"
     VERTEXAI = "vertexai"
+    XAI = "xai"
+    DEEPSEEK = "deepseek"
+    AI21 = "ai21"
+    META = "meta"
+    AMAZON = "amazon"
 
 
 class OpenInferenceLLMProviderValues(Enum):
@@ -518,3 +523,7 @@ class OpenInferenceLLMProviderValues(Enum):
     AWS = "aws"
     XAI = "xai"
     DEEPSEEK = "deepseek"
+    GROQ = "groq"
+    FIREWORKS = "fireworks"
+    MOONSHOT = "moonshot"
+    CEREBRAS = "cerebras"

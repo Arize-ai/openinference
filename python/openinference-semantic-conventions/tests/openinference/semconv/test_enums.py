@@ -39,6 +39,11 @@ class TestOpenInferenceLLMSystemValues:
             OpenInferenceLLMSystemValues.MISTRALAI: "mistralai",
             OpenInferenceLLMSystemValues.OPENAI: "openai",
             OpenInferenceLLMSystemValues.VERTEXAI: "vertexai",
+            OpenInferenceLLMSystemValues.XAI: "xai",
+            OpenInferenceLLMSystemValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMSystemValues.AI21: "ai21",
+            OpenInferenceLLMSystemValues.META: "meta",
+            OpenInferenceLLMSystemValues.AMAZON: "amazon",
         }
 
 
@@ -54,4 +59,8 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.OPENAI: "openai",
             OpenInferenceLLMProviderValues.XAI: "xai",
             OpenInferenceLLMProviderValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMProviderValues.GROQ: "groq",
+            OpenInferenceLLMProviderValues.FIREWORKS: "fireworks",
+            OpenInferenceLLMProviderValues.MOONSHOT: "moonshot",
+            OpenInferenceLLMProviderValues.CEREBRAS: "cerebras",
         }

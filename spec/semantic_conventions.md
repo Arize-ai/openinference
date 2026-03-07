@@ -150,6 +150,10 @@ used; otherwise, a custom value MAY be used.
 | `aws`       | AWS Bedrock     |
 | `xai`       | xAI             |
 | `deepseek`  | DeepSeek        |
+| `groq`      | Groq            |
+| `fireworks`  | Fireworks AI    |
+| `moonshot`  | Moonshot AI     |
+| `cerebras`  | Cerebras        |
 
 ### Token Count Details
 

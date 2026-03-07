@@ -685,7 +685,12 @@ public class SemanticConventions {
         ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
         COHERE("cohere"),
-        VERTEXAI("vertexai");
+        VERTEXAI("vertexai"),
+        XAI("xai"),
+        DEEPSEEK("deepseek"),
+        AI21("ai21"),
+        META("meta"),
+        AMAZON("amazon");
 
         private final String value;
 
@@ -713,7 +718,11 @@ public class SemanticConventions {
         AWS("aws"),
         AZURE("azure"),
         XAI("xai"),
-        DEEPSEEK("deepseek");
+        DEEPSEEK("deepseek"),
+        GROQ("groq"),
+        FIREWORKS("fireworks"),
+        MOONSHOT("moonshot"),
+        CEREBRAS("cerebras");
 
         private final String value;
 
