@@ -27,7 +27,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             ),
             "mcp.client.streamable_http",
         )
-        
+
         # deprecated in MCP SDK v2
         register_post_import_hook(
             lambda _: wrap_function_wrapper(
