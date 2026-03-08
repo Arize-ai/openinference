@@ -1,4 +1,4 @@
-crewai==1.9.0
+crewai==1.10.1
 opentelemetry-sdk
 responses
 pytest-recording
