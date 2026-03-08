@@ -139,21 +139,21 @@ used; otherwise, a custom value MAY be used.
 `llm.provider` has the following list of well-known values. If one of them applies, then the respective value MUST be
 used; otherwise, a custom value MAY be used.
 
-| Value       | Description     |
-| ----------- | --------------- |
-| `anthropic` | Anthropic       |
-| `openai`    | OpenAI          |
-| `cohere`    | Cohere          |
-| `mistralai` | Mistral AI      |
-| `azure`     | Azure           |
-| `google`    | Google (Vertex) |
-| `aws`       | AWS Bedrock     |
-| `xai`       | xAI             |
-| `deepseek`  | DeepSeek        |
-| `groq`      | Groq            |
+| Value        | Description     |
+| ------------ | --------------- |
+| `anthropic`  | Anthropic       |
+| `openai`     | OpenAI          |
+| `cohere`     | Cohere          |
+| `mistralai`  | Mistral AI      |
+| `azure`      | Azure           |
+| `google`     | Google (Vertex) |
+| `aws`        | AWS Bedrock     |
+| `xai`        | xAI             |
+| `deepseek`   | DeepSeek        |
+| `groq`       | Groq            |
 | `fireworks`  | Fireworks AI    |
-| `moonshot`  | Moonshot AI     |
-| `cerebras`  | Cerebras        |
+| `moonshot`   | Moonshot AI     |
+| `cerebras`   | Cerebras        |
 
 ### Token Count Details
 
