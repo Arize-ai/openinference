@@ -522,3 +522,5 @@ class OpenInferenceLLMProviderValues(Enum):
     FIREWORKS = "fireworks"
     MOONSHOT = "moonshot"
     CEREBRAS = "cerebras"
+    PERPLEXITY = "perplexity"
+    TOGETHER = "together"

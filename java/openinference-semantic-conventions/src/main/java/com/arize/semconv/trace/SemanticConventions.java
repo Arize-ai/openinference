@@ -717,7 +717,9 @@ public class SemanticConventions {
         GROQ("groq"),
         FIREWORKS("fireworks"),
         MOONSHOT("moonshot"),
-        CEREBRAS("cerebras");
+        CEREBRAS("cerebras"),
+        PERPLEXITY("perplexity"),
+        TOGETHER("together");
 
         private final String value;
 

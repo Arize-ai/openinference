@@ -154,6 +154,8 @@ used; otherwise, a custom value MAY be used.
 | `fireworks`  | Fireworks AI    |
 | `moonshot`   | Moonshot AI     |
 | `cerebras`   | Cerebras        |
+| `perplexity` | Perplexity      |
+| `together`   | Together AI     |
 
 ### Token Count Details
 

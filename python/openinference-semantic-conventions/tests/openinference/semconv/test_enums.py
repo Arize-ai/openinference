@@ -58,4 +58,6 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.FIREWORKS: "fireworks",
             OpenInferenceLLMProviderValues.MOONSHOT: "moonshot",
             OpenInferenceLLMProviderValues.CEREBRAS: "cerebras",
+            OpenInferenceLLMProviderValues.PERPLEXITY: "perplexity",
+            OpenInferenceLLMProviderValues.TOGETHER: "together",
         }

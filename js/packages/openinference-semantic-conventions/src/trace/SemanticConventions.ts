@@ -757,4 +757,6 @@ export enum LLMProvider {
   FIREWORKS = "fireworks",
   MOONSHOT = "moonshot",
   CEREBRAS = "cerebras",
+  PERPLEXITY = "perplexity",
+  TOGETHER = "together",
 }
