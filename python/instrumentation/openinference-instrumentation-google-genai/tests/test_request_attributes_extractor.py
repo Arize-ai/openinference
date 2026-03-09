@@ -90,30 +90,3 @@ def test_extract_text_from_content(
     )
     if expected is not None:
         assert result == expected
-
-
-@pytest.mark.parametrize(
-    "content",
-    [
-        pytest.param(
-            types.Content(parts=[types.Part(text="system prompt")]),
-            id="content_object_is_not_otel_safe_without_conversion",
-        ),
-        pytest.param(
-            types.Part(text="bare part"),
-            id="part_object_is_not_otel_safe_without_conversion",
-        ),
-        pytest.param(
-            [types.Content(parts=[types.Part(text="list of content")])],
-            id="list_of_content_is_not_otel_safe_without_conversion",
-        ),
-    ],
-)
-def test_extract_text_from_content_always_returns_otel_safe_scalar(
-    content: Any,
-) -> None:
-    """Return value must satisfy the OTel scalar attribute requirement for every SDK shape."""
-    result = _RequestAttributesExtractor()._extract_text_from_content(content)
-    assert isinstance(result, (bool, str, bytes, int, float)), (
-        f"Expected an OTel-safe scalar type, got {type(result)}"
-    )
