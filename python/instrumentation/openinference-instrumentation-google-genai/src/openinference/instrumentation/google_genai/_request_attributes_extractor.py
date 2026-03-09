@@ -122,16 +122,14 @@ class _RequestAttributesExtractor:
         # Handle parts from Google GenAI Content object
         if isinstance(content, Content):
             parts = getattr(content, "parts", None) or []
-            texts = [
-                getattr(part, "text", None)
-                for part in parts
-                if getattr(part, "text", None)
-            ]
+            texts = [getattr(part, "text", None) for part in parts if getattr(part, "text", None)]
             return "\n\n".join(texts) if texts else str(content)
 
         # Handle multiple content types - list[Content | Part | str]
         if isinstance(content, list):
-            resolved = [self._extract_text_from_content(item) for item in content if item is not None]
+            resolved = [
+                self._extract_text_from_content(item) for item in content if item is not None
+            ]
             return "\n\n".join(resolved) if resolved else ""
 
         # Fallback for unexpected types
