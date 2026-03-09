@@ -107,7 +107,7 @@ def _to_open_inference_format_tracing_info(
                         _get_tool_json_schema(tool)
                     )
                 }
-                for tool in start_event.tools
+                for tool in start_event.tools  # type: ignore[attr-defined]
             ]
             tracing_info[SpanAttributes.LLM_INPUT_MESSAGES] = [
                 # The prompt contains the list of messages dumped in dict format,

@@ -205,7 +205,6 @@ def test_instrumentor_context_triggers_processors_and_exports_tool_spans(
         assert attrs.pop(SpanAttributes.OUTPUT_VALUE) == '{"z": 3}'
 
     trace = get_trace()
-    assert 1 == 1
     assert trace is None
 
 
@@ -259,7 +258,9 @@ def test_instrumentor_context_triggers_processors_and_exports_llm_spans(
             attrs.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND)
             == OpenInferenceSpanKindValues.LLM.value
         )
-        assert attrs.pop(SpanAttributes.LLM_MODEL_NAME) == agentspec_llm_config.model_id
+        assert attrs.pop(SpanAttributes.LLM_MODEL_NAME) == getattr(
+            agentspec_llm_config, "model_id", None
+        )
         assert attrs.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == '{"temperature": 0.3}'
 
         # Input messages flattened
@@ -426,7 +427,9 @@ def test_combined_agent_llm_tool_spans_are_exported(
         assert llm_with_tool is not None and llm_final is not None
 
         # Assert first LLM span (tool call requested)
-        assert llm_with_tool.pop(SpanAttributes.LLM_MODEL_NAME) == agentspec_llm_config.model_id
+        assert llm_with_tool.pop(SpanAttributes.LLM_MODEL_NAME) == getattr(
+            agentspec_llm_config, "model_id", None
+        )
         assert llm_with_tool.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == (
             '{"temperature": 0.2}'
         )
@@ -544,8 +547,8 @@ def test_instrumentor_forwards_resource_to_spans(
 
     trace = get_trace()
     assert trace is None
-    for span in in_memory_span_exporter.get_finished_spans():
-        attrs_res = getattr(span.resource, "attributes", {})
+    for finished_span in in_memory_span_exporter.get_finished_spans():
+        attrs_res = getattr(finished_span.resource, "attributes", {})
         assert "service.name" in attrs_res
 
 
