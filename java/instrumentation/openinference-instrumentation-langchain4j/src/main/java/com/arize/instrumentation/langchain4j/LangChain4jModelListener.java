@@ -87,7 +87,7 @@ public class LangChain4jModelListener implements ChatModelListener {
 
         // Set tool attributes
         List<ToolSpecification> toolSpecifications = request.toolSpecifications();
-        if (toolSpecifications != null && !toolSpecifications.isEmpty()) {
+        if (Objects.nonNull(toolSpecifications) && !toolSpecifications.isEmpty()) {
             setLlmToolAttributes(span, toolSpecifications);
         }
 
