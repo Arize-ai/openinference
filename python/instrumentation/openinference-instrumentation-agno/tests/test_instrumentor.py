@@ -142,6 +142,7 @@ def test_agent_metadata_captured() -> None:
 
     raw_metadata = attributes.get("metadata")
     assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
 
     metadata = json.loads(raw_metadata)
     assert metadata["department"] == "finance"
@@ -176,6 +177,7 @@ def test_team_metadata_captured() -> None:
 
     raw_metadata = attributes.get("metadata")
     assert raw_metadata is not None, "metadata attribute should be present"
+    assert isinstance(raw_metadata, str), "metadata should be a JSON string"
 
     metadata = json.loads(raw_metadata)
     assert metadata["project"] == "alpha"
