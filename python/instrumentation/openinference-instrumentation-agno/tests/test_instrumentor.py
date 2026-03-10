@@ -124,6 +124,64 @@ def test_agno_instrumentation(
     assert checked_spans >= 3  # We expect at least agent, tool, and LLM spans
 
 
+def test_agent_metadata_captured() -> None:
+    """Test that Agent.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(
+        name="Test Agent",
+        metadata={
+            "department": "finance",
+            "cost_center": "dept_123",
+            "environment": "production",
+        },
+    )
+    attributes = dict(_agent_run_attributes(agent))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["department"] == "finance"
+    assert metadata["cost_center"] == "dept_123"
+    assert metadata["environment"] == "production"
+
+
+def test_agent_no_metadata() -> None:
+    """Test that no metadata attribute is set when agent has no metadata."""
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    agent = Agent(name="Test Agent")
+    attributes = dict(_agent_run_attributes(agent))
+    assert "metadata" not in attributes
+
+
+def test_team_metadata_captured() -> None:
+    """Test that Team.metadata dict is captured as a span attribute."""
+    import json
+
+    from openinference.instrumentation.agno._runs_wrapper import _agent_run_attributes
+
+    team = Team(
+        name="Test Team",
+        members=[Agent(name="Member Agent")],
+        metadata={
+            "project": "alpha",
+            "priority": "high",
+        },
+    )
+    attributes = dict(_agent_run_attributes(team))
+
+    raw_metadata = attributes.get("metadata")
+    assert raw_metadata is not None, "metadata attribute should be present"
+
+    metadata = json.loads(raw_metadata)
+    assert metadata["project"] == "alpha"
+    assert metadata["priority"] == "high"
+
+
 def test_agno_team_coordinate_instrumentation(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
