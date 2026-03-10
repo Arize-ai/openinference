@@ -205,6 +205,8 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
 
     if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
         yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_PROVIDER_NAME]
+    elif GEN_AI_SYSTEM in gen_ai_attrs:
+        yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_SYSTEM]
 
     if GEN_AI_SYSTEM in gen_ai_attrs:
         yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
