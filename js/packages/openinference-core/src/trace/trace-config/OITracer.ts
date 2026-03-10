@@ -1,20 +1,10 @@
-import {
-  Context,
-  context as apiContext,
-  Span,
-  SpanOptions,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import { context as apiContext } from "@opentelemetry/api";
 
 import { getAttributesFromContext } from "../contextAttributes";
-
 import { OISpan } from "./OISpan";
 import { generateTraceConfig } from "./traceConfig";
-import {
-  OpenInferenceActiveSpanCallback,
-  TraceConfig,
-  TraceConfigOptions,
-} from "./types";
+import type { OpenInferenceActiveSpanCallback, TraceConfig, TraceConfigOptions } from "./types";
 
 /**
  * Formats the params for the startActiveSpan method
@@ -59,20 +49,11 @@ export class OITracer implements Tracer {
    * @param params.tracer - The OpenTelemetry {@link Tracer} to wrap
    * @param params.traceConfig - The {@link TraceConfigOptions} to set to control the behavior of the tracer
    */
-  constructor({
-    tracer,
-    traceConfig,
-  }: {
-    tracer: Tracer;
-    traceConfig?: TraceConfigOptions;
-  }) {
+  constructor({ tracer, traceConfig }: { tracer: Tracer; traceConfig?: TraceConfigOptions }) {
     this.tracer = tracer;
     this.config = generateTraceConfig(traceConfig);
   }
-  startActiveSpan<F extends (span: OISpan) => unknown>(
-    name: string,
-    fn: F,
-  ): ReturnType<F>;
+  startActiveSpan<F extends (span: OISpan) => unknown>(name: string, fn: F): ReturnType<F>;
   startActiveSpan<F extends (span: OISpan) => unknown>(
     name: string,
     options: SpanOptions,
@@ -119,11 +100,7 @@ export class OITracer implements Tracer {
     const contextAttributes = getAttributesFromContext(ctx);
     const mergedAttributes = { ...contextAttributes, ...attributes };
     const span = new OISpan({
-      span: this.tracer.startSpan(
-        name,
-        { ...options, attributes: undefined },
-        ctx,
-      ),
+      span: this.tracer.startSpan(name, { ...options, attributes: undefined }, ctx),
       config: this.config,
     });
     span.setAttributes(mergedAttributes);

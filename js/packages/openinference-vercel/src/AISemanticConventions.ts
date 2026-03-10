@@ -1,4 +1,4 @@
-import { ValueOf } from "./typeUtils";
+import type { ValueOf } from "./typeUtils";
 
 /**
  * Semantic conventions for the Vercel AI SDK `ai.*` attributes.
@@ -82,12 +82,10 @@ const TOKEN_COUNT_REASONING =
   `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.reasoningTokens}` as const;
 const TOKEN_COUNT_CACHED_INPUT =
   `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.cachedInputTokens}` as const;
-const TOKEN_COUNT_TOKENS =
-  `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.tokens}` as const;
+const TOKEN_COUNT_TOKENS = `${AI_PREFIX}.${AIPrefixes.usage}.${AIUsagePostfixes.tokens}` as const;
 
 // Response attributes
-const RESPONSE_TEXT =
-  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.text}` as const;
+const RESPONSE_TEXT = `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.text}` as const;
 const RESPONSE_TOOL_CALLS =
   `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.toolCalls}` as const;
 const RESPONSE_OBJECT =
@@ -100,10 +98,8 @@ const RESPONSE_MS_TO_FINISH =
   `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.msToFinish}` as const;
 const RESPONSE_AVG_OUTPUT_TOKENS_PER_SECOND =
   `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.avgOutputTokensPerSecond}` as const;
-const RESPONSE_ID =
-  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.id}` as const;
-const RESPONSE_MODEL =
-  `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.model}` as const;
+const RESPONSE_ID = `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.id}` as const;
+const RESPONSE_MODEL = `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.model}` as const;
 const RESPONSE_TIMESTAMP =
   `${AI_PREFIX}.${AIPrefixes.response}.${AIResponsePostfixes.timestamp}` as const;
 const RESPONSE_PROVIDER_METADATA =
@@ -122,12 +118,9 @@ const EMBEDDING_TEXTS = `${AI_PREFIX}.values` as const;
 const EMBEDDING_VECTORS = `${AI_PREFIX}.embeddings` as const;
 
 // Tool call span attributes
-const TOOL_CALL_ID =
-  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.id}` as const;
-const TOOL_CALL_NAME =
-  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.name}` as const;
-const TOOL_CALL_ARGS =
-  `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.args}` as const;
+const TOOL_CALL_ID = `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.id}` as const;
+const TOOL_CALL_NAME = `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.name}` as const;
+const TOOL_CALL_ARGS = `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.args}` as const;
 const TOOL_CALL_RESULT =
   `${AI_PREFIX}.${AIPrefixes.toolCall}.${AIToolCallPostfixes.result}` as const;
 
@@ -186,9 +179,7 @@ export const AISemanticConventions = {
   TOOL_CALL_RESULT,
 } as const;
 
-export const AISemanticConventionsList = Object.freeze(
-  Object.values(AISemanticConventions),
-);
+export const AISemanticConventionsList = Object.freeze(Object.values(AISemanticConventions));
 
 export type AISemanticConvention = ValueOf<typeof AISemanticConventions>;
 

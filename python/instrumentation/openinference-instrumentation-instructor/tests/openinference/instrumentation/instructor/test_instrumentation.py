@@ -17,6 +17,11 @@ from pydantic import BaseModel
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.instructor import InstructorInstrumentor
+from openinference.instrumentation.instructor._wrappers import infer_llm_provider_from_endpoint
+from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
+    OpenInferenceLLMSystemValues,
+)
 
 
 @pytest.fixture()
@@ -101,8 +106,8 @@ async def test_async_instrumentation(
             attributes = dict(span.attributes or dict())
             if span.name in {"instructor.patch", "instructor.async_patch"}:
                 assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
-                assert attributes.get("llm.provider") == "openai"
-                assert attributes.get("llm.system") == "openai"
+                assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+                assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
             assert attributes.get("openinference.span.kind") in ["TOOL"]
             assert span.status.status_code == trace_api.StatusCode.OK
 
@@ -144,8 +149,8 @@ async def test_streaming_instrumentation(
         attributes = dict(span.attributes or dict())
         if span.name in {"instructor.patch", "instructor.async_patch"}:
             assert attributes.get("llm.model_name") == "gpt-4-turbo-preview"
-            assert attributes.get("llm.provider") == "openai"
-            assert attributes.get("llm.system") == "openai"
+            assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+            assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
         assert attributes.get("openinference.span.kind") in ["TOOL"]
         assert span.status.status_code == trace_api.StatusCode.OK
 
@@ -175,8 +180,8 @@ def test_instructor_instrumentation(
             attributes = dict(span.attributes or dict())
             if span.name in {"instructor.patch", "instructor.async_patch"}:
                 assert attributes.get("llm.model_name") == "gpt-3.5-turbo"
-                assert attributes.get("llm.provider") == "openai"
-                assert attributes.get("llm.system") == "openai"
+                assert attributes.get("llm.provider") == OpenInferenceLLMProviderValues.OPENAI.value
+                assert attributes.get("llm.system") == OpenInferenceLLMSystemValues.OPENAI.value
             assert attributes.get("openinference.span.kind") in ["TOOL"]
             assert span.status.status_code == trace_api.StatusCode.OK
 
@@ -187,3 +192,64 @@ def test_instructor_instrumentation(
                 assert "max_retries" in invocation_params
                 # Ensure max_retries is JSON-serializable
                 json.dumps(invocation_params)
+
+
+class TestInferLLMProviderFromEndpoint:
+    @pytest.mark.parametrize(
+        "endpoint",
+        [None, ""],
+    )
+    def test_returns_none_for_invalid_input(self, endpoint: Optional[str]) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "endpoint_url, expected",
+        [
+            ("https://api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            ("https://subdomain.api.openai.com/v1", OpenInferenceLLMProviderValues.OPENAI),
+            (
+                "https://my-resource.openai.azure.com/openai/deployments",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://different-resource.openai.azure.com/v1",
+                OpenInferenceLLMProviderValues.AZURE,
+            ),
+            (
+                "https://generativelanguage.googleapis.com/v1",
+                OpenInferenceLLMProviderValues.GOOGLE,
+            ),
+            ("https://api.anthropic.com/v1", OpenInferenceLLMProviderValues.ANTHROPIC),
+            (
+                "https://bedrock-runtime.us-east-1.amazonaws.com",
+                OpenInferenceLLMProviderValues.AWS,
+            ),
+            ("https://someservice.us-west-2.amazonaws.com", OpenInferenceLLMProviderValues.AWS),
+            ("https://api.cohere.ai/v1", OpenInferenceLLMProviderValues.COHERE),
+            ("https://api.mistral.ai/v1", OpenInferenceLLMProviderValues.MISTRALAI),
+            ("https://api.x.ai/v1", OpenInferenceLLMProviderValues.XAI),
+            ("https://api.deepseek.com/v1", OpenInferenceLLMProviderValues.DEEPSEEK),
+        ],
+    )
+    def test_known_endpoints_return_expected_provider(
+        self, endpoint_url: str, expected: OpenInferenceLLMProviderValues
+    ) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint_url)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "https://unknown-provider-xyz.com/v1",
+            "https://custom-llm-provider.com/v1",
+            "https://my-provider-custom.com/v1",
+        ],
+    )
+    def test_unknown_endpoints_return_none(self, endpoint: str) -> None:
+        result = infer_llm_provider_from_endpoint(endpoint)
+        assert result is None
+
+    def test_case_insensitive_matching(self) -> None:
+        result = infer_llm_provider_from_endpoint("https://API.OPENAI.COM/v1")
+        assert result == OpenInferenceLLMProviderValues.OPENAI

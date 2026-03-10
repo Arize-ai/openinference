@@ -1,26 +1,27 @@
-import { Tracer } from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import {
-  BatchSpanProcessor,
-  NodeTracerProvider,
-} from "@opentelemetry/sdk-trace-node";
+// @ts-nocheck – The MCP SDK's deeply recursive zod v4 types cause tsc to
+// stack-overflow (SIGABRT) during type-checking.  Runtime behavior is unaffected.
+import { randomUUID } from "crypto";
+import type http from "http";
+import type { AddressInfo } from "net";
 
-import { MCPInstrumentation } from "../src";
-
-import { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
+import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import * as MCPServerSSEModule from "@modelcontextprotocol/sdk/server/sse";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
 import * as MCPServerStdioModule from "@modelcontextprotocol/sdk/server/stdio";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import * as MCPServerStreamableHTTPModule from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types";
-import { randomUUID } from "crypto";
+import type { Tracer } from "@opentelemetry/api";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
-import http from "http";
-import { AddressInfo } from "net";
-import { z } from "zod";
+import { z } from "zod/v3";
+
+import { MCPInstrumentation } from "../src";
 
 function newMcpServer(tracer: Tracer) {
   const server = new McpServer({
@@ -30,12 +31,11 @@ function newMcpServer(tracer: Tracer) {
 
   server.tool("hello", () => {
     return tracer.startActiveSpan("hello", async (span) => {
-      const result = await server.server.request(
-        {
-          method: "whoami",
-        },
-        z.object({ name: z.string() }),
-      );
+      const whoamiResult = z.object({ name: z.string() });
+      // @ts-expect-error TS2589/TS2345: MCP SDK's deeply nested Zod generics
+      const result = (await server.server.request({ method: "whoami" }, whoamiResult)) as {
+        name: string;
+      };
       try {
         return {
           content: [
@@ -62,7 +62,7 @@ async function main() {
     url: `${otlpEndpoint}/v1/traces`,
   });
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new BatchSpanProcessor(exporter)],
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
   tracerProvider.register();
   const tracer = tracerProvider.getTracer("mcp-test-server");
@@ -100,9 +100,7 @@ async function main() {
         const sessionId = req.query.sessionId;
         const transport = servers
           .map((s) => s.server.transport)
-          .find((t) => t!.sessionId === sessionId) as
-          | SSEServerTransport
-          | undefined;
+          .find((t) => t!.sessionId === sessionId) as SSEServerTransport | undefined;
         if (!transport) {
           res.status(404).send("Session not found");
           return;
@@ -118,7 +116,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/sse`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/sse`,
             );
             resolve();
           }
@@ -138,8 +136,7 @@ async function main() {
       app.use(express.json());
 
       const server = newMcpServer(tracer);
-      const transports: { [sessionId: string]: StreamableHTTPServerTransport } =
-        {};
+      const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
       app.post("/mcp", async (req, res) => {
         try {
@@ -202,7 +199,7 @@ async function main() {
           } else {
             // eslint-disable-next-line no-console
             console.log(
-              `Server running on http://localhost:${(httpServer?.address() as AddressInfo).port}/mcp`,
+              `Server running on http://localhost:${(httpServer!.address() as AddressInfo).port}/mcp`,
             );
             resolve();
           }

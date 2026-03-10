@@ -27,14 +27,6 @@ from openinference.semconv.trace import (
 
 
 @pytest.fixture()
-def image_bytes_and_format() -> Tuple[bytes, str]:
-    return (
-        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",  # noqa: E501
-        "webp",
-    )
-
-
-@pytest.fixture()
 def session_id() -> str:
     return "my-test-session-id"
 
@@ -111,7 +103,7 @@ def instrument(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="bedrock"
         )
         instrumentor = instrumentor_entrypoint.load()()

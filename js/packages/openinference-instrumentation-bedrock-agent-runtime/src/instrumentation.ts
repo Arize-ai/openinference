@@ -1,18 +1,24 @@
-import { OITracer, TraceConfigOptions } from "@arizeai/openinference-core";
-
+import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
 import {
-  diag,
-  SpanKind,
-  SpanStatusCode,
-  Tracer,
-  TracerProvider,
-} from "@opentelemetry/api";
-import {
-  InstrumentationBase,
+  InvokeAgentCommand,
+  RetrieveAndGenerateCommand,
+  RetrieveAndGenerateStreamCommand,
+  RetrieveCommand,
+} from "@aws-sdk/client-bedrock-agent-runtime";
+import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
+import type { Tracer, TracerProvider } from "@opentelemetry/api";
+import { diag, SpanKind, SpanStatusCode } from "@opentelemetry/api";
+import type {
   InstrumentationConfig,
   InstrumentationModuleDefinition,
+} from "@opentelemetry/instrumentation";
+import {
+  InstrumentationBase,
   InstrumentationNodeModuleDefinition,
 } from "@opentelemetry/instrumentation";
+
+import type { TraceConfigOptions } from "@arizeai/openinference-core";
+import { OITracer } from "@arizeai/openinference-core";
 
 import {
   extractBedrockRagResponseAttributes,
@@ -27,19 +33,9 @@ import { CallbackHandler, RagCallbackHandler } from "./callbackHandler";
 import { interceptAgentResponse, interceptRagResponse } from "./streamUtils";
 import { VERSION } from "./version";
 
-import type * as bedrockAgentRunTime from "@aws-sdk/client-bedrock-agent-runtime";
-import {
-  InvokeAgentCommand,
-  RetrieveAndGenerateCommand,
-  RetrieveAndGenerateStreamCommand,
-  RetrieveCommand,
-} from "@aws-sdk/client-bedrock-agent-runtime";
-import type { InvokeAgentCommandOutput } from "@aws-sdk/client-bedrock-agent-runtime/dist-types/commands/InvokeAgentCommand";
-
 const MODULE_NAME = "@aws-sdk/client-bedrock-agent-runtime";
 
-const INSTRUMENTATION_NAME =
-  "@arizeai/openinference-instrumentation-bedrock-agent";
+const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-bedrock-agent";
 
 let _isBedrockAgentPatched = false;
 
@@ -75,16 +71,11 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
      */
     tracerProvider?: TracerProvider;
   } = {}) {
-    super(
-      INSTRUMENTATION_NAME,
-      VERSION,
-      Object.assign({}, instrumentationConfig),
-    );
+    super(INSTRUMENTATION_NAME, VERSION, Object.assign({}, instrumentationConfig));
     this.tracerProvider = tracerProvider;
     this.traceConfig = traceConfig;
     this.oiTracer = new OITracer({
-      tracer:
-        this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
+      tracer: this.tracerProvider?.getTracer(INSTRUMENTATION_NAME) ?? this.tracer,
       traceConfig: traceConfig,
     });
   }
@@ -97,12 +88,13 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     this.patch(module);
   }
 
-  protected init(): InstrumentationModuleDefinition<
-    typeof bedrockAgentRunTime
-  >[] {
-    const module = new InstrumentationNodeModuleDefinition<
-      typeof bedrockAgentRunTime
-    >(MODULE_NAME, ["^3.0.0"], this.patch.bind(this), this.unpatch.bind(this));
+  protected init(): InstrumentationModuleDefinition<typeof bedrockAgentRunTime>[] {
+    const module = new InstrumentationNodeModuleDefinition<typeof bedrockAgentRunTime>(
+      MODULE_NAME,
+      ["^3.0.0"],
+      this.patch.bind(this),
+      this.unpatch.bind(this),
+    );
     return [module];
   }
 
@@ -122,16 +114,12 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     });
   }
 
-  private patch(
-    moduleExports: typeof bedrockAgentRunTime,
-    moduleVersion?: string,
-  ) {
+  private patch(moduleExports: typeof bedrockAgentRunTime, moduleVersion?: string) {
     diag.debug(`Applying patch for ${MODULE_NAME}@${moduleVersion}`);
     if (_isBedrockAgentPatched) return moduleExports;
     if (!moduleExports) return moduleExports;
 
-    type SendMethod =
-      typeof moduleExports.BedrockAgentRuntimeClient.prototype.send;
+    type SendMethod = typeof moduleExports.BedrockAgentRuntimeClient.prototype.send;
     this._wrap(
       moduleExports.BedrockAgentRuntimeClient.prototype,
       "send",
@@ -145,12 +133,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
         ) {
           const command = args[0];
           if (command instanceof InvokeAgentCommand) {
-            return instrumentationInstance._handleInvokeAgentCommand(
-              args,
-              command,
-              original,
-              this,
-            );
+            return instrumentationInstance._handleInvokeAgentCommand(args, command, original, this);
           }
           if (command instanceof RetrieveAndGenerateCommand) {
             return instrumentationInstance._handleRetrieveAndGenerateCommand(
@@ -161,21 +144,11 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
             );
           }
           if (command instanceof RetrieveAndGenerateStreamCommand) {
-            return instrumentationInstance._handleRAGStreamCommand(
-              args,
-              command,
-              original,
-              this,
-            );
+            return instrumentationInstance._handleRAGStreamCommand(args, command, original, this);
           }
           //_handleRAGCommand
           if (command instanceof RetrieveCommand) {
-            return instrumentationInstance._handleRetrieveCommand(
-              args,
-              command,
-              original,
-              this,
-            );
+            return instrumentationInstance._handleRetrieveCommand(args, command, original, this);
           }
           return original.apply(this, args);
         };
@@ -186,14 +159,10 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
   }
 
   private _handleInvokeAgentCommand(
-    args: Parameters<
-      typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-    >,
+    args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>,
     command: bedrockAgentRunTime.InvokeAgentCommand,
     original: (
-      ...args: Parameters<
-        typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-      >
+      ...args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>
     ) => Promise<InvokeAgentCommandOutput>,
     client: unknown,
   ) {
@@ -205,15 +174,9 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     return result
       .then((response: InvokeAgentCommandOutput) => {
         const callback = new CallbackHandler(this.oiTracer, span);
-        if (
-          response.completion &&
-          Symbol.asyncIterator in response.completion
-        ) {
+        if (response.completion && Symbol.asyncIterator in response.completion) {
           try {
-            response.completion = interceptAgentResponse(
-              response.completion,
-              callback,
-            );
+            response.completion = interceptAgentResponse(response.completion, callback);
           } catch (err: unknown) {
             diag.debug("Error in _handleInvokeAgent:", err);
             span.setStatus({ code: SpanStatusCode.OK });
@@ -248,46 +211,35 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
    * @returns A Promise resolving to the command output, with tracing instrumentation applied.
    */
   private _handleRAGStreamCommand(
-    args: Parameters<
-      typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-    >,
+    args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>,
     command: bedrockAgentRunTime.RetrieveAndGenerateStreamCommand,
     original: (
-      ...args: Parameters<
-        typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-      >
+      ...args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>
     ) => Promise<bedrockAgentRunTime.RetrieveAndGenerateStreamCommandOutput>,
     client: unknown,
   ) {
-    const span = this.oiTracer.startSpan(
-      "bedrock.retrieve_and_generate_stream",
-      {
-        kind: SpanKind.INTERNAL,
-        attributes: safelyExtractBaseRagAttributes(command) ?? undefined,
-      },
-    );
+    const span = this.oiTracer.startSpan("bedrock.retrieve_and_generate_stream", {
+      kind: SpanKind.INTERNAL,
+      attributes: safelyExtractBaseRagAttributes(command) ?? undefined,
+    });
     const result = original.apply(client, args);
     return result
-      .then(
-        (
-          response: bedrockAgentRunTime.RetrieveAndGenerateStreamCommandOutput,
-        ) => {
-          const callback = new RagCallbackHandler(span);
-          if (response.stream && Symbol.asyncIterator in response.stream) {
-            try {
-              response.stream = interceptRagResponse(response.stream, callback);
-            } catch (err: unknown) {
-              diag.debug("Error in _handleRAGStreamCommand:", err);
-              span.setStatus({ code: SpanStatusCode.OK });
-              span.end();
-            }
-          } else {
+      .then((response: bedrockAgentRunTime.RetrieveAndGenerateStreamCommandOutput) => {
+        const callback = new RagCallbackHandler(span);
+        if (response.stream && Symbol.asyncIterator in response.stream) {
+          try {
+            response.stream = interceptRagResponse(response.stream, callback);
+          } catch (err: unknown) {
+            diag.debug("Error in _handleRAGStreamCommand:", err);
             span.setStatus({ code: SpanStatusCode.OK });
             span.end();
           }
-          return response;
-        },
-      )
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK });
+          span.end();
+        }
+        return response;
+      })
       .catch((err: Error) => {
         span.recordException(err);
         span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
@@ -310,14 +262,10 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
    * @returns A Promise resolving to the command output, with tracing instrumentation applied.
    */
   private _handleRetrieveAndGenerateCommand(
-    args: Parameters<
-      typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-    >,
+    args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>,
     command: bedrockAgentRunTime.RetrieveAndGenerateCommand,
     original: (
-      ...args: Parameters<
-        typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-      >
+      ...args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>
     ) => Promise<bedrockAgentRunTime.RetrieveAndGenerateCommandOutput>,
     client: unknown,
   ) {
@@ -327,18 +275,16 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     });
     const result = original.apply(client, args);
     return result
-      .then(
-        (response: bedrockAgentRunTime.RetrieveAndGenerateCommandOutput) => {
-          try {
-            span.setAttributes(extractBedrockRagResponseAttributes(response));
-          } catch (err: unknown) {
-            diag.debug("Error in _handleRetrieveAndGenerateCommand:", err);
-          }
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          return response;
-        },
-      )
+      .then((response: bedrockAgentRunTime.RetrieveAndGenerateCommandOutput) => {
+        try {
+          span.setAttributes(extractBedrockRagResponseAttributes(response));
+        } catch (err: unknown) {
+          diag.debug("Error in _handleRetrieveAndGenerateCommand:", err);
+        }
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.end();
+        return response;
+      })
       .catch((err: Error) => {
         span.recordException(err);
         span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
@@ -361,14 +307,10 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
    * @returns A Promise resolving to the command output, with tracing instrumentation applied.
    */
   private _handleRetrieveCommand(
-    args: Parameters<
-      typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-    >,
+    args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>,
     command: RetrieveCommand,
     original: (
-      ...args: Parameters<
-        typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send
-      >
+      ...args: Parameters<typeof bedrockAgentRunTime.BedrockAgentRuntimeClient.prototype.send>
     ) => Promise<bedrockAgentRunTime.RetrieveCommandOutput>,
     client: unknown,
   ) {
@@ -380,9 +322,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
     return result
       .then((response: bedrockAgentRunTime.RetrieveCommandOutput) => {
         try {
-          span.setAttributes(
-            extractBedrockRetrieveResponseAttributes(response),
-          );
+          span.setAttributes(extractBedrockRetrieveResponseAttributes(response));
         } catch (err: unknown) {
           diag.debug("Error in _handleRetrieveCommand:", err);
         }
@@ -398,10 +338,7 @@ export class BedrockAgentInstrumentation extends InstrumentationBase<Instrumenta
       });
   }
 
-  private unpatch(
-    moduleExports: typeof bedrockAgentRunTime,
-    moduleVersion?: string,
-  ) {
+  private unpatch(moduleExports: typeof bedrockAgentRunTime, moduleVersion?: string) {
     diag.debug(`Removing patch for ${MODULE_NAME}@${moduleVersion}`);
     if (!moduleExports) return moduleExports;
     this._unwrap(moduleExports.BedrockAgentRuntimeClient.prototype, "send");

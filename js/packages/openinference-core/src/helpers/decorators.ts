@@ -1,4 +1,4 @@
-import { AnyFn, SpanTraceOptions } from "./types";
+import type { AnyFn, SpanTraceOptions } from "./types";
 import { withSpan } from "./withSpan";
 
 /**

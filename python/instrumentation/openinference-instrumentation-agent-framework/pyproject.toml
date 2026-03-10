@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-    "agent-framework >= 1.0.0b260210",
+    "agent-framework >= 1.0.0rc1",
 ]
 test = [
     "pytest",
@@ -46,8 +46,7 @@ test = [
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agent-framework"
 
 [tool.hatch.version]
-path = "src/openinference/instrumentation/agent_framework/__init__.py"
-pattern = '__version__ = "(?P<version>[^"]+)"'
+path = "src/openinference/instrumentation/agent_framework/version.py"
 
 [tool.hatch.build.targets.sdist]
 include = [

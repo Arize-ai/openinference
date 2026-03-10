@@ -1,17 +1,15 @@
-import { OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
-import {
-  MimeType,
-  SemanticConventions,
-} from "@arizeai/openinference-semantic-conventions";
+import type { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
+import type { Span } from "@opentelemetry/api";
+import { diag, SpanStatusCode } from "@opentelemetry/api";
 
-import { diag, Span, SpanStatusCode } from "@opentelemetry/api";
+import type { OITracer } from "@arizeai/openinference-core";
+import { safelyJSONStringify } from "@arizeai/openinference-core";
+import { MimeType, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
 
 import { getOutputAttributes } from "./attributes/attributeUtils";
 import { extractRetrievedReferencesAttributes } from "./attributes/ragAttributeExtractionUtils";
 import { AgentTraceAggregator } from "./collector/agentTraceAggregator";
 import { SpanCreator } from "./spanCreator";
-
-import { Citation } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export class CallbackHandler {
   private outputChunks: string[] = [];
@@ -62,10 +60,7 @@ export class CallbackHandler {
       this.span.recordException(error);
     }
     const message =
-      error &&
-      typeof error === "object" &&
-      "message" in error &&
-      typeof error.message === "string"
+      error && typeof error === "object" && "message" in error && typeof error.message === "string"
         ? error.message
         : String(error);
     this.span.setStatus({ code: SpanStatusCode.ERROR, message });
@@ -125,9 +120,7 @@ export class RagCallbackHandler {
       this.span.recordException(error);
     }
     const errorMessage =
-      error instanceof Error
-        ? error.message
-        : (safelyJSONStringify(error) ?? undefined);
+      error instanceof Error ? error.message : (safelyJSONStringify(error) ?? undefined);
     this.span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
     this.span.end();
   }

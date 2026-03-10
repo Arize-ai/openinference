@@ -10,11 +10,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
-
-# Import OpenLLMetry constants from the official package
-from opentelemetry.semconv_ai import (
-    SpanAttributes as GenAISpanAttributes,
-)
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
@@ -174,7 +169,7 @@ def _set_span_attributes(
 ) -> Dict[str, Any]:
     attrs: Dict[str, Any] = {}
     attrs[GenAIAttributes.GEN_AI_PROVIDER_NAME] = provider
-    attrs[GenAISpanAttributes.LLM_SYSTEM] = system
+    attrs[GenAIAttributes.GEN_AI_SYSTEM] = system
     return attrs
 
 

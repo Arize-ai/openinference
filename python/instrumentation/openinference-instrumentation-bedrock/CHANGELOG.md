@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.32...python-openinference-instrumentation-bedrock-v0.1.33) (2026-02-24)
+
+
+### Features
+
+* bedrock instrumentation support for aioboto3 ([#2709](https://github.com/Arize-ai/openinference/issues/2709)) ([924bc02](https://github.com/Arize-ai/openinference/commit/924bc0273f78cef81a10d843105d9cb68aaad40b))
+
 ## [0.1.32](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.31...python-openinference-instrumentation-bedrock-v0.1.32) (2025-12-08)
 
 

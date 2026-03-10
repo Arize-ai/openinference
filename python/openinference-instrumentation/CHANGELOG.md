@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.46](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.45...python-openinference-instrumentation-v0.1.46) (2026-03-04)
+
+
+### Features
+
+* **claude-agent-sdk:** Add support for Claude Agent SDK ([#2796](https://github.com/Arize-ai/openinference/issues/2796)) ([6f627e7](https://github.com/Arize-ai/openinference/commit/6f627e74a0e06e823aa593922d8d13b8d3d9aa22))
+
+## [0.1.45](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.44...python-openinference-instrumentation-v0.1.45) (2026-02-24)
+
+
+### Documentation
+
+* **python spec:** add instructions for working on python instrumentation packages ([#2757](https://github.com/Arize-ai/openinference/issues/2757)) ([b8bd7ca](https://github.com/Arize-ai/openinference/commit/b8bd7ca01e8b7d6a45cbb2d1b65ed42f7dec53f8))
+
 ## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-v0.1.43...python-openinference-instrumentation-v0.1.44) (2026-02-01)
 
 

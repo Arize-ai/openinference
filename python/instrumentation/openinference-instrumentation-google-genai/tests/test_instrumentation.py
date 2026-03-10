@@ -1,7 +1,8 @@
 # type: ignore
 # ruff: noqa: E501
 import json
-from typing import Any, Dict, Iterator
+import os
+from typing import Any, Dict
 
 import pytest
 from google import genai
@@ -16,13 +17,10 @@ from google.genai.types import (
     Tool,
     ToolCodeExecution,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel
 
-from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.semconv.trace import (
     ImageAttributes,
     MessageAttributes,
@@ -37,28 +35,6 @@ class Answer(BaseModel):
     answer: str
 
 
-@pytest.fixture
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    exporter = InMemorySpanExporter()
-    return exporter
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture
-def setup_google_genai_instrumentation(tracer_provider: TracerProvider) -> Iterator[None]:
-    instrumentor = GoogleGenAIInstrumentor()
-    instrumentor.instrument(tracer_provider=tracer_provider)
-    yield
-    instrumentor.uninstrument()
-
-
 @pytest.mark.vcr(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
@@ -69,7 +45,7 @@ def test_generate_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -273,7 +249,7 @@ def test_generate_content_with_config_as_dict(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -360,7 +336,7 @@ async def test_async_generate_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the async client
     client = genai.Client(api_key=api_key).aio
@@ -428,7 +404,7 @@ def test_multi_turn_conversation(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -523,11 +499,11 @@ def test_streaming_text_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Initialize the client
-    client = genai.Client(api_key="REDACTED")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
 
     # Make the streaming API call
     stream = client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
+        model="gemini-2.0-flash",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat.")],
@@ -553,7 +529,7 @@ def test_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -591,11 +567,11 @@ async def test_async_streaming_text_content(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # Initialize the async client
-    client = genai.Client(api_key="REDACTED").aio
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED")).aio
 
     # Make the streaming API call
     stream = await client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
+        model="gemini-2.0-flash",
         contents=Content(
             role="user",
             parts=[Part.from_text(text="Tell me a short story about a cat within 20 words.")],
@@ -621,7 +597,7 @@ async def test_async_streaming_text_content(
         f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Tell me a short story about a cat within 20 words.",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash-001",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.0-flash",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": full_response,
         SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
@@ -658,7 +634,7 @@ def test_generate_content_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -811,7 +787,7 @@ def test_generate_content_with_raw_json_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -963,7 +939,7 @@ def test_streaming_content_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1306,7 +1282,7 @@ def test_chat_session_with_tool(
     setup_google_genai_instrumentation: None,
 ) -> None:
     # REDACT API Key, Cassette has stored response, delete cassette and replace API Key to edit test
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1564,7 +1540,7 @@ def test_generate_content_with_automatic_tool_calling(
 ) -> None:
     """Test automatic tool calling where Google GenAI executes the function and returns complete response."""
     # Get API key from environment variable
-    api_key = "REDACTED"
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
 
     # Initialize the client
     client = genai.Client(api_key=api_key)
@@ -1704,7 +1680,7 @@ def test_validate_token_counts(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    client = genai.Client(api_key="GEMINI_API_KEY")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents="What is the sum of the first 50 prime numbers? "
@@ -1717,13 +1693,29 @@ def test_validate_token_counts(
     span = spans[0]
     attributes = dict(span.attributes or {})
 
-    expected_attributes = {
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1457,
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 767,
-        # Completion includes candidates (587) + thoughts/reasoning (103)
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 690,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 103,
-    }
+    usage_metadata = response.usage_metadata
+    assert usage_metadata is not None, "Expected usage metadata to be present"
+    prompt_token_count = 0
+    if usage_metadata.prompt_token_count:
+        prompt_token_count += usage_metadata.prompt_token_count
+    if usage_metadata.tool_use_prompt_token_count:
+        prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    completion_token_count = 0
+    if usage_metadata.candidates_token_count:
+        completion_token_count += usage_metadata.candidates_token_count
+    if usage_metadata.thoughts_token_count:
+        completion_token_count += usage_metadata.thoughts_token_count
+    expected_attributes = {}
+    if usage_metadata.total_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage_metadata.total_token_count
+    if prompt_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt_token_count
+    if completion_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = completion_token_count
+    if usage_metadata.thoughts_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = (
+            usage_metadata.thoughts_token_count
+        )
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
@@ -1740,28 +1732,46 @@ def test_validate_token_counts_stream(
     tracer_provider: TracerProvider,
     setup_google_genai_instrumentation: None,
 ) -> None:
-    client = genai.Client(api_key="GEMINI_API_KEY")
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "REDACTED"))
     response = client.models.generate_content_stream(
         model="gemini-2.5-flash",
         contents="What is the sum of the first 50 prime numbers? "
         "Generate and run code for the calculation, and make sure you get all 50.",
         config=GenerateContentConfig(tools=[Tool(code_execution=ToolCodeExecution)]),
     )
-    for _ in response:
-        ...
+    chunks = []
+    for chunk in response:
+        chunks.append(chunk)
     assert response is not None
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1, f"Expected 1 span, got {len(spans)}"
     span = spans[0]
     attributes = dict(span.attributes or {})
 
-    expected_attributes = {
-        SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 1620,
-        SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 850,
-        # Completion includes candidates (602) + thoughts/reasoning (168)
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 770,
-        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 168,
-    }
+    assert chunks and hasattr(chunks[-1], "usage_metadata"), "Expected usage metadata"
+    usage_metadata = chunks[-1].usage_metadata
+    assert usage_metadata is not None, "Expected usage metadata to be present"
+    prompt_token_count = 0
+    if usage_metadata.prompt_token_count:
+        prompt_token_count += usage_metadata.prompt_token_count
+    if usage_metadata.tool_use_prompt_token_count:
+        prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    completion_token_count = 0
+    if usage_metadata.candidates_token_count:
+        completion_token_count += usage_metadata.candidates_token_count
+    if usage_metadata.thoughts_token_count:
+        completion_token_count += usage_metadata.thoughts_token_count
+    expected_attributes = {}
+    if usage_metadata.total_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] = usage_metadata.total_token_count
+    if prompt_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] = prompt_token_count
+    if completion_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] = completion_token_count
+    if usage_metadata.thoughts_token_count:
+        expected_attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING] = (
+            usage_metadata.thoughts_token_count
+        )
     for key, expected_value in expected_attributes.items():
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"

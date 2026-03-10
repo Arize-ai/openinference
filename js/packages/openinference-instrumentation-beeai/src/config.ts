@@ -15,18 +15,14 @@
  */
 
 import type { ReActAgentCallbacks } from "beeai-framework/agents/react/types";
-import { ChatModelEvents } from "beeai-framework/backend/chat";
-import { ToolEvents } from "beeai-framework/tools/base";
+import type { ChatModelEvents } from "beeai-framework/backend/chat";
+import type { ToolEvents } from "beeai-framework/tools/base";
 
-export const INSTRUMENTATION_IGNORED_KEYS = process.env
-  .BEE_FRAMEWORK_INSTRUMENTATION_IGNORED_KEYS
-  ? process.env.BEE_FRAMEWORK_INSTRUMENTATION_IGNORED_KEYS.split(",").filter(
-      Boolean,
-    )
+export const INSTRUMENTATION_IGNORED_KEYS = process.env.BEE_FRAMEWORK_INSTRUMENTATION_IGNORED_KEYS
+  ? process.env.BEE_FRAMEWORK_INSTRUMENTATION_IGNORED_KEYS.split(",").filter(Boolean)
   : [];
 
-export const partialUpdateEventName: keyof ReActAgentCallbacks =
-  "partialUpdate";
+export const partialUpdateEventName: keyof ReActAgentCallbacks = "partialUpdate";
 export const updateEventName: keyof ReActAgentCallbacks = "update";
 export const toolErrorEventName: keyof ReActAgentCallbacks = "toolError";
 export const toolStartEventName: keyof ReActAgentCallbacks = "toolStart";

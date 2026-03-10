@@ -4,7 +4,7 @@ This document describes how multimodal content (text, images, audio) is represen
 
 ## Message Content Arrays
 
-When a message contains multiple content items (e.g., text and images), the content is represented using the `message.contents` array structure with flattened attributes:
+When a message contains multiple content items (e.g., text and images), the content is represented using the `message.contents` array structure with flattened attributes.
 
 ### Attribute Pattern
 

@@ -30,6 +30,7 @@ aiohttp = ">=3.13.3"
 authlib = ">=1.6.6"
 python-multipart = ">=0.0.22"
 filelock = "3.20.3"
+cryptography = ">=46.0.5"
 
 [build-system]
 requires = ["poetry-core"]

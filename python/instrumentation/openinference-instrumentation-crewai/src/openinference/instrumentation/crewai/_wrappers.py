@@ -1,9 +1,23 @@
+from __future__ import annotations
+
+import contextvars
 import json
 import logging
 import time
 from enum import Enum
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -15,10 +29,33 @@ from openinference.instrumentation import (
     get_output_attributes,
     safe_json_dumps,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
+if TYPE_CHECKING:
+    from crewai import Flow
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+# Contextvar used to coordinate between the sync Flow.kickoff wrapper and the
+# async Flow.kickoff_async wrapper.  When the sync wrapper creates the FLOW span
+# BEFORE calling asyncio.run(), it stores the flow_id so that the async wrapper
+# (which is called inside asyncio.run()) can skip creating a duplicate span for
+# that specific flow while still creating spans for any nested flows.
+_flow_span_in_progress: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_oi_flow_span_in_progress", default=None
+)
+
+# Contextvar used to suppress the internal Flow span created by Agent.kickoff()
+# when it internally spins up a Flow. Set to True while an _AgentKickoffWrapper
+# span is active so that Flow spans don't double-wrap standalone agent calls.
+_agent_kickoff_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_oi_agent_kickoff_active", default=False
+)
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -149,17 +186,16 @@ def _get_execute_core_span_name(instance: Any, wrapped: Callable[..., Any], agen
     if not instance:
         return str(base_method)
 
-    # Get agent role for context - simplified to just use agent name
-    if agent and hasattr(agent, "role") and agent.role:
-        agent_role = str(agent.role).strip()
-        if agent_role:
-            return f"{agent_role}.{str(base_method)}"
+    agent_role = str(getattr(agent, "role", "") or "").strip()
+    task_name = str(getattr(instance, "name", "") or "").strip()
 
-    # Fallback to original naming if no agent role available
+    if agent_role and task_name:
+        return f"{agent_role}.{task_name}.{base_method}"
+    if agent_role:
+        return f"{agent_role}.{base_method}"
     if instance:
-        return f"{instance.__class__.__name__}.{str(base_method)}"
-    else:
-        return str(base_method)
+        return f"{instance.__class__.__name__}.{base_method}"
+    return base_method
 
 
 def _find_parent_agent(current_role: str, agents: List[Any]) -> Optional[str]:
@@ -202,23 +238,16 @@ class _ExecuteCoreWrapper:
         # Enhanced task naming - use meaningful agent role instead of generic "Task._execute_core"
         agent = args[0] if args else kwargs.get("agent")
         span_name = _get_execute_core_span_name(instance, wrapped, agent)
+        input_value = _get_input_value(wrapped, *args, **kwargs)
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT})),
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
             span.set_attribute("task_key", instance.key)
             span.set_attribute("task_id", str(instance.id))
             task_name = getattr(instance, "name", None)
@@ -255,6 +284,31 @@ class _ExecuteCoreWrapper:
             span.set_attributes(dict(get_output_attributes(response)))
             span.set_attributes(dict(get_attributes_from_context()))
         return response
+
+
+class _ExecuteWithoutTimeoutContextDescriptor:
+    """Descriptor placed on Agent._execute_without_timeout (class patch, no instance mutation).
+
+    Each access to self._execute_without_timeout (e.g. in executor.submit(...)) runs
+    __get__ in the calling thread, captures contextvars, and returns a callable that
+    runs the original method in that context when invoked in the worker thread.
+    Concurrency-safe and aligned with wrapt's "patch the class with a descriptor"
+    guidance (see wrap_object_attribute in wrapt/patches.py).
+    """
+
+    def __init__(self, original: Any) -> None:
+        self._original = original
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
+        ctx = contextvars.copy_context()
+        bound = self._original.__get__(instance, owner)
+
+        def run_in_context(*args: Any, **kwargs: Any) -> Any:
+            return ctx.run(bound, *args, **kwargs)
+
+        return run_in_context
 
 
 class _CrewKickoffWrapper:
@@ -352,6 +406,74 @@ class _CrewKickoffWrapper:
         return crew_output
 
 
+class _FlowKickoffWrapper:
+    """Sync wrapper for Flow.kickoff().
+
+    Creates the FLOW CHAIN span *before* ``asyncio.run()`` is invoked so that
+    the span lives in the calling thread's context for the entire duration of
+    the synchronous call.  It sets ``_flow_span_in_progress`` so the inner
+    async wrapper (``_FlowKickoffAsyncWrapper``) knows to skip creating a
+    duplicate span.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Flow[Any],
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return wrapped(*args, **kwargs)
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.kickoff"
+        with self._tracer.start_as_current_span(
+            span_name,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes=dict(
+                _flatten(
+                    {
+                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN,
+                    }
+                )
+            ),
+        ) as span:
+            flow = instance
+            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+
+            if inputs is not None:
+                span.set_attributes(dict(get_input_attributes(inputs)))
+                if isinstance(inputs, dict) and "id" in inputs:
+                    span.set_attribute("kickoff_id", str(inputs["id"]))
+
+            span.set_attribute("flow_id", str(flow.flow_id))
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+
+            # Signal to the async wrapper that the span already exists for this flow.
+            # Store the flow_id (not a plain boolean) so that nested flows with different
+            # flow_ids still get their own spans.
+            token = _flow_span_in_progress.set(str(flow.flow_id))
+            try:
+                flow_output = wrapped(*args, **kwargs)
+            except Exception as exception:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exception)))
+                span.record_exception(exception)
+                raise
+            finally:
+                _flow_span_in_progress.reset(token)
+
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(flow_output)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return flow_output
+
+
 class _FlowKickoffAsyncWrapper:
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
@@ -359,11 +481,20 @@ class _FlowKickoffAsyncWrapper:
     async def __call__(
         self,
         wrapped: Callable[..., Any],
-        instance: Any,
+        instance: Flow[Any],
         args: Tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+        # When called from the sync Flow.kickoff() wrapper via asyncio.run(),
+        # the FLOW span was already created in the calling thread's context and
+        # propagated into this task via contextvars.  Skip creating a duplicate
+        # only for this specific flow (matched by flow_id); nested flows with a
+        # different flow_id still get their own span.
+        if _flow_span_in_progress.get() == str(instance.flow_id):
             return await wrapped(*args, **kwargs)
         # Enhanced flow naming - use meaningful flow name instead of generic "Flow.kickoff"
         flow_name = _get_flow_name(instance)
@@ -403,6 +534,127 @@ class _FlowKickoffAsyncWrapper:
             span.set_attributes(dict(get_output_attributes(flow_output)))
             span.set_attributes(dict(get_attributes_from_context()))
         return flow_output
+
+
+class _FlowExecuteMethodWrapper:
+    """Async wrapper for Flow._execute_method().
+
+    Creates a CHAIN span for each individual flow node (start, listen, router)
+    so users can see which nodes ran, their outputs, and their timings.
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+        if _agent_kickoff_active.get():
+            return await wrapped(*args, **kwargs)
+
+        # args = (method_name, method, *original_method_args)
+        method_name = args[0] if args else kwargs.get("method_name", "unknown")
+        # Look up the decorated method on the instance (the 'method' arg in args[1]
+        # is the unwrapped function, not the @start/@listen/@router wrapper).
+        actual_method = getattr(instance, method_name, None)
+        if actual_method is not None:
+            if getattr(actual_method, "__is_start_method__", False):
+                node_type = "start"
+            elif getattr(actual_method, "__is_router__", False):
+                node_type = "router"
+            else:
+                node_type = "listen"
+        else:
+            node_type = "unknown"
+
+        flow_name = _get_flow_name(instance)
+        span_name = f"{flow_name}.{method_name}"
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN})),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            span.set_attribute("flow.node.name", str(method_name))
+            span.set_attribute("flow.node.type", node_type)
+            try:
+                response = await wrapped(*args, **kwargs)
+            except Exception as exc:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exc)))
+                span.record_exception(exc)
+                raise
+            span.set_status(trace_api.StatusCode.OK)
+            # response is tuple[Any, str | None] — first element is the actual result
+            node_result = response[0] if isinstance(response, tuple) else response
+            if node_result is not None:
+                span.set_attributes(dict(get_output_attributes(node_result)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
+
+
+class _AgentKickoffWrapper:
+    """Sync wrapper for Agent.kickoff().
+
+    Creates an AGENT span for standalone agent invocations (outside a Crew).
+    """
+
+    def __init__(self, tracer: trace_api.Tracer) -> None:
+        self._tracer = tracer
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: Tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+        role = getattr(instance, "role", None)
+        span_name = f"{role}.kickoff" if role else "Agent.kickoff"
+        input_value = _get_input_value(wrapped, *args, **kwargs)
+        with self._tracer.start_as_current_span(
+            span_name,
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT})),
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
+            if role:
+                span.set_attribute(SpanAttributes.GRAPH_NODE_ID, role)
+            if getattr(instance, "goal", None):
+                span.set_attribute("agent.goal", str(instance.goal))
+            if getattr(instance, "backstory", None):
+                span.set_attribute("agent.backstory", str(instance.backstory))
+            if getattr(instance, "tools", None):
+                try:
+                    span.set_attribute(
+                        "agent.tools",
+                        json.dumps([t.name for t in instance.tools if hasattr(t, "name")]),
+                    )
+                except Exception:
+                    pass
+            token = _agent_kickoff_active.set(True)
+            try:
+                response = wrapped(*args, **kwargs)
+            except Exception as exc:
+                span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, str(exc)))
+                span.record_exception(exc)
+                raise
+            finally:
+                _agent_kickoff_active.reset(token)
+            span.set_status(trace_api.StatusCode.OK)
+            span.set_attributes(dict(get_output_attributes(response)))
+            span.set_attributes(dict(get_attributes_from_context()))
+        return response
 
 
 class _LongTermMemorySaveWrapper:
@@ -618,23 +870,16 @@ class _BaseToolRunWrapper:
             return wrapped(*args, **kwargs)
         # Enhanced tool naming - use meaningful tool name instead of generic "BaseTool.run"
         span_name = _get_tool_span_name(instance, wrapped)
+        input_value = _get_input_value(wrapped, *args, **kwargs)
         with self._tracer.start_as_current_span(
             span_name,
-            attributes=dict(
-                _flatten(
-                    {
-                        OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL,
-                        INPUT_VALUE: _get_input_value(
-                            wrapped,
-                            *args,
-                            **kwargs,
-                        ),
-                    }
-                )
-            ),
+            attributes=dict(_flatten({OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL})),
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
+            span.set_attributes(
+                dict(get_input_attributes(input_value, mime_type=OpenInferenceMimeTypeValues.JSON))
+            )
             # See https://github.com/crewAIInc/crewAI/blob/main/lib/crewai/src/crewai/tools/base_tool.py#L55
             # The unique name of the tool that clearly communicates its purpose.
             if hasattr(instance, "name") and instance.name:

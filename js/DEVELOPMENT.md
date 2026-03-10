@@ -9,6 +9,7 @@
     - [Trace Configuration](#trace-configuration)
     - [Testing](#testing-1)
 - [Changesets](#changesets)
+- [First-Time Package Publishing](#first-time-package-publishing)
 - [Publishing](#publishing)
 
 The development guide for the JavaScript packages in this repo.
@@ -143,6 +144,32 @@ A changeset is an intent to release a set of packages at particular [semver bump
 Once your pr is merged, Github Actions will create a release PR like [this](https://github.com/Arize-ai/openinference/pull/994). Once the release pr is merged, new versions of any changed packages will be published to npm.
 
 For a detailed explanation of changesets, consult [this documentation](https://github.com/changesets/changesets/blob/main/docs/detailed-explanation.md)
+
+## First-Time Package Publishing
+
+When a **new** `@arizeai`-scoped package is added to the workspace, the automated changesets/GitHub Actions pipeline **cannot publish it** on the first release. There are two reasons for this:
+
+1. **Scoped packages default to private on npm.** The first `npm publish` of an `@arizeai/*` package must include `--access public`; the changesets CLI does not pass this flag.
+2. **Trusted publishers must be configured per-package.** npm's [trusted publishers](https://docs.npmjs.com/trusted-publishers) feature requires an admin to link the GitHub Actions workflow to the package _after_ it already exists on the npm registry.
+
+### Step 1 — Manual first publish
+
+A maintainer with publish access to the `@arizeai` npm organization must run:
+
+```shell
+cd js
+pnpm run -r prebuild && pnpm run -r build
+cd packages/<new-package>
+npm publish --access public
+```
+
+### Step 2 — Configure trusted publisher on npm
+
+An npm org admin must then go to the package's settings page on [npmjs.com](https://www.npmjs.com) and add the GitHub Actions workflow as a trusted publisher. See [npm trusted publishers docs](https://docs.npmjs.com/trusted-publishers) for detailed instructions.
+
+### After setup
+
+Once the package exists on npm and trusted publishers are configured, all subsequent releases will be handled automatically by the changesets + GitHub Actions pipeline — no further manual steps are needed.
 
 ## Publishing
 

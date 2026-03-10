@@ -165,8 +165,7 @@ export const VercelAISemanticConventions = {
   // Streaming metrics (v6)
   RESPONSE_MS_TO_FIRST_CHUNK: "ai.response.msToFirstChunk",
   RESPONSE_MS_TO_FINISH: "ai.response.msToFinish",
-  RESPONSE_AVG_COMPLETION_TOKENS_PER_SECOND:
-    "ai.response.avgCompletionTokensPerSecond",
+  RESPONSE_AVG_COMPLETION_TOKENS_PER_SECOND: "ai.response.avgCompletionTokensPerSecond",
 
   // Settings prefix
   SETTINGS: "ai.settings",
@@ -207,21 +206,15 @@ import { convertGenAISpanAttributesToOpenInferenceSpanAttributes } from "@arizea
  * 2. Then apply Vercel-specific mappings for ai.* attributes
  * 3. Merge results, with gen_ai mappings taking precedence where overlap exists
  */
-export const getOpenInferenceAttributes = (
-  attributes: Attributes,
-): Attributes => {
+export const getOpenInferenceAttributes = (attributes: Attributes): Attributes => {
   // Step 1: Convert gen_ai.* attributes using openinference-genai
-  const genAIAttributes =
-    convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes);
+  const genAIAttributes = convertGenAISpanAttributesToOpenInferenceSpanAttributes(attributes);
 
   // Step 2: Determine span kind from operation.name (Vercel-specific)
   const spanKind = safelyGetOISpanKindFromAttributes(attributes);
 
   // Step 3: Get Vercel-specific attributes not covered by gen_ai.*
-  const vercelSpecificAttributes = getVercelSpecificAttributes(
-    attributes,
-    spanKind,
-  );
+  const vercelSpecificAttributes = getVercelSpecificAttributes(attributes, spanKind);
 
   // Step 4: Merge with gen_ai attributes taking precedence for overlapping keys
   return {
@@ -280,28 +273,21 @@ Keep existing `VercelSDKFunctionNameToSpanKindMap` as it's Vercel-specific and m
  * These are Vercel-specific and not part of OpenInference spec
  */
 const getStreamingMetrics = (attributes: Attributes): Attributes => {
-  const msToFirstChunk =
-    attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FIRST_CHUNK];
-  const msToFinish =
-    attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FINISH];
+  const msToFirstChunk = attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FIRST_CHUNK];
+  const msToFinish = attributes[VercelAISemanticConventions.RESPONSE_MS_TO_FINISH];
   const avgTokensPerSec =
-    attributes[
-      VercelAISemanticConventions.RESPONSE_AVG_COMPLETION_TOKENS_PER_SECOND
-    ];
+    attributes[VercelAISemanticConventions.RESPONSE_AVG_COMPLETION_TOKENS_PER_SECOND];
 
   const metrics: Attributes = {};
   if (typeof msToFirstChunk === "number") {
-    metrics[`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`] =
-      msToFirstChunk;
+    metrics[`${SemanticConventions.METADATA}.ai.response.msToFirstChunk`] = msToFirstChunk;
   }
   if (typeof msToFinish === "number") {
-    metrics[`${SemanticConventions.METADATA}.ai.response.msToFinish`] =
-      msToFinish;
+    metrics[`${SemanticConventions.METADATA}.ai.response.msToFinish`] = msToFinish;
   }
   if (typeof avgTokensPerSec === "number") {
-    metrics[
-      `${SemanticConventions.METADATA}.ai.response.avgCompletionTokensPerSecond`
-    ] = avgTokensPerSec;
+    metrics[`${SemanticConventions.METADATA}.ai.response.avgCompletionTokensPerSecond`] =
+      avgTokensPerSec;
   }
   return metrics;
 };
