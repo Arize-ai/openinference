@@ -91,26 +91,24 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         self._original_executor: Optional[type] = None
 
         module: ModuleType = import_module("smolagents.local_python_executor")
-        # Added backward compatibility for smolagents versions that not use
-        # ThreadPoolExecutor in code agent
-        if hasattr(module, "ThreadPoolExecutor"):
-            _OriginalThreadPoolExecutor: type = getattr(module, "ThreadPoolExecutor")
-            self._original_executor = _OriginalThreadPoolExecutor
 
-            def _make_context_aware_executor(*args: Any, **_kwargs: Any) -> Any:
-                executor = _OriginalThreadPoolExecutor(*args, **_kwargs)
-                original_submit = executor.submit
+        _OriginalThreadPoolExecutor: type = getattr(module, "ThreadPoolExecutor")
+        self._original_executor = _OriginalThreadPoolExecutor
 
-                def context_preserving_submit(
-                    fn: Callable[..., Any], *fn_args: Any, **fn_kwargs: Any
-                ) -> Any:
-                    ctx = copy_context()
-                    return original_submit(lambda: ctx.run(fn, *fn_args, **fn_kwargs))
+        def _make_context_aware_executor(*args: Any, **_kwargs: Any) -> Any:
+            executor = _OriginalThreadPoolExecutor(*args, **_kwargs)
+            original_submit = executor.submit
 
-                executor.submit = context_preserving_submit
-                return executor
+            def context_preserving_submit(
+                fn: Callable[..., Any], *fn_args: Any, **fn_kwargs: Any
+            ) -> Any:
+                ctx = copy_context()
+                return original_submit(lambda: ctx.run(fn, *fn_args, **fn_kwargs))
 
-            setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
+            executor.submit = context_preserving_submit
+            return executor
+
+        setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)

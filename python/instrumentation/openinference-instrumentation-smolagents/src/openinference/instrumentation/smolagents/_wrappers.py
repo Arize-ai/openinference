@@ -585,13 +585,13 @@ def infer_llm_provider_from_class_name(
 
     # Added backward compatibility for OpenAIServerModel which were renamed to
     # OpenAIModel in newer versions
-    if class_name in ["OpenAIServerModel", "OpenAIModel"]:
+    if class_name == "OpenAIModel":
         return OpenInferenceLLMProviderValues.OPENAI
 
-    if class_name == "AzureOpenAIServerModel":
+    if class_name == "AzureOpenAIModel":
         return OpenInferenceLLMProviderValues.AZURE
 
-    if class_name == "AmazonBedrockServerModel":
+    if class_name == "AmazonBedrockModel":
         return OpenInferenceLLMProviderValues.AWS
 
     return None
