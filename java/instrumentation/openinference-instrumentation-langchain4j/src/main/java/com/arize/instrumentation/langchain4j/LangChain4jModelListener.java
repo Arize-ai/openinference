@@ -4,6 +4,9 @@ import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.chat.listener.*;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -16,8 +19,10 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,6 +35,10 @@ public class LangChain4jModelListener implements ChatModelListener {
 
     private static final Logger logger = Logger.getLogger(LangChain4jModelListener.class.getName());
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper toolParamMapper = new ObjectMapper().setVisibility(
+            PropertyAccessor.FIELD,
+            Visibility.ANY
+    );
 
     private final OITracer tracer;
     private final Map<ChatRequest, SpanContext> activeSpans = new ConcurrentHashMap<>();
@@ -75,6 +84,12 @@ public class LangChain4jModelListener implements ChatModelListener {
                     SemanticConventions.LLM_INVOCATION_PARAMETERS, objectMapper.writeValueAsString(invocationParams));
         } catch (JsonProcessingException e) {
             logger.log(Level.WARNING, "Failed to serialize invocation parameters", e);
+        }
+
+        // Set tool attributes
+        List<ToolSpecification> toolSpecifications = request.toolSpecifications();
+        if (Objects.nonNull(toolSpecifications) && !toolSpecifications.isEmpty()) {
+            setLlmToolAttributes(span, toolSpecifications);
         }
 
         // Set input attributes
@@ -160,6 +175,35 @@ public class LangChain4jModelListener implements ChatModelListener {
             span.setStatus(StatusCode.ERROR, error.getMessage());
         } finally {
             span.end();
+        }
+    }
+
+    private void setLlmToolAttributes(Span span, List<ToolSpecification> toolSpecifications) {
+        for (int idx = 0; idx < toolSpecifications.size(); idx++) {
+            ToolSpecification toolSpec = toolSpecifications.get(idx);
+            try {
+                Map<String, Object> functionMap = new LinkedHashMap<>();
+                functionMap.put(SemanticConventions.ToolAttributePostfixes.NAME, toolSpec.name());
+                if (toolSpec.description() != null) {
+                    functionMap.put(SemanticConventions.ToolAttributePostfixes.DESCRIPTION, toolSpec.description());
+                }
+                functionMap.put(
+                        SemanticConventions.ToolAttributePostfixes.PARAMETERS,
+                        toolSpec.parameters() != null
+                                ? toolParamMapper.convertValue(toolSpec.parameters(), Map.class)
+                                : new LinkedHashMap<>()
+                );
+                Map<String, Object> toolSchemaMap = new LinkedHashMap<>();
+                toolSchemaMap.put("type", "function");
+                toolSchemaMap.put("function", functionMap);
+
+                span.setAttribute(
+                        AttributeKey.stringKey(SemanticConventions.LLM_TOOLS + "." + idx + "."
+                                + SemanticConventions.TOOL_JSON_SCHEMA),
+                        objectMapper.writeValueAsString(toolSchemaMap));
+            } catch (JsonProcessingException e) {
+                logger.log(Level.WARNING, "Failed to serialize tool specification at index " + idx, e);
+            }
         }
     }
 
