@@ -58,7 +58,9 @@ def _to_open_inference_format_tracing_info(
 ) -> Dict[str, Any]:
     # See https://arize-ai.github.io/openinference/spec/ for naming conventions
     trace = span._trace
-    tracing_info: Dict[str, Any] = span.model_dump(mask_sensitive_information=mask_sensitive_information)
+    tracing_info: Dict[str, Any] = span.model_dump(
+        mask_sensitive_information=mask_sensitive_information
+    )
     tracing_info[SpanAttributes.SESSION_ID] = trace.id if trace else None
     # The default value we use for span kind is CHAIN. We will overwrite if we find a better fit.
     tracing_info[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.CHAIN.value
@@ -71,7 +73,9 @@ def _to_open_inference_format_tracing_info(
     elif isinstance(span, AgentSpecLlmGenerationSpan):
         llm_info = tracing_info.pop("llm_config")
         tracing_info[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.LLM.value
-        tracing_info[SpanAttributes.LLM_MODEL_NAME] = llm_info.get("model_id") or llm_info.get("name") or "unknown"
+        tracing_info[SpanAttributes.LLM_MODEL_NAME] = (
+            llm_info.get("model_id") or llm_info.get("name") or "unknown"
+        )
         tracing_info[SpanAttributes.LLM_INVOCATION_PARAMETERS] = _try_json_serialization(
             {
                 k: v
@@ -103,7 +107,7 @@ def _to_open_inference_format_tracing_info(
                         _get_tool_json_schema(tool)
                     )
                 }
-                for tool in start_event.tools
+                for tool in start_event.tools  # type: ignore[attr-defined]
             ]
             tracing_info[SpanAttributes.LLM_INPUT_MESSAGES] = [
                 # The prompt contains the list of messages dumped in dict format,

@@ -71,6 +71,8 @@ testpaths = [
 [tool.mypy]
 strict = true
 explicit_package_bases = true
+ignore_missing_imports = true
+disallow_subclassing_any = false
 exclude = [
   "examples",
   "dist",

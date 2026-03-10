@@ -1502,7 +1502,7 @@ In the year 2154, the world was on the brink of a new era of human-AI collaborat
             "llm.token_count.total": 48,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}]}},"stopReason":"end_turn","usage":{"inputTokens":13,"outputTokens":35,"totalTokens":48},"metrics":{"latencyMs":1071},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1071},"output":{"message":{"content":[{"text":"Hello! As an AI language model, I don't have feelings, but I'm functioning well and ready to assist you. How can I help you today?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":13,"outputTokens":35,"totalTokens":48}}",
           }
         `);
       });
@@ -2480,7 +2480,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 35,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"The capital of France is Paris."}]}},"stopReason":"end_turn","usage":{"inputTokens":25,"outputTokens":10,"totalTokens":35},"metrics":{"latencyMs":455},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":455},"output":{"message":{"content":[{"text":"The capital of France is Paris."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":25,"outputTokens":10,"totalTokens":35}}",
           }
         `);
       });
@@ -2544,7 +2544,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 84,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript."}]}},"stopReason":"end_turn","usage":{"inputTokens":22,"outputTokens":62,"totalTokens":84},"metrics":{"latencyMs":1930},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1930},"output":{"message":{"content":[{"text":"TypeScript is a superset of JavaScript developed by Microsoft. It adds optional static typing, classes, and other features to JavaScript, making it easier to develop and maintain large-scale applications. TypeScript code is transpiled into plain JavaScript, allowing it to run in any environment that supports JavaScript."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":22,"outputTokens":62,"totalTokens":84}}",
           }
         `);
       });
@@ -2614,7 +2614,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 163,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.\\n\\nIn essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:\\n\\n1. Types of Machine Learning:\\n   - Supervised Learning: The algorithm learns from labeled data to make predictions or classifications.\\n   - Unsupervised Learning: The algorithm finds patterns in unlabeled data.\\n   - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.\\n\\n2. Process:"}]}},"stopReason":"max_tokens","usage":{"inputTokens":13,"outputTokens":150,"totalTokens":163},"metrics":{"latencyMs":3474},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3474},"output":{"message":{"content":[{"text":"Machine learning is a branch of artificial intelligence that focuses on developing algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience, without being explicitly programmed.\\n\\nIn essence, machine learning allows computers to learn from data and make predictions or decisions without human intervention. Here's a brief overview of the key aspects of machine learning:\\n\\n1. Types of Machine Learning:\\n   - Supervised Learning: The algorithm learns from labeled data to make predictions or classifications.\\n   - Unsupervised Learning: The algorithm finds patterns in unlabeled data.\\n   - Reinforcement Learning: The algorithm learns through interaction with an environment, receiving feedback in the form of rewards or penalties.\\n\\n2. Process:"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":13,"outputTokens":150,"totalTokens":163}}",
           }
         `);
       });
@@ -2703,7 +2703,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 99,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"Sure, I'd be happy to tell you a joke! Here's one for you:\\n\\nWhy don't scientists trust atoms?\\n\\nBecause they make up everything!\\n\\nI hope that gave you a little chuckle. Do you have any favorite types of jokes?"}]}},"stopReason":"end_turn","usage":{"inputTokens":42,"outputTokens":57,"totalTokens":99},"metrics":{"latencyMs":1705},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1705},"output":{"message":{"content":[{"text":"Sure, I'd be happy to tell you a joke! Here's one for you:\\n\\nWhy don't scientists trust atoms?\\n\\nBecause they make up everything!\\n\\nI hope that gave you a little chuckle. Do you have any favorite types of jokes?"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":42,"outputTokens":57,"totalTokens":99}}",
           }
         `);
       });
@@ -2792,7 +2792,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 133,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"Alright, here's a joke for you:\\n\\nWhy don't scientists trust atoms?\\nBecause they make up everything!\\n\\nBa dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!"}]}},"stopReason":"end_turn","usage":{"inputTokens":50,"outputTokens":83,"totalTokens":133},"metrics":{"latencyMs":2597},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2597},"output":{"message":{"content":[{"text":"Alright, here's a joke for you:\\n\\nWhy don't scientists trust atoms?\\nBecause they make up everything!\\n\\nBa dum tss! I hope that gave you a little chuckle. If not, don't worry - I've got plenty more where that came from. Just remember, if at first you don't succeed, skydiving is not for you!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":50,"outputTokens":83,"totalTokens":133}}",
           }
         `);
       });
@@ -2874,7 +2874,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 117,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.\\n\\nWhile I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification"}]}},"stopReason":"max_tokens","usage":{"inputTokens":17,"outputTokens":100,"totalTokens":117},"metrics":{"latencyMs":3802},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3802},"output":{"message":{"content":[{"text":"This image appears to be a handwritten note or message. The text is written in cursive script on what looks like lined notebook or notepad paper. The writing is in blue ink.\\n\\nWhile I can see the handwriting, I'm not able to read or transcribe the specific content of the note. Handwritten text, especially in cursive, can be challenging for AI systems to accurately interpret. If you have any specific questions about what you see in the image or need clarification"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":17,"outputTokens":100,"totalTokens":117}}",
           }
         `);
       });
@@ -2954,7 +2954,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 118,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.\\n\\nThe text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.\\n\\nAt the top of the"}]}},"stopReason":"max_tokens","usage":{"inputTokens":18,"outputTokens":100,"totalTokens":118},"metrics":{"latencyMs":3361},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":3361},"output":{"message":{"content":[{"text":"This image appears to be a handwritten note or letter on lined paper. The writing is in cursive script and appears to be in blue ink. The paper has horizontal blue lines typical of notebook or writing paper.\\n\\nThe text is not entirely clear or legible in this image, but it seems to be several lines of writing that fill most of the visible portion of the page. The handwriting style looks fluid and connected, characteristic of cursive penmanship.\\n\\nAt the top of the"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":18,"outputTokens":100,"totalTokens":118}}",
           }
         `);
       });
@@ -3020,7 +3020,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 112,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":" I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!"}]}},"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":94,"totalTokens":112},"metrics":{"latencyMs":962},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":962},"output":{"message":{"content":[{"text":" I'm an artificial intelligence language model designed to assist with various tasks, answer questions, and engage in conversation. I don't have the ability to have a personal identity or emotions, but I can process and generate text based on the data I've been trained on. I'm here to help answer any questions you might have to the best of my ability. Let me know if there's something specific you'd like to know or discuss!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":18,"outputTokens":94,"totalTokens":112}}",
           }
         `);
       });
@@ -3088,7 +3088,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 123,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"\\n\\nI'd be happy to introduce myself.\\n\\nI am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm a large language model, which means I've been trained on a massive dataset of text from various sources, including books, articles, and online conversations.\\n\\nI'm designed to be helpful and informative, and I can assist with a wide range of topics and tasks. I can answer questions, provide definitions, offer suggestions"}]}},"stopReason":"max_tokens","usage":{"inputTokens":23,"outputTokens":100,"totalTokens":123},"metrics":{"latencyMs":1061},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":1061},"output":{"message":{"content":[{"text":"\\n\\nI'd be happy to introduce myself.\\n\\nI am LLaMA, an AI assistant developed by Meta AI that can understand and respond to human input in a conversational manner. I'm a large language model, which means I've been trained on a massive dataset of text from various sources, including books, articles, and online conversations.\\n\\nI'm designed to be helpful and informative, and I can assist with a wide range of topics and tasks. I can answer questions, provide definitions, offer suggestions"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":23,"outputTokens":100,"totalTokens":123}}",
           }
         `);
       });
@@ -3152,7 +3152,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.completion": 50,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy"}]}},"stopReason":"max_tokens","usage":{"outputTokens":50},"metrics":{"latencyMs":4083},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":4083},"output":{"message":{"content":[{"text":"I apologize, but I don't have any previous context or question to provide a brief response to. Could you please ask a specific question or provide more information about what you'd like a brief response on? Once you do, I'll be happy"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"outputTokens":50}}",
           }
         `);
       });
@@ -3252,7 +3252,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.system": "anthropic",
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":""}]}},"stopReason":"end_turn","$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"output":{"message":{"content":[{"text":""}],"role":"assistant"}},"stopReason":"end_turn"}",
           }
         `);
       });
@@ -3351,7 +3351,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"get_weather","description":"Get current weather for a location","inputSchema":{"json":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"],"description":"Temperature unit"}},"required":["location"]}}}}",
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"Certainly! I'd be happy to check the current weather in San Francisco for you. To get this information, I'll need to use the weather tool. Let me fetch that data for you."},{"toolUse":{"toolUseId":"tooluse_0ae1_ahYROawF4OObK5xBg","name":"get_weather","input":{"location":"San Francisco, CA"}}}]}},"stopReason":"max_tokens","usage":{"inputTokens":408,"outputTokens":100,"totalTokens":508},"metrics":{"latencyMs":2930},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2930},"output":{"message":{"content":[{"text":"Certainly! I'd be happy to check the current weather in San Francisco for you. To get this information, I'll need to use the weather tool. Let me fetch that data for you."},{"toolUse":{"input":{"location":"San Francisco, CA"},"name":"get_weather","toolUseId":"tooluse_0ae1_ahYROawF4OObK5xBg"}}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":408,"outputTokens":100,"totalTokens":508}}",
           }
         `);
       });
@@ -3441,7 +3441,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.tools.0.tool.json_schema": "{"toolSpec":{"name":"calculate","description":"Perform mathematical calculations","inputSchema":{"json":{"type":"object","properties":{"expression":{"type":"string","description":"Mathematical expression to evaluate"}},"required":["expression"]}}}}",
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"To calculate 15 * 23, I can use the \\"calculate\\" function. Let me do that for you."},{"toolUse":{"toolUseId":"tooluse_RVjyNbnRRAqT_YlXqlJDUQ","name":"calculate","input":{"expression":"15 * 23"}}}]}},"stopReason":"tool_use","usage":{"inputTokens":369,"outputTokens":81,"totalTokens":450},"metrics":{"latencyMs":2249},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2249},"output":{"message":{"content":[{"text":"To calculate 15 * 23, I can use the \\"calculate\\" function. Let me do that for you."},{"toolUse":{"input":{"expression":"15 * 23"},"name":"calculate","toolUseId":"tooluse_RVjyNbnRRAqT_YlXqlJDUQ"}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":369,"outputTokens":81,"totalTokens":450}}",
           }
         `);
       });
@@ -3539,7 +3539,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "metadata": "{"experiment_name":"converse-context-test","version":"1.0.0","environment":"testing"}",
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"My name is Claude. It's nice to meet you!"}]}},"stopReason":"end_turn","usage":{"inputTokens":14,"outputTokens":15,"totalTokens":29},"metrics":{"latencyMs":761},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":761},"output":{"message":{"content":[{"text":"My name is Claude. It's nice to meet you!"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":14,"outputTokens":15,"totalTokens":29}}",
             "session.id": "test-session-converse",
             "tag.tags": "["test","context","converse"]",
             "user.id": "test-user-converse",
@@ -3655,7 +3655,7 @@ At its core, machine learning involves creating algorithms and models that can a
             "llm.token_count.total": 157,
             "openinference.span.kind": "LLM",
             "output.mime_type": "application/json",
-            "output.value": "{"output":{"message":{"role":"assistant","content":[{"text":"The capital of Germany is Berlin. \\n\\nBerlin has a rich and complex history as the capital city:\\n\\n1. It became the capital of Prussia in 1701 and later the German Empire in 1871.\\n\\n2. After World War I, it remained the capital of the Weimar Republic.\\n\\n3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of"}]}},"stopReason":"max_tokens","usage":{"inputTokens":57,"outputTokens":100,"totalTokens":157},"metrics":{"latencyMs":2847},"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0}}",
+            "output.value": "{"$metadata":{"httpStatusCode":200,"attempts":1,"totalRetryDelay":0},"metrics":{"latencyMs":2847},"output":{"message":{"content":[{"text":"The capital of Germany is Berlin. \\n\\nBerlin has a rich and complex history as the capital city:\\n\\n1. It became the capital of Prussia in 1701 and later the German Empire in 1871.\\n\\n2. After World War I, it remained the capital of the Weimar Republic.\\n\\n3. During the Cold War, Berlin was divided into East and West sectors. East Berlin served as the capital of East Germany, while Bonn became the provisional capital of"}],"role":"assistant"}},"stopReason":"max_tokens","usage":{"inputTokens":57,"outputTokens":100,"totalTokens":157}}",
           }
         `);
       }, 15000); // Increase timeout for recording mode with multiple API calls
