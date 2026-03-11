@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.12...python-openinference-instrumentation-google-genai-v0.1.13) (2026-03-11)
+
+
+### Bug Fixes
+
+* **google-genai:** accept dict-shaped content/part payloads ([#2807](https://github.com/Arize-ai/openinference/issues/2807)) ([304a80d](https://github.com/Arize-ai/openinference/commit/304a80d9a74365cd5083a2cd4f99dd2fe25147d1))
+
 ## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.11...python-openinference-instrumentation-google-genai-v0.1.12) (2026-02-26)
 
 
