@@ -25,6 +25,42 @@ report findings with file paths and line numbers, and surface issues organized b
 - Read the key files: `__init__.py`, `_wrappers.py` (or equivalent), `pyproject.toml`,
   and the full `tests/` directory
 
+**Step 1.5: Pull the instrumented library source and use it as ground truth**
+
+OpenInference instrumentors work by monkey-patching functions in the library they
+instrument. All correctness judgments — whether wrappers target the right methods, handle
+the right signatures, process the right data structures, and cover the right edge cases —
+must be verified against the actual library source code. Do NOT make assumptions about
+how the instrumented library works.
+
+1. **Set up the tox environment** to install the pinned library version:
+   ```bash
+   cd python && uvx --with tox-uv tox run -e py314-ci-<pkg> -- --co -q
+   ```
+   (`-- --co -q` tells pytest to collect without running, which triggers the install.)
+   If the `.tox` env already exists, skip this step.
+
+2. **Locate the installed library source** at:
+   ```
+   python/.tox/py314-ci-<pkg>/lib/python3.14/site-packages/<library>/
+   ```
+
+3. **Reference the library source throughout the review.** Before flagging any finding,
+   verify it against the actual code:
+   - Are the monkey-patched methods/classes correct? Check they exist and have the
+     expected signatures.
+   - Are parameter types handled correctly? Read the real type annotations and defaults.
+   - Are edge cases real? Check whether a supposed edge case can actually occur given
+     the library's actual types, validation, and control flow.
+   - Are attribute extractions correct? Verify field names, nesting, and optional vs.
+     required fields against the library's actual data classes.
+
+4. **Calibrate severity based on what the library actually does:**
+   - A bug affecting types/paths the library actually uses → **High** or **Critical**
+   - An edge case for a type that can't actually appear at runtime → **Low**
+   - A missing handler for a type in the library's Union that is common → higher severity
+   - A missing handler for a rare/internal type → lower severity
+
 **Step 2: Run all four review sections below**
 
 **Step 3: Present findings** organized by severity:
