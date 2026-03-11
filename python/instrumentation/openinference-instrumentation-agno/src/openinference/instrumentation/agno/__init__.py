@@ -8,16 +8,6 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
 )
-from openinference.instrumentation.agno._model_wrapper import (
-    _ModelWrapper,
-)
-from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
-from openinference.instrumentation.agno._tools_wrapper import _FunctionCallWrapper
-from openinference.instrumentation.agno._workflow_wrapper import (
-    _ParallelWrapper,
-    _StepWrapper,
-    _WorkflowWrapper,
-)
 from openinference.instrumentation.agno.version import __version__
 
 _instruments = ("agno >= 2.5.0",)
@@ -94,6 +84,15 @@ class AgnoInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from openinference.instrumentation.agno._model_wrapper import _ModelWrapper
+        from openinference.instrumentation.agno._runs_wrapper import _RunWrapper
+        from openinference.instrumentation.agno._tools_wrapper import _FunctionCallWrapper
+        from openinference.instrumentation.agno._workflow_wrapper import (
+            _ParallelWrapper,
+            _StepWrapper,
+            _WorkflowWrapper,
+        )
+
         try:
             from agno.agent import _run as agent_run_module
             from agno.team import _run as team_run_module

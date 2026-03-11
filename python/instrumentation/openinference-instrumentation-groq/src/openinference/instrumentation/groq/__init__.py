@@ -6,12 +6,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from wrapt import wrap_function_wrapper
 
-from groq.resources.chat.completions import AsyncCompletions, Completions
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.groq._wrappers import (
-    _AsyncCompletionsWrapper,
-    _CompletionsWrapper,
-)
 from openinference.instrumentation.groq.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -29,6 +24,12 @@ class GroqInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from groq.resources.chat.completions import AsyncCompletions, Completions
+        from openinference.instrumentation.groq._wrappers import (
+            _AsyncCompletionsWrapper,
+            _CompletionsWrapper,
+        )
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):

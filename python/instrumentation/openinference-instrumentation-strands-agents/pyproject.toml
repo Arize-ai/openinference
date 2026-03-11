@@ -36,12 +36,6 @@ dependencies = [
 instruments = [
     "strands-agents >= 1.19.0",
 ]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "strands-agents >= 1.19.0",
-    "openai",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-strands-agents"

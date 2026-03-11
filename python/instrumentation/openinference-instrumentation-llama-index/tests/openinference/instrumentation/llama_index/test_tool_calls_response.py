@@ -34,11 +34,7 @@ class TestToolCallsInChatResponse:
         LLAMA_INDEX_LLMS_OPENAI_VERSION < (0, 3),
         reason="ignore older versions to simplify test upkeep",
     )
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     async def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -50,11 +46,7 @@ class TestToolCallsInChatResponse:
         LLAMA_INDEX_LLMS_ANTHROPIC_VERSION < (0, 6),
         reason="ignore older versions to simplify test upkeep",
     )
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     async def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,

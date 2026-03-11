@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.27...python-openinference-semantic-conventions-v0.1.28) (2026-03-11)
+
+
+### Features
+
+* add new LLM provider values (groq, fireworks, moonshot, cerebras, perplexity, together) ([#2853](https://github.com/Arize-ai/openinference/issues/2853)) ([7eb1c88](https://github.com/Arize-ai/openinference/commit/7eb1c88b5014419ffb041e412ca7b5a2cbd7f2c2))
+
 ## [0.1.27](https://github.com/Arize-ai/openinference/compare/python-openinference-semantic-conventions-v0.1.26...python-openinference-semantic-conventions-v0.1.27) (2026-03-04)
 
 

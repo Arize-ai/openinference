@@ -8,5 +8,5 @@ llama-index==0.13.1
 llama_index-llms-anthropic<0.9.0
 openinference-instrumentation-openai
 opentelemetry-sdk
-pytest-vcr
+pytest-recording
 respx

@@ -36,11 +36,6 @@ dependencies = [
 instruments = [
     "agent-framework >= 1.0.0rc1",
 ]
-test = [
-    "pytest",
-    "pytest-asyncio",
-    "pytest-recording",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-agent-framework"

@@ -107,7 +107,8 @@ async def test_get_current_span(
             await asyncio.sleep(0.001)
             return get_current_span()
 
-        results = await asyncio.gather(*(RunnableLambda(f).ainvoke(...) for _ in range(n)))
+        runnable: Any = RunnableLambda(f)
+        results = await asyncio.gather(*(runnable.ainvoke(0) for _ in range(n)))
     else:
         results = await asyncio.gather(
             *(
@@ -858,47 +859,12 @@ def test_read_session_from_metadata(
     assert llm_attributes == {}
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 @pytest.mark.skipif(
     condition=LANGCHAIN_OPENAI_VERSION < (0, 1, 9),
     reason="The stream_usage parameter was introduced in langchain-openai==0.1.9",
     # https://github.com/langchain-ai/langchain/releases/tag/langchain-openai%3D%3D0.1.9
 )
-@pytest.mark.vcr(
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_records_token_counts_for_streaming_openai_llm(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -914,11 +880,7 @@ def test_records_token_counts_for_streaming_openai_llm(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL, None), int)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_token_counts(
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -951,9 +913,6 @@ def test_token_counts(
 
 
 @pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
     cassette_library_dir="tests/cassettes/test_instrumentor",  # Explicitly set the directory
 )
 def test_tool_call_with_function(

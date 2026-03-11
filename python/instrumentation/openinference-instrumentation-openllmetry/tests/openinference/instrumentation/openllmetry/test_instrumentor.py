@@ -25,11 +25,6 @@ from openinference.semconv.trace import (
 )
 
 
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-0123456789")
-
-
 def is_openinference_span(span: ReadableSpan) -> bool:
     """Check if a span is an OpenInference span."""
     if span.attributes is None:
@@ -37,44 +32,8 @@ def is_openinference_span(span: ReadableSpan) -> bool:
     return SpanAttributes.OPENINFERENCE_SPAN_KIND in span.attributes
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: dict[str, Any]) -> dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
 class TestOpenLLMetryInstrumentor:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=remove_all_vcr_request_headers,
-        before_record_response=remove_all_vcr_response_headers,
-    )
+    @pytest.mark.vcr
     def test_openllmetry_instrumentor(
         self,
         openai_api_key: str,

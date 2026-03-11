@@ -8,6 +8,7 @@ dist
 sdist
 *__pycache__*
 **/.pytest_cache
+**/.mypy_cache
 **/.ipynb_checkpoints/
 **/.DS_Store
 .pnpm-store
