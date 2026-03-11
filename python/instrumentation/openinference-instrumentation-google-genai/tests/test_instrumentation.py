@@ -8,6 +8,7 @@ import pytest
 from google import genai
 from google.genai.types import (
     Content,
+    EmbedContentConfig,
     FunctionCall,
     FunctionDeclaration,
     FunctionResponse,
@@ -30,6 +31,165 @@ from openinference.semconv.trace import (
 
 class Answer(BaseModel):
     answer: str
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(
+        task_type="RETRIEVAL_DOCUMENT"
+    )
+
+    # Make the API call
+    response = client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
+            {"location": "San Francisco"}
+        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
+            {
+                "location": "San Francisco",
+                "temperature": 65,
+                "unit": "fahrenheit",
+                "condition": "foggy",
+                "humidity": "85%",
+            }
+        ),
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-embedding-001",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Check if token counts are available in the response
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+@pytest.mark.asyncio
+async def test_async_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the async client
+    client = genai.Client(api_key=api_key).aio
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(
+        task_type="RETRIEVAL_DOCUMENT"
+    )
+
+    # Make the API call
+    response = await client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Define expected attributes
+    expected_attributes: Dict[str, Any] = {
+        f"{SpanAttributes.LLM_PROVIDER}": "google",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-embedding-001",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+    }
+
+    # Check if token counts are available in the response
+    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
+        expected_attributes.update(
+            {
+                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
+                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
+            }
+        )
+    # Verify attributes
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute {key} does not match expected value"
+        )
 
 
 @pytest.mark.vcr(
