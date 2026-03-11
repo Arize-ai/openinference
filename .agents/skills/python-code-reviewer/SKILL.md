@@ -25,7 +25,7 @@ report findings with file paths and line numbers, and surface issues organized b
 - Read the key files: `__init__.py`, `_wrappers.py` (or equivalent), `pyproject.toml`,
   and the full `tests/` directory
 
-**Step 1.5: Pull the instrumented library source and use it as ground truth**
+**Step 2: Pull the instrumented library source and use it as ground truth**
 
 OpenInference instrumentors work by monkey-patching functions in the library they
 instrument. All correctness judgments — whether wrappers target the right methods, handle
@@ -33,16 +33,25 @@ the right signatures, process the right data structures, and cover the right edg
 must be verified against the actual library source code. Do NOT make assumptions about
 how the instrumented library works.
 
-1. **Set up the tox environment** to install the pinned library version:
+> **Note:** The tox env name `<pkg>` and the library's Python import path `<library>`
+> often differ. For example, `google_genai` is the tox env name but the library installs
+> as `google/genai/` in site-packages. Check `test-requirements.txt` or `pyproject.toml`
+> to find the actual library package name.
+
+1. **Set up the tox environment** to install the pinned library version. Look up the
+   tox envlist in `python/tox.ini` to find the correct env name (use the highest Python
+   version available, e.g., `py314`, `py313`):
    ```bash
-   cd python && uvx --with tox-uv tox run -e py314-ci-<pkg> -- --co -q
+   cd python && uvx --with tox-uv tox run -e <pyVER>-ci-<pkg> -- --co -q
    ```
    (`-- --co -q` tells pytest to collect without running, which triggers the install.)
    If the `.tox` env already exists, skip this step.
+   If tox setup fails (missing Python version, dependency conflicts), fall back to
+   `pip install <library>` in a temporary venv to unblock the review.
 
 2. **Locate the installed library source** at:
    ```
-   python/.tox/py314-ci-<pkg>/lib/python3.14/site-packages/<library>/
+   python/.tox/<pyVER>-ci-<pkg>/lib/python<X.Y>/site-packages/<library>/
    ```
 
 3. **Reference the library source throughout the review.** Before flagging any finding,
@@ -61,9 +70,9 @@ how the instrumented library works.
    - A missing handler for a type in the library's Union that is common → higher severity
    - A missing handler for a rare/internal type → lower severity
 
-**Step 2: Run all four review sections below**
+**Step 3: Run all review sections below**
 
-**Step 3: Present findings** organized by severity:
+**Step 4: Present findings** organized by severity:
 - **Critical**: Will cause incorrect behavior or CI failure
 - **High**: Missing required convention or test coverage gap
 - **Medium**: Deviates from established patterns but functional
@@ -80,18 +89,19 @@ version of the library, making the "pinned version" test target useless.
 
 Read `python/tox.ini` and find the `commands_pre` entries for this package.
 
-**Correct pattern** (google_adk style — 4 steps):
+**Correct pattern** (google_adk style — 4 steps, substitute `<pkg>` with the actual
+package name):
 ```
-pkg: uv pip uninstall -r test-requirements.txt
-pkg: uv pip install --reinstall-package openinference-instrumentation-pkg .
-pkg: python -c 'import openinference.instrumentation.pkg'
-pkg: uv pip install -r test-requirements.txt
+<pkg>: uv pip uninstall -r test-requirements.txt
+<pkg>: uv pip install --reinstall-package openinference-instrumentation-<pkg> .
+<pkg>: python -c 'import openinference.instrumentation.<pkg>'
+<pkg>: uv pip install -r test-requirements.txt
 ```
 
 **Broken pattern** (causes under-resolution — the pinned version test may silently test
 the wrong version):
 ```
-pkg: uv pip install --reinstall {toxinidir}/instrumentation/openinference-instrumentation-pkg[test]
+<pkg>: uv pip install --reinstall {toxinidir}/instrumentation/openinference-instrumentation-<pkg>[test]
 ```
 
 Flag the broken pattern as **Critical** — it defeats the purpose of version-pinned testing.
@@ -312,9 +322,15 @@ If the instrumented library uses threads or async:
 
 ### 4.4 Suppress tracing support
 
-Every wrapper should check suppression at the start:
+Every wrapper should check suppression at the start. Either pattern is acceptable:
 ```python
+# Pattern 1: private key (common in this repo)
 if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+    return wrapped(*args, **kwargs)
+
+# Pattern 2: public API
+from opentelemetry.context import suppress_instrumentation
+if suppress_instrumentation():
     return wrapped(*args, **kwargs)
 ```
 
