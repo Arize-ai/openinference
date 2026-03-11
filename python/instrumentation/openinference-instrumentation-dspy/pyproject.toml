@@ -38,14 +38,6 @@ dependencies = [
 instruments = [
   "dspy >= 2.6.22",
 ]
-test = [
-  "dspy>=2.6.22",
-  "opentelemetry-sdk",
-  "pytest-recording",
-  "litellm",
-  "urllib3<3.0",
-  "vcrpy>=5.0.0,<9.0.0",
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 dspy = "openinference.instrumentation.dspy:DSPyInstrumentor"

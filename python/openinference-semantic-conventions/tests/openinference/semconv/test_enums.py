@@ -54,4 +54,10 @@ class TestOpenInferenceLLMProviderValues:
             OpenInferenceLLMProviderValues.OPENAI: "openai",
             OpenInferenceLLMProviderValues.XAI: "xai",
             OpenInferenceLLMProviderValues.DEEPSEEK: "deepseek",
+            OpenInferenceLLMProviderValues.GROQ: "groq",
+            OpenInferenceLLMProviderValues.FIREWORKS: "fireworks",
+            OpenInferenceLLMProviderValues.MOONSHOT: "moonshot",
+            OpenInferenceLLMProviderValues.CEREBRAS: "cerebras",
+            OpenInferenceLLMProviderValues.PERPLEXITY: "perplexity",
+            OpenInferenceLLMProviderValues.TOGETHER: "together",
         }

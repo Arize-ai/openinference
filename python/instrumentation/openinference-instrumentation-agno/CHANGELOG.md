@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.28...python-openinference-instrumentation-agno-v0.1.29) (2026-03-11)
+
+
+### Bug Fixes
+
+* **agno:** capture metadata for agent and team ([#2876](https://github.com/Arize-ai/openinference/issues/2876)) ([2514a6d](https://github.com/Arize-ai/openinference/commit/2514a6dddd199e8f559147afa0190887178a7909))
+
 ## [0.1.28](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.27...python-openinference-instrumentation-agno-v0.1.28) (2026-02-12)
 
 

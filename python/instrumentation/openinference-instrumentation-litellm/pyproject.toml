@@ -34,19 +34,6 @@ dependencies = [
   "setuptools",
 ]
 
-[project.optional-dependencies]
-test = [
-  "litellm",
-  # Required by LiteLLM for internal FastAPI imports during responses
-  "fastapi",
-  # Required by LiteLLM for JSON serialization/deserialization
-  "orjson",
-  "opentelemetry-sdk",
-  "opentelemetry-instrumentation-httpx",
-  "pytest-vcr",
-  "tenacity",
-  "tokenizers==0.20.3; python_version == '3.8'"
-]
 
 [project.entry-points.opentelemetry_instrumentor]
 litellm = "openinference.instrumentation.litellm:LiteLLMInstrumentor"

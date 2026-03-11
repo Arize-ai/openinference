@@ -1,0 +1,7 @@
+agno==2.5.0
+opentelemetry-sdk
+pytest-recording
+openai
+ddgs
+yfinance
+fastapi

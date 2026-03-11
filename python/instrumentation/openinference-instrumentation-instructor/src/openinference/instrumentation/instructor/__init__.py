@@ -7,10 +7,6 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from openinference.instrumentation.instructor._wrappers import (
-    _HandleResponseWrapper,
-    _PatchWrapper,
-)
 from openinference.instrumentation.instructor.version import __version__
 
 _instruments = ("instructor >= 0.0.1",)
@@ -30,6 +26,11 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from openinference.instrumentation.instructor._wrappers import (
+            _HandleResponseWrapper,
+            _PatchWrapper,
+        )
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):
