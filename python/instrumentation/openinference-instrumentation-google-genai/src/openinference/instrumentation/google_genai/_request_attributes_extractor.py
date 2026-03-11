@@ -91,13 +91,9 @@ class _RequestAttributesExtractor:
             )
 
             # We push the system instruction to the first message for replay and consistency
-            if isinstance(config, dict):
-                system_instruction = config.get("system_instruction", None)
-            else:
-                system_instruction = getattr(config, "system_instruction", None)
-            if system_instruction is not None:
-                # Convert Content objects to satisfy OTel scalar attribute requirement
-                system_instruction_str = self._extract_text_from_content(system_instruction)
+            if system_instruction := get_attribute(config, "system_instruction"):
+                # We normalize the system instruction from TypedDict or Pydantic object to plain text
+                system_instruction_str = self._normalize_system_instruction(system_instruction)
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
                     system_instruction_str,
@@ -128,30 +124,32 @@ class _RequestAttributesExtractor:
                         value,
                     )
 
-    def _extract_text_from_content(self, content: Any) -> str:
-        """Extract a single UTF-8 string from Google GenAI Content object for OTel attributes."""
-        if isinstance(content, str):
-            return content
+    def _normalize_system_instruction(self, value: Any) -> str:
+        """Normalize a system instruction from Google GenAI objects to plain text for OTel attributes."""
+        if value is None:
+            return ""
 
-        # Handle Google GenAI Part type
-        if isinstance(content, Part):
-            return getattr(content, "text", None) or str(content)
+        if isinstance(value, str):
+            return value
 
-        # Handle Google GenAI Content type
-        if isinstance(content, Content):
-            parts = getattr(content, "parts", None) or []
-            texts = [text for part in parts if (text := getattr(part, "text", None))]
-            return "\n\n".join(texts) if texts else str(content)
+        # Handle Google GenAI Part / PartDict type
+        if text := get_attribute(value, "text"):
+            return text
 
-        # Handle multiple Google GenAI types
-        if isinstance(content, list):
+        # Handle Google GenAI Content / ContentDict type
+        if parts := get_attribute(value, "parts", []):
+            texts = [text for part in parts if (text := get_attribute(part, "text"))]
+            return "\n\n".join(texts) if texts else str(value)
+
+        # Handle multiple Google GenAI types (list[PartUnion] / list[PartUnionDict])
+        if isinstance(value, list):
             resolved = [
-                self._extract_text_from_content(item) for item in content if item is not None
+                self._normalize_system_instruction(item) for item in value if item is not None
             ]
             return "\n\n".join(resolved) if resolved else ""
 
         # Fallback for unexpected types
-        return str(content)
+        return str(value)
 
     def _serialize_config_safely(self, config: Any) -> str:
         """
