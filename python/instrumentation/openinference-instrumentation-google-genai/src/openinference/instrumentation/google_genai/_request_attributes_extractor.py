@@ -1,9 +1,27 @@
 import inspect
 import logging
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+    TypeVar,
+    cast,
+)
 
-from google.genai.types import Content, FunctionCall, FunctionResponse, Part, UserContent
+from google.genai.types import (
+    Content,
+    ContentDict,
+    FunctionCall,
+    FunctionResponse,
+    Part,
+    PartDict,
+    UserContent,
+)
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -324,12 +342,19 @@ class _RequestAttributesExtractor:
             yield from self._get_attributes_from_content(input_contents)
         elif isinstance(input_contents, Part):
             yield from self._get_attributes_from_part(input_contents, 0)
+        elif isinstance(input_contents, Mapping):
+            if "parts" in input_contents or "role" in input_contents:
+                # https://github.com/googleapis/python-genai/blob/2349f425ac4c029fc07085208beefbafde3626f0/google/genai/types.py#L1981 # noqa: E501
+                yield from self._get_attributes_from_content(cast(ContentDict, input_contents))
+            else:
+                # https://github.com/googleapis/python-genai/blob/2349f425ac4c029fc07085208beefbafde3626f0/google/genai/types.py#L1921 # noqa: E501
+                yield from self._get_attributes_from_part(cast(PartDict, input_contents), 0)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
 
     def _get_attributes_from_content(
-        self, content: Content
+        self, content: Content | ContentDict
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if role := get_attribute(content, "role"):
             yield (
@@ -415,7 +440,7 @@ class _RequestAttributesExtractor:
         return 0
 
     def _get_attributes_from_part(
-        self, part: Part, tool_call_index: int
+        self, part: Part | PartDict, tool_call_index: int
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
         if text := get_attribute(part, "text"):
@@ -439,6 +464,12 @@ def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
 
 
 def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
-    if isinstance(obj, dict):
-        return obj.get(attr_name, default)
+    if isinstance(obj, Mapping):
+        get = getattr(obj, "get", None)
+        if callable(get):
+            return get(attr_name, default)
+        try:
+            return obj[attr_name]
+        except Exception:
+            return default
     return getattr(obj, attr_name, default)
