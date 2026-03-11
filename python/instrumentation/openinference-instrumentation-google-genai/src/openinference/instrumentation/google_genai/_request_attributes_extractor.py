@@ -1,9 +1,27 @@
 import inspect
 import logging
 from enum import Enum
-from typing import Any, Callable, Dict, Iterable, Iterator, Mapping, Tuple, TypeVar, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Tuple,
+    TypeVar,
+    cast,
+)
 
-from google.genai.types import Content, FunctionCall, FunctionResponse, Part, UserContent
+from google.genai.types import (
+    Content,
+    ContentDict,
+    FunctionCall,
+    FunctionResponse,
+    Part,
+    PartDict,
+    UserContent,
+)
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
@@ -325,22 +343,18 @@ class _RequestAttributesExtractor:
         elif isinstance(input_contents, Part):
             yield from self._get_attributes_from_part(input_contents, 0)
         elif isinstance(input_contents, Mapping):
-            # The GenAI SDK (and wrappers like pydantic-ai) accept dict-shaped "content" objects,
-            # e.g. {'role': 'user', 'parts': [{'text': 'hi'}]} or a bare part dict like
-            # {'text': 'hi'}.
-            #
-            # We intentionally support these TypedDict-style inputs to avoid emitting high-volume
-            # exception logs for valid request payloads.
             if "parts" in input_contents or "role" in input_contents:
-                yield from self._get_attributes_from_content(cast(Content, input_contents))
+                # https://github.com/googleapis/python-genai/blob/2349f425ac4c029fc07085208beefbafde3626f0/google/genai/types.py#L1981 # noqa: E501
+                yield from self._get_attributes_from_content(cast(ContentDict, input_contents))
             else:
-                yield from self._get_attributes_from_part(cast(Part, input_contents), 0)
+                # https://github.com/googleapis/python-genai/blob/2349f425ac4c029fc07085208beefbafde3626f0/google/genai/types.py#L1921 # noqa: E501
+                yield from self._get_attributes_from_part(cast(PartDict, input_contents), 0)
         else:
             # TODO: Implement for File, PIL_Image
             logger.exception(f"Unexpected input contents type: {type(input_contents)}")
 
     def _get_attributes_from_content(
-        self, content: Content
+        self, content: Content | ContentDict
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if role := get_attribute(content, "role"):
             yield (
@@ -426,7 +440,7 @@ class _RequestAttributesExtractor:
         return 0
 
     def _get_attributes_from_part(
-        self, part: Part, tool_call_index: int
+        self, part: Part | PartDict, tool_call_index: int
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/main/google/genai/types.py#L566
         if text := get_attribute(part, "text"):
