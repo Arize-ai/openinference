@@ -1,3 +1,6 @@
+from contextvars import copy_context
+from importlib import import_module
+from types import ModuleType
 from typing import Any, Callable, Collection, Optional
 
 from opentelemetry import trace as trace_api
@@ -25,8 +28,10 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         "_original_step_stream_methods",
         "_original_tool_call_method",
         "_original_model_generate_methods",
+        "_original_executor",
         "_tracer",
     )
+    _original_executor: Optional[type]
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -83,6 +88,27 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 name=model_subclass.__name__ + ".generate",
                 wrapper=model_subclass_wrapper,
             )
+        self._original_executor: Optional[type] = None
+
+        module: ModuleType = import_module("smolagents.local_python_executor")
+
+        _OriginalThreadPoolExecutor: type = getattr(module, "ThreadPoolExecutor")
+        self._original_executor = _OriginalThreadPoolExecutor
+
+        def _make_context_aware_executor(*args: Any, **_kwargs: Any) -> Any:
+            executor = _OriginalThreadPoolExecutor(*args, **_kwargs)
+            original_submit = executor.submit
+
+            def context_preserving_submit(
+                fn: Callable[..., Any], *fn_args: Any, **fn_kwargs: Any
+            ) -> Any:
+                ctx = copy_context()
+                return original_submit(lambda: ctx.run(fn, *fn_args, **fn_kwargs))
+
+            executor.submit = context_preserving_submit
+            return executor
+
+        setattr(module, "ThreadPoolExecutor", _make_context_aware_executor)
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
@@ -115,3 +141,8 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         if self._original_tool_call_method is not None:
             Tool.__call__ = self._original_tool_call_method
             self._original_tool_call_method = None
+
+        if self._original_executor is not None:
+            module: ModuleType = import_module("smolagents.local_python_executor")
+            setattr(module, "ThreadPoolExecutor", self._original_executor)
+            self._original_executor = None

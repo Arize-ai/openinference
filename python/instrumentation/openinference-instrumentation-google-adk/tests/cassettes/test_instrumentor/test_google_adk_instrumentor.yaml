@@ -3,15 +3,15 @@ interactions:
     body: '{"contents": [{"parts": [{"text": "What is the weather in New York?"}],
       "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
       available tools to find an answer.\n\nYou are an agent. Your internal name is
-      \"_8abad8be\".\n\n The description about you is \"Agent to answer questions
-      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
-      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
-      status and result or error msg.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
-      "generationConfig": {}}'
+      \"_5b02470a\". The description about you is \"Agent to answer questions using
+      tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.\n", "name": "get_weather", "parameters": {"properties":
+      {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
     headers: {}
-    method: post
+    method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
   response:
     body:
@@ -19,13 +19,13 @@ interactions:
         [\n          {\n            \"functionCall\": {\n              \"name\": \"get_weather\",\n
         \             \"args\": {\n                \"city\": \"New York\"\n              }\n
         \           }\n          }\n        ],\n        \"role\": \"model\"\n      },\n
-        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -3.6202526340881981e-05\n
+        \     \"finishReason\": \"STOP\",\n      \"avgLogprobs\": -1.104615512304008e-05\n
         \   }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 107,\n    \"candidatesTokenCount\":
         6,\n    \"totalTokenCount\": 113,\n    \"promptTokensDetails\": [\n      {\n
         \       \"modality\": \"TEXT\",\n        \"tokenCount\": 107\n      }\n    ],\n
         \   \"candidatesTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 6\n      }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n
-        \ \"responseId\": \"KOSdabL9KoyqqtsPiL2b6Q4\"\n}\n"
+        \ \"responseId\": \"znShae3kA9OC0-kPqpTl-Qg\"\n}\n"
     headers: {}
     status:
       code: 200
@@ -38,29 +38,29 @@ interactions:
       in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}}}],
       "role": "user"}], "systemInstruction": {"parts": [{"text": "You must use the
       available tools to find an answer.\n\nYou are an agent. Your internal name is
-      \"_8abad8be\".\n\n The description about you is \"Agent to answer questions
-      using tools.\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
-      "Retrieves the current weather report for a specified city.\n\n        Args:\n            city
-      (str): The name of the city for which to retrieve the weather report.\n\n        Returns:\n            dict:
-      status and result or error msg.\n        ", "name": "get_weather", "parameters":
-      {"properties": {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}],
-      "generationConfig": {}}'
+      \"_5b02470a\". The description about you is \"Agent to answer questions using
+      tools.\"."}], "role": "user"}, "tools": [{"functionDeclarations": [{"description":
+      "Retrieves the current weather report for a specified city.\n\nArgs:\n    city
+      (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict:
+      status and result or error msg.\n", "name": "get_weather", "parameters": {"properties":
+      {"city": {"type": "STRING"}}, "required": ["city"], "type": "OBJECT"}}]}], "generationConfig":
+      {}}'
     headers: {}
-    method: post
+    method: POST
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent
   response:
     body:
       string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
         [\n          {\n            \"text\": \"OK. The weather in New York is sunny
-        with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\\n\"\n          }\n
+        with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\"\n          }\n
         \       ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
-        \"STOP\",\n      \"avgLogprobs\": -0.039785134792327884\n    }\n  ],\n  \"usageMetadata\":
-        {\n    \"promptTokenCount\": 141,\n    \"candidatesTokenCount\": 25,\n    \"totalTokenCount\":
-        166,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \"STOP\",\n      \"avgLogprobs\": -0.00030324910767376423\n    }\n  ],\n  \"usageMetadata\":
+        {\n    \"promptTokenCount\": 141,\n    \"candidatesTokenCount\": 24,\n    \"totalTokenCount\":
+        165,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
         \       \"tokenCount\": 141\n      }\n    ],\n    \"candidatesTokensDetails\":
-        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 25\n
+        [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 24\n
         \     }\n    ]\n  },\n  \"modelVersion\": \"gemini-2.0-flash\",\n  \"responseId\":
-        \"KeSdabvaHqLTz7IPvdzM2Ag\"\n}\n"
+        \"znShabWsPILHpgeJlYH5Cw\"\n}\n"
     headers: {}
     status:
       code: 200

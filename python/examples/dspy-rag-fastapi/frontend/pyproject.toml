@@ -15,6 +15,7 @@ urllib3 = ">=2.6.3"
 requests = ">=2.32.4"
 jinja2 = ">=3.1.6"
 certifi = ">=2024.7.4"
+protobuf = ">=5.29.5"
 
 
 [build-system]

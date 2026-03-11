@@ -2,6 +2,9 @@
   "name": "openinference-nextjs-example",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "minimatch": ">=10.2.1"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

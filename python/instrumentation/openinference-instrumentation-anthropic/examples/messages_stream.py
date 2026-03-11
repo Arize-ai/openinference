@@ -14,14 +14,10 @@ AnthropicInstrumentor().instrument(tracer_provider=tracer_provider)
 
 client = Anthropic()
 
-response = client.messages.create(
+with client.messages.stream(
     max_tokens=1024,
-    messages=[
-        {
-            "role": "user",
-            "content": "Hello!",
-        }
-    ],
-    model="claude-3-opus-20240229",
-)
-print(response)
+    messages=[{"role": "user", "content": "Hello!"}],
+    model="claude-sonnet-4-6",
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)

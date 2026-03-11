@@ -10,16 +10,23 @@ from wrapt import wrap_function_wrapper
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.anthropic._wrappers import (
     _AsyncCompletionsWrapper,
+    _AsyncMessagesStreamWrapper,
+    _AsyncMessageStreamManager,
     _AsyncMessagesWrapper,
+    _AsyncTransformWrapper,
+    _BetaAsyncMessageStreamManager,
+    _BetaMessageStreamManager,
     _CompletionsWrapper,
     _MessagesStreamWrapper,
+    _MessageStreamManager,
     _MessagesWrapper,
+    _TransformWrapper,
 )
 from openinference.instrumentation.anthropic.version import __version__
 
 logger = logging.getLogger(__name__)
 
-_instruments = ("anthropic >= 0.41.0",)
+_instruments = ("anthropic >= 0.84.0",)
 
 
 class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
@@ -31,6 +38,17 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         "_original_messages_create",
         "_original_async_messages_create",
         "_original_messages_stream",
+        "_original_async_messages_stream",
+        "_original_messages_parse",
+        "_original_async_messages_parse",
+        "_original_beta_messages_create",
+        "_original_async_beta_messages_create",
+        "_original_beta_messages_stream",
+        "_original_async_beta_messages_stream",
+        "_original_beta_messages_parse",
+        "_original_async_beta_messages_parse",
+        "_original_transform",
+        "_original_async_transform",
         "_instruments",
         "_tracer",
     )
@@ -39,6 +57,8 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
@@ -57,38 +77,166 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            wrapper=_CompletionsWrapper(
+                tracer=self._tracer,
+                span_name="completions.create",
+            ),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
             module="anthropic.resources.completions",
             name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            wrapper=_AsyncCompletionsWrapper(
+                tracer=self._tracer,
+                span_name="completions.create",
+            ),
         )
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="Messages.create",
-            wrapper=_MessagesWrapper(tracer=self._tracer),
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.create",
+            ),
         )
 
         self._original_async_messages_create = AsyncMessages.create
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="AsyncMessages.create",
-            wrapper=_AsyncMessagesWrapper(tracer=self._tracer),
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.create",
+            ),
         )
 
         self._original_messages_stream = Messages.stream
         wrap_function_wrapper(
             module="anthropic.resources.messages",
             name="Messages.stream",
-            wrapper=_MessagesStreamWrapper(tracer=self._tracer),
+            wrapper=_MessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="messages.stream",
+                manager_class=_MessageStreamManager,
+            ),
+        )
+
+        self._original_async_messages_stream = AsyncMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="AsyncMessages.stream",
+            wrapper=_AsyncMessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="messages.stream",
+                manager_class=_AsyncMessageStreamManager,
+            ),
+        )
+
+        self._original_messages_parse = Messages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="Messages.parse",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.parse",
+            ),
+        )
+
+        self._original_async_messages_parse = AsyncMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.messages",
+            name="AsyncMessages.parse",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="messages.parse",
+            ),
+        )
+
+        self._original_beta_messages_create = BetaMessages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.create",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.create",
+            ),
+        )
+
+        self._original_async_beta_messages_create = AsyncBetaMessages.create
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.create",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.create",
+            ),
+        )
+
+        self._original_beta_messages_stream = BetaMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.stream",
+            wrapper=_MessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaMessageStreamManager,
+            ),
+        )
+
+        self._original_async_beta_messages_stream = AsyncBetaMessages.stream
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.stream",
+            wrapper=_AsyncMessagesStreamWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.stream",
+                manager_class=_BetaAsyncMessageStreamManager,
+            ),
+        )
+
+        self._original_beta_messages_parse = BetaMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="Messages.parse",
+            wrapper=_MessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.parse",
+            ),
+        )
+
+        self._original_async_beta_messages_parse = AsyncBetaMessages.parse
+        wrap_function_wrapper(
+            module="anthropic.resources.beta.messages",
+            name="AsyncMessages.parse",
+            wrapper=_AsyncMessagesWrapper(
+                tracer=self._tracer,
+                span_name="beta.messages.parse",
+            ),
+        )
+
+        import anthropic._utils._transform as _transform_module
+
+        self._original_transform = _transform_module.transform
+        wrap_function_wrapper(
+            module="anthropic._utils._transform",
+            name="transform",
+            wrapper=_TransformWrapper(),
+        )
+
+        self._original_async_transform = _transform_module.async_transform
+        wrap_function_wrapper(
+            module="anthropic._utils._transform",
+            name="async_transform",
+            wrapper=_AsyncTransformWrapper(),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
+        import anthropic._utils._transform as _transform_module
+        from anthropic.resources.beta.messages import AsyncMessages as AsyncBetaMessages
+        from anthropic.resources.beta.messages import Messages as BetaMessages
         from anthropic.resources.completions import AsyncCompletions, Completions
         from anthropic.resources.messages import AsyncMessages, Messages
 
@@ -101,3 +249,33 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             Messages.create = self._original_messages_create  # type: ignore[method-assign]
         if self._original_async_messages_create is not None:
             AsyncMessages.create = self._original_async_messages_create  # type: ignore[method-assign]
+
+        if self._original_messages_stream is not None:
+            Messages.stream = self._original_messages_stream  # type: ignore[method-assign]
+        if self._original_async_messages_stream is not None:
+            AsyncMessages.stream = self._original_async_messages_stream  # type: ignore[method-assign]
+
+        if self._original_messages_parse is not None:
+            Messages.parse = self._original_messages_parse  # type: ignore[method-assign]
+        if self._original_async_messages_parse is not None:
+            AsyncMessages.parse = self._original_async_messages_parse  # type: ignore[method-assign]
+
+        if self._original_beta_messages_create is not None:
+            BetaMessages.create = self._original_beta_messages_create  # type: ignore[method-assign]
+        if self._original_async_beta_messages_create is not None:
+            AsyncBetaMessages.create = self._original_async_beta_messages_create  # type: ignore[method-assign]
+
+        if self._original_beta_messages_stream is not None:
+            BetaMessages.stream = self._original_beta_messages_stream  # type: ignore[method-assign]
+        if self._original_async_beta_messages_stream is not None:
+            AsyncBetaMessages.stream = self._original_async_beta_messages_stream  # type: ignore[method-assign]
+
+        if self._original_beta_messages_parse is not None:
+            BetaMessages.parse = self._original_beta_messages_parse  # type: ignore[method-assign]
+        if self._original_async_beta_messages_parse is not None:
+            AsyncBetaMessages.parse = self._original_async_beta_messages_parse  # type: ignore[method-assign]
+
+        if self._original_transform is not None:
+            _transform_module.transform = self._original_transform
+        if self._original_async_transform is not None:
+            _transform_module.async_transform = self._original_async_transform

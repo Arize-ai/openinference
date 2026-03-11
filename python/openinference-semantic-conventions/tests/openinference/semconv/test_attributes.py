@@ -168,6 +168,7 @@ class TestSpanAttributes:
             },
             "tool": {
                 "description": SpanAttributes.TOOL_DESCRIPTION,
+                "id": SpanAttributes.TOOL_ID,
                 "name": SpanAttributes.TOOL_NAME,
                 "parameters": SpanAttributes.TOOL_PARAMETERS,
             },

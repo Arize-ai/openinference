@@ -85,7 +85,7 @@ SUPPORTS_TEMPLATES = LANGCHAIN_VERSION < (0, 3, 0)
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="langchain"
         )
         instrumentor = instrumentor_entrypoint.load()()

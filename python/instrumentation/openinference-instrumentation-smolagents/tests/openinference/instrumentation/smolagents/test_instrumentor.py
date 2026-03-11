@@ -124,7 +124,7 @@ def patch_tiktoken_encoding() -> Generator[None, None, None]:
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="smolagents"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -168,7 +168,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -249,7 +249,7 @@ class TestModels:
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "OpenAIServerModel.generate"
+        assert span.name == "OpenAIModel.generate"
         assert span.status.is_ok
         attributes = dict(span.attributes or {})
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == LLM
@@ -916,9 +916,9 @@ class TestInferLLMProviderFromClassName:
     @pytest.mark.parametrize(
         "class_name, expected",
         [
-            ("OpenAIServerModel", OpenInferenceLLMProviderValues.OPENAI),
-            ("AzureOpenAIServerModel", OpenInferenceLLMProviderValues.AZURE),
-            ("AmazonBedrockServerModel", OpenInferenceLLMProviderValues.AWS),
+            ("OpenAIModel", OpenInferenceLLMProviderValues.OPENAI),
+            ("AzureOpenAIModel", OpenInferenceLLMProviderValues.AZURE),
+            ("AmazonBedrockModel", OpenInferenceLLMProviderValues.AWS),
         ],
     )
     def test_known_server_models_return_expected_provider(

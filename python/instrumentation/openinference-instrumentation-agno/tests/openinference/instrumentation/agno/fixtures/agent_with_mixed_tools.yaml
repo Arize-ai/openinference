@@ -41,24 +41,31 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: !!binary |
-        YwCQKQBA/Jrq16updl4tnUOmu5Aig9BawkYsB+j/PHWqUEAsYr8oc4PFomva6AJZmCv1qsW3hgta
-        soUVxb7mammuS/gVajLK595WRHAdFMEOptgx+ubJ8rT89fzJm+P+6c3Fw/HN5UP7pn3xXZ5u/HBC
-        XRFB2hPbwsk/mGLgOgkk+M3lNO6gaLHbHjbr5WK7Qj46SsceitDH0qylGV1wzXK+XDfzXbPYS6AO
-        4ixnKPpdERHdXu0Q4R/4Qyia11A8I8OAIvwSEZJ4hiKYnF0uJhTUBKkSdrOKwuQ98lIR8doa75XD
-        U/u2neqwnxrvdZBx+vzh9efDz5yXL+ZHflmm/+bmg04oXrmORpHZGLk0BNenFEaJEMzISs+zkzdF
-        koSACKO9AIpw+wfmDxQta/qDtjW8hxvte8j697W3f7tdDsP56qk/DO5b//rx1/VpPuzD7tv2gpds
-        ysBJe5HzFD1eZF25/gNFf/COL+mnpDM9Bpd2nQhu/w2D1NIETBgfH6nEBDv3l4104HXw0sckbWbn
-        Ueuvpb+rdggVaXxlGDBjiCmYbyImGWPRRc6sWN1tjG0h31IEzGaeWh6DFE5fLDmzInldnbCdU2cO
-        1tiBO/ZUnp2aqXOCBFwodgosKpQPu2BfF3p9pJAJazkW7nR9y6zXKVJ2iU9s+Wr0QbALKMoY18Vx
-        giI8RiAB7ToXHvXRhZ5TTO5OcQeOUdv1Zr9pN+3BorqvDAM=
+      string: "{\n  \"id\": \"chatcmpl-D2j2ZGDLf8EzvAmLwAcLbHWoE5lhj\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1769542163,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": null,\n        \"tool_calls\"\
+        : [\n          {\n            \"id\": \"call_nomuSPKS9Yss2H0feItuqazP\",\n\
+        \            \"type\": \"function\",\n            \"function\": {\n      \
+        \        \"name\": \"calculator\",\n              \"arguments\": \"{\\\"a\\\
+        \": 2, \\\"b\\\": 2}\"\n            }\n          },\n          {\n       \
+        \     \"id\": \"call_7snhkxEl9hiVgKCU4j0h8n7V\",\n            \"type\": \"\
+        function\",\n            \"function\": {\n              \"name\": \"weather_lookup\"\
+        ,\n              \"arguments\": \"{\\\"city\\\": \\\"New York City\\\"}\"\n\
+        \            }\n          }\n        ],\n        \"refusal\": null,\n    \
+        \    \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\"\
+        : \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 75,\n\
+        \    \"completion_tokens\": 50,\n    \"total_tokens\": 125,\n    \"prompt_tokens_details\"\
+        : {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"\
+        completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\"\
+        : 0,\n      \"accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\"\
+        : 0\n    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\"\
+        : \"fp_c4585b5b9c\"\n}\n"
     headers:
       CF-RAY:
       - 9c4aa894aca45a00-DEL
       Connection:
       - keep-alive
-      Content-Encoding:
-      - br
       Content-Type:
       - application/json
       Date:
@@ -73,8 +80,6 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
@@ -155,23 +160,26 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: !!binary |
-        YwCoHgBA/F6d1bup/psFDJHK5buKyBuSJ86YRpG0QD7/N/94QJrYsl40FtgCmbexwMbEMOyk2QD9
-        oB88sM9fp+7Zb2KkgLDqNxl+9y0BSDIyILtdRVu7qnXVL/rrx2q30/Li72SXP0uQx+dVl28/f+nS
-        eQKQrgu2UZO0lxiYog2E/3L5HWdk0JuMZ6NhvzceCT+tNeOKDCh3sTXUVi2NtPrd/rDVnbR6Uwu3
-        WxXLgQz+JwDwdtYAqAd+lwy651f5FRkKGeCPAPJaMRnQKgQJcdVEOgdACbulAf1oKXEdHqqIHctC
-        1be/EG2Qpsd9nKGfpieQgDQ9HqbpSRsJZVQjT7yKW/Yo+VYDV/aQ6VODjfrn/M2lxJdzBMUntP3w
-        ujmK8By98CPbxGmqteOAFvr3VxUZNA9VFSAQiMmgcC8VP3J2qNLceV0HdUI16SqL/b96yYBCVEea
-        1kcC3M9N/SHdp+S81i4uopbs0uwNp74qRAlASIPZgD84gJp908m5TbIooFcNs7tFdmW3nDkFKqxX
-        D5mosJpEnnJHqfbZ6EdLkx8gjFjLLnK2KMEYjxqg9DwXbEmSaeqDI1J4EYU9GdCbjgU8vYTI9WIj
-        Tc7eeSHz9cYt7HA0Ha1H65ml5CMxAAM=
+      string: "{\n  \"id\": \"chatcmpl-D2j2bvlqqokBY7qgxisivxa0eGJP0\",\n  \"object\"\
+        : \"chat.completion\",\n  \"created\": 1769542165,\n  \"model\": \"gpt-4o-mini-2024-07-18\"\
+        ,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n  \
+        \      \"role\": \"assistant\",\n        \"content\": \"The result of the\
+        \ calculation \\\\(2 + 2\\\\) is \\\\(4\\\\). Unfortunately, the weather service\
+        \ is currently down for New York City, so I couldn't retrieve the weather\
+        \ information.\",\n        \"refusal\": null,\n        \"annotations\": []\n\
+        \      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n\
+        \    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 148,\n    \"completion_tokens\"\
+        : 39,\n    \"total_tokens\": 187,\n    \"prompt_tokens_details\": {\n    \
+        \  \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\"\
+        : {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"\
+        accepted_prediction_tokens\": 0,\n      \"rejected_prediction_tokens\": 0\n\
+        \    }\n  },\n  \"service_tier\": \"default\",\n  \"system_fingerprint\":\
+        \ \"fp_c4585b5b9c\"\n}\n"
     headers:
       CF-RAY:
       - 9c4aa8a3ec1f123b-DEL
       Connection:
       - keep-alive
-      Content-Encoding:
-      - br
       Content-Type:
       - application/json
       Date:
@@ -186,8 +194,6 @@ interactions:
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
-      Transfer-Encoding:
-      - chunked
       X-Content-Type-Options:
       - nosniff
       access-control-expose-headers:
