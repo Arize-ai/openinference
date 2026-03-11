@@ -92,7 +92,6 @@ class _RequestAttributesExtractor:
 
             # We push the system instruction to the first message for replay and consistency
             if system_instruction := get_attribute(config, "system_instruction"):
-                # We normalize the system instruction from TypedDict or Pydantic object to plain text
                 system_instruction_str = self._normalize_system_instruction(system_instruction)
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
