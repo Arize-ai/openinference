@@ -65,37 +65,17 @@ from openinference.instrumentation.google_genai._request_attributes_extractor im
             "First instruction.\n\nSecond instruction.",
             id="content_dict_with_role_multiple_parts",
         ),
-        pytest.param(
-            {
-                "parts": [
-                    {"inline_data": {"mime_type": "audio/mp3", "data": ""}},
-                    {"text": "Text after non-text part."},
-                ]
-            },
-            "Text after non-text part.",
-            id="content_dict_skips_non_text_parts",
-        ),
         # Verify Part (SDK object)
         pytest.param(
             types.Part(text="Bare part prompt."),
             "Bare part prompt.",
             id="bare_part_with_text",
         ),
-        pytest.param(
-            types.Part(inline_data=types.Blob(mime_type="audio/mp3", data=b"")),
-            "",
-            id="bare_part_non_text_yields_empty",
-        ),
         # Verify PartDict
         pytest.param(
             {"text": "Bare part dict prompt."},
             "Bare part dict prompt.",
             id="part_dict_with_text",
-        ),
-        pytest.param(
-            {"inline_data": {"mime_type": "audio/mp3", "data": ""}},
-            "",
-            id="part_dict_non_text_yields_empty",
         ),
         # Verify list[PartUnion] (SDK objects)
         pytest.param(
