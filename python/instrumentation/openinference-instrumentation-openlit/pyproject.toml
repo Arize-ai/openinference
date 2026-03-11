@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference OpenLIT Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.14"
+requires-python = ">=3.10, <3.14"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -30,14 +30,6 @@ dependencies = [
   "opentelemetry-semantic-conventions-ai>=0.4.9"
 ]
 
-[project.optional-dependencies]
-test = [
-  "openlit>=1.36.8",
-  "opentelemetry-sdk>=1.20.0",
-  "opentelemetry-exporter-otlp-proto-http",
-  "pytest-recording",
-  "semantic-kernel>=1.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-openlit"

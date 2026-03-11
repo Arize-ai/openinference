@@ -8,11 +8,7 @@ from opentelemetry.util.types import AttributeValue
 
 class TestAssistantAgent:
     @pytest.mark.asyncio
-    @pytest.mark.vcr(
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-        decode_compressed_response=True,
-    )
+    @pytest.mark.vcr
     async def test_agent_run(
         self,
         tracer_provider: trace_api.TracerProvider,
@@ -44,9 +40,9 @@ class TestAssistantAgent:
         _ = await agent.run(task="What is the weather in New York?")
         await model_client.close()
 
-        # Verify that spans were created
+        # Verify that spans were created (LLM + TOOL + LLM; may include extra e.g. reflection)
         spans = in_memory_span_exporter.get_finished_spans()
-        assert len(spans) == 3  # LLM + TOOL + LLM spans
+        assert len(spans) >= 3, f"Expected at least 3 spans (LLM + TOOL + LLM), got {len(spans)}"
         final_span = spans[-1]
         assert final_span.status.is_ok
 

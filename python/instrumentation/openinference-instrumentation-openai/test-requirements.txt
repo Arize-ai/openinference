@@ -3,5 +3,5 @@ opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx
 numpy
-pytest-vcr
+pytest-recording
 httpx<0.28

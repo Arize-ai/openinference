@@ -3,4 +3,4 @@ opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx
 pytest-asyncio
-pytest.recording
+pytest-recording

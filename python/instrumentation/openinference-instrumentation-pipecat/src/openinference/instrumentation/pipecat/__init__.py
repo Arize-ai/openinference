@@ -8,9 +8,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
-from pipecat.pipeline.task import PipelineTask
 
-from ._observer import OpenInferenceObserver
 from .package import _instruments
 from .version import __version__
 
@@ -32,7 +30,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments if isinstance(_instruments, tuple) else ()
 
-    def create_observer(self) -> OpenInferenceObserver:
+    def create_observer(self) -> Any:
         """
         Create an OpenInferenceObserver manually.
 
@@ -42,6 +40,8 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
         Raises:
             RuntimeError: If instrumentor is not instrumented yet
         """
+        from ._observer import OpenInferenceObserver
+
         if not self.is_instrumented_by_opentelemetry:
             raise RuntimeError(
                 "Instrumentor must be instrumented before creating observers. "
@@ -79,6 +79,8 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
         self._debug_log_filename = kwargs.get("debug_log_filename")
 
         try:
+            from pipecat.pipeline.task import PipelineTask
+
             # Store original __init__
             self._original_task_init = PipelineTask.__init__
 
@@ -103,6 +105,8 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
         Uninstrument Pipecat by restoring original PipelineTask.__init__.
         """
         try:
+            from pipecat.pipeline.task import PipelineTask
+
             if hasattr(self, "_original_task_init"):
                 PipelineTask.__init__ = self._original_task_init  # type: ignore
                 logger.info("Pipecat instrumentation disabled")
@@ -126,7 +130,7 @@ class _TaskInitWrapper:
     def __call__(
         self,
         wrapped: Callable[[Any, Any], Any],
-        instance: PipelineTask,
+        instance: Any,
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
     ) -> None:
@@ -147,6 +151,8 @@ class _TaskInitWrapper:
         debug_log_filename = (
             getattr(instance, "_debug_log_filename", None) or self._default_debug_log_filename
         )
+
+        from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
 
         observer = OpenInferenceObserver(
             tracer=self._tracer,
