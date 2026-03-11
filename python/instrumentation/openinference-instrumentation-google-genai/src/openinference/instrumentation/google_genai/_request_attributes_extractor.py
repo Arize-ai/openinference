@@ -125,7 +125,7 @@ class _RequestAttributesExtractor:
                     )
 
     def _normalize_system_instruction(self, value: Any) -> str:
-        """Normalize a system instruction from Google GenAI objects to plain text for OTel attributes."""
+        """Normalize a system instruction from Google GenAI objects to plain text."""
         if value is None:
             return ""
 
