@@ -136,7 +136,7 @@ class _RequestAttributesExtractor:
             return text if isinstance(text, str) else ""
 
         # Handle Google GenAI Content / ContentDict type
-        if (parts := get_attribute(value, "parts")) is not None:
+        if parts := get_attribute(value, "parts", []):
             texts = [text for part in parts if (text := get_attribute(part, "text"))]
             return "\n\n".join(texts) if texts else str(value)
 

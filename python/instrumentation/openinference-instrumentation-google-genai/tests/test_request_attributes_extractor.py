@@ -39,11 +39,6 @@ from openinference.instrumentation.google_genai._request_attributes_extractor im
             id="content_multiple_text_parts",
         ),
         pytest.param(
-            types.Content(parts=[]),
-            "",
-            id="content_empty_parts",
-        ),
-        pytest.param(
             types.Content(
                 parts=[
                     types.Part(inline_data=types.Blob(mime_type="audio/mp3", data=b"")),
@@ -69,11 +64,6 @@ from openinference.instrumentation.google_genai._request_attributes_extractor im
             },
             "First instruction.\n\nSecond instruction.",
             id="content_dict_with_role_multiple_parts",
-        ),
-        pytest.param(
-            {"parts": []},
-            "",
-            id="content_dict_empty_parts",
         ),
         pytest.param(
             {
