@@ -1,3 +1,4 @@
+import json
 from typing import (
     Any,
     Awaitable,
@@ -136,6 +137,10 @@ def _agent_run_attributes(
         # Set legacy team attributes
         yield f"agno{key_suffix}.team", agent.name or ""
 
+        # Capture metadata from team
+        if hasattr(agent, "metadata") and agent.metadata:
+            yield METADATA, json.dumps(agent.metadata, default=str)
+
     elif isinstance(agent, Agent):
         # Set graph attributes for agent
         if agent.name:
@@ -155,6 +160,10 @@ def _agent_run_attributes(
         # Set legacy agent attributes
         if agent.name:
             yield f"agno{key_suffix}.agent", agent.name or ""
+
+        # Capture metadata from agent
+        if hasattr(agent, "metadata") and agent.metadata:
+            yield METADATA, json.dumps(agent.metadata, default=str)
 
         if agent.knowledge:
             yield f"agno{key_suffix}.knowledge", agent.knowledge.__class__.__name__
@@ -605,6 +614,7 @@ USER_ID = SpanAttributes.USER_ID
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
 GRAPH_NODE_NAME = SpanAttributes.GRAPH_NODE_NAME
 GRAPH_NODE_PARENT_ID = SpanAttributes.GRAPH_NODE_PARENT_ID
+METADATA = SpanAttributes.METADATA
 
 # message attributes
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON

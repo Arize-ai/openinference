@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "mistralai >= 1.0.2",
+  "mistralai >= 2.0.0",
 ]
 test = [
 ]
@@ -84,6 +84,12 @@ module = [
   "mistralai",
   "mistralai.*",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+]
+disable_error_code = ["arg-type"]
 
 [tool.ruff]
 line-length = 100

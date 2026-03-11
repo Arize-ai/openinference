@@ -11,10 +11,8 @@ const nextConfig = {
     };
     return config;
   },
-  experimental: {
-    outputFileTracingIncludes: {
-      "/*": ["./cache/**/*"],
-    },
+  outputFileTracingIncludes: {
+    "/*": ["./cache/**/*"],
   },
 };
 

@@ -116,8 +116,7 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     )
 
     assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
-    # llm.provider and llm.system may not be set by older pydantic-ai versions (e.g. v2 spans
-    # in 0.7.5 carry no top-level provider attribute); assert only when present.
+    # pydantic-ai < 1.42.0 doesn't set gen_ai.provider.name; assert only when present
     provider = attributes.pop(LLM_PROVIDER, None)
     if provider is not None:
         assert provider == OpenInferenceLLMProviderValues.OPENAI.value

@@ -1,6 +1,6 @@
-mistralai==1.9.11
+mistralai==2.0.0
 opentelemetry-sdk
 opentelemetry-instrumentation-httpx
 respx
 pytest-asyncio
-pytest-recording
+pytest.recording

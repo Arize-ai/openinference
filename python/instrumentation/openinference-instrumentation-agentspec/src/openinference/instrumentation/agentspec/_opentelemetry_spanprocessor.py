@@ -129,7 +129,9 @@ class _OtelSdkSpan(OtelSdkSpan):
         current_event_ids = {event.id for event in self.events if hasattr(event, "id")}
         for event in events:
             if event.id not in current_event_ids:
-                self._add_event(convert_agentspec_event_into_otel_event(event, mask_sensitive_information))
+                self._add_event(
+                    convert_agentspec_event_into_otel_event(event, mask_sensitive_information)
+                )
 
 
 def convert_agentspec_event_into_otel_event(
@@ -257,8 +259,7 @@ def convert_agentspec_span_into_otel_span(
             attributes=span_attributes,
             events=[
                 convert_agentspec_event_into_otel_event(
-                    event,
-                    mask_sensitive_information=mask_sensitive_information
+                    event, mask_sensitive_information=mask_sensitive_information
                 )
                 for event in span.events
             ],

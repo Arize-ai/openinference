@@ -1,4 +1,5 @@
-smolagents[litellm]==1.23.0
+smolagents[litellm]==1.24.0
 opentelemetry-sdk
-pytest-recording
 openai
+pytest
+pytest-recording

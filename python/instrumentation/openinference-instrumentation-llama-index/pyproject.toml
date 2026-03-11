@@ -89,6 +89,12 @@ module = [
   "llama_index.llms.vertex",
 ]
 
+[[tool.mypy.overrides]]
+follow_imports = "skip"
+module = [
+  "transformers.*",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

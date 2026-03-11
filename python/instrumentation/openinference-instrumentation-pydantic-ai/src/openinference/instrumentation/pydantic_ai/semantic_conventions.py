@@ -209,8 +209,6 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
     _provider: Optional[str] = None
     if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
         _provider = str(gen_ai_attrs[GEN_AI_PROVIDER_NAME])
-    elif GEN_AI_SYSTEM in gen_ai_attrs:
-        _provider = str(gen_ai_attrs[GEN_AI_SYSTEM])
 
     _system: Optional[str] = (
         str(gen_ai_attrs[GEN_AI_SYSTEM]) if GEN_AI_SYSTEM in gen_ai_attrs else None

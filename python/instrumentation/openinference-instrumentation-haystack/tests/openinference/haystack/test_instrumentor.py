@@ -50,7 +50,7 @@ from openinference.semconv.trace import (
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="haystack"
         )
         instrumentor = instrumentor_entrypoint.load()()
