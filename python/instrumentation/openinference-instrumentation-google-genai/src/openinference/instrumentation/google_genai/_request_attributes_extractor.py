@@ -133,7 +133,7 @@ class _RequestAttributesExtractor:
 
         # Handle Google GenAI Part / PartDict type
         if text := get_attribute(value, "text"):
-            return text
+            return text if isinstance(text, str) else ""
 
         # Handle Google GenAI Content / ContentDict type
         if parts := get_attribute(value, "parts", []):
