@@ -713,7 +713,13 @@ public class SemanticConventions {
         AWS("aws"),
         AZURE("azure"),
         XAI("xai"),
-        DEEPSEEK("deepseek");
+        DEEPSEEK("deepseek"),
+        GROQ("groq"),
+        FIREWORKS("fireworks"),
+        MOONSHOT("moonshot"),
+        CEREBRAS("cerebras"),
+        PERPLEXITY("perplexity"),
+        TOGETHER("together");
 
         private final String value;
 

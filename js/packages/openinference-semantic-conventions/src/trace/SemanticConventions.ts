@@ -753,4 +753,10 @@ export enum LLMProvider {
   AZURE = "azure",
   XAI = "xai",
   DEEPSEEK = "deepseek",
+  GROQ = "groq",
+  FIREWORKS = "fireworks",
+  MOONSHOT = "moonshot",
+  CEREBRAS = "cerebras",
+  PERPLEXITY = "perplexity",
+  TOGETHER = "together",
 }

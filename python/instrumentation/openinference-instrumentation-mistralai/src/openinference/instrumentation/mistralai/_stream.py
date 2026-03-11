@@ -20,7 +20,7 @@ from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
 
 if TYPE_CHECKING:
-    from mistralai.models import CompletionEvent
+    from mistralai.client.models import CompletionEvent
 
 __all__ = (
     "_Stream",
