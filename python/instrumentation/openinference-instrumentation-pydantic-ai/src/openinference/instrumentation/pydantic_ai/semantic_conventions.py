@@ -203,32 +203,11 @@ def _extract_common_attributes(gen_ai_attrs: Mapping[str, Any]) -> Iterator[Tupl
     if GEN_AI_REQUEST_MODEL in gen_ai_attrs:
         yield SpanAttributes.LLM_MODEL_NAME, gen_ai_attrs[GEN_AI_REQUEST_MODEL]
 
-    # Resolve provider and system: prefer top-level attributes, fall back to events
-    # (older pydantic-ai versions embed gen_ai.system inside each event object
-    # rather than setting it as a top-level span attribute)
-    _provider: Optional[str] = None
     if GEN_AI_PROVIDER_NAME in gen_ai_attrs:
-        _provider = str(gen_ai_attrs[GEN_AI_PROVIDER_NAME])
+        yield SpanAttributes.LLM_PROVIDER, gen_ai_attrs[GEN_AI_PROVIDER_NAME]
 
-    _system: Optional[str] = (
-        str(gen_ai_attrs[GEN_AI_SYSTEM]) if GEN_AI_SYSTEM in gen_ai_attrs else None
-    )
-
-    if (_provider is None or _system is None) and OTELConventions.EVENTS in gen_ai_attrs:
-        events = _parse_events(gen_ai_attrs[OTELConventions.EVENTS])
-        for event in events:
-            if GEN_AI_SYSTEM in event:
-                event_system = str(event[GEN_AI_SYSTEM])
-                if _provider is None:
-                    _provider = event_system
-                if _system is None:
-                    _system = event_system
-                break
-
-    if _provider is not None:
-        yield SpanAttributes.LLM_PROVIDER, _provider
-    if _system is not None:
-        yield SpanAttributes.LLM_SYSTEM, _system
+    if GEN_AI_SYSTEM in gen_ai_attrs:
+        yield SpanAttributes.LLM_SYSTEM, gen_ai_attrs[GEN_AI_SYSTEM]
 
     if GEN_AI_USAGE_INPUT_TOKENS in gen_ai_attrs and not ignore_token_counts:
         yield (
