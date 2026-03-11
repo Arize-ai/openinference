@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.41...python-openinference-instrumentation-openai-v0.1.42) (2026-03-11)
+
+
+### Features
+
+* **openai:** adds support for python 3.14 to openai autoinstrumentor ([#2872](https://github.com/Arize-ai/openinference/issues/2872)) ([75cda76](https://github.com/Arize-ai/openinference/commit/75cda763185e7508062900e545e03ebb67d4bc26))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.40...python-openinference-instrumentation-openai-v0.1.41) (2025-12-04)
 
 

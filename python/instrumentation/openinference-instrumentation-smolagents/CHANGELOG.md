@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.23...python-openinference-instrumentation-smolagents-v0.1.24) (2026-03-11)
+
+
+### Bug Fixes
+
+* smolagents threadpool wrapping ([#2814](https://github.com/Arize-ai/openinference/issues/2814)) ([4ccb779](https://github.com/Arize-ai/openinference/commit/4ccb779435eeeae04ba230b1fe7689353429e73a))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.22...python-openinference-instrumentation-smolagents-v0.1.23) (2026-02-24)
 
 
