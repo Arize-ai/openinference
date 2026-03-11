@@ -27,9 +27,7 @@ def embed_content_sync(model_name: str = "gemini-embedding-001") -> str:
         response = client.models.embed_content(model=model_name, contents="Why is the sky blue?")
         print(response.embeddings)
 
-        config = EmbedContentConfig(
-            task_type="RETRIEVAL_DOCUMENT"
-        )
+        config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
         content = Content(
             parts=[
                 Part.from_text(text="Why is the sky blue?"),
@@ -54,9 +52,7 @@ async def embed_content_async(model_name: str = "gemini-embedding-001") -> str:
             api_key=os.getenv("GEMINI_API_KEY"),
         ).aio
 
-        config = EmbedContentConfig(
-            task_type="RETRIEVAL_DOCUMENT"
-        )
+        config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
         content = Content(
             parts=[
                 Part.from_text(text="Why is the sky blue?"),

@@ -57,9 +57,7 @@ def test_embed_content(
     )
 
     # Create config
-    config = EmbedContentConfig(
-        task_type="RETRIEVAL_DOCUMENT"
-    )
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
 
     # Make the API call
     response = client.models.embed_content(
@@ -146,9 +144,7 @@ async def test_async_embed_content(
     )
 
     # Create config
-    config = EmbedContentConfig(
-        task_type="RETRIEVAL_DOCUMENT"
-    )
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
 
     # Make the API call
     response = await client.models.embed_content(
