@@ -1,7 +1,7 @@
 from typing import Any, Dict, Generator, List
 
 import pytest
-from mistralai import Mistral
+from mistralai.client import Mistral
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.resources import Resource
