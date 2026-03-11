@@ -14,11 +14,7 @@ from openinference.semconv.trace import SpanAttributes
 
 
 class TestTokenCounts:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     async def test_groq(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -35,11 +31,7 @@ class TestTokenCounts:
         assert span.attributes.get(LLM_TOKEN_COUNT_COMPLETION)
         assert span.attributes.get(LLM_TOKEN_COUNT_TOTAL)
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -72,9 +64,6 @@ class TestTokenCounts:
         )
 
     @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
         match_on=["method", "scheme", "host", "port", "path"],
     )
     def test_anthropic(
@@ -101,11 +90,9 @@ class TestTokenCounts:
         )
 
     @pytest.mark.vcr(
-        decode_compressed_response=True,
         before_record_request=lambda request: None
         if "oauth2" in request.uri
         else (request.headers.clear() or request),
-        before_record_response=lambda _: {**_, "headers": {}},
         match_on=["method", "body"],
     )
     def test_vertex(

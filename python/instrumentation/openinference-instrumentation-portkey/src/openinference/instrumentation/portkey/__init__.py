@@ -4,10 +4,6 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from portkey_ai.api_resources.apis.chat_complete import (
-    AsyncCompletions,
-    Completions,
-)
 from wrapt import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -32,6 +28,8 @@ class PortkeyInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return _instruments
 
     def _instrument(self, **kwargs: Any) -> None:
+        from portkey_ai.api_resources.apis.chat_complete import AsyncCompletions, Completions
+
         if not (tracer_provider := kwargs.get("tracer_provider")):
             tracer_provider = trace_api.get_tracer_provider()
         if not (config := kwargs.get("config")):

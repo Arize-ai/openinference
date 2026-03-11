@@ -1,2 +1,5 @@
 agent-framework==1.0.0rc1
 opentelemetry-semantic-conventions-ai==0.4.13
+pytest
+pytest-asyncio
+pytest-recording

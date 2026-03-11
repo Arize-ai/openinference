@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "OpenInference Pipecat Instrumentation"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9, <3.15"
+requires-python = ">=3.10, <3.15"
 authors = [
   { name = "OpenInference Authors", email = "oss@arize.com" },
 ]
@@ -18,7 +18,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -26,6 +25,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "openinference-instrumentation>=0.1.17",
   "opentelemetry-api",
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
@@ -35,14 +35,6 @@ dependencies = [
 [project.optional-dependencies]
 instruments = [
   "pipecat-ai",
-]
-test = [
-  "mypy>=1.18.2",
-  "pipecat-ai",
-  "pytest-asyncio>=0.21.0",
-  "pytest-recording",
-  "opentelemetry-exporter-otlp-proto-http",
-  "opentelemetry-sdk>=1.20.0",
 ]
 examples = [
   "arize-phoenix",

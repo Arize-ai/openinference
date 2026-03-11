@@ -22,22 +22,24 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-AOA1TtLtlb9GcK4LnNYnNcK2ETJpW\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1730321763,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+      string: "{\n  \"id\": \"chatcmpl-DD5NFnwbig885vzBzWKxq6GtDvWda\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1772011293,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_Yheo99FhD2nPbVfhJ2qwM1XK\",\n            \"type\":
+        \           \"id\": \"call_S1xa8vawU2HXSrvSeUcqSCZm\",\n            \"type\":
         \"function\",\n            \"function\": {\n              \"name\": \"get_weather\",\n
         \             \"arguments\": \"{\\\"city\\\": \\\"San Francisco\\\"}\"\n            }\n
-        \         },\n          {\n            \"id\": \"call_qvrUTewqYFp3XTGIYS97SCwX\",\n
+        \         },\n          {\n            \"id\": \"call_ZfEORmbRGEJZ4b7dAuVSPnaf\",\n
         \           \"type\": \"function\",\n            \"function\": {\n              \"name\":
         \"get_population\",\n              \"arguments\": \"{\\\"city\\\": \\\"San
         Francisco\\\"}\"\n            }\n          }\n        ],\n        \"refusal\":
-        null\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 207,\n    \"completion_tokens\":
-        46,\n    \"total_tokens\": 253,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\":
-        0\n    }\n  },\n  \"system_fingerprint\": \"fp_0ba0d124f1\"\n}\n"
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"tool_calls\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        207,\n    \"completion_tokens\": 46,\n    \"total_tokens\": 253,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": \"fp_bfa3527827\"\n}\n"
     headers: {}
     status:
       code: 200

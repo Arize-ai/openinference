@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.4.0...python-openinference-instrumentation-mistralai-v2.0.0) (2026-03-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mistralai:** migrate instrumentor to mistralai>=2.0.0 ([#2875](https://github.com/Arize-ai/openinference/issues/2875))
+
+### Features
+
+* **mistralai:** migrate instrumentor to mistralai&gt;=2.0.0 ([#2875](https://github.com/Arize-ai/openinference/issues/2875)) ([471762e](https://github.com/Arize-ai/openinference/commit/471762e873e84e57f08be1cf4185c0c87ce7e7f3))
+
 ## [1.4.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mistralai-v1.3.4...python-openinference-instrumentation-mistralai-v1.4.0) (2026-02-05)
 
 

@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Dict, Generator, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,9 +22,7 @@ from haystack.tools import Tool
 from haystack_integrations.components.rankers.cohere import (
     CohereRanker,
 )
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from opentelemetry.util._importlib_metadata import entry_points
@@ -50,60 +48,6 @@ from openinference.semconv.trace import (
 )
 
 
-def remove_all_vcr_request_headers(request: Any) -> Any:
-    """
-    Removes all request headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_request_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    request.headers.clear()
-    return request
-
-
-def remove_all_vcr_response_headers(response: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Removes all response headers.
-
-    Example:
-    ```
-    @pytest.mark.vcr(
-        before_record_response=remove_all_vcr_response_headers
-    )
-    def test_openai() -> None:
-        # make request to OpenAI
-    """
-    response["headers"] = {}
-    return response
-
-
-@pytest.fixture()
-def in_memory_span_exporter() -> InMemorySpanExporter:
-    return InMemorySpanExporter()
-
-
-@pytest.fixture()
-def tracer_provider(in_memory_span_exporter: InMemorySpanExporter) -> TracerProvider:
-    resource = Resource(attributes={})
-    tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
-    return tracer_provider
-
-
-@pytest.fixture()
-def setup_haystack_instrumentation(
-    tracer_provider: TracerProvider,
-) -> Generator[None, None, None]:
-    HaystackInstrumentor().instrument(tracer_provider=tracer_provider)
-    yield
-    HaystackInstrumentor().uninstrument()
-
-
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -117,11 +61,7 @@ class TestInstrumentor:
         assert isinstance(HaystackInstrumentor()._tracer, OITracer)
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_spans(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -221,11 +161,7 @@ async def test_async_pipeline_with_chat_prompt_builder_and_chat_generator_produc
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipeline_with_chat_prompt_builder_and_chat_generator_produces_expected_spans(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -418,11 +354,7 @@ async def test_haystack_instrumentation_async_pipeline_filtering(
     ] == [RETRIEVER, CHAIN, CHAIN]
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -508,11 +440,7 @@ def test_tool_calling_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_async_pipeline_tool_calling_llm_span_has_expected_attributes(
     tracer_provider: TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -626,11 +554,7 @@ def test_instrument_and_uninstrument_methods_wrap_and_unwrap_expected_methods(
     assert not hasattr(AsyncPipeline._run_component_async, "__wrapped__")
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_chat_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -697,11 +621,7 @@ def test_openai_chat_generator_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -775,11 +695,7 @@ async def test_async_pipeline_openai_chat_generator_llm_span_has_expected_attrib
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_generator_llm_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -901,11 +817,7 @@ def test_prompt_builder_llm_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_cohere_reranker_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -986,11 +898,7 @@ def test_cohere_reranker_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_serperdev_websearch_retriever_span_has_expected_attributes(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1046,11 +954,7 @@ def test_serperdev_websearch_retriever_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_openai_document_embedder_embedding_span_has_expected_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1118,11 +1022,7 @@ def test_openai_document_embedder_embedding_span_has_expected_attributes(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1144,11 +1044,7 @@ def test_pipelines_and_components_produce_no_tracing_with_suppress_tracing(
     assert len(spans) == 0
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_error_status_code_and_exception_events_with_invalid_api_key(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1178,11 +1074,7 @@ def test_error_status_code_and_exception_events_with_invalid_api_key(
         assert "api key" in exception_message.lower()
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_pipeline_and_component_spans_contain_context_attributes(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1222,12 +1114,7 @@ def test_pipeline_and_component_spans_contain_context_attributes(
 
 
 @pytest.mark.parametrize("use_async", [False, True])
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-    record_mode="once",
-)
+@pytest.mark.vcr
 async def test_agent_run_component_spans(
     openai_api_key: str,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1354,11 +1241,7 @@ async def test_agent_run_component_spans(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 def test_individual_component_without_child_components(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1411,11 +1294,7 @@ def test_individual_component_without_child_components(
     assert not attributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=remove_all_vcr_request_headers,
-    before_record_response=remove_all_vcr_response_headers,
-)
+@pytest.mark.vcr
 async def test_individual_component_run_async_without_child_components(
     in_memory_span_exporter: InMemorySpanExporter,
     setup_haystack_instrumentation: Any,
@@ -1468,21 +1347,6 @@ async def test_individual_component_run_async_without_child_components(
         assert score == document.score
         assert isinstance(attributes.pop(f"{prefix}.{DOCUMENT_METADATA}"), str)
     assert not attributes
-
-
-@pytest.fixture
-def openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-")
-
-
-@pytest.fixture
-def serperdev_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SERPERDEV_API_KEY", "sk-")
-
-
-@pytest.fixture
-def cohere_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COHERE_API_KEY", "sk-")
 
 
 def _is_vector(

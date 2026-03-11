@@ -1,0 +1,7 @@
+haystack-ai==2.18.0
+cohere-haystack
+opentelemetry-sdk
+# Temporary vcrpy pin to avoid async future await regression
+vcrpy>=7.0.0,<8.0.0
+pytest-recording
+pytest-asyncio

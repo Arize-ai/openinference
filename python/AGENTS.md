@@ -5,7 +5,7 @@
 ### Setup
 
 ```bash
-# requires Python 3.9+
+# requires Python 3.10+
 cd python
 pip install tox-uv==1.11.2
 pip install -r dev-requirements.txt
