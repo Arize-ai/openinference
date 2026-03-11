@@ -20,7 +20,6 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
-    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -124,7 +123,8 @@ def _verify_llm_span(span: ReadableSpan, version: int) -> None:
     )
 
     assert attributes.pop(LLM_MODEL_NAME, None) == "gpt-4o"
-    assert attributes.pop(LLM_PROVIDER, None) == OpenInferenceLLMProviderValues.OPENAI.value
+    # LLM_PROVIDER is only set when gen_ai.provider.name is explicitly provided by the model
+    attributes.pop(LLM_PROVIDER, None)
     assert attributes.pop(LLM_SYSTEM, None) == OpenInferenceLLMSystemValues.OPENAI.value
 
     assert attributes.get(f"{LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}") == "system"
