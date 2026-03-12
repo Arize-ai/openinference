@@ -34,6 +34,7 @@ from openai.types.responses import (
     ResponseOutputRefusal,
     ResponseOutputText,
     ResponseOutputTextParam,
+    ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseUsage,
     Tool,
@@ -232,9 +233,7 @@ from openinference.instrumentation.openai_agents._processor import (
                     summary=[{"type": "summary_text", "text": "Test reasoning"}],
                 )
             ],
-            {
-                # TODO: Implement reasoning item attributes
-            },
+            {},
             id="reasoning_item",
         ),
         pytest.param(
@@ -1277,6 +1276,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.role": "assistant",
@@ -1470,6 +1470,7 @@ def test_get_attributes_from_message_content_list(
                     }
                 ),
                 "llm.model_name": "gpt-4",
+                "llm.output_messages.0.message.content": "Hi\nI cannot help with that",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.contents.1.message_content.text": "I cannot help with that",  # noqa: E501
@@ -1753,6 +1754,7 @@ def test_get_attributes_from_tools(
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
+                "llm.output_messages.0.message.content": "Hi",
             },
             id="message_output",
         ),
@@ -1798,6 +1800,7 @@ def test_get_attributes_from_tools(
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
+                "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.1.message.role": "assistant",
                 "llm.output_messages.1.message.tool_calls.0.tool_call.id": "123",
                 "llm.output_messages.1.message.tool_calls.0.tool_call.function.name": "test_func",
@@ -1861,11 +1864,30 @@ def test_get_attributes_from_tools(
                 "llm.output_messages.0.message.role": "assistant",
                 "llm.output_messages.0.message.contents.0.message_content.type": "text",
                 "llm.output_messages.0.message.contents.0.message_content.text": "Hi",
+                "llm.output_messages.0.message.content": "Hi",
                 "llm.output_messages.1.message.role": "assistant",
                 "llm.output_messages.1.message.contents.0.message_content.type": "text",
                 "llm.output_messages.1.message.contents.0.message_content.text": "World",
+                "llm.output_messages.1.message.content": "World",
             },
             id="multiple_messages",
+        ),
+        pytest.param(
+            [
+                ResponseReasoningItem(
+                    id="reason-123",
+                    type="reasoning",
+                    summary=[
+                        {"type": "summary_text", "text": "Step one reasoning"},
+                        {"type": "summary_text", "text": "Step two reasoning"},
+                    ],
+                )
+            ],
+            {
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.content": "Step one reasoning\nStep two reasoning",
+            },
+            id="reasoning_output",
         ),
         pytest.param(
             [],
@@ -1982,6 +2004,7 @@ def test_get_attributes_from_function_tool_call(
                 "message.role": "assistant",
                 "message.contents.0.message_content.type": "text",
                 "message.contents.0.message_content.text": "Hi",
+                "message.content": "Hi",
             },
             id="text_message",
         ),
@@ -2002,6 +2025,7 @@ def test_get_attributes_from_function_tool_call(
                 "message.role": "assistant",
                 "message.contents.0.message_content.type": "text",
                 "message.contents.0.message_content.text": "I cannot help with that",
+                "message.content": "I cannot help with that",
             },
             id="refusal_message",
         ),
@@ -2029,6 +2053,7 @@ def test_get_attributes_from_function_tool_call(
                 "message.contents.0.message_content.text": "Hi",
                 "message.contents.1.message_content.type": "text",
                 "message.contents.1.message_content.text": "I cannot help with that",
+                "message.content": "Hi\nI cannot help with that",
             },
             id="mixed_content_message",
         ),
@@ -2070,6 +2095,7 @@ def test_get_attributes_from_function_tool_call(
                 "message.contents.0.message_content.text": "Hello",
                 "message.contents.1.message_content.type": "text",
                 "message.contents.1.message_content.text": "World",
+                "message.content": "Hello\nWorld",
             },
             id="multiple_text_messages",
         ),
