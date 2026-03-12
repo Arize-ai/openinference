@@ -91,11 +91,11 @@ class _RequestAttributesExtractor:
             )
 
             # We push the system instruction to the first message for replay and consistency
-            system_instruction = getattr(config, "system_instruction", None)
-            if system_instruction:
+            if system_instruction := get_attribute(config, "system_instruction"):
+                system_instruction_str = self._normalize_system_instruction(system_instruction)
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_CONTENT}",
-                    system_instruction,
+                    system_instruction_str,
                 )
                 yield (
                     f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{MessageAttributes.MESSAGE_ROLE}",
@@ -122,6 +122,33 @@ class _RequestAttributesExtractor:
                         f"{SpanAttributes.LLM_INPUT_MESSAGES}.{input_messages_index}.{attr}",
                         value,
                     )
+
+    def _normalize_system_instruction(self, value: Any) -> str:
+        """Normalize a system instruction from Google GenAI objects to plain text."""
+        if value is None:
+            return ""
+
+        if isinstance(value, str):
+            return value
+
+        # Handle Google GenAI Part / PartDict type
+        if text := get_attribute(value, "text"):
+            return text if isinstance(text, str) else ""
+
+        # Handle Google GenAI Content / ContentDict type
+        if parts := get_attribute(value, "parts", []):
+            texts = [text for part in parts if (text := get_attribute(part, "text"))]
+            return "\n\n".join(texts) if texts else str(value)
+
+        # Handle multiple Google GenAI types (list[PartUnion] / list[PartUnionDict])
+        if isinstance(value, list):
+            resolved = [
+                self._normalize_system_instruction(item) for item in value if item is not None
+            ]
+            return "\n\n".join(resolved) if resolved else ""
+
+        # Fallback for unexpected types
+        return str(value)
 
     def _serialize_config_safely(self, config: Any) -> str:
         """
