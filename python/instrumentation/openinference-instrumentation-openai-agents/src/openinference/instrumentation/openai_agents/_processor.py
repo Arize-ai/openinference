@@ -33,6 +33,7 @@ from openai.types.responses import (
     ResponseOutputMessageParam,
     ResponseOutputRefusal,
     ResponseOutputText,
+    ResponseReasoningItem,
     ResponseUsage,
     Tool,
 )
@@ -651,7 +652,12 @@ def _get_attributes_from_response_output(
         elif item.type == "computer_call":
             ...  # TODO
         elif item.type == "reasoning":
-            ...  # TODO
+            if isinstance(item, ResponseReasoningItem) and item.summary:
+                prefix = f"{LLM_OUTPUT_MESSAGES}.{msg_idx}."
+                yield f"{prefix}{MESSAGE_ROLE}", "assistant"
+                summary_text = "\n".join(s.text for s in item.summary)
+                yield f"{prefix}{MESSAGE_CONTENT}", summary_text
+                msg_idx += 1
         elif item.type == "image_generation_call":
             ...  # TODO
         elif item.type == "code_interpreter_call":
@@ -721,15 +727,20 @@ def _get_attributes_from_message(
     prefix: str = "",
 ) -> Iterator[tuple[str, AttributeValue]]:
     yield f"{prefix}{MESSAGE_ROLE}", obj.role
+    text_parts: list[str] = []
     for i, item in enumerate(obj.content):
         if isinstance(item, ResponseOutputText):
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.text
+            text_parts.append(item.text)
         elif isinstance(item, ResponseOutputRefusal):
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TYPE}", "text"
             yield f"{prefix}{MESSAGE_CONTENTS}.{i}.{MESSAGE_CONTENT_TEXT}", item.refusal
+            text_parts.append(item.refusal)
         elif TYPE_CHECKING:
             assert_never(item)
+    if text_parts:
+        yield f"{prefix}{MESSAGE_CONTENT}", "\n".join(text_parts)
 
 
 def _get_attributes_from_usage(
