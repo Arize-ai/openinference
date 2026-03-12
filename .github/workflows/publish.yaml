@@ -90,7 +90,6 @@ jobs:
 
   list-java-packages:
     name: List Java packages from manifest
-    if: false # TODO: re-enable Java publish
     runs-on: ubuntu-latest
     outputs:
       java_paths: ${{ steps.paths.outputs.java_paths }}
@@ -113,14 +112,16 @@ jobs:
               NEED_PUBLISH=$(jq -c --arg p "$path" '. + [$p]' <<< "$NEED_PUBLISH")
               continue
             fi
-            NUM_FOUND=$(curl -s -G "https://search.maven.org/solrsearch/select" \
-              --data-urlencode "q=g:${GROUP_ID} AND a:${ARTIFACT_ID} AND v:${VERSION}" \
-              --data-urlencode "wt=json" | jq -r '.response.numFound // 0')
-            if [ "$NUM_FOUND" = "0" ] || [ -z "$NUM_FOUND" ]; then
-              echo "${GROUP_ID}:${ARTIFACT_ID}:${VERSION} not on Maven Central, will publish"
-              NEED_PUBLISH=$(jq -c --arg p "$path" '. + [$p]' <<< "$NEED_PUBLISH")
-            else
+            # Use repo1.maven.org (actual repository) instead of search.maven.org
+            # (Solr search index), which can lag hours/days behind actual publication.
+            GROUP_PATH=$(echo "$GROUP_ID" | tr '.' '/')
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/")
+            if [ "$HTTP_STATUS" = "200" ]; then
               echo "${GROUP_ID}:${ARTIFACT_ID}:${VERSION} already on Maven Central, skipping"
+            else
+              echo "${GROUP_ID}:${ARTIFACT_ID}:${VERSION} not on Maven Central (HTTP ${HTTP_STATUS}), will publish"
+              NEED_PUBLISH=$(jq -c --arg p "$path" '. + [$p]' <<< "$NEED_PUBLISH")
             fi
           done <<< "$(jq -r 'keys[] | select(startswith("java/"))' .release-please-manifest.json)"
           echo "java_paths=$NEED_PUBLISH" >> $GITHUB_OUTPUT
@@ -130,8 +131,7 @@ jobs:
     name: Publish Java packages
     runs-on: ubuntu-latest
     needs: list-java-packages
-    if: false # TODO: re-enable Java publish
-    # if: needs.list-java-packages.outputs.java_paths != '[]'
+    if: needs.list-java-packages.outputs.java_paths != '[]'
     strategy:
       fail-fast: false
       matrix:
