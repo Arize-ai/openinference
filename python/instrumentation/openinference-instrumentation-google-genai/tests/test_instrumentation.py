@@ -73,33 +73,16 @@ def test_embed_content(
     # Define expected attributes
     expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_PROVIDER}": "google",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}": "get_weather",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}": json.dumps(
-            {"location": "San Francisco"}
-        ),
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.2.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_ID}": "call_abc123",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_TOOL_CALL_ID}": "call_abc123",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.3.{MessageAttributes.MESSAGE_CONTENT}": json.dumps(
-            {
-                "location": "San Francisco",
-                "temperature": 65,
-                "unit": "fahrenheit",
-                "condition": "foggy",
-                "humidity": "85%",
-            }
-        ),
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Why is the sky blue?\n\nWhat is the capital of France?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-embedding-001",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "EMBEDDING",
+        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
+            {
+                "task_type": "RETRIEVAL_DOCUMENT",
+            }
+        ),
     }
 
     # Check if token counts are available in the response
@@ -160,16 +143,16 @@ async def test_async_embed_content(
     # Define expected attributes
     expected_attributes: Dict[str, Any] = {
         f"{SpanAttributes.LLM_PROVIDER}": "google",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can answer questions and help with tasks.",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}": "What's the weather like?",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Why is the sky blue?\n\nWhat is the capital of France?",
         SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
         SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.LLM_MODEL_NAME: "gemini-embedding-001",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
-        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": response.text,
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "EMBEDDING",
+        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
+            {
+                "task_type": "RETRIEVAL_DOCUMENT",
+            }
+        ),
     }
 
     # Check if token counts are available in the response
