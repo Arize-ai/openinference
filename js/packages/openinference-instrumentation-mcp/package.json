@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-mcp",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "private": false,
   "description": "OpenInference instrumentation for MCP",
   "keywords": [],
