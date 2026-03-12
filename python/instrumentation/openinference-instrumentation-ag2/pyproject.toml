@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openinference-instrumentation-ag2"
+version = "0.1.0"
+description = "OpenInference instrumentation for AG2 (formerly AutoGen)"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+authors = [
+  { name = "OpenInference Authors", email = "oss@arize.com" },
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "openinference-instrumentation>=0.1.12",
+    "openinference-semantic-conventions>=0.1.9",
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-instrumentation",
+    "wrapt>=1.16.0",
+]
+
+[project.optional-dependencies]
+instruments = ["ag2>=0.11.0"]
+
+[project.entry-points."opentelemetry_instrumentor"]
+ag2 = "openinference.instrumentation.ag2:AG2Instrumentor"
+
+[project.entry-points."openinference_instrumentor"]
+ag2 = "openinference.instrumentation.ag2:AG2Instrumentor"
+
+[project.urls]
+Homepage = "https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-ag2"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openinference"]
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
+
+[tool.hatch.envs.test]
+dependencies = ["pytest", "opentelemetry-sdk", "ag2[openai]>=0.11.0", "openinference-instrumentation-ag2"]
+
+[tool.hatch.envs.test.scripts]
+run = "pytest tests/ -v"
+
+[tool.mypy]
+strict = true
+explicit_package_bases = true
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "autogen",
+  "autogen.*",
+  "wrapt",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+exclude = [
+  "examples",
+  "dist",
+  "sdist",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402", "E501"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
