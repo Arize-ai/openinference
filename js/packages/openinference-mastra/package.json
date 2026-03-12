@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-mastra",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "private": false,
   "description": "[DEPRECATED] OpenInference utilities for ingesting Mastra spans - Use @mastra/arize instead",
   "keywords": [
@@ -43,9 +43,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@arizeai/openinference-core": "2.0.5",
-    "@arizeai/openinference-semantic-conventions": "2.1.7",
-    "@arizeai/openinference-vercel": "2.5.5"
+    "@arizeai/openinference-core": "2.0.6",
+    "@arizeai/openinference-semantic-conventions": "2.2.0",
+    "@arizeai/openinference-vercel": "2.7.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
