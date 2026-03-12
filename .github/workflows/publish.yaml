@@ -90,7 +90,6 @@ jobs:
 
   list-java-packages:
     name: List Java packages from manifest
-    if: false # TODO: re-enable Java publish
     runs-on: ubuntu-latest
     outputs:
       java_paths: ${{ steps.paths.outputs.java_paths }}
@@ -130,8 +129,7 @@ jobs:
     name: Publish Java packages
     runs-on: ubuntu-latest
     needs: list-java-packages
-    if: false # TODO: re-enable Java publish
-    # if: needs.list-java-packages.outputs.java_paths != '[]'
+    if: needs.list-java-packages.outputs.java_paths != '[]'
     strategy:
       fail-fast: false
       matrix:
