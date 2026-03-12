@@ -1,3 +1,4 @@
+import base64
 import logging
 import warnings
 from functools import wraps
@@ -19,7 +20,13 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._with_span import _WithSpan
-from openinference.semconv.trace import OpenInferenceMimeTypeValues, SpanAttributes
+from openinference.semconv.trace import (
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    OpenInferenceMimeTypeValues,
+    SpanAttributes,
+)
 
 if TYPE_CHECKING:
     from google.genai import types
@@ -107,14 +114,14 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
                 value = obj.model_dump_json(exclude_unset=True)
             assert isinstance(value, str)
         except Exception:
-            logger.exception("Failed to get model dump json")
+            logger.warning("Failed to get model dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
     if not isinstance(obj, str) and isinstance(obj, (Sequence, Mapping)):
         try:
             value = safe_json_dumps(obj)
         except Exception:
-            logger.exception("Failed to dump json")
+            logger.warning("Failed to dump json")
         else:
             return _ValueAndType(value, OpenInferenceMimeTypeValues.JSON)
 
@@ -152,11 +159,11 @@ def _finish_tracing(
     try:
         attributes_dict = dict(attributes)
     except Exception:
-        logger.exception("Failed to get attributes")
+        logger.warning("Failed to get attributes")
     try:
         extra_attributes_dict = dict(extra_attributes)
     except Exception:
-        logger.exception("Failed to get extra attributes")
+        logger.warning("Failed to get extra attributes")
     try:
         with_span.finish_tracing(
             status=status,
@@ -165,6 +172,46 @@ def _finish_tracing(
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def get_attribute(obj: Any, attr_name: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(attr_name, default)
+    return getattr(obj, attr_name, default)
+
+
+def _get_attributes_from_content_text(
+    text: str, index: int, only_text: bool
+) -> Iterator[Tuple[str, AttributeValue]]:
+    if only_text:
+        yield MessageAttributes.MESSAGE_CONTENT, text
+    else:
+        yield (
+            f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
+            text,
+        )
+        yield (
+            f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}",
+            "text",
+        )
+
+
+def _get_attributes_from_inline_data(
+    inline_data: Any, tool_call_index: int
+) -> Iterator[Tuple[str, AttributeValue]]:
+    mime_type = get_attribute(inline_data, "mime_type")
+    if (
+        mime_type
+        and "image" in mime_type
+        and (data := get_attribute(inline_data, "data")) is not None
+    ):
+        prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{tool_call_index}."
+        image_url = f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
+        yield (
+            f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+            image_url,
+        )
+        yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
 
 
 def _stop_on_exception_for_dict(

@@ -7,6 +7,8 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
+    _get_attributes_from_content_text,
+    _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
 )
@@ -82,21 +84,24 @@ class _ResponseAttributesExtractor:
         content_parts: Iterable[object],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
-        text_content = []
         tool_call_index = 0
-
-        for part in content_parts:
+        content_index = 0
+        parts = list(content_parts)
+        is_single_part = len(parts) == 1
+        for part in parts:
+            increment_content_index = False
             if text := getattr(part, "text", None):
-                text_content.append(text)
+                yield from _get_attributes_from_content_text(text, content_index, is_single_part)
+                increment_content_index = True
             elif function_call := getattr(part, "function_call", None):
                 # Handle tool/function calls
                 yield from self._get_attributes_from_function_call(function_call, tool_call_index)
                 tool_call_index += 1
-
-        # Always yield message content for consistency, even if empty
-        # This ensures Phoenix can properly display the message structure
-        content = "\n".join(text_content) if text_content else ""
-        yield MessageAttributes.MESSAGE_CONTENT, content
+            if inline_data := getattr(part, "inline_data", None):
+                yield from _get_attributes_from_inline_data(inline_data, content_index)
+                increment_content_index = True
+            if increment_content_index:
+                content_index += 1
 
     def _get_attributes_from_function_call(
         self,
@@ -120,11 +125,11 @@ class _ResponseAttributesExtractor:
                         args_json,
                     )
                 except Exception:
-                    logger.exception(
+                    logger.warning(
                         f"Failed to serialize function call args for tool call {tool_call_index}"
                     )
         except Exception:
-            logger.exception(
+            logger.warning(
                 f"Failed to extract function call attributes for tool call {tool_call_index}"
             )
 
