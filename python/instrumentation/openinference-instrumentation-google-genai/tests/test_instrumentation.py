@@ -8,6 +8,7 @@ import pytest
 from google import genai
 from google.genai.types import (
     Content,
+    EmbedContentConfig,
     FunctionCall,
     FunctionDeclaration,
     FunctionResponse,
@@ -30,6 +31,129 @@ from openinference.semconv.trace import (
 
 class Answer(BaseModel):
     answer: str
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the client
+    client = genai.Client(api_key=api_key)
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+
+    # Make the API call
+    response = client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+    assert response is not None
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    # Verify expected attributes
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
+        == "user"
+    )
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {
+            "task_type": "RETRIEVAL_DOCUMENT",
+        }
+    )
+    assert not attributes, f"Unexpected attributes found: {attributes}"
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+@pytest.mark.asyncio
+async def test_async_embed_content(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    # Get API key from environment variable
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+
+    # Initialize the async client
+    client = genai.Client(api_key=api_key).aio
+
+    # Create content for the request
+    content = Content(
+        parts=[
+            Part.from_text(text="Why is the sky blue?"),
+            Part.from_text(text="What is the capital of France?"),
+        ],
+    )
+
+    # Create config
+    config = EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+
+    # Make the API call
+    response = await client.models.embed_content(
+        model="gemini-embedding-001", contents=content, config=config
+    )
+    assert response is not None
+
+    # Get the spans
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    # Verify expected attributes
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
+        == "user"
+    )
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {
+            "task_type": "RETRIEVAL_DOCUMENT",
+        }
+    )
+    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(
