@@ -63,43 +63,35 @@ def test_embed_content(
     response = client.models.embed_content(
         model="gemini-embedding-001", contents=content, config=config
     )
+    assert response is not None
 
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+
+    # Verify expected attributes
     attributes = dict(span.attributes or {})
-
-    # Define expected attributes
-    expected_attributes: Dict[str, Any] = {
-        f"{SpanAttributes.LLM_PROVIDER}": "google",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Why is the sky blue?\n\nWhat is the capital of France?",
-        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
-        SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: "EMBEDDING",
-        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
-            {
-                "task_type": "RETRIEVAL_DOCUMENT",
-            }
-        ),
-    }
-
-    # Check if token counts are available in the response
-    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
-        expected_attributes.update(
-            {
-                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
-            }
-        )
-
-    # Verify attributes
-    for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
+        == "user"
+    )
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {
+            "task_type": "RETRIEVAL_DOCUMENT",
+        }
+    )
+    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(
@@ -133,42 +125,35 @@ async def test_async_embed_content(
     response = await client.models.embed_content(
         model="gemini-embedding-001", contents=content, config=config
     )
+    assert response is not None
 
     # Get the spans
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1
     span = spans[0]
+
+    # Verify expected attributes
     attributes = dict(span.attributes or {})
-
-    # Define expected attributes
-    expected_attributes: Dict[str, Any] = {
-        f"{SpanAttributes.LLM_PROVIDER}": "google",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "user",
-        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "Why is the sky blue?\n\nWhat is the capital of France?",
-        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
-        SpanAttributes.INPUT_MIME_TYPE: "application/json",
-        SpanAttributes.OPENINFERENCE_SPAN_KIND: "EMBEDDING",
-        SpanAttributes.LLM_INVOCATION_PARAMETERS: json.dumps(
-            {
-                "task_type": "RETRIEVAL_DOCUMENT",
-            }
-        ),
-    }
-
-    # Check if token counts are available in the response
-    if hasattr(response, "usage_metadata") and response.usage_metadata is not None:
-        expected_attributes.update(
-            {
-                SpanAttributes.LLM_TOKEN_COUNT_TOTAL: response.usage_metadata.total_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_PROMPT: response.usage_metadata.prompt_token_count,
-                SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: response.usage_metadata.candidates_token_count,
-            }
-        )
-    # Verify attributes
-    for key, expected_value in expected_attributes.items():
-        assert attributes.get(key) == expected_value, (
-            f"Attribute {key} does not match expected value"
-        )
+    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
+        == "user"
+    )
+    assert (
+        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
+        {
+            "task_type": "RETRIEVAL_DOCUMENT",
+        }
+    )
+    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(

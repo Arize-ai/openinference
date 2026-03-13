@@ -140,6 +140,7 @@ class _SyncEmbedContentWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters["span_kind"] = EMBEDDING
 
         span_name = "EmbedContent"
         with self._start_as_current_span(
@@ -198,6 +199,7 @@ class _AsyncEmbedContentWrapper(_WithTracer):
                 invocation_parameters.update(arg)
         invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters["span_kind"] = EMBEDDING
 
         span_name = "AsyncEmbedContent"
         with self._start_as_current_span(
@@ -634,10 +636,10 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         return response
 
 
-CHAIN = OpenInferenceSpanKindValues.CHAIN
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
-EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
-LLM = OpenInferenceSpanKindValues.LLM
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
+LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
