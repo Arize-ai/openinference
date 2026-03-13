@@ -53,7 +53,7 @@ class _RequestAttributesExtractor:
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield (
             SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            request_parameters.pop("span_kind", OpenInferenceSpanKindValues.LLM.value),
+            request_parameters.get("span_kind") or OpenInferenceSpanKindValues.LLM.value,
         )
         yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
         try:
