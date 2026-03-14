@@ -9,6 +9,7 @@ This project provides Java libraries for instrumenting AI/ML applications with O
 - **openinference-semantic-conventions**: Java constants for OpenInference semantic conventions
 - **openinference-instrumentation**: Base instrumentation utilities
 - **openinference-instrumentation-langchain4j**: Auto-instrumentation for LangChain4j applications
+- **openinference-instrumentation-annotations**: Annotation-based manual tracing (`@TraceChain`, `@TraceLLM`, `@TraceTool`, `@TraceAgent`)
 
 ## Requirements
 
@@ -76,34 +77,79 @@ OpenAiChatModel model = OpenAiChatModel.builder()
 String response = model.generate("What is the capital of France?");
 ```
 
-### Manual instrumentation
+### Annotation-based tracing
+
+Annotate your methods with `@TraceChain`, `@TraceLLM`, `@TraceTool`, or `@TraceAgent` to
+automatically create OpenInference spans. The ByteBuddy agent intercepts annotated methods
+at class load time, capturing inputs and outputs as span attributes.
 
 ```java
-import io.opentelemetry.api.GlobalOpenTelemetry;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.Tracer;
-import io.openinference.instrumentation.OITracer;
-import io.openinference.semconv.trace.SpanAttributes;
+import com.arize.instrumentation.annotations.*;
 
-// Create an OITracer
+public class QAService {
+
+    @TraceAgent(name = "qa-agent")
+    public String answer(String question) {
+        String context = retrieve(question);
+        return generate(question, context);
+    }
+
+    @TraceChain(name = "retriever")
+    public String retrieve(String query) {
+        // retrieval logic
+        return "OpenInference is a tracing standard";
+    }
+
+    @TraceLLM(name = "generator")
+    public String generate(String query, @SpanIgnore String context) {
+        // LLM call
+        return "OpenInference provides tracing for AI apps.";
+    }
+
+    @TraceTool(name = "weather", description = "Gets current weather")
+    public Map<String, Object> getWeather(String location) {
+        return Map.of("temp", 72, "condition", "sunny");
+    }
+}
+```
+
+Register the tracer at startup to activate annotation-based tracing:
+
+```java
+import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.annotations.OpenInferenceAgent;
+
+Tracer otelTracer = GlobalOpenTelemetry.getTracer("my-app");
+OITracer tracer = new OITracer(otelTracer);
+OpenInferenceAgent.register(tracer);
+```
+
+### Programmatic tracing with typed spans
+
+For more control, use the `TracedSpan` API directly with try-with-resources:
+
+```java
+import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.annotations.*;
+
 Tracer otelTracer = GlobalOpenTelemetry.getTracer("my-app");
 OITracer tracer = new OITracer(otelTracer);
 
-// Create an LLM span
-Span span = tracer.llmSpanBuilder("chat", "gpt-4")
-    .setAttribute(SpanAttributes.LLM_MODEL_NAME, "gpt-4")
-    .setAttribute(SpanAttributes.LLM_PROVIDER, "openai")
-    .startSpan();
+try (TracedAgentSpan agent = TracedAgentSpan.start(tracer, "qa-agent")) {
+    agent.setInput("What is OpenInference?");
+    agent.setAgentName("qa-agent");
 
-try {
-    // Your LLM call here
-    // ...
-    
-    // Set response attributes
-    span.setAttribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, 10L);
-    span.setAttribute(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, 20L);
-} finally {
-    span.end();
+    try (TracedLLMSpan llm = TracedLLMSpan.start(tracer, "generate")) {
+        llm.setInput("What is OpenInference?");
+        llm.setModelName("gpt-4o");
+
+        String answer = callLLM("What is OpenInference?");
+
+        llm.setOutput(answer);
+        llm.setTokenCountTotal(150);
+    }
+
+    agent.setOutput("OpenInference is a tracing standard for AI apps.");
 }
 ```
 
