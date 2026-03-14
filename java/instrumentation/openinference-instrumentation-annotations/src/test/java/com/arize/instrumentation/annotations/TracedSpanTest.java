@@ -143,6 +143,98 @@ class TracedSpanTest {
     }
 
     @Test
+    void setOutputNullIsNoOp() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "null-output")) {
+            span.setInput("input");
+            span.setOutput(null);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+    }
+
+    @Test
+    void hideOutputsRespectsTraceConfig() {
+        TraceConfig config = TraceConfig.builder().hideOutputs(true).build();
+        OITracer maskedTracer = new OITracer(
+                SdkTracerProvider.builder()
+                        .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                        .build()
+                        .get("test"),
+                config);
+
+        try (TracedChainSpan span = TracedChainSpan.start(maskedTracer, "masked-output")) {
+            span.setInput("visible");
+            span.setOutput("should-be-hidden");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isEqualTo("visible");
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+    }
+
+    @Test
+    void setMetadataSerialized() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "metadata-test")) {
+            span.setMetadata(Map.of("env", "prod", "version", "1.0"));
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        String metadata = data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.METADATA));
+        assertThat(metadata).isNotNull();
+        assertThat(metadata).contains("env");
+        assertThat(metadata).contains("prod");
+    }
+
+    @Test
+    void setTagsRecorded() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "tags-test")) {
+            span.setTags(List.of("qa", "production"));
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        List<String> tags = data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS));
+        assertThat(tags).containsExactlyInAnyOrder("qa", "production");
+    }
+
+    @Test
+    void setAttributeSerializesValue() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "attr-test")) {
+            span.setAttribute("custom.key", "custom-value");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("custom.key")))
+                .isEqualTo("custom-value");
+    }
+
+    @Test
+    void setAttributeWithMapSerializesToJson() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "attr-json-test")) {
+            span.setAttribute("custom.json", Map.of("nested", "value"));
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        String attr = data.getAttributes().get(AttributeKey.stringKey("custom.json"));
+        assertThat(attr).contains("nested");
+        assertThat(attr).contains("value");
+    }
+
+    @Test
+    void stringInputSetsMimeTypeText() {
+        try (TracedChainSpan span = TracedChainSpan.start(tracer, "text-mime")) {
+            span.setInput("plain text");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo(SemanticConventions.MimeType.TEXT.getValue());
+    }
+
+    @Test
     void setSessionIdAndUserId() {
         try (TracedChainSpan span = TracedChainSpan.start(tracer, "context-test")) {
             span.setSessionId("session-123");

@@ -68,10 +68,70 @@ class SpanHelperTest {
         assertThat(input).containsEntry("input", "hello");
     }
 
+    @Test
+    void buildInputMapNoParams() throws Exception {
+        var method = TestTarget.class.getMethod("noParams");
+        Object[] args = {};
+
+        Map<String, Object> input = SpanHelper.buildInputMap(method, args);
+
+        assertThat(input).isEmpty();
+    }
+
+    @Test
+    void buildInputMapAllIgnored() throws Exception {
+        var method = TestTarget.class.getMethod("allIgnored", String.class, String.class);
+        Object[] args = {"a", "b"};
+
+        Map<String, Object> input = SpanHelper.buildInputMap(method, args);
+
+        assertThat(input).isEmpty();
+    }
+
+    @Test
+    void serializeIntegerReturnsJson() {
+        SpanHelper.SerializedValue result = SpanHelper.serialize(42);
+        assertThat(result.value()).isEqualTo("42");
+        assertThat(result.isJson()).isTrue();
+    }
+
+    @Test
+    void serializeListReturnsJson() {
+        SpanHelper.SerializedValue result = SpanHelper.serialize(java.util.List.of("a", "b", "c"));
+        assertThat(result.isJson()).isTrue();
+        assertThat(result.value()).contains("a");
+        assertThat(result.value()).contains("b");
+    }
+
+    @Test
+    void serializeBooleanReturnsJson() {
+        SpanHelper.SerializedValue result = SpanHelper.serialize(true);
+        assertThat(result.value()).isEqualTo("true");
+        assertThat(result.isJson()).isTrue();
+    }
+
+    @Test
+    void nonSerializableFallsBackToString() {
+        Object obj = new Object() {
+            @Override
+            public String toString() {
+                return "fallback-string";
+            }
+        };
+        SpanHelper.SerializedValue result = SpanHelper.serialize(obj);
+        assertThat(result).isNotNull();
+        assertThat(result.value()).isEqualTo("fallback-string");
+        assertThat(result.isJson()).isFalse();
+    }
+
     // Test target class for reflection
     public static class TestTarget {
         public void myMethod(String query, @SpanIgnore String secret, int count) {}
 
         public void singleParam(String input) {}
+
+        public void noParams() {}
+
+        public void allIgnored(@SpanIgnore String a, @SpanIgnore String b) {}
     }
 }
