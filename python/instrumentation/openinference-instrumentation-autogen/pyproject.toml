@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "openinference-instrumentation-autogen"
 dynamic = ["version"]
-description = "OpenInference Autogen Instrumentation"
+description = "OpenInference Instrumentation for AG2 (formerly AutoGen)"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10, <3.15"
@@ -29,12 +29,17 @@ dependencies = [
   "opentelemetry-instrumentation",
   "opentelemetry-semantic-conventions",
   "openinference-instrumentation>=0.1.27",
+  "wrapt>=1.16.0",
   "openinference-semantic-conventions>=0.1.17",
 ]
 
 [project.optional-dependencies]
 instruments = [
-  "autogen >= 0.5.0",
+  "ag2 >= 0.11.0",
+]
+test = [
+  "ag2 >= 0.11.0",
+  "opentelemetry-sdk",
 ]
 
 [project.entry-points.opentelemetry_instrumentor]
@@ -77,11 +82,13 @@ exclude = [
 ignore_missing_imports = true
 module = [
   "wrapt",
+  "autogen",
+  "autogen.*",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["E402", "E501"]

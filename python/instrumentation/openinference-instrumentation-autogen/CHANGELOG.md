@@ -1,3 +1,15 @@
+## [0.2.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.10...python-openinference-instrumentation-autogen-v0.2.0) (2026-03-13)
+
+### Features
+
+* Update instrumentation to target AG2 (formerly AutoGen) v0.11+
+* Migrate to `BaseInstrumentor` + `wrapt` + `OITracer` + `TraceConfig` canonical pattern
+* Add wrappers for `GroupChatManager.run_chat` (CHAIN + Phoenix graph topology), `run_swarm` (CHAIN), `ReasoningAgent.generate_reply` (AGENT + tree-of-thought attrs), and `ConversableAgent.initiate_chats` (CHAIN)
+* Add AG2-specific span attributes in `ag2.*` namespace
+* Proper `_uninstrument()` via `resolve_path` / `setattr` (no global state leaks)
+* Expand test coverage from 1 smoke test to 5 span-asserting tests
+
+
 # Changelog
 
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-autogen-v0.1.9...python-openinference-instrumentation-autogen-v0.1.10) (2025-10-10)
