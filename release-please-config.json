@@ -185,6 +185,17 @@
                     "path": "java/instrumentation/openinference-instrumentation-springAI/gradle.properties"
                 }
             ]
+        },
+        "java/instrumentation/openinference-instrumentation-annotations": {
+            "package-name": "java-openinference-instrumentation-annotations",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-annotations/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-annotations/gradle.properties"
+                }
+            ]
         }
     }
 }
