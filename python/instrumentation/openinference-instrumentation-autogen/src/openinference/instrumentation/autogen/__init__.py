@@ -1,237 +1,84 @@
-import json
-from typing import Any, Callable, Dict, Optional, Union
+"""
+OpenInference instrumentation for AG2 (formerly AutoGen) v0.11+.
+
+Instruments the following AG2 entry points:
+  ConversableAgent.initiate_chat      → CHAIN span (conversation root)
+  ConversableAgent.generate_reply     → AGENT span (per turn)
+  ConversableAgent.execute_function   → TOOL span
+  GroupChatManager.run_chat           → CHAIN span + graph topology
+  run_swarm                           → CHAIN span
+  ReasoningAgent.generate_reply       → AGENT span + tree-of-thought attrs
+  ConversableAgent.initiate_chats     → CHAIN span (nested chat pipeline)
+"""
+
+from typing import Any, Collection, List, Tuple
 
 from opentelemetry import trace
-from opentelemetry.trace import Link, SpanContext, Status, StatusCode
+from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
+from wrapt import resolve_path, wrap_function_wrapper
+
+from openinference.instrumentation import OITracer, TraceConfig
+
+from ._wrappers import (
+    _ExecuteFunctionWrapper,
+    _GenerateReplyWrapper,
+    _GroupChatWrapper,
+    _InitiateChatWrapper,
+    _InitiateChatsWrapper,
+    _ReasoningAgentWrapper,
+    _SwarmChatWrapper,
+)
+from .version import __version__
+
+_METHODS = [
+    ("autogen", "ConversableAgent.initiate_chat", _InitiateChatWrapper),
+    ("autogen", "ConversableAgent.generate_reply", _GenerateReplyWrapper),
+    ("autogen", "ConversableAgent.execute_function", _ExecuteFunctionWrapper),
+    ("autogen", "GroupChatManager.run_chat", _GroupChatWrapper),
+    ("autogen", "run_swarm", _SwarmChatWrapper),
+    ("autogen", "ConversableAgent.initiate_chats", _InitiateChatsWrapper),
+]
+
+_REASONING_MODULE = "autogen.agents.experimental"
+_REASONING_METHOD = "ReasoningAgent.generate_reply"
 
 
-class AutogenInstrumentor:
-    def __init__(self) -> None:
-        self.tracer = trace.get_tracer(__name__)
-        self._original_generate: Optional[Callable[..., Any]] = None
-        self._original_initiate_chat: Optional[Callable[..., Any]] = None
-        self._original_execute_function: Optional[Callable[..., Any]] = None
+class AutogenInstrumentor(BaseInstrumentor):
+    """
+    OpenInference instrumentor for AG2 (formerly AutoGen) v0.11+.
 
-    def _safe_json_dumps(self, obj: Any) -> str:
-        try:
-            return json.dumps(obj)
-        except (TypeError, ValueError):
-            return json.dumps(str(obj))
+    Usage:
+        from openinference.instrumentation.autogen import AutogenInstrumentor
+        AutogenInstrumentor().instrument(tracer_provider=provider)
+    """
 
-    def instrument(self) -> "AutogenInstrumentor":
-        from autogen import ConversableAgent  # type: ignore
+    def instrumentation_dependencies(self) -> Collection[str]:
+        return ("ag2 >= 0.11.0",)
 
-        # Save original methods
-        self._original_generate = ConversableAgent.generate_reply
-        self._original_initiate_chat = ConversableAgent.initiate_chat
-        self._original_execute_function = ConversableAgent.execute_function
+    def _instrument(self, **kwargs: Any) -> None:
+        tracer_provider = kwargs.get("tracer_provider")
+        tracer = OITracer(
+            trace.get_tracer(__name__, __version__, tracer_provider=tracer_provider),
+            config=kwargs.get("config", TraceConfig()),
+        )
+        # Save (parent, attribute, original) tuples before wrapping so
+        # _uninstrument can restore them. wrapt has no unwrap() — the correct
+        # pattern is resolve_path before wrapping, then setattr to restore.
+        self._originals: List[Tuple[Any, str, Any]] = []
+        for module, method, wrapper_cls in _METHODS:
+            parent, attribute, original = resolve_path(module, method)
+            self._originals.append((parent, attribute, original))
+            wrap_function_wrapper(module, method, wrapper_cls(tracer))
 
-        instrumentor = self
+        # ReasoningAgent lives in autogen.agents.experimental in AG2 0.11+
+        parent, attribute, original = resolve_path(_REASONING_MODULE, _REASONING_METHOD)
+        self._originals.append((parent, attribute, original))
+        wrap_function_wrapper(_REASONING_MODULE, _REASONING_METHOD, _ReasoningAgentWrapper(tracer))
 
-        def wrapped_generate(
-            agent_self: ConversableAgent,
-            messages: Optional[Any] = None,
-            sender: Optional[str] = None,
-            **kwargs: Any,
-        ) -> Any:
-            try:
-                current_span = trace.get_current_span()
-                current_context: SpanContext = current_span.get_span_context()
-
-                with instrumentor.tracer.start_as_current_span(
-                    agent_self.__class__.__name__,
-                    context=trace.set_span_in_context(current_span),
-                    links=[Link(current_context)],
-                ) as span:
-                    span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "AGENT")
-                    span.set_attribute(
-                        SpanAttributes.INPUT_VALUE,
-                        instrumentor._safe_json_dumps(messages),
-                    )
-                    span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, "application/json")
-                    span.set_attribute("agent.type", agent_self.__class__.__name__)
-
-                    if instrumentor._original_generate is not None:
-                        response = instrumentor._original_generate(
-                            agent_self, messages=messages, sender=sender, **kwargs
-                        )
-                    else:
-                        # Fallback or raise an error if needed
-                        response = None
-
-                    span.set_attribute(
-                        SpanAttributes.OUTPUT_VALUE,
-                        instrumentor._safe_json_dumps(response),
-                    )
-                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
-
-                    return response
-            except Exception as e:
-                if span is not None:
-                    span.set_status(Status(StatusCode.ERROR))
-                    span.record_exception(e)
-                raise
-
-        def wrapped_initiate_chat(
-            agent_self: ConversableAgent, recipient: Any, *args: Any, **kwargs: Any
-        ) -> Any:
-            try:
-                message = kwargs.get("message", args[0] if args else None)
-                current_span = trace.get_current_span()
-                current_context: SpanContext = current_span.get_span_context()
-
-                with instrumentor.tracer.start_as_current_span(
-                    "Autogen",
-                    context=trace.set_span_in_context(current_span),
-                    links=[Link(current_context)],
-                ) as span:
-                    span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "AGENT")
-                    span.set_attribute(
-                        SpanAttributes.INPUT_VALUE,
-                        instrumentor._safe_json_dumps(message),
-                    )
-                    span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, "application/json")
-
-                    if instrumentor._original_initiate_chat is not None:
-                        result = instrumentor._original_initiate_chat(
-                            agent_self, recipient, *args, **kwargs
-                        )
-                    else:
-                        result = None
-
-                    if hasattr(result, "chat_history") and result.chat_history:
-                        last_message = result.chat_history[-1]["content"]
-                        span.set_attribute(
-                            SpanAttributes.OUTPUT_VALUE,
-                            instrumentor._safe_json_dumps(last_message),
-                        )
-                    else:
-                        span.set_attribute(
-                            SpanAttributes.OUTPUT_VALUE,
-                            instrumentor._safe_json_dumps(result),
-                        )
-
-                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
-
-                    return result
-            except Exception as e:
-                if span is not None:
-                    span.set_status(Status(StatusCode.ERROR))
-                    span.record_exception(e)
-                raise
-
-        def wrapped_execute_function(
-            agent_self: ConversableAgent,
-            func_call: Union[str, Dict[str, Any]],
-            call_id: Optional[str] = None,
-            verbose: bool = False,
-        ) -> Any:
-            try:
-                current_span = trace.get_current_span()
-                current_context: SpanContext = current_span.get_span_context()
-
-                # Handle both dictionary and string inputs
-                if isinstance(func_call, str):
-                    function_name = func_call
-                    func_call = {"name": function_name}
-                else:
-                    function_name = func_call.get("name", "unknown")
-
-                with instrumentor.tracer.start_as_current_span(
-                    f"{function_name}",
-                    context=trace.set_span_in_context(current_span),
-                    links=[Link(current_context)],
-                ) as span:
-                    span.set_attribute(SpanAttributes.OPENINFERENCE_SPAN_KIND, "TOOL")
-                    span.set_attribute(SpanAttributes.TOOL_NAME, function_name)
-
-                    # Record input
-                    span.set_attribute(
-                        SpanAttributes.INPUT_VALUE,
-                        instrumentor._safe_json_dumps(func_call),
-                    )
-                    span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, "application/json")
-
-                    # If the agent stores a function map, you can store annotations
-                    if hasattr(agent_self, "_function_map"):
-                        function_map = getattr(agent_self, "_function_map", {})
-                        if function_name in function_map:
-                            func = function_map[function_name]
-                            if hasattr(func, "__annotations__"):
-                                span.set_attribute(
-                                    SpanAttributes.TOOL_PARAMETERS,
-                                    instrumentor._safe_json_dumps(func.__annotations__),
-                                )
-
-                    # Record function call details
-                    if isinstance(func_call, dict):
-                        # Record function arguments
-                        if "arguments" in func_call:
-                            span.set_attribute(
-                                SpanAttributes.TOOL_CALL_FUNCTION_ARGUMENTS,
-                                instrumentor._safe_json_dumps(func_call["arguments"]),
-                            )
-
-                        # Record function name
-                        span.set_attribute(SpanAttributes.TOOL_CALL_FUNCTION_NAME, function_name)
-
-                    # Execute function
-                    if instrumentor._original_execute_function is not None:
-                        result = instrumentor._original_execute_function(
-                            agent_self, func_call, call_id=call_id, verbose=verbose
-                        )
-                    else:
-                        result = None
-
-                    # Record output
-                    span.set_attribute(
-                        SpanAttributes.OUTPUT_VALUE,
-                        instrumentor._safe_json_dumps(result),
-                    )
-                    span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, "application/json")
-
-                    return result
-
-            except Exception as e:
-                if span is not None:
-                    span.set_status(Status(StatusCode.ERROR))
-                    span.record_exception(e)
-                raise
-
-        # Replace methods on ConversableAgent with wrapped versions
-        ConversableAgent.generate_reply = wrapped_generate
-        ConversableAgent.initiate_chat = wrapped_initiate_chat
-        ConversableAgent.execute_function = wrapped_execute_function
-
-        return self
-
-    def uninstrument(self) -> "AutogenInstrumentor":
-        """Restore original behavior."""
-        from autogen import ConversableAgent
-
-        if (
-            self._original_generate
-            and self._original_initiate_chat
-            and self._original_execute_function
-        ):
-            ConversableAgent.generate_reply = self._original_generate
-            ConversableAgent.initiate_chat = self._original_initiate_chat
-            ConversableAgent.execute_function = self._original_execute_function
-            self._original_generate = None
-            self._original_initiate_chat = None
-            self._original_execute_function = None
-        return self
+    def _uninstrument(self, **kwargs: Any) -> None:
+        for parent, attribute, original in getattr(self, "_originals", []):
+            setattr(parent, attribute, original)
+        self._originals = []
 
 
-class SpanAttributes:
-    OPENINFERENCE_SPAN_KIND: str = "openinference.span.kind"
-    INPUT_VALUE: str = "input.value"
-    INPUT_MIME_TYPE: str = "input.mime_type"
-    OUTPUT_VALUE: str = "output.value"
-    OUTPUT_MIME_TYPE: str = "output.mime_type"
-    TOOL_NAME: str = "tool.name"
-    TOOL_ARGS: str = "tool.args"
-    TOOL_KWARGS: str = "tool.kwargs"
-    TOOL_PARAMETERS: str = "tool.parameters"
-    TOOL_CALL_FUNCTION_ARGUMENTS: str = "tool_call.function.arguments"
-    TOOL_CALL_FUNCTION_NAME: str = "tool_call.function.name"
+__all__ = ["AutogenInstrumentor"]

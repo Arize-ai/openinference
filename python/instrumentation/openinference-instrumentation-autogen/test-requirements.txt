@@ -1,2 +1,2 @@
-autogen==0.5.0
+ag2>=0.11.0
 opentelemetry-sdk
