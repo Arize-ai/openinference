@@ -2,9 +2,14 @@ package com.arize.instrumentation.langchain4j;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.TraceConfig;
+import com.arize.instrumentation.langchain4j.utils.SpanContext;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.TracerProvider;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
@@ -19,7 +24,7 @@ public class LangChain4jInstrumentor {
 
     private final OITracer tracer;
     private final TraceConfig config;
-
+    private final Map<UUID, SpanContext> aiServiceSpans = new ConcurrentHashMap<>();
     private LangChain4jInstrumentor(OITracer tracer, TraceConfig config) {
         this.tracer = tracer;
         this.config = config;
@@ -108,4 +113,17 @@ public class LangChain4jInstrumentor {
     public LangChain4jModelListener createModelListener() {
         return new LangChain4jModelListener(tracer);
     }
+
+    public LangChain4jAiServiceStartedListener createAiServiceStartedListener() {
+        return new LangChain4jAiServiceStartedListener(tracer, aiServiceSpans);
+    }
+
+    public LangChain4jServiceCompletedListener createAiServiceCompletedListener() {
+        return new LangChain4jServiceCompletedListener(tracer, aiServiceSpans);
+    }
+
+    public LangChain4jToolExecutedEventListener createToolExecutedListener() {
+        return new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans);
+    }
+
 }
