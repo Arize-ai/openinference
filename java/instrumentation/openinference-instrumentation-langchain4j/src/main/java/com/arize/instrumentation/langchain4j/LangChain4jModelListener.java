@@ -11,6 +11,7 @@ import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.chat.listener.*;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.observability.api.AiServiceListenerRegistrar;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
