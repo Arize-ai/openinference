@@ -461,7 +461,7 @@ public class SemanticConventions {
     /**
      * Parameters used during the invocation of an embedding model or API (excluding input).
      */
-    public static final String EMBEDDING_INVOCATION_PATAMETERS =
+    public static final String EMBEDDING_INVOCATION_PARAMETERS =
             SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.INVOCATION_PARAMETERS;
 
     /**
