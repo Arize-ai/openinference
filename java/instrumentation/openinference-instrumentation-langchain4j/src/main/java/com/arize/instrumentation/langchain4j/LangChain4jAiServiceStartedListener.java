@@ -15,9 +15,9 @@ import java.util.UUID;
 public class LangChain4jAiServiceStartedListener implements AiServiceStartedListener {
 
     private final OITracer tracer;
-    private final Map<UUID, SpanContext> activeSpans;
+    private final Map<String, SpanContext> activeSpans;
 
-    public LangChain4jAiServiceStartedListener(OITracer tracer, Map<UUID, SpanContext> activeSpans) {
+    public LangChain4jAiServiceStartedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
     }
@@ -25,7 +25,7 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
     @Override
     public void onEvent(AiServiceStartedEvent aiServiceStartedEvent) {
 
-        Span span = tracer.spanBuilder("AiService.start")
+        Span span = tracer.spanBuilder("AiService.chat")
                 .setParent(Context.current())
                 .setSpanKind(SpanKind.CLIENT)
                 .startSpan();
@@ -36,7 +36,7 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
         span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
         span.setAttribute(SemanticConventions.INPUT_VALUE, "Execution Started");
         activeSpans.put(
-                aiServiceStartedEvent.invocationContext().invocationId(),
+                aiServiceStartedEvent.invocationContext().invocationId().toString(),
                 new SpanContext(span, Context.current().with(span))
         );
     }

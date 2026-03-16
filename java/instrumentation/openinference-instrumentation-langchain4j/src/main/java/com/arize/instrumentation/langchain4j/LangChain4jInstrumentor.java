@@ -24,7 +24,7 @@ public class LangChain4jInstrumentor {
 
     private final OITracer tracer;
     private final TraceConfig config;
-    private final Map<UUID, SpanContext> aiServiceSpans = new ConcurrentHashMap<>();
+    private final Map<String, SpanContext> aiServiceSpans = new ConcurrentHashMap<>();
     private LangChain4jInstrumentor(OITracer tracer, TraceConfig config) {
         this.tracer = tracer;
         this.config = config;
@@ -130,4 +130,7 @@ public class LangChain4jInstrumentor {
         return new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans);
     }
 
+    public LangChain4jServiceRequestIssuedListener createServiceRequestIssuedListener() {
+        return new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans);
+    }
 }

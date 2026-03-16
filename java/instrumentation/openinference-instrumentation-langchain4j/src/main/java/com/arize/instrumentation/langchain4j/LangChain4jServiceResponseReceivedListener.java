@@ -18,34 +18,22 @@ import java.util.UUID;
 public class LangChain4jServiceResponseReceivedListener implements AiServiceResponseReceivedListener {
 
     private final OITracer tracer;
-    private final Map<UUID, SpanContext> activeSpans;
+    private final Map<String, SpanContext> activeSpans;
 
-    public LangChain4jServiceResponseReceivedListener(OITracer tracer, Map<UUID, SpanContext> activeSpans) {
+    public LangChain4jServiceResponseReceivedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
     }
 
     @Override
     public void onEvent(AiServiceResponseReceivedEvent event) {
-        UUID invocationId = event.invocationContext().invocationId();
-        SpanContext parentSpanContext = activeSpans.get(invocationId);
-        Context context = parentSpanContext != null
-                ? parentSpanContext.context() // Use AiService span's context
-                : Context.current();
-
-        Span span = tracer.spanBuilder("AiService.chat")
-                .setParent(context)
-                .setSpanKind(SpanKind.CLIENT)
-                .startSpan();
-
-        // Set basic attributes
-        span.setAttribute(
-                SemanticConventions.OPENINFERENCE_SPAN_KIND,
-                SemanticConventions.OpenInferenceSpanKind.LLM.getValue()
-        );
-        span.setAttribute(SemanticConventions.INPUT_VALUE, "LLM REQUEST");
-        span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.response().toString());
-        span.setStatus(StatusCode.OK);
-        span.end();
+        String invocationId = event.invocationContext().invocationId().toString();
+        SpanContext spanContext = activeSpans.remove("chat_" + invocationId);
+        if (spanContext != null) {
+            Span span = spanContext.span();
+            span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.response().toString());
+            span.setStatus(StatusCode.OK);
+            span.end();
+        }
     }
 }

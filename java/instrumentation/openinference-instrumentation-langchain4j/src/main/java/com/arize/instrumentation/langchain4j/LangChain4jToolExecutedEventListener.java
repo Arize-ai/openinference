@@ -16,16 +16,16 @@ import java.util.UUID;
 public class LangChain4jToolExecutedEventListener implements ToolExecutedEventListener {
 
     private final OITracer tracer;
-    private final Map<UUID, SpanContext> activeSpans;
+    private final Map<String, SpanContext> activeSpans;
 
-    public LangChain4jToolExecutedEventListener(OITracer tracer, Map<UUID, SpanContext> activeSpans) {
+    public LangChain4jToolExecutedEventListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
     }
 
     @Override
     public void onEvent(ToolExecutedEvent toolExecutedEvent) {
-        UUID invocationId = toolExecutedEvent.invocationContext().invocationId();
+        String invocationId = toolExecutedEvent.invocationContext().invocationId().toString();
         SpanContext parentSpanContext = activeSpans.get(invocationId);
         Context context = parentSpanContext != null
                 ? parentSpanContext.context() // Use AiService span's context

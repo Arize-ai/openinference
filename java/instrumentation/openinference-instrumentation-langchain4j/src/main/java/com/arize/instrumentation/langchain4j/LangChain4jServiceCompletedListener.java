@@ -15,16 +15,16 @@ import java.util.UUID;
 public class LangChain4jServiceCompletedListener implements AiServiceCompletedListener {
 
     private final OITracer tracer;
-    private final Map<UUID, SpanContext> activeSpans;
+    private final Map<String, SpanContext> activeSpans;
 
-    public LangChain4jServiceCompletedListener(OITracer tracer, Map<UUID, SpanContext> activeSpans) {
+    public LangChain4jServiceCompletedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
     }
 
     @Override
     public void onEvent(AiServiceCompletedEvent aiServiceCompletedEvent) {
-        SpanContext spanContext = activeSpans.remove(aiServiceCompletedEvent.invocationContext().invocationId());
+        SpanContext spanContext = activeSpans.remove(aiServiceCompletedEvent.invocationContext().invocationId().toString());
         if (spanContext != null) {
             Span span = spanContext.span();
             span.setStatus(StatusCode.OK);
