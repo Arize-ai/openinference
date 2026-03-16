@@ -7,6 +7,7 @@ import dev.langchain4j.observability.api.event.AiServiceCompletedEvent;
 import dev.langchain4j.observability.api.listener.AiServiceCompletedListener;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Scope;
 
 
 import java.util.Map;
@@ -27,9 +28,12 @@ public class LangChain4jServiceCompletedListener implements AiServiceCompletedLi
         SpanContext spanContext = activeSpans.remove(aiServiceCompletedEvent.invocationContext().invocationId().toString());
         if (spanContext != null) {
             Span span = spanContext.span();
-            span.setStatus(StatusCode.OK);
-            span.setAttribute(SemanticConventions.OUTPUT_VALUE, "Execution Completed");
-            span.end();
+            try (Scope scope = spanContext.context().makeCurrent()) {
+                span.setStatus(StatusCode.OK);
+                span.setAttribute(SemanticConventions.OUTPUT_VALUE, "Execution Completed");
+            } finally {
+                span.end();
+            }
         }
     }
 }
