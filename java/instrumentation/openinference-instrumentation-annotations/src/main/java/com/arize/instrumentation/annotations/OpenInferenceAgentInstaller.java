@@ -4,6 +4,7 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
 
 import java.lang.instrument.Instrumentation;
 import java.util.jar.JarFile;
+import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.Advice;
 import org.slf4j.Logger;
@@ -13,13 +14,23 @@ public class OpenInferenceAgentInstaller {
 
     private static final Logger log = LoggerFactory.getLogger(OpenInferenceAgentInstaller.class);
 
-    public static void premain(String args, Instrumentation inst) {
-        log.info("Installing OpenInference annotation tracing agent");
+    /**
+     * Install the annotation tracing agent at runtime (no -javaagent flag needed).
+     * Call this before any annotated classes are loaded for best results.
+     */
+    public static void install() {
+        log.info("Installing OpenInference annotation tracing agent (runtime attach)");
+        Instrumentation inst = ByteBuddyAgent.install();
+        installAgent(inst);
+        log.info("OpenInference annotation tracing agent installed");
+    }
 
-        // Append agent JAR to bootstrap classloader so that advice classes
-        // (TracedSpan, TraceAdvice, etc.) are visible from any classloader.
-        // ByteBuddy Advice is inlined into target methods, so all referenced
-        // classes must be on the target class's classloader or bootstrap.
+    /**
+     * Entry point when loaded as a -javaagent.
+     */
+    public static void premain(String args, Instrumentation inst) {
+        log.info("Installing OpenInference annotation tracing agent (premain)");
+
         try {
             String agentJarPath = OpenInferenceAgentInstaller.class
                     .getProtectionDomain()
@@ -32,6 +43,11 @@ public class OpenInferenceAgentInstaller {
             log.warn("Failed to append agent JAR to bootstrap classloader", e);
         }
 
+        installAgent(inst);
+        log.info("OpenInference annotation tracing agent installed");
+    }
+
+    private static void installAgent(Instrumentation inst) {
         new AgentBuilder.Default()
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
                 .type(declaresMethod(isAnnotatedWith(TraceChain.class)
@@ -45,7 +61,5 @@ public class OpenInferenceAgentInstaller {
                                 .or(isAnnotatedWith(TraceAgent.class)))))
                 .with(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
                 .installOn(inst);
-
-        log.info("OpenInference annotation tracing agent installed");
     }
 }

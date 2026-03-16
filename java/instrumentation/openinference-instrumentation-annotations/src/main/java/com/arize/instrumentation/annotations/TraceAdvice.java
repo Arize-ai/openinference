@@ -68,7 +68,7 @@ public class TraceAdvice {
         }
     }
 
-    private static String resolveSpanName(Method method) {
+    public static String resolveSpanName(Method method) {
         TraceChain chain = method.getAnnotation(TraceChain.class);
         if (chain != null) return chain.name().isEmpty() ? method.getName() : chain.name();
 
@@ -84,7 +84,7 @@ public class TraceAdvice {
         return method.getName();
     }
 
-    private static SemanticConventions.OpenInferenceSpanKind resolveSpanKind(Method method) {
+    public static SemanticConventions.OpenInferenceSpanKind resolveSpanKind(Method method) {
         if (method.isAnnotationPresent(TraceChain.class)) return SemanticConventions.OpenInferenceSpanKind.CHAIN;
         if (method.isAnnotationPresent(TraceLLM.class)) return SemanticConventions.OpenInferenceSpanKind.LLM;
         if (method.isAnnotationPresent(TraceTool.class)) return SemanticConventions.OpenInferenceSpanKind.TOOL;
@@ -92,7 +92,7 @@ public class TraceAdvice {
         return SemanticConventions.OpenInferenceSpanKind.CHAIN;
     }
 
-    private static TracedSpan createTypedSpan(
+    public static TracedSpan createTypedSpan(
             OITracer tracer, String name, SemanticConventions.OpenInferenceSpanKind kind) {
         return switch (kind) {
             case LLM -> TracedLLMSpan.start(tracer, name);
@@ -102,7 +102,7 @@ public class TraceAdvice {
         };
     }
 
-    private static void applyInputMappings(Method method, Object[] args, TracedSpan span) {
+    public static void applyInputMappings(Method method, Object[] args, TracedSpan span) {
         SpanMapping[] mappings = getInputMappings(method);
         if (mappings == null || mappings.length == 0) return;
 
@@ -119,7 +119,7 @@ public class TraceAdvice {
         }
     }
 
-    private static void applyOutputMappings(Method method, Object result, TracedSpan span) {
+    public static void applyOutputMappings(Method method, Object result, TracedSpan span) {
         SpanMapping[] mappings = getOutputMappings(method);
         if (mappings == null || mappings.length == 0) return;
 
@@ -132,7 +132,7 @@ public class TraceAdvice {
         }
     }
 
-    private static SpanMapping[] getInputMappings(Method method) {
+    public static SpanMapping[] getInputMappings(Method method) {
         TraceChain chain = method.getAnnotation(TraceChain.class);
         if (chain != null) return chain.mapping();
         TraceLLM llm = method.getAnnotation(TraceLLM.class);
@@ -144,7 +144,7 @@ public class TraceAdvice {
         return null;
     }
 
-    private static SpanMapping[] getOutputMappings(Method method) {
+    public static SpanMapping[] getOutputMappings(Method method) {
         TraceChain chain = method.getAnnotation(TraceChain.class);
         if (chain != null) return chain.outputMapping();
         TraceLLM llm = method.getAnnotation(TraceLLM.class);

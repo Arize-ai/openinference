@@ -26,7 +26,7 @@ public class OpenInferenceAgent {
         log.info("OpenInference tracing unregistered");
     }
 
-    static OITracer getTracer() {
+    public static OITracer getTracer() {
         return tracer;
     }
 }
