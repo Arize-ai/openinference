@@ -27,6 +27,7 @@ dependencies {
     implementation 'io.openinference:openinference-semantic-conventions:0.1.0-SNAPSHOT'
     implementation 'io.openinference:openinference-instrumentation:0.1.0-SNAPSHOT'
     implementation 'io.openinference:openinference-instrumentation-langchain4j:0.1.0-SNAPSHOT'
+    implementation 'io.openinference:openinference-instrumentation-annotations:0.1.0-SNAPSHOT'
 }
 ```
 
@@ -49,6 +50,11 @@ Add the following to your `pom.xml`:
     <dependency>
         <groupId>io.openinference</groupId>
         <artifactId>openinference-instrumentation-langchain4j</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+        <groupId>io.openinference</groupId>
+        <artifactId>openinference-instrumentation-annotations</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
