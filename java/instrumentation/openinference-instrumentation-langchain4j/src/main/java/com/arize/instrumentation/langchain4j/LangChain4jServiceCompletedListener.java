@@ -26,7 +26,7 @@ public class LangChain4jServiceCompletedListener implements AiServiceCompletedLi
     public void onEvent(AiServiceCompletedEvent aiServiceCompletedEvent) {
         SpanContext spanContext = activeSpans.remove(aiServiceCompletedEvent.invocationContext().invocationId());
         if (spanContext != null) {
-            Span span = spanContext.span;
+            Span span = spanContext.span();
             span.setStatus(StatusCode.OK);
             span.setAttribute(SemanticConventions.OUTPUT_VALUE, "Execution Completed");
             span.end();

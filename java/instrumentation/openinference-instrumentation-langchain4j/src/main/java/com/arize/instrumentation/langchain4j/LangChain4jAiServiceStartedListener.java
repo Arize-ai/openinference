@@ -35,6 +35,9 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
                 SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.AGENT.getValue());
         span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
         span.setAttribute(SemanticConventions.INPUT_VALUE, "Execution Started");
-        activeSpans.put(aiServiceStartedEvent.invocationContext().invocationId(), new SpanContext(span, Context.current().with(span)));
+        activeSpans.put(
+                aiServiceStartedEvent.invocationContext().invocationId(),
+                new SpanContext(span, Context.current().with(span))
+        );
     }
 }

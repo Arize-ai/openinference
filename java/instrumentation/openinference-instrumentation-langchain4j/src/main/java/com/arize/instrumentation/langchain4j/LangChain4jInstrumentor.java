@@ -126,4 +126,8 @@ public class LangChain4jInstrumentor {
         return new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans);
     }
 
+    public LangChain4jServiceResponseReceivedListener createServiceResponseReceivedListener() {
+        return new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans);
+    }
+
 }

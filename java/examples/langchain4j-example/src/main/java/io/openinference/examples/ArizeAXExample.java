@@ -82,6 +82,7 @@ public class ArizeAXExample {
         LangChain4jAiServiceStartedListener aiServiceListener = instrumentor.createAiServiceStartedListener();
         LangChain4jServiceCompletedListener aiServiceCompletedListener = instrumentor.createAiServiceCompletedListener();
         LangChain4jToolExecutedEventListener toolExecutedListener = instrumentor.createToolExecutedListener();
+        LangChain4jServiceResponseReceivedListener chatListener = instrumentor.createServiceResponseReceivedListener();
 
         // Get OpenAI API key
         String apiKey = System.getenv("OPENAI_API_KEY");
@@ -96,7 +97,7 @@ public class ArizeAXExample {
                 .modelName("gpt-4.1-nano") // Use a smaller model for faster responses in this example
                 .temperature(1.0) // Lower temperature for more consistent tool usage
                 .maxCompletionTokens(300)
-                .listeners(List.of(listener))
+//                .listeners(List.of(listener))
                 .timeout(Duration.ofSeconds(30))
                 .build();
 
@@ -110,18 +111,14 @@ public class ArizeAXExample {
                 .registerListener(aiServiceListener)
                 .registerListener(aiServiceCompletedListener)
                 .registerListener(toolExecutedListener)
+                .registerListener(chatListener)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
                 .build();
 
         logger.info("Created Math Assistant with 4 tools: add, subtract, multiply, divide");
         logger.info("The LLM will automatically select and execute the appropriate tool\n");
 
-
-
-
-
-
-        model.chat("What is the Sum of 45 and 78? ");
+//        model.chat("What is the Sum of 45 and 78? ");
 
         // Example 1: Simple Addition
         logger.info("=== Example 1: Simple Addition ===");
@@ -130,14 +127,14 @@ public class ArizeAXExample {
         String answer1 = assistant.chat(question1);
         logger.info("Answer: " + answer1 + "\n");
 
-        // Example 2: Multiplication
+//        // Example 2: Multiplication
         logger.info("=== Example 2: Multiplication ===");
         String question2 = "Calculate 23 multiplied by 17";
         logger.info("Question: " + question2);
         String answer2 = assistant.chat(question2);
         logger.info("Answer: " + answer2 + "\n");
-
-        // Example 3: Division
+//
+//        // Example 3: Division
         logger.info("=== Example 3: Division ===");
         String question3 = "What is 144 divided by 12?";
         logger.info("Question: " + question3);
