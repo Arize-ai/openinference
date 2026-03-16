@@ -231,7 +231,7 @@ public class SpringAIInstrumentor implements ObservationHandler<Observation.Cont
             // Get the results and combine the output
             List<Generation> results = context.getResponse().getResults();
             List<Message> outs = new ArrayList<>();
-            for (int i=0; i < results.size(); i++) {
+            for (int i = 0; i < results.size(); i++) {
                 Generation generation = results.get(i);
                 var output = generation.getOutput();
 
