@@ -85,6 +85,7 @@ module = [
   "harbor.*",
   "google.protobuf.*",
   "opentelemetry.exporter.otlp.proto.common.*",
+  "opentelemetry.proto.*",
 ]
 
 [tool.ruff]

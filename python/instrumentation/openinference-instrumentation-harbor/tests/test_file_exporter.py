@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 from openinference.instrumentation.harbor._converter import convert_trajectory
 from openinference.instrumentation.harbor._file_exporter import (
@@ -10,7 +11,7 @@ from openinference.semconv.trace import SpanAttributes
 
 
 class TestOTLPJsonFileExporter:
-    def test_writes_valid_json(self, sample_trajectory: dict, tmp_path: Path) -> None:
+    def test_writes_valid_json(self, sample_trajectory: dict[str, Any], tmp_path: Path) -> None:
         """Exporter writes a valid JSON file with OTLP structure."""
         spans = convert_trajectory(sample_trajectory)
         exporter = OTLPJsonFileExporter(output_dir=str(tmp_path))
@@ -29,7 +30,7 @@ class TestOTLPJsonFileExporter:
             data = json.load(f)
         assert "resource_spans" in data
 
-    def test_otlp_structure(self, sample_trajectory: dict, tmp_path: Path) -> None:
+    def test_otlp_structure(self, sample_trajectory: dict[str, Any], tmp_path: Path) -> None:
         """OTLP JSON has correct nested structure: resource_spans → scope_spans → spans."""
         spans = convert_trajectory(sample_trajectory)
         exporter = OTLPJsonFileExporter(output_dir=str(tmp_path))
@@ -52,7 +53,9 @@ class TestOTLPJsonFileExporter:
                     assert "trace_id" in span_data
                     assert "span_id" in span_data
 
-    def test_attributes_survive_roundtrip(self, sample_trajectory: dict, tmp_path: Path) -> None:
+    def test_attributes_survive_roundtrip(
+        self, sample_trajectory: dict[str, Any], tmp_path: Path
+    ) -> None:
         """Span attributes are preserved through serialization."""
         spans = convert_trajectory(sample_trajectory)
         exporter = OTLPJsonFileExporter(output_dir=str(tmp_path))
@@ -69,7 +72,7 @@ class TestOTLPJsonFileExporter:
                 all_spans.extend(ss["spans"])
 
         root_span = next(s for s in all_spans if "trajectory" in s["name"])
-        attr_map: dict[str, str] = {}
+        attr_map: dict[str, Any] = {}
         for attr in root_span.get("attributes", []):
             key = attr["key"]
             val = attr["value"]
@@ -81,7 +84,7 @@ class TestOTLPJsonFileExporter:
         assert attr_map[SpanAttributes.AGENT_NAME] == "research_agent"
         assert attr_map[SpanAttributes.SESSION_ID] == "test-session-abc123"
 
-    def test_custom_prefix(self, sample_trajectory: dict, tmp_path: Path) -> None:
+    def test_custom_prefix(self, sample_trajectory: dict[str, Any], tmp_path: Path) -> None:
         """Custom file prefix is used in the output filename."""
         spans = convert_trajectory(sample_trajectory)
         exporter = OTLPJsonFileExporter(output_dir=str(tmp_path), file_prefix="custom")
@@ -102,7 +105,7 @@ class TestOTLPJsonFileExporter:
 
 
 class TestExportSpansToFile:
-    def test_convenience_function(self, sample_trajectory: dict, tmp_path: Path) -> None:
+    def test_convenience_function(self, sample_trajectory: dict[str, Any], tmp_path: Path) -> None:
         """export_spans_to_file writes to the exact path specified."""
         spans = convert_trajectory(sample_trajectory)
         output = tmp_path / "output.json"

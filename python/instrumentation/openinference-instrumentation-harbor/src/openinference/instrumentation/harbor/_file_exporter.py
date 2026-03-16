@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any, Sequence
 
-from google.protobuf.json_format import MessageToDict  # type: ignore[import-untyped]
+from google.protobuf.json_format import MessageToDict
 from opentelemetry.exporter.otlp.proto.common._internal.trace_encoder import (
     encode_spans,
 )
@@ -25,11 +25,13 @@ logger = logging.getLogger(__name__)
 
 
 def _spans_to_otlp_dict(spans: Sequence[ReadableSpan]) -> dict[str, Any]:
-    return MessageToDict(encode_spans(spans), preserving_proto_field_name=True)
+    result: dict[str, Any] = MessageToDict(encode_spans(spans), preserving_proto_field_name=True)
+    return result
 
 
 def _spans_to_proto_bytes(spans: Sequence[ReadableSpan]) -> bytes:
-    return encode_spans(spans).SerializeToString()
+    result: bytes = encode_spans(spans).SerializeToString()
+    return result
 
 
 class OTLPJsonFileExporter(SpanExporter):

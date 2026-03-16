@@ -34,7 +34,7 @@ _OK = Status(StatusCode.OK)
 
 def _step_role(step: dict[str, Any]) -> str:
     """Get the role from a step, handling both ATIF 'source' and legacy 'role' fields."""
-    return step.get("source", step.get("role", ""))
+    return str(step.get("source", step.get("role", "")))
 
 
 def _trace_id(session_id: str) -> int:

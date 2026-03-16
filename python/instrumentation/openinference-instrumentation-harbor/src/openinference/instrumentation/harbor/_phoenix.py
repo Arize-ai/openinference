@@ -45,12 +45,10 @@ def phoenix_import(
     Accepts either .pb (protobuf) or .json files. JSON files are re-encoded
     to protobuf before sending, since Phoenix requires application/x-protobuf.
     """
-    from google.protobuf.json_format import ParseDict  # type: ignore[import-untyped]
-    from opentelemetry.proto.collector.trace.v1 import (  # type: ignore[import-untyped]
-        trace_service_pb2,
+    from google.protobuf.json_format import ParseDict
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceRequest,
     )
-
-    ExportTraceServiceRequest = trace_service_pb2.ExportTraceServiceRequest
 
     source = Path(source)
     url = f"{endpoint.rstrip('/')}/v1/traces"
