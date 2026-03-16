@@ -1,0 +1,65 @@
+{
+  "session_id": "test-session-abc123",
+  "agent": {
+    "name": "research_agent",
+    "model_name": "gpt-4o"
+  },
+  "steps": [
+    {
+      "role": "system",
+      "message": "You are a helpful research assistant.",
+      "timestamp": "2024-01-15T10:00:00Z"
+    },
+    {
+      "role": "user",
+      "message": "Find information about climate change impacts.",
+      "timestamp": "2024-01-15T10:00:01Z"
+    },
+    {
+      "role": "assistant",
+      "message": "I'll search for information about climate change impacts.",
+      "step_id": "step_1",
+      "timestamp": "2024-01-15T10:00:02Z",
+      "model_name": "gpt-4o",
+      "metrics": {
+        "prompt_tokens": 150,
+        "completion_tokens": 25,
+        "cached_tokens": 50
+      },
+      "tool_calls": [
+        {
+          "tool_call_id": "tc_001",
+          "function_name": "web_search",
+          "arguments": {
+            "query": "climate change impacts 2024"
+          }
+        }
+      ]
+    },
+    {
+      "role": "observation",
+      "results": [
+        {
+          "source_call_id": "tc_001",
+          "content": "Climate change has caused rising sea levels, extreme weather events, and biodiversity loss globally."
+        }
+      ],
+      "timestamp": "2024-01-15T10:00:03Z"
+    },
+    {
+      "role": "assistant",
+      "message": "Based on my research, climate change has significant impacts including rising sea levels, extreme weather events, and biodiversity loss.",
+      "step_id": "step_2",
+      "timestamp": "2024-01-15T10:00:04Z",
+      "metrics": {
+        "prompt_tokens": 200,
+        "completion_tokens": 50
+      },
+      "tool_calls": []
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 350,
+    "total_completion_tokens": 75
+  }
+}

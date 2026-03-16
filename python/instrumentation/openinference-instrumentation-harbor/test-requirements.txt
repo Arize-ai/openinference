@@ -1,0 +1,2 @@
+openinference-instrumentation-harbor
+opentelemetry-sdk
