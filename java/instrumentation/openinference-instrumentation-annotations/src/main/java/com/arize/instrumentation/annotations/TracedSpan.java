@@ -9,12 +9,8 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
 import java.util.List;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public abstract class TracedSpan implements AutoCloseable {
-
-    private static final Logger log = LoggerFactory.getLogger(TracedSpan.class);
 
     protected final Span span;
     private final Scope scope;
@@ -35,13 +31,16 @@ public abstract class TracedSpan implements AutoCloseable {
     }
 
     public void setInput(Object input) {
-        if (config.isHideInputs()) return;
+        if (config.isHideInputs())
+            return;
         setValueAttribute(SemanticConventions.INPUT_VALUE, SemanticConventions.INPUT_MIME_TYPE, input);
     }
 
     public void setOutput(Object output) {
-        if (output == null) return;
-        if (config.isHideOutputs()) return;
+        if (output == null)
+            return;
+        if (config.isHideOutputs())
+            return;
         setValueAttribute(SemanticConventions.OUTPUT_VALUE, SemanticConventions.OUTPUT_MIME_TYPE, output);
     }
 
@@ -79,7 +78,8 @@ public abstract class TracedSpan implements AutoCloseable {
 
     @Override
     public void close() {
-        if (closed) return;
+        if (closed)
+            return;
         closed = true;
         if (!errorRecorded) {
             span.setStatus(StatusCode.OK);
@@ -90,7 +90,8 @@ public abstract class TracedSpan implements AutoCloseable {
 
     protected void setValueAttribute(String valueKey, String mimeKey, Object value) {
         SpanHelper.SerializedValue sv = SpanHelper.serialize(value);
-        if (sv == null) return;
+        if (sv == null)
+            return;
         span.setAttribute(AttributeKey.stringKey(valueKey), sv.value());
         String mimeType = sv.isJson()
                 ? SemanticConventions.MimeType.JSON.getValue()
