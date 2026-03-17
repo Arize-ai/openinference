@@ -6,6 +6,7 @@ from typing import Any, Generator
 from unittest.mock import MagicMock
 
 import pytest
+from crewai import LLM
 from crewai.events.event_bus import crewai_event_bus
 from crewai.events.types.agent_events import (
     AgentExecutionCompletedEvent,
@@ -31,6 +32,7 @@ from crewai.events.types.tool_usage_events import (
     ToolUsageFinishedEvent,
     ToolUsageStartedEvent,
 )
+from crewai.llms.base_llm import llm_call_context
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -106,6 +108,7 @@ def _mock_agent(
     agent.backstory = backstory
     agent.id = uuid.uuid4()
     agent.key = f"agent-{role}"
+    agent.crew = None
     agent.fingerprint = None
     return agent
 
@@ -120,6 +123,8 @@ def _mock_task(
     task.description = description
     task.expected_output = expected_output
     task.id = uuid.uuid4()
+    task.agent = None
+    task.context = None
     task.fingerprint = None
     return task
 
@@ -385,6 +390,147 @@ def test_tool_without_parent_event_id_uses_open_agent_context(
     assert tool_span.parent.span_id == agent_span.context.span_id
 
 
+def test_reused_agent_rootless_tool_stays_on_current_trace(
+    tracer_provider: trace_sdk.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with crewai_event_bus.scoped_handlers():
+        listener = _SlowAgentStartListener(tracer_provider=tracer_provider)
+        in_memory_span_exporter.clear()
+
+        agent = _mock_agent()
+        tool_source = MagicMock()
+
+        first_crew = _mock_crew("FirstCrew")
+        first_task = _mock_task(name="first_task", description="First task")
+        first_crew_start = CrewKickoffStartedEvent(
+            crew_name="FirstCrew",
+            crew=first_crew,
+            inputs=None,
+        )
+        _emit_and_flush(first_crew, first_crew_start)
+
+        first_task_start = _make_task_started_event(
+            task=first_task,
+            parent_event_id=first_crew_start.event_id,
+        )
+        _emit_and_flush(first_task, first_task_start)
+
+        first_agent_start = _make_agent_started_event(
+            agent=agent,
+            task=first_task,
+            task_prompt="Do first research",
+            parent_event_id=first_task_start.event_id,
+        )
+        _emit_and_flush(agent, first_agent_start)
+
+        first_agent_finish = _make_agent_completed_event(
+            agent=agent,
+            task=first_task,
+            output="First agent output",
+            started_event_id=first_agent_start.event_id,
+            parent_event_id=first_task_start.event_id,
+        )
+        _emit_and_flush(agent, first_agent_finish)
+
+        first_task_finish = _make_task_completed_event(
+            task=first_task,
+            started_event_id=first_task_start.event_id,
+            parent_event_id=first_crew_start.event_id,
+        )
+        _emit_and_flush(first_task, first_task_finish)
+
+        first_crew_finish = CrewKickoffCompletedEvent(
+            crew_name="FirstCrew",
+            crew=first_crew,
+            output="First crew output",
+            started_event_id=first_crew_start.event_id,
+        )
+        _emit_and_flush(first_crew, first_crew_finish)
+
+        second_crew = _mock_crew("SecondCrew")
+        second_task = _mock_task(name="second_task", description="Second task")
+        second_crew_start = CrewKickoffStartedEvent(
+            crew_name="SecondCrew",
+            crew=second_crew,
+            inputs=None,
+        )
+        _emit_and_flush(second_crew, second_crew_start)
+
+        second_task_start = _make_task_started_event(
+            task=second_task,
+            parent_event_id=second_crew_start.event_id,
+        )
+        _emit_and_flush(second_task, second_task_start)
+
+        second_agent_start = _make_agent_started_event(
+            agent=agent,
+            task=second_task,
+            task_prompt="Do second research",
+            parent_event_id=second_task_start.event_id,
+        )
+        second_tool_start = ToolUsageStartedEvent(
+            tool_name="SearchTool",
+            tool_args={"q": "test"},
+            from_agent=agent,
+            from_task=second_task,
+        )
+        second_tool_finish = ToolUsageFinishedEvent(
+            tool_name="SearchTool",
+            tool_args={"q": "test"},
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            output="Second results",
+            started_event_id=second_tool_start.event_id,
+            from_agent=agent,
+            from_task=second_task,
+        )
+        second_agent_finish = _make_agent_completed_event(
+            agent=agent,
+            task=second_task,
+            output="Second agent output",
+            started_event_id=second_agent_start.event_id,
+            parent_event_id=second_task_start.event_id,
+        )
+        second_task_finish = _make_task_completed_event(
+            task=second_task,
+            started_event_id=second_task_start.event_id,
+            parent_event_id=second_crew_start.event_id,
+        )
+        second_crew_finish = CrewKickoffCompletedEvent(
+            crew_name="SecondCrew",
+            crew=second_crew,
+            output="Second crew output",
+            started_event_id=second_crew_start.event_id,
+        )
+
+        crewai_event_bus.emit(agent, second_agent_start)
+        contextvars.Context().run(crewai_event_bus.emit, tool_source, second_tool_start)
+        contextvars.Context().run(crewai_event_bus.emit, tool_source, second_tool_finish)
+        crewai_event_bus.emit(agent, second_agent_finish)
+        crewai_event_bus.emit(second_task, second_task_finish)
+        crewai_event_bus.emit(second_crew, second_crew_finish)
+        crewai_event_bus.flush(timeout=5.0)
+
+        spans = list(in_memory_span_exporter.get_finished_spans())
+        assert len(spans) == 5
+
+        first_crew_span = next(span for span in spans if span.name == "FirstCrew.kickoff")
+        second_crew_span = next(span for span in spans if span.name == "SecondCrew.kickoff")
+        tool_span = next(
+            span
+            for span in spans
+            if span.name == "SearchTool.run"
+            and span.attributes
+            and span.attributes.get(SpanAttributes.OUTPUT_VALUE) == "Second results"
+        )
+
+        assert tool_span.context.trace_id != first_crew_span.context.trace_id
+        assert tool_span.context.trace_id == second_crew_span.context.trace_id
+
+        listener.shutdown()
+
+
 def test_agent_hierarchy_survives_transparent_task_scope(
     tracer_provider: trace_sdk.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -479,6 +625,161 @@ def test_tool_from_cache_survives_concurrent_start_handler_order(
         assert attributes.pop("tool.from_cache") is True
 
         listener.shutdown()
+
+
+def test_agent_span_sets_graph_parent_id_from_crew_order(
+    listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    crew = _mock_crew()
+    parent_agent = _mock_agent(role="Research Analyst")
+    child_agent = _mock_agent(role="Report Writer")
+    parent_agent.crew = crew
+    child_agent.crew = crew
+    crew.agents = [parent_agent, child_agent]
+
+    task = _mock_task(name="report_task", description="Write the report")
+    task.agent = child_agent
+
+    crew_start = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
+    agent_start = _make_agent_started_event(
+        agent=child_agent,
+        task=task,
+        task_prompt="Write the report",
+        parent_event_id=crew_start.event_id,
+    )
+    agent_finish = _make_agent_completed_event(
+        agent=child_agent,
+        task=task,
+        output="done",
+        started_event_id=agent_start.event_id,
+        parent_event_id=crew_start.event_id,
+    )
+    crew_finish = CrewKickoffCompletedEvent(
+        crew_name="TestCrew",
+        crew=crew,
+        output="done",
+        started_event_id=crew_start.event_id,
+    )
+
+    _emit_and_flush(crew, crew_start)
+    _emit_and_flush(child_agent, agent_start)
+    _emit_and_flush(child_agent, agent_finish)
+    _emit_and_flush(crew, crew_finish)
+
+    spans = _get_spans(in_memory_span_exporter)
+    agent_span = next(span for span in spans if span.name.endswith(".execute"))
+    attributes = dict(agent_span.attributes or {})
+
+    assert attributes.pop(SpanAttributes.GRAPH_NODE_ID) == "Report Writer"
+    assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Research Analyst"
+
+
+def test_llm_call_records_message_and_token_attributes(
+    listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    source = LLM(model="gpt-4o-mini")
+    with llm_call_context() as call_id:
+        start_event = LLMCallStartedEvent(
+            model="gpt-4o-mini",
+            messages="Hello",
+            call_id=call_id,
+        )
+        complete_event = LLMCallCompletedEvent(
+            model="gpt-4o-mini",
+            messages="Hello",
+            response="Hi there",
+            call_type=LLMCallType.LLM_CALL,
+            call_id=call_id,
+            started_event_id=start_event.event_id,
+        )
+
+        _emit_and_flush(source, start_event)
+        source._track_token_usage_internal(
+            {
+                "prompt_tokens": 11,
+                "completion_tokens": 7,
+                "total_tokens": 18,
+            }
+        )
+        _emit_and_flush(source, complete_event)
+
+    spans = _get_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+    assert span.name == "gpt-4o-mini.llm_call"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == (
+        OpenInferenceSpanKindValues.LLM.value
+    )
+    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
+    assert attributes.pop("llm.call_id") == call_id
+    assert attributes.pop("llm.call_type") == LLMCallType.LLM_CALL.value
+    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "Hello"
+    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role") == "user"
+    assert attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content") == "Hello"
+    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hi there"
+    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
+    assert attributes.pop(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.role") == "assistant"
+    assert attributes.pop(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.content") == "Hi there"
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 11
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 7
+    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 18
+
+
+def test_multiple_llm_calls_record_token_counts_per_span(
+    listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    source = LLM(model="gpt-4o-mini")
+    expected_usage = {
+        "First response": (13, 5, 18),
+        "Second response": (17, 9, 26),
+    }
+
+    for prompt, response, usage in (
+        ("First prompt", "First response", expected_usage["First response"]),
+        ("Second prompt", "Second response", expected_usage["Second response"]),
+    ):
+        with llm_call_context() as call_id:
+            start_event = LLMCallStartedEvent(
+                model="gpt-4o-mini",
+                messages=prompt,
+                call_id=call_id,
+            )
+            complete_event = LLMCallCompletedEvent(
+                model="gpt-4o-mini",
+                messages=prompt,
+                response=response,
+                call_type=LLMCallType.LLM_CALL,
+                call_id=call_id,
+                started_event_id=start_event.event_id,
+            )
+
+            _emit_and_flush(source, start_event)
+            source._track_token_usage_internal(
+                {
+                    "prompt_tokens": usage[0],
+                    "completion_tokens": usage[1],
+                    "total_tokens": usage[2],
+                }
+            )
+            _emit_and_flush(source, complete_event)
+
+    spans = _get_spans(in_memory_span_exporter)
+    llm_spans = [span for span in spans if span.name == "gpt-4o-mini.llm_call"]
+    assert len(llm_spans) == 2
+
+    for span in llm_spans:
+        attributes = dict(span.attributes or {})
+        output_value = attributes[SpanAttributes.OUTPUT_VALUE]
+        prompt_tokens, completion_tokens, total_tokens = expected_usage[output_value]
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == prompt_tokens
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == completion_tokens
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == total_tokens
 
 
 def test_create_llm_spans_false_skips_llm_spans(

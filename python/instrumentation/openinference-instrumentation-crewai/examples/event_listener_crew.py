@@ -8,7 +8,6 @@ low-code usage. Standard Python CrewAI applications should continue to use the
 default wrapper-based instrumentation path.
 """
 
-import os
 from typing import Any
 
 from crewai import Agent, Crew, Process, Task
@@ -26,8 +25,6 @@ endpoint = "http://localhost:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()
 tracer_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter(endpoint)))
 tracer_provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
-
-os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
 
 class SearchToolSchema(BaseModel):

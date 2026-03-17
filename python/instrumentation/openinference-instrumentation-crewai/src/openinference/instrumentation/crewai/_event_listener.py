@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Mapping, Sequence
+from functools import wraps
 from typing import Any, Optional
 
 from opentelemetry import context as context_api
@@ -50,6 +52,9 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_input_attributes,
+    get_llm_input_message_attributes,
+    get_llm_output_message_attributes,
+    get_llm_token_count_attributes,
     safe_json_dumps,
 )
 from openinference.instrumentation.crewai._event_assembler import (
@@ -57,7 +62,7 @@ from openinference.instrumentation.crewai._event_assembler import (
     _SpanEndSpec,
     _SpanStartSpec,
 )
-from openinference.instrumentation.crewai._wrappers import SafeJSONEncoder
+from openinference.instrumentation.crewai._wrappers import SafeJSONEncoder, _find_parent_agent
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -74,6 +79,104 @@ def _get_serialized_input_attributes(value: Any) -> dict[str, Any]:
     if isinstance(value, (dict, list, tuple)):
         return dict(get_input_attributes(value, mime_type=OpenInferenceMimeTypeValues.JSON))
     return dict(get_input_attributes(value))
+
+
+def _first_not_none(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _normalize_llm_messages(value: Any, default_role: str) -> list[dict[str, Any]]:
+    if isinstance(value, str):
+        return [{"role": default_role, "content": value}]
+    if isinstance(value, Mapping):
+        return [dict(value)]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [dict(message) for message in value if isinstance(message, Mapping)]
+    return []
+
+
+def _get_llm_input_attributes(messages: Any) -> dict[str, Any]:
+    normalized_messages = _normalize_llm_messages(messages, default_role="user")
+    if not normalized_messages:
+        return {}
+    return dict(get_llm_input_message_attributes(normalized_messages))
+
+
+def _get_llm_output_attributes(response: Any) -> dict[str, Any]:
+    normalized_messages = _normalize_llm_messages(response, default_role="assistant")
+    if not normalized_messages:
+        return {}
+    return dict(get_llm_output_message_attributes(normalized_messages))
+
+
+def _normalize_token_usage(usage_data: Mapping[str, Any]) -> dict[str, Any]:
+    prompt_tokens = int(
+        _first_not_none(
+            usage_data.get("prompt_tokens"),
+            usage_data.get("prompt_token_count"),
+            usage_data.get("input_tokens"),
+            0,
+        )
+    )
+    completion_tokens = int(
+        _first_not_none(
+            usage_data.get("completion_tokens"),
+            usage_data.get("candidates_token_count"),
+            usage_data.get("output_tokens"),
+            0,
+        )
+    )
+    total_tokens = int(
+        _first_not_none(
+            usage_data.get("total_tokens"),
+            prompt_tokens + completion_tokens,
+        )
+    )
+    cached_prompt_tokens = int(
+        _first_not_none(
+            usage_data.get("cached_tokens"),
+            usage_data.get("cached_prompt_tokens"),
+            0,
+        )
+    )
+
+    token_count: dict[str, Any] = {
+        "prompt": prompt_tokens,
+        "completion": completion_tokens,
+        "total": total_tokens,
+    }
+    if cached_prompt_tokens:
+        token_count["prompt_details"] = {"cache_read": cached_prompt_tokens}
+    return token_count
+
+
+def _get_parent_agent_role(agent: Any, task: Any) -> Optional[str]:
+    task_context = getattr(task, "context", None)
+    if isinstance(task_context, Sequence) and not isinstance(task_context, (str, bytes, bytearray)):
+        for context_task in reversed(task_context):
+            context_agent = getattr(context_task, "agent", None)
+            parent_role = str(getattr(context_agent, "role", "") or "").strip()
+            if parent_role:
+                return parent_role
+
+    current_role = str(getattr(agent, "role", "") or "").strip()
+    if not current_role:
+        return None
+
+    crew = getattr(agent, "crew", None) or getattr(getattr(task, "agent", None), "crew", None)
+    crew_agents = getattr(crew, "agents", None)
+    if isinstance(crew_agents, Sequence) and not isinstance(crew_agents, (str, bytes, bytearray)):
+        try:
+            parent_role = _find_parent_agent(current_role, list(crew_agents))
+        except Exception:
+            logger.debug("Failed to resolve parent agent from crew ordering", exc_info=True)
+        else:
+            if parent_role:
+                return str(parent_role).strip()
+    return None
 
 
 def _get_tool_name(tool: Any) -> str:
@@ -195,6 +298,9 @@ def _build_agent_start_spec(event: AgentExecutionStartedEvent) -> _SpanStartSpec
 
         if role:
             attributes[SpanAttributes.GRAPH_NODE_ID] = role
+            parent_role = _get_parent_agent_role(agent, task)
+            if parent_role and parent_role != role:
+                attributes[SpanAttributes.GRAPH_NODE_PARENT_ID] = parent_role
 
         goal = getattr(agent, "goal", None)
         if goal:
@@ -327,6 +433,7 @@ def _build_llm_start_spec(event: LLMCallStartedEvent) -> _SpanStartSpec:
     messages = getattr(event, "messages", None)
     if messages is not None:
         attributes.update(_get_serialized_input_attributes(messages))
+        attributes.update(_get_llm_input_attributes(messages))
 
     call_id = getattr(event, "call_id", None)
     if call_id:
@@ -418,6 +525,11 @@ class OpenInferenceEventListener(BaseEventListener):
         )
         self._assembler = CrewAIEventAssembler(tracer=self._tracer)
         self._create_llm_spans = create_llm_spans
+        self._llm_usage_by_call_id: dict[str, dict[str, Any]] = {}
+        self._llm_usage_lock = threading.RLock()
+        self._original_track_token_usage_internal: Optional[Any] = None
+        if self._create_llm_spans:
+            self._patch_llm_token_usage_tracking()
         self._handlers: list[tuple[type[Any], Any]] = []
         self._event_bus: Optional[CrewAIEventsBus] = None
         super().__init__()
@@ -463,6 +575,7 @@ class OpenInferenceEventListener(BaseEventListener):
                 except Exception:
                     logger.debug("Failed to unregister handler for %s", event_cls, exc_info=True)
         self._handlers.clear()
+        self._restore_llm_token_usage_tracking()
         self._assembler.shutdown()
 
     def _register(self, event_cls: type[Any], handler: Any) -> None:
@@ -474,6 +587,69 @@ class OpenInferenceEventListener(BaseEventListener):
     @staticmethod
     def _is_suppressed() -> bool:
         return bool(context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY))
+
+    def _patch_llm_token_usage_tracking(self) -> None:
+        from crewai.llms import base_llm as base_llm_module
+
+        original = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal", None)
+        if original is None:
+            return
+
+        self._original_track_token_usage_internal = original
+        listener = self
+
+        @wraps(original)
+        def patched(instance: Any, usage_data: dict[str, Any]) -> None:
+            original(instance, usage_data)
+            call_id = base_llm_module.get_current_call_id()
+            listener._record_llm_token_usage(call_id, usage_data)
+
+        base_llm_module.BaseLLM._track_token_usage_internal = patched
+
+    def _restore_llm_token_usage_tracking(self) -> None:
+        original = self._original_track_token_usage_internal
+        if original is None:
+            return
+        from crewai.llms import base_llm as base_llm_module
+
+        base_llm_module.BaseLLM._track_token_usage_internal = original
+        self._original_track_token_usage_internal = None
+        with self._llm_usage_lock:
+            self._llm_usage_by_call_id.clear()
+
+    def _record_llm_token_usage(self, call_id: str, usage_data: Mapping[str, Any]) -> None:
+        normalized_usage = _normalize_token_usage(usage_data)
+        with self._llm_usage_lock:
+            aggregate = self._llm_usage_by_call_id.setdefault(
+                call_id,
+                {
+                    "prompt": 0,
+                    "completion": 0,
+                    "total": 0,
+                    "prompt_details": {"cache_read": 0},
+                },
+            )
+            aggregate["prompt"] += normalized_usage["prompt"]
+            aggregate["completion"] += normalized_usage["completion"]
+            aggregate["total"] += normalized_usage["total"]
+            prompt_details = normalized_usage.get("prompt_details")
+            if isinstance(prompt_details, Mapping):
+                aggregate["prompt_details"]["cache_read"] += int(
+                    prompt_details.get("cache_read", 0)
+                )
+
+    def _consume_llm_token_usage_attributes(self, call_id: Optional[str]) -> dict[str, Any]:
+        if not call_id:
+            return {}
+        with self._llm_usage_lock:
+            token_usage = self._llm_usage_by_call_id.pop(call_id, None)
+        if not token_usage:
+            return {}
+        prompt_details = token_usage.get("prompt_details")
+        if isinstance(prompt_details, Mapping) and prompt_details.get("cache_read", 0) == 0:
+            token_usage = dict(token_usage)
+            token_usage.pop("prompt_details", None)
+        return dict(get_llm_token_count_attributes(token_usage))
 
     def _on_crew_started(self, source: Any, event: CrewKickoffStartedEvent) -> None:
         if self._is_suppressed():
@@ -597,6 +773,8 @@ class OpenInferenceEventListener(BaseEventListener):
             return
         call_type = getattr(event, "call_type", None)
         attributes = {"llm.call_type": call_type.value} if call_type is not None else {}
+        attributes.update(_get_llm_output_attributes(getattr(event, "response", None)))
+        attributes.update(self._consume_llm_token_usage_attributes(getattr(event, "call_id", None)))
         self._assembler.end_span(
             event,
             _SpanEndSpec(
@@ -608,6 +786,7 @@ class OpenInferenceEventListener(BaseEventListener):
     def _on_llm_failed(self, source: Any, event: LLMCallFailedEvent) -> None:
         if self._is_suppressed():
             return
+        self._consume_llm_token_usage_attributes(getattr(event, "call_id", None))
         self._assembler.end_span(
             event,
             _SpanEndSpec(error=getattr(event, "error", None) or "LLM call failed"),

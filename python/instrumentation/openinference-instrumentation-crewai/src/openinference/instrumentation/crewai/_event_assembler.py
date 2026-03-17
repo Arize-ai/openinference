@@ -42,10 +42,25 @@ class _SpanEndSpec:
     attributes: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class _AgentHintKeys:
+    task_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_key: Optional[str] = None
+    agent_role: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _ContextHint:
+    event_id: str
+    context: Context
+
+
 @dataclass
 class _SpanEntry:
     span: trace_api.Span
     context: Context
+    agent_hint_keys: Optional[_AgentHintKeys] = None
 
 
 @dataclass
@@ -64,10 +79,12 @@ class CrewAIEventAssembler:
         self._spans: dict[str, _SpanEntry] = {}
         self._transparent_contexts: dict[str, Context] = {}
         self._finished_contexts: "OrderedDict[str, Context]" = OrderedDict()
-        self._agent_contexts_by_task_id: "OrderedDict[str, Context]" = OrderedDict()
-        self._agent_contexts_by_agent_id: "OrderedDict[str, Context]" = OrderedDict()
-        self._agent_contexts_by_agent_key: "OrderedDict[str, Context]" = OrderedDict()
-        self._agent_contexts_by_agent_role: "OrderedDict[str, Context]" = OrderedDict()
+        self._task_contexts_by_task_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
+        self._task_scope_keys_by_event_id: dict[str, str] = {}
+        self._agent_contexts_by_task_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
+        self._agent_contexts_by_agent_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
+        self._agent_contexts_by_agent_key: "OrderedDict[str, _ContextHint]" = OrderedDict()
+        self._agent_contexts_by_agent_role: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._deferred_ends: dict[str, _DeferredEnd] = {}
         self._pending_starts: dict[str, list[Callable[[], None]]] = {}
         self._closed_transparent_scopes: set[str] = set()
@@ -96,9 +113,16 @@ class CrewAIEventAssembler:
                 return
 
             with self._lock:
-                self._spans[event_id] = _SpanEntry(span=span, context=span_context)
+                agent_hint_keys = None
                 if spec.remember_as_agent:
-                    self._remember_agent_context_locked(event, span_context)
+                    agent_hint_keys = self._remember_agent_context_locked(
+                        event, span_context, event_id
+                    )
+                self._spans[event_id] = _SpanEntry(
+                    span=span,
+                    context=span_context,
+                    agent_hint_keys=agent_hint_keys,
+                )
 
             self._drain_pending_starts(event_id)
             self._apply_deferred_end(event_id)
@@ -122,6 +146,8 @@ class CrewAIEventAssembler:
                     end_time_ns=end_time_ns,
                 )
                 return
+            if entry.agent_hint_keys is not None:
+                self._forget_agent_context_locked(event_id, entry.agent_hint_keys)
             self._remember_finished_context_locked(event_id, entry.context)
 
         self._finalize_span(entry.span, spec, end_time_ns)
@@ -138,6 +164,14 @@ class CrewAIEventAssembler:
                     self._remember_finished_context_locked(event_id, parent_context)
                 else:
                     self._transparent_contexts[event_id] = parent_context
+                    if (task_key := self._get_task_hint_key(event)) is not None:
+                        self._task_scope_keys_by_event_id[event_id] = task_key
+                        self._remember_context_hint_locked(
+                            self._task_contexts_by_task_id,
+                            task_key,
+                            parent_context,
+                            event_id,
+                        )
 
             self._drain_pending_starts(event_id)
 
@@ -150,9 +184,16 @@ class CrewAIEventAssembler:
 
         with self._lock:
             context = self._transparent_contexts.pop(event_id, None)
+            task_key = self._task_scope_keys_by_event_id.pop(event_id, None)
             if context is not None:
+                if task_key is not None:
+                    self._forget_context_hint_locked(
+                        self._task_contexts_by_task_id, task_key, event_id
+                    )
                 self._remember_finished_context_locked(event_id, context)
                 return
+            if task_key is not None:
+                self._forget_context_hint_locked(self._task_contexts_by_task_id, task_key, event_id)
             self._closed_transparent_scopes.add(event_id)
 
     def shutdown(self) -> None:
@@ -167,6 +208,8 @@ class CrewAIEventAssembler:
             self._spans.clear()
             self._transparent_contexts.clear()
             self._finished_contexts.clear()
+            self._task_contexts_by_task_id.clear()
+            self._task_scope_keys_by_event_id.clear()
             self._agent_contexts_by_task_id.clear()
             self._agent_contexts_by_agent_id.clear()
             self._agent_contexts_by_agent_key.clear()
@@ -217,6 +260,8 @@ class CrewAIEventAssembler:
             deferred = self._deferred_ends.pop(event_id, None)
             entry = self._spans.pop(event_id, None) if deferred else None
             if entry is not None:
+                if entry.agent_hint_keys is not None:
+                    self._forget_agent_context_locked(event_id, entry.agent_hint_keys)
                 self._remember_finished_context_locked(event_id, entry.context)
 
         if deferred is None or entry is None:
@@ -245,64 +290,132 @@ class CrewAIEventAssembler:
         text = str(value).strip()
         return text or None
 
+    def _get_task_hint_key(self, event: Any) -> Optional[str]:
+        task = getattr(event, "task", None)
+        return self._normalize_hint_key(
+            getattr(task, "id", None) or getattr(event, "task_id", None)
+        )
+
     def _remember_context_hint_locked(
-        self, cache: "OrderedDict[str, Context]", value: Any, context: Context
+        self,
+        cache: "OrderedDict[str, _ContextHint]",
+        value: Any,
+        context: Context,
+        event_id: str,
     ) -> None:
         if not (key := self._normalize_hint_key(value)):
             return
         cache.pop(key, None)
-        cache[key] = context
+        cache[key] = _ContextHint(event_id=event_id, context=context)
         while len(cache) > _FINISHED_CONTEXT_CACHE_SIZE:
             cache.popitem(last=False)
 
-    def _remember_agent_context_locked(self, event: Any, context: Context) -> None:
+    def _forget_context_hint_locked(
+        self,
+        cache: "OrderedDict[str, _ContextHint]",
+        value: Any,
+        event_id: str,
+    ) -> None:
+        if not (key := self._normalize_hint_key(value)):
+            return
+        if (hint := cache.get(key)) is not None and hint.event_id == event_id:
+            cache.pop(key, None)
+
+    def _remember_agent_context_locked(
+        self,
+        event: Any,
+        context: Context,
+        event_id: str,
+    ) -> _AgentHintKeys:
         task = getattr(event, "task", None)
         agent = getattr(event, "agent", None)
         agent_info = getattr(event, "agent_info", None) or {}
 
+        hint_keys = _AgentHintKeys(
+            task_id=self._normalize_hint_key(
+                getattr(task, "id", None) or getattr(event, "task_id", None)
+            ),
+            agent_id=self._normalize_hint_key(
+                getattr(agent, "id", None)
+                or getattr(event, "agent_id", None)
+                or agent_info.get("id")
+            ),
+            agent_key=self._normalize_hint_key(
+                getattr(agent, "key", None)
+                or getattr(event, "agent_key", None)
+                or agent_info.get("key")
+            ),
+            agent_role=self._normalize_hint_key(
+                getattr(agent, "role", None)
+                or getattr(event, "agent_role", None)
+                or agent_info.get("role")
+            ),
+        )
+
         self._remember_context_hint_locked(
             self._agent_contexts_by_task_id,
-            getattr(task, "id", None) or getattr(event, "task_id", None),
+            hint_keys.task_id,
             context,
+            event_id,
         )
         self._remember_context_hint_locked(
             self._agent_contexts_by_agent_id,
-            getattr(agent, "id", None) or getattr(event, "agent_id", None) or agent_info.get("id"),
+            hint_keys.agent_id,
             context,
+            event_id,
         )
         self._remember_context_hint_locked(
             self._agent_contexts_by_agent_key,
-            getattr(agent, "key", None)
-            or getattr(event, "agent_key", None)
-            or agent_info.get("key"),
+            hint_keys.agent_key,
             context,
+            event_id,
         )
         self._remember_context_hint_locked(
             self._agent_contexts_by_agent_role,
-            getattr(agent, "role", None)
-            or getattr(event, "agent_role", None)
-            or agent_info.get("role"),
+            hint_keys.agent_role,
             context,
+            event_id,
+        )
+        return hint_keys
+
+    def _forget_agent_context_locked(self, event_id: str, hint_keys: _AgentHintKeys) -> None:
+        self._forget_context_hint_locked(
+            self._agent_contexts_by_task_id, hint_keys.task_id, event_id
+        )
+        self._forget_context_hint_locked(
+            self._agent_contexts_by_agent_id, hint_keys.agent_id, event_id
+        )
+        self._forget_context_hint_locked(
+            self._agent_contexts_by_agent_key, hint_keys.agent_key, event_id
+        )
+        self._forget_context_hint_locked(
+            self._agent_contexts_by_agent_role, hint_keys.agent_role, event_id
         )
 
     def _get_context_hint(
-        self, cache: "OrderedDict[str, Context]", value: Any
+        self, cache: "OrderedDict[str, _ContextHint]", value: Any
     ) -> Optional[Context]:
         if not (key := self._normalize_hint_key(value)):
             return None
         with self._lock:
-            context = cache.pop(key, None)
-            if context is not None:
-                cache[key] = context
-            return context
+            hint = cache.pop(key, None)
+            if hint is not None:
+                cache[key] = hint
+                return hint.context
+            return None
 
     def _get_fallback_parent_context(self, event: Any) -> Optional[Context]:
         event_type = str(getattr(event, "type", "") or "")
         if not (event_type.startswith("tool_usage_") or event_type.startswith("llm_call_")):
             return None
 
+        task_id = getattr(event, "task_id", None)
+        for cache in (self._agent_contexts_by_task_id, self._task_contexts_by_task_id):
+            context = self._get_context_hint(cache, task_id)
+            if context is not None:
+                return context
+
         for cache, value in (
-            (self._agent_contexts_by_task_id, getattr(event, "task_id", None)),
             (self._agent_contexts_by_agent_id, getattr(event, "agent_id", None)),
             (self._agent_contexts_by_agent_key, getattr(event, "agent_key", None)),
             (self._agent_contexts_by_agent_role, getattr(event, "agent_role", None)),
