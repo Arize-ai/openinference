@@ -20,6 +20,12 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+/**
+ * Utility class for extracting and setting chat message attributes on OpenTelemetry spans.
+ * <p>
+ * Provides static methods for handling tool specifications, input/output messages, and tool call extraction for tracing.
+ * </p>
+ */
 public class ChatMessageAttributeUtils {
 
     private static final Logger logger = Logger.getLogger(LangChain4jModelListener.class.getName());
@@ -31,6 +37,12 @@ public class ChatMessageAttributeUtils {
             JsonAutoDetect.Visibility.ANY
     );
 
+    /**
+     * Sets LLM tool attributes on the span for the provided tool specifications.
+     *
+     * @param span              the span to set attributes on
+     * @param toolSpecifications the list of tool specifications
+     */
     public static void setLlmToolAttributes(Span span, List<ToolSpecification> toolSpecifications) {
         for (int idx = 0; idx < toolSpecifications.size(); idx++) {
             ToolSpecification toolSpec = toolSpecifications.get(idx);
@@ -60,6 +72,12 @@ public class ChatMessageAttributeUtils {
         }
     }
 
+    /**
+     * Sets input message attributes on the span for the provided chat messages.
+     *
+     * @param span     the span to set attributes on
+     * @param messages the list of chat messages
+     */
     public static void setInputMessageAttributes(Span span, List<ChatMessage> messages) {
         for (int i = 0; i < messages.size(); i++) {
             ChatMessage message = messages.get(i);
@@ -90,6 +108,13 @@ public class ChatMessageAttributeUtils {
         }
     }
 
+    /**
+     * Extracts tool call information from an AI message and sets attributes on the span.
+     *
+     * @param span      the span to set attributes on
+     * @param prefix    the attribute prefix
+     * @param aiMessage the AI message containing tool execution requests
+     */
     public static void toolCallExtraction(Span span, String prefix, AiMessage aiMessage) {
         for (int i = 0; i < aiMessage.toolExecutionRequests().size(); i++) {
             // Add tool call attributes here if needed

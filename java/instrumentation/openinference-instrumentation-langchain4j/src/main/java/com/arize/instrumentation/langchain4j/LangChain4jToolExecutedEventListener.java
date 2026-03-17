@@ -12,16 +12,40 @@ import io.opentelemetry.context.Context;
 
 import java.util.Map;
 
+/**
+ * Event listener for handling tool execution events in LangChain4j.
+ * <p>
+ * This listener creates and ends a tracing span for each tool execution event,
+ * capturing relevant attributes such as tool name, parameters, and output.
+ * </p>
+ */
 public class LangChain4jToolExecutedEventListener implements ToolExecutedEventListener {
 
+    /**
+     * Tracer used for creating spans.
+     */
     private final OITracer tracer;
+    /**
+     * Map of active spans keyed by invocation ID.
+     */
     private final Map<String, SpanContext> activeSpans;
 
+    /**
+     * Constructs a new listener for tool execution events.
+     *
+     * @param tracer      the tracer to use for span creation
+     * @param activeSpans the map of active spans
+     */
     public LangChain4jToolExecutedEventListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
     }
 
+    /**
+     * Handles the tool execution event by creating a span and recording tool attributes.
+     *
+     * @param event the tool executed event
+     */
     @Override
     public void onEvent(ToolExecutedEvent event) {
         String invocationId = event.invocationContext().invocationId().toString();

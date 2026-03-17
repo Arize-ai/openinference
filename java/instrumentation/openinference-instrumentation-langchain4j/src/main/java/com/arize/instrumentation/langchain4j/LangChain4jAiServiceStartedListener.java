@@ -16,7 +16,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Event listener for handling AI service started events in LangChain4j.
+ * <p>
+ * This listener creates a tracing span when an AI service starts, capturing input attributes such as messages and MIME type.
+ * </p>
+ */
 public class LangChain4jAiServiceStartedListener implements AiServiceStartedListener {
+
 
     private final OITracer tracer;
     private final Map<String, SpanContext> activeSpans;
@@ -26,6 +33,12 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
         this.activeSpans = activeSpans;
     }
 
+    /**
+     * Sets input attributes on the span based on the event's messages.
+     *
+     * @param span  the span to set attributes on
+     * @param event the AI service started event
+     */
     public void setInputAttributes(Span span, AiServiceStartedEvent event) {
         span.setAttribute(
                 SemanticConventions.OPENINFERENCE_SPAN_KIND,
@@ -49,6 +62,11 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
         );
     }
 
+    /**
+     * Handles the AI service started event by creating a span and recording input attributes.
+     *
+     * @param event the AI service started event
+     */
     @Override
     public void onEvent(AiServiceStartedEvent event) {
         Span span = tracer.spanBuilder("AiService.chat")

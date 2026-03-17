@@ -10,6 +10,12 @@ import io.opentelemetry.context.Scope;
 
 import java.util.Map;
 
+/**
+ * Event listener for handling AI service response received events in LangChain4j.
+ * <p>
+ * This listener ends the tracing span for a chat response and records response attributes.
+ * </p>
+ */
 public class LangChain4jServiceResponseReceivedListener implements AiServiceResponseReceivedListener {
 
     private final OITracer tracer;
@@ -20,6 +26,11 @@ public class LangChain4jServiceResponseReceivedListener implements AiServiceResp
         this.activeSpans = activeSpans;
     }
 
+    /**
+     * Handles the AI service response received event by ending the span and recording response attributes.
+     *
+     * @param event the AI service response received event
+     */
     @Override
     public void onEvent(AiServiceResponseReceivedEvent event) {
         String invocationId = event.invocationContext().invocationId().toString();
