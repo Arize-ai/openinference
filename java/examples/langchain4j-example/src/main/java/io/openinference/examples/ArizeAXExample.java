@@ -17,6 +17,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.time.Duration;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -84,6 +85,7 @@ public class ArizeAXExample {
         LangChain4jToolExecutedEventListener toolExecutedListener = instrumentor.createToolExecutedListener();
         LangChain4jServiceResponseReceivedListener chatListener = instrumentor.createServiceResponseReceivedListener();
         LangChain4jServiceRequestIssuedListener requestIssuedListener = instrumentor.createServiceRequestIssuedListener();
+        LangChain4jAiServiceErrorListener errorListener = instrumentor.createServiceErrorListener();
 
         // Get OpenAI API key
         String apiKey = System.getenv("OPENAI_API_KEY");
@@ -98,7 +100,15 @@ public class ArizeAXExample {
                 .modelName("gpt-4.1-nano") // Use a smaller model for faster responses in this example
                 .temperature(1.0) // Lower temperature for more consistent tool usage
                 .maxCompletionTokens(300)
-                //                .listeners(List.of(listener))
+                .listeners(List.of(listener))
+                .timeout(Duration.ofSeconds(30))
+                .build();
+
+        OpenAiChatModel newModel = OpenAiChatModel.builder()
+                .apiKey(apiKey)
+                .modelName("gpt-4.1-nano") // Use a smaller model for faster responses in this example
+                .temperature(1.0) // Lower temperature for more consistent tool usage
+                .maxCompletionTokens(300)
                 .timeout(Duration.ofSeconds(30))
                 .build();
 
@@ -107,16 +117,19 @@ public class ArizeAXExample {
 
         // Build AI Service with tools - this automatically handles tool calling
         MathAssistant assistant = AiServices.builder(MathAssistant.class)
-                .chatModel(model)
+                .chatModel(newModel)
+                .systemMessage("You are a helpful assistant that can perform basic math calculations. Use the provided tools to answer user questions accurately.")
                 .tools(mathTools)
-                .registerListeners(aiServiceListener, aiServiceCompletedListener, toolExecutedListener, chatListener, requestIssuedListener)
+                .registerListeners(
+                        aiServiceListener, aiServiceCompletedListener, toolExecutedListener,
+                        chatListener, requestIssuedListener, errorListener)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
                 .build();
 
         logger.info("Created Math Assistant with 4 tools: add, subtract, multiply, divide");
         logger.info("The LLM will automatically select and execute the appropriate tool\n");
 
-        //        model.chat("What is the Sum of 45 and 78? ");
+        model.chat("What is the Sum of 45 and 78? ");
 
         // Example 1: Simple Addition
         logger.info("=== Example 1: Simple Addition ===");
@@ -125,26 +138,20 @@ public class ArizeAXExample {
         String answer1 = assistant.chat(question1);
         logger.info("Answer: " + answer1 + "\n");
 
-        //        // Example 2: Multiplication
+        // Example 2: Multiplication
         logger.info("=== Example 2: Multiplication ===");
         String question2 = "Calculate 23 multiplied by 17";
         logger.info("Question: " + question2);
         String answer2 = assistant.chat(question2);
         logger.info("Answer: " + answer2 + "\n");
-        //
-        //        // Example 3: Division
+
+        // Example 3: Division
         logger.info("=== Example 3: Division ===");
         String question3 = "What is 144 divided by 12?";
         logger.info("Question: " + question3);
         String answer3 = assistant.chat(question3);
         logger.info("Answer: " + answer3 + "\n");
 
-        // Example 4: Subtraction (more complex wording)
-        logger.info("=== Example 4: Subtraction ===");
-        String question4 = "If I have 250 and I spend 87, how much do I have left?";
-        logger.info("Question: " + question4);
-        String answer4 = assistant.chat(question4);
-        logger.info("Answer: " + answer4 + "\n");
         shutdownTracing();
     }
 

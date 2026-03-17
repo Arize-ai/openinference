@@ -8,7 +8,6 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.TracerProvider;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
@@ -25,6 +24,7 @@ public class LangChain4jInstrumentor {
     private final OITracer tracer;
     private final TraceConfig config;
     private final Map<String, SpanContext> aiServiceSpans = new ConcurrentHashMap<>();
+
     private LangChain4jInstrumentor(OITracer tracer, TraceConfig config) {
         this.tracer = tracer;
         this.config = config;
@@ -132,5 +132,9 @@ public class LangChain4jInstrumentor {
 
     public LangChain4jServiceRequestIssuedListener createServiceRequestIssuedListener() {
         return new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans);
+    }
+
+    public LangChain4jAiServiceErrorListener createServiceErrorListener() {
+        return new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans);
     }
 }

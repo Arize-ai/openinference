@@ -11,7 +11,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 
 import java.util.Map;
-import java.util.UUID;
 
 public class LangChain4jToolExecutedEventListener implements ToolExecutedEventListener {
 
@@ -24,8 +23,8 @@ public class LangChain4jToolExecutedEventListener implements ToolExecutedEventLi
     }
 
     @Override
-    public void onEvent(ToolExecutedEvent toolExecutedEvent) {
-        String invocationId = toolExecutedEvent.invocationContext().invocationId().toString();
+    public void onEvent(ToolExecutedEvent event) {
+        String invocationId = event.invocationContext().invocationId().toString();
         SpanContext parentSpanContext = activeSpans.get(invocationId);
         Context context = parentSpanContext != null
                 ? parentSpanContext.context() // Use AiService span's context
@@ -36,13 +35,16 @@ public class LangChain4jToolExecutedEventListener implements ToolExecutedEventLi
                 .setSpanKind(SpanKind.CLIENT)
                 .startSpan();
 
-        // Set basic attributes
         span.setAttribute(
                 SemanticConventions.OPENINFERENCE_SPAN_KIND,
                 SemanticConventions.OpenInferenceSpanKind.TOOL.getValue()
         );
-        span.setAttribute(SemanticConventions.INPUT_VALUE, toolExecutedEvent.request().toString());
-        span.setAttribute(SemanticConventions.OUTPUT_VALUE, toolExecutedEvent.resultText());
+
+        span.setAttribute(SemanticConventions.TOOL_CALL_ID, event.request().id());
+        span.setAttribute(SemanticConventions.TOOL_NAME, event.request().name());
+        span.setAttribute(SemanticConventions.TOOL_PARAMETERS, event.request().arguments());
+
+        span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.resultText());
         span.setStatus(StatusCode.OK);
         span.end();
     }

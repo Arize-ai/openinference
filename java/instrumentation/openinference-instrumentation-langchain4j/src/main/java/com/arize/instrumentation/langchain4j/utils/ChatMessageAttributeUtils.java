@@ -14,7 +14,6 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.context.Scope;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -196,7 +195,7 @@ public class ChatMessageAttributeUtils {
         return result;
     }
 
-    public static void handleChatRequest(OITracer tracer, Span span, ChatRequest request){
+    public static void handleChatRequest(OITracer tracer, Span span, ChatRequest request) {
         String modelName = request.modelName() != null ? request.modelName() : "unknown";
 
         // Set basic attributes
