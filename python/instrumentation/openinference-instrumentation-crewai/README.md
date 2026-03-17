@@ -110,6 +110,31 @@ print("######################")
 print(result)
 ```
 
+## Event Listener Mode
+
+`CrewAIInstrumentor().instrument(...)` without extra flags is the default
+wrapper-based integration and remains the recommended path for standard Python
+CrewAI applications.
+
+Use `use_event_listener=True` only when CrewAI execution is surfaced through the
+event bus rather than direct Python method calls, such as AMP / low-code CrewAI
+usage. See [`examples/event_listener_crew.py`](examples/event_listener_crew.py)
+for that setup.
+
+By default, event-listener mode also creates LLM spans from CrewAI's
+`LLMCall*` events. That is useful when the listener is your only source of LLM
+visibility. If you already instrument the underlying LLM client separately, or
+if you want tests that focus only on crew / agent / tool structure to avoid
+provider- and retry-driven LLM span count variability, disable them with:
+
+```python
+CrewAIInstrumentor().instrument(
+    tracer_provider=trace_provider,
+    use_event_listener=True,
+    create_llm_spans=False,
+)
+```
+
 ## More Info
 
 * [More info on OpenInference and Phoenix](https://docs.arize.com/phoenix)
