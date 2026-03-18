@@ -22,4 +22,5 @@ dependencies {
     testImplementation "dev.langchain4j:langchain4j-core:${langchain4jVersion}"
     testImplementation "dev.langchain4j:langchain4j-open-ai:${langchain4jVersion}"
     testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
+    testImplementation "org.wiremock:wiremock-standalone:3.6.0"
 } 

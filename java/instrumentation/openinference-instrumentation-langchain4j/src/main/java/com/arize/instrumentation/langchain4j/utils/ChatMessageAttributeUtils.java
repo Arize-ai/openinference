@@ -3,7 +3,7 @@ package com.arize.instrumentation.langchain4j.utils;
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
 import com.arize.semconv.trace.SemanticConventions;
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,7 +34,7 @@ public class ChatMessageAttributeUtils {
 
     private static final ObjectMapper toolParamMapper = new ObjectMapper().setVisibility(
             PropertyAccessor.FIELD,
-            JsonAutoDetect.Visibility.ANY
+            Visibility.ANY
     );
 
     /**
@@ -56,15 +56,14 @@ public class ChatMessageAttributeUtils {
                         SemanticConventions.ToolAttributePostfixes.PARAMETERS,
                         toolSpec.parameters() != null
                                 ? toolParamMapper.convertValue(toolSpec.parameters(), Map.class)
-                                : new LinkedHashMap<>()
-                );
+                                : new LinkedHashMap<>());
                 Map<String, Object> toolSchemaMap = new LinkedHashMap<>();
                 toolSchemaMap.put("type", "function");
                 toolSchemaMap.put("function", functionMap);
 
                 span.setAttribute(
-                        AttributeKey.stringKey(SemanticConventions.LLM_TOOLS + "." + idx + "."
-                                + SemanticConventions.TOOL_JSON_SCHEMA),
+                        AttributeKey.stringKey(
+                                SemanticConventions.LLM_TOOLS + "." + idx + "." + SemanticConventions.TOOL_JSON_SCHEMA),
                         objectMapper.writeValueAsString(toolSchemaMap));
             } catch (JsonProcessingException e) {
                 logger.log(Level.WARNING, "Failed to serialize tool specification at index " + idx, e);

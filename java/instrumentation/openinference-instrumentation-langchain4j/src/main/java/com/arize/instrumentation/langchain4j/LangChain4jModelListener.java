@@ -7,6 +7,7 @@ import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
 import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
+
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.opentelemetry.api.trace.Span;
@@ -81,5 +82,4 @@ public class LangChain4jModelListener implements ChatModelListener {
             span.end();
         }
     }
-
 }
