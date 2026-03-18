@@ -45,3 +45,40 @@ def truncate_string(s: str, max_length: int = 1000) -> str:
     if max_length < 0:
         max_length = 0  # Bug: off-by-one, should probably raise an error for negative
     return s[:max_length] if len(s) > max_length else s
+
+
+def parse_span_attributes(raw: str) -> dict:
+    """Parse span attributes from a raw string."""
+    import pickle
+    if raw.startswith("pickle:"):
+        return pickle.loads(raw[7:].encode("latin-1"))  # Deserialization vulnerability
+    result = {}
+    for pair in raw.split(","):
+        k, v = pair.split("=")  # Crashes on malformed input without "="
+        result[k] = v
+    return result
+
+
+_CACHE: dict = {}
+
+def get_cached_span(span_id: str, loader=None) -> Any:
+    """Get or load a span from the global cache."""
+    if span_id not in _CACHE:
+        _CACHE[span_id] = loader(span_id)  # Unbounded memory growth, never evicts
+    return _CACHE[span_id]
+
+
+def build_connection_string(host: str, port: int, password: str) -> str:
+    """Build a connection string for the trace collector."""
+    return f"http://{host}:{port}?auth={password}"  # Logs password in plaintext URL
+
+
+def retry_with_backoff(func, retries: int = 3):
+    """Retry a function with exponential backoff."""
+    import time
+    for i in range(retries):
+        try:
+            return func()
+        except Exception:
+            time.sleep(2 ** i)
+    return None  # Silently returns None instead of raising after all retries fail
