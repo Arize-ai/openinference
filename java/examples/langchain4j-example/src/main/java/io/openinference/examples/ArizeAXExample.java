@@ -79,13 +79,6 @@ public class ArizeAXExample {
         // Set up LangChain4j instrumentation
         LangChain4jInstrumentor instrumentor = LangChain4jInstrumentor.instrument();
         LangChain4jModelListener listener = instrumentor.createModelListener();
-        LangChain4jAiServiceStartedListener aiServiceListener = instrumentor.createAiServiceStartedListener();
-        LangChain4jServiceCompletedListener aiServiceCompletedListener =
-                instrumentor.createAiServiceCompletedListener();
-        LangChain4jToolExecutedEventListener toolExecutedListener = instrumentor.createToolExecutedListener();
-        LangChain4jServiceResponseReceivedListener chatListener = instrumentor.createServiceResponseReceivedListener();
-        LangChain4jServiceRequestIssuedListener requestIssuedListener = instrumentor.createServiceRequestIssuedListener();
-        LangChain4jAiServiceErrorListener errorListener = instrumentor.createServiceErrorListener();
 
         // Get OpenAI API key
         String apiKey = System.getenv("OPENAI_API_KEY");
@@ -120,9 +113,7 @@ public class ArizeAXExample {
                 .chatModel(newModel)
                 .systemMessage("You are a helpful assistant that can perform basic math calculations. Use the provided tools to answer user questions accurately.")
                 .tools(mathTools)
-                .registerListeners(
-                        aiServiceListener, aiServiceCompletedListener, toolExecutedListener,
-                        chatListener, requestIssuedListener, errorListener)
+                .registerListeners(instrumentor.createAiServiceListeners())
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
                 .build();
 

@@ -3,10 +3,12 @@ package com.arize.instrumentation.langchain4j;
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.TraceConfig;
 import com.arize.instrumentation.langchain4j.utils.SpanContext;
+import dev.langchain4j.observability.api.listener.AiServiceListener;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.TracerProvider;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,27 +116,14 @@ public class LangChain4jInstrumentor {
         return new LangChain4jModelListener(tracer);
     }
 
-    public LangChain4jAiServiceStartedListener createAiServiceStartedListener() {
-        return new LangChain4jAiServiceStartedListener(tracer, aiServiceSpans);
-    }
-
-    public LangChain4jServiceCompletedListener createAiServiceCompletedListener() {
-        return new LangChain4jServiceCompletedListener(tracer, aiServiceSpans);
-    }
-
-    public LangChain4jToolExecutedEventListener createToolExecutedListener() {
-        return new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans);
-    }
-
-    public LangChain4jServiceResponseReceivedListener createServiceResponseReceivedListener() {
-        return new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans);
-    }
-
-    public LangChain4jServiceRequestIssuedListener createServiceRequestIssuedListener() {
-        return new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans);
-    }
-
-    public LangChain4jAiServiceErrorListener createServiceErrorListener() {
-        return new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans);
+    public List<AiServiceListener<?>> createAiServiceListeners() {
+        return List.of(
+                new LangChain4jAiServiceStartedListener(tracer, aiServiceSpans),
+                new LangChain4jServiceCompletedListener(tracer, aiServiceSpans),
+                new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans),
+                new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans),
+                new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans),
+                new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans)
+        );
     }
 }
