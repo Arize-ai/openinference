@@ -99,11 +99,11 @@ _HOST_SUFFIX_TO_PROVIDER: Dict[str, str] = {
 }
 
 
-def resolve_provider_from_host(host: str) -> Optional[str]:
+def get_provider_from_host(host: str) -> Optional[str]:
     """Return the LLM provider name for the given API hostname."""
-    host = host.lower().strip()
+    normalised = host.lower().strip()
     for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
-        if host == suffix or host.endswith(f".{suffix}"):
+        if normalised.endswith(suffix):
             return provider
     return None
 
@@ -191,16 +191,14 @@ class _WithOpenAI(ABC):
             else OpenInferenceSpanKindValues.LLM.value
         )
 
-    def _get_attributes_from_instance(
-        self, instance: Any
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
             or not isinstance(host, str)
         ):
             return
-        if provider := resolve_provider_from_host(host):
+        if provider := get_provider_from_host(host):
             yield SpanAttributes.LLM_PROVIDER, provider
 
     def _get_attributes_from_request(
@@ -209,9 +207,7 @@ class _WithOpenAI(ABC):
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        # Skip system attribute for embedding spans
-        if cast_to is not self._openai.types.CreateEmbeddingResponse:
-            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
