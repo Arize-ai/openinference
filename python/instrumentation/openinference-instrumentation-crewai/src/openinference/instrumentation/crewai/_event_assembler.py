@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -60,6 +60,7 @@ class _ContextHint:
 class _SpanEntry:
     span: trace_api.Span
     context: Context
+    context_attributes: dict[str, Any]
     agent_hint_keys: Optional[_AgentHintKeys] = None
 
 
@@ -85,12 +86,16 @@ class CrewAIEventAssembler:
         self._agent_contexts_by_agent_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._agent_contexts_by_agent_key: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._agent_contexts_by_agent_role: "OrderedDict[str, _ContextHint]" = OrderedDict()
-        self._deferred_ends: dict[str, _DeferredEnd] = {}
-        self._pending_starts: dict[str, list[Callable[[], None]]] = {}
-        self._closed_transparent_scopes: set[str] = set()
+        self._deferred_ends: "OrderedDict[str, _DeferredEnd]" = OrderedDict()
+        self._pending_starts: "OrderedDict[str, list[Callable[[], None]]]" = OrderedDict()
+        self._pending_start_event_ids: deque[str] = deque()
+        self._pending_starts_draining = False
+        self._closed_transparent_scopes: "OrderedDict[str, None]" = OrderedDict()
         self._lock = threading.RLock()
 
     def start_span(self, event: Any, spec: _SpanStartSpec) -> None:
+        context_attributes = dict(get_attributes_from_context())
+
         def start(parent_context: Context) -> None:
             span_attributes = dict(
                 _flatten({SpanAttributes.OPENINFERENCE_SPAN_KIND: spec.span_kind})
@@ -118,14 +123,34 @@ class CrewAIEventAssembler:
                     agent_hint_keys = self._remember_agent_context_locked(
                         event, span_context, event_id
                     )
-                self._spans[event_id] = _SpanEntry(
+                span_entry = _SpanEntry(
                     span=span,
                     context=span_context,
+                    context_attributes=context_attributes,
                     agent_hint_keys=agent_hint_keys,
+                )
+                self._spans[event_id] = span_entry
+                deferred_end = self._deferred_ends.pop(event_id, None)
+                if deferred_end is not None:
+                    self._spans.pop(event_id, None)
+                    if span_entry.agent_hint_keys is not None:
+                        self._forget_agent_context_locked(event_id, span_entry.agent_hint_keys)
+                    self._remember_finished_context_locked(event_id, span_entry.context)
+                else:
+                    deferred_end = None
+
+            if deferred_end is not None:
+                self._finalize_span(
+                    span_entry,
+                    _SpanEndSpec(
+                        output=deferred_end.output,
+                        error=deferred_end.error,
+                        attributes=deferred_end.attributes,
+                    ),
+                    deferred_end.end_time_ns,
                 )
 
             self._drain_pending_starts(event_id)
-            self._apply_deferred_end(event_id)
 
         self._with_resolved_parent_context(event, start)
 
@@ -139,18 +164,21 @@ class CrewAIEventAssembler:
         with self._lock:
             entry = self._spans.pop(event_id, None)
             if entry is None:
-                self._deferred_ends[event_id] = _DeferredEnd(
-                    output=spec.output,
-                    error=spec.error,
-                    attributes=dict(spec.attributes),
-                    end_time_ns=end_time_ns,
+                self._remember_deferred_end_locked(
+                    event_id,
+                    _DeferredEnd(
+                        output=spec.output,
+                        error=spec.error,
+                        attributes=dict(spec.attributes),
+                        end_time_ns=end_time_ns,
+                    ),
                 )
                 return
             if entry.agent_hint_keys is not None:
                 self._forget_agent_context_locked(event_id, entry.agent_hint_keys)
             self._remember_finished_context_locked(event_id, entry.context)
 
-        self._finalize_span(entry.span, spec, end_time_ns)
+        self._finalize_span(entry, spec, end_time_ns)
 
     def open_scope(self, event: Any) -> None:
         def open_scope(parent_context: Context) -> None:
@@ -160,7 +188,7 @@ class CrewAIEventAssembler:
 
             with self._lock:
                 if event_id in self._closed_transparent_scopes:
-                    self._closed_transparent_scopes.discard(event_id)
+                    self._closed_transparent_scopes.pop(event_id, None)
                     self._remember_finished_context_locked(event_id, parent_context)
                 else:
                     self._transparent_contexts[event_id] = parent_context
@@ -194,7 +222,7 @@ class CrewAIEventAssembler:
                 return
             if task_key is not None:
                 self._forget_context_hint_locked(self._task_contexts_by_task_id, task_key, event_id)
-            self._closed_transparent_scopes.add(event_id)
+            self._remember_closed_scope_locked(event_id)
 
     def shutdown(self) -> None:
         with self._lock:
@@ -216,6 +244,8 @@ class CrewAIEventAssembler:
             self._agent_contexts_by_agent_role.clear()
             self._deferred_ends.clear()
             self._pending_starts.clear()
+            self._pending_start_event_ids.clear()
+            self._pending_starts_draining = False
             self._closed_transparent_scopes.clear()
 
     @staticmethod
@@ -238,10 +268,11 @@ class CrewAIEventAssembler:
 
     def _finalize_span(
         self,
-        span: trace_api.Span,
+        entry: _SpanEntry,
         spec: _SpanEndSpec,
         end_time_ns: Optional[int],
     ) -> None:
+        span = entry.span
         try:
             if spec.error:
                 span.set_status(trace_api.Status(trace_api.StatusCode.ERROR, spec.error))
@@ -251,37 +282,28 @@ class CrewAIEventAssembler:
                     span.set_attributes(dict(get_output_attributes(spec.output)))
             if spec.attributes:
                 span.set_attributes(spec.attributes)
-            span.set_attributes(dict(get_attributes_from_context()))
+            if entry.context_attributes:
+                span.set_attributes(entry.context_attributes)
         finally:
             span.end(end_time_ns)
-
-    def _apply_deferred_end(self, event_id: str) -> None:
-        with self._lock:
-            deferred = self._deferred_ends.pop(event_id, None)
-            entry = self._spans.pop(event_id, None) if deferred else None
-            if entry is not None:
-                if entry.agent_hint_keys is not None:
-                    self._forget_agent_context_locked(event_id, entry.agent_hint_keys)
-                self._remember_finished_context_locked(event_id, entry.context)
-
-        if deferred is None or entry is None:
-            return
-
-        self._finalize_span(
-            entry.span,
-            _SpanEndSpec(
-                output=deferred.output,
-                error=deferred.error,
-                attributes=deferred.attributes,
-            ),
-            deferred.end_time_ns,
-        )
 
     def _remember_finished_context_locked(self, event_id: str, context: Context) -> None:
         self._finished_contexts.pop(event_id, None)
         self._finished_contexts[event_id] = context
         while len(self._finished_contexts) > _FINISHED_CONTEXT_CACHE_SIZE:
             self._finished_contexts.popitem(last=False)
+
+    def _remember_deferred_end_locked(self, event_id: str, deferred_end: _DeferredEnd) -> None:
+        self._deferred_ends.pop(event_id, None)
+        self._deferred_ends[event_id] = deferred_end
+        while len(self._deferred_ends) > _FINISHED_CONTEXT_CACHE_SIZE:
+            self._deferred_ends.popitem(last=False)
+
+    def _remember_closed_scope_locked(self, event_id: str) -> None:
+        self._closed_transparent_scopes.pop(event_id, None)
+        self._closed_transparent_scopes[event_id] = None
+        while len(self._closed_transparent_scopes) > _FINISHED_CONTEXT_CACHE_SIZE:
+            self._closed_transparent_scopes.popitem(last=False)
 
     @staticmethod
     def _normalize_hint_key(value: Any) -> Optional[str]:
@@ -440,21 +462,33 @@ class CrewAIEventAssembler:
 
     def _queue_pending_start(self, parent_event_id: str, callback: Callable[[], None]) -> None:
         with self._lock:
-            self._pending_starts.setdefault(parent_event_id, []).append(callback)
+            callbacks = self._pending_starts.setdefault(parent_event_id, [])
+            callbacks.append(callback)
+            self._pending_starts.move_to_end(parent_event_id)
+            while len(self._pending_starts) > _FINISHED_CONTEXT_CACHE_SIZE:
+                self._pending_starts.popitem(last=False)
 
     def _drain_pending_starts(self, event_id: str) -> None:
+        with self._lock:
+            self._pending_start_event_ids.append(event_id)
+            if self._pending_starts_draining:
+                return
+            self._pending_starts_draining = True
+
         while True:
             with self._lock:
-                callbacks = self._pending_starts.pop(event_id, [])
-            if not callbacks:
-                return
+                if not self._pending_start_event_ids:
+                    self._pending_starts_draining = False
+                    return
+                current_event_id = self._pending_start_event_ids.popleft()
+                callbacks = self._pending_starts.pop(current_event_id, [])
             for callback in callbacks:
                 try:
                     callback()
                 except Exception:
                     logger.debug(
                         "Failed to start pending child span for parent %s",
-                        event_id,
+                        current_event_id,
                         exc_info=True,
                     )
 

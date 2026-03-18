@@ -12,8 +12,14 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from openinference.instrumentation import using_attributes
+from openinference.instrumentation import (
+    REDACTED_VALUE,
+    TraceConfig,
+    suppress_tracing,
+    using_attributes,
+)
 from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.instrumentation.crewai._event_listener import OpenInferenceEventListener
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from ._scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
@@ -22,6 +28,7 @@ from ._span_helpers import (
     INPUT_MIME_TYPE,
     INPUT_VALUE,
     JSON,
+    LLM_TOKEN_COUNT_TOTAL,
     OPENINFERENCE_SPAN_KIND,
     OUTPUT_MIME_TYPE,
     OUTPUT_VALUE,
@@ -67,6 +74,27 @@ def event_listener_instrumented_no_llm(
             tracer_provider=tracer_provider,
             use_event_listener=True,
             create_llm_spans=False,
+        )
+        in_memory_span_exporter.clear()
+        try:
+            yield
+        finally:
+            crewai_event_bus.flush(timeout=10.0)
+            instrumentor.uninstrument()
+            in_memory_span_exporter.clear()
+
+
+@pytest.fixture()
+def event_listener_instrumented_masked(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Generator[None, None, None]:
+    with crewai_event_bus.scoped_handlers():
+        instrumentor = CrewAIInstrumentor()
+        instrumentor.instrument(
+            tracer_provider=tracer_provider,
+            use_event_listener=True,
+            config=TraceConfig(hide_inputs=True, hide_outputs=True),
         )
         in_memory_span_exporter.clear()
         try:
@@ -127,7 +155,7 @@ def _assert_crew_span(span: ReadableSpan) -> None:
     ]
     assert _assert_uuid(attributes.pop("crew_id"))
     assert attributes.pop("crew_key")
-    assert attributes.pop("total_tokens") > 0
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) > 0
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     output = _pop_json(attributes, OUTPUT_VALUE)
     assert output["name"] == "analyze-task"
@@ -205,7 +233,6 @@ def _assert_tool_span(span: ReadableSpan) -> None:
 def _assert_llm_span(
     span: ReadableSpan,
     *,
-    expected_call_type: str,
     expect_tools: bool,
     expect_output_messages: bool,
     expected_output_mime_type: str,
@@ -214,8 +241,6 @@ def _assert_llm_span(
     assert span.name == "gpt-4.1-nano.llm_call"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop("llm.model_name") == "gpt-4.1-nano"
-    _assert_uuid(attributes.pop("llm.call_id"))
-    assert attributes.pop("llm.call_type") == expected_call_type
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert _pop_json(attributes, INPUT_VALUE)
     input_messages = pop_prefixed(attributes, "llm.input_messages.")
@@ -294,6 +319,39 @@ def _assert_standalone_agent_span(span: ReadableSpan) -> None:
     assert not attributes
 
 
+def _assert_masked_span_attributes(span: ReadableSpan) -> None:
+    attributes: dict[str, Any] = dict(span.attributes or {})
+    if INPUT_VALUE in attributes:
+        assert attributes[INPUT_VALUE] == REDACTED_VALUE
+    assert INPUT_MIME_TYPE not in attributes
+    if OUTPUT_VALUE in attributes:
+        assert attributes[OUTPUT_VALUE] == REDACTED_VALUE
+    assert OUTPUT_MIME_TYPE not in attributes
+    assert not pop_prefixed(attributes, "llm.input_messages.")
+    assert not pop_prefixed(attributes, "llm.output_messages.")
+
+
+def test_llm_token_usage_patch_is_reference_counted(
+    tracer_provider: trace_api.TracerProvider,
+) -> None:
+    from crewai.llms import base_llm as base_llm_module
+
+    original = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal")
+    with crewai_event_bus.scoped_handlers():
+        first = OpenInferenceEventListener(tracer_provider=tracer_provider)
+        patched = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal")
+        assert patched is not original
+
+        second = OpenInferenceEventListener(tracer_provider=tracer_provider)
+        assert getattr(base_llm_module.BaseLLM, "_track_token_usage_internal") is patched
+
+        first.shutdown()
+        assert getattr(base_llm_module.BaseLLM, "_track_token_usage_internal") is patched
+
+        second.shutdown()
+        assert getattr(base_llm_module.BaseLLM, "_track_token_usage_internal") is original
+
+
 @pytest.mark.vcr
 @pytest.mark.default_cassette("test_crewai_instrumentation")
 def test_event_listener_crewai_instrumentation(
@@ -343,28 +401,25 @@ def test_event_listener_crewai_instrumentation(
     tool_call_span = next(
         span
         for span in scraper_llm_spans
-        if span.attributes and span.attributes["llm.call_type"] == "tool_call"
+        if span.attributes and span.attributes.get(OUTPUT_MIME_TYPE) == JSON
     )
     scraper_response_span = next(span for span in scraper_llm_spans if span is not tool_call_span)
     analyzer_response_span = analyzer_llm_spans[0]
 
     _assert_llm_span(
         tool_call_span,
-        expected_call_type="tool_call",
         expect_tools=True,
         expect_output_messages=False,
         expected_output_mime_type=JSON,
     )
     _assert_llm_span(
         scraper_response_span,
-        expected_call_type="llm_call",
         expect_tools=True,
         expect_output_messages=True,
         expected_output_mime_type=TEXT,
     )
     _assert_llm_span(
         analyzer_response_span,
-        expected_call_type="llm_call",
         expect_tools=False,
         expect_output_messages=True,
         expected_output_mime_type=TEXT,
@@ -507,7 +562,7 @@ def test_event_listener_flow_crew_spans_in_same_trace(
     assert len(_pop_json(crew_attributes, "crew_tasks")) == 1
     assert _assert_uuid(crew_attributes.pop("crew_id"))
     assert crew_attributes.pop("crew_key")
-    assert crew_attributes.pop("total_tokens") > 0
+    assert crew_attributes.pop(LLM_TOKEN_COUNT_TOTAL) > 0
     assert crew_attributes.pop(OUTPUT_MIME_TYPE) == JSON
     crew_output = _pop_json(crew_attributes, OUTPUT_VALUE)
     assert crew_output["agent"] == "Website Scraper"
@@ -539,7 +594,6 @@ def test_event_listener_crewai_instrumentation_with_agent(
     _assert_standalone_agent_span(agent_span)
     _assert_llm_span(
         llm_span,
-        expected_call_type="llm_call",
         expect_tools=False,
         expect_output_messages=True,
         expected_output_mime_type=TEXT,
@@ -577,3 +631,29 @@ def test_event_listener_create_llm_spans_false_skips_llm_spans(
     assert _span_parent_name(scraper_span, spans_by_id) == crew_span.name
     assert _span_parent_name(analyzer_span, spans_by_id) == crew_span.name
     assert _span_parent_name(tool_span, spans_by_id) == scraper_span.name
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation")
+def test_event_listener_suppress_tracing(
+    event_listener_instrumented: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    with suppress_tracing():
+        kickoff_crew()
+
+    assert not _finished_spans(in_memory_span_exporter)
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation")
+def test_event_listener_trace_config_masking(
+    event_listener_instrumented_masked: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    kickoff_crew()
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 7
+    for span in spans:
+        _assert_masked_span_attributes(span)

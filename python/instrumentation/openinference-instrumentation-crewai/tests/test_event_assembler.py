@@ -9,7 +9,9 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.crewai._event_assembler import (
+    _FINISHED_CONTEXT_CACHE_SIZE,
     CrewAIEventAssembler,
     _SpanEndSpec,
     _SpanStartSpec,
@@ -18,9 +20,11 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues
 
 from ._span_helpers import (
     INPUT_MIME_TYPE,
+    LLM_TOKEN_COUNT_TOTAL,
     OPENINFERENCE_SPAN_KIND,
     OUTPUT_MIME_TYPE,
     OUTPUT_VALUE,
+    SESSION_ID,
     TEXT,
 )
 
@@ -57,19 +61,19 @@ def test_deferred_end_preserves_completion_attributes(
     assembler: CrewAIEventAssembler,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    start_event = _event("tool-start", type="tool_usage_started")
-    finish_event = _end_event("tool-start", type="tool_usage_finished")
+    start_event = _event("llm-start", type="llm_call_started")
+    finish_event = _end_event("llm-start", type="llm_call_completed")
 
     assembler.end_span(
         finish_event,
-        _SpanEndSpec(output="cached answer", attributes={"tool.from_cache": True}),
+        _SpanEndSpec(output="cached answer", attributes={LLM_TOKEN_COUNT_TOTAL: 17}),
     )
     assembler.start_span(
         start_event,
         _SpanStartSpec(
-            name="search.run",
-            span_kind=OpenInferenceSpanKindValues.TOOL,
-            attributes={"tool.name": "search"},
+            name="gpt-4.llm_call",
+            span_kind=OpenInferenceSpanKindValues.LLM,
+            attributes={"llm.model_name": "gpt-4"},
         ),
     )
 
@@ -78,10 +82,10 @@ def test_deferred_end_preserves_completion_attributes(
 
     span = spans[0]
     attributes: dict[str, Any] = dict(span.attributes or {})
-    assert span.name == "search.run"
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
-    assert attributes.pop("tool.name") == "search"
-    assert attributes.pop("tool.from_cache") is True
+    assert span.name == "gpt-4.llm_call"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop("llm.model_name") == "gpt-4"
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 17
     assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
     assert attributes.pop(OUTPUT_VALUE) == "cached answer"
     assert attributes.pop(INPUT_MIME_TYPE, None) is None
@@ -184,3 +188,63 @@ def test_rootless_tool_prefers_active_task_scope_over_stale_agent_identity(
     assert tool_span.context.trace_id != crew_1_span.context.trace_id
     assert tool_span.parent is not None
     assert tool_span.parent.span_id == crew_2_span.context.span_id
+
+
+def test_context_attributes_are_captured_at_start_time(
+    assembler: CrewAIEventAssembler,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    start_event = _event("agent-start")
+    end_event = _end_event("agent-start")
+
+    with using_attributes(session_id="captured-session"):
+        assembler.start_span(
+            start_event,
+            _SpanStartSpec(name="Research.execute", span_kind=OpenInferenceSpanKindValues.AGENT),
+        )
+
+    assembler.end_span(end_event, _SpanEndSpec(output="done"))
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    attributes: dict[str, Any] = dict(spans[0].attributes or {})
+    assert attributes.pop(SESSION_ID) == "captured-session"
+
+
+def test_orphan_state_is_bounded(assembler: CrewAIEventAssembler) -> None:
+    for index in range(_FINISHED_CONTEXT_CACHE_SIZE + 10):
+        assembler.end_span(
+            _end_event(f"missing-start-{index}"),
+            _SpanEndSpec(output=f"end-{index}"),
+        )
+        assembler.start_span(
+            _event(f"pending-child-{index}", parent_event_id=f"missing-parent-{index}"),
+            _SpanStartSpec(
+                name=f"pending-{index}",
+                span_kind=OpenInferenceSpanKindValues.TOOL,
+            ),
+        )
+        assembler.close_scope(_end_event(f"missing-scope-{index}"))
+
+    assert len(assembler._deferred_ends) == _FINISHED_CONTEXT_CACHE_SIZE
+    assert len(assembler._pending_starts) == _FINISHED_CONTEXT_CACHE_SIZE
+    assert len(assembler._closed_transparent_scopes) == _FINISHED_CONTEXT_CACHE_SIZE
+
+
+def test_pending_start_chain_drains_iteratively(assembler: CrewAIEventAssembler) -> None:
+    depth = 1_100
+    for index in range(depth, 0, -1):
+        assembler.start_span(
+            _event(f"node-{index}", parent_event_id=f"node-{index - 1}"),
+            _SpanStartSpec(name=f"node-{index}", span_kind=OpenInferenceSpanKindValues.CHAIN),
+        )
+
+    assembler.start_span(
+        _event("node-0"),
+        _SpanStartSpec(name="node-0", span_kind=OpenInferenceSpanKindValues.CHAIN),
+    )
+
+    assert len(assembler._spans) == _FINISHED_CONTEXT_CACHE_SIZE + 1
+    assert "node-0" in assembler._spans
+    assert f"node-{_FINISHED_CONTEXT_CACHE_SIZE}" in assembler._spans
+    assert f"node-{_FINISHED_CONTEXT_CACHE_SIZE + 1}" not in assembler._spans

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import weakref
 from collections.abc import Mapping, Sequence
 from typing import Any, Optional, cast
 
@@ -436,10 +437,6 @@ def _build_llm_start_spec(event: LLMCallStartedEvent) -> _SpanStartSpec:
         attributes.update(_get_serialized_input_attributes(messages))
         attributes.update(_get_llm_input_attributes(messages))
 
-    call_id = getattr(event, "call_id", None)
-    if call_id:
-        attributes["llm.call_id"] = str(call_id)
-
     tools = getattr(event, "tools", None)
     if tools:
         try:
@@ -507,6 +504,10 @@ def _build_method_start_spec(source: Any, event: MethodExecutionStartedEvent) ->
 class OpenInferenceEventListener(BaseEventListener):
     """CrewAI event listener that converts official CrewAI events into OI spans."""
 
+    _llm_patch_lock = threading.RLock()
+    _llm_patch_original: Optional[Any] = None
+    _llm_patch_listeners: "weakref.WeakSet[OpenInferenceEventListener]" = weakref.WeakSet()
+
     def __init__(
         self,
         tracer_provider: Optional[trace_api.TracerProvider] = None,
@@ -528,7 +529,6 @@ class OpenInferenceEventListener(BaseEventListener):
         self._create_llm_spans = create_llm_spans
         self._llm_usage_by_call_id: dict[str, dict[str, Any]] = {}
         self._llm_usage_lock = threading.RLock()
-        self._original_track_token_usage_internal: Optional[Any] = None
         if self._create_llm_spans:
             self._patch_llm_token_usage_tracking()
         self._handlers: list[tuple[type[Any], Any]] = []
@@ -592,28 +592,37 @@ class OpenInferenceEventListener(BaseEventListener):
     def _patch_llm_token_usage_tracking(self) -> None:
         from crewai.llms import base_llm as base_llm_module
 
-        original = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal", None)
-        if original is None:
-            return
+        cls = type(self)
+        with cls._llm_patch_lock:
+            original = cls._llm_patch_original
+            if original is None:
+                original = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal", None)
+                if original is None:
+                    return
+                cls._llm_patch_original = original
 
-        self._original_track_token_usage_internal = original
-        listener = self
+                def patched(instance: Any, usage_data: dict[str, Any]) -> None:
+                    original(instance, usage_data)
+                    call_id = base_llm_module.get_current_call_id()
+                    with cls._llm_patch_lock:
+                        listeners = list(cls._llm_patch_listeners)
+                    for listener in listeners:
+                        listener._record_llm_token_usage(call_id, usage_data)
 
-        def patched(instance: Any, usage_data: dict[str, Any]) -> None:
-            original(instance, usage_data)
-            call_id = base_llm_module.get_current_call_id()
-            listener._record_llm_token_usage(call_id, usage_data)
+                setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", patched)
 
-        setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", patched)
+            cls._llm_patch_listeners.add(self)
 
     def _restore_llm_token_usage_tracking(self) -> None:
-        original = self._original_track_token_usage_internal
-        if original is None:
-            return
         from crewai.llms import base_llm as base_llm_module
 
-        setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", original)
-        self._original_track_token_usage_internal = None
+        cls = type(self)
+        with cls._llm_patch_lock:
+            cls._llm_patch_listeners.discard(self)
+            original = cls._llm_patch_original
+            if original is not None and not cls._llm_patch_listeners:
+                setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", original)
+                cls._llm_patch_original = None
         with self._llm_usage_lock:
             self._llm_usage_by_call_id.clear()
 
@@ -660,7 +669,11 @@ class OpenInferenceEventListener(BaseEventListener):
         if self._is_suppressed():
             return
         total_tokens = getattr(event, "total_tokens", None)
-        attributes = {"total_tokens": total_tokens} if total_tokens is not None else {}
+        attributes = (
+            {SpanAttributes.LLM_TOKEN_COUNT_TOTAL: int(total_tokens)}
+            if total_tokens is not None
+            else {}
+        )
         self._assembler.end_span(
             event,
             _SpanEndSpec(
@@ -746,12 +759,10 @@ class OpenInferenceEventListener(BaseEventListener):
     def _on_tool_finished(self, source: Any, event: ToolUsageFinishedEvent) -> None:
         if self._is_suppressed():
             return
-        attributes = {"tool.from_cache": True} if getattr(event, "from_cache", False) else {}
         self._assembler.end_span(
             event,
             _SpanEndSpec(
                 output=getattr(event, "output", None),
-                attributes=attributes,
             ),
         )
 
@@ -771,8 +782,7 @@ class OpenInferenceEventListener(BaseEventListener):
     def _on_llm_completed(self, source: Any, event: LLMCallCompletedEvent) -> None:
         if self._is_suppressed():
             return
-        call_type = getattr(event, "call_type", None)
-        attributes = {"llm.call_type": call_type.value} if call_type is not None else {}
+        attributes: dict[str, Any] = {}
         attributes.update(_get_llm_output_attributes(getattr(event, "response", None)))
         attributes.update(self._consume_llm_token_usage_attributes(getattr(event, "call_id", None)))
         self._assembler.end_span(
