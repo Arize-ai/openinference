@@ -17,10 +17,11 @@ public class TraceAdvice {
         OITracer tracer = OpenInferenceAgent.getTracer();
         if (tracer == null) return null;
 
+        TracedSpan span = null;
         try {
             String name = resolveSpanName(method);
             SemanticConventions.OpenInferenceSpanKind kind = resolveSpanKind(method);
-            TracedSpan span = createTypedSpan(tracer, name, kind);
+            span = createTypedSpan(tracer, name, kind);
 
             // Auto-capture input
             Map<String, Object> input = SpanHelper.buildInputMap(method, args);
@@ -42,6 +43,9 @@ public class TraceAdvice {
             return span;
         } catch (Exception e) {
             log.warn("Failed to create trace span for method {}", method.getName(), e);
+            if (span != null) {
+                span.close();
+            }
             return null;
         }
     }
