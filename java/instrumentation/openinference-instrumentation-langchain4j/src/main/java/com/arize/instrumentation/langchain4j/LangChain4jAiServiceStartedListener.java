@@ -27,6 +27,7 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
 
     private final OITracer tracer;
     private final Map<String, SpanContext> activeSpans;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public LangChain4jAiServiceStartedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
         this.tracer = tracer;
@@ -42,24 +43,25 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
     public void setInputAttributes(Span span, AiServiceStartedEvent event) {
         span.setAttribute(
                 SemanticConventions.OPENINFERENCE_SPAN_KIND,
-                SemanticConventions.OpenInferenceSpanKind.CHAIN.getValue()
+                SemanticConventions.OpenInferenceSpanKind.AGENT.getValue()
         );
-        List<ChatMessage> messages = new ArrayList<>();
-        if (event.systemMessage().isPresent()) {
-            messages.add(event.systemMessage().get());
+        if (!tracer.getConfig().isHideInputMessages()) {
+            List<ChatMessage> messages = new ArrayList<>();
+            if (event.systemMessage().isPresent()) {
+                messages.add(event.systemMessage().get());
+            }
+            messages.add(event.userMessage());
+            List<Map<String, Object>> inputList = ChatMessageAttributeUtils.convertMessages(messages);
+            try {
+                span.setAttribute(SemanticConventions.INPUT_VALUE, objectMapper.writeValueAsString(inputList));
+            } catch (Exception e) {
+                span.setAttribute(SemanticConventions.INPUT_VALUE, event.userMessage().toString());
+            }
+            span.setAttribute(
+                    SemanticConventions.INPUT_MIME_TYPE,
+                    SemanticConventions.MimeType.JSON.getValue()
+            );
         }
-        messages.add(event.userMessage());
-        List<Map<String, Object>> inputList = ChatMessageAttributeUtils.convertMessages(messages);
-        ObjectMapper objectMapper = new ObjectMapper();
-        try {
-            span.setAttribute(SemanticConventions.INPUT_VALUE, objectMapper.writeValueAsString(inputList));
-        } catch (Exception e) {
-            span.setAttribute(SemanticConventions.INPUT_VALUE, event.userMessage().toString());
-        }
-        span.setAttribute(
-                SemanticConventions.INPUT_MIME_TYPE,
-                SemanticConventions.MimeType.JSON.getValue()
-        );
     }
 
     /**

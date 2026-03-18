@@ -27,10 +27,14 @@ public class LangChain4jServiceCompletedListener implements AiServiceCompletedLi
         if (spanContext != null) {
             Span span = spanContext.span();
             try (Scope scope = spanContext.context().makeCurrent()) {
-                span.setStatus(StatusCode.OK);
-                if(event.result().isPresent()){
+                if (!tracer.getConfig().isHideOutputMessages() && event.result().isPresent()){
                     span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.result().get().toString());
+                    span.setAttribute(
+                            SemanticConventions.OUTPUT_MIME_TYPE,
+                            SemanticConventions.MimeType.TEXT.getValue()
+                    );
                 }
+                span.setStatus(StatusCode.OK);
             } finally {
                 span.end();
             }

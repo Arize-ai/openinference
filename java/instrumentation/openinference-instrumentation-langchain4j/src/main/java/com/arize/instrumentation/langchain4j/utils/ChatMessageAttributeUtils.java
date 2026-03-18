@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  */
 public class ChatMessageAttributeUtils {
 
-    private static final Logger logger = Logger.getLogger(LangChain4jModelListener.class.getName());
+    private static final Logger logger = Logger.getLogger(ChatMessageAttributeUtils.class.getName());
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 

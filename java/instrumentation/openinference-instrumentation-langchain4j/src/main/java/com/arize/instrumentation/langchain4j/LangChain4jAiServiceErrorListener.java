@@ -40,7 +40,7 @@ public class LangChain4jAiServiceErrorListener implements AiServiceErrorListener
             try (Scope scope = spanContext.context().makeCurrent()) {
                 Throwable error = event.error();
                 span.recordException(error);
-                span.setStatus(StatusCode.ERROR);
+                span.setStatus(StatusCode.ERROR, error.getMessage());
             } finally {
                 span.end();
             }

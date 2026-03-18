@@ -40,7 +40,7 @@ public class LangChain4jServiceRequestIssuedListener implements AiServiceRequest
         Context context = parentSpanContext != null
                 ? parentSpanContext.context() // Use AiService span's context
                 : Context.current();
-        Span span = tracer.spanBuilder("AiService.chat")
+        Span span = tracer.spanBuilder("LLM")
                 .setParent(context)
                 .setSpanKind(SpanKind.CLIENT)
                 .startSpan();
