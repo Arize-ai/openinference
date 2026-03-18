@@ -9,7 +9,7 @@ This project provides Java libraries for instrumenting AI/ML applications with O
 - **openinference-semantic-conventions**: Java constants for OpenInference semantic conventions
 - **openinference-instrumentation**: Base instrumentation utilities
 - **openinference-instrumentation-langchain4j**: Auto-instrumentation for LangChain4j applications
-- **openinference-instrumentation-annotations**: Annotation-based manual tracing (`@TraceChain`, `@TraceLLM`, `@TraceTool`, `@TraceAgent`)
+- **openinference-instrumentation-annotation**: Annotation-based manual tracing (`@Chain`, `@LLM`, `@Tool`, `@Agent`)
 
 ## Requirements
 
@@ -27,7 +27,7 @@ dependencies {
     implementation 'io.openinference:openinference-semantic-conventions:0.1.0-SNAPSHOT'
     implementation 'io.openinference:openinference-instrumentation:0.1.0-SNAPSHOT'
     implementation 'io.openinference:openinference-instrumentation-langchain4j:0.1.0-SNAPSHOT'
-    implementation 'io.openinference:openinference-instrumentation-annotations:0.1.0-SNAPSHOT'
+    implementation 'io.openinference:openinference-instrumentation-annotation:0.1.0-SNAPSHOT'
 }
 ```
 
@@ -54,7 +54,7 @@ Add the following to your `pom.xml`:
     </dependency>
     <dependency>
         <groupId>io.openinference</groupId>
-        <artifactId>openinference-instrumentation-annotations</artifactId>
+        <artifactId>openinference-instrumentation-annotation</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
@@ -85,34 +85,34 @@ String response = model.generate("What is the capital of France?");
 
 ### Annotation-based tracing
 
-Annotate your methods with `@TraceChain`, `@TraceLLM`, `@TraceTool`, or `@TraceAgent` to
+Annotate your methods with `@Chain`, `@LLM`, `@Tool`, or `@Agent` to
 automatically create OpenInference spans. The ByteBuddy agent intercepts annotated methods
 at class load time, capturing inputs and outputs as span attributes.
 
 ```java
-import com.arize.instrumentation.annotations.*;
+import com.arize.instrumentation.annotation.*;
 
 public class QAService {
 
-    @TraceAgent(name = "qa-agent")
+    @Agent(name = "qa-agent")
     public String answer(String question) {
         String context = retrieve(question);
         return generate(question, context);
     }
 
-    @TraceChain(name = "retriever")
+    @Chain(name = "retriever")
     public String retrieve(String query) {
         // retrieval logic
         return "OpenInference is a tracing standard";
     }
 
-    @TraceLLM(name = "generator")
+    @LLM(name = "generator")
     public String generate(String query, @SpanIgnore String context) {
         // LLM call
         return "OpenInference provides tracing for AI apps.";
     }
 
-    @TraceTool(name = "weather", description = "Gets current weather")
+    @Tool(name = "weather", description = "Gets current weather")
     public Map<String, Object> getWeather(String location) {
         return Map.of("temp", 72, "condition", "sunny");
     }
@@ -123,7 +123,11 @@ Register the tracer at startup to activate annotation-based tracing:
 
 ```java
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.annotations.OpenInferenceAgent;
+import com.arize.instrumentation.annotation.OpenInferenceAgent;
+import com.arize.instrumentation.annotation.OpenInferenceAgentInstaller;
+
+// Install ByteBuddy agent BEFORE loading any annotated classes
+OpenInferenceAgentInstaller.install();
 
 Tracer otelTracer = GlobalOpenTelemetry.getTracer("my-app");
 OITracer tracer = new OITracer(otelTracer);
@@ -136,16 +140,16 @@ For more control, use the `TracedSpan` API directly with try-with-resources:
 
 ```java
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.annotations.*;
+import com.arize.instrumentation.annotation.*;
 
 Tracer otelTracer = GlobalOpenTelemetry.getTracer("my-app");
 OITracer tracer = new OITracer(otelTracer);
 
-try (TracedAgentSpan agent = TracedAgentSpan.start(tracer, "qa-agent")) {
+try (AgentSpan agent = AgentSpan.start(tracer, "qa-agent")) {
     agent.setInput("What is OpenInference?");
     agent.setAgentName("qa-agent");
 
-    try (TracedLLMSpan llm = TracedLLMSpan.start(tracer, "generate")) {
+    try (LLMSpan llm = LLMSpan.start(tracer, "generate")) {
         llm.setInput("What is OpenInference?");
         llm.setModelName("gpt-4o");
 
