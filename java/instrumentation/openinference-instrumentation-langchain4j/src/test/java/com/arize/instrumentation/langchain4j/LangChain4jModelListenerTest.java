@@ -192,7 +192,7 @@ class LangChain4jModelListenerTest {
 
         SpanData span = spans.get(0);
         // Span basics
-        assertThat(span.getName()).isEqualTo("WRONG_NAME_TO_VERIFY_CI_CATCHES_FAILURES");
+        assertThat(span.getName()).isEqualTo("generate");
         assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT);
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
         // OpenInference span kind
