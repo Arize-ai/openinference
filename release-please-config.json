@@ -186,14 +186,14 @@
                 }
             ]
         },
-        "java/instrumentation/openinference-instrumentation-annotations": {
-            "package-name": "java-openinference-instrumentation-annotations",
+        "java/instrumentation/openinference-instrumentation-annotation": {
+            "package-name": "java-openinference-instrumentation-annotation",
             "release-type": "simple",
-            "version-file": "java/instrumentation/openinference-instrumentation-annotations/gradle.properties",
+            "version-file": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties",
             "extra-files": [
                 {
                     "type": "generic",
-                    "path": "java/instrumentation/openinference-instrumentation-annotations/gradle.properties"
+                    "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
                 }
             ]
         }
