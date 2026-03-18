@@ -12,6 +12,7 @@ from openinference.instrumentation.crewai import CrewAIInstrumentor
 
 _TEST_HOME = Path("/tmp/openinference-crewai-test-home")
 _TEST_HOME.mkdir(parents=True, exist_ok=True)
+# Keep CrewAI's SQLite/task-output state inside a writable temp home for tests.
 os.environ["HOME"] = str(_TEST_HOME)
 os.environ["CREWAI_STORAGE_DIR"] = "openinference-crewai-tests"
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
@@ -58,6 +59,7 @@ def instrument(
     tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> Generator[None, None, None]:
+    # Event-listener and assembler tests manage instrumentation explicitly.
     if request.node.get_closest_marker("no_autoinstrument"):
         in_memory_span_exporter.clear()
         yield
