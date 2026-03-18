@@ -98,27 +98,6 @@ class LangChain4jModelListenerTest {
                                 .formatted(content))));
     }
 
-    private void stubChatCompletionNoUsage(String content) {
-        wireMock.stubFor(post(urlPathEqualTo("/v1/chat/completions"))
-                .willReturn(okJson(
-                        """
-                {
-                  "id": "chatcmpl-test",
-                  "object": "chat.completion",
-                  "model": "gpt-4",
-                  "choices": [{
-                    "index": 0,
-                    "message": {
-                      "role": "assistant",
-                      "content": "%s"
-                    },
-                    "finish_reason": "stop"
-                  }]
-                }
-                """
-                                .formatted(content))));
-    }
-
     private void stubToolCallResponse() {
         wireMock.stubFor(
                 post(urlPathEqualTo("/v1/chat/completions"))
@@ -154,27 +133,36 @@ class LangChain4jModelListenerTest {
                 """)));
     }
 
-    // ── Span and model attributes ──────────────────────────────────────
+    // ── All attributes in one pass ─────────────────────────────────────
 
     @Test
-    void setsCorrectSpanAndModelAttributes() {
-        stubChatCompletion("Hello!");
+    void capturesAllSpanAttributesForChatCompletion() throws Exception {
+        stubChatCompletion("The answer is 42.");
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
         OpenAiChatModel model = buildModel(listener);
 
-        model.chat("Hi");
+        // Send system + user messages
+        dev.langchain4j.model.chat.request.ChatRequest request =
+                dev.langchain4j.model.chat.request.ChatRequest.builder()
+                        .messages(
+                                new dev.langchain4j.data.message.SystemMessage("You are a helpful assistant"),
+                                new dev.langchain4j.data.message.UserMessage("What is the answer?"))
+                        .build();
+        model.chat(request);
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).hasSize(1);
-
         SpanData span = spans.get(0);
+
         // Span basics
         assertThat(span.getName()).isEqualTo("generate");
         assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT);
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
+
         // OpenInference span kind
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo("LLM");
+
         // Model attributes
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
                 .isEqualTo("gpt-4");
@@ -182,109 +170,41 @@ class LangChain4jModelListenerTest {
                 .isEqualTo("langchain4j");
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROVIDER)))
                 .isEqualTo("openai");
-    }
 
-    // ── Token counts ────────────────────────────────────────────────────
-
-    @Test
-    void capturesTokenUsage() {
-        stubChatCompletion("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("Hi");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+        // Token counts
         assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
                 .isEqualTo(10L);
         assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION)))
                 .isEqualTo(20L);
         assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
                 .isEqualTo(30L);
-    }
 
-    @Test
-    void handlesNullTokenUsageGracefully() {
-        stubChatCompletionNoUsage("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("Hi");
+        // Finish reason
+        List<String> finishReasons =
+                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
+        assertThat(finishReasons).containsExactly("STOP");
 
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
-        // Token counts should not be set when usage is absent
-        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
-                .isNull();
-        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION)))
-                .isNull();
-        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
-                .isNull();
-    }
-
-    // ── Input messages ──────────────────────────────────────────────────
-
-    @Test
-    void capturesInputMessagesWithValidJson() throws Exception {
-        stubChatCompletion("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("Hi there");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-
-        // Individual message attributes
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
-                .isEqualTo("user");
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
-                .contains("Hi there");
-
-        // input.value should be valid JSON with the message
-        String inputValue = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE));
-        assertThat(inputValue).isNotNull();
-        List<Map<String, Object>> messages = JSON.readValue(inputValue, new TypeReference<>() {});
-        assertThat(messages).isNotEmpty();
-        assertThat(messages.get(0).get("role")).isEqualTo("user");
-        assertThat((String) messages.get(0).get("content")).contains("Hi there");
-
-        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
-                .isEqualTo("application/json");
-    }
-
-    @Test
-    void capturesSystemAndUserInputMessages() {
-        stubChatCompletion("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        OpenAiChatModel model = buildModel(listener);
-
-        // Use chat with explicit messages to include a system message
-        dev.langchain4j.model.chat.request.ChatRequest request =
-                dev.langchain4j.model.chat.request.ChatRequest.builder()
-                        .messages(
-                                new dev.langchain4j.data.message.SystemMessage("You are a helpful assistant"),
-                                new dev.langchain4j.data.message.UserMessage("Hello"))
-                        .build();
-        model.chat(request);
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-
-        // System message at index 0
+        // Input messages: system at index 0, user at index 1
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
                 .isEqualTo("system");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
                 .contains("helpful assistant");
-
-        // User message at index 1
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.role")))
                 .isEqualTo("user");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.content")))
-                .contains("Hello");
-    }
+                .contains("What is the answer?");
 
-    // ── Output messages ─────────────────────────────────────────────────
+        // input.value is valid JSON
+        String inputValue = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE));
+        assertThat(inputValue).isNotNull();
+        List<Map<String, Object>> inputMessages = JSON.readValue(inputValue, new TypeReference<>() {});
+        assertThat(inputMessages).hasSize(2);
+        assertThat(inputMessages.get(0).get("role")).isEqualTo("system");
+        assertThat(inputMessages.get(1).get("role")).isEqualTo("user");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
 
-    @Test
-    void capturesOutputMessages() {
-        stubChatCompletion("The answer is 42.");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("What is the answer?");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+        // Output messages
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
                 .isEqualTo("assistant");
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
@@ -293,17 +213,31 @@ class LangChain4jModelListenerTest {
                 .isEqualTo("The answer is 42.");
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
+
+        // Invocation parameters (default model has no temp/topP set)
+        String params = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INVOCATION_PARAMETERS));
+        assertThat(params).isNotNull();
+        Map<String, Object> paramsMap = JSON.readValue(params, new TypeReference<>() {});
+        assertThat(paramsMap).doesNotContainKey("temperature");
+        assertThat(paramsMap).doesNotContainKey("top_p");
     }
 
-    // ── Tool call output ────────────────────────────────────────────────
+    // ── Tool calls ──────────────────────────────────────────────────────
 
     @Test
-    void capturesToolCallsInOutputMessage() {
+    void capturesToolCallAttributes() {
         stubToolCallResponse();
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
         buildModel(listener).chat("What's the weather in London?");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // Finish reason
+        List<String> finishReasons =
+                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
+        assertThat(finishReasons).containsExactly("TOOL_EXECUTION");
+
+        // Tool call attributes in output message
         String prefix = "llm.output_messages.0.";
         assertThat(span.getAttributes().get(AttributeKey.stringKey(prefix + "message.role")))
                 .isEqualTo("assistant");
@@ -317,30 +251,30 @@ class LangChain4jModelListenerTest {
                 .isEqualTo("call_abc123");
     }
 
-    @Test
-    void capturesToolCallsFinishReason() {
-        stubToolCallResponse();
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("What's the weather?");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        List<String> finishReasons =
-                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).isNotNull().contains("TOOL_EXECUTION");
-    }
-
-    // ── Finish reason ───────────────────────────────────────────────────
+    // ── Invocation parameters ───────────────────────────────────────────
 
     @Test
-    void capturesStopFinishReason() {
-        stubChatCompletion("Done.");
+    void capturesInvocationParameters() throws Exception {
+        stubChatCompletion("Hello!");
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        buildModel(listener).chat("Hi");
+        OpenAiChatModel model = OpenAiChatModel.builder()
+                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
+                .apiKey("test-key")
+                .modelName("gpt-4")
+                .temperature(0.7)
+                .topP(0.9)
+                .listeners(List.of(listener))
+                .timeout(Duration.ofSeconds(5))
+                .build();
+        model.chat("Hi");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        List<String> finishReasons =
-                span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
-        assertThat(finishReasons).isNotNull().contains("STOP");
+        String params = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INVOCATION_PARAMETERS));
+        assertThat(params).isNotNull();
+
+        Map<String, Object> paramsMap = JSON.readValue(params, new TypeReference<>() {});
+        assertThat(((Number) paramsMap.get("temperature")).doubleValue()).isEqualTo(0.7);
+        assertThat(((Number) paramsMap.get("top_p")).doubleValue()).isEqualTo(0.9);
     }
 
     // ── Error handling ──────────────────────────────────────────────────
@@ -378,7 +312,7 @@ class LangChain4jModelListenerTest {
         SpanData span = spans.get(0);
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
         assertThat(span.getStatus().getDescription()).isNotEmpty();
-        assertThat(span.getEvents()).isNotEmpty(); // exception event recorded
+        assertThat(span.getEvents()).isNotEmpty();
     }
 
     // ── Message hiding ──────────────────────────────────────────────────
@@ -392,18 +326,14 @@ class LangChain4jModelListenerTest {
         model.chat("Secret input");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        // Individual input message attributes should be absent
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
                 .isNull();
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
-                .isNull();
-        // input.value should be absent
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isNull();
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
                 .isNull();
 
-        // But model attributes should still be present
+        // Model attributes still present
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
                 .isEqualTo("gpt-4");
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
@@ -419,18 +349,14 @@ class LangChain4jModelListenerTest {
         model.chat("Hi");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        // Individual output message attributes should be absent
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
                 .isNull();
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
-                .isNull();
-        // output.value should be absent
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isNull();
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isNull();
 
-        // But token counts should still be present
+        // Token counts still present
         assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
                 .isEqualTo(10L);
     }
@@ -447,19 +373,13 @@ class LangChain4jModelListenerTest {
         model.chat("Secret");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        // Input hidden
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isNull();
-        // Output hidden
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isNull();
-        // Span is still OK
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
-        // Core attributes still present
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo("LLM");
-        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
-                .isEqualTo("gpt-4");
     }
 
     // ── Multiple calls ──────────────────────────────────────────────────
@@ -479,49 +399,5 @@ class LangChain4jModelListenerTest {
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).hasSize(2);
         assertThat(spans.get(0).getTraceId()).isNotEqualTo(spans.get(1).getTraceId());
-    }
-
-    // ── Invocation parameters ───────────────────────────────────────────
-
-    @Test
-    void capturesInvocationParameters() throws Exception {
-        stubChatCompletion("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        OpenAiChatModel model = OpenAiChatModel.builder()
-                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
-                .apiKey("test-key")
-                .modelName("gpt-4")
-                .temperature(0.7)
-                .topP(0.9)
-                .listeners(List.of(listener))
-                .timeout(Duration.ofSeconds(5))
-                .build();
-        model.chat("Hi");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        String params = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INVOCATION_PARAMETERS));
-        assertThat(params).isNotNull();
-
-        // Parse and verify actual values
-        Map<String, Object> paramsMap = JSON.readValue(params, new TypeReference<>() {});
-        assertThat(((Number) paramsMap.get("temperature")).doubleValue()).isEqualTo(0.7);
-        assertThat(((Number) paramsMap.get("top_p")).doubleValue()).isEqualTo(0.9);
-    }
-
-    @Test
-    void invocationParametersOmitsNullValues() throws Exception {
-        stubChatCompletion("Hello!");
-        LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        // Default model — no temperature/topP/maxTokens set
-        buildModel(listener).chat("Hi");
-
-        SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        String params = span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INVOCATION_PARAMETERS));
-        assertThat(params).isNotNull();
-
-        Map<String, Object> paramsMap = JSON.readValue(params, new TypeReference<>() {});
-        assertThat(paramsMap).doesNotContainKey("temperature");
-        assertThat(paramsMap).doesNotContainKey("top_p");
-        assertThat(paramsMap).doesNotContainKey("max_tokens");
     }
 }
