@@ -7,7 +7,6 @@ import dev.langchain4j.observability.api.event.AiServiceResponseReceivedEvent;
 import dev.langchain4j.observability.api.listener.AiServiceResponseReceivedListener;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
-
 import java.util.Map;
 
 /**

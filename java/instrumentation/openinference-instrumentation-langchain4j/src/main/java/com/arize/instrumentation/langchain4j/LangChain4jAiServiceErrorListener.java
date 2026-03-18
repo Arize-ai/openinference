@@ -7,7 +7,6 @@ import dev.langchain4j.observability.api.listener.AiServiceErrorListener;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
-
 import java.util.Map;
 
 /**
@@ -33,7 +32,8 @@ public class LangChain4jAiServiceErrorListener implements AiServiceErrorListener
      */
     @Override
     public void onEvent(AiServiceErrorEvent event) {
-        SpanContext spanContext = activeSpans.remove(event.invocationContext().invocationId().toString());
+        SpanContext spanContext =
+                activeSpans.remove(event.invocationContext().invocationId().toString());
         if (spanContext != null) {
             Span span = spanContext.span();
 

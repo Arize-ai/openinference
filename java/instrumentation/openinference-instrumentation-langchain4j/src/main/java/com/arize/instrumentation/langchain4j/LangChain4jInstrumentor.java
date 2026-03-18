@@ -7,7 +7,6 @@ import dev.langchain4j.observability.api.listener.AiServiceListener;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.TracerProvider;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -123,7 +122,6 @@ public class LangChain4jInstrumentor {
                 new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans),
                 new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans),
                 new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans),
-                new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans)
-        );
+                new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans));
     }
 }

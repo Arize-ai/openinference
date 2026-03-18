@@ -9,7 +9,6 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
-
 import java.util.Map;
 
 /**
@@ -60,21 +59,13 @@ public class LangChain4jToolExecutedEventListener implements ToolExecutedEventLi
                 .startSpan();
 
         span.setAttribute(
-                SemanticConventions.OPENINFERENCE_SPAN_KIND,
-                SemanticConventions.OpenInferenceSpanKind.TOOL.getValue()
-        );
+                SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.TOOL.getValue());
 
         span.setAttribute(SemanticConventions.INPUT_VALUE, event.request().arguments());
-        span.setAttribute(
-                SemanticConventions.INPUT_MIME_TYPE,
-                SemanticConventions.MimeType.JSON.getValue()
-        );
+        span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, SemanticConventions.MimeType.JSON.getValue());
 
         span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.resultText());
-        span.setAttribute(
-                SemanticConventions.OUTPUT_MIME_TYPE,
-                SemanticConventions.MimeType.TEXT.getValue()
-        );
+        span.setAttribute(SemanticConventions.OUTPUT_MIME_TYPE, SemanticConventions.MimeType.TEXT.getValue());
 
         span.setAttribute(SemanticConventions.TOOL_CALL_ID, event.request().id());
         span.setAttribute(SemanticConventions.TOOL_NAME, event.request().name());

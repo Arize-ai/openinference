@@ -8,7 +8,6 @@ import dev.langchain4j.observability.api.listener.AiServiceCompletedListener;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
-
 import java.util.Map;
 
 public class LangChain4jServiceCompletedListener implements AiServiceCompletedListener {
@@ -23,16 +22,17 @@ public class LangChain4jServiceCompletedListener implements AiServiceCompletedLi
 
     @Override
     public void onEvent(AiServiceCompletedEvent event) {
-        SpanContext spanContext = activeSpans.remove(event.invocationContext().invocationId().toString());
+        SpanContext spanContext =
+                activeSpans.remove(event.invocationContext().invocationId().toString());
         if (spanContext != null) {
             Span span = spanContext.span();
             try (Scope scope = spanContext.context().makeCurrent()) {
-                if (!tracer.getConfig().isHideOutputMessages() && event.result().isPresent()){
-                    span.setAttribute(SemanticConventions.OUTPUT_VALUE, event.result().get().toString());
+                if (!tracer.getConfig().isHideOutputMessages() && event.result().isPresent()) {
                     span.setAttribute(
-                            SemanticConventions.OUTPUT_MIME_TYPE,
-                            SemanticConventions.MimeType.TEXT.getValue()
-                    );
+                            SemanticConventions.OUTPUT_VALUE,
+                            event.result().get().toString());
+                    span.setAttribute(
+                            SemanticConventions.OUTPUT_MIME_TYPE, SemanticConventions.MimeType.TEXT.getValue());
                 }
                 span.setStatus(StatusCode.OK);
             } finally {

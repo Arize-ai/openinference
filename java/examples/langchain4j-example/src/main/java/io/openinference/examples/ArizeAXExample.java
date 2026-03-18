@@ -111,7 +111,8 @@ public class ArizeAXExample {
         // Build AI Service with tools - this automatically handles tool calling
         MathAssistant assistant = AiServices.builder(MathAssistant.class)
                 .chatModel(newModel)
-                .systemMessage("You are a helpful assistant that can perform basic math calculations. Use the provided tools to answer user questions accurately.")
+                .systemMessage(
+                        "You are a helpful assistant that can perform basic math calculations. Use the provided tools to answer user questions accurately.")
                 .tools(mathTools)
                 .registerListeners(instrumentor.createAiServiceListeners())
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))

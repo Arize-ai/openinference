@@ -1,7 +1,6 @@
 package com.arize.instrumentation.langchain4j.utils;
 
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.langchain4j.LangChain4jModelListener;
 import com.arize.semconv.trace.SemanticConventions;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
@@ -14,7 +13,6 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
-
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -32,10 +30,8 @@ public class ChatMessageAttributeUtils {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final ObjectMapper toolParamMapper = new ObjectMapper().setVisibility(
-            PropertyAccessor.FIELD,
-            Visibility.ANY
-    );
+    private static final ObjectMapper toolParamMapper =
+            new ObjectMapper().setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
 
     /**
      * Sets LLM tool attributes on the span for the provided tool specifications.
@@ -224,9 +220,7 @@ public class ChatMessageAttributeUtils {
 
         // Set basic attributes
         span.setAttribute(
-                SemanticConventions.OPENINFERENCE_SPAN_KIND,
-                SemanticConventions.OpenInferenceSpanKind.LLM.getValue()
-        );
+                SemanticConventions.OPENINFERENCE_SPAN_KIND, SemanticConventions.OpenInferenceSpanKind.LLM.getValue());
         span.setAttribute(SemanticConventions.LLM_MODEL_NAME, modelName);
         span.setAttribute(SemanticConventions.LLM_SYSTEM, "langchain4j");
 

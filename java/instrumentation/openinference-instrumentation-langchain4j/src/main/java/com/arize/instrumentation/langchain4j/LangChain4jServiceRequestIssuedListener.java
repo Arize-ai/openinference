@@ -8,7 +8,6 @@ import dev.langchain4j.observability.api.listener.AiServiceRequestIssuedListener
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,7 +46,6 @@ public class LangChain4jServiceRequestIssuedListener implements AiServiceRequest
         ChatMessageAttributeUtils.handleChatRequest(this.tracer, span, event.request());
         activeSpans.put(
                 "chat_" + event.invocationContext().invocationId().toString(),
-                new SpanContext(span, Context.current().with(span))
-        );
+                new SpanContext(span, Context.current().with(span)));
     }
 }
