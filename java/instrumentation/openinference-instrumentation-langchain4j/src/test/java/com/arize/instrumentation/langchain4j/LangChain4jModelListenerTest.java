@@ -235,7 +235,7 @@ class LangChain4jModelListenerTest {
     // ── Tool specifications in request ─────────────────────────────────
 
     @Test
-    void capturesTooSpecificationsInRequest() {
+    void capturesToolSpecificationsInRequest() {
         stubToolCallResponse();
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
         OpenAiChatModel model = buildModel(listener);
@@ -537,5 +537,22 @@ class LangChain4jModelListenerTest {
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).hasSize(2);
         assertThat(spans.get(0).getTraceId()).isNotEqualTo(spans.get(1).getTraceId());
+
+        // Both spans should have correct basic attributes
+        for (SpanData span : spans) {
+            assertThat(span.getName()).isEqualTo("generate");
+            assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT);
+            assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
+            assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                    .isEqualTo("LLM");
+            assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                    .isEqualTo("gpt-4");
+        }
+
+        // Each span should have its own output
+        assertThat(spans.get(0).getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("First");
+        assertThat(spans.get(1).getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("Second");
     }
 }
