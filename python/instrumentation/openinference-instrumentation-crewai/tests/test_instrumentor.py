@@ -4,8 +4,20 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from _scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
-from _span_helpers import (
+from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.util._importlib_metadata import entry_points
+
+from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+
+from ._scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
+from ._span_helpers import (
     GRAPH_NODE_ID,
     INPUT_MIME_TYPE,
     INPUT_VALUE,
@@ -24,17 +36,6 @@ from _span_helpers import (
     TOOL_PARAMETERS,
     USER_ID,
     get_spans_by_kind,
-)
-from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.util._importlib_metadata import entry_points
-
-from openinference.instrumentation import OITracer, using_attributes
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
 )
 
 

@@ -5,13 +5,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from _span_helpers import (
-    INPUT_MIME_TYPE,
-    OPENINFERENCE_SPAN_KIND,
-    OUTPUT_MIME_TYPE,
-    OUTPUT_VALUE,
-    TEXT,
-)
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -22,6 +15,14 @@ from openinference.instrumentation.crewai._event_assembler import (
     _SpanStartSpec,
 )
 from openinference.semconv.trace import OpenInferenceSpanKindValues
+
+from ._span_helpers import (
+    INPUT_MIME_TYPE,
+    OPENINFERENCE_SPAN_KIND,
+    OUTPUT_MIME_TYPE,
+    OUTPUT_VALUE,
+    TEXT,
+)
 
 pytestmark = pytest.mark.no_autoinstrument
 
@@ -76,7 +77,7 @@ def test_deferred_end_preserves_completion_attributes(
     assert len(spans) == 1
 
     span = spans[0]
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "search.run"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
     assert attributes.pop("tool.name") == "search"

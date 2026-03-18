@@ -7,8 +7,17 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from _scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
-from _span_helpers import (
+from crewai.events.event_bus import crewai_event_bus
+from opentelemetry import trace as trace_api
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.instrumentation import using_attributes
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
+from ._scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
+from ._span_helpers import (
     GRAPH_NODE_ID,
     INPUT_MIME_TYPE,
     INPUT_VALUE,
@@ -21,14 +30,6 @@ from _span_helpers import (
     get_spans_by_kind,
     pop_prefixed,
 )
-from crewai.events.event_bus import crewai_event_bus
-from opentelemetry import trace as trace_api
-from opentelemetry.sdk.trace import ReadableSpan
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from openinference.instrumentation import using_attributes
-from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 pytestmark = pytest.mark.no_autoinstrument
 
@@ -108,7 +109,7 @@ def _assert_single_trace(spans: list[ReadableSpan]) -> dict[int, ReadableSpan]:
 
 
 def _assert_crew_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "crew.kickoff"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     kickoff_id = _assert_uuid(attributes.pop("kickoff_id"))
@@ -138,7 +139,7 @@ def _assert_crew_span(span: ReadableSpan) -> None:
 
 
 def _assert_scraper_agent_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Website Scraper.scrape-task.execute"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
     assert attributes.pop(GRAPH_NODE_ID) == "Website Scraper"
@@ -164,7 +165,7 @@ def _assert_scraper_agent_span(span: ReadableSpan) -> None:
 
 
 def _assert_analyzer_agent_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Content Analyzer.analyze-task.execute"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
     assert attributes.pop(GRAPH_NODE_ID) == "Content Analyzer"
@@ -187,7 +188,7 @@ def _assert_analyzer_agent_span(span: ReadableSpan) -> None:
 
 
 def _assert_tool_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "scrape_website.run"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
     assert attributes.pop(TOOL_NAME) == "scrape_website"
@@ -209,7 +210,7 @@ def _assert_llm_span(
     expect_output_messages: bool,
     expected_output_mime_type: str,
 ) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "gpt-4.1-nano.llm_call"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop("llm.model_name") == "gpt-4.1-nano"
@@ -242,7 +243,7 @@ def _assert_llm_span(
 
 
 def _assert_flow_kickoff_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "SimpleFlow.kickoff"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     assert _assert_uuid(attributes.pop("flow_id"))
@@ -262,7 +263,7 @@ def _assert_flow_node_span(
     expected_output: str,
     expected_input: dict[str, Any] | None = None,
 ) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == f"SimpleFlow.{expected_name}"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     assert attributes.pop("flow.node.name") == expected_name
@@ -279,7 +280,7 @@ def _assert_flow_node_span(
 
 
 def _assert_standalone_agent_span(span: ReadableSpan) -> None:
-    attributes = dict(span.attributes or {})
+    attributes: dict[str, Any] = dict(span.attributes or {})
     assert span.name == "Helpful Assistant.kickoff"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
     assert attributes.pop(GRAPH_NODE_ID) == "Helpful Assistant"
@@ -482,7 +483,7 @@ def test_event_listener_flow_crew_spans_in_same_trace(
     assert _span_parent_name(tool_span, spans_by_id) == agent_span.name
     assert all(_span_parent_name(span, spans_by_id) == agent_span.name for span in llm_spans)
 
-    flow_attributes = dict(flow_span.attributes or {})
+    flow_attributes: dict[str, Any] = dict(flow_span.attributes or {})
     assert flow_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     assert _assert_uuid(flow_attributes.pop("flow_id"))
     assert flow_attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -491,7 +492,7 @@ def test_event_listener_flow_crew_spans_in_same_trace(
     assert flow_output["tasks_output"][0]["agent"] == "Website Scraper"
     assert not flow_attributes
 
-    method_attributes = dict(run_crew_span.attributes or {})
+    method_attributes: dict[str, Any] = dict(run_crew_span.attributes or {})
     assert method_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     assert method_attributes.pop("flow.node.name") == "run_crew"
     assert method_attributes.pop("flow.node.type") == "start"
@@ -500,7 +501,7 @@ def test_event_listener_flow_crew_spans_in_same_trace(
     assert method_output["raw"].startswith("The content from the website is:")
     assert not method_attributes
 
-    crew_attributes = dict(crew_span.attributes or {})
+    crew_attributes: dict[str, Any] = dict(crew_span.attributes or {})
     assert crew_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
     assert _pop_json(crew_attributes, "crew_agents")[0]["role"] == "Website Scraper"
     assert len(_pop_json(crew_attributes, "crew_tasks")) == 1
