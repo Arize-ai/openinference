@@ -16,3 +16,4 @@ dependencies {
     // Test
     testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
 }
+

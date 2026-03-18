@@ -147,7 +147,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation`](./java/openinference-instrumentation)                                         | Base instrumentation utilities.                | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation)                         |
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
 | [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
-| [`openinference-instrumentation-annotations`](./java/instrumentation/openinference-instrumentation-annotations) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotations)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotations) |
+| [`openinference-instrumentation-annotation`](./java/instrumentation/openinference-instrumentation-annotation) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotation) |
 
 ### Examples
 
@@ -155,7 +155,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | -------------------------------------------------------- | ---------------------------------------------- | ---------------- |
 | [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI   | Beginner         |
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
-| [Annotations Example](java/examples/annotations-example) | Annotation-based tracing with `@TraceChain`, `@TraceLLM`, `@TraceTool`, `@TraceAgent` | Beginner         |
+| [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
 
 ## Supported Destinations
 
