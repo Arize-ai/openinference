@@ -47,7 +47,7 @@ the user: fix issues, run tests (`./gradlew :instrumentation:...:test`), or done
 
 ---
 
-## Section 1: Build Config
+## Section 1: Gradle Setup
 
 Read the instrumentor's `build.gradle` and the root `java/build.gradle`.
 
@@ -56,9 +56,6 @@ Read the instrumentor's `build.gradle` and the root `java/build.gradle`.
 - Version constants should be in root `ext` block, not hardcoded — **Medium**
 - Module must be in `java/settings.gradle` — **Critical** if missing
 - Run `cd java && ./gradlew spotlessCheck` (Palantir Java Format)
-
-Note: existing instrumentors may themselves violate these conventions — don't treat
-them as gospel. Flag deviations consistently.
 
 ---
 
@@ -125,8 +122,8 @@ Organize findings into a table:
 
 | Severity | Section | Finding | Location |
 |----------|---------|---------|----------|
-| Critical | 4 | span.end() not called in error path | `LangChain4jModelListener.java:142` |
-| High | 2 | Tests don't verify all span attributes | `src/test/java/.../Test.java:85` |
+| Critical | 4 | span.end() not called in error path | `SomeListener.java:142` |
+| High | 2 | Tests don't verify all span attributes | `SomeTest.java:85` |
 | ... | ... | ... | ... |
 
 Then list what's working well — positive findings help the user understand what doesn't
