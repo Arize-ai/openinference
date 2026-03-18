@@ -49,6 +49,7 @@ from openai.types.responses.response_input_item_param import (
     ItemReference,
     Message,
 )
+from openai.types.responses.response_reasoning_item import Summary
 from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
 
 from openinference.instrumentation.openai_agents._processor import (
@@ -1878,8 +1879,8 @@ def test_get_attributes_from_tools(
                     id="reason-123",
                     type="reasoning",
                     summary=[
-                        {"type": "summary_text", "text": "Step one reasoning"},
-                        {"type": "summary_text", "text": "Step two reasoning"},
+                        Summary(type="summary_text", text="Step one reasoning"),
+                        Summary(type="summary_text", text="Step two reasoning"),
                     ],
                 )
             ],
