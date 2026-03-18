@@ -1,946 +1,578 @@
-import contextvars
-import time
+from __future__ import annotations
+
+import json
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Generator
-from unittest.mock import MagicMock
+from collections.abc import Generator
+from pathlib import Path
+from typing import Any
 
 import pytest
-from crewai import LLM
+from _scenarios import kickoff_agent, kickoff_crew, kickoff_flow, kickoff_flow_with_crew
+from _span_helpers import (
+    GRAPH_NODE_ID,
+    INPUT_MIME_TYPE,
+    INPUT_VALUE,
+    JSON,
+    OPENINFERENCE_SPAN_KIND,
+    OUTPUT_MIME_TYPE,
+    OUTPUT_VALUE,
+    TEXT,
+    TOOL_NAME,
+    get_spans_by_kind,
+    pop_prefixed,
+)
 from crewai.events.event_bus import crewai_event_bus
-from crewai.events.types.agent_events import (
-    AgentExecutionCompletedEvent,
-    AgentExecutionStartedEvent,
-)
-from crewai.events.types.crew_events import (
-    CrewKickoffCompletedEvent,
-    CrewKickoffStartedEvent,
-)
-from crewai.events.types.flow_events import (
-    FlowFinishedEvent,
-    FlowStartedEvent,
-    MethodExecutionFinishedEvent,
-    MethodExecutionStartedEvent,
-)
-from crewai.events.types.llm_events import (
-    LLMCallCompletedEvent,
-    LLMCallStartedEvent,
-    LLMCallType,
-)
-from crewai.events.types.task_events import TaskCompletedEvent, TaskStartedEvent
-from crewai.events.types.tool_usage_events import (
-    ToolUsageFinishedEvent,
-    ToolUsageStartedEvent,
-)
-from crewai.llms.base_llm import llm_call_context
-from opentelemetry.sdk import trace as trace_sdk
+from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from openinference.instrumentation import using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.crewai._event_listener import OpenInferenceEventListener
-from openinference.instrumentation.crewai._wrappers import (
-    _ExecuteWithoutTimeoutContextDescriptor,
-)
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 pytestmark = pytest.mark.no_autoinstrument
 
 
-@pytest.fixture()
-def listener(
-    tracer_provider: trace_sdk.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[OpenInferenceEventListener, None, None]:
-    with crewai_event_bus.scoped_handlers():
-        listener = OpenInferenceEventListener(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
-        yield listener
-        listener.shutdown()
-        in_memory_span_exporter.clear()
+@pytest.fixture(scope="module")
+def vcr_cassette_dir() -> str:
+    return str(Path(__file__).with_name("cassettes") / "test_instrumentor")
 
 
 @pytest.fixture()
-def listener_no_llm(
-    tracer_provider: trace_sdk.TracerProvider,
+def event_listener_instrumented(
+    tracer_provider: trace_api.TracerProvider,
     in_memory_span_exporter: InMemorySpanExporter,
-) -> Generator[OpenInferenceEventListener, None, None]:
+) -> Generator[None, None, None]:
     with crewai_event_bus.scoped_handlers():
-        listener = OpenInferenceEventListener(
+        instrumentor = CrewAIInstrumentor()
+        instrumentor.instrument(tracer_provider=tracer_provider, use_event_listener=True)
+        in_memory_span_exporter.clear()
+        try:
+            yield
+        finally:
+            crewai_event_bus.flush(timeout=10.0)
+            instrumentor.uninstrument()
+            in_memory_span_exporter.clear()
+
+
+@pytest.fixture()
+def event_listener_instrumented_no_llm(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Generator[None, None, None]:
+    with crewai_event_bus.scoped_handlers():
+        instrumentor = CrewAIInstrumentor()
+        instrumentor.instrument(
             tracer_provider=tracer_provider,
+            use_event_listener=True,
             create_llm_spans=False,
         )
         in_memory_span_exporter.clear()
-        yield listener
-        listener.shutdown()
-        in_memory_span_exporter.clear()
+        try:
+            yield
+        finally:
+            crewai_event_bus.flush(timeout=10.0)
+            instrumentor.uninstrument()
+            in_memory_span_exporter.clear()
 
 
-def _get_spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
-    crewai_event_bus.flush(timeout=5.0)
+def _finished_spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
+    crewai_event_bus.flush(timeout=10.0)
     return list(exporter.get_finished_spans())
 
 
-def _emit_and_flush(source: Any, event: Any) -> None:
-    crewai_event_bus.emit(source, event)
-    crewai_event_bus.flush(timeout=5.0)
+def _pop_json(attributes: dict[str, Any], key: str) -> Any:
+    return json.loads(str(attributes.pop(key)))
 
 
-def _mock_crew(name: str = "TestCrew") -> MagicMock:
-    crew = MagicMock()
-    crew.name = name
-    crew.key = "crew-test"
-    crew.id = uuid.uuid4()
-    crew.agents = []
-    crew.tasks = []
-    crew.fingerprint = None
-    return crew
+def _assert_uuid(value: Any) -> str:
+    text = str(value)
+    uuid.UUID(text)
+    return text
 
 
-def _mock_agent(
-    role: str = "Researcher",
-    goal: str = "Find information",
-    backstory: str = "Expert analyst",
-) -> MagicMock:
-    agent = MagicMock()
-    agent.role = role
-    agent.goal = goal
-    agent.backstory = backstory
-    agent.id = uuid.uuid4()
-    agent.key = f"agent-{role}"
-    agent.crew = None
-    agent.fingerprint = None
-    return agent
+def _span_parent_name(
+    span: ReadableSpan,
+    spans_by_id: dict[int, ReadableSpan],
+) -> str | None:
+    if span.parent is None:
+        return None
+    parent = spans_by_id.get(span.parent.span_id)
+    return None if parent is None else parent.name
 
 
-def _mock_task(
-    name: str = "research_task",
-    description: str = "Research AI observability",
-    expected_output: str = "A short report",
-) -> MagicMock:
-    task = MagicMock()
-    task.name = name
-    task.description = description
-    task.expected_output = expected_output
-    task.id = uuid.uuid4()
-    task.agent = None
-    task.context = None
-    task.fingerprint = None
-    return task
+def _assert_single_trace(spans: list[ReadableSpan]) -> dict[int, ReadableSpan]:
+    trace_ids = {span.context.trace_id for span in spans}
+    assert len(trace_ids) == 1
+    return {span.context.span_id: span for span in spans}
 
 
-def _make_agent_started_event(
-    agent: Any,
-    task: Any,
-    task_prompt: str = "Do the work",
-    **kwargs: Any,
-) -> AgentExecutionStartedEvent:
-    return AgentExecutionStartedEvent.model_construct(
-        agent=agent,
-        task=task,
-        tools=kwargs.pop("tools", None),
-        task_prompt=task_prompt,
-        type="agent_execution_started",
-        event_id=str(uuid.uuid4()),
-        timestamp=None,
-        **kwargs,
-    )
-
-
-def _make_agent_completed_event(
-    agent: Any,
-    task: Any,
-    output: str = "done",
-    **kwargs: Any,
-) -> AgentExecutionCompletedEvent:
-    return AgentExecutionCompletedEvent.model_construct(
-        agent=agent,
-        task=task,
-        output=output,
-        type="agent_execution_completed",
-        event_id=str(uuid.uuid4()),
-        timestamp=None,
-        **kwargs,
-    )
-
-
-def _make_task_started_event(task: Any, **kwargs: Any) -> TaskStartedEvent:
-    return TaskStartedEvent.model_construct(
-        task=task,
-        context="Task context",
-        type="task_started",
-        event_id=str(uuid.uuid4()),
-        timestamp=None,
-        **kwargs,
-    )
-
-
-def _make_task_completed_event(task: Any, **kwargs: Any) -> TaskCompletedEvent:
-    return TaskCompletedEvent.model_construct(
-        task=task,
-        output="done",
-        type="task_completed",
-        event_id=str(uuid.uuid4()),
-        timestamp=None,
-        **kwargs,
-    )
-
-
-class _SlowAgentStartListener(OpenInferenceEventListener):
-    def _on_agent_started(self, source: Any, event: AgentExecutionStartedEvent) -> None:
-        time.sleep(0.05)
-        super()._on_agent_started(source, event)
-
-
-class _SlowTaskStartListener(OpenInferenceEventListener):
-    def _on_task_started(self, source: Any, event: TaskStartedEvent) -> None:
-        time.sleep(0.05)
-        super()._on_task_started(source, event)
-
-
-class _SlowToolStartListener(OpenInferenceEventListener):
-    def _on_tool_started(self, source: Any, event: ToolUsageStartedEvent) -> None:
-        time.sleep(0.05)
-        super()._on_tool_started(source, event)
-
-
-def test_crew_execution_creates_chain_span(
-    listener: OpenInferenceEventListener,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    crew = _mock_crew()
-
-    start_event = CrewKickoffStartedEvent(
-        crew_name="TestCrew",
-        crew=crew,
-        inputs={"id": "kickoff-123", "topic": "AI"},
-    )
-    complete_event = CrewKickoffCompletedEvent(
-        crew_name="TestCrew",
-        crew=crew,
-        output="done",
-        total_tokens=7,
-        started_event_id=start_event.event_id,
-    )
-
-    _emit_and_flush(crew, start_event)
-    _emit_and_flush(crew, complete_event)
-
-    spans = _get_spans(in_memory_span_exporter)
-    assert len(spans) == 1
-
-    span = spans[0]
+def _assert_crew_span(span: ReadableSpan) -> None:
     attributes = dict(span.attributes or {})
-    assert span.name == "TestCrew.kickoff"
-    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == (
-        OpenInferenceSpanKindValues.CHAIN.value
+    assert span.name == "crew.kickoff"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    kickoff_id = _assert_uuid(attributes.pop("kickoff_id"))
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert _pop_json(attributes, INPUT_VALUE) == {"id": kickoff_id}
+    crew_agents = _pop_json(attributes, "crew_agents")
+    assert [agent["role"] for agent in crew_agents] == ["Website Scraper", "Content Analyzer"]
+    crew_tasks = _pop_json(attributes, "crew_tasks")
+    assert [task["description"] for task in crew_tasks] == [
+        (
+            "Call the scrape_website tool to fetch text from "
+            "http://quotes.toscrape.com/ and return the result."
+        ),
+        "Extract the first quote from the content.",
+    ]
+    assert _assert_uuid(attributes.pop("crew_id"))
+    assert attributes.pop("crew_key")
+    assert attributes.pop("total_tokens") > 0
+    assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    output = _pop_json(attributes, OUTPUT_VALUE)
+    assert output["name"] == "analyze-task"
+    assert output["agent"] == "Content Analyzer"
+    assert output["output_format"] == "raw"
+    assert output["raw"].startswith('"The world as we have created it is a process')
+    assert len(output["messages"]) == 3
+    assert not attributes
+
+
+def _assert_scraper_agent_span(span: ReadableSpan) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "Website Scraper.scrape-task.execute"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert attributes.pop(GRAPH_NODE_ID) == "Website Scraper"
+    assert attributes.pop("agent.goal") == "Scrape content from URL"
+    assert attributes.pop("agent.backstory") == "You extract text from websites"
+    assert _pop_json(attributes, "agent.tools") == ["scrape_website"]
+    assert _assert_uuid(attributes.pop("agent_id"))
+    assert attributes.pop("agent_key")
+    assert attributes.pop("task_name") == "scrape-task"
+    assert _assert_uuid(attributes.pop("task_id"))
+    assert attributes.pop("task_description") == (
+        "Call the scrape_website tool to fetch text from "
+        "http://quotes.toscrape.com/ and return the result."
     )
-    assert attributes.pop("kickoff_id") == "kickoff-123"
-    assert attributes.pop("crew_key") == "crew-test"
-    assert attributes.pop("crew_id")
-    assert attributes.pop("total_tokens") == 7
-    assert attributes.pop(SpanAttributes.INPUT_VALUE)
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "done"
+    assert attributes.pop("task_expected_output") == "Text content from the website."
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+    assert "Call the scrape_website tool to fetch text from" in attributes.pop(INPUT_VALUE)
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE).startswith(
+        "The world as we have created it is a process of our thinking."
+    )
+    assert not attributes
 
 
-def test_tool_hierarchy_survives_concurrent_start_handler_order(
-    tracer_provider: trace_sdk.TracerProvider,
+def _assert_analyzer_agent_span(span: ReadableSpan) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "Content Analyzer.analyze-task.execute"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert attributes.pop(GRAPH_NODE_ID) == "Content Analyzer"
+    assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Website Scraper"
+    assert attributes.pop("agent.goal") == "Extract quotes from text"
+    assert attributes.pop("agent.backstory") == "You extract quotes from text"
+    assert _assert_uuid(attributes.pop("agent_id"))
+    assert attributes.pop("agent_key")
+    assert attributes.pop("task_name") == "analyze-task"
+    assert _assert_uuid(attributes.pop("task_id"))
+    assert attributes.pop("task_description") == "Extract the first quote from the content."
+    assert attributes.pop("task_expected_output") == "Quote with author."
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+    input_value = attributes.pop(INPUT_VALUE)
+    assert "Extract the first quote from the content." in input_value
+    assert "This is the context you're working with:" in input_value
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE).startswith('"The world as we have created it is a process')
+    assert not attributes
+
+
+def _assert_tool_span(span: ReadableSpan) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "scrape_website.run"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.TOOL.value
+    assert attributes.pop(TOOL_NAME) == "scrape_website"
+    assert attributes.pop("tool.agent_role") == "Website Scraper"
+    assert attributes.pop("tool.task_name") == "scrape-task"
+    assert attributes.pop("tool.run_attempts") == 0
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert _pop_json(attributes, INPUT_VALUE) == {"url": "http://quotes.toscrape.com/"}
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE).endswith("by Albert Einstein")
+    assert not attributes
+
+
+def _assert_llm_span(
+    span: ReadableSpan,
+    *,
+    expected_call_type: str,
+    expect_tools: bool,
+    expect_output_messages: bool,
+    expected_output_mime_type: str,
+) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "gpt-4.1-nano.llm_call"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop("llm.model_name") == "gpt-4.1-nano"
+    _assert_uuid(attributes.pop("llm.call_id"))
+    assert attributes.pop("llm.call_type") == expected_call_type
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert _pop_json(attributes, INPUT_VALUE)
+    input_messages = pop_prefixed(attributes, "llm.input_messages.")
+    assert input_messages
+    if expect_tools:
+        llm_tools = _pop_json(attributes, "llm.tools")
+        assert llm_tools[0]["function"]["name"] == "scrape_website"
+    else:
+        assert attributes.pop("llm.tools", None) is None
+    assert attributes.pop("llm.token_count.prompt") > 0
+    assert attributes.pop("llm.token_count.completion") > 0
+    assert attributes.pop("llm.token_count.total") > 0
+    output_messages = pop_prefixed(attributes, "llm.output_messages.")
+    if expect_output_messages:
+        assert output_messages
+    else:
+        assert not output_messages
+    assert attributes.pop(OUTPUT_MIME_TYPE) == expected_output_mime_type
+    if expected_output_mime_type == JSON:
+        assert _pop_json(attributes, OUTPUT_VALUE)
+    else:
+        assert attributes.pop(OUTPUT_VALUE)
+    assert attributes.pop("llm.available_functions", None) is None
+    assert not attributes
+
+
+def _assert_flow_kickoff_span(span: ReadableSpan) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "SimpleFlow.kickoff"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert _assert_uuid(attributes.pop("flow_id"))
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    kickoff_input = _pop_json(attributes, INPUT_VALUE)
+    _assert_uuid(kickoff_input["id"])
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE) == "Step Two Received: Step One Output"
+    assert not attributes
+
+
+def _assert_flow_node_span(
+    span: ReadableSpan,
+    *,
+    expected_name: str,
+    expected_type: str,
+    expected_output: str,
+    expected_input: dict[str, Any] | None = None,
+) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == f"SimpleFlow.{expected_name}"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert attributes.pop("flow.node.name") == expected_name
+    assert attributes.pop("flow.node.type") == expected_type
+    if expected_input is None:
+        assert attributes.pop(INPUT_VALUE, None) is None
+        assert attributes.pop(INPUT_MIME_TYPE, None) is None
+    else:
+        assert attributes.pop(INPUT_MIME_TYPE) == JSON
+        assert _pop_json(attributes, INPUT_VALUE) == expected_input
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE) == expected_output
+    assert not attributes
+
+
+def _assert_standalone_agent_span(span: ReadableSpan) -> None:
+    attributes = dict(span.attributes or {})
+    assert span.name == "Helpful Assistant.kickoff"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.AGENT.value
+    assert attributes.pop(GRAPH_NODE_ID) == "Helpful Assistant"
+    assert attributes.pop("agent.goal") == "Answer questions clearly and concisely"
+    assert attributes.pop("agent.backstory") == "You are a helpful assistant."
+    assert _assert_uuid(attributes.pop("agent_id"))
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(INPUT_VALUE) == "What is 2+2?"
+    assert attributes.pop(OUTPUT_MIME_TYPE) == TEXT
+    assert attributes.pop(OUTPUT_VALUE) == "2 + 2 equals 4."
+    assert not attributes
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation")
+def test_event_listener_crewai_instrumentation(
+    event_listener_instrumented: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    with crewai_event_bus.scoped_handlers():
-        listener = _SlowAgentStartListener(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
+    kickoff_crew()
 
-        crew = _mock_crew()
-        agent = _mock_agent()
-        task = _mock_task()
-        tool_source = MagicMock()
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
+    assert len(spans) == 7
 
-        crew_start = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
-        crewai_event_bus.emit(crew, crew_start)
-        crewai_event_bus.flush(timeout=5.0)
+    chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    llm_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
 
-        agent_start = _make_agent_started_event(
-            agent=agent,
-            task=task,
-            task_prompt="Do research",
-            parent_event_id=crew_start.event_id,
-        )
-        tool_start = ToolUsageStartedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-            parent_event_id=agent_start.event_id,
-        )
-        tool_finish = ToolUsageFinishedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-            output="results",
-            started_event_id=tool_start.event_id,
-            parent_event_id=agent_start.event_id,
-        )
-        agent_finish = _make_agent_completed_event(
-            agent=agent,
-            task=task,
-            output="Agent output",
-            started_event_id=agent_start.event_id,
-            parent_event_id=crew_start.event_id,
-        )
-        crew_finish = CrewKickoffCompletedEvent(
-            crew_name="TestCrew",
-            crew=crew,
-            output="Final output",
-            started_event_id=crew_start.event_id,
-        )
+    assert len(chain_spans) == 1
+    assert len(agent_spans) == 2
+    assert len(tool_spans) == 1
+    assert len(llm_spans) == 3
 
-        crewai_event_bus.emit(agent, agent_start)
-        crewai_event_bus.emit(tool_source, tool_start)
-        crewai_event_bus.emit(tool_source, tool_finish)
-        crewai_event_bus.emit(agent, agent_finish)
-        crewai_event_bus.emit(crew, crew_finish)
-        crewai_event_bus.flush(timeout=5.0)
+    crew_span = chain_spans[0]
+    scraper_span = next(span for span in agent_spans if span.name.startswith("Website Scraper"))
+    analyzer_span = next(span for span in agent_spans if span.name.startswith("Content Analyzer"))
+    tool_span = tool_spans[0]
 
-        spans = list(in_memory_span_exporter.get_finished_spans())
-        assert len(spans) == 3
+    assert _span_parent_name(crew_span, spans_by_id) is None
+    assert _span_parent_name(scraper_span, spans_by_id) == crew_span.name
+    assert _span_parent_name(analyzer_span, spans_by_id) == crew_span.name
+    assert _span_parent_name(tool_span, spans_by_id) == scraper_span.name
 
-        crew_span = next(span for span in spans if span.name == "TestCrew.kickoff")
-        agent_span = next(span for span in spans if span.name.endswith(".execute"))
-        tool_span = next(span for span in spans if span.name == "SearchTool.run")
+    _assert_crew_span(crew_span)
+    _assert_scraper_agent_span(scraper_span)
+    _assert_analyzer_agent_span(analyzer_span)
+    _assert_tool_span(tool_span)
 
-        assert agent_span.parent is not None
-        assert agent_span.parent.span_id == crew_span.context.span_id
-        assert tool_span.parent is not None
-        assert tool_span.parent.span_id == agent_span.context.span_id
-        assert crew_span.context.trace_id == agent_span.context.trace_id
-        assert agent_span.context.trace_id == tool_span.context.trace_id
+    scraper_llm_spans = [
+        span for span in llm_spans if _span_parent_name(span, spans_by_id) == scraper_span.name
+    ]
+    analyzer_llm_spans = [
+        span for span in llm_spans if _span_parent_name(span, spans_by_id) == analyzer_span.name
+    ]
+    assert len(scraper_llm_spans) == 2
+    assert len(analyzer_llm_spans) == 1
 
-        listener.shutdown()
-
-
-def test_tool_without_parent_event_id_uses_open_agent_context(
-    listener: OpenInferenceEventListener,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    crew = _mock_crew()
-    agent = _mock_agent()
-    task = _mock_task()
-    tool_source = MagicMock()
-
-    crew_start = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
-    _emit_and_flush(crew, crew_start)
-
-    agent_start = _make_agent_started_event(
-        agent=agent,
-        task=task,
-        task_prompt="Do research",
-        parent_event_id=crew_start.event_id,
+    tool_call_span = next(
+        span
+        for span in scraper_llm_spans
+        if span.attributes and span.attributes["llm.call_type"] == "tool_call"
     )
-    _emit_and_flush(agent, agent_start)
+    scraper_response_span = next(span for span in scraper_llm_spans if span is not tool_call_span)
+    analyzer_response_span = analyzer_llm_spans[0]
 
-    tool_start = ToolUsageStartedEvent(
-        tool_name="SearchTool",
-        tool_args={"q": "test"},
-        from_agent=agent,
-        from_task=task,
+    _assert_llm_span(
+        tool_call_span,
+        expected_call_type="tool_call",
+        expect_tools=True,
+        expect_output_messages=False,
+        expected_output_mime_type=JSON,
     )
-    contextvars.Context().run(crewai_event_bus.emit, tool_source, tool_start)
-    crewai_event_bus.flush(timeout=5.0)
-
-    tool_finish = ToolUsageFinishedEvent(
-        tool_name="SearchTool",
-        tool_args={"q": "test"},
-        started_at=datetime.now(timezone.utc),
-        finished_at=datetime.now(timezone.utc),
-        output="results",
-        started_event_id=tool_start.event_id,
-        from_agent=agent,
-        from_task=task,
+    _assert_llm_span(
+        scraper_response_span,
+        expected_call_type="llm_call",
+        expect_tools=True,
+        expect_output_messages=True,
+        expected_output_mime_type=TEXT,
     )
-    contextvars.Context().run(crewai_event_bus.emit, tool_source, tool_finish)
-    crewai_event_bus.flush(timeout=5.0)
-
-    agent_finish = _make_agent_completed_event(
-        agent=agent,
-        task=task,
-        output="Agent output",
-        started_event_id=agent_start.event_id,
-        parent_event_id=crew_start.event_id,
+    _assert_llm_span(
+        analyzer_response_span,
+        expected_call_type="llm_call",
+        expect_tools=False,
+        expect_output_messages=True,
+        expected_output_mime_type=TEXT,
     )
-    _emit_and_flush(agent, agent_finish)
 
-    crew_finish = CrewKickoffCompletedEvent(
-        crew_name="TestCrew",
-        crew=crew,
-        output="Final output",
-        started_event_id=crew_start.event_id,
-    )
-    _emit_and_flush(crew, crew_finish)
+    in_memory_span_exporter.clear()
 
-    spans = _get_spans(in_memory_span_exporter)
+    kickoff_flow()
+
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
     assert len(spans) == 3
 
-    crew_span = next(span for span in spans if span.name == "TestCrew.kickoff")
-    agent_span = next(span for span in spans if span.name.endswith(".execute"))
-    tool_span = next(span for span in spans if span.name == "SearchTool.run")
+    flow_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    assert len(flow_spans) == 3
+    kickoff_span = next(span for span in flow_spans if span.name.endswith(".kickoff"))
+    step_one_span = next(span for span in flow_spans if span.name.endswith(".step_one"))
+    step_two_span = next(span for span in flow_spans if span.name.endswith(".step_two"))
 
-    assert agent_span.parent is not None
-    assert agent_span.parent.span_id == crew_span.context.span_id
-    assert tool_span.parent is not None
-    assert tool_span.parent.span_id == agent_span.context.span_id
+    assert _span_parent_name(kickoff_span, spans_by_id) is None
+    assert _span_parent_name(step_one_span, spans_by_id) == kickoff_span.name
+    assert _span_parent_name(step_two_span, spans_by_id) == kickoff_span.name
 
-
-def test_reused_agent_rootless_tool_stays_on_current_trace(
-    tracer_provider: trace_sdk.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    with crewai_event_bus.scoped_handlers():
-        listener = _SlowAgentStartListener(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
-
-        agent = _mock_agent()
-        tool_source = MagicMock()
-
-        first_crew = _mock_crew("FirstCrew")
-        first_task = _mock_task(name="first_task", description="First task")
-        first_crew_start = CrewKickoffStartedEvent(
-            crew_name="FirstCrew",
-            crew=first_crew,
-            inputs=None,
-        )
-        _emit_and_flush(first_crew, first_crew_start)
-
-        first_task_start = _make_task_started_event(
-            task=first_task,
-            parent_event_id=first_crew_start.event_id,
-        )
-        _emit_and_flush(first_task, first_task_start)
-
-        first_agent_start = _make_agent_started_event(
-            agent=agent,
-            task=first_task,
-            task_prompt="Do first research",
-            parent_event_id=first_task_start.event_id,
-        )
-        _emit_and_flush(agent, first_agent_start)
-
-        first_agent_finish = _make_agent_completed_event(
-            agent=agent,
-            task=first_task,
-            output="First agent output",
-            started_event_id=first_agent_start.event_id,
-            parent_event_id=first_task_start.event_id,
-        )
-        _emit_and_flush(agent, first_agent_finish)
-
-        first_task_finish = _make_task_completed_event(
-            task=first_task,
-            started_event_id=first_task_start.event_id,
-            parent_event_id=first_crew_start.event_id,
-        )
-        _emit_and_flush(first_task, first_task_finish)
-
-        first_crew_finish = CrewKickoffCompletedEvent(
-            crew_name="FirstCrew",
-            crew=first_crew,
-            output="First crew output",
-            started_event_id=first_crew_start.event_id,
-        )
-        _emit_and_flush(first_crew, first_crew_finish)
-
-        second_crew = _mock_crew("SecondCrew")
-        second_task = _mock_task(name="second_task", description="Second task")
-        second_crew_start = CrewKickoffStartedEvent(
-            crew_name="SecondCrew",
-            crew=second_crew,
-            inputs=None,
-        )
-        _emit_and_flush(second_crew, second_crew_start)
-
-        second_task_start = _make_task_started_event(
-            task=second_task,
-            parent_event_id=second_crew_start.event_id,
-        )
-        _emit_and_flush(second_task, second_task_start)
-
-        second_agent_start = _make_agent_started_event(
-            agent=agent,
-            task=second_task,
-            task_prompt="Do second research",
-            parent_event_id=second_task_start.event_id,
-        )
-        second_tool_start = ToolUsageStartedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-            from_agent=agent,
-            from_task=second_task,
-        )
-        second_tool_finish = ToolUsageFinishedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-            output="Second results",
-            started_event_id=second_tool_start.event_id,
-            from_agent=agent,
-            from_task=second_task,
-        )
-        second_agent_finish = _make_agent_completed_event(
-            agent=agent,
-            task=second_task,
-            output="Second agent output",
-            started_event_id=second_agent_start.event_id,
-            parent_event_id=second_task_start.event_id,
-        )
-        second_task_finish = _make_task_completed_event(
-            task=second_task,
-            started_event_id=second_task_start.event_id,
-            parent_event_id=second_crew_start.event_id,
-        )
-        second_crew_finish = CrewKickoffCompletedEvent(
-            crew_name="SecondCrew",
-            crew=second_crew,
-            output="Second crew output",
-            started_event_id=second_crew_start.event_id,
-        )
-
-        crewai_event_bus.emit(agent, second_agent_start)
-        contextvars.Context().run(crewai_event_bus.emit, tool_source, second_tool_start)
-        contextvars.Context().run(crewai_event_bus.emit, tool_source, second_tool_finish)
-        crewai_event_bus.emit(agent, second_agent_finish)
-        crewai_event_bus.emit(second_task, second_task_finish)
-        crewai_event_bus.emit(second_crew, second_crew_finish)
-        crewai_event_bus.flush(timeout=5.0)
-
-        spans = list(in_memory_span_exporter.get_finished_spans())
-        assert len(spans) == 5
-
-        first_crew_span = next(span for span in spans if span.name == "FirstCrew.kickoff")
-        second_crew_span = next(span for span in spans if span.name == "SecondCrew.kickoff")
-        tool_span = next(
-            span
-            for span in spans
-            if span.name == "SearchTool.run"
-            and span.attributes
-            and span.attributes.get(SpanAttributes.OUTPUT_VALUE) == "Second results"
-        )
-
-        assert tool_span.context.trace_id != first_crew_span.context.trace_id
-        assert tool_span.context.trace_id == second_crew_span.context.trace_id
-
-        listener.shutdown()
-
-
-def test_agent_hierarchy_survives_transparent_task_scope(
-    tracer_provider: trace_sdk.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    with crewai_event_bus.scoped_handlers():
-        listener = _SlowTaskStartListener(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
-
-        crew = _mock_crew()
-        agent = _mock_agent()
-        task = _mock_task()
-
-        crew_start = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
-        _emit_and_flush(crew, crew_start)
-
-        task_start = _make_task_started_event(task=task, parent_event_id=crew_start.event_id)
-        agent_start = _make_agent_started_event(
-            agent=agent,
-            task=task,
-            task_prompt="Do research",
-            parent_event_id=task_start.event_id,
-        )
-        agent_finish = _make_agent_completed_event(
-            agent=agent,
-            task=task,
-            output="Agent output",
-            started_event_id=agent_start.event_id,
-            parent_event_id=task_start.event_id,
-        )
-        task_finish = _make_task_completed_event(
-            task=task,
-            started_event_id=task_start.event_id,
-            parent_event_id=crew_start.event_id,
-        )
-        crew_finish = CrewKickoffCompletedEvent(
-            crew_name="TestCrew",
-            crew=crew,
-            output="Final output",
-            started_event_id=crew_start.event_id,
-        )
-
-        crewai_event_bus.emit(task, task_start)
-        crewai_event_bus.emit(agent, agent_start)
-        crewai_event_bus.emit(agent, agent_finish)
-        crewai_event_bus.emit(task, task_finish)
-        crewai_event_bus.emit(crew, crew_finish)
-        crewai_event_bus.flush(timeout=5.0)
-
-        spans = list(in_memory_span_exporter.get_finished_spans())
-        assert len(spans) == 2
-
-        crew_span = next(span for span in spans if span.name == "TestCrew.kickoff")
-        agent_span = next(span for span in spans if span.name.endswith(".execute"))
-        assert agent_span.parent is not None
-        assert agent_span.parent.span_id == crew_span.context.span_id
-
-        listener.shutdown()
-
-
-def test_tool_from_cache_survives_concurrent_start_handler_order(
-    tracer_provider: trace_sdk.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    with crewai_event_bus.scoped_handlers():
-        listener = _SlowToolStartListener(tracer_provider=tracer_provider)
-        in_memory_span_exporter.clear()
-
-        source = MagicMock()
-        start_event = ToolUsageStartedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-        )
-        finish_event = ToolUsageFinishedEvent(
-            tool_name="SearchTool",
-            tool_args={"q": "test"},
-            started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-            output="results",
-            from_cache=True,
-            started_event_id=start_event.event_id,
-        )
-
-        crewai_event_bus.emit(source, start_event)
-        crewai_event_bus.emit(source, finish_event)
-        crewai_event_bus.flush(timeout=5.0)
-
-        spans = list(in_memory_span_exporter.get_finished_spans())
-        assert len(spans) == 1
-
-        attributes = dict(spans[0].attributes or {})
-        assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "results"
-        assert attributes.pop("tool.from_cache") is True
-
-        listener.shutdown()
-
-
-def test_agent_span_sets_graph_parent_id_from_crew_order(
-    listener: OpenInferenceEventListener,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    crew = _mock_crew()
-    parent_agent = _mock_agent(role="Research Analyst")
-    child_agent = _mock_agent(role="Report Writer")
-    parent_agent.crew = crew
-    child_agent.crew = crew
-    crew.agents = [parent_agent, child_agent]
-
-    task = _mock_task(name="report_task", description="Write the report")
-    task.agent = child_agent
-
-    crew_start = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
-    agent_start = _make_agent_started_event(
-        agent=child_agent,
-        task=task,
-        task_prompt="Write the report",
-        parent_event_id=crew_start.event_id,
+    _assert_flow_kickoff_span(kickoff_span)
+    _assert_flow_node_span(
+        step_one_span,
+        expected_name="step_one",
+        expected_type="start",
+        expected_output="Step One Output",
     )
-    agent_finish = _make_agent_completed_event(
-        agent=child_agent,
-        task=task,
-        output="done",
-        started_event_id=agent_start.event_id,
-        parent_event_id=crew_start.event_id,
-    )
-    crew_finish = CrewKickoffCompletedEvent(
-        crew_name="TestCrew",
-        crew=crew,
-        output="done",
-        started_event_id=crew_start.event_id,
+    _assert_flow_node_span(
+        step_two_span,
+        expected_name="step_two",
+        expected_type="listen",
+        expected_output="Step Two Received: Step One Output",
+        expected_input={"_0": "Step One Output"},
     )
 
-    _emit_and_flush(crew, crew_start)
-    _emit_and_flush(child_agent, agent_start)
-    _emit_and_flush(child_agent, agent_finish)
-    _emit_and_flush(crew, crew_finish)
 
-    spans = _get_spans(in_memory_span_exporter)
-    agent_span = next(span for span in spans if span.name.endswith(".execute"))
-    attributes = dict(agent_span.attributes or {})
-
-    assert attributes.pop(SpanAttributes.GRAPH_NODE_ID) == "Report Writer"
-    assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Research Analyst"
-
-
-def test_llm_call_records_message_and_token_attributes(
-    listener: OpenInferenceEventListener,
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation_context_attributes")
+def test_event_listener_context_attributes(
+    event_listener_instrumented: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    source = LLM(model="gpt-4o-mini")
-    with llm_call_context() as call_id:
-        start_event = LLMCallStartedEvent(
-            model="gpt-4o-mini",
-            messages="Hello",
-            call_id=call_id,
-        )
-        complete_event = LLMCallCompletedEvent(
-            model="gpt-4o-mini",
-            messages="Hello",
-            response="Hi there",
-            call_type=LLMCallType.LLM_CALL,
-            call_id=call_id,
-            started_event_id=start_event.event_id,
-        )
-
-        _emit_and_flush(source, start_event)
-        source._track_token_usage_internal(
-            {
-                "prompt_tokens": 11,
-                "completion_tokens": 7,
-                "total_tokens": 18,
-            }
-        )
-        _emit_and_flush(source, complete_event)
-
-    spans = _get_spans(in_memory_span_exporter)
-    assert len(spans) == 1
-
-    span = spans[0]
-    attributes = dict(span.attributes or {})
-    assert span.name == "gpt-4o-mini.llm_call"
-    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == (
-        OpenInferenceSpanKindValues.LLM.value
-    )
-    assert attributes.pop(SpanAttributes.LLM_MODEL_NAME) == "gpt-4o-mini"
-    assert attributes.pop("llm.call_id") == call_id
-    assert attributes.pop("llm.call_type") == LLMCallType.LLM_CALL.value
-    assert attributes.pop(SpanAttributes.INPUT_VALUE) == "Hello"
-    assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "text/plain"
-    assert attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.role") == "user"
-    assert attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.message.content") == "Hello"
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) == "Hi there"
-    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "text/plain"
-    assert attributes.pop(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.role") == "assistant"
-    assert attributes.pop(f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.message.content") == "Hi there"
-    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 11
-    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 7
-    assert attributes.pop(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 18
-
-
-def test_multiple_llm_calls_record_token_counts_per_span(
-    listener: OpenInferenceEventListener,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    source = LLM(model="gpt-4o-mini")
-    expected_usage = {
-        "First response": (13, 5, 18),
-        "Second response": (17, 9, 26),
-    }
-
-    for prompt, response, usage in (
-        ("First prompt", "First response", expected_usage["First response"]),
-        ("Second prompt", "Second response", expected_usage["Second response"]),
+    with using_attributes(
+        session_id="my-test-session",
+        user_id="my-test-user",
+        metadata={
+            "test-int": 1,
+            "test-str": "string",
+            "test-list": [1, 2, 3],
+            "test-dict": {"key-1": "val-1", "key-2": "val-2"},
+        },
+        tags=["tag-1", "tag-2"],
+        prompt_template="test-prompt-template",
+        prompt_template_version="v1.0",
+        prompt_template_variables={"var-1": "value-1", "var-2": "value-2"},
     ):
-        with llm_call_context() as call_id:
-            start_event = LLMCallStartedEvent(
-                model="gpt-4o-mini",
-                messages=prompt,
-                call_id=call_id,
-            )
-            complete_event = LLMCallCompletedEvent(
-                model="gpt-4o-mini",
-                messages=prompt,
-                response=response,
-                call_type=LLMCallType.LLM_CALL,
-                call_id=call_id,
-                started_event_id=start_event.event_id,
-            )
+        kickoff_crew()
 
-            _emit_and_flush(source, start_event)
-            source._track_token_usage_internal(
-                {
-                    "prompt_tokens": usage[0],
-                    "completion_tokens": usage[1],
-                    "total_tokens": usage[2],
-                }
-            )
-            _emit_and_flush(source, complete_event)
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 7
 
-    spans = _get_spans(in_memory_span_exporter)
-    llm_spans = [span for span in spans if span.name == "gpt-4o-mini.llm_call"]
+    for span in spans:
+        attributes = dict(span.attributes or {})
+        assert attributes[SpanAttributes.SESSION_ID] == "my-test-session"
+        assert attributes[SpanAttributes.USER_ID] == "my-test-user"
+        assert json.loads(str(attributes[SpanAttributes.METADATA])) == {
+            "test-int": 1,
+            "test-str": "string",
+            "test-list": [1, 2, 3],
+            "test-dict": {"key-1": "val-1", "key-2": "val-2"},
+        }
+        assert list(attributes[SpanAttributes.TAG_TAGS]) == ["tag-1", "tag-2"]  # type: ignore[arg-type]
+        assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE] == "test-prompt-template"
+        assert attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VERSION] == "v1.0"
+        assert json.loads(str(attributes[SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES])) == {
+            "var-1": "value-1",
+            "var-2": "value-2",
+        }
+
+
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_flow_crew_spans_in_same_trace")
+def test_event_listener_flow_crew_spans_in_same_trace(
+    event_listener_instrumented: None,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    kickoff_flow_with_crew()
+
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
+    assert len(spans) == 7
+
+    chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    llm_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
+
+    assert len(chain_spans) == 3
+    assert len(agent_spans) == 1
+    assert len(tool_spans) == 1
     assert len(llm_spans) == 2
 
-    for span in llm_spans:
-        attributes = dict(span.attributes or {})
-        output_value = attributes[SpanAttributes.OUTPUT_VALUE]
-        prompt_tokens, completion_tokens, total_tokens = expected_usage[output_value]
-        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == prompt_tokens
-        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == completion_tokens
-        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == total_tokens
+    flow_span = next(span for span in chain_spans if span.name == "CrewFlow.kickoff")
+    run_crew_span = next(span for span in chain_spans if span.name == "CrewFlow.run_crew")
+    crew_span = next(span for span in chain_spans if span.name == "crew.kickoff")
+    agent_span = agent_spans[0]
+    tool_span = tool_spans[0]
+
+    assert _span_parent_name(flow_span, spans_by_id) is None
+    assert _span_parent_name(run_crew_span, spans_by_id) == flow_span.name
+    assert _span_parent_name(crew_span, spans_by_id) == run_crew_span.name
+    assert _span_parent_name(agent_span, spans_by_id) == crew_span.name
+    assert _span_parent_name(tool_span, spans_by_id) == agent_span.name
+    assert all(_span_parent_name(span, spans_by_id) == agent_span.name for span in llm_spans)
+
+    flow_attributes = dict(flow_span.attributes or {})
+    assert flow_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert _assert_uuid(flow_attributes.pop("flow_id"))
+    assert flow_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    flow_output = _pop_json(flow_attributes, OUTPUT_VALUE)
+    assert flow_output["raw"].startswith("The content from the website is:")
+    assert flow_output["tasks_output"][0]["agent"] == "Website Scraper"
+    assert not flow_attributes
+
+    method_attributes = dict(run_crew_span.attributes or {})
+    assert method_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert method_attributes.pop("flow.node.name") == "run_crew"
+    assert method_attributes.pop("flow.node.type") == "start"
+    assert method_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    method_output = _pop_json(method_attributes, OUTPUT_VALUE)
+    assert method_output["raw"].startswith("The content from the website is:")
+    assert not method_attributes
+
+    crew_attributes = dict(crew_span.attributes or {})
+    assert crew_attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert _pop_json(crew_attributes, "crew_agents")[0]["role"] == "Website Scraper"
+    assert len(_pop_json(crew_attributes, "crew_tasks")) == 1
+    assert _assert_uuid(crew_attributes.pop("crew_id"))
+    assert crew_attributes.pop("crew_key")
+    assert crew_attributes.pop("total_tokens") > 0
+    assert crew_attributes.pop(OUTPUT_MIME_TYPE) == JSON
+    crew_output = _pop_json(crew_attributes, OUTPUT_VALUE)
+    assert crew_output["agent"] == "Website Scraper"
+    assert not crew_attributes
 
 
-def test_create_llm_spans_false_skips_llm_spans(
-    listener_no_llm: OpenInferenceEventListener,
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation_with_agent")
+def test_event_listener_crewai_instrumentation_with_agent(
+    event_listener_instrumented: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    source = MagicMock()
-    start_event = LLMCallStartedEvent(
-        model="gpt-4o-mini",
-        messages="Hello",
-        call_id=str(uuid.uuid4()),
+    kickoff_agent()
+
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
+    assert len(spans) == 2
+
+    agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    llm_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
+    assert len(agent_spans) == 1
+    assert len(llm_spans) == 1
+
+    agent_span = agent_spans[0]
+    llm_span = llm_spans[0]
+    assert _span_parent_name(agent_span, spans_by_id) is None
+    assert _span_parent_name(llm_span, spans_by_id) == agent_span.name
+
+    _assert_standalone_agent_span(agent_span)
+    _assert_llm_span(
+        llm_span,
+        expected_call_type="llm_call",
+        expect_tools=False,
+        expect_output_messages=True,
+        expected_output_mime_type=TEXT,
     )
-    complete_event = LLMCallCompletedEvent(
-        model="gpt-4o-mini",
-        messages="Hello",
-        response="Hi there",
-        call_type=LLMCallType.LLM_CALL,
-        call_id=start_event.call_id,
-        started_event_id=start_event.event_id,
-    )
-
-    _emit_and_flush(source, start_event)
-    _emit_and_flush(source, complete_event)
-
-    spans = _get_spans(in_memory_span_exporter)
-    assert len(spans) == 0
-
-    _ = listener_no_llm
 
 
-def test_flow_method_records_node_type_when_available(
-    listener: OpenInferenceEventListener,
+@pytest.mark.vcr
+@pytest.mark.default_cassette("test_crewai_instrumentation")
+def test_event_listener_create_llm_spans_false_skips_llm_spans(
+    event_listener_instrumented_no_llm: None,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
-    class _FlowSource:
-        name = "MyFlow"
-        flow_id = uuid.uuid4()
-        _start_methods = ["step_one"]
-        _listeners = {"step_two": "step_one"}
-        _routers = {"route_next"}
+    kickoff_crew()
 
-    flow_source = _FlowSource()
+    spans = _finished_spans(in_memory_span_exporter)
+    spans_by_id = _assert_single_trace(spans)
+    assert len(spans) == 4
 
-    flow_start = FlowStartedEvent(flow_name="MyFlow", inputs={"topic": "ai"})
-    step_one_start = MethodExecutionStartedEvent(
-        flow_name="MyFlow",
-        method_name="step_one",
-        params={"topic": "ai"},
-        state={},
-        parent_event_id=flow_start.event_id,
-    )
-    step_one_finish = MethodExecutionFinishedEvent(
-        flow_name="MyFlow",
-        method_name="step_one",
-        result="ok",
-        state={},
-        started_event_id=step_one_start.event_id,
-        parent_event_id=flow_start.event_id,
-    )
-    step_two_start = MethodExecutionStartedEvent(
-        flow_name="MyFlow",
-        method_name="step_two",
-        params={"previous": "ok"},
-        state={},
-        parent_event_id=flow_start.event_id,
-    )
-    step_two_finish = MethodExecutionFinishedEvent(
-        flow_name="MyFlow",
-        method_name="step_two",
-        result="done",
-        state={},
-        started_event_id=step_two_start.event_id,
-        parent_event_id=flow_start.event_id,
-    )
-    flow_finish = FlowFinishedEvent(
-        flow_name="MyFlow",
-        result="done",
-        state={},
-        started_event_id=flow_start.event_id,
-    )
+    chain_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.CHAIN.value)
+    agent_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.AGENT.value)
+    tool_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.TOOL.value)
+    llm_spans = get_spans_by_kind(spans, OpenInferenceSpanKindValues.LLM.value)
 
-    _emit_and_flush(flow_source, flow_start)
-    _emit_and_flush(flow_source, step_one_start)
-    _emit_and_flush(flow_source, step_one_finish)
-    _emit_and_flush(flow_source, step_two_start)
-    _emit_and_flush(flow_source, step_two_finish)
-    _emit_and_flush(flow_source, flow_finish)
+    assert len(chain_spans) == 1
+    assert len(agent_spans) == 2
+    assert len(tool_spans) == 1
+    assert not llm_spans
 
-    spans = _get_spans(in_memory_span_exporter)
-    step_one_span = next(span for span in spans if span.name == "MyFlow.step_one")
-    step_two_span = next(span for span in spans if span.name == "MyFlow.step_two")
+    crew_span = chain_spans[0]
+    scraper_span = next(span for span in agent_spans if span.name.startswith("Website Scraper"))
+    analyzer_span = next(span for span in agent_spans if span.name.startswith("Content Analyzer"))
+    tool_span = tool_spans[0]
 
-    assert step_one_span.attributes is not None
-    assert step_one_span.attributes["flow.node.type"] == "start"
-    assert step_two_span.attributes is not None
-    assert step_two_span.attributes["flow.node.type"] == "listen"
-
-
-def test_use_event_listener_patches_context_thread_propagation(
-    tracer_provider: trace_sdk.TracerProvider,
-) -> None:
-    from crewai.agent.core import Agent as CrewAgent
-    from crewai.agents.crew_agent_executor import CrewAgentExecutor
-
-    instrumentor = CrewAIInstrumentor()
-    instrumentor.uninstrument()
-
-    original_execute_without_timeout = CrewAgent.__dict__["_execute_without_timeout"]
-    original_execute_single_native_tool_call = CrewAgentExecutor.__dict__[
-        "_execute_single_native_tool_call"
-    ]
-
-    with crewai_event_bus.scoped_handlers():
-        instrumentor.instrument(tracer_provider=tracer_provider, use_event_listener=True)
-        try:
-            assert isinstance(
-                CrewAgent.__dict__["_execute_without_timeout"],
-                _ExecuteWithoutTimeoutContextDescriptor,
-            )
-            assert isinstance(
-                CrewAgentExecutor.__dict__["_execute_single_native_tool_call"],
-                _ExecuteWithoutTimeoutContextDescriptor,
-            )
-        finally:
-            instrumentor.uninstrument()
-
-    assert CrewAgent.__dict__["_execute_without_timeout"] is original_execute_without_timeout
-    assert (
-        CrewAgentExecutor.__dict__["_execute_single_native_tool_call"]
-        is original_execute_single_native_tool_call
-    )
-
-
-def test_use_event_listener_flag_bootstraps_listener(
-    tracer_provider: trace_sdk.TracerProvider,
-    in_memory_span_exporter: InMemorySpanExporter,
-) -> None:
-    instrumentor = CrewAIInstrumentor()
-    instrumentor.uninstrument()
-
-    with crewai_event_bus.scoped_handlers():
-        instrumentor.instrument(tracer_provider=tracer_provider, use_event_listener=True)
-        in_memory_span_exporter.clear()
-
-        try:
-            assert instrumentor._event_listener is not None
-
-            crew = _mock_crew()
-            start_event = CrewKickoffStartedEvent(crew_name="TestCrew", crew=crew, inputs=None)
-            complete_event = CrewKickoffCompletedEvent(
-                crew_name="TestCrew",
-                crew=crew,
-                output="done",
-                started_event_id=start_event.event_id,
-            )
-
-            _emit_and_flush(crew, start_event)
-            _emit_and_flush(crew, complete_event)
-
-            spans = _get_spans(in_memory_span_exporter)
-            assert len(spans) == 1
-            assert spans[0].name == "TestCrew.kickoff"
-        finally:
-            instrumentor.uninstrument()
+    assert _span_parent_name(crew_span, spans_by_id) is None
+    assert _span_parent_name(scraper_span, spans_by_id) == crew_span.name
+    assert _span_parent_name(analyzer_span, spans_by_id) == crew_span.name
+    assert _span_parent_name(tool_span, spans_by_id) == scraper_span.name

@@ -5,8 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Mapping, Sequence
-from functools import wraps
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -49,7 +48,9 @@ from crewai.events.types.tool_usage_events import (
     ToolUsageStartedEvent,
 )
 from openinference.instrumentation import (
+    Message,
     OITracer,
+    TokenCount,
     TraceConfig,
     get_input_attributes,
     get_llm_input_message_attributes,
@@ -88,13 +89,13 @@ def _first_not_none(*values: Any) -> Any:
     return None
 
 
-def _normalize_llm_messages(value: Any, default_role: str) -> list[dict[str, Any]]:
+def _normalize_llm_messages(value: Any, default_role: str) -> list[Message]:
     if isinstance(value, str):
-        return [{"role": default_role, "content": value}]
+        return [cast(Message, {"role": default_role, "content": value})]
     if isinstance(value, Mapping):
-        return [dict(value)]
+        return [cast(Message, dict(value))]
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [dict(message) for message in value if isinstance(message, Mapping)]
+        return [cast(Message, dict(message)) for message in value if isinstance(message, Mapping)]
     return []
 
 
@@ -112,7 +113,7 @@ def _get_llm_output_attributes(response: Any) -> dict[str, Any]:
     return dict(get_llm_output_message_attributes(normalized_messages))
 
 
-def _normalize_token_usage(usage_data: Mapping[str, Any]) -> dict[str, Any]:
+def _normalize_token_usage(usage_data: Mapping[str, Any]) -> TokenCount:
     prompt_tokens = int(
         _first_not_none(
             usage_data.get("prompt_tokens"),
@@ -143,7 +144,7 @@ def _normalize_token_usage(usage_data: Mapping[str, Any]) -> dict[str, Any]:
         )
     )
 
-    token_count: dict[str, Any] = {
+    token_count: TokenCount = {
         "prompt": prompt_tokens,
         "completion": completion_tokens,
         "total": total_tokens,
@@ -170,12 +171,12 @@ def _get_parent_agent_role(agent: Any, task: Any) -> Optional[str]:
     crew_agents = getattr(crew, "agents", None)
     if isinstance(crew_agents, Sequence) and not isinstance(crew_agents, (str, bytes, bytearray)):
         try:
-            parent_role = _find_parent_agent(current_role, list(crew_agents))
+            parent_role_from_crew = _find_parent_agent(current_role, list(crew_agents))
         except Exception:
             logger.debug("Failed to resolve parent agent from crew ordering", exc_info=True)
         else:
-            if parent_role:
-                return str(parent_role).strip()
+            if parent_role_from_crew:
+                return str(parent_role_from_crew).strip()
     return None
 
 
@@ -598,13 +599,12 @@ class OpenInferenceEventListener(BaseEventListener):
         self._original_track_token_usage_internal = original
         listener = self
 
-        @wraps(original)
         def patched(instance: Any, usage_data: dict[str, Any]) -> None:
             original(instance, usage_data)
             call_id = base_llm_module.get_current_call_id()
             listener._record_llm_token_usage(call_id, usage_data)
 
-        base_llm_module.BaseLLM._track_token_usage_internal = patched
+        setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", patched)
 
     def _restore_llm_token_usage_tracking(self) -> None:
         original = self._original_track_token_usage_internal
@@ -612,7 +612,7 @@ class OpenInferenceEventListener(BaseEventListener):
             return
         from crewai.llms import base_llm as base_llm_module
 
-        base_llm_module.BaseLLM._track_token_usage_internal = original
+        setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", original)
         self._original_track_token_usage_internal = None
         with self._llm_usage_lock:
             self._llm_usage_by_call_id.clear()
@@ -649,7 +649,7 @@ class OpenInferenceEventListener(BaseEventListener):
         if isinstance(prompt_details, Mapping) and prompt_details.get("cache_read", 0) == 0:
             token_usage = dict(token_usage)
             token_usage.pop("prompt_details", None)
-        return dict(get_llm_token_count_attributes(token_usage))
+        return dict(get_llm_token_count_attributes(cast(TokenCount, token_usage)))
 
     def _on_crew_started(self, source: Any, event: CrewKickoffStartedEvent) -> None:
         if self._is_suppressed():
