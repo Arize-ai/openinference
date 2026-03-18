@@ -72,29 +72,6 @@ class LangChain4jModelListenerTest {
                 .build();
     }
 
-    private OpenAiChatModel buildModelWithParams(LangChain4jModelListener listener) {
-        return OpenAiChatModel.builder()
-                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
-                .apiKey("test-key")
-                .modelName("gpt-4")
-                .temperature(0.7)
-                .topP(0.9)
-                .listeners(List.of(listener))
-                .timeout(Duration.ofSeconds(5))
-                .build();
-    }
-
-    private OpenAiChatModel buildModelWithTracer(OITracer tracer) {
-        LangChain4jModelListener listener = new LangChain4jModelListener(tracer);
-        return OpenAiChatModel.builder()
-                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
-                .apiKey("test-key")
-                .modelName("gpt-4")
-                .listeners(List.of(listener))
-                .timeout(Duration.ofSeconds(5))
-                .build();
-    }
-
     private void stubChatCompletion(String content) {
         wireMock.stubFor(post(urlPathEqualTo("/v1/chat/completions"))
                 .willReturn(okJson(
@@ -273,17 +250,9 @@ class LangChain4jModelListenerTest {
     void capturesSystemAndUserInputMessages() {
         stubChatCompletion("Hello!");
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
+        OpenAiChatModel model = buildModel(listener);
 
-        // OpenAiChatModel with a system message
-        OpenAiChatModel model = OpenAiChatModel.builder()
-                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
-                .apiKey("test-key")
-                .modelName("gpt-4")
-                .listeners(List.of(listener))
-                .timeout(Duration.ofSeconds(5))
-                .build();
-
-        // Use generate with explicit messages to include a system message
+        // Use chat with explicit messages to include a system message
         dev.langchain4j.model.chat.request.ChatRequest request =
                 dev.langchain4j.model.chat.request.ChatRequest.builder()
                         .messages(
@@ -419,7 +388,7 @@ class LangChain4jModelListenerTest {
         stubChatCompletion("Response");
         TraceConfig config = TraceConfig.builder().hideInputMessages(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
-        OpenAiChatModel model = buildModelWithTracer(hiddenTracer);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Secret input");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
@@ -446,7 +415,7 @@ class LangChain4jModelListenerTest {
         stubChatCompletion("Secret response");
         TraceConfig config = TraceConfig.builder().hideOutputMessages(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
-        OpenAiChatModel model = buildModelWithTracer(hiddenTracer);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Hi");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
@@ -474,7 +443,7 @@ class LangChain4jModelListenerTest {
                 .hideOutputMessages(true)
                 .build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden-both"), config);
-        OpenAiChatModel model = buildModelWithTracer(hiddenTracer);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Secret");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
@@ -518,7 +487,15 @@ class LangChain4jModelListenerTest {
     void capturesInvocationParameters() throws Exception {
         stubChatCompletion("Hello!");
         LangChain4jModelListener listener = new LangChain4jModelListener(oiTracer);
-        OpenAiChatModel model = buildModelWithParams(listener);
+        OpenAiChatModel model = OpenAiChatModel.builder()
+                .baseUrl("http://localhost:" + wireMock.port() + "/v1")
+                .apiKey("test-key")
+                .modelName("gpt-4")
+                .temperature(0.7)
+                .topP(0.9)
+                .listeners(List.of(listener))
+                .timeout(Duration.ofSeconds(5))
+                .build();
         model.chat("Hi");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);

@@ -46,12 +46,9 @@ jobs:
           java-version: 17
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
-      - name: Build and Test
+      - name: Build, Test, and Spotless Check
         working-directory: ./java
-        run: ./gradlew build
-      - name: Spotless Check
-        working-directory: ./java
-        run: ./gradlew spotlessCheck
+        run: ./gradlew build spotlessCheck
 
   ci-required:
     name: Java CI Required
