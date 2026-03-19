@@ -51,6 +51,58 @@ const MODULE_NAME = "openai";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 
+// Maps hostname suffixes to their corresponding LLM provider value.
+const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
+    // OpenAI
+    "api.openai.com": LLMProvider.OPENAI,
+    // Azure OpenAI
+    "openai.azure.com": LLMProvider.AZURE,
+    // Anthropic
+    "api.anthropic.com": LLMProvider.ANTHROPIC,
+    // Cohere (v1 and v2 planes share the root domain)
+    "api.cohere.com": LLMProvider.COHERE,
+    "api.cohere.ai": LLMProvider.COHERE,
+    // Mistral AI
+    "api.mistral.ai": LLMProvider.MISTRALAI,
+    // Google (Gemini via AI Studio and Vertex AI)
+    "generativelanguage.googleapis.com": LLMProvider.GOOGLE,
+    "aiplatform.googleapis.com": LLMProvider.GOOGLE,
+    // AWS Bedrock
+    "amazonaws.com": LLMProvider.AWS,
+    // xAI
+    "api.x.ai": LLMProvider.XAI,
+    // DeepSeek
+    "api.deepseek.com": LLMProvider.DEEPSEEK,
+    // Groq
+    "api.groq.com": LLMProvider.GROQ,
+    // Fireworks AI
+    "api.fireworks.ai": LLMProvider.FIREWORKS,
+    // Moonshot AI
+    "api.moonshot.cn": LLMProvider.MOONSHOT,
+    // Cerebras
+    "api.cerebras.ai": LLMProvider.CEREBRAS,
+    // Perplexity
+    "api.perplexity.ai": LLMProvider.PERPLEXITY,
+    // Together AI
+    "api.together.ai": LLMProvider.TOGETHER,
+    "api.together.xyz": LLMProvider.TOGETHER,
+};
+
+/**
+ * Return the LLM provider name for the given API hostname.
+ */
+export function getProviderFromHost(
+  host: string,
+): LLMProvider | undefined {
+  const normalised = host.toLowerCase().trim();
+  for (const [suffix, provider] of Object.entries(HOST_SUFFIX_TO_PROVIDER)) {
+    if (normalised.endsWith(suffix)) {
+      return provider;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Flag to check if the openai module has been patched
  * Note: This is a fallback in case the module is made immutable (e.x. Deno, webpack, etc.)
@@ -86,7 +138,7 @@ function getExecContext(span: Span) {
  * @param clientInstance The OpenAI client instance
  * @returns LLMProvider.AZURE for Azure OpenAI, LLMProvider.OPENAI for regular OpenAI
  */
-function getLLMProvider(clientInstance: unknown): LLMProvider {
+function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
     // The clientInstance might be a sub-object (like Completions) that has a _client property
     // pointing to the actual OpenAI/AzureOpenAI client
@@ -99,6 +151,7 @@ function getLLMProvider(clientInstance: unknown): LLMProvider {
 
     let host: string | undefined;
     let baseURL: string | { host?: string } | undefined;
+    let provider: LLMProvider | undefined;
 
     // First try to get baseURL from the instance itself
     if (instance.baseURL) {
@@ -124,24 +177,15 @@ function getLLMProvider(clientInstance: unknown): LLMProvider {
     }
 
     if (host && typeof host === "string") {
-      // Follow the same pattern as Python implementation
-      if (host.includes("api.openai.com")) {
-        return LLMProvider.OPENAI;
-      } else if (host.includes("openai.azure.com")) {
-        return LLMProvider.AZURE;
-      } else if (host.includes("api.microsoft.com")) {
-        // Additional Azure endpoint pattern
-        return LLMProvider.AZURE;
-      }
+      provider = getProviderFromHost(host);
+      return provider;
     }
   } catch (error) {
     // If we can't determine, default to regular OpenAI
     diag.debug("Failed to determine LLM provider from instance", error);
   }
-
-  // Default to OpenAI if we can't determine
-  return LLMProvider.OPENAI;
 }
+
 /**
  * An auto instrumentation class for OpenAI that creates {@link https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md|OpenInference} Compliant spans for the OpenAI API
  * @param instrumentationConfig The config for the instrumentation @see {@link InstrumentationConfig}
@@ -400,6 +444,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
               [SemanticConventions.EMBEDDING_MODEL_NAME]: body.model,
               [SemanticConventions.INPUT_VALUE]: isStringInput ? input : JSON.stringify(input),
               [SemanticConventions.INPUT_MIME_TYPE]: isStringInput ? MimeType.TEXT : MimeType.JSON,
+              [SemanticConventions.LLM_SYSTEM]: LLMSystem.OPENAI,
               [SemanticConventions.LLM_PROVIDER]: getLLMProvider(this),
               ...getEmbeddingTextAttributes(body),
             },
