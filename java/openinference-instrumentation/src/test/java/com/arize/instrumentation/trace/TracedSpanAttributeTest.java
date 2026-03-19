@@ -43,8 +43,10 @@ class TracedSpanAttributeTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.longKey("inputs.count"))).isEqualTo(42L);
-        assertThat(data.getAttributes().get(AttributeKey.longKey("token.total"))).isEqualTo(123L);
+        assertThat(data.getAttributes().get(AttributeKey.longKey("inputs.count")))
+                .isEqualTo(42L);
+        assertThat(data.getAttributes().get(AttributeKey.longKey("token.total")))
+                .isEqualTo(123L);
         assertThat(data.getAttributes().get(AttributeKey.doubleKey("cost"))).isEqualTo(0.5d);
         assertThat(data.getAttributes().get(AttributeKey.booleanKey("flag"))).isTrue();
     }
@@ -59,8 +61,7 @@ class TracedSpanAttributeTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringArrayKey("tags")))
                 .containsExactly("one", "two");
-        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey("alt")))
-                .containsExactly("a", "b");
+        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey("alt"))).containsExactly("a", "b");
     }
 
     @Test

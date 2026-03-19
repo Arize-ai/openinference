@@ -79,11 +79,16 @@ class MappingTest {
 
     @Test
     void getInputMappingsForAllAnnotationTypes() throws Exception {
-        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("chainMethod"))).isNotNull();
-        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("llmMethod"))).isNotNull();
-        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("toolMethod"))).isNotNull();
-        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("agentMethod"))).isNotNull();
-        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("spanMethod"))).isNotNull();
+        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("chainMethod")))
+                .isNotNull();
+        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("llmMethod")))
+                .isNotNull();
+        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("toolMethod")))
+                .isNotNull();
+        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("agentMethod")))
+                .isNotNull();
+        assertThat(TraceAdvice.getInputMappings(MappingTarget.class.getMethod("spanMethod")))
+                .isNotNull();
     }
 
     // --- Test target with mapping annotations ---
@@ -97,7 +102,9 @@ class MappingTest {
         @LLM(
                 name = "output-mapped",
                 outputMapping =
-                        @SpanMapping(field = "usage.totalTokens", attribute = SemanticConventions.LLM_TOKEN_COUNT_TOTAL))
+                        @SpanMapping(
+                                field = "usage.totalTokens",
+                                attribute = SemanticConventions.LLM_TOKEN_COUNT_TOTAL))
         public Map<String, Object> withOutputMapping() {
             return Map.of();
         }

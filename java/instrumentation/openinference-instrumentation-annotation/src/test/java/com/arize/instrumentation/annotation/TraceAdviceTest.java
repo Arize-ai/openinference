@@ -111,22 +111,28 @@ class TraceAdviceTest {
 
     @Test
     void createTypedSpanReturnsCorrectTypes() {
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.LLM)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.LLM)) {
             assertThat(span).isInstanceOf(LLMSpan.class);
         }
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.TOOL)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.TOOL)) {
             assertThat(span).isInstanceOf(ToolSpan.class);
         }
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.AGENT)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.AGENT)) {
             assertThat(span).isInstanceOf(AgentSpan.class);
         }
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.RETRIEVER)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.RETRIEVER)) {
             assertThat(span).isInstanceOf(RetrievalSpan.class);
         }
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.EMBEDDING)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.EMBEDDING)) {
             assertThat(span).isInstanceOf(EmbeddingSpan.class);
         }
-        try (TracedSpan span = TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.CHAIN)) {
+        try (TracedSpan span =
+                TraceAdvice.createTypedSpan(tracer, "test", SemanticConventions.OpenInferenceSpanKind.CHAIN)) {
             assertThat(span).isInstanceOf(ChainSpan.class);
         }
     }
@@ -205,8 +211,7 @@ class TraceAdviceTest {
         TraceAdvice.onExit(span, method, null, new RuntimeException("test error"));
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getStatus().getStatusCode())
-                .isEqualTo(io.opentelemetry.api.trace.StatusCode.ERROR);
+        assertThat(data.getStatus().getStatusCode()).isEqualTo(io.opentelemetry.api.trace.StatusCode.ERROR);
     }
 
     @Test
