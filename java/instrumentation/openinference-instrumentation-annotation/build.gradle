@@ -14,3 +14,12 @@ dependencies {
     testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
 }
 
+jar {
+    manifest {
+        attributes(
+                'Premain-Class': 'com.arize.instrumentation.annotation.OpenInferenceAgentInstaller',
+                'Agent-Class': 'com.arize.instrumentation.annotation.OpenInferenceAgentInstaller',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true')
+    }
+}

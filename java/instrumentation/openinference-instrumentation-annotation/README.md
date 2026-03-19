@@ -30,7 +30,7 @@ dependencies {
 
 ```java
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.annotation.OpenInferenceAgent;
+import com.arize.instrumentation.OpenInferenceAgent;
 import com.arize.instrumentation.annotation.OpenInferenceAgentInstaller;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 
@@ -46,6 +46,27 @@ SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
 OITracer tracer = new OITracer(tracerProvider.get("my-app"));
 OpenInferenceAgent.register(tracer);
 ```
+
+#### Packaging & running via `-javaagent`
+
+Build the agent locally to produce a jar with the necessary `Premain-Class`/`Agent-Class`
+manifest entries:
+
+```bash
+cd java
+./gradlew :instrumentation:openinference-instrumentation-annotation:jar
+```
+
+Then attach it to any JVM process (either at launch or dynamically) without calling
+`OpenInferenceAgentInstaller.install()` yourself:
+
+```bash
+java -javaagent:./java/instrumentation/openinference-instrumentation-annotation/build/libs/openinference-instrumentation-annotation.jar \
+     -cp your-app.jar com.example.Main
+```
+
+You still need to construct and register an `OITracer` (as above) during application startup so the
+agent has an OpenTelemetry tracer/exporter to route spans through.
 
 ### 2. Annotate your methods
 
@@ -153,13 +174,17 @@ public LLMResponse chat(String model, String prompt) { ... }
 
 The `field` parameter uses dot notation to extract nested values from return objects (e.g., `"usage.totalTokens"`).
 
+> **Note:** Parameter mappings rely on Java's `-parameters` compiler flag. If your application
+> isn't compiled with that flag, reference the generated `arg0`, `arg1`, … parameter names in your
+> `@SpanMapping` annotations instead.
+
 ## Programmatic API
 
 For more control, use the typed span classes directly with try-with-resources:
 
 ```java
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.annotation.*;
+import com.arize.instrumentation.trace.*;
 
 OITracer tracer = new OITracer(tracerProvider.get("my-app"));
 

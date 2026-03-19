@@ -7,6 +7,7 @@ import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,62 @@ public abstract class TracedSpan implements AutoCloseable {
     }
 
     public void setAttribute(String key, Object value) {
+        if (key == null || key.isEmpty() || value == null) {
+            return;
+        }
+
+        if (value instanceof String s) {
+            span.setAttribute(AttributeKey.stringKey(key), s);
+            return;
+        }
+        if (value instanceof Boolean b) {
+            span.setAttribute(AttributeKey.booleanKey(key), b);
+            return;
+        }
+        if (value instanceof Integer i) {
+            span.setAttribute(AttributeKey.longKey(key), i.longValue());
+            return;
+        }
+        if (value instanceof Long l) {
+            span.setAttribute(AttributeKey.longKey(key), l);
+            return;
+        }
+        if (value instanceof Short s) {
+            span.setAttribute(AttributeKey.longKey(key), s.longValue());
+            return;
+        }
+        if (value instanceof Byte b) {
+            span.setAttribute(AttributeKey.longKey(key), b.longValue());
+            return;
+        }
+        if (value instanceof Double d) {
+            span.setAttribute(AttributeKey.doubleKey(key), d);
+            return;
+        }
+        if (value instanceof Float f) {
+            span.setAttribute(AttributeKey.doubleKey(key), f.doubleValue());
+            return;
+        }
+        if (value instanceof Number n) {
+            span.setAttribute(AttributeKey.doubleKey(key), n.doubleValue());
+            return;
+        }
+        if (value instanceof List<?> list && canSerializeStringCollection(list)) {
+            span.setAttribute(AttributeKey.stringArrayKey(key), toStringList(list));
+            return;
+        }
+        if (value instanceof String[] arr) {
+            span.setAttribute(AttributeKey.stringArrayKey(key), List.of(arr));
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            List<String> converted = tryConvertIterable(iterable);
+            if (converted != null) {
+                span.setAttribute(AttributeKey.stringArrayKey(key), converted);
+                return;
+            }
+        }
+
         SpanSerializer.SerializedValue sv = SpanSerializer.serialize(value);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(key), sv.value());
@@ -92,5 +149,29 @@ public abstract class TracedSpan implements AutoCloseable {
                 ? SemanticConventions.MimeType.JSON.getValue()
                 : SemanticConventions.MimeType.TEXT.getValue();
         span.setAttribute(AttributeKey.stringKey(mimeKey), mimeType);
+    }
+
+    private static boolean canSerializeStringCollection(List<?> list) {
+        for (Object item : list) {
+            if (!(item instanceof String)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<String> toStringList(List<?> list) {
+        return list.stream().map(obj -> (String) obj).toList();
+    }
+
+    private static List<String> tryConvertIterable(Iterable<?> source) {
+        List<String> values = new ArrayList<>();
+        for (Object item : source) {
+            if (!(item instanceof String s)) {
+                return null;
+            }
+            values.add(s);
+        }
+        return values;
     }
 }

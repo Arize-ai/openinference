@@ -61,8 +61,8 @@ class MappingTest {
         TraceAdvice.onExit(span, method, result, null);
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
-                .isEqualTo("150");
+        assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
+                .isEqualTo(150L);
     }
 
     @Test
