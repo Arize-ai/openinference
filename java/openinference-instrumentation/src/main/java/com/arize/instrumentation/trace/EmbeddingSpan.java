@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
@@ -26,7 +26,7 @@ public class EmbeddingSpan extends TracedSpan {
 
     public void setEmbeddings(List<Map<String, Object>> embeddings) {
         if (config.isHideOutputEmbeddings()) return;
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(embeddings);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(embeddings);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.EMBEDDING_EMBEDDINGS), sv.value());
         }

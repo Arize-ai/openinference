@@ -1,8 +1,9 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.OpenInferenceAgent;
 import com.arize.semconv.trace.SemanticConventions;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class AnnotationIntegrationTest {
+class IntegrationTest {
 
     private InMemorySpanExporter exporter;
     private OITracer tracer;

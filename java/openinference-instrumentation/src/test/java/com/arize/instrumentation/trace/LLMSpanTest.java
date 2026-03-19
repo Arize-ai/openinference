@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

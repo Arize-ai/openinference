@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
@@ -33,7 +33,7 @@ public class LLMSpan extends TracedSpan {
     }
 
     public void setInvocationParameters(Map<String, Object> params) {
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(params);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(params);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.LLM_INVOCATION_PARAMETERS), sv.value());
         }
@@ -41,7 +41,7 @@ public class LLMSpan extends TracedSpan {
 
     public void setInputMessages(List<Map<String, Object>> messages) {
         if (config.isHideInputMessages()) return;
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(messages);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(messages);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES), sv.value());
         }
@@ -49,7 +49,7 @@ public class LLMSpan extends TracedSpan {
 
     public void setOutputMessages(List<Map<String, Object>> messages) {
         if (config.isHideOutputMessages()) return;
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(messages);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(messages);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES), sv.value());
         }

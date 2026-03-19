@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.TraceConfig;
@@ -42,7 +42,7 @@ public abstract class TracedSpan implements AutoCloseable {
     }
 
     public void setMetadata(Map<String, Object> metadata) {
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(metadata);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(metadata);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.METADATA), sv.value());
         }
@@ -61,7 +61,7 @@ public abstract class TracedSpan implements AutoCloseable {
     }
 
     public void setAttribute(String key, Object value) {
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(value);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(value);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(key), sv.value());
         }
@@ -85,7 +85,7 @@ public abstract class TracedSpan implements AutoCloseable {
     }
 
     protected void setValueAttribute(String valueKey, String mimeKey, Object value) {
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(value);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(value);
         if (sv == null) return;
         span.setAttribute(AttributeKey.stringKey(valueKey), sv.value());
         String mimeType = sv.isJson()

@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
@@ -21,7 +21,7 @@ public class RetrievalSpan extends TracedSpan {
     }
 
     public void setDocuments(List<Map<String, Object>> docs) {
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(docs);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(docs);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.RETRIEVAL_DOCUMENTS), sv.value());
         }

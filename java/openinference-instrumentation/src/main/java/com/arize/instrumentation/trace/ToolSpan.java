@@ -1,4 +1,4 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation.trace;
 
 import com.arize.instrumentation.OITracer;
 import com.arize.semconv.trace.SemanticConventions;
@@ -29,7 +29,7 @@ public class ToolSpan extends TracedSpan {
 
     public void setToolParameters(Map<String, Object> params) {
         if (config.isHideToolParameters()) return;
-        SpanHelper.SerializedValue sv = SpanHelper.serialize(params);
+        SpanSerializer.SerializedValue sv = SpanSerializer.serialize(params);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS), sv.value());
         }

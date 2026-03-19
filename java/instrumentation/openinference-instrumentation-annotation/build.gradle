@@ -7,9 +7,6 @@ dependencies {
     implementation "net.bytebuddy:byte-buddy:${byteBuddyVersion}"
     implementation "net.bytebuddy:byte-buddy-agent:${byteBuddyVersion}"
 
-    // Jackson for JSON handling
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
-
     // Logging
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 

@@ -1,6 +1,8 @@
 package com.arize.instrumentation.annotation;
 
 import com.arize.instrumentation.OITracer;
+import com.arize.instrumentation.OpenInferenceAgent;
+import com.arize.instrumentation.trace.*;
 import com.arize.semconv.trace.SemanticConventions;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -136,7 +138,7 @@ public class TraceAdvice {
 
         for (SpanMapping mapping : mappings) {
             if (mapping.field().isEmpty()) continue;
-            Object value = SpanHelper.extractField(result, mapping.field());
+            Object value = SpanSerializer.extractField(result, mapping.field());
             if (value != null) {
                 span.setAttribute(mapping.attribute(), value);
             }

@@ -3,7 +3,7 @@ package com.arize.examples.annotation;
 import static com.arize.semconv.trace.SemanticResourceAttributes.SEMRESATTRS_PROJECT_NAME;
 
 import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.annotation.OpenInferenceAgent;
+import com.arize.instrumentation.OpenInferenceAgent;
 import com.arize.instrumentation.annotation.OpenInferenceAgentInstaller;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;

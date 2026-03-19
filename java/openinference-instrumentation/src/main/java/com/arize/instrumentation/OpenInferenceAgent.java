@@ -1,6 +1,5 @@
-package com.arize.instrumentation.annotation;
+package com.arize.instrumentation;
 
-import com.arize.instrumentation.OITracer;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
