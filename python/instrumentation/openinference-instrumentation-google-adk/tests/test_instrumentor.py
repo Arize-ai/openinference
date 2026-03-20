@@ -361,6 +361,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     # call_llm[0]: first LLM call returns get_weather for New York only (with thoughts)
@@ -797,6 +798,7 @@ async def test_google_adk_instrumentor_multi_agent(
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
     root_agent_run_attributes.pop("gen_ai.conversation.id", None)
     root_agent_run_attributes.pop("gen_ai.operation.name", None)
+    root_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not root_agent_run_attributes
 
     # 3. call_llm (root agent - transfer_to_agent)
@@ -917,6 +919,7 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_attributes.pop("gen_ai.agent.name", None)
     weather_agent_run_attributes.pop("gen_ai.conversation.id", None)
     weather_agent_run_attributes.pop("gen_ai.operation.name", None)
+    weather_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not weather_agent_run_attributes
 
     # 6. call_llm (weather agent - get_weather)
@@ -1293,6 +1296,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span = spans_by_name["call_llm"][-1]
