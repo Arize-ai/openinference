@@ -97,6 +97,7 @@ async def test_google_adk_instrumentor(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
@@ -423,10 +424,12 @@ async def test_google_adk_instrumentor_multi_tool_call(
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
         assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
+        assert call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 16
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
     call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -863,6 +866,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
     call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     # 4. execute_tool transfer_to_agent
