@@ -29,6 +29,7 @@ import org.junit.jupiter.api.TestInfo;
 
 class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
     ObjectMapper objectMapper = new ObjectMapper();
+
     // Utility function for constructing tool schema attribute keys
     private static String getToolSchemaAttributeKey(int toolIndex) {
         return "llm.tools." + toolIndex + ".tool.json_schema";
@@ -51,6 +52,27 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                         .inScenario("multiple tool calls")
                         .whenScenarioStateIs("SECOND_CALL")
                         .willReturn(okJson(toolResultCallContent)));
+    }
+
+    public void stubForOpenAiChatErrorCalls() throws Exception {
+        wireMock.stubFor(
+                com.github.tomakehurst.wiremock.client.WireMock.post(WireMock.urlEqualTo("/v1/chat/completions"))
+                        .atPriority(1)
+                        .willReturn(
+                                WireMock.aResponse()
+                                        .withStatus(401)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody(
+                                                """
+                {
+                  "error": {
+                    "message": "Incorrect API key provided: test-api-key. You can find your API key at https://platform.openai.com/account/api-keys.",
+                    "type": "invalid_request_error",
+                    "param": null,
+                    "code": "invalid_api_key"
+                  }
+                }
+            """)));
     }
 
     public MathAssistant createMathAssistant(TestInfo testInfo, LangChain4jInstrumentor instrumentor) {
@@ -559,6 +581,36 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
         assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isEqualTo("The sum of 45 plus 79 is 124.");
         assertThat(agentAttrs).isEmpty();
+    }
+
+    @Test
+    void aiServiceErrorHandling(TestInfo testInfo) throws Exception {
+        stubForOpenAiChatErrorCalls();
+        LangChain4jInstrumentor instrumentor =
+                LangChain4jInstrumentor.instrument(tracerProvider, TraceConfig.getDefault());
+        try {
+            MathAssistant assistant = createMathAssistant(testInfo, instrumentor);
+            assistant.chat("What is 100 divided by 0?");
+        } catch (Exception e) {
+            assertThat(e.getMessage()).containsIgnoringCase("Incorrect API key provided");
+        } finally {
+            instrumentor.uninstrument();
+        }
+
+        List<SpanData> spans = spanExporter.getFinishedSpanItems();
+        assertThat(spans).isNotEmpty();
+        boolean errorSpanFound = false;
+        for (SpanData span : spans) {
+            if (span.getStatus().getStatusCode() == StatusCode.ERROR) {
+                errorSpanFound = true;
+                assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.ERROR);
+                assertThat(span.getStatus().getDescription()).contains("Incorrect API key provided");
+                break;
+            }
+        }
+        assertThat(errorSpanFound)
+                .as("Expected to find an error span with StatusCode.ERROR")
+                .isTrue();
     }
 
     interface MathAssistant {
