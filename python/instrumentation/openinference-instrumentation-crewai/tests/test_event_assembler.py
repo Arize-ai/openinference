@@ -8,10 +8,12 @@ import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation import using_attributes
+from openinference.instrumentation.crewai import _event_assembler as assembler_module
 from openinference.instrumentation.crewai._event_assembler import (
-    _FINISHED_CONTEXT_CACHE_SIZE,
+    _MAX_BUFFERED_EVENT_ENTRIES,
     CrewAIEventAssembler,
     _SpanEndSpec,
     _SpanStartSpec,
@@ -57,7 +59,7 @@ def assembler(tracer_provider: trace_api.TracerProvider) -> CrewAIEventAssembler
     return CrewAIEventAssembler(tracer=tracer)
 
 
-def test_deferred_end_preserves_completion_attributes(
+def test_pending_end_preserves_completion_attributes(
     assembler: CrewAIEventAssembler,
     in_memory_span_exporter: InMemorySpanExporter,
 ) -> None:
@@ -212,7 +214,7 @@ def test_context_attributes_are_captured_at_start_time(
 
 
 def test_orphan_state_is_bounded(assembler: CrewAIEventAssembler) -> None:
-    for index in range(_FINISHED_CONTEXT_CACHE_SIZE + 10):
+    for index in range(_MAX_BUFFERED_EVENT_ENTRIES + 10):
         assembler.end_span(
             _end_event(f"missing-start-{index}"),
             _SpanEndSpec(output=f"end-{index}"),
@@ -226,9 +228,42 @@ def test_orphan_state_is_bounded(assembler: CrewAIEventAssembler) -> None:
         )
         assembler.close_scope(_end_event(f"missing-scope-{index}"))
 
-    assert len(assembler._deferred_ends) == _FINISHED_CONTEXT_CACHE_SIZE
-    assert len(assembler._pending_starts) == _FINISHED_CONTEXT_CACHE_SIZE
-    assert len(assembler._closed_transparent_scopes) == _FINISHED_CONTEXT_CACHE_SIZE
+    assert len(assembler._pending_ends) == _MAX_BUFFERED_EVENT_ENTRIES
+    assert len(assembler._pending_starts) == _MAX_BUFFERED_EVENT_ENTRIES
+    assert len(assembler._closed_transparent_scopes) == _MAX_BUFFERED_EVENT_ENTRIES
+
+
+def test_stale_live_state_is_evicted(
+    assembler: CrewAIEventAssembler,
+    in_memory_span_exporter: InMemorySpanExporter,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_time = [0.0]
+    monkeypatch.setattr(assembler_module, "_MAX_OPEN_ENTRY_AGE_SECONDS", 1.0)
+    monkeypatch.setattr(assembler, "_now_monotonic", lambda: current_time[0])
+
+    with caplog.at_level("WARNING"):
+        assembler.start_span(
+            _event("stale-span"),
+            _SpanStartSpec(name="stale-span", span_kind=OpenInferenceSpanKindValues.CHAIN),
+        )
+        current_time[0] = 5.0
+        assembler.open_scope(_event("stale-scope", task=SimpleNamespace(id="task-1")))
+        current_time[0] = 10.0
+        assembler.start_span(
+            _event("fresh-span"),
+            _SpanStartSpec(name="fresh-span", span_kind=OpenInferenceSpanKindValues.CHAIN),
+        )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    stale_span = _span_by_name(spans, "stale-span")
+    assert stale_span.status.status_code == StatusCode.ERROR
+    assert "stale-span" not in assembler._spans
+    assert "stale-scope" not in assembler._transparent_contexts
+    assert "fresh-span" in assembler._spans
+    assert "Evicting stale open span for stale-span" in caplog.text
+    assert "Evicting stale transparent scope for stale-scope" in caplog.text
 
 
 def test_pending_start_chain_drains_iteratively(assembler: CrewAIEventAssembler) -> None:
@@ -244,7 +279,7 @@ def test_pending_start_chain_drains_iteratively(assembler: CrewAIEventAssembler)
         _SpanStartSpec(name="node-0", span_kind=OpenInferenceSpanKindValues.CHAIN),
     )
 
-    assert len(assembler._spans) == _FINISHED_CONTEXT_CACHE_SIZE + 1
+    assert len(assembler._spans) == _MAX_BUFFERED_EVENT_ENTRIES + 1
     assert "node-0" in assembler._spans
-    assert f"node-{_FINISHED_CONTEXT_CACHE_SIZE}" in assembler._spans
-    assert f"node-{_FINISHED_CONTEXT_CACHE_SIZE + 1}" not in assembler._spans
+    assert f"node-{_MAX_BUFFERED_EVENT_ENTRIES}" in assembler._spans
+    assert f"node-{_MAX_BUFFERED_EVENT_ENTRIES + 1}" not in assembler._spans

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -24,7 +25,8 @@ from openinference.semconv.trace import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-_FINISHED_CONTEXT_CACHE_SIZE = 1024
+_MAX_BUFFERED_EVENT_ENTRIES = 1024
+_MAX_OPEN_ENTRY_AGE_SECONDS = 300.0
 
 
 @dataclass(frozen=True)
@@ -61,15 +63,22 @@ class _SpanEntry:
     span: trace_api.Span
     context: Context
     context_attributes: dict[str, Any]
+    opened_at_monotonic: float
     agent_hint_keys: Optional[_AgentHintKeys] = None
 
 
 @dataclass
-class _DeferredEnd:
+class _PendingEnd:
     output: Any
     error: Optional[str]
     attributes: dict[str, Any]
     end_time_ns: Optional[int]
+
+
+@dataclass
+class _TransparentScopeEntry:
+    context: Context
+    opened_at_monotonic: float
 
 
 class CrewAIEventAssembler:
@@ -77,8 +86,8 @@ class CrewAIEventAssembler:
 
     def __init__(self, tracer: trace_api.Tracer) -> None:
         self._tracer = tracer
-        self._spans: dict[str, _SpanEntry] = {}
-        self._transparent_contexts: dict[str, Context] = {}
+        self._spans: "OrderedDict[str, _SpanEntry]" = OrderedDict()
+        self._transparent_contexts: "OrderedDict[str, _TransparentScopeEntry]" = OrderedDict()
         self._finished_contexts: "OrderedDict[str, Context]" = OrderedDict()
         self._task_contexts_by_task_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._task_scope_keys_by_event_id: dict[str, str] = {}
@@ -86,12 +95,16 @@ class CrewAIEventAssembler:
         self._agent_contexts_by_agent_id: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._agent_contexts_by_agent_key: "OrderedDict[str, _ContextHint]" = OrderedDict()
         self._agent_contexts_by_agent_role: "OrderedDict[str, _ContextHint]" = OrderedDict()
-        self._deferred_ends: "OrderedDict[str, _DeferredEnd]" = OrderedDict()
+        self._pending_ends: "OrderedDict[str, _PendingEnd]" = OrderedDict()
         self._pending_starts: "OrderedDict[str, list[Callable[[], None]]]" = OrderedDict()
         self._pending_start_event_ids: deque[str] = deque()
         self._pending_starts_draining = False
         self._closed_transparent_scopes: "OrderedDict[str, None]" = OrderedDict()
         self._lock = threading.RLock()
+
+    @staticmethod
+    def _now_monotonic() -> float:
+        return time.monotonic()
 
     def start_span(self, event: Any, spec: _SpanStartSpec) -> None:
         context_attributes = dict(get_attributes_from_context())
@@ -118,6 +131,7 @@ class CrewAIEventAssembler:
                 return
 
             with self._lock:
+                self._evict_stale_live_state_locked()
                 agent_hint_keys = None
                 if spec.remember_as_agent:
                     agent_hint_keys = self._remember_agent_context_locked(
@@ -127,27 +141,28 @@ class CrewAIEventAssembler:
                     span=span,
                     context=span_context,
                     context_attributes=context_attributes,
+                    opened_at_monotonic=self._now_monotonic(),
                     agent_hint_keys=agent_hint_keys,
                 )
                 self._spans[event_id] = span_entry
-                deferred_end = self._deferred_ends.pop(event_id, None)
-                if deferred_end is not None:
+                pending_end = self._pending_ends.pop(event_id, None)
+                if pending_end is not None:
                     self._spans.pop(event_id, None)
                     if span_entry.agent_hint_keys is not None:
                         self._forget_agent_context_locked(event_id, span_entry.agent_hint_keys)
                     self._remember_finished_context_locked(event_id, span_entry.context)
                 else:
-                    deferred_end = None
+                    pending_end = None
 
-            if deferred_end is not None:
+            if pending_end is not None:
                 self._finalize_span(
                     span_entry,
                     _SpanEndSpec(
-                        output=deferred_end.output,
-                        error=deferred_end.error,
-                        attributes=deferred_end.attributes,
+                        output=pending_end.output,
+                        error=pending_end.error,
+                        attributes=pending_end.attributes,
                     ),
-                    deferred_end.end_time_ns,
+                    pending_end.end_time_ns,
                 )
 
             self._drain_pending_starts(event_id)
@@ -162,11 +177,12 @@ class CrewAIEventAssembler:
         end_time_ns = self._get_end_time_ns(event)
 
         with self._lock:
+            self._evict_stale_live_state_locked()
             entry = self._spans.pop(event_id, None)
             if entry is None:
-                self._remember_deferred_end_locked(
+                self._remember_pending_end_locked(
                     event_id,
-                    _DeferredEnd(
+                    _PendingEnd(
                         output=spec.output,
                         error=spec.error,
                         attributes=dict(spec.attributes),
@@ -187,11 +203,15 @@ class CrewAIEventAssembler:
                 return
 
             with self._lock:
+                self._evict_stale_live_state_locked()
                 if event_id in self._closed_transparent_scopes:
                     self._closed_transparent_scopes.pop(event_id, None)
                     self._remember_finished_context_locked(event_id, parent_context)
                 else:
-                    self._transparent_contexts[event_id] = parent_context
+                    self._transparent_contexts[event_id] = _TransparentScopeEntry(
+                        context=parent_context,
+                        opened_at_monotonic=self._now_monotonic(),
+                    )
                     if (task_key := self._get_task_hint_key(event)) is not None:
                         self._task_scope_keys_by_event_id[event_id] = task_key
                         self._remember_context_hint_locked(
@@ -211,14 +231,15 @@ class CrewAIEventAssembler:
             return
 
         with self._lock:
-            context = self._transparent_contexts.pop(event_id, None)
+            self._evict_stale_live_state_locked()
+            scope_entry = self._transparent_contexts.pop(event_id, None)
             task_key = self._task_scope_keys_by_event_id.pop(event_id, None)
-            if context is not None:
+            if scope_entry is not None:
                 if task_key is not None:
                     self._forget_context_hint_locked(
                         self._task_contexts_by_task_id, task_key, event_id
                     )
-                self._remember_finished_context_locked(event_id, context)
+                self._remember_finished_context_locked(event_id, scope_entry.context)
                 return
             if task_key is not None:
                 self._forget_context_hint_locked(self._task_contexts_by_task_id, task_key, event_id)
@@ -242,7 +263,7 @@ class CrewAIEventAssembler:
             self._agent_contexts_by_agent_id.clear()
             self._agent_contexts_by_agent_key.clear()
             self._agent_contexts_by_agent_role.clear()
-            self._deferred_ends.clear()
+            self._pending_ends.clear()
             self._pending_starts.clear()
             self._pending_start_event_ids.clear()
             self._pending_starts_draining = False
@@ -290,20 +311,82 @@ class CrewAIEventAssembler:
     def _remember_finished_context_locked(self, event_id: str, context: Context) -> None:
         self._finished_contexts.pop(event_id, None)
         self._finished_contexts[event_id] = context
-        while len(self._finished_contexts) > _FINISHED_CONTEXT_CACHE_SIZE:
-            self._finished_contexts.popitem(last=False)
+        self._trim_ordered_cache_locked("finished context", self._finished_contexts)
 
-    def _remember_deferred_end_locked(self, event_id: str, deferred_end: _DeferredEnd) -> None:
-        self._deferred_ends.pop(event_id, None)
-        self._deferred_ends[event_id] = deferred_end
-        while len(self._deferred_ends) > _FINISHED_CONTEXT_CACHE_SIZE:
-            self._deferred_ends.popitem(last=False)
+    def _remember_pending_end_locked(self, event_id: str, pending_end: _PendingEnd) -> None:
+        self._pending_ends.pop(event_id, None)
+        self._pending_ends[event_id] = pending_end
+        self._trim_ordered_cache_locked("pending end", self._pending_ends)
 
     def _remember_closed_scope_locked(self, event_id: str) -> None:
         self._closed_transparent_scopes.pop(event_id, None)
         self._closed_transparent_scopes[event_id] = None
-        while len(self._closed_transparent_scopes) > _FINISHED_CONTEXT_CACHE_SIZE:
-            self._closed_transparent_scopes.popitem(last=False)
+        self._trim_ordered_cache_locked("closed transparent scope", self._closed_transparent_scopes)
+
+    def _trim_ordered_cache_locked(
+        self,
+        cache_name: str,
+        cache: "OrderedDict[str, Any]",
+    ) -> None:
+        while len(cache) > _MAX_BUFFERED_EVENT_ENTRIES:
+            evicted_key, evicted_value = cache.popitem(last=False)
+            extra = ""
+            if isinstance(evicted_value, list):
+                extra = f" ({len(evicted_value)} buffered callbacks dropped)"
+            logger.warning(
+                "Evicting oldest %s entry for %s after reaching %d buffered entries%s",
+                cache_name,
+                evicted_key,
+                _MAX_BUFFERED_EVENT_ENTRIES,
+                extra,
+            )
+
+    def _evict_stale_live_state_locked(self) -> None:
+        cutoff = self._now_monotonic() - _MAX_OPEN_ENTRY_AGE_SECONDS
+
+        while self._spans:
+            oldest_event_id, entry = next(iter(self._spans.items()))
+            if entry.opened_at_monotonic > cutoff:
+                break
+            self._spans.popitem(last=False)
+            if entry.agent_hint_keys is not None:
+                self._forget_agent_context_locked(oldest_event_id, entry.agent_hint_keys)
+            self._remember_finished_context_locked(oldest_event_id, entry.context)
+            logger.warning(
+                "Evicting stale open span for %s after %.1f seconds without a completion event",
+                oldest_event_id,
+                self._now_monotonic() - entry.opened_at_monotonic,
+            )
+            try:
+                entry.span.set_status(
+                    trace_api.Status(
+                        trace_api.StatusCode.ERROR,
+                        "Open span evicted after exceeding max age without a completion event",
+                    )
+                )
+                entry.span.end()
+            except Exception:
+                logger.debug("Failed to end stale open span for %s", oldest_event_id, exc_info=True)
+
+        while self._transparent_contexts:
+            oldest_event_id, entry = next(iter(self._transparent_contexts.items()))
+            if entry.opened_at_monotonic > cutoff:
+                break
+            self._transparent_contexts.popitem(last=False)
+            if (
+                task_key := self._task_scope_keys_by_event_id.pop(oldest_event_id, None)
+            ) is not None:
+                self._forget_context_hint_locked(
+                    self._task_contexts_by_task_id,
+                    task_key,
+                    oldest_event_id,
+                )
+            self._remember_finished_context_locked(oldest_event_id, entry.context)
+            logger.warning(
+                "Evicting stale transparent scope for %s after %.1f seconds without a close event",
+                oldest_event_id,
+                self._now_monotonic() - entry.opened_at_monotonic,
+            )
 
     @staticmethod
     def _normalize_hint_key(value: Any) -> Optional[str]:
@@ -329,8 +412,7 @@ class CrewAIEventAssembler:
             return
         cache.pop(key, None)
         cache[key] = _ContextHint(event_id=event_id, context=context)
-        while len(cache) > _FINISHED_CONTEXT_CACHE_SIZE:
-            cache.popitem(last=False)
+        self._trim_ordered_cache_locked("context hint", cache)
 
     def _forget_context_hint_locked(
         self,
@@ -453,8 +535,8 @@ class CrewAIEventAssembler:
         with self._lock:
             if (entry := self._spans.get(event_id)) is not None:
                 return entry.context
-            if (context := self._transparent_contexts.get(event_id)) is not None:
-                return context
+            if (scope_entry := self._transparent_contexts.get(event_id)) is not None:
+                return scope_entry.context
             context = self._finished_contexts.pop(event_id, None)
             if context is not None:
                 self._finished_contexts[event_id] = context
@@ -465,8 +547,7 @@ class CrewAIEventAssembler:
             callbacks = self._pending_starts.setdefault(parent_event_id, [])
             callbacks.append(callback)
             self._pending_starts.move_to_end(parent_event_id)
-            while len(self._pending_starts) > _FINISHED_CONTEXT_CACHE_SIZE:
-                self._pending_starts.popitem(last=False)
+            self._trim_ordered_cache_locked("pending start", self._pending_starts)
 
     def _drain_pending_starts(self, event_id: str) -> None:
         with self._lock:
