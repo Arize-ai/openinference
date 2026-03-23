@@ -1,7 +1,9 @@
 package com.arize.instrumentation.annotation;
 
+import com.arize.instrumentation.ContextAttributes;
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.OpenInferenceAgent;
+import com.arize.instrumentation.SuppressTracing;
 import com.arize.instrumentation.trace.*;
 import com.arize.semconv.trace.SemanticConventions;
 import java.lang.reflect.Method;
@@ -19,11 +21,19 @@ public class TraceAdvice {
         OITracer tracer = OpenInferenceAgent.getTracer();
         if (tracer == null) return null;
 
+        // Check if tracing is suppressed via context or config
+        if (SuppressTracing.isSuppressed() || tracer.getConfig().isSuppressTracing()) {
+            return null;
+        }
+
         TracedSpan span = null;
         try {
             String name = resolveSpanName(method);
             SemanticConventions.OpenInferenceSpanKind kind = resolveSpanKind(method);
             span = createTypedSpan(tracer, name, kind);
+
+            // Propagate context attributes (session ID, user ID, metadata, tags)
+            ContextAttributes.applyToSpan(span);
 
             // Auto-capture input
             Map<String, Object> input = SpanHelper.buildInputMap(method, args);

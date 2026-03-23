@@ -2,16 +2,21 @@ package com.arize.instrumentation.annotation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.arize.instrumentation.ContextAttributes;
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.OpenInferenceAgent;
+import com.arize.instrumentation.SuppressTracing;
+import com.arize.instrumentation.TraceConfig;
 import com.arize.instrumentation.trace.*;
 import com.arize.semconv.trace.SemanticConventions;
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.lang.reflect.Method;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -223,6 +228,120 @@ class TraceAdviceTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_DESCRIPTION)))
                 .isEqualTo("A test tool");
+    }
+
+    // --- suppress tracing ---
+
+    @Test
+    void onEnterReturnsNullWhenSuppressedViaContext() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        try (Scope ignored = SuppressTracing.begin()) {
+            TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+            assertThat(span).isNull();
+        }
+        assertThat(exporter.getFinishedSpanItems()).isEmpty();
+    }
+
+    @Test
+    void onEnterReturnsNullWhenSuppressedViaConfig() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config = TraceConfig.builder().suppressTracing(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer suppressedTracer = new OITracer(provider.get("test"), config);
+        OpenInferenceAgent.register(suppressedTracer);
+
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+        assertThat(span).isNull();
+        assertThat(exporter.getFinishedSpanItems()).isEmpty();
+    }
+
+    // --- context attribute propagation ---
+
+    @Test
+    void onEnterPropagatesSessionIdFromContext() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        try (Scope ignored = ContextAttributes.builder().sessionId("sess-123").build()) {
+            TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+            assertThat(span).isNotNull();
+            TraceAdvice.onExit(span, method, null, null);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.SESSION_ID)))
+                .isEqualTo("sess-123");
+    }
+
+    @Test
+    void onEnterPropagatesUserIdFromContext() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        try (Scope ignored = ContextAttributes.builder().userId("user-456").build()) {
+            TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+            assertThat(span).isNotNull();
+            TraceAdvice.onExit(span, method, null, null);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.USER_ID)))
+                .isEqualTo("user-456");
+    }
+
+    @Test
+    void onEnterPropagatesTagsFromContext() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        List<String> tags = List.of("tag-a", "tag-b");
+        try (Scope ignored = ContextAttributes.builder().tags(tags).build()) {
+            TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+            assertThat(span).isNotNull();
+            TraceAdvice.onExit(span, method, null, null);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS)))
+                .containsExactly("tag-a", "tag-b");
+    }
+
+    @Test
+    void onEnterPropagatesAllContextAttributes() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        try (Scope ignored = ContextAttributes.builder()
+                .sessionId("sess-all")
+                .userId("user-all")
+                .metadata("{\"key\":\"value\"}")
+                .tags(List.of("t1"))
+                .build()) {
+            TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+            assertThat(span).isNotNull();
+            TraceAdvice.onExit(span, method, null, null);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.SESSION_ID)))
+                .isEqualTo("sess-all");
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.USER_ID)))
+                .isEqualTo("user-all");
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.METADATA)))
+                .isEqualTo("{\"key\":\"value\"}");
+        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS)))
+                .containsExactly("t1");
+    }
+
+    @Test
+    void onEnterCreatesSpanWithoutContextAttributesWhenNoneSet() throws Exception {
+        Method method = AnnotatedTarget.class.getMethod("unnamedChain");
+        TracedSpan span = TraceAdvice.onEnter(method, new Object[] {});
+        assertThat(span).isNotNull();
+        TraceAdvice.onExit(span, method, null, null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.SESSION_ID))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.USER_ID))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.METADATA))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS))).isNull();
     }
 
     // --- Test target with annotations ---
