@@ -179,7 +179,7 @@ class TraceAdviceTest {
     }
 
     @Test
-    void onEnterFiltersSpanIgnoreParams() throws Exception {
+    void onEnterFiltersExcludeFromSpanParams() throws Exception {
         Method method = AnnotatedTarget.class.getMethod("withIgnored", String.class, String.class);
         Object[] args = {"visible", "secret"};
 
@@ -250,6 +250,6 @@ class TraceAdviceTest {
         public void withParams(String query, int count) {}
 
         @Chain
-        public void withIgnored(String query, @SpanIgnore String secret) {}
+        public void withIgnored(String query, @ExcludeFromSpan String secret) {}
     }
 }

@@ -94,8 +94,8 @@ public class QAService {
     }
 
     @LLM(name = "generator")
-    public String generate(String question, String context, @SpanIgnore Map<String, Object> weather) {
-        // @SpanIgnore excludes the weather parameter from auto-captured input
+    public String generate(String question, String context, @ExcludeFromSpan Map<String, Object> weather) {
+        // @ExcludeFromSpan excludes the weather parameter from auto-captured input
         return callLLM(question, context);
     }
 }
@@ -149,13 +149,13 @@ public List<Document> search(String query) { ... }
 public float[] embed(String text) { ... }
 ```
 
-### `@SpanIgnore`
+### `@ExcludeFromSpan`
 
 Annotate a method parameter to exclude it from auto-captured input:
 
 ```java
 @Chain
-public String process(String query, @SpanIgnore String apiKey) { ... }
+public String process(String query, @ExcludeFromSpan String apiKey) { ... }
 ```
 
 ### `@SpanMapping`
@@ -180,53 +180,7 @@ The `field` parameter uses dot notation to extract nested values from return obj
 
 ## Programmatic API
 
-For more control, use the typed span classes directly with try-with-resources:
-
-```java
-import com.arize.instrumentation.OITracer;
-import com.arize.instrumentation.trace.*;
-
-OITracer tracer = new OITracer(tracerProvider.get("my-app"));
-
-try (AgentSpan agent = AgentSpan.start(tracer, "qa-agent")) {
-    agent.setInput("What is OpenInference?");
-    agent.setAgentName("qa-agent");
-
-    try (ChainSpan chain = ChainSpan.start(tracer, "retriever")) {
-        chain.setInput("What is OpenInference?");
-        chain.setOutput("OpenInference is a tracing standard.");
-    }
-
-    try (LLMSpan llm = LLMSpan.start(tracer, "generator")) {
-        llm.setInput("What is OpenInference?");
-        llm.setModelName("gpt-4o");
-        llm.setTokenCountTotal(150);
-        llm.setOutput("OpenInference provides tracing for AI apps.");
-    }
-
-    agent.setOutput("OpenInference provides tracing for AI apps.");
-}
-```
-
-Spans nest automatically via OpenTelemetry context propagation.
-
-### Typed Span Classes
-
-| Class | Span Kind | Key Methods |
-|---|---|---|
-| `ChainSpan` | `CHAIN` | (base methods only) |
-| `LLMSpan` | `LLM` | `setModelName`, `setSystem`, `setProvider`, `setInputMessages`, `setOutputMessages`, `setTokenCountPrompt`, `setTokenCountCompletion`, `setTokenCountTotal`, `setCostPrompt`, `setCostCompletion`, `setCostTotal`, `setInvocationParameters` |
-| `ToolSpan` | `TOOL` | `setToolName`, `setToolDescription`, `setToolParameters`, `setToolJsonSchema` |
-| `AgentSpan` | `AGENT` | `setAgentName` |
-| `RetrievalSpan` | `RETRIEVER` | `setDocuments` |
-| `EmbeddingSpan` | `EMBEDDING` | `setModelName`, `setEmbeddings` |
-
-All span classes inherit these common methods:
-- `setInput(Object)` / `setOutput(Object)` - Auto-serialized to JSON for non-string objects
-- `setMetadata(Map<String, Object>)` / `setTags(List<String>)`
-- `setSessionId(String)` / `setUserId(String)`
-- `setAttribute(String key, Object value)` - Set arbitrary attributes
-- `setError(Throwable)` - Record an exception and set span status to ERROR
+For more control without annotations, use the typed span classes directly. See the [core trace library README](../../openinference-instrumentation/README.md) for full documentation and examples.
 
 ## Configuration
 

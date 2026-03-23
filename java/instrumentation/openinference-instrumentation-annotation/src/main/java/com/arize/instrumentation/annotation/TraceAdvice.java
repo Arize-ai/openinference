@@ -111,7 +111,7 @@ public class TraceAdvice {
             case AGENT -> AgentSpan.start(tracer, name);
             case RETRIEVER -> RetrievalSpan.start(tracer, name);
             case EMBEDDING -> EmbeddingSpan.start(tracer, name);
-            default -> ChainSpan.start(tracer, name);
+            default -> ChainSpan.start(tracer, name, kind);
         };
     }
 

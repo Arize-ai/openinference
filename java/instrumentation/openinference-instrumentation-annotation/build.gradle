@@ -1,3 +1,7 @@
+plugins {
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
 description = 'OpenInference Annotation-Based Tracing with ByteBuddy Java Agent'
 
 dependencies {
@@ -15,6 +19,17 @@ dependencies {
 }
 
 jar {
+    manifest {
+        attributes(
+                'Premain-Class': 'com.arize.instrumentation.annotation.OpenInferenceAgentInstaller',
+                'Agent-Class': 'com.arize.instrumentation.annotation.OpenInferenceAgentInstaller',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true')
+    }
+}
+
+shadowJar {
+    archiveClassifier.set('all')
     manifest {
         attributes(
                 'Premain-Class': 'com.arize.instrumentation.annotation.OpenInferenceAgentInstaller',

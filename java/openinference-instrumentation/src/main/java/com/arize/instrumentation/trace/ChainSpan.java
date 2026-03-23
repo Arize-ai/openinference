@@ -12,7 +12,15 @@ public class ChainSpan extends TracedSpan {
     }
 
     public static ChainSpan start(OITracer tracer, String name) {
-        Span span = startSpan(tracer, name, SemanticConventions.OpenInferenceSpanKind.CHAIN);
+        return start(tracer, name, SemanticConventions.OpenInferenceSpanKind.CHAIN);
+    }
+
+    /**
+     * Start a span with an explicit kind. Used for span kinds (e.g. RERANKER, GUARDRAIL,
+     * EVALUATOR) that don't have a dedicated typed span class.
+     */
+    public static ChainSpan start(OITracer tracer, String name, SemanticConventions.OpenInferenceSpanKind kind) {
+        Span span = startSpan(tracer, name, kind);
         Scope scope = span.makeCurrent();
         return new ChainSpan(span, scope, tracer.getConfig());
     }

@@ -12,7 +12,7 @@ public class SpanHelper {
         Map<String, Object> inputMap = new LinkedHashMap<>();
 
         for (int i = 0; i < params.length; i++) {
-            if (params[i].isAnnotationPresent(SpanIgnore.class)) {
+            if (params[i].isAnnotationPresent(ExcludeFromSpan.class)) {
                 continue;
             }
             String name = params[i].isNamePresent() ? params[i].getName() : "arg" + i;

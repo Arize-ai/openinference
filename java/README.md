@@ -107,7 +107,7 @@ public class QAService {
     }
 
     @LLM(name = "generator")
-    public String generate(String query, @SpanIgnore String context) {
+    public String generate(String query, @ExcludeFromSpan String context) {
         // LLM call
         return "OpenInference provides tracing for AI apps.";
     }

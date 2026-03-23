@@ -55,16 +55,16 @@ public class LLMSpan extends TracedSpan {
         }
     }
 
-    public void setTokenCountPrompt(int count) {
-        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT), (long) count);
+    public void setTokenCountPrompt(long count) {
+        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT), count);
     }
 
-    public void setTokenCountCompletion(int count) {
-        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION), (long) count);
+    public void setTokenCountCompletion(long count) {
+        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION), count);
     }
 
-    public void setTokenCountTotal(int count) {
-        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL), (long) count);
+    public void setTokenCountTotal(long count) {
+        span.setAttribute(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL), count);
     }
 
     public void setCostPrompt(double cost) {

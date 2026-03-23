@@ -25,7 +25,7 @@ public class QAService {
     }
 
     @LLM(name = "generator")
-    public String generate(String question, String context, @SpanIgnore Map<String, Object> weather) {
+    public String generate(String question, String context, @ExcludeFromSpan Map<String, Object> weather) {
         // Simulated LLM call
         return "Based on the context: " + context + " The weather is " + weather.get("temp") + "°F.";
     }

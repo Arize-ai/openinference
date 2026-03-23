@@ -65,6 +65,12 @@ public abstract class TracedSpan implements AutoCloseable {
         if (key == null || key.isEmpty() || value == null) {
             return;
         }
+        if (SemanticConventions.INPUT_VALUE.equals(key) && config.isHideInputs()) {
+            return;
+        }
+        if (SemanticConventions.OUTPUT_VALUE.equals(key) && config.isHideOutputs()) {
+            return;
+        }
 
         if (value instanceof String s) {
             span.setAttribute(AttributeKey.stringKey(key), s);

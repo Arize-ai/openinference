@@ -156,6 +156,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI   | Beginner         |
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
 | [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
+| [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
 
 ## Supported Destinations
 

@@ -52,12 +52,12 @@ class SpanHelperTest {
 
     // Test target class for reflection
     public static class TestTarget {
-        public void myMethod(String query, @SpanIgnore String secret, int count) {}
+        public void myMethod(String query, @ExcludeFromSpan String secret, int count) {}
 
         public void singleParam(String input) {}
 
         public void noParams() {}
 
-        public void allIgnored(@SpanIgnore String a, @SpanIgnore String b) {}
+        public void allIgnored(@ExcludeFromSpan String a, @ExcludeFromSpan String b) {}
     }
 }

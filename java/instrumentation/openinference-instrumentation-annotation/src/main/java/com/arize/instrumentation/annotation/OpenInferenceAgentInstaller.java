@@ -2,7 +2,9 @@ package com.arize.instrumentation.annotation;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
+import java.io.File;
 import java.lang.instrument.Instrumentation;
+import java.net.URI;
 import java.util.jar.JarFile;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -30,21 +32,32 @@ public class OpenInferenceAgentInstaller {
      */
     public static void premain(String args, Instrumentation inst) {
         log.info("Installing OpenInference annotation tracing agent (premain)");
+        appendToBootstrapClassLoader(inst);
+        installAgent(inst);
+        log.info("OpenInference annotation tracing agent installed");
+    }
 
+    /**
+     * Entry point when attached to a running JVM.
+     */
+    public static void agentmain(String args, Instrumentation inst) {
+        log.info("Installing OpenInference annotation tracing agent (agentmain)");
+        appendToBootstrapClassLoader(inst);
+        installAgent(inst);
+        log.info("OpenInference annotation tracing agent installed");
+    }
+
+    private static void appendToBootstrapClassLoader(Instrumentation inst) {
         try {
-            String agentJarPath = OpenInferenceAgentInstaller.class
+            URI agentJarUri = OpenInferenceAgentInstaller.class
                     .getProtectionDomain()
                     .getCodeSource()
                     .getLocation()
-                    .toURI()
-                    .getPath();
-            inst.appendToBootstrapClassLoaderSearch(new JarFile(agentJarPath));
+                    .toURI();
+            inst.appendToBootstrapClassLoaderSearch(new JarFile(new File(agentJarUri)));
         } catch (Exception e) {
             log.warn("Failed to append agent JAR to bootstrap classloader", e);
         }
-
-        installAgent(inst);
-        log.info("OpenInference annotation tracing agent installed");
     }
 
     private static void installAgent(Instrumentation inst) {

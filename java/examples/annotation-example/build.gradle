@@ -24,11 +24,17 @@ application {
     mainClass = 'com.arize.examples.annotation.annotationDemo'
 }
 
-/**
-run {
-    environment 'ARIZE_API_KEY', 'your api key'
-    environment 'ARIZE_SPACE_ID', 'your space id'
-    environment 'PROJECT_NAME', 'annotation-example'
-}
-**/
+// To export traces to Phoenix (local or Phoenix Cloud), uncomment and configure:
+// run {
+//     environment 'PHOENIX_COLLECTOR_ENDPOINT', 'http://localhost:6006'  // or https://app.phoenix.arize.com
+//     environment 'PHOENIX_API_KEY', 'your phoenix api key'             // required for Phoenix Cloud
+//     environment 'PROJECT_NAME', 'annotation-example'
+// }
+
+// To export traces to Arize, uncomment and configure:
+// run {
+//     environment 'ARIZE_API_KEY', 'your api key'
+//     environment 'ARIZE_SPACE_ID', 'your space id'
+//     environment 'PROJECT_NAME', 'annotation-example'
+// }
 
