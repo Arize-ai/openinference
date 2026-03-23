@@ -338,10 +338,14 @@ class TraceAdviceTest {
         TraceAdvice.onExit(span, method, null, null);
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.SESSION_ID))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.USER_ID))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.METADATA))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.SESSION_ID)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.USER_ID)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.METADATA)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringArrayKey(SemanticConventions.TAG_TAGS)))
+                .isNull();
     }
 
     // --- Test target with annotations ---

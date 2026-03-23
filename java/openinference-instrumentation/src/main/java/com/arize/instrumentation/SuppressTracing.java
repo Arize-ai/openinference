@@ -26,7 +26,9 @@ public final class SuppressTracing {
      * Close the returned {@link Scope} to restore normal tracing.
      */
     public static Scope begin() {
-        return Context.current().with(SUPPRESS_INSTRUMENTATION_KEY, Boolean.TRUE).makeCurrent();
+        return Context.current()
+                .with(SUPPRESS_INSTRUMENTATION_KEY, Boolean.TRUE)
+                .makeCurrent();
     }
 
     /**
