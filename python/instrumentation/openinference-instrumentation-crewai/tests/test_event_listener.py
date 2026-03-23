@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +13,7 @@ from crewai.events.event_bus import crewai_event_bus
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from openinference.instrumentation import (
     REDACTED_VALUE,
@@ -19,6 +22,7 @@ from openinference.instrumentation import (
     using_attributes,
 )
 from openinference.instrumentation.crewai import CrewAIInstrumentor
+from openinference.instrumentation.crewai import _event_listener as event_listener_module
 from openinference.instrumentation.crewai._event_listener import OpenInferenceEventListener
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
@@ -105,6 +109,22 @@ def event_listener_instrumented_masked(
             in_memory_span_exporter.clear()
 
 
+@pytest.fixture()
+def direct_event_listener(
+    tracer_provider: trace_api.TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> Generator[OpenInferenceEventListener, None, None]:
+    with crewai_event_bus.scoped_handlers():
+        listener = OpenInferenceEventListener(tracer_provider=tracer_provider)
+        in_memory_span_exporter.clear()
+        try:
+            yield listener
+        finally:
+            crewai_event_bus.flush(timeout=10.0)
+            listener.shutdown()
+            in_memory_span_exporter.clear()
+
+
 def _finished_spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
     crewai_event_bus.flush(timeout=10.0)
     return list(exporter.get_finished_spans())
@@ -118,6 +138,18 @@ def _assert_uuid(value: Any) -> str:
     text = str(value)
     uuid.UUID(text)
     return text
+
+
+def _timestamp(offset_seconds: int = 0) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(seconds=offset_seconds)
+
+
+def _event(event_id: str, **kwargs: Any) -> Any:
+    return SimpleNamespace(event_id=event_id, timestamp=_timestamp(), **kwargs)
+
+
+def _end_event(started_event_id: str, **kwargs: Any) -> Any:
+    return SimpleNamespace(started_event_id=started_event_id, timestamp=_timestamp(1), **kwargs)
 
 
 def _span_parent_name(
@@ -331,6 +363,22 @@ def _assert_masked_span_attributes(span: ReadableSpan) -> None:
     assert not pop_prefixed(attributes, "llm.output_messages.")
 
 
+def _assert_error_span(
+    span: ReadableSpan,
+    *,
+    expected_name: str,
+    expected_kind: OpenInferenceSpanKindValues,
+    expected_error: str,
+) -> None:
+    attributes: dict[str, Any] = dict(span.attributes or {})
+    assert span.name == expected_name
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == expected_error
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == expected_kind.value
+    assert attributes.pop(OUTPUT_VALUE, None) is None
+    assert attributes.pop(OUTPUT_MIME_TYPE, None) is None
+
+
 def test_llm_token_usage_patch_is_reference_counted(
     tracer_provider: trace_api.TracerProvider,
 ) -> None:
@@ -350,6 +398,184 @@ def test_llm_token_usage_patch_is_reference_counted(
 
         second.shutdown()
         assert getattr(base_llm_module.BaseLLM, "_track_token_usage_internal") is original
+
+
+def test_llm_token_usage_patch_swallows_listener_errors(
+    tracer_provider: trace_api.TracerProvider,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from crewai.llms import base_llm as base_llm_module
+
+    def _noop_track_token_usage(self: Any, usage_data: dict[str, Any]) -> None:
+        return None
+
+    def _raise_on_record(call_id: str, usage_data: Mapping[str, Any]) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        base_llm_module.BaseLLM,
+        "_track_token_usage_internal",
+        _noop_track_token_usage,
+    )
+    monkeypatch.setattr(base_llm_module, "get_current_call_id", lambda: "call-1")
+
+    with crewai_event_bus.scoped_handlers():
+        listener = OpenInferenceEventListener(tracer_provider=tracer_provider)
+        try:
+            monkeypatch.setattr(listener, "_record_llm_token_usage", _raise_on_record)
+            patched = getattr(base_llm_module.BaseLLM, "_track_token_usage_internal")
+
+            with caplog.at_level("DEBUG"):
+                patched(
+                    object(),
+                    {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                )
+        finally:
+            listener.shutdown()
+
+    assert "Failed to record CrewAI LLM token usage for call-1" in caplog.text
+
+
+def test_llm_token_usage_cache_is_bounded(
+    direct_event_listener: OpenInferenceEventListener,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(event_listener_module, "_MAX_BUFFERED_EVENT_ENTRIES", 2)
+
+    with caplog.at_level("WARNING"):
+        direct_event_listener._record_llm_token_usage(
+            "call-1",
+            {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        )
+        direct_event_listener._record_llm_token_usage(
+            "call-2",
+            {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        )
+        direct_event_listener._record_llm_token_usage(
+            "call-3",
+            {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        )
+
+    assert list(direct_event_listener._llm_usage_by_call_id) == ["call-2", "call-3"]
+    assert "Evicting oldest LLM token usage entry for call-1" in caplog.text
+
+
+def test_event_listener_crew_failed_sets_error_status(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    direct_event_listener._on_crew_started(None, _event("crew-start", crew_name="FailureCrew"))
+    direct_event_listener._on_crew_failed(None, _end_event("crew-start", error="crew boom"))
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    _assert_error_span(
+        spans[0],
+        expected_name="FailureCrew.kickoff",
+        expected_kind=OpenInferenceSpanKindValues.CHAIN,
+        expected_error="crew boom",
+    )
+
+
+def test_event_listener_agent_error_sets_error_status(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = SimpleNamespace(
+        role="Researcher",
+        goal="Research findings",
+        backstory="Researches things",
+        id="agent-1",
+        key="agent-key",
+    )
+    task = SimpleNamespace(
+        id="task-1",
+        name="research-task",
+        description="Research the topic",
+        expected_output="Research summary",
+    )
+    direct_event_listener._on_agent_started(
+        None,
+        _event("agent-start", agent=agent, task=task, task_prompt="Research the topic"),
+    )
+    direct_event_listener._on_agent_error(
+        None,
+        _end_event("agent-start", error="agent boom"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    _assert_error_span(
+        spans[0],
+        expected_name="Researcher.research-task.execute",
+        expected_kind=OpenInferenceSpanKindValues.AGENT,
+        expected_error="agent boom",
+    )
+
+
+def test_event_listener_tool_error_sets_error_status(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    direct_event_listener._on_tool_started(
+        None,
+        _event(
+            "tool-start",
+            tool_name="search_tool",
+            tool_args={"query": "CrewAI"},
+            agent_role="Researcher",
+            task_name="research-task",
+            run_attempts=0,
+        ),
+    )
+    direct_event_listener._on_tool_error(
+        None,
+        _end_event("tool-start", error="tool boom"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    _assert_error_span(
+        spans[0],
+        expected_name="search_tool.run",
+        expected_kind=OpenInferenceSpanKindValues.TOOL,
+        expected_error="tool boom",
+    )
+
+
+def test_event_listener_llm_failed_sets_error_status_and_clears_usage(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    direct_event_listener._on_llm_started(
+        None,
+        _event(
+            "llm-start",
+            model="gpt-4.1-nano",
+            call_id="call-1",
+            messages=[{"role": "user", "content": "hello"}],
+        ),
+    )
+    direct_event_listener._record_llm_token_usage(
+        "call-1",
+        {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    )
+    direct_event_listener._on_llm_failed(
+        None,
+        _end_event("llm-start", call_id="call-1", error="llm boom"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    _assert_error_span(
+        spans[0],
+        expected_name="gpt-4.1-nano.llm_call",
+        expected_kind=OpenInferenceSpanKindValues.LLM,
+        expected_error="llm boom",
+    )
+    assert not direct_event_listener._llm_usage_by_call_id
 
 
 @pytest.mark.vcr

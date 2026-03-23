@@ -94,6 +94,35 @@ def test_pending_end_preserves_completion_attributes(
     assert not attributes
 
 
+def test_error_end_sets_error_status_without_output_attributes(
+    assembler: CrewAIEventAssembler,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    start_event = _event("chain-start")
+    end_event = _end_event("chain-start")
+
+    assembler.start_span(
+        start_event,
+        _SpanStartSpec(name="crew.kickoff", span_kind=OpenInferenceSpanKindValues.CHAIN),
+    )
+    assembler.end_span(
+        end_event,
+        _SpanEndSpec(output="should not be recorded", error="crew boom"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+
+    span = spans[0]
+    attributes: dict[str, Any] = dict(span.attributes or {})
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "crew boom"
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.CHAIN.value
+    assert attributes.pop(OUTPUT_MIME_TYPE, None) is None
+    assert attributes.pop(OUTPUT_VALUE, None) is None
+    assert not attributes
+
+
 def test_pending_child_start_attaches_to_late_parent(
     assembler: CrewAIEventAssembler,
     in_memory_span_exporter: InMemorySpanExporter,

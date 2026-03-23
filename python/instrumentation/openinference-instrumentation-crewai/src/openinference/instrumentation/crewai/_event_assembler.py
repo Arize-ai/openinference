@@ -369,8 +369,8 @@ class CrewAIEventAssembler:
                 logger.debug("Failed to end stale open span for %s", oldest_event_id, exc_info=True)
 
         while self._transparent_contexts:
-            oldest_event_id, entry = next(iter(self._transparent_contexts.items()))
-            if entry.opened_at_monotonic > cutoff:
+            oldest_event_id, scope_entry = next(iter(self._transparent_contexts.items()))
+            if scope_entry.opened_at_monotonic > cutoff:
                 break
             self._transparent_contexts.popitem(last=False)
             if (
@@ -381,11 +381,11 @@ class CrewAIEventAssembler:
                     task_key,
                     oldest_event_id,
                 )
-            self._remember_finished_context_locked(oldest_event_id, entry.context)
+            self._remember_finished_context_locked(oldest_event_id, scope_entry.context)
             logger.warning(
                 "Evicting stale transparent scope for %s after %.1f seconds without a close event",
                 oldest_event_id,
-                self._now_monotonic() - entry.opened_at_monotonic,
+                self._now_monotonic() - scope_entry.opened_at_monotonic,
             )
 
     @staticmethod

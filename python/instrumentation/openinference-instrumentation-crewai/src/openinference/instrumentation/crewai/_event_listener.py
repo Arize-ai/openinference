@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 import weakref
+from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from typing import Any, Optional, cast
 
@@ -60,6 +61,7 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.instrumentation.crewai._event_assembler import (
+    _MAX_BUFFERED_EVENT_ENTRIES,
     CrewAIEventAssembler,
     _SpanEndSpec,
     _SpanStartSpec,
@@ -527,7 +529,7 @@ class OpenInferenceEventListener(BaseEventListener):
         )
         self._assembler = CrewAIEventAssembler(tracer=self._tracer)
         self._create_llm_spans = create_llm_spans
-        self._llm_usage_by_call_id: dict[str, dict[str, Any]] = {}
+        self._llm_usage_by_call_id: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._llm_usage_lock = threading.RLock()
         if self._create_llm_spans:
             self._patch_llm_token_usage_tracking()
@@ -603,11 +605,25 @@ class OpenInferenceEventListener(BaseEventListener):
 
                 def patched(instance: Any, usage_data: dict[str, Any]) -> None:
                     original(instance, usage_data)
-                    call_id = base_llm_module.get_current_call_id()
+                    try:
+                        call_id = base_llm_module.get_current_call_id()
+                    except Exception:
+                        logger.debug(
+                            "Failed to resolve CrewAI LLM call id while tracking token usage",
+                            exc_info=True,
+                        )
+                        return
                     with cls._llm_patch_lock:
                         listeners = list(cls._llm_patch_listeners)
                     for listener in listeners:
-                        listener._record_llm_token_usage(call_id, usage_data)
+                        try:
+                            listener._record_llm_token_usage(call_id, usage_data)
+                        except Exception:
+                            logger.debug(
+                                "Failed to record CrewAI LLM token usage for %s",
+                                call_id,
+                                exc_info=True,
+                            )
 
                 setattr(base_llm_module.BaseLLM, "_track_token_usage_internal", patched)
 
@@ -627,17 +643,19 @@ class OpenInferenceEventListener(BaseEventListener):
             self._llm_usage_by_call_id.clear()
 
     def _record_llm_token_usage(self, call_id: str, usage_data: Mapping[str, Any]) -> None:
+        if not call_id:
+            return
         normalized_usage = _normalize_token_usage(usage_data)
         with self._llm_usage_lock:
-            aggregate = self._llm_usage_by_call_id.setdefault(
-                call_id,
-                {
+            aggregate = self._llm_usage_by_call_id.pop(call_id, None)
+            if aggregate is None:
+                aggregate = {
                     "prompt": 0,
                     "completion": 0,
                     "total": 0,
                     "prompt_details": {"cache_read": 0},
-                },
-            )
+                }
+            self._llm_usage_by_call_id[call_id] = aggregate
             aggregate["prompt"] += normalized_usage["prompt"]
             aggregate["completion"] += normalized_usage["completion"]
             aggregate["total"] += normalized_usage["total"]
@@ -645,6 +663,14 @@ class OpenInferenceEventListener(BaseEventListener):
             if isinstance(prompt_details, Mapping):
                 aggregate["prompt_details"]["cache_read"] += int(
                     prompt_details.get("cache_read", 0)
+                )
+            while len(self._llm_usage_by_call_id) > _MAX_BUFFERED_EVENT_ENTRIES:
+                evicted_call_id, _ = self._llm_usage_by_call_id.popitem(last=False)
+                logger.warning(
+                    "Evicting oldest LLM token usage entry for %s "
+                    "after reaching %d buffered entries",
+                    evicted_call_id,
+                    _MAX_BUFFERED_EVENT_ENTRIES,
                 )
 
     def _consume_llm_token_usage_attributes(self, call_id: Optional[str]) -> dict[str, Any]:
