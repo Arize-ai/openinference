@@ -372,6 +372,25 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                         llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
                 .isTrue();
 
+        // Verify Tool LLM Span Attributes
+        SpanData toolSpan = spans.get(1);
+        assertThat(Objects.isNull(
+                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
+                .isTrue();
+        assertThat(Objects.isNull(
+                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
+                .isTrue();
+        assertThat(Objects.isNull(
+                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS))))
+                .isTrue();
+
+        assertThat(Objects.isNull(
+                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
+                .isTrue();
+        assertThat(Objects.isNull(
+                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
+                .isTrue();
+
         // Verify Final LLM Span Attributes
         SpanData finalLlmSpan = spans.get(2);
         assertThat(Objects.isNull(
