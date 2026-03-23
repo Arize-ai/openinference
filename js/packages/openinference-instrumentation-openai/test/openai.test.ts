@@ -1334,7 +1334,7 @@ describe("AzureOpenAIInstrumentation", () => {
     expect(span.attributes["input.mime_type"]).toBe("text/plain");
     expect(span.attributes["input.value"]).toBe("A happy moment");
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
-    expect(span.attributes["llm.provider"]).toBe("openai");
+    expect(span.attributes["llm.provider"]).toBe("azure");
     expect(span.attributes["llm.system"]).toBe("openai");
   });
 
