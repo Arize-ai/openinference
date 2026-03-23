@@ -52,7 +52,7 @@ const MODULE_NAME = "openai";
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 
 // Maps hostname suffixes to their corresponding LLM provider value.
-const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
+export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
     // OpenAI
     "api.openai.com": LLMProvider.OPENAI,
     // Azure OpenAI

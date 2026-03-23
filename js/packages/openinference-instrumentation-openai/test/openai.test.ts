@@ -11,8 +11,13 @@ import { vi } from "vitest";
 import { z } from "zod";
 
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
+import { LLMProvider } from "@arizeai/openinference-semantic-conventions";
 
-import { isPatched, OpenAIInstrumentation } from "../src";
+import { HOST_SUFFIX_TO_PROVIDER, getProviderFromHost, isPatched, OpenAIInstrumentation } from "../src";
+
+const ALL_PROVIDER_VALUES = new Set(
+  Object.values(LLMProvider),
+);
 
 // Function tools
 async function getCurrentLocation() {
@@ -287,6 +292,8 @@ describe("OpenAIInstrumentation", () => {
     expect(span.attributes["input.mime_type"]).toBe("text/plain");
     expect(span.attributes["input.value"]).toBe("A happy moment");
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
+    expect(span.attributes["llm.provider"]).toBe("openai");
+    expect(span.attributes["llm.system"]).toBe("openai");
   });
   it("can handle streaming responses", async () => {
     // Mock out the post endpoint to return a stream
@@ -1327,6 +1334,8 @@ describe("AzureOpenAIInstrumentation", () => {
     expect(span.attributes["input.mime_type"]).toBe("text/plain");
     expect(span.attributes["input.value"]).toBe("A happy moment");
     expect(span.attributes["openinference.span.kind"]).toBe("EMBEDDING");
+    expect(span.attributes["llm.provider"]).toBe("openai");
+    expect(span.attributes["llm.system"]).toBe("openai");
   });
 
   it("can handle streaming responses", async () => {
@@ -1634,5 +1643,87 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
       expect(span.attributes["llm.provider"]).toBe("openai");
       expect(span.attributes["llm.model_name"]).toBe("gpt-3.5-turbo-0613");
     });
+  });
+});
+
+describe("getProviderFromHost", () => {
+  it.each([
+    // OpenAI
+    ["api.openai.com", LLMProvider.OPENAI],
+    // Azure OpenAI
+    ["openai.azure.com", LLMProvider.AZURE],
+    ["my-resource.openai.azure.com", LLMProvider.AZURE],
+    // Anthropic
+    ["api.anthropic.com", LLMProvider.ANTHROPIC],
+    // Cohere (v1 and v2 planes share the root domain)
+    ["api.cohere.com", LLMProvider.COHERE],
+    ["api.cohere.ai", LLMProvider.COHERE],
+    // Mistral AI
+    ["api.mistral.ai", LLMProvider.MISTRALAI],
+    // Google (Gemini via AI Studio and Vertex AI)
+    ["generativelanguage.googleapis.com", LLMProvider.GOOGLE],
+    ["aiplatform.googleapis.com", LLMProvider.GOOGLE],
+    // AWS Bedrock
+    ["bedrock-runtime.amazonaws.com", LLMProvider.AWS],
+    ["bedrock-runtime.us-east-1.amazonaws.com", LLMProvider.AWS],
+    ["bedrock-runtime.eu-west-1.amazonaws.com", LLMProvider.AWS],
+    // xAI
+    ["api.x.ai", LLMProvider.XAI],
+    // DeepSeek
+    ["api.deepseek.com", LLMProvider.DEEPSEEK],
+    // Groq
+    ["api.groq.com", LLMProvider.GROQ],
+    // Fireworks AI
+    ["api.fireworks.ai", LLMProvider.FIREWORKS],
+    // Moonshot AI
+    ["api.moonshot.cn", LLMProvider.MOONSHOT],
+    // Cerebras
+    ["api.cerebras.ai", LLMProvider.CEREBRAS],
+    // Perplexity
+    ["api.perplexity.ai", LLMProvider.PERPLEXITY],
+    // Together AI
+    ["api.together.ai", LLMProvider.TOGETHER],
+    ["api.together.xyz", LLMProvider.TOGETHER],
+  ])("resolves %s to %s", (host, expected) => {
+    expect(getProviderFromHost(host)).toBe(expected);
+  });
+
+  it.each(["API.OPENAI.COM", "Api.Openai.Com"])(
+    "is case-insensitive for %s",
+    (host) => {
+      expect(getProviderFromHost(host)).toBe(
+        LLMProvider.OPENAI,
+      );
+    },
+  );
+
+  it.each(["  api.openai.com  ", "\tapi.openai.com\t"])(
+    "strips whitespace for %s",
+    (host) => {
+      expect(getProviderFromHost(host)).toBe(
+        LLMProvider.OPENAI,
+      );
+    },
+  );
+
+  it.each([
+    "api.unknown-provider.com",
+    "storage.googleapis.com",
+    "",
+  ])("returns undefined for unrecognised host %s", (host) => {
+    expect(getProviderFromHost(host)).toBeUndefined();
+  });
+
+  it("every provider has at least one host entry", () => {
+    const mapped = new Set(Object.values(HOST_SUFFIX_TO_PROVIDER));
+    const missing = [...ALL_PROVIDER_VALUES].filter((p) => !mapped.has(p));
+    expect(missing).toEqual([]);
+  });
+
+  it("all suffix values are valid provider values", () => {
+    const invalid = Object.values(HOST_SUFFIX_TO_PROVIDER).filter(
+      (p) => !ALL_PROVIDER_VALUES.has(p),
+    );
+    expect(invalid).toEqual([]);
   });
 });
