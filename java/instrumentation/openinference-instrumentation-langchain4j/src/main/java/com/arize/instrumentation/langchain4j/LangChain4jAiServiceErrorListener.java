@@ -19,10 +19,13 @@ public class LangChain4jAiServiceErrorListener implements AiServiceErrorListener
 
     private final OITracer tracer;
     private final Map<String, SpanContext> activeSpans;
+    private final Map<String, SpanContext> llmSpans;
 
-    public LangChain4jAiServiceErrorListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
+    public LangChain4jAiServiceErrorListener(
+            OITracer tracer, Map<String, SpanContext> activeSpans, Map<String, SpanContext> llmSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
+        this.llmSpans = llmSpans;
     }
 
     /**
@@ -32,8 +35,23 @@ public class LangChain4jAiServiceErrorListener implements AiServiceErrorListener
      */
     @Override
     public void onEvent(AiServiceErrorEvent event) {
-        SpanContext spanContext =
-                activeSpans.remove(event.invocationContext().invocationId().toString());
+        String invocationId = event.invocationContext().invocationId().toString();
+
+        if (llmSpans.containsKey(invocationId)) {
+            SpanContext spanContext = llmSpans.remove(invocationId);
+            if (spanContext != null) {
+                Span span = spanContext.span();
+                try (Scope scope = spanContext.context().makeCurrent()) {
+                    Throwable error = event.error();
+                    span.recordException(error);
+                    span.setStatus(StatusCode.ERROR, error.getMessage());
+                } finally {
+                    span.end();
+                }
+            }
+        }
+
+        SpanContext spanContext = activeSpans.remove(invocationId);
         if (spanContext != null) {
             Span span = spanContext.span();
 

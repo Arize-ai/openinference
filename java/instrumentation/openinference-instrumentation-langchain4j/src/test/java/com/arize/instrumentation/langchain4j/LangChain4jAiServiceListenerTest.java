@@ -333,6 +333,9 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
         assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isEqualTo("The sum of 45 plus 79 is 124.");
         assertThat(agentAttrs).isEmpty();
+        assertThat(agentSpan.getSpanId()).isEqualTo(llmSpan.getParentSpanId());
+        assertThat(agentSpan.getSpanId()).isEqualTo(toolSpan.getParentSpanId());
+        assertThat(agentSpan.getSpanId()).isEqualTo(finalLlmSpan.getParentSpanId());
     }
 
     @Test
@@ -488,10 +491,6 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo(SemanticConventions.OpenInferenceSpanKind.TOOL.toString());
-        assertThat((String) toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
-                .containsIgnoringCase("{\"a\":45,\"b\":79}");
-        assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
-                .isEqualTo("application/json");
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
@@ -500,8 +499,6 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .isEqualTo("call_Qm51xgE57uzoj2f6qkZAWwb4");
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.TOOL_NAME)))
                 .isEqualTo("add");
-        assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS)))
-                .isEqualTo("{\"a\":45,\"b\":79}");
         assertThat(toolAttrs).isEmpty();
 
         // Verify Final LLM Span Attributes

@@ -291,12 +291,18 @@ public class ChatMessageAttributeUtils {
 
         // Set token usage if available
         if (response.tokenUsage() != null) {
-            span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_PROMPT, (long)
-                    response.tokenUsage().inputTokenCount());
-            span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, (long)
-                    response.tokenUsage().outputTokenCount());
-            span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_TOTAL, (long)
-                    response.tokenUsage().totalTokenCount());
+            if (Objects.nonNull(response.tokenUsage().inputTokenCount())) {
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_PROMPT, (long)
+                        response.tokenUsage().inputTokenCount());
+            }
+            if (Objects.nonNull(response.tokenUsage().outputTokenCount())) {
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION, (long)
+                        response.tokenUsage().outputTokenCount());
+            }
+            if (Objects.nonNull(response.tokenUsage().totalTokenCount())) {
+                span.setAttribute(SemanticConventions.LLM_TOKEN_COUNT_TOTAL, (long)
+                        response.tokenUsage().totalTokenCount());
+            }
         }
         span.setStatus(StatusCode.OK);
     }

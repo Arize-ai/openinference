@@ -25,6 +25,7 @@ public class LangChain4jInstrumentor {
     private final OITracer tracer;
     private final TraceConfig config;
     private final Map<String, SpanContext> aiServiceSpans = new ConcurrentHashMap<>();
+    private final Map<String, SpanContext> llmSpans = new ConcurrentHashMap<>();
 
     private LangChain4jInstrumentor(OITracer tracer, TraceConfig config) {
         this.tracer = tracer;
@@ -120,8 +121,8 @@ public class LangChain4jInstrumentor {
                 new LangChain4jAiServiceStartedListener(tracer, aiServiceSpans),
                 new LangChain4jServiceCompletedListener(tracer, aiServiceSpans),
                 new LangChain4jToolExecutedEventListener(tracer, aiServiceSpans),
-                new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans),
-                new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans),
-                new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans));
+                new LangChain4jServiceResponseReceivedListener(tracer, aiServiceSpans, llmSpans),
+                new LangChain4jServiceRequestIssuedListener(tracer, aiServiceSpans, llmSpans),
+                new LangChain4jAiServiceErrorListener(tracer, aiServiceSpans, llmSpans));
     }
 }

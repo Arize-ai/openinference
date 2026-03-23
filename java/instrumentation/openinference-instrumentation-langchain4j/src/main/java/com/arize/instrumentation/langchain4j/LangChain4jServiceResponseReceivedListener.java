@@ -19,10 +19,13 @@ public class LangChain4jServiceResponseReceivedListener implements AiServiceResp
 
     private final OITracer tracer;
     private final Map<String, SpanContext> activeSpans;
+    private final Map<String, SpanContext> llmSpans;
 
-    public LangChain4jServiceResponseReceivedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
+    public LangChain4jServiceResponseReceivedListener(
+            OITracer tracer, Map<String, SpanContext> activeSpans, Map<String, SpanContext> llmSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
+        this.llmSpans = llmSpans;
     }
 
     /**
@@ -33,7 +36,7 @@ public class LangChain4jServiceResponseReceivedListener implements AiServiceResp
     @Override
     public void onEvent(AiServiceResponseReceivedEvent event) {
         String invocationId = event.invocationContext().invocationId().toString();
-        SpanContext spanContext = activeSpans.remove("chat_" + invocationId);
+        SpanContext spanContext = llmSpans.remove(invocationId);
         if (spanContext != null) {
             Span span = spanContext.span();
             try (Scope scope = spanContext.context().makeCurrent()) {

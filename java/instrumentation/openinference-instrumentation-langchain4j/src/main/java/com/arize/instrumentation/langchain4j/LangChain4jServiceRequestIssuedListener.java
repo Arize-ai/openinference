@@ -21,10 +21,13 @@ public class LangChain4jServiceRequestIssuedListener implements AiServiceRequest
 
     private final OITracer tracer;
     private final Map<String, SpanContext> activeSpans;
+    private final Map<String, SpanContext> llmSpans;
 
-    public LangChain4jServiceRequestIssuedListener(OITracer tracer, Map<String, SpanContext> activeSpans) {
+    public LangChain4jServiceRequestIssuedListener(
+            OITracer tracer, Map<String, SpanContext> activeSpans, Map<String, SpanContext> llmSpans) {
         this.tracer = tracer;
         this.activeSpans = activeSpans;
+        this.llmSpans = llmSpans;
     }
 
     /**
@@ -44,8 +47,8 @@ public class LangChain4jServiceRequestIssuedListener implements AiServiceRequest
                 .setSpanKind(SpanKind.CLIENT)
                 .startSpan();
         ChatMessageAttributeUtils.handleChatRequest(this.tracer, span, event.request());
-        activeSpans.put(
-                "chat_" + event.invocationContext().invocationId().toString(),
+        llmSpans.put(
+                event.invocationContext().invocationId().toString(),
                 new SpanContext(span, Context.current().with(span)));
     }
 }
