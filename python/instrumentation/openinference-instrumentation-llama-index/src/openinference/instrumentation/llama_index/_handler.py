@@ -98,6 +98,7 @@ from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
     EmbeddingStartEvent,
     SparseEmbeddingEndEvent,
+    SparseEmbeddingStartEvent,
 )
 from llama_index.core.instrumentation.events.llm import (
     LLMChatEndEvent,
@@ -523,6 +524,11 @@ class _Span(BaseSpan):
             self._span_kind = EMBEDDING
 
     @_process_event.register
+    def _(self, event: SparseEmbeddingStartEvent) -> None:
+        if not self._span_kind:
+            self._span_kind = EMBEDDING
+
+    @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
         i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
         for text, vector in zip(event.chunks, event.embeddings):
@@ -705,12 +711,10 @@ class _Span(BaseSpan):
         )
 
         @_process_event.register
-        def _(self, event: _WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
-            self[OUTPUT_VALUE] = event.output
+        def _(self, event: _WorkflowStepOutputEvent) -> None: ...  # type: ignore[misc]
 
         @_process_event.register
-        def _(self, event: _WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
-            self[OUTPUT_VALUE] = event.output
+        def _(self, event: _WorkflowRunOutputEvent) -> None: ...  # type: ignore[misc]
 
         @_process_event.register
         def _(self, event: _SpanCancelledEvent) -> None: ...  # type: ignore[misc]
