@@ -97,6 +97,7 @@ async def test_google_adk_instrumentor(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
@@ -160,6 +161,7 @@ async def test_google_adk_instrumentor(
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
     call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -195,6 +197,7 @@ async def test_google_adk_instrumentor(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
@@ -277,6 +280,7 @@ async def test_google_adk_instrumentor(
     call_llm_attributes1.pop("gen_ai.agent.name", None)
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
 
@@ -361,6 +365,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     # call_llm[0]: first LLM call returns get_weather for New York only (with thoughts)
@@ -422,10 +427,12 @@ async def test_google_adk_instrumentor_multi_tool_call(
     if _VERSION >= (1, 5, 0):
         assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
         assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
+        assert call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
     call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -461,6 +468,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     # call_llm[1]: second LLM call returns get_weather for London only (no thoughts)
@@ -544,6 +552,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes1.pop("gen_ai.agent.name", None)
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
     tool_span1 = spans_by_name["execute_tool get_weather"][1]
@@ -579,6 +588,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes1.pop("gen_ai.tool.description", None)
     tool_attributes1.pop("gen_ai.tool.name", None)
     tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.version", None)
     assert not tool_attributes1
 
     # call_llm[2]: final LLM call returns text response
@@ -681,6 +691,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_attributes2.pop("gen_ai.agent.name", None)
     call_llm_attributes2.pop("gen_ai.conversation.id", None)
     call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes2
 
 
@@ -797,6 +808,7 @@ async def test_google_adk_instrumentor_multi_agent(
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
     root_agent_run_attributes.pop("gen_ai.conversation.id", None)
     root_agent_run_attributes.pop("gen_ai.operation.name", None)
+    root_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not root_agent_run_attributes
 
     # 3. call_llm (root agent - transfer_to_agent)
@@ -861,6 +873,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes0.pop("gen_ai.agent.name", None)
     call_llm_attributes0.pop("gen_ai.conversation.id", None)
     call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     # 4. execute_tool transfer_to_agent
@@ -917,6 +930,7 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_attributes.pop("gen_ai.agent.name", None)
     weather_agent_run_attributes.pop("gen_ai.conversation.id", None)
     weather_agent_run_attributes.pop("gen_ai.operation.name", None)
+    weather_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not weather_agent_run_attributes
 
     # 6. call_llm (weather agent - get_weather)
@@ -1032,6 +1046,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes1.pop("gen_ai.agent.name", None)
     call_llm_attributes1.pop("gen_ai.conversation.id", None)
     call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
     # 7. execute_tool get_weather
@@ -1205,6 +1220,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_attributes2.pop("gen_ai.agent.name", None)
     call_llm_attributes2.pop("gen_ai.conversation.id", None)
     call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes2
 
 
@@ -1293,6 +1309,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span = spans_by_name["call_llm"][-1]
@@ -1422,6 +1439,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     call_llm_attributes.pop("gen_ai.agent.name", None)
     call_llm_attributes.pop("gen_ai.conversation.id", None)
     call_llm_attributes.pop("gen_ai.operation.name", None)
+    call_llm_attributes.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes
 
     tool_span = spans_by_name["execute_tool load_remote_image"][0]
