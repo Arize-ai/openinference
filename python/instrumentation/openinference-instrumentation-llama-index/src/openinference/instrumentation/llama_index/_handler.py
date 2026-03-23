@@ -97,6 +97,7 @@ from llama_index.core.instrumentation.events.chat_engine import (
 from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
     EmbeddingStartEvent,
+    SparseEmbeddingEndEvent,
 )
 from llama_index.core.instrumentation.events.llm import (
     LLMChatEndEvent,
@@ -531,6 +532,17 @@ class _Span(BaseSpan):
         self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
 
     @_process_event.register
+    def _(self, event: SparseEmbeddingEndEvent) -> None:
+        # Sparse embedding vectors use Dict[int, float] (token-id → weight) which
+        # has no matching EMBEDDING_VECTOR semantic convention (expects List[float]).
+        # Record the text chunks so the span is not empty; skip the vectors.
+        i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
+        for text in event.chunks:
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
+            i += 1
+        self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
+
+    @_process_event.register
     def _(self, event: StreamChatStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = LLM
@@ -684,6 +696,27 @@ class _Span(BaseSpan):
         if not hasattr(event, "response"):
             return
         self._process_response_text_type(event.response)
+
+    try:
+        from workflows import (
+            SpanCancelledEvent as _SpanCancelledEvent,
+            WorkflowRunOutputEvent as _WorkflowRunOutputEvent,
+            WorkflowStepOutputEvent as _WorkflowStepOutputEvent,
+        )
+
+        @_process_event.register
+        def _(self, event: _WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+            self[OUTPUT_VALUE] = event.output
+
+        @_process_event.register
+        def _(self, event: _WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+            self[OUTPUT_VALUE] = event.output
+
+        @_process_event.register
+        def _(self, event: _SpanCancelledEvent) -> None: ...  # type: ignore[misc]
+
+    except ImportError:
+        pass
 
     def _extract_token_counts(self, response: Union[ChatResponse, CompletionResponse]) -> None:
         if raw := getattr(response, "raw", None):
