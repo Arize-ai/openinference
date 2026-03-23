@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.7...java-openinference-instrumentation-springAI-v0.1.8) (2026-03-23)
+
+
+### Features
+
+* Add missing Java conventions + fix dependencies ([#2870](https://github.com/Arize-ai/openinference/issues/2870)) ([6ff2d19](https://github.com/Arize-ai/openinference/commit/6ff2d19da9cdcaf2b46155af679819ddbf991832))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-springAI-v0.1.6...java-openinference-instrumentation-springAI-v0.1.7) (2025-08-19)
 
 
