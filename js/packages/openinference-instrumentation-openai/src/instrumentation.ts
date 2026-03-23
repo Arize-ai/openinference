@@ -53,47 +53,45 @@ const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 
 // Maps hostname suffixes to their corresponding LLM provider value.
 export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
-    // OpenAI
-    "api.openai.com": LLMProvider.OPENAI,
-    // Azure OpenAI
-    "openai.azure.com": LLMProvider.AZURE,
-    // Anthropic
-    "api.anthropic.com": LLMProvider.ANTHROPIC,
-    // Cohere (v1 and v2 planes share the root domain)
-    "api.cohere.com": LLMProvider.COHERE,
-    "api.cohere.ai": LLMProvider.COHERE,
-    // Mistral AI
-    "api.mistral.ai": LLMProvider.MISTRALAI,
-    // Google (Gemini via AI Studio and Vertex AI)
-    "generativelanguage.googleapis.com": LLMProvider.GOOGLE,
-    "aiplatform.googleapis.com": LLMProvider.GOOGLE,
-    // AWS Bedrock
-    "amazonaws.com": LLMProvider.AWS,
-    // xAI
-    "api.x.ai": LLMProvider.XAI,
-    // DeepSeek
-    "api.deepseek.com": LLMProvider.DEEPSEEK,
-    // Groq
-    "api.groq.com": LLMProvider.GROQ,
-    // Fireworks AI
-    "api.fireworks.ai": LLMProvider.FIREWORKS,
-    // Moonshot AI
-    "api.moonshot.cn": LLMProvider.MOONSHOT,
-    // Cerebras
-    "api.cerebras.ai": LLMProvider.CEREBRAS,
-    // Perplexity
-    "api.perplexity.ai": LLMProvider.PERPLEXITY,
-    // Together AI
-    "api.together.ai": LLMProvider.TOGETHER,
-    "api.together.xyz": LLMProvider.TOGETHER,
+  // OpenAI
+  "api.openai.com": LLMProvider.OPENAI,
+  // Azure OpenAI
+  "openai.azure.com": LLMProvider.AZURE,
+  // Anthropic
+  "api.anthropic.com": LLMProvider.ANTHROPIC,
+  // Cohere (v1 and v2 planes share the root domain)
+  "api.cohere.com": LLMProvider.COHERE,
+  "api.cohere.ai": LLMProvider.COHERE,
+  // Mistral AI
+  "api.mistral.ai": LLMProvider.MISTRALAI,
+  // Google (Gemini via AI Studio and Vertex AI)
+  "generativelanguage.googleapis.com": LLMProvider.GOOGLE,
+  "aiplatform.googleapis.com": LLMProvider.GOOGLE,
+  // AWS Bedrock
+  "amazonaws.com": LLMProvider.AWS,
+  // xAI
+  "api.x.ai": LLMProvider.XAI,
+  // DeepSeek
+  "api.deepseek.com": LLMProvider.DEEPSEEK,
+  // Groq
+  "api.groq.com": LLMProvider.GROQ,
+  // Fireworks AI
+  "api.fireworks.ai": LLMProvider.FIREWORKS,
+  // Moonshot AI
+  "api.moonshot.cn": LLMProvider.MOONSHOT,
+  // Cerebras
+  "api.cerebras.ai": LLMProvider.CEREBRAS,
+  // Perplexity
+  "api.perplexity.ai": LLMProvider.PERPLEXITY,
+  // Together AI
+  "api.together.ai": LLMProvider.TOGETHER,
+  "api.together.xyz": LLMProvider.TOGETHER,
 };
 
 /**
  * Return the LLM provider name for the given API hostname.
  */
-export function getProviderFromHost(
-  host: string,
-): LLMProvider | undefined {
+export function getProviderFromHost(host: string): LLMProvider | undefined {
   const normalised = host.toLowerCase().trim();
   for (const [suffix, provider] of Object.entries(HOST_SUFFIX_TO_PROVIDER)) {
     if (normalised.endsWith(suffix)) {

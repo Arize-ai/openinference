@@ -13,11 +13,14 @@ import { z } from "zod";
 import { setPromptTemplate, setSession } from "@arizeai/openinference-core";
 import { LLMProvider } from "@arizeai/openinference-semantic-conventions";
 
-import { HOST_SUFFIX_TO_PROVIDER, getProviderFromHost, isPatched, OpenAIInstrumentation } from "../src";
+import {
+  HOST_SUFFIX_TO_PROVIDER,
+  getProviderFromHost,
+  isPatched,
+  OpenAIInstrumentation,
+} from "../src";
 
-const ALL_PROVIDER_VALUES = new Set(
-  Object.values(LLMProvider),
-);
+const ALL_PROVIDER_VALUES = new Set(Object.values(LLMProvider));
 
 // Function tools
 async function getCurrentLocation() {
@@ -1688,31 +1691,20 @@ describe("getProviderFromHost", () => {
     expect(getProviderFromHost(host)).toBe(expected);
   });
 
-  it.each(["API.OPENAI.COM", "Api.Openai.Com"])(
-    "is case-insensitive for %s",
-    (host) => {
-      expect(getProviderFromHost(host)).toBe(
-        LLMProvider.OPENAI,
-      );
-    },
-  );
-
-  it.each(["  api.openai.com  ", "\tapi.openai.com\t"])(
-    "strips whitespace for %s",
-    (host) => {
-      expect(getProviderFromHost(host)).toBe(
-        LLMProvider.OPENAI,
-      );
-    },
-  );
-
-  it.each([
-    "api.unknown-provider.com",
-    "storage.googleapis.com",
-    "",
-  ])("returns undefined for unrecognised host %s", (host) => {
-    expect(getProviderFromHost(host)).toBeUndefined();
+  it.each(["API.OPENAI.COM", "Api.Openai.Com"])("is case-insensitive for %s", (host) => {
+    expect(getProviderFromHost(host)).toBe(LLMProvider.OPENAI);
   });
+
+  it.each(["  api.openai.com  ", "\tapi.openai.com\t"])("strips whitespace for %s", (host) => {
+    expect(getProviderFromHost(host)).toBe(LLMProvider.OPENAI);
+  });
+
+  it.each(["api.unknown-provider.com", "storage.googleapis.com", ""])(
+    "returns undefined for unrecognised host %s",
+    (host) => {
+      expect(getProviderFromHost(host)).toBeUndefined();
+    },
+  );
 
   it("every provider has at least one host entry", () => {
     const mapped = new Set(Object.values(HOST_SUFFIX_TO_PROVIDER));
