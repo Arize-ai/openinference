@@ -5,7 +5,8 @@ system instruction, config) before passing it to `BaseApiClient.request` /
 `request_streamed`. By monkey-patching those methods we capture the final,
 fully serializable request dict.
 
-The captured dict is used for: input_value, tools, and invocation_parameters.
+The captured dict is used for: input_value, tools, invocation_parameters,
+and embedding text.
 """
 
 import logging
@@ -66,6 +67,12 @@ class CapturedRequestScope:
             _captured_request.reset(self._reset_token)
 
 
+def get_captured_request() -> dict[str, Any] | None:
+    """Read captured request dict from ContextVar."""
+    request = _captured_request.get(None)
+    return request if isinstance(request, dict) else None
+
+
 def get_input_attributes() -> Iterator[tuple[str, AttributeValue]]:
     """Read captured request and yield input value/mime type attributes."""
     request = _captured_request.get(None)
@@ -120,15 +127,39 @@ def get_tool_attributes() -> Iterator[tuple[str, AttributeValue]]:
             logger.exception(f"Failed to extract tool attributes: {tool}")
 
 
-def get_invocation_parameters() -> str | None:
-    """Read captured request and return invocation parameters as JSON string."""
+def get_llm_invocation_parameters() -> str | None:
+    """Extract generationConfig from the captured generate content request."""
     request = _captured_request.get(None)
     if not isinstance(request, dict):
         return None
-    config = request.get("generation_config")
-    if not config:
+    if config := request.get("generation_config"):
+        return safe_json_dumps(config)
+    return None
+
+
+def get_embedding_invocation_parameters() -> str | None:
+    """Extract embed config from the captured embed content request.
+
+    The SDK flattens embed config fields into each request/instance entry:
+      - Gemini API: {"requests": [{"content": ..., "taskType": ..., ...}]}
+      - Vertex AI: {"instances": [{"content": ..., "task_type": ..., ...}]}
+    """
+    request = _captured_request.get(None)
+    if not isinstance(request, dict):
         return None
-    return safe_json_dumps(config)
+    # Gemini API path
+    if requests := request.get("requests"):
+        if isinstance(requests, list) and requests:
+            params = {k: v for k, v in requests[0].items() if k not in ("content", "model")}
+            if params:
+                return safe_json_dumps(params)
+    # Vertex AI path
+    if instances := request.get("instances"):
+        if isinstance(instances, list) and instances:
+            params = {k: v for k, v in instances[0].items() if k not in ("content",)}
+            if params:
+                return safe_json_dumps(params)
+    return None
 
 
 class _CapturedRequestWrapper:
@@ -154,6 +185,8 @@ class _CapturedRequestWrapper:
                 # request(http_method, path, request_dict, http_options=None)
                 request_dict = args[2] if len(args) > 2 else kwargs.get("request_dict")
                 if request_dict is not None and isinstance(request_dict, dict):
+                    # Strip internal SDK keys (_url, _query) that are consumed
+                    # before the HTTP request but not popped from the dict
                     cleaned = {k: v for k, v in request_dict.items() if not k.startswith("_")}
                     _captured_request.set(_convert_keys_to_snake(cleaned))
             except Exception:

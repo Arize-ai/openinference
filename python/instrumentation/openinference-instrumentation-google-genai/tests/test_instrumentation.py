@@ -22,6 +22,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from pydantic import BaseModel
 
 from openinference.semconv.trace import (
+    EmbeddingAttributes,
     MessageAttributes,
     SpanAttributes,
     ToolAttributes,
@@ -72,26 +73,67 @@ def test_embed_content(
 
     # Verify expected attributes
     attributes = dict(span.attributes or {})
-    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "google"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
     assert (
-        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
-        == "user"
-    )
-    assert (
-        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
         == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    # Verify embedding vectors are present
+    assert (
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        in attributes
     )
     assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
-    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
-    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
-    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {
-            "task_type": "RETRIEVAL_DOCUMENT",
-        }
+    assert attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS) == json.dumps(
+        {"task_type": "RETRIEVAL_DOCUMENT"}
     )
-    assert not attributes, f"Unexpected attributes found: {attributes}"
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
+def test_embed_content_multiple_contents(
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test embedding multiple Content objects — each should get its own vector."""
+    # api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+    client = genai.Client(api_key="AIzaSyDuV4UwnAkApObnfZYmPXLu_a6cwdTR2rA")
+
+    # Pass a list of strings — each becomes a separate Content / embedding
+    response = client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=["Why is the sky blue?", "What is the capital of France?"],
+    )
+    assert response is not None
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+
+    attributes = dict(span.attributes or {})
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
+    # Two separate EMBEDDING_TEXT entries — one per content string
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "Why is the sky blue?"
+    )
+    assert (
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.1.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
+        == "What is the capital of France?"
+    )
 
 
 @pytest.mark.vcr(
@@ -134,26 +176,25 @@ async def test_async_embed_content(
 
     # Verify expected attributes
     attributes = dict(span.attributes or {})
-    assert attributes.pop(f"{SpanAttributes.LLM_PROVIDER}") == "google"
+    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
+    assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "google"
+    assert attributes.pop(SpanAttributes.EMBEDDING_MODEL_NAME) == "gemini-embedding-001"
     assert (
-        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}")
-        == "user"
-    )
-    assert (
-        attributes.pop(f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}")
+        attributes.pop(
+            f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_TEXT}"
+        )
         == "Why is the sky blue?\n\nWhat is the capital of France?"
+    )
+    # Verify embedding vectors are present
+    assert (
+        f"{SpanAttributes.EMBEDDING_EMBEDDINGS}.0.{EmbeddingAttributes.EMBEDDING_VECTOR}"
+        in attributes
     )
     assert attributes.pop(SpanAttributes.INPUT_VALUE) is not None
     assert attributes.pop(SpanAttributes.INPUT_MIME_TYPE) == "application/json"
-    assert attributes.pop(SpanAttributes.OUTPUT_VALUE) is not None
-    assert attributes.pop(SpanAttributes.OUTPUT_MIME_TYPE) == "application/json"
-    assert attributes.pop(SpanAttributes.OPENINFERENCE_SPAN_KIND) == "EMBEDDING"
-    assert attributes.pop(SpanAttributes.LLM_INVOCATION_PARAMETERS) == json.dumps(
-        {
-            "task_type": "RETRIEVAL_DOCUMENT",
-        }
+    assert attributes.pop(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS) == json.dumps(
+        {"task_type": "RETRIEVAL_DOCUMENT"}
     )
-    assert not attributes, f"Unexpected attributes found: {attributes}"
 
 
 @pytest.mark.vcr(

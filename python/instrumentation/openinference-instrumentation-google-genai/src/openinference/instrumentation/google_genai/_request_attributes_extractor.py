@@ -35,10 +35,7 @@ class _RequestAttributesExtractor:
         self,
         request_parameters: Mapping[str, Any],
     ) -> Iterator[tuple[str, AttributeValue]]:
-        yield (
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            request_parameters.get("span_kind") or OpenInferenceSpanKindValues.LLM.value,
-        )
+        yield SpanAttributes.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKindValues.LLM.value
         yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
         if model := request_parameters.get("model"):
             if isinstance(model, str):
@@ -48,6 +45,9 @@ class _RequestAttributesExtractor:
 
         # Start an index for the messages since we want to start with system instruction
         input_messages_index = 0
+        if not isinstance(request_parameters, Mapping):
+            return
+
         if config := request_parameters.get("config", None):
             # Normalize config to a GenerateContentConfig for direct attribute access
             try:
