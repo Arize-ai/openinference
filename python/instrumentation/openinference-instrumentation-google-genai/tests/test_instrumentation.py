@@ -207,7 +207,7 @@ def test_generate_content_with_config_as_dict(
             {
                 "temperature": 0.5,
                 "top_p": 0.95,
-                "top_k": 40,
+                "top_k": 40.0,
                 "candidate_count": 1,
                 "thinking_config": {"thinking_budget": 100},
             }
@@ -1233,9 +1233,8 @@ def test_streaming_tool_call_aggregation(
     accumulator.process_chunk(chunk1)
     accumulator.process_chunk(chunk2)
 
-    # Extract attributes using the response extractor
     extractor = _ResponseExtractor(accumulator)
-    attributes = dict(extractor.get_extra_attributes())
+    attributes = dict(extractor.get_attributes())
 
     # Verify the aggregated tool call - this is the key test!
     tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
