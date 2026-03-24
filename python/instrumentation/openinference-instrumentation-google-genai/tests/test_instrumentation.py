@@ -104,8 +104,8 @@ def test_embed_content_multiple_contents(
     setup_google_genai_instrumentation: None,
 ) -> None:
     """Test embedding multiple Content objects — each should get its own vector."""
-    # api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
-    client = genai.Client(api_key="AIzaSyDuV4UwnAkApObnfZYmPXLu_a6cwdTR2rA")
+    api_key = os.environ.get("GEMINI_API_KEY", "REDACTED")
+    client = genai.Client(api_key=api_key)
 
     # Pass a list of strings — each becomes a separate Content / embedding
     response = client.models.embed_content(
