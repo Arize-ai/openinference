@@ -67,6 +67,19 @@ public class ChatMessageAttributeUtils {
         }
     }
 
+    private static String getMessageContent(ChatMessage message){
+        if (message instanceof SystemMessage systemMessage) {
+            return systemMessage.text();
+        } else if (message instanceof UserMessage userMessage && userMessage.hasSingleText()) {
+            return userMessage.singleText();
+        } else if (message instanceof AiMessage aiMessage && Objects.nonNull(aiMessage.text())) {
+            return aiMessage.text();
+        } else if (message instanceof ToolExecutionResultMessage toolExecutionResultMessage) {
+            return toolExecutionResultMessage.text();
+        }
+        return "";
+    }
+
     /**
      * Sets input message attributes on the span for the provided chat messages.
      *
@@ -83,7 +96,7 @@ public class ChatMessageAttributeUtils {
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
             // Set content
-            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), message.toString());
+            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), getMessageContent(message));
 
             // Set ToolCall
             if (message.type().equals(ChatMessageType.AI)) {
@@ -175,27 +188,34 @@ public class ChatMessageAttributeUtils {
                 }
                 case USER -> {
                     messageMap.put("role", "user");
-                    if (message instanceof UserMessage userMessage) {
+                    if (message instanceof UserMessage userMessage && userMessage.hasSingleText()) {
                         messageMap.put("content", userMessage.singleText());
                     }
                 }
                 case AI -> {
                     messageMap.put("role", "assistant");
-                    if (message instanceof AiMessage aiMessage) {
+                    if (message instanceof AiMessage aiMessage && Objects.nonNull(aiMessage.text())) {
                         messageMap.put("content", aiMessage.text());
-                        if (aiMessage.toolExecutionRequests() != null
+                        if (Objects.nonNull(aiMessage.toolExecutionRequests())
                                 && !aiMessage.toolExecutionRequests().isEmpty()) {
-                            messageMap.put(
-                                    "content",
-                                    Map.of(
-                                            "tool_calls",
-                                            aiMessage.toolExecutionRequests().stream()
-                                                    .map(t -> Map.of(
-                                                            "id",
-                                                            t.id(),
-                                                            "function",
-                                                            Map.of("arguments", t.arguments(), "name", t.name())))
-                                                    .collect(Collectors.toList())));
+                            List<Map<String, Object>> toolCalls = aiMessage.toolExecutionRequests().stream()
+                                    .filter(t -> t.id() != null && t.name() != null && t.arguments() != null)
+                                    .map(t -> {
+                                        Map<String, Object> function = new LinkedHashMap<>();
+                                        function.put("arguments", t.arguments());
+                                        function.put("name", t.name());
+
+                                        Map<String, Object> toolCall = new LinkedHashMap<>();
+                                        toolCall.put("id", t.id());
+                                        toolCall.put("function", function);
+                                        return toolCall;
+                                    })
+                                    .collect(Collectors.toList());
+                            if (!toolCalls.isEmpty()) {
+                                Map<String, Object> content = new LinkedHashMap<>();
+                                content.put("tool_calls", toolCalls);
+                                messageMap.put("content", content);
+                            }
                         }
                     }
                 }
@@ -263,7 +283,7 @@ public class ChatMessageAttributeUtils {
                 String messagesJson = objectMapper.writeValueAsString(messagesList);
                 span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
                 span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, "application/json");
-            } catch (JsonProcessingException e) {
+            } catch (Exception e) {
                 logger.log(Level.WARNING, "Failed to serialize input messages", e);
             }
         }

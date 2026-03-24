@@ -21,10 +21,10 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class ArizeAXExample {
+public class AiServiceWithToolsExample {
 
     private static SdkTracerProvider tracerProvider;
-    private static final Logger logger = Logger.getLogger(ArizeAXExample.class.getName());
+    private static final Logger logger = Logger.getLogger(AiServiceWithToolsExample.class.getName());
 
     /**
      * AI Service interface - LangChain4j will implement this and handle tool calling automatically
