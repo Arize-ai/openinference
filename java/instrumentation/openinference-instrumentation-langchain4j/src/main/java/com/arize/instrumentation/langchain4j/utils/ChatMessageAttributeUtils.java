@@ -67,7 +67,7 @@ public class ChatMessageAttributeUtils {
         }
     }
 
-    private static String getMessageContent(ChatMessage message){
+    private static String getMessageContent(ChatMessage message) {
         if (message instanceof SystemMessage systemMessage) {
             return systemMessage.text();
         } else if (message instanceof UserMessage userMessage && userMessage.hasSingleText()) {
@@ -96,7 +96,8 @@ public class ChatMessageAttributeUtils {
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
             // Set content
-            span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), getMessageContent(message));
+            span.setAttribute(
+                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), getMessageContent(message));
 
             // Set ToolCall
             if (message.type().equals(ChatMessageType.AI)) {
