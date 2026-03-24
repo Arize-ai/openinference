@@ -8,9 +8,7 @@ from threading import Thread
 from time import sleep, time
 from typing import AsyncIterator, Iterator
 
-import starlette
 from langsmith.schemas import LangSmithInfo
-from packaging.version import Version
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -18,8 +16,6 @@ from starlette.routing import Route
 from uvicorn import Config, Server
 
 OUTPUT_FILE_NAME = "langsmith_data_capture"
-
-_STARLETTE_1_0 = Version(starlette.__version__) >= Version("1.0.0")
 
 
 class _Receiver(Server):
@@ -60,17 +56,12 @@ class _Receiver(Server):
         self._buf = StringIO()
         route = Route("/{path:path}", self._capture, methods=["POST", "PATCH", "GET"])
 
-        if _STARLETTE_1_0:
+        @asynccontextmanager
+        async def lifespan(app: Starlette) -> AsyncIterator[None]:
+            yield
+            await self._shutdown()
 
-            @asynccontextmanager
-            async def lifespan(app: Starlette) -> AsyncIterator[None]:
-                yield
-                await self._shutdown()
-
-            app = Starlette(routes=[route], lifespan=lifespan)
-        else:
-            app = Starlette(routes=[route], on_shutdown=[self._shutdown])
-
+        app = Starlette(routes=[route], lifespan=lifespan)
         config = Config(app=app, port=port)
         super().__init__(config=config)
 
