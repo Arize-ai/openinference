@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.0.0...python-openinference-instrumentation-crewai-v1.1.0) (2026-03-23)
+
+
+### Features
+
+* **crewai:** instrument event-listener ([#2895](https://github.com/Arize-ai/openinference/issues/2895)) ([7e03708](https://github.com/Arize-ai/openinference/commit/7e037086a2688b2e453a27785835b0d5175de302))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.22...python-openinference-instrumentation-crewai-v1.0.0) (2026-03-06)
 
 
