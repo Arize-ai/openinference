@@ -3,7 +3,18 @@ from abc import ABC
 from contextlib import contextmanager
 from itertools import chain
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterable, Iterator, Mapping, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Tuple,
+)
 
 from opentelemetry import context as context_api
 from opentelemetry import trace as trace_api
@@ -48,6 +59,53 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+# Maps hostname suffixes to their corresponding LLM provider value.
+_HOST_SUFFIX_TO_PROVIDER: Dict[str, str] = {
+    # OpenAI
+    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI.value,
+    # Azure OpenAI
+    "openai.azure.com": OpenInferenceLLMProviderValues.AZURE.value,
+    # Anthropic
+    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    # Cohere (v1 and v2 planes share the root domain)
+    "api.cohere.com": OpenInferenceLLMProviderValues.COHERE.value,
+    "api.cohere.ai": OpenInferenceLLMProviderValues.COHERE.value,
+    # Mistral AI
+    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    # Google (Gemini via AI Studio and Vertex AI)
+    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "aiplatform.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
+    # AWS Bedrock
+    "amazonaws.com": OpenInferenceLLMProviderValues.AWS.value,
+    # xAI
+    "api.x.ai": OpenInferenceLLMProviderValues.XAI.value,
+    # DeepSeek
+    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    # Groq
+    "api.groq.com": OpenInferenceLLMProviderValues.GROQ.value,
+    # Fireworks AI
+    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS.value,
+    # Moonshot AI
+    "api.moonshot.cn": OpenInferenceLLMProviderValues.MOONSHOT.value,
+    # Cerebras
+    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS.value,
+    # Perplexity
+    "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY.value,
+    # Together AI
+    "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER.value,
+    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER.value,
+}
+
+
+def get_provider_from_host(host: str) -> Optional[str]:
+    """Return the LLM provider name for the given API hostname."""
+    normalised = host.lower().strip()
+    for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
+        if normalised.endswith(suffix):
+            return provider
+    return None
 
 
 class _WithTracer(ABC):
@@ -133,24 +191,15 @@ class _WithOpenAI(ABC):
             else OpenInferenceSpanKindValues.LLM.value
         )
 
-    def _get_attributes_from_instance(
-        self, instance: Any, cast_to: type
-    ) -> Iterator[Tuple[str, AttributeValue]]:
-        # Skip provider attribute for embedding spans
-        if cast_to is self._openai.types.CreateEmbeddingResponse:
-            return
+    def _get_attributes_from_instance(self, instance: Any) -> Iterator[Tuple[str, AttributeValue]]:
         if (
             not (base_url := getattr(instance, "base_url", None))
             or not (host := getattr(base_url, "host", None))
             or not isinstance(host, str)
         ):
             return
-        if host.endswith("api.openai.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.OPENAI.value
-        elif host.endswith("openai.azure.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.AZURE.value
-        elif host.endswith("googleapis.com"):
-            yield SpanAttributes.LLM_PROVIDER, OpenInferenceLLMProviderValues.GOOGLE.value
+        if provider := get_provider_from_host(host):
+            yield SpanAttributes.LLM_PROVIDER, provider
 
     def _get_attributes_from_request(
         self,
@@ -158,9 +207,7 @@ class _WithOpenAI(ABC):
         request_parameters: Mapping[str, Any],
     ) -> Iterator[Tuple[str, AttributeValue]]:
         yield SpanAttributes.OPENINFERENCE_SPAN_KIND, self._get_span_kind(cast_to=cast_to)
-        # Skip system attribute for embedding spans
-        if cast_to is not self._openai.types.CreateEmbeddingResponse:
-            yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
+        yield SpanAttributes.LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value
         try:
             # Get the configuration from the tracer to check image hiding settings
             if TYPE_CHECKING:
@@ -321,7 +368,7 @@ class _Request(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance, cast_to=cast_to),
+                self._get_attributes_from_instance(instance),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
@@ -382,7 +429,7 @@ class _AsyncRequest(_WithTracer, _WithOpenAI):
         with self._start_as_current_span(
             span_name=span_name,
             attributes=chain(
-                self._get_attributes_from_instance(instance, cast_to=cast_to),
+                self._get_attributes_from_instance(instance),
                 self._get_attributes_from_request(
                     cast_to=cast_to,
                     request_parameters=request_parameters,
