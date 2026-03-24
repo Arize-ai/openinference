@@ -1,1 +1,1 @@
-litellm<=1.82.7  # versions after 1.82.7 are compromised, see https://github.com/BerriAI/litellm/issues/24512
+litellm<1.82.7  # versions >=1.82.7 are compromised, see https://github.com/BerriAI/litellm/issues/24518
