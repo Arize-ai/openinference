@@ -22,7 +22,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._context import (
     CapturedRequestScope,
     get_input_attributes,
-    get_invocation_parameters,
+    get_llm_invocation_parameters,
     get_tool_attributes,
 )
 from openinference.instrumentation.google_genai._utils import (
@@ -74,7 +74,7 @@ class _Stream(ObjectProxy):  # type: ignore
         try:
             self._with_span.set_attributes(dict(get_input_attributes()))
             self._with_span.set_attributes(dict(get_tool_attributes()))
-            if invocation_params := get_invocation_parameters():
+            if invocation_params := get_llm_invocation_parameters():
                 self._with_span.set_attributes(
                     {SpanAttributes.LLM_INVOCATION_PARAMETERS: invocation_params}
                 )

@@ -19,6 +19,8 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_original_embed_content",
+        "_original_async_embed_content",
         "_original_generate_content",
         "_original_async_generate_content",
         "_original_generate_content_stream",
@@ -63,10 +65,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.google_genai._wrappers import (
             _AsyncCreateCachesWrapper,
             _AsyncCreateInteractionWrapper,
+            _AsyncEmbedContentWrapper,
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
             _SyncCreateCachesWrapper,
             _SyncCreateInteractionWrapper,
+            _SyncEmbedContentWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
         )
@@ -90,6 +94,20 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="google.genai.caches",
             name="AsyncCaches.create",
             wrapper=_AsyncCreateCachesWrapper(tracer=self._tracer),
+        )
+
+        self._original_embed_content = Models.embed_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="Models.embed_content",
+            wrapper=_SyncEmbedContentWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_embed_content = AsyncModels.embed_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="AsyncModels.embed_content",
+            wrapper=_AsyncEmbedContentWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content
@@ -167,6 +185,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
         )
         from google.genai.caches import AsyncCaches, Caches
         from google.genai.models import AsyncModels, Models
+
+        if self._original_embed_content is not None:
+            setattr(Models, "embed_content", self._original_embed_content)
+
+        if self._original_async_embed_content is not None:
+            setattr(AsyncModels, "embed_content", self._original_async_embed_content)
 
         if self._original_generate_content is not None:
             setattr(Models, "generate_content", self._original_generate_content)
