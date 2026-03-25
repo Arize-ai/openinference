@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -44,7 +44,9 @@ from ._span_helpers import (
 
 
 def _pop_input_payload(attributes: dict[str, Any]) -> dict[str, Any]:
-    return json.loads(str(attributes.pop(INPUT_VALUE)))
+    payload = json.loads(str(attributes.pop(INPUT_VALUE)))
+    assert isinstance(payload, dict)
+    return cast(dict[str, Any], payload)
 
 
 def _assert_serialized_agent_payload(
