@@ -128,6 +128,9 @@ _MODEL_PREFIX_TO_SYSTEM: Dict[str, str] = {
 
 def get_provider_from_host(host: str) -> Optional[str]:
     """Return the LLM provider name for the given API hostname."""
+    if not isinstance(host, str):
+        return None
+
     normalised = host.lower().strip()
     for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
         if normalised.endswith(suffix):
@@ -137,6 +140,9 @@ def get_provider_from_host(host: str) -> Optional[str]:
 
 def get_system_from_model(model_name: str) -> Optional[str]:
     """Return the LLM system name for the given model identifier."""
+    if not isinstance(model_name, str):
+        return None
+
     normalised = model_name.lower().strip()
     for prefix, system in _MODEL_PREFIX_TO_SYSTEM.items():
         if normalised.startswith(prefix):
