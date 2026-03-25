@@ -1,8 +1,6 @@
 # Requirements for CrewAI instrumentation examples
 crewai>=1.10.1
 crewai-tools>=1.10.1
-arize-otel
-arize-phoenix
 openinference-instrumentation-crewai>=0.1.0
 opentelemetry-api>=1.20.0
 opentelemetry-sdk>=1.20.0

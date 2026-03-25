@@ -4,7 +4,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
-from crewai import Agent, Crew, Process, Task
+from crewai import Task
 from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
@@ -102,28 +102,31 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
 
 
 def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None:
-    agent = Agent(
-        role="Tech Content Strategist",
-        goal="Craft compelling content on tech advancements",
-        backstory="You are a great at creating insightful articles.",
-        verbose=True,
-        allow_delegation=True,
-    )
-    task = Task(
-        description="Develop a short blog post that highlights recent AI advancements.",
-        expected_output="Short blog post of 3 sentences",
-        agent=agent,
-    )
-    crew = Crew(
-        agents=[agent],
-        tasks=[task],
-        verbose=False,
-        process=Process.sequential,
-    )
+    class _AgentLike:
+        def __init__(self) -> None:
+            self.role = "Tech Content Strategist"
+            self.goal = "Craft compelling content on tech advancements"
+            self.backstory = "You are a great at creating insightful articles."
+            self.verbose = True
+            self.allow_delegation = True
+            self.max_iter = 25
+            self.max_rpm = None
+            self.tools: list[Any] = []
+            self.id = uuid.uuid4()
+            self.key = "agent-key"
+            self.crew: Any = None
+
+    class _CrewLike:
+        def __init__(self, agent: Any) -> None:
+            self.agent = agent
+
+    agent = _AgentLike()
+    crew = _CrewLike(agent)
     agent.crew = crew
 
     input_value = _get_input_value(Task._execute_core, agent, None, None)
     payload = json.loads(input_value)
+    assert isinstance(payload, dict)
 
     assert payload["context"] is None
     assert payload["tools"] is None
