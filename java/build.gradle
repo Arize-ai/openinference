@@ -59,6 +59,7 @@ subprojects {
         slf4jVersion = '2.0.12'
         autoServiceVersion = '1.1.1'
         lombokVersion = '1.18.30'
+        byteBuddyVersion = '1.14.12'
     }
 
     dependencies {
