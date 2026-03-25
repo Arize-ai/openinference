@@ -4,13 +4,17 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from crewai import Agent, Crew, Process, Task
 from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
+from openinference.instrumentation.crewai._wrappers import (
+    _get_execute_core_span_name,
+    _get_input_value,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -39,6 +43,48 @@ from ._span_helpers import (
 )
 
 
+def _pop_input_payload(attributes: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(str(attributes.pop(INPUT_VALUE)))
+
+
+def _assert_serialized_agent_payload(
+    payload: dict[str, Any],
+    *,
+    role: str,
+    goal: str,
+    backstory: str,
+    allow_delegation: bool,
+    verbose: bool,
+    max_iter: int,
+    tools_names: list[str],
+) -> None:
+    assert set(payload) == {
+        "allow_delegation",
+        "backstory",
+        "goal",
+        "id",
+        "key",
+        "max_iter",
+        "max_rpm",
+        "role",
+        "tools_names",
+        "verbose",
+    }
+    assert isinstance(payload["id"], str) and uuid.UUID(payload["id"])
+    assert isinstance(payload["key"], str) and payload["key"]
+    assert payload["role"] == role
+    assert payload["goal"] == goal
+    assert payload["backstory"] == backstory
+    assert payload["verbose"] == verbose
+    assert payload["allow_delegation"] == allow_delegation
+    assert payload["max_iter"] == max_iter
+    assert payload["max_rpm"] is None
+    assert payload["tools_names"] == tools_names
+    assert "crew" not in payload
+    assert "llm" not in payload
+    assert "agent_executor" not in payload
+
+
 def test_entrypoint_for_opentelemetry_instrument() -> None:
     """Test that the instrumentor is properly registered and implements OITracer."""
     instrumentor_entrypoints = list(
@@ -51,6 +97,45 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     instrumentor = instrumentor_entrypoints[0].load()()
     assert isinstance(instrumentor, CrewAIInstrumentor)
     assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
+
+
+def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None:
+    agent = Agent(
+        role="Tech Content Strategist",
+        goal="Craft compelling content on tech advancements",
+        backstory="You are a great at creating insightful articles.",
+        verbose=True,
+        allow_delegation=True,
+    )
+    task = Task(
+        description="Develop a short blog post that highlights recent AI advancements.",
+        expected_output="Short blog post of 3 sentences",
+        agent=agent,
+    )
+    crew = Crew(
+        agents=[agent],
+        tasks=[task],
+        verbose=False,
+        process=Process.sequential,
+    )
+    agent.crew = crew
+
+    input_value = _get_input_value(Task._execute_core, agent, None, None)
+    payload = json.loads(input_value)
+
+    assert payload["context"] is None
+    assert payload["tools"] is None
+    assert isinstance(payload["agent"], dict)
+    _assert_serialized_agent_payload(
+        payload["agent"],
+        role="Tech Content Strategist",
+        goal="Craft compelling content on tech advancements",
+        backstory="You are a great at creating insightful articles.",
+        allow_delegation=True,
+        verbose=True,
+        max_iter=25,
+        tools_names=[],
+    )
 
 
 @pytest.mark.vcr
@@ -99,7 +184,16 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert scraper_span.name == "Website Scraper.scrape-task._execute_core"
     assert attributes.pop(GRAPH_NODE_ID) == "Website Scraper"
     assert attributes.pop("task_name") == "scrape-task"
-    assert attributes.pop(INPUT_VALUE)
+    _assert_serialized_agent_payload(
+        _pop_input_payload(attributes)["agent"],
+        role="Website Scraper",
+        goal="Scrape content from URL",
+        backstory="You extract text from websites",
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
+        tools_names=["scrape_website"],
+    )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -115,7 +209,16 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert attributes.pop(GRAPH_NODE_ID) == "Content Analyzer"
     assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Website Scraper"
     assert attributes.pop("task_name") == "analyze-task"
-    assert attributes.pop(INPUT_VALUE)
+    _assert_serialized_agent_payload(
+        _pop_input_payload(attributes)["agent"],
+        role="Content Analyzer",
+        goal="Extract quotes from text",
+        backstory="You extract quotes from text",
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
+        tools_names=[],
+    )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON

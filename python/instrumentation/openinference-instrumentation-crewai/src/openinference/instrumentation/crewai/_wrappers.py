@@ -72,6 +72,50 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
+def _get_tool_name(tool: Any) -> str:
+    tool_name = getattr(tool, "name", None)
+    if tool_name:
+        return str(tool_name)
+    return str(tool)
+
+
+def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
+    serialized_agent: Dict[str, Any] = {
+        "role": str(getattr(agent, "role", "") or ""),
+        "goal": str(getattr(agent, "goal", "") or ""),
+        "backstory": str(getattr(agent, "backstory", "") or ""),
+        "verbose": bool(getattr(agent, "verbose", False)),
+        "allow_delegation": bool(getattr(agent, "allow_delegation", False)),
+        "max_iter": getattr(agent, "max_iter", None),
+        "max_rpm": getattr(agent, "max_rpm", None),
+        "tools_names": [_get_tool_name(tool) for tool in (getattr(agent, "tools", None) or [])],
+    }
+
+    agent_id = getattr(agent, "id", None)
+    if agent_id is not None:
+        serialized_agent["id"] = str(agent_id)
+
+    agent_key = getattr(agent, "key", None)
+    if agent_key is not None:
+        serialized_agent["key"] = str(agent_key)
+
+    return serialized_agent
+
+
+def _serialize_input_argument(argument_name: str, argument_value: Any) -> Any:
+    if argument_name != "agent" or argument_value is None:
+        return argument_value
+
+    if not all(hasattr(argument_value, attr) for attr in ("role", "goal", "backstory")):
+        return argument_value
+
+    try:
+        return _serialize_agent_input(argument_value)
+    except Exception:
+        logger.debug("Failed to serialize CrewAI agent input", exc_info=True)
+        return argument_value
+
+
 def _flatten(mapping: Optional[Mapping[str, Any]]) -> Iterator[Tuple[str, AttributeValue]]:
     if not mapping:
         return
@@ -115,14 +159,20 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
         *args,
         **kwargs,
     )
+    serialized_arguments = {
+        argument_name: _serialize_input_argument(argument_name, argument_value)
+        for argument_name, argument_value in bound_arguments.arguments.items()
+        if argument_name not in ["self", "kwargs"]
+    }
     return safe_json_dumps(
         {
+            **serialized_arguments,
             **{
-                argument_name: argument_value
-                for argument_name, argument_value in bound_arguments.arguments.items()
-                if argument_name not in ["self", "kwargs"]
+                argument_name: _serialize_input_argument(argument_name, argument_value)
+                for argument_name, argument_value in (
+                    bound_arguments.arguments.get("kwargs", {}).items()
+                )
             },
-            **bound_arguments.arguments.get("kwargs", {}),
         },
         cls=SafeJSONEncoder,
     )
