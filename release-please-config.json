@@ -82,6 +82,10 @@
             "package-name": "python-openinference-instrumentation-anthropic",
             "release-type": "python"
         },
+        "python/instrumentation/openinference-instrumentation-claude-agent-sdk": {
+            "package-name": "python-openinference-instrumentation-claude-agent-sdk",
+            "release-type": "python"
+        },
         "python/instrumentation/openinference-instrumentation-smolagents": {
             "package-name": "python-openinference-instrumentation-smolagents",
             "release-type": "python"
@@ -183,6 +187,17 @@
                 {
                     "type": "generic",
                     "path": "java/instrumentation/openinference-instrumentation-springAI/gradle.properties"
+                }
+            ]
+        },
+        "java/instrumentation/openinference-instrumentation-annotation": {
+            "package-name": "java-openinference-instrumentation-annotation",
+            "release-type": "simple",
+            "version-file": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "java/instrumentation/openinference-instrumentation-annotation/gradle.properties"
                 }
             ]
         }

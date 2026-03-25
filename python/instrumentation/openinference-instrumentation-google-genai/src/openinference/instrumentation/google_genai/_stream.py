@@ -6,14 +6,11 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
-    DefaultDict,
-    Dict,
     Iterable,
     Iterator,
     List,
     Mapping,
     Optional,
-    Tuple,
     Union,
 )
 
@@ -22,6 +19,12 @@ from opentelemetry.util.types import AttributeValue
 from wrapt import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._context import (
+    CapturedRequestScope,
+    get_input_attributes,
+    get_llm_invocation_parameters,
+    get_tool_attributes,
+)
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
@@ -47,21 +50,45 @@ class _Stream(ObjectProxy):  # type: ignore
     __slots__ = (
         "_response_accumulator",
         "_with_span",
-        "_is_finished",
+        "_request_scope",
+        "_request_captured",
     )
 
     def __init__(
         self,
         stream: Iterator["GenerateContentResponse"],
         with_span: _WithSpan,
+        request_scope: CapturedRequestScope | None = None,
     ) -> None:
         super().__init__(stream)
         self._response_accumulator = _ResponseAccumulator()
         self._with_span = with_span
+        self._request_scope = request_scope
+        self._request_captured = False
+
+    def _capture_request_once(self) -> None:
+        """Read captured request from ContextVar on first iteration and set on span."""
+        if self._request_captured:
+            return
+        self._request_captured = True
+        try:
+            self._with_span.set_attributes(dict(get_input_attributes()))
+            self._with_span.set_attributes(dict(get_tool_attributes()))
+            if invocation_params := get_llm_invocation_parameters():
+                self._with_span.set_attributes(
+                    {SpanAttributes.LLM_INVOCATION_PARAMETERS: invocation_params}
+                )
+        except Exception:
+            logger.exception("Failed to capture request attributes from stream")
+        finally:
+            if self._request_scope is not None:
+                self._request_scope.__exit__(None, None, None)
+                self._request_scope = None
 
     def __iter__(self) -> Iterator["GenerateContentResponse"]:
         try:
             for item in self.__wrapped__:
+                self._capture_request_once()
                 self._response_accumulator.process_chunk(item)
                 yield item
         except Exception as exception:
@@ -81,6 +108,7 @@ class _Stream(ObjectProxy):  # type: ignore
     async def __aiter__(self) -> AsyncIterator["GenerateContentResponse"]:
         try:
             async for item in self.__wrapped__:
+                self._capture_request_once()
                 self._response_accumulator.process_chunk(item)
                 yield item
         except Exception as exception:
@@ -99,13 +127,12 @@ class _Stream(ObjectProxy):  # type: ignore
 
     def _finish_tracing(
         self,
-        status: Optional[trace_api.Status] = None,
+        status: trace_api.Status | None = None,
     ) -> None:
         response_extractor = _ResponseExtractor(response_accumulator=self._response_accumulator)
         _finish_tracing(
             with_span=self._with_span,
             attributes=response_extractor.get_attributes(),
-            extra_attributes=response_extractor.get_extra_attributes(),
             status=status,
         )
 
@@ -142,7 +169,7 @@ class _ResponseAccumulator:
         values = chunk.model_dump(exclude_unset=True, warnings=False)
         self._values += values
 
-    def _result(self) -> Optional[Dict[str, Any]]:
+    def _result(self) -> Optional[dict[str, Any]]:
         if self._is_null:
             return None
         return dict(self._values)
@@ -157,7 +184,7 @@ class _ResponseExtractor:
     ) -> None:
         self._response_accumulator = response_accumulator
 
-    def get_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
+    def get_attributes(self) -> Iterator[tuple[str, AttributeValue]]:
         if not (result := self._response_accumulator._result()):
             return
         json_string = safe_json_dumps(result)
@@ -165,9 +192,6 @@ class _ResponseExtractor:
             _ValueAndType(json_string, OpenInferenceMimeTypeValues.JSON)
         )
 
-    def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]:
-        if not (result := self._response_accumulator._result()):
-            return
         if model_version := result.get("model_version"):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
         if usage_metadata := result.get("usage_metadata"):
@@ -219,9 +243,9 @@ class _ValuesAccumulator:
     __slots__ = ("_values",)
 
     def __init__(self, **values: Any) -> None:
-        self._values: Dict[str, Any] = values
+        self._values: dict[str, Any] = values
 
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
         for key, value in self._values.items():
             if value is None:
                 continue
@@ -281,7 +305,7 @@ class _StringAccumulator:
     __slots__ = ("_fragments",)
 
     def __init__(self) -> None:
-        self._fragments: List[str] = []
+        self._fragments: list[str] = []
 
     def __str__(self) -> str:
         return "".join(self._fragments)
@@ -305,14 +329,14 @@ class _IndexedAccumulator:
     __slots__ = ("_indexed",)
 
     def __init__(self, factory: Callable[[], _ValuesAccumulator]) -> None:
-        self._indexed: DefaultDict[int, _ValuesAccumulator] = defaultdict(factory)
+        self._indexed: defaultdict[int, _ValuesAccumulator] = defaultdict(factory)
 
-    def __iter__(self) -> Iterator[Dict[str, Any]]:
+    def __iter__(self) -> Iterator[dict[str, Any]]:
         for _, values in sorted(self._indexed.items()):
             yield dict(values)
 
     def __iadd__(
-        self, values: Optional[Union[Mapping[str, Any], List[Any]]]
+        self, values: Optional[Union[Mapping[str, Any], list[Any]]]
     ) -> "_IndexedAccumulator":
         if not values:
             return self
@@ -344,9 +368,9 @@ class _DictReplace:
     __slots__ = ("_val",)
 
     def __init__(self) -> None:
-        self._val: Optional[Dict[Any, Any]] = None
+        self._val: Optional[dict[Any, Any]] = None
 
-    def __iter__(self) -> Iterator[Tuple[Any, Any]]:
+    def __iter__(self) -> Iterator[tuple[Any, Any]]:
         if self._val is not None:
             yield from self._val.items()
 

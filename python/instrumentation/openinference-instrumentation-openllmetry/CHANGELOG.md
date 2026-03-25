@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.4...python-openinference-instrumentation-openllmetry-v0.1.5) (2026-02-24)
+
+
+### Bug Fixes
+
+* **openllmetry:** migrate removed SpanAttributes to GenAI equivalents ([#2784](https://github.com/Arize-ai/openinference/issues/2784)) ([1047c9e](https://github.com/Arize-ai/openinference/commit/1047c9e3eda2cdd229b86315bab2ce1383a8c571))
+
 ## [0.1.4](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.3...python-openinference-instrumentation-openllmetry-v0.1.4) (2026-02-12)
 
 

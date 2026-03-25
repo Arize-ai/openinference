@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -113,16 +114,17 @@ class _InteractionAccumulator:
 
         if event_type == "interaction.start":
             # Initialize the Interaction object
+            created_at = event.interaction.created or datetime.now(timezone.utc)
             self._interaction = types.Interaction(
                 id=event.interaction.id,
                 status=event.interaction.status,
                 agent=None,
-                created=event.interaction.created,
+                created=created_at,
                 model=event.interaction.model,
                 outputs=[],
                 previous_interaction_id=None,
                 role=None,
-                updated=None,
+                updated=event.interaction.updated or created_at,
                 usage=None,
             )
 

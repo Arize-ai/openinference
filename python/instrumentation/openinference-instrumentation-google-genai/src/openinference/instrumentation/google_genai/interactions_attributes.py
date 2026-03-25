@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple
+from typing import Any, Iterable, Mapping
 
 from opentelemetry.util.types import AttributeValue
 
@@ -23,31 +23,22 @@ from openinference.instrumentation import (
     get_span_kind_attributes,
     safe_json_dumps,
 )
+from openinference.instrumentation.google_genai._utils import (
+    _stop_on_exception_for_dict,
+    _stop_on_exception_for_iter,
+)
 from openinference.semconv.trace import OpenInferenceLLMProviderValues
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _stop_on_exception(
-    wrapped: Callable[..., Any],
-) -> Callable[..., Any]:
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        try:
-            return wrapped(*args, **kwargs)
-        except Exception as e:
-            logger.warning(str(e))
-            return {}
-
-    return wrapper
-
-
-def get_output_messages(outputs: Any) -> List[Message]:
+def get_output_messages(outputs: Any) -> list[Message]:
     from google.genai._interactions import types
 
     messages = []
     tool_calls = []
-    contents: List[MessageContent] = []
+    contents: list[MessageContent] = []
     for output in outputs or []:
         if isinstance(output, types.TextContent):
             contents.append(TextMessageContent(type="text", text=output.text or ""))
@@ -69,13 +60,13 @@ def get_output_messages(outputs: Any) -> List[Message]:
     return messages
 
 
-def get_message_objects(inputs: Any) -> List[Message]:
-    messages: List[Message] = []
+def get_message_objects(inputs: Any) -> list[Message]:
+    messages: list[Message] = []
     if isinstance(inputs, str):
         # if the input is a simple string, treat it as a user message
         messages.append(Message(role="user", content=inputs))
     if isinstance(inputs, list):
-        contents: List[MessageContent] = []
+        contents: list[MessageContent] = []
         for message in inputs:
             if isinstance(message, dict):
                 if message.get("type") == "function_result":
@@ -105,7 +96,7 @@ def get_message_objects(inputs: Any) -> List[Message]:
     return messages
 
 
-def get_tools(request_params: Mapping[str, Any]) -> List[Tool]:
+def get_tools(request_params: Mapping[str, Any]) -> list[Tool]:
     tools = request_params.get("tools") or []
     return [Tool(json_schema=tool) for tool in tools]
 
@@ -130,7 +121,7 @@ def is_agent_call(request_parameters: Mapping[str, Any]) -> bool:
 
 def get_attributes_from_request_object(
     request_parameters: Mapping[str, Any],
-) -> Dict[str, AttributeValue]:
+) -> dict[str, AttributeValue]:
     if is_agent_call(request_parameters):
         return {
             **get_span_kind_attributes("agent"),
@@ -158,20 +149,20 @@ def get_attributes_from_request_object(
     }
 
 
-@_stop_on_exception
+@_stop_on_exception_for_iter
 def get_attributes_from_request(
     request_parameters: Mapping[str, Any],
-) -> Iterable[Tuple[str, AttributeValue]]:
+) -> Iterable[tuple[str, AttributeValue]]:
     attributes = get_attributes_from_request_object(request_parameters)
     for key, value in attributes.items():
         yield key, value
 
 
-@_stop_on_exception
+@_stop_on_exception_for_dict
 def get_attributes_from_response(
     request_parameters: Mapping[str, Any],
     response: Any,
-) -> Dict[str, AttributeValue]:
+) -> dict[str, AttributeValue]:
     if not response:
         return {}
 

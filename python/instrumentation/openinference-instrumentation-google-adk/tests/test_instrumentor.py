@@ -1,4 +1,5 @@
 # ruff: noqa: E501
+import base64
 from collections import defaultdict
 from secrets import token_hex
 from typing import Any, cast
@@ -15,11 +16,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 _VERSION = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -100,6 +97,7 @@ async def test_google_adk_instrumentor(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span0 = spans_by_name["call_llm"][0]
@@ -145,8 +143,8 @@ async def test_google_adk_instrumentor(
         == "get_weather"
     )
     assert call_llm_attributes0.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 106
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 112
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 107
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 113
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -157,9 +155,13 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 107
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -195,6 +197,7 @@ async def test_google_adk_instrumentor(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
     call_llm_span1 = spans_by_name["call_llm"][1]
@@ -249,7 +252,7 @@ async def test_google_adk_instrumentor(
         call_llm_attributes1.pop(
             "llm.output_messages.0.message.contents.0.message_content.text", None
         )
-        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit).\n"
+        == "OK. The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
     )
     assert (
         call_llm_attributes1.pop(
@@ -258,8 +261,8 @@ async def test_google_adk_instrumentor(
         == "text"
     )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 140
+    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 24
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 141
     assert call_llm_attributes1.pop("llm.token_count.total", None) == 165
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
@@ -271,17 +274,17 @@ async def test_google_adk_instrumentor(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 141
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 24
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_tool_call(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -362,8 +365,10 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
+    # call_llm[0]: first LLM call returns get_weather for New York only (with thoughts)
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
@@ -406,22 +411,10 @@ async def test_google_adk_instrumentor_multi_tool_call(
         )
         == "get_weather"
     )
-    assert (
-        call_llm_attributes0.pop(
-            "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments", None
-        )
-        == '{"city": "London"}'
-    )
-    assert (
-        call_llm_attributes0.pop(
-            "llm.output_messages.0.message.tool_calls.1.tool_call.function.name", None
-        )
-        == "get_weather"
-    )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 90
-    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 59
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 139
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 229
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 92
+    assert call_llm_attributes0.pop("llm.token_count.completion_details.reasoning", None) == 76
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 136
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 228
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -432,9 +425,14 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 136
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 16
+        assert call_llm_attributes0.pop("gen_ai.usage.experimental.reasoning_tokens", None) == 76
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     tool_span = spans_by_name["execute_tool get_weather"][0]
@@ -470,43 +468,10 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_attributes.pop("gen_ai.tool.description", None)
     tool_attributes.pop("gen_ai.tool.name", None)
     tool_attributes.pop("gen_ai.tool.type", None)
+    tool_attributes.pop("gen_ai.agent.version", None)
     assert not tool_attributes
 
-    tool_span1 = spans_by_name["execute_tool get_weather"][1]
-    assert tool_span1.status.is_ok
-    assert tool_span1.parent
-    assert tool_span1.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
-    tool_attributes1 = dict(tool_span1.attributes or {})
-    assert tool_attributes1.pop("user.id", None) == user_id
-    assert tool_attributes1.pop("session.id", None) == session_id
-    assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
-    assert tool_attributes1.pop("input.mime_type", None) == "application/json"
-    assert tool_attributes1.pop("input.value", None) == '{"city": "London"}'
-    assert tool_attributes1.pop("output.mime_type", None) == "application/json"
-    assert tool_attributes1.pop("output.value", None)
-    assert (
-        tool_attributes1.pop("tool.description", None)
-        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
-    )
-    assert tool_attributes1.pop("tool.name", None) == "get_weather"
-    assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
-    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
-    assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
-    assert (
-        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
-        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
-    # GenAI attributes set by google-adk library
-    tool_attributes1.pop("gen_ai.operation.name", None)
-    tool_attributes1.pop("gen_ai.system", None)
-    tool_attributes1.pop("gen_ai.tool.call.id", None)
-    tool_attributes1.pop("gen_ai.tool.description", None)
-    tool_attributes1.pop("gen_ai.tool.name", None)
-    tool_attributes1.pop("gen_ai.tool.type", None)
-    assert not tool_attributes1
-
+    # call_llm[1]: second LLM call returns get_weather for London only (no thoughts)
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
@@ -548,48 +513,29 @@ async def test_google_adk_instrumentor_multi_tool_call(
         == "get_weather"
     )
     assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.tool_calls.1.tool_call.function.arguments", None
-        )
-        == '{"city": "London"}'
-    )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.input_messages.2.message.tool_calls.1.tool_call.function.name", None
-        )
-        == "get_weather"
-    )
-    assert (
         call_llm_attributes1.pop("llm.input_messages.3.message.content", None)
         == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
     )
     assert call_llm_attributes1.pop("llm.input_messages.3.message.name", None) == "get_weather"
     assert call_llm_attributes1.pop("llm.input_messages.3.message.role", None) == "tool"
-    assert (
-        call_llm_attributes1.pop("llm.input_messages.4.message.content", None)
-        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
-    )
-    assert call_llm_attributes1.pop("llm.input_messages.4.message.name", None) == "get_weather"
-    assert call_llm_attributes1.pop("llm.input_messages.4.message.role", None) == "tool"
     assert call_llm_attributes1.pop("llm.invocation_parameters", None)
     assert call_llm_attributes1.pop("llm.model_name", None) == "gemini-2.5-flash"
-    assert (
-        call_llm_attributes1.pop(
-            "llm.output_messages.0.message.contents.0.message_content.text", None
-        )
-        == "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
-    )
-    assert (
-        call_llm_attributes1.pop(
-            "llm.output_messages.0.message.contents.0.message_content.type", None
-        )
-        == "text"
-    )
     assert call_llm_attributes1.pop("llm.output_messages.0.message.role", None) == "model"
-    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 80
-    assert call_llm_attributes1.pop("llm.token_count.completion_details.reasoning", None) == 37
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 251
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 331
+    assert (
+        call_llm_attributes1.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "London"}'
+    )
+    assert (
+        call_llm_attributes1.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert call_llm_attributes1.pop("llm.token_count.completion", None) == 15
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 194
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 209
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
     assert call_llm_attributes1.pop("gcp.vertex.agent.event_id", None)
@@ -600,17 +546,156 @@ async def test_google_adk_instrumentor_multi_tool_call(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 194
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 15
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
+    tool_span1 = spans_by_name["execute_tool get_weather"][1]
+    assert tool_span1.status.is_ok
+    assert tool_span1.parent
+    assert tool_span1.parent is call_llm_span1.get_span_context()  # type: ignore[no-untyped-call]
+    tool_attributes1 = dict(tool_span1.attributes or {})
+    assert tool_attributes1.pop("user.id", None) == user_id
+    assert tool_attributes1.pop("session.id", None) == session_id
+    assert tool_attributes1.pop("openinference.span.kind", None) == "TOOL"
+    assert tool_attributes1.pop("input.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("input.value", None) == '{"city": "London"}'
+    assert tool_attributes1.pop("output.mime_type", None) == "application/json"
+    assert tool_attributes1.pop("output.value", None)
+    assert (
+        tool_attributes1.pop("tool.description", None)
+        == "Retrieves the current weather report for a specified city.\n\nArgs:\n    city (str): The name of the city for which to retrieve the weather report.\n\nReturns:\n    dict: status and result or error msg."
+    )
+    assert tool_attributes1.pop("tool.name", None) == "get_weather"
+    assert tool_attributes1.pop("tool.parameters", None) == '{"city": "London"}'
+    assert tool_attributes1.pop("gcp.vertex.agent.event_id", None)
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_request", None) == "{}"
+    assert tool_attributes1.pop("gcp.vertex.agent.llm_response", None) == "{}"
+    assert tool_attributes1.pop("gcp.vertex.agent.tool_call_args", None) == '{"city": "London"}'
+    assert (
+        tool_attributes1.pop("gcp.vertex.agent.tool_response", None)
+        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    # GenAI attributes set by google-adk library
+    tool_attributes1.pop("gen_ai.operation.name", None)
+    tool_attributes1.pop("gen_ai.system", None)
+    tool_attributes1.pop("gen_ai.tool.call.id", None)
+    tool_attributes1.pop("gen_ai.tool.description", None)
+    tool_attributes1.pop("gen_ai.tool.name", None)
+    tool_attributes1.pop("gen_ai.tool.type", None)
+    tool_attributes1.pop("gen_ai.agent.version", None)
+    assert not tool_attributes1
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+    # call_llm[2]: final LLM call returns text response
+    call_llm_span2 = spans_by_name["call_llm"][2]
+    assert call_llm_span2.status.is_ok
+    assert call_llm_span2.parent
+    assert call_llm_span2.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    call_llm_attributes2 = dict(call_llm_span2.attributes or {})
+    assert call_llm_attributes2.pop("user.id", None) == user_id
+    assert call_llm_attributes2.pop("session.id", None) == session_id
+    assert call_llm_attributes2.pop("openinference.span.kind", None) == "LLM"
+    assert call_llm_attributes2.pop("output.mime_type", None) == "application/json"
+    assert call_llm_attributes2.pop("output.value", None)
+    assert call_llm_attributes2.pop("input.mime_type", None) == "application/json"
+    assert call_llm_attributes2.pop("input.value", None)
+    assert call_llm_attributes2.pop("llm.input_messages.0.message.content", None)
+    assert call_llm_attributes2.pop("llm.input_messages.0.message.role", None) == "system"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.1.message.contents.0.message_content.text", None
+        )
+        == "What is the weather in New York and London?"
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.1.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.1.message.role", None) == "user"
+    assert call_llm_attributes2.pop("llm.input_messages.2.message.role", None) == "model"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "New York"}'
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.2.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert (
+        call_llm_attributes2.pop("llm.input_messages.3.message.content", None)
+        == '{"status": "success", "report": "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.3.message.name", None) == "get_weather"
+    assert call_llm_attributes2.pop("llm.input_messages.3.message.role", None) == "tool"
+    assert call_llm_attributes2.pop("llm.input_messages.4.message.role", None) == "model"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.4.message.tool_calls.0.tool_call.function.arguments", None
+        )
+        == '{"city": "London"}'
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.input_messages.4.message.tool_calls.0.tool_call.function.name", None
+        )
+        == "get_weather"
+    )
+    assert (
+        call_llm_attributes2.pop("llm.input_messages.5.message.content", None)
+        == '{"status": "success", "report": "The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."}'
+    )
+    assert call_llm_attributes2.pop("llm.input_messages.5.message.name", None) == "get_weather"
+    assert call_llm_attributes2.pop("llm.input_messages.5.message.role", None) == "tool"
+    assert call_llm_attributes2.pop("llm.invocation_parameters", None)
+    assert call_llm_attributes2.pop("llm.model_name", None) == "gemini-2.5-flash"
+    assert (
+        call_llm_attributes2.pop(
+            "llm.output_messages.0.message.contents.0.message_content.text", None
+        )
+        == "The weather in New York is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit). The weather in London is sunny with a temperature of 25 degrees Celsius (77 degrees Fahrenheit)."
+    )
+    assert (
+        call_llm_attributes2.pop(
+            "llm.output_messages.0.message.contents.0.message_content.type", None
+        )
+        == "text"
+    )
+    assert call_llm_attributes2.pop("llm.output_messages.0.message.role", None) == "model"
+    assert call_llm_attributes2.pop("llm.token_count.completion", None) == 43
+    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 250
+    assert call_llm_attributes2.pop("llm.token_count.total", None) == 293
+    assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
+    assert call_llm_attributes2.pop("llm.provider", None) == "google"
+    assert call_llm_attributes2.pop("gcp.vertex.agent.event_id", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.invocation_id", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_request", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.llm_response", None)
+    assert call_llm_attributes2.pop("gcp.vertex.agent.session_id", None)
+    assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.5-flash"
+    assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
+    if _VERSION >= (1, 5, 0):
+        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 250
+        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 43
+    call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes2.pop("gen_ai.agent.name", None)
+    call_llm_attributes2.pop("gen_ai.conversation.id", None)
+    call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
+    assert not call_llm_attributes2
+
+
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_multi_agent(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -723,6 +808,7 @@ async def test_google_adk_instrumentor_multi_agent(
     root_agent_run_attributes.pop("gen_ai.agent.name", None)
     root_agent_run_attributes.pop("gen_ai.conversation.id", None)
     root_agent_run_attributes.pop("gen_ai.operation.name", None)
+    root_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not root_agent_run_attributes
 
     # 3. call_llm (root agent - transfer_to_agent)
@@ -768,9 +854,9 @@ async def test_google_adk_instrumentor_multi_agent(
         )
         == "transfer_to_agent"
     )
-    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 20
-    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 273
-    assert call_llm_attributes0.pop("llm.token_count.total", None) == 293
+    assert call_llm_attributes0.pop("llm.token_count.completion", None) == 11
+    assert call_llm_attributes0.pop("llm.token_count.prompt", None) == 323
+    assert call_llm_attributes0.pop("llm.token_count.total", None) == 334
     assert call_llm_attributes0.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes0.pop("llm.provider", None) == "google"
     assert call_llm_attributes0.pop("gcp.vertex.agent.event_id", None)
@@ -781,9 +867,13 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes0.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes0.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes0.pop("gen_ai.usage.input_tokens", None) == 323
+        assert call_llm_attributes0.pop("gen_ai.usage.output_tokens", None) == 11
     call_llm_attributes0.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes0.pop("gen_ai.agent.name", None)
+    call_llm_attributes0.pop("gen_ai.conversation.id", None)
+    call_llm_attributes0.pop("gen_ai.operation.name", None)
+    call_llm_attributes0.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes0
 
     # 4. execute_tool transfer_to_agent
@@ -840,6 +930,7 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_attributes.pop("gen_ai.agent.name", None)
     weather_agent_run_attributes.pop("gen_ai.conversation.id", None)
     weather_agent_run_attributes.pop("gen_ai.operation.name", None)
+    weather_agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not weather_agent_run_attributes
 
     # 6. call_llm (weather agent - get_weather)
@@ -936,8 +1027,8 @@ async def test_google_adk_instrumentor_multi_agent(
         == "get_weather"
     )
     assert call_llm_attributes1.pop("llm.token_count.completion", None) == 6
-    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 451
-    assert call_llm_attributes1.pop("llm.token_count.total", None) == 457
+    assert call_llm_attributes1.pop("llm.token_count.prompt", None) == 453
+    assert call_llm_attributes1.pop("llm.token_count.total", None) == 459
     assert call_llm_attributes1.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes1.pop("llm.provider", None) == "google"
@@ -949,9 +1040,13 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes1.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes1.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes1.pop("gen_ai.usage.input_tokens", None) == 453
+        assert call_llm_attributes1.pop("gen_ai.usage.output_tokens", None) == 6
     call_llm_attributes1.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes1.pop("gen_ai.agent.name", None)
+    call_llm_attributes1.pop("gen_ai.conversation.id", None)
+    call_llm_attributes1.pop("gen_ai.operation.name", None)
+    call_llm_attributes1.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes1
 
     # 7. execute_tool get_weather
@@ -1106,8 +1201,8 @@ async def test_google_adk_instrumentor_multi_agent(
     )
     assert call_llm_attributes2.pop("llm.output_messages.0.message.role", None) == "model"
     assert call_llm_attributes2.pop("llm.token_count.completion", None) == 25
-    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 485
-    assert call_llm_attributes2.pop("llm.token_count.total", None) == 510
+    assert call_llm_attributes2.pop("llm.token_count.prompt", None) == 487
+    assert call_llm_attributes2.pop("llm.token_count.total", None) == 512
     assert call_llm_attributes2.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.tools.1.tool.json_schema", None)
     assert call_llm_attributes2.pop("llm.provider", None) == "google"
@@ -1119,17 +1214,17 @@ async def test_google_adk_instrumentor_multi_agent(
     assert call_llm_attributes2.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes2.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes2.pop("gen_ai.usage.input_tokens", None) == 487
+        assert call_llm_attributes2.pop("gen_ai.usage.output_tokens", None) == 25
     call_llm_attributes2.pop("gen_ai.response.finish_reasons", None)
+    call_llm_attributes2.pop("gen_ai.agent.name", None)
+    call_llm_attributes2.pop("gen_ai.conversation.id", None)
+    call_llm_attributes2.pop("gen_ai.operation.name", None)
+    call_llm_attributes2.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes2
 
 
-@pytest.mark.vcr(
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-    decode_compressed_response=True,
-)
+@pytest.mark.vcr
 async def test_google_adk_instrumentor_image_artifacts(
     instrument: Any,
     in_memory_span_exporter: InMemorySpanExporter,
@@ -1141,7 +1236,9 @@ async def test_google_adk_instrumentor_image_artifacts(
             tool_context:
             file_path: Remote location of file.
         """
-        image_bytes = b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
+        image_bytes = base64.b64decode(
+            b"iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII="
+        )
         image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
         filename = "sample.png"
         await tool_context.save_artifact(filename=filename, artifact=image_part)
@@ -1212,6 +1309,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_attributes.pop("gen_ai.agent.name", None)
     agent_run_attributes.pop("gen_ai.conversation.id", None)
     agent_run_attributes.pop("gen_ai.operation.name", None)
+    agent_run_attributes.pop("gen_ai.agent.version", None)
     assert not agent_run_attributes
 
     call_llm_span = spans_by_name["call_llm"][-1]
@@ -1300,18 +1398,30 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("llm.invocation_parameters", None)
     assert call_llm_attributes.pop("llm.model_name", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("llm.output_messages.0.message.role", None) == "model"
-    assert str(
-        call_llm_attributes.pop("llm.output_messages.0.message.contents.0.message_content.text", "")
-    ).startswith("The image shows a serene, monochrome landscape")
+    assert call_llm_attributes.pop(
+        "llm.output_messages.0.message.contents.0.message_content.text", None
+    ) == (
+        "\nThe image is a simple, blurred cross shape. Two squares are white, and the other two are a light gray. "
+        "The blurring makes the edges soft and indistinct.\n\n"
+        "Here's a poem inspired by it:\n\n"
+        "A muted cross, a gentle sign,\n"
+        "Where light and shadow intertwine.\n"
+        "Two squares of white, a pristine gleam,\n"
+        "Two shades of gray, a fading dream.\n\n"
+        "No sharp divide, no stark contrast,\n"
+        "But soft transitions, fading fast.\n"
+        "A quiet symbol, undefined,\n"
+        "A peaceful solace for the mind.\n"
+    )
     assert (
         call_llm_attributes.pop(
             "llm.output_messages.0.message.contents.0.message_content.type", None
         )
         == "text"
     )
-    assert call_llm_attributes.pop("llm.token_count.completion", None) == 211
-    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 611
-    assert call_llm_attributes.pop("llm.token_count.total", None) == 822
+    assert call_llm_attributes.pop("llm.token_count.completion", None) == 115
+    assert call_llm_attributes.pop("llm.token_count.prompt", None) == 608
+    assert call_llm_attributes.pop("llm.token_count.total", None) == 723
     assert call_llm_attributes.pop("llm.tools.0.tool.json_schema", None)
     assert call_llm_attributes.pop("llm.provider", None) == "google"
     assert call_llm_attributes.pop("gcp.vertex.agent.event_id", None)
@@ -1322,10 +1432,14 @@ async def test_google_adk_instrumentor_image_artifacts(
     assert call_llm_attributes.pop("gen_ai.request.model", None) == "gemini-2.0-flash"
     assert call_llm_attributes.pop("gen_ai.system", None) == "gcp.vertex.agent"
     if _VERSION >= (1, 5, 0):
-        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) is not None
-        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) is not None
+        assert call_llm_attributes.pop("gen_ai.usage.input_tokens", None) == 608
+        assert call_llm_attributes.pop("gen_ai.usage.output_tokens", None) == 115
     call_llm_attributes.pop("gen_ai.response.finish_reasons", None)
     call_llm_attributes.pop("llm.tools.1.tool.json_schema", None)
+    call_llm_attributes.pop("gen_ai.agent.name", None)
+    call_llm_attributes.pop("gen_ai.conversation.id", None)
+    call_llm_attributes.pop("gen_ai.operation.name", None)
+    call_llm_attributes.pop("gen_ai.agent.version", None)
     assert not call_llm_attributes
 
     tool_span = spans_by_name["execute_tool load_remote_image"][0]

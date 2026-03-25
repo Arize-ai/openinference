@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 instruments = [
-  "mistralai >= 1.0.2",
+  "mistralai >= 2.0.0",
 ]
 test = [
 ]
@@ -83,6 +83,12 @@ ignore_missing_imports = true
 module = [
   "wrapt",
 ]
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+]
+disable_error_code = ["arg-type"]
 
 [tool.ruff]
 line-length = 100

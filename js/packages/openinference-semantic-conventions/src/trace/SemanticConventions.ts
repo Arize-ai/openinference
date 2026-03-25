@@ -71,6 +71,7 @@ export const ToolAttributePostfixes = {
   description: "description",
   parameters: "parameters",
   json_schema: "json_schema",
+  id: "id",
 } as const;
 
 export const MessageAttributePostfixes = {
@@ -502,6 +503,11 @@ export const TOOL_JSON_SCHEMA =
   `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.json_schema}` as const;
 
 /**
+ * The identifier for the result of the tool call (corresponding to tool_call.id).
+ */
+export const TOOL_ID = `${SemanticAttributePrefixes.tool}.${ToolAttributePostfixes.id}` as const;
+
+/**
  * The session id of a trace. Used to correlate spans in a single session.
  */
 export const SESSION_ID =
@@ -679,6 +685,7 @@ export const SemanticConventions = {
   TOOL_NAME,
   TOOL_PARAMETERS,
   TOOL_JSON_SCHEMA,
+  TOOL_ID,
   PROMPT_TEMPLATE_VARIABLES,
   PROMPT_TEMPLATE_TEMPLATE,
   PROMPT_TEMPLATE_VERSION,
@@ -746,4 +753,10 @@ export enum LLMProvider {
   AZURE = "azure",
   XAI = "xai",
   DEEPSEEK = "deepseek",
+  GROQ = "groq",
+  FIREWORKS = "fireworks",
+  MOONSHOT = "moonshot",
+  CEREBRAS = "cerebras",
+  PERPLEXITY = "perplexity",
+  TOGETHER = "together",
 }

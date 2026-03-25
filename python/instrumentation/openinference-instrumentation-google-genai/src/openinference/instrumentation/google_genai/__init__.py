@@ -19,12 +19,20 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
     """
 
     __slots__ = (
+        "_original_embed_content",
+        "_original_async_embed_content",
         "_original_generate_content",
         "_original_async_generate_content",
         "_original_generate_content_stream",
         "_original_async_generate_content_stream",
         "_original_create_interactions_resource",
         "_original_async_create_interactions_resource",
+        "_original_create_caches",
+        "_original_async_create_caches",
+        "_original_api_request",
+        "_original_api_request_streamed",
+        "_original_api_async_request",
+        "_original_api_async_request_streamed",
         "_tracer",
     )
 
@@ -48,16 +56,21 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
                 AsyncInteractionsResource,
                 InteractionsResource,
             )
+            from google.genai.caches import AsyncCaches, Caches
             from google.genai.models import AsyncModels, Models
         except ImportError as err:
             raise Exception(
                 "Could not import google-genai. Please install with `pip install google-genai`."
             ) from err
         from openinference.instrumentation.google_genai._wrappers import (
+            _AsyncCreateCachesWrapper,
             _AsyncCreateInteractionWrapper,
+            _AsyncEmbedContentWrapper,
             _AsyncGenerateContentStream,
             _AsyncGenerateContentWrapper,
+            _SyncCreateCachesWrapper,
             _SyncCreateInteractionWrapper,
+            _SyncEmbedContentWrapper,
             _SyncGenerateContent,
             _SyncGenerateContentStream,
         )
@@ -67,6 +80,34 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             module="google.genai._interactions.resources",
             name="InteractionsResource.create",
             wrapper=_SyncCreateInteractionWrapper(tracer=self._tracer),
+        )
+
+        self._original_create_caches = Caches.create
+        wrap_function_wrapper(
+            module="google.genai.caches",
+            name="Caches.create",
+            wrapper=_SyncCreateCachesWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_create_caches = AsyncCaches.create
+        wrap_function_wrapper(
+            module="google.genai.caches",
+            name="AsyncCaches.create",
+            wrapper=_AsyncCreateCachesWrapper(tracer=self._tracer),
+        )
+
+        self._original_embed_content = Models.embed_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="Models.embed_content",
+            wrapper=_SyncEmbedContentWrapper(tracer=self._tracer),
+        )
+
+        self._original_async_embed_content = AsyncModels.embed_content
+        wrap_function_wrapper(
+            module="google.genai.models",
+            name="AsyncModels.embed_content",
+            wrapper=_AsyncEmbedContentWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content
@@ -103,12 +144,53 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrapper=_AsyncCreateInteractionWrapper(tracer=self._tracer),
         )
 
+        from google.genai._api_client import BaseApiClient
+
+        from openinference.instrumentation.google_genai._context import (
+            _CapturedRequestWrapper,
+        )
+
+        self._original_api_request = BaseApiClient.request
+        wrap_function_wrapper(
+            module="google.genai._api_client",
+            name="BaseApiClient.request",
+            wrapper=_CapturedRequestWrapper(),
+        )
+
+        self._original_api_request_streamed = BaseApiClient.request_streamed
+        wrap_function_wrapper(
+            module="google.genai._api_client",
+            name="BaseApiClient.request_streamed",
+            wrapper=_CapturedRequestWrapper(),
+        )
+
+        self._original_api_async_request = BaseApiClient.async_request
+        wrap_function_wrapper(
+            module="google.genai._api_client",
+            name="BaseApiClient.async_request",
+            wrapper=_CapturedRequestWrapper(),
+        )
+
+        self._original_api_async_request_streamed = BaseApiClient.async_request_streamed
+        wrap_function_wrapper(
+            module="google.genai._api_client",
+            name="BaseApiClient.async_request_streamed",
+            wrapper=_CapturedRequestWrapper(),
+        )
+
     def _uninstrument(self, **kwargs: Any) -> None:
         from google.genai._interactions.resources import (
             AsyncInteractionsResource,
             InteractionsResource,
         )
+        from google.genai.caches import AsyncCaches, Caches
         from google.genai.models import AsyncModels, Models
+
+        if self._original_embed_content is not None:
+            setattr(Models, "embed_content", self._original_embed_content)
+
+        if self._original_async_embed_content is not None:
+            setattr(AsyncModels, "embed_content", self._original_async_embed_content)
 
         if self._original_generate_content is not None:
             setattr(Models, "generate_content", self._original_generate_content)
@@ -118,6 +200,12 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_generate_content_stream is not None:
             setattr(Models, "generate_content_stream", self._original_generate_content_stream)
+
+        if self._original_create_caches is not None:
+            setattr(Caches, "create", self._original_create_caches)
+
+        if self._original_async_create_caches is not None:
+            setattr(AsyncCaches, "create", self._original_async_create_caches)
 
         if self._original_async_generate_content_stream is not None:
             setattr(
@@ -133,3 +221,19 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         if self._original_create_interactions_resource is not None:
             setattr(InteractionsResource, "create", self._original_create_interactions_resource)
+
+        from google.genai._api_client import BaseApiClient
+
+        if self._original_api_request is not None:
+            setattr(BaseApiClient, "request", self._original_api_request)
+
+        if self._original_api_request_streamed is not None:
+            setattr(BaseApiClient, "request_streamed", self._original_api_request_streamed)
+
+        if self._original_api_async_request is not None:
+            setattr(BaseApiClient, "async_request", self._original_api_async_request)
+
+        if self._original_api_async_request_streamed is not None:
+            setattr(
+                BaseApiClient, "async_request_streamed", self._original_api_async_request_streamed
+            )

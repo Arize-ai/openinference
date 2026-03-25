@@ -1,0 +1,24 @@
+interactions:
+- request:
+    body: '{"input":[{"type":"text","text":"Describe the image."},{"type":"image","uri":"https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U","mime_type":"image/jpg"}],"model":"gemini-2.5-flash","generation_config":{"temperature":0.7,"max_output_tokens":500,"thinking_level":"low"},"stream":false}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/interactions
+  response:
+    body:
+      string: '{"created":"2026-02-26T00:58:16Z","id":"v1_ChdvNXFmYWNLbU92N296N0lQMzZhaC1RcxIXbzVxZmFjS21PdjdvejdJUDM2YWgtUXM","model":"gemini-2.5-flash","object":"interaction","outputs":[{"signature":"CvcFAb4+9vujF+GGup3ef5e2cwwW0TvC8UrwL4ORKYdUIt9rqMOlgajbHmSaUThfUmUpJ3lE4dxmgRiReaeA6ZZ4aztC/doJ//4gIQel/lWOgac+lM9TZwvDBGXu7lljcDJqaUXb16JHIVs9xcJT0L+1YIYD1OPsjgHiohlxac36xPJHL0Cv+Znj5v0Ju/jEHRbzex7vjdTlRvW4j3H3YMDYq8zYvxOEcax1QlXQWEnwmT7nlBxmng8hgC/VvoBejT+xi4ODQGatzDkKeP67Z58ZY1I+QQcNG1zvFs6/3/Snt/jeTsrU5ZiLBUUNoEDjyLlRvXSYdbBhZgaNmJ3O/1IpV4PLcaaz6MxSsgIqNt6HpDzaAj+ADbKzT/MzexwtukW6OV699SrdO56CfXVid79xZtCpwGWaZa14eSiN0ch1gG2DV+z2COg5nY1BylvVYaUvhGz6qkho3ci9le0q/9xFnXXpoUfSHPAKlUvpGG/h8OAda4oc9lb8OXCdPn/7XKyoBPEryy4TnRCLBkR/w/o13dgqFBuXLKNQX1vXQqY+3XDj7j6k6FhvfCNA+awAg5QuqcFQoCoW6jxioeTympsEdxRBVfEzjZ0Him0e5ORsvPOPndx6HC8lJvVJMtk2VxoPv4btm+0WBFGSFW1mLFvC5HxWh5St2O7WyvsuBkofsVHFOL9dcbxZLhF9zAbSL7QSWJCr8qaRdn3u2+oAp+xj/XoQgBpIRkHpJhKoCF63RKZnv20DA3PEoChhIJeLKtR53fFJ81D5z3GhgxBjk8VTo0w77Y14oGv/3MgimoA+rmBjTGKq72PjtNCW/4wmmSTDsdlbR2qEIPFPfiY62IVtUVQB5V9TNpfnozbzyYIVqz1sNMkp/pCHM9rY2TRcpry/ff2SIxSeDEkIVTtDhuQPCoGE1jrBtskZsnUhb0dBlvuHxej8v3V4kAzIWVY4xOIooZMxZ/CcG3cAVRkynQm3H7Um5Qm1efla5i6sl1hFtxmR7F8UUezH","type":"thought"},{"text":"This
+        is a close-up, high-angle shot of an adorable black Labrador Retriever puppy
+        looking directly up at the viewer.\n\nThe puppy has incredibly dark, almost
+        velvety black fur, and its large, expressive brown eyes are the focal point,
+        reflecting a hint of light. Its ears are floppy and set low, characteristic
+        of a Labrador. The puppy''s nose is a shiny black, and its mouth is closed.\n\nIt
+        appears to be sitting or lying down on a surface made of light brown or greyish
+        weathered wooden planks, which provides a rustic, textured contrast to the
+        puppy''s smooth, dark coat. The lighting seems soft, highlighting the puppy''s
+        features and giving its fur a subtle sheen. The overall impression is one
+        of innocence and cuteness.","type":"text"}],"role":"model","status":"completed","updated":"2026-02-26T00:58:16Z","usage":{"input_tokens_by_modality":[{"modality":"text","tokens":5},{"modality":"image","tokens":258}],"total_cached_tokens":0,"total_input_tokens":263,"total_output_tokens":154,"total_thought_tokens":200,"total_tokens":617,"total_tool_use_tokens":0}}'
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

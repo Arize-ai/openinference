@@ -16,7 +16,8 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types";
 import type { Tracer } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import express from "express";
 import { z } from "zod/v3";
 
@@ -30,12 +31,11 @@ function newMcpServer(tracer: Tracer) {
 
   server.tool("hello", () => {
     return tracer.startActiveSpan("hello", async (span) => {
-      const result = await server.server.request(
-        {
-          method: "whoami",
-        },
-        z.object({ name: z.string() }),
-      );
+      const whoamiResult = z.object({ name: z.string() });
+      // @ts-expect-error TS2589/TS2345: MCP SDK's deeply nested Zod generics
+      const result = (await server.server.request({ method: "whoami" }, whoamiResult)) as {
+        name: string;
+      };
       try {
         return {
           content: [
@@ -62,7 +62,7 @@ async function main() {
     url: `${otlpEndpoint}/v1/traces`,
   });
   const tracerProvider = new NodeTracerProvider({
-    spanProcessors: [new BatchSpanProcessor(exporter)],
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
   tracerProvider.register();
   const tracer = tracerProvider.getTracer("mcp-test-server");

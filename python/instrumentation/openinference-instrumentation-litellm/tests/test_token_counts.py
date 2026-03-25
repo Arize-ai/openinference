@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Generator, Iterator
 from unittest.mock import MagicMock, patch
 
@@ -32,11 +33,7 @@ def patch_tiktoken_encoding() -> Generator[None, None, None]:
 
 @pytest.mark.usefixtures("patch_tiktoken_encoding")
 class TestTokenCounts:
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_openai(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -45,7 +42,7 @@ class TestTokenCounts:
         resp = litellm.completion(
             model="openai/gpt-4o-mini",
             messages=messages,
-            api_key="sk-",
+            api_key=os.getenv("OPENAI_API_KEY", "sk-"),
             temperature=0.7,
         )
         usage = resp.usage
@@ -84,11 +81,7 @@ class TestTokenCounts:
                 == usage.completion_tokens_details.reasoning_tokens
             )
 
-    @pytest.mark.vcr(
-        decode_compressed_response=True,
-        before_record_request=lambda _: _.headers.clear() or _,
-        before_record_response=lambda _: {**_, "headers": {}},
-    )
+    @pytest.mark.vcr
     def test_anthropic(
         self,
         in_memory_span_exporter: InMemorySpanExporter,
@@ -97,7 +90,7 @@ class TestTokenCounts:
         resp = litellm.completion(
             model="anthropic/claude-3-5-haiku-20241022",
             messages=messages,
-            api_key="sk-",
+            api_key=os.getenv("ANTHROPIC_API_KEY", "sk-"),
         )
         span = in_memory_span_exporter.get_finished_spans()[0]
         attr = dict(span.attributes or {})

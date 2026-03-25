@@ -34,7 +34,10 @@ class TestGetTokenCountAttributesFromUsageMetadata:
                 types.GenerateContentResponseUsageMetadata(prompt_token_count=50)
             )
         )
-        assert result == {SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 50}
+        assert result == {
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 50,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 50,
+        }
 
     def test_prompt_token_count_with_tool_use(self) -> None:
         """Should sum prompt_token_count and tool_use_prompt_token_count."""
@@ -54,7 +57,10 @@ class TestGetTokenCountAttributesFromUsageMetadata:
                 types.GenerateContentResponseUsageMetadata(tool_use_prompt_token_count=30)
             )
         )
-        assert result == {SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 30}
+        assert result == {
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 30,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 30,
+        }
 
     def test_candidates_token_count(self) -> None:
         """Should extract candidates token count as completion."""
@@ -63,7 +69,10 @@ class TestGetTokenCountAttributesFromUsageMetadata:
                 types.GenerateContentResponseUsageMetadata(candidates_token_count=100)
             )
         )
-        assert result == {SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 100}
+        assert result == {
+            SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 100,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 100,
+        }
 
     def test_thoughts_token_count(self) -> None:
         """Should extract thoughts token count and add to completion."""
@@ -75,6 +84,7 @@ class TestGetTokenCountAttributesFromUsageMetadata:
         assert result == {
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING: 50,
             SpanAttributes.LLM_TOKEN_COUNT_COMPLETION: 50,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 50,
         }
 
     def test_completion_with_thoughts(self) -> None:

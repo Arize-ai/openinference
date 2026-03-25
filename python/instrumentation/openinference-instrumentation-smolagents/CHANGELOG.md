@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.24...python-openinference-instrumentation-smolagents-v0.1.25) (2026-03-24)
+
+
+### Bug Fixes
+
+* exclude compromised litellm 1.82.7 ([#2915](https://github.com/Arize-ai/openinference/issues/2915)) ([a68bf8e](https://github.com/Arize-ai/openinference/commit/a68bf8ef582d5e8707cd06ea8bb7b1dcd75c0264))
+* Pin litellm&lt;=1.82.7 due to supply chain compromise ([#2914](https://github.com/Arize-ai/openinference/issues/2914)) ([559fb03](https://github.com/Arize-ai/openinference/commit/559fb0314b34c29624d3585bd7dba47f782dcd48))
+
+## [0.1.24](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.23...python-openinference-instrumentation-smolagents-v0.1.24) (2026-03-11)
+
+
+### Bug Fixes
+
+* smolagents threadpool wrapping ([#2814](https://github.com/Arize-ai/openinference/issues/2814)) ([4ccb779](https://github.com/Arize-ai/openinference/commit/4ccb779435eeeae04ba230b1fe7689353429e73a))
+
 ## [0.1.23](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.22...python-openinference-instrumentation-smolagents-v0.1.23) (2026-02-24)
 
 

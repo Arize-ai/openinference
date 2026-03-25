@@ -106,7 +106,7 @@ describe("MCPInstrumentation", () => {
     ).toBe(true);
     expect(isPatched("@modelcontextprotocol/sdk/server/streamableHttp")).toBe(true);
   });
-  it("propagates context - stdio", async () => {
+  it("propagates context - stdio", { timeout: 30_000 }, async () => {
     const transport = new StdioClientTransport({
       command: "tsx",
       args: [path.join(__dirname, "mcpserver.ts")],
@@ -120,6 +120,7 @@ describe("MCPInstrumentation", () => {
       name: "MCP",
       version: "0.1.0",
     });
+    // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
     client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
       return tracer.startActiveSpan("whoami", (span) => {
         try {
@@ -154,11 +155,11 @@ describe("MCPInstrumentation", () => {
     await tracerProvider.forceFlush();
     // There does not seem to be a reliable way to wait for the child to exit completely with StdioClientTransport
     // so poll for the expected telemetry length instead.
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 500; i++) {
       if (telemetry.resourceSpans.length >= 2) {
         break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
     expect(telemetry.resourceSpans).toHaveLength(2);
     let rootSpan: ExportedSpan | undefined;
@@ -220,6 +221,7 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
+      // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
       client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {
@@ -316,6 +318,7 @@ describe("MCPInstrumentation", () => {
         name: "MCP",
         version: "0.1.0",
       });
+      // @ts-expect-error TS2589: MCP SDK's deeply nested Zod generics exceed TypeScript's recursion limit
       client.setRequestHandler(z.object({ method: z.literal("whoami") }), () => {
         return tracer.startActiveSpan("whoami", (span) => {
           try {

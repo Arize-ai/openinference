@@ -17,5 +17,7 @@
     "pnpm-lock.yaml",
     ".next/**",
     ".mastra/**",
+    "**/CHANGELOG.md",
+    "**/AGENTS.md",
   ],
 }

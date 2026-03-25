@@ -1,0 +1,33 @@
+interactions:
+- request:
+    body: '{"contents": [{"parts": [{"text": "Tell me a short story about a cat within
+      20 words."}], "role": "user"}]}'
+    headers: {}
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse
+  response:
+    body:
+      string: "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Wh\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"qJqfadHNMtrB7PIP59zW6Aw\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"iskers tw\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"qJqfadHNMtrB7PIP59zW6Aw\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"itched, emerald
+        eyes gleamed. Midnight crept, a shadow among shadows, chasing moon\"}],\"role\":
+        \"model\"}}],\"usageMetadata\": {\"promptTokenCount\": 15,\"totalTokenCount\":
+        15,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 15}]},\"modelVersion\":
+        \"gemini-2.0-flash\",\"responseId\": \"qJqfadHNMtrB7PIP59zW6Aw\"}\r\n\r\ndata:
+        {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"beams, forever a
+        silent hunter.\\n\"}],\"role\": \"model\"},\"finishReason\": \"STOP\"}],\"usageMetadata\":
+        {\"promptTokenCount\": 14,\"candidatesTokenCount\": 29,\"totalTokenCount\":
+        43,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 14}],\"candidatesTokensDetails\":
+        [{\"modality\": \"TEXT\",\"tokenCount\": 29}]},\"modelVersion\": \"gemini-2.0-flash\",\"responseId\":
+        \"qJqfadHNMtrB7PIP59zW6Aw\"}\r\n\r\n"
+    headers: {}
+    status:
+      code: 200
+      message: OK
+version: 1

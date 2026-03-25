@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any, Dict, Generator, List, Mapping, Optional, Union, cast
 from unittest.mock import patch
 
@@ -53,7 +54,7 @@ def setup_litellm_instrumentation(
 
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
-        (instrumentor_entrypoint,) = entry_points(  # type: ignore[no-untyped-call]
+        (instrumentor_entrypoint,) = entry_points(
             group="opentelemetry_instrumentor", name="litellm"
         )
         instrumentor = instrumentor_entrypoint.load()()
@@ -486,7 +487,7 @@ def test_completion_with_multiple_messages(
         model="gpt-3.5-turbo",
         messages=input_messages,
         mock_response="Got it! What kind of pie would you like to make?",
-        api_key="sk-",
+        api_key=os.getenv("OPENAI_API_KEY", "sk-"),
     )
     spans = in_memory_span_exporter.get_finished_spans()
     assert len(spans) == 1

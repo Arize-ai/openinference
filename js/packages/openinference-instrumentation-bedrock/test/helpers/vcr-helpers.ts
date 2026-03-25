@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import nock from "nock";
 
 import {
@@ -75,6 +76,13 @@ export const getRecordingPath = (testName: string, testDir: string) => {
 
 // Helper function to create test client with consistent configuration
 export const createTestClient = (isRecordingMode: boolean) => {
+  // Use NodeHttpHandler explicitly to ensure nock can intercept requests
+  // AWS SDK v3.x defaults to fetch-based handler which nock cannot intercept
+  const requestHandler = new NodeHttpHandler({
+    connectionTimeout: 5000,
+    requestTimeout: 10000,
+  });
+
   return new BedrockRuntimeClient({
     region: "us-east-1",
     credentials: isRecordingMode
@@ -86,11 +94,7 @@ export const createTestClient = (isRecordingMode: boolean) => {
           // Replay mode: use mock credentials that match sanitized recordings
           ...MOCK_AWS_CREDENTIALS,
         },
-    // Disable connection reuse to ensure nock can intercept properly
-    requestHandler: {
-      connectionTimeout: 5000,
-      requestTimeout: 10000,
-    },
+    requestHandler,
   });
 };
 

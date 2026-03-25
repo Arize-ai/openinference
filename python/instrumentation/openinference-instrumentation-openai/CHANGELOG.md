@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.42...python-openinference-instrumentation-openai-v0.1.43) (2026-03-24)
+
+
+### Features
+
+* **openai:** Handle New LLM Provider Enum Values ([#2896](https://github.com/Arize-ai/openinference/issues/2896)) ([02349b8](https://github.com/Arize-ai/openinference/commit/02349b8a6931b024181e1d7554df3572b0d5145a))
+
+## [0.1.42](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.41...python-openinference-instrumentation-openai-v0.1.42) (2026-03-11)
+
+
+### Features
+
+* **openai:** adds support for python 3.14 to openai autoinstrumentor ([#2872](https://github.com/Arize-ai/openinference/issues/2872)) ([75cda76](https://github.com/Arize-ai/openinference/commit/75cda763185e7508062900e545e03ebb67d4bc26))
+
 ## [0.1.41](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.40...python-openinference-instrumentation-openai-v0.1.41) (2025-12-04)
 
 

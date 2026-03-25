@@ -7,6 +7,7 @@ import { SpanStatusCode } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import type { Polly } from "@pollyjs/core";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 import {
   LLMProvider,
@@ -65,6 +66,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "What is the current price of Microsoft?",
@@ -97,6 +99,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test",
         secretAccessKey: "test",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "fuck",
@@ -158,6 +161,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test-access-key-id",
         secretAccessKey: "test-access-key",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "Write programe for (a+b)**3?",
@@ -239,6 +243,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test-access-key-id",
         secretAccessKey: "test-access-key",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "What is Task decomposition?",
@@ -300,6 +305,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test-access-key-id",
         secretAccessKey: "test-access-key",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "Find the sum of first 5 fibnonic numbers?",
@@ -384,6 +390,7 @@ describe("BedrockAgentInstrumentation Trace Collector Integration - agent attrib
         accessKeyId: "test-access-key-id",
         secretAccessKey: "test-access-key",
       },
+      requestHandler: new NodeHttpHandler(),
     });
     const params = {
       inputText: "Find the sum of first 10 fibnonic numbers?",

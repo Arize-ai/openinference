@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.13...python-openinference-instrumentation-google-genai-v0.1.14) (2026-03-24)
+
+
+### Features
+
+* **google_genai:** Enable Tracing Support For Embedding Operations ([#2871](https://github.com/Arize-ai/openinference/issues/2871)) ([02b39e5](https://github.com/Arize-ai/openinference/commit/02b39e5639680cf9348b6f5528863918d4b84d99))
+
+
+### Bug Fixes
+
+* **google_genai:** Normalize System Instruction ([#2852](https://github.com/Arize-ai/openinference/issues/2852)) ([92d120f](https://github.com/Arize-ai/openinference/commit/92d120fc52d3f48970a9c2c3be62033761573fa0))
+
+## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.12...python-openinference-instrumentation-google-genai-v0.1.13) (2026-03-11)
+
+
+### Bug Fixes
+
+* **google-genai:** accept dict-shaped content/part payloads ([#2807](https://github.com/Arize-ai/openinference/issues/2807)) ([304a80d](https://github.com/Arize-ai/openinference/commit/304a80d9a74365cd5083a2cd4f99dd2fe25147d1))
+
+## [0.1.12](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.11...python-openinference-instrumentation-google-genai-v0.1.12) (2026-02-26)
+
+
+### Features
+
+* google genai cache create instrumentation ([#2766](https://github.com/Arize-ai/openinference/issues/2766)) ([989481a](https://github.com/Arize-ai/openinference/commit/989481accfae85ee5c489cde9be12e17dc7dba30))
+
+
+### Bug Fixes
+
+* Google GenAI usage metadata mapping for cached tokens ([#2779](https://github.com/Arize-ai/openinference/issues/2779)) ([01ed0c1](https://github.com/Arize-ai/openinference/commit/01ed0c10d1e81730a685c623b91eb7cd02c2079e))
+
+## [0.1.11](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.10...python-openinference-instrumentation-google-genai-v0.1.11) (2026-02-26)
+
+
+### Bug Fixes
+
+* resolve google-genai CI test failures and hanging ([#2794](https://github.com/Arize-ai/openinference/issues/2794)) ([2e36c27](https://github.com/Arize-ai/openinference/commit/2e36c27496555b10bb0e944f720c8a440b5a2042))
+
 ## [0.1.10](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.9...python-openinference-instrumentation-google-genai-v0.1.10) (2026-02-05)
 
 

@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import string
 from importlib import import_module
@@ -13,11 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from openinference.semconv.trace import OpenInferenceLLMProviderValues, SpanAttributes
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_tool_calls(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -29,7 +26,7 @@ def test_tool_calls(
         ChatCompletionToolParam,
     )
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     input_tools = [
         ChatCompletionToolParam(
             type="function",
@@ -168,11 +165,7 @@ def test_tool_calls(
     )
 
 
-@pytest.mark.vcr(
-    decode_compressed_response=True,
-    before_record_request=lambda _: _.headers.clear() or _,
-    before_record_response=lambda _: {**_, "headers": {}},
-)
+@pytest.mark.vcr
 def test_cached_tokens(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: trace_api.TracerProvider,
@@ -181,7 +174,7 @@ def test_cached_tokens(
         pytest.skip("Not supported")
     openai = import_module("openai")
 
-    client = openai.OpenAI(api_key="sk-")
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-"))
     random_1024_token_prefix = "".join(random.choices(string.ascii_letters + string.digits, k=2000))
     client.chat.completions.create(
         extra_headers={"Accept-Encoding": "gzip"},

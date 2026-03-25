@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import Attributes, AttributeValue
@@ -12,7 +12,6 @@ class _WithSpan:
     __slots__ = (
         "_span",
         "_context_attributes",
-        "_extra_attributes",
         "_is_finished",
     )
 
@@ -20,11 +19,9 @@ class _WithSpan:
         self,
         span: trace_api.Span,
         context_attributes: Attributes = None,
-        extra_attributes: Attributes = None,
     ) -> None:
         self._span = span
         self._context_attributes = context_attributes
-        self._extra_attributes = extra_attributes
         try:
             self._is_finished = not self._span.is_recording()
         except Exception:
@@ -35,7 +32,7 @@ class _WithSpan:
     def is_finished(self) -> bool:
         return self._is_finished
 
-    def record_exception(self, exception: Exception) -> None:
+    def record_exception(self, exception: BaseException) -> None:
         if self._is_finished:
             return
         try:
@@ -51,7 +48,7 @@ class _WithSpan:
         except Exception:
             logger.exception("Failed to add event to span")
 
-    def set_attributes(self, attributes: Dict[str, AttributeValue]) -> None:
+    def set_attributes(self, attributes: dict[str, AttributeValue]) -> None:
         if self._is_finished:
             return
         try:
@@ -63,15 +60,12 @@ class _WithSpan:
         self,
         status: Optional[trace_api.Status] = None,
         attributes: Attributes = None,
-        extra_attributes: Attributes = None,
     ) -> None:
         if self._is_finished:
             return
         for mapping in (
             attributes,
             self._context_attributes,
-            self._extra_attributes,
-            extra_attributes,
         ):
             if not mapping:
                 continue

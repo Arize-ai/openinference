@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.5...java-openinference-instrumentation-langchain4j-v0.1.6) (2026-03-11)
+
+
+### Features
+
+* add tool specs to llm spans in langchain4j autoinstrumentor ([#2862](https://github.com/Arize-ai/openinference/issues/2862)) ([491958a](https://github.com/Arize-ai/openinference/commit/491958a9e189f7a0706f80dddd05eebc753403c4))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/java-openinference-instrumentation-langchain4j-v0.1.4...java-openinference-instrumentation-langchain4j-v0.1.5) (2025-08-07)
 
 

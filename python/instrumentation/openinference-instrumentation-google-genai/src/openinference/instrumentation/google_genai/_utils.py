@@ -1,15 +1,16 @@
 import logging
 import warnings
+from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Iterable,
     Iterator,
     Mapping,
     NamedTuple,
     Optional,
     Sequence,
-    Tuple,
 )
 
 from opentelemetry import trace as trace_api
@@ -28,12 +29,9 @@ logger.addHandler(logging.NullHandler())
 
 def _get_token_count_attributes_from_usage_metadata(
     usage_metadata: "types.GenerateContentResponseUsageMetadata",
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     """Extract token count attributes from usage metadata."""
     from google.genai import types
-
-    if usage_metadata.total_token_count:
-        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, usage_metadata.total_token_count
 
     # Extract prompt details audio tokens
     if usage_metadata.prompt_tokens_details:
@@ -47,12 +45,18 @@ def _get_token_count_attributes_from_usage_metadata(
         if prompt_details_audio:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
 
-    # Calculate total prompt tokens (base + tool use)
+    # Calculate total prompt tokens (base + tool use + cached)
     prompt_token_count = 0
     if usage_metadata.prompt_token_count:
         prompt_token_count += usage_metadata.prompt_token_count
     if usage_metadata.tool_use_prompt_token_count:
         prompt_token_count += usage_metadata.tool_use_prompt_token_count
+    if usage_metadata.cached_content_token_count:
+        yield (
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+            usage_metadata.cached_content_token_count,
+        )
+        prompt_token_count += usage_metadata.cached_content_token_count
     if prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
 
@@ -80,6 +84,12 @@ def _get_token_count_attributes_from_usage_metadata(
         completion_token_count += usage_metadata.thoughts_token_count
     if completion_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_COMPLETION, completion_token_count
+
+    if total_token_count := max(
+        prompt_token_count + completion_token_count,
+        usage_metadata.total_token_count or 0,
+    ):
+        yield SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
 
 
 class _ValueAndType(NamedTuple):
@@ -112,7 +122,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.INPUT_VALUE, value_and_type.value
@@ -123,7 +133,7 @@ def _as_input_attributes(
 
 def _as_output_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
@@ -134,8 +144,7 @@ def _as_output_attributes(
 
 def _finish_tracing(
     with_span: _WithSpan,
-    attributes: Iterable[Tuple[str, AttributeValue]],
-    extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    attributes: Iterable[tuple[str, AttributeValue]],
     status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
@@ -143,14 +152,42 @@ def _finish_tracing(
     except Exception:
         logger.exception("Failed to get attributes")
     try:
-        extra_attributes_dict = dict(extra_attributes)
-    except Exception:
-        logger.exception("Failed to get extra attributes")
-    try:
         with_span.finish_tracing(
             status=status,
             attributes=attributes_dict,
-            extra_attributes=extra_attributes_dict,
         )
     except Exception:
         logger.exception("Failed to finish tracing")
+
+
+def _stop_on_exception_for_dict(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    @wraps(wrapped)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return wrapped(*args, **kwargs)
+        except Exception as e:
+            logger.debug(str(e))
+            return {}
+
+    return wrapper
+
+
+def _stop_on_exception_for_iter(
+    wrapped: Callable[..., Any],
+) -> Callable[..., Any]:
+    @wraps(wrapped)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        generator = wrapped(*args, **kwargs)
+
+        def guarded() -> Any:
+            try:
+                yield from generator
+            except Exception as e:
+                logger.debug(str(e))
+                return
+
+        return guarded()
+
+    return wrapper
