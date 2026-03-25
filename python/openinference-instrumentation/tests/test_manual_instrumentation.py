@@ -2986,7 +2986,7 @@ class TestGetProviderFromHost:
 
     @pytest.mark.parametrize("host", [None, 42, [], {}])
     def test_non_string_input_returns_none(self, host: object) -> None:
-        assert get_provider_from_host(host) is None
+        assert get_provider_from_host(host) is None  # type: ignore[arg-type]
 
     def test_every_provider_has_at_least_one_host_entry(self) -> None:
         missing = _ALL_PROVIDER_VALUES - set(_HOST_SUFFIX_TO_PROVIDER.values())
@@ -3060,7 +3060,7 @@ class TestGetSystemFromModel:
 
     @pytest.mark.parametrize("model_name", [None, 42, [], {}])
     def test_non_string_input_returns_none(self, model_name: object) -> None:
-        assert get_system_from_model(model_name) is None
+        assert get_system_from_model(model_name) is None  # type: ignore[arg-type]
 
     def test_every_system_has_at_least_one_prefix_entry(self) -> None:
         missing = _ALL_SYSTEM_VALUES - set(_MODEL_PREFIX_TO_SYSTEM.values())
