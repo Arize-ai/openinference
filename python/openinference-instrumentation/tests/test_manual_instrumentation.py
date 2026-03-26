@@ -2,7 +2,6 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from uuid import UUID
 from typing import (
     Any,
     AsyncGenerator,
@@ -18,6 +17,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from uuid import UUID
 
 import jsonschema
 import pydantic
