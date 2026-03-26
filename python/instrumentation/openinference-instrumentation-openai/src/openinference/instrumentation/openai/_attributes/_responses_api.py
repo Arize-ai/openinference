@@ -614,6 +614,21 @@ class _ResponsesApiAttributes:
         elif obj.type == "tool_search_output":
             # TODO: Handle tool search output response
             pass
+        elif obj.type == "function_call_output":
+            # TODO: Handle function call output
+            pass
+        elif obj.type == "computer_call_output":
+            # TODO: Handle computer call output
+            pass
+        elif obj.type == "local_shell_call_output":
+            # TODO: Handle local shell call output
+            pass
+        elif obj.type == "mcp_approval_response":
+            # TODO: Handle mcp approval response
+            pass
+        elif obj.type == "custom_tool_call_output":
+            # TODO: Handle custom tool call output
+            pass
         elif TYPE_CHECKING:
             assert_never(obj.type)
 
