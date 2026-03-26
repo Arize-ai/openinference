@@ -77,7 +77,7 @@ public class ChatMessageAttributeUtils {
         } else if (message instanceof ToolExecutionResultMessage toolExecutionResultMessage) {
             return toolExecutionResultMessage.text();
         }
-        return "";
+        return null;
     }
 
     /**
@@ -95,9 +95,13 @@ public class ChatMessageAttributeUtils {
             String role = mapMessageRole(message.type());
             span.setAttribute(AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_ROLE), role);
 
-            // Set content
-            span.setAttribute(
-                    AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT), getMessageContent(message));
+            String inputMessageContent = getMessageContent(message);
+
+            if (Objects.nonNull(inputMessageContent)) {
+                span.setAttribute(
+                        AttributeKey.stringKey(prefix + SemanticConventions.MESSAGE_CONTENT),
+                        getMessageContent(message));
+            }
 
             // Set ToolCall
             if (message.type().equals(ChatMessageType.AI)) {
@@ -263,8 +267,8 @@ public class ChatMessageAttributeUtils {
         try {
             span.setAttribute(
                     SemanticConventions.LLM_INVOCATION_PARAMETERS, objectMapper.writeValueAsString(invocationParams));
-        } catch (JsonProcessingException e) {
-            logger.log(Level.WARNING, "Failed to serialize invocation parameters", e);
+        } catch (JsonProcessingException jpe) {
+            logger.log(Level.WARNING, "Failed to serialize invocation parameters", jpe);
         }
 
         // Set tool attributes
@@ -284,8 +288,10 @@ public class ChatMessageAttributeUtils {
                 String messagesJson = objectMapper.writeValueAsString(messagesList);
                 span.setAttribute(SemanticConventions.INPUT_VALUE, messagesJson);
                 span.setAttribute(SemanticConventions.INPUT_MIME_TYPE, "application/json");
-            } catch (Exception e) {
+            } catch (JsonProcessingException e) {
                 logger.log(Level.WARNING, "Failed to serialize input messages", e);
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Failed to process chatRequest", e);
             }
         }
     }

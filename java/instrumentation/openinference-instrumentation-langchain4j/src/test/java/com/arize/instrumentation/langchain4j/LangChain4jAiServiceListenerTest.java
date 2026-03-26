@@ -277,8 +277,7 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey("llm.input_messages.2.message.role")))
                 .isEqualTo("assistant");
-        assertThat((String) finalLlmAttrs.remove(AttributeKey.stringKey("llm.input_messages.2.message.content")))
-                .contains("");
+
         assertThat(finalLlmAttrs.remove(
                         AttributeKey.stringKey("llm.input_messages.2.message.tool_calls.0.tool_call.id")))
                 .isEqualTo("call_Qm51xgE57uzoj2f6qkZAWwb4");
