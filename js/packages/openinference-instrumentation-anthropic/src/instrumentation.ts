@@ -632,19 +632,37 @@ function getAnthropicOutputMessagesAttributes(message: Message): Attributes {
 }
 
 /**
- * Get usage attributes from Anthropic response
+ * Get usage attributes from Anthropic response.
+ *
+ * Anthropic reports `input_tokens` exclusive of cached tokens, so the cache
+ * read and write counts are added back into the prompt count. The OpenInference
+ * spec treats `prompt_details.*` as sub-counts of `llm.token_count.prompt`, so
+ * the prompt count has to include them.
+ * https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#tracking-cache-performance
  */
 function getAnthropicUsageAttributes(usage: MessageUsage): Attributes {
   const attributes: Attributes = {};
-  if (usage.input_tokens != null) {
-    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = usage.input_tokens;
+  const cacheWriteTokens = usage.cache_creation_input_tokens;
+  const cacheReadTokens = usage.cache_read_input_tokens;
+  const promptTokens =
+    usage.input_tokens != null
+      ? usage.input_tokens + (cacheWriteTokens ?? 0) + (cacheReadTokens ?? 0)
+      : undefined;
+
+  if (promptTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = promptTokens;
   }
   if (usage.output_tokens != null) {
     attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = usage.output_tokens;
   }
-  if (usage.input_tokens != null && usage.output_tokens != null) {
-    attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] =
-      usage.input_tokens + usage.output_tokens;
+  if (promptTokens != null && usage.output_tokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = promptTokens + usage.output_tokens;
+  }
+  if (cacheWriteTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] = cacheWriteTokens;
+  }
+  if (cacheReadTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheReadTokens;
   }
   return attributes;
 }
