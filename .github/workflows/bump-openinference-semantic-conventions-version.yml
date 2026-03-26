@@ -36,8 +36,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
-          commit-message: "chore: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
-          title: "chore: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
+          commit-message: "fix: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
+          title: "fix: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
           body: |
             Automatically bumps the minimum `openinference-semantic-conventions` version
             to `>=${{ steps.version.outputs.version }}` across `openinference-instrumentation`

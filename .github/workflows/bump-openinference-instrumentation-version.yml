@@ -34,8 +34,8 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.MY_RELEASE_PLEASE }}
-          commit-message: "chore: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
-          title: "chore: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
+          commit-message: "fix: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
+          title: "fix: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
           body: |
             Automatically bumps the minimum `openinference-instrumentation` version
             to `>=${{ steps.version.outputs.version }}` across all Python instrumentor packages.
