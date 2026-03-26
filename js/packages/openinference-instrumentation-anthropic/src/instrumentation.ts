@@ -413,12 +413,28 @@ function getAnthropicOutputMessagesAttributes(message: Anthropic.Messages.Messag
  */
 function getAnthropicUsageAttributes(message: Anthropic.Messages.Message): Attributes {
   if (message.usage) {
-    return {
+    const attrs: Attributes = {
       [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: message.usage.output_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: message.usage.input_tokens,
       [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]:
         message.usage.input_tokens + message.usage.output_tokens,
     };
+
+    // Prompt caching token counts (Anthropic-specific)
+    const usage = message.usage as Anthropic.Messages.Usage & {
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+    if (usage.cache_creation_input_tokens != null) {
+      attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+        usage.cache_creation_input_tokens;
+    }
+    if (usage.cache_read_input_tokens != null) {
+      attrs[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] =
+        usage.cache_read_input_tokens;
+    }
+
+    return attrs;
   }
   return {};
 }
@@ -432,9 +448,29 @@ async function consumeAnthropicStreamChunks(
 ) {
   let streamResponse = "";
   const toolCallAttributes: Attributes = {};
+  let inputTokens: number | undefined;
+  let outputTokens: number | undefined;
+  let cacheCreationTokens: number | undefined;
+  let cacheReadTokens: number | undefined;
 
   for await (const chunk of stream) {
-    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+    if (chunk.type === "message_start") {
+      // Capture input-side token counts (including cache) from the opening event
+      const usage = chunk.message.usage as Anthropic.Messages.Usage & {
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      };
+      inputTokens = usage.input_tokens;
+      if (usage.cache_creation_input_tokens != null) {
+        cacheCreationTokens = usage.cache_creation_input_tokens;
+      }
+      if (usage.cache_read_input_tokens != null) {
+        cacheReadTokens = usage.cache_read_input_tokens;
+      }
+    } else if (chunk.type === "message_delta" && chunk.usage) {
+      // Capture output token count from the closing delta event
+      outputTokens = chunk.usage.output_tokens;
+    } else if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
       streamResponse += chunk.delta.text;
     } else if (chunk.type === "content_block_start" && chunk.content_block.type === "tool_use") {
       const toolCall = chunk.content_block;
@@ -470,6 +506,24 @@ async function consumeAnthropicStreamChunks(
   // Add the tool call attributes
   for (const [key, value] of Object.entries(toolCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
+  }
+
+  // Add token usage collected from stream events
+  if (inputTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT] = inputTokens;
+  }
+  if (outputTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_COMPLETION] = outputTokens;
+  }
+  if (inputTokens != null && outputTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL] = inputTokens + outputTokens;
+  }
+  if (cacheCreationTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE] =
+      cacheCreationTokens;
+  }
+  if (cacheReadTokens != null) {
+    attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ] = cacheReadTokens;
   }
 
   span.setAttributes(attributes);
