@@ -1,0 +1,48 @@
+name: Bump openinference-semantic-conventions minimum version
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-version:
+    if: startsWith(github.event.release.tag_name, 'python-openinference-semantic-conventions-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#python-openinference-semantic-conventions-v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update pyproject.toml files
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          # Update openinference-instrumentation (core package)
+          sed -i 's/"openinference-semantic-conventions>=.*"/"openinference-semantic-conventions>='"$NEW_VERSION"'"/' \
+            python/openinference-instrumentation/pyproject.toml
+          # Update all instrumentor packages
+          find python/instrumentation -name 'pyproject.toml' -exec \
+            sed -i 's/"openinference-semantic-conventions>=.*"/"openinference-semantic-conventions>='"$NEW_VERSION"'"/' {} +
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
+          commit-message: "fix: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
+          title: "fix: bump openinference-semantic-conventions minimum to >=${{ steps.version.outputs.version }}"
+          body: |
+            Automatically bumps the minimum `openinference-semantic-conventions` version
+            to `>=${{ steps.version.outputs.version }}` across `openinference-instrumentation`
+            and all Python instrumentor packages.
+
+            Triggered by release [`${{ github.event.release.tag_name }}`](${{ github.event.release.html_url }}).
+          branch: "bump-oi-semantic-conventions-${{ steps.version.outputs.version }}"
+          base: main

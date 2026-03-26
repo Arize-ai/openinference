@@ -1,0 +1,45 @@
+name: Bump openinference-instrumentation minimum version
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-version:
+    if: startsWith(github.event.release.tag_name, 'python-openinference-instrumentation-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#python-openinference-instrumentation-v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update pyproject.toml files
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          # Match the quoted dependency string exactly to avoid touching
+          # similarly-prefixed packages (e.g. openinference-instrumentation-openai)
+          find python/instrumentation -name 'pyproject.toml' -exec \
+            sed -i 's/"openinference-instrumentation>=.*"/"openinference-instrumentation>='"$NEW_VERSION"'"/' {} +
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.MY_RELEASE_PLEASE }}
+          commit-message: "fix: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
+          title: "fix: bump openinference-instrumentation minimum to >=${{ steps.version.outputs.version }}"
+          body: |
+            Automatically bumps the minimum `openinference-instrumentation` version
+            to `>=${{ steps.version.outputs.version }}` across all Python instrumentor packages.
+
+            Triggered by release [`${{ github.event.release.tag_name }}`](${{ github.event.release.html_url }}).
+          branch: "bump-oi-instrumentation-${{ steps.version.outputs.version }}"
+          base: main
