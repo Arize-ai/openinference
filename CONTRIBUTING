@@ -30,7 +30,7 @@ A 1,000+ line PR full of new features is very likely to be closed without review
 - Explain exactly what changed.
 - Explain exactly why the change should exist.
 - Do not mix unrelated fixes together.
-- If the change affects emitted spans (e.g. new attributes, renamed fields, or a different span hierarchy), include a screenshot showing the updated trace output
+- If the change affects emitted spans (e.g. new attributes, renamed fields, or a different span hierarchy), include a screenshot showing the updated trace output.
 - If we have to guess what changed, we are much less likely to review it.
 
 ## Issues First
