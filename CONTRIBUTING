@@ -68,19 +68,19 @@ Before submitting a pull request, please make sure the following is done:
 - Fork the repository and create your branch from `main`.
 - Follow the development guide in [python](./python/DEVELOPMENT.md) or [javascript](./js/DEVELOPMENT.md) to setup your local environment.
 - **Install pre-commit hooks** (one-time setup):
-    ```bash
-    pip install pre-commit
-    pre-commit install
-    ```
-    Hooks run automatically on `git commit` and enforce `ruff` formatting/linting (Python) and `oxfmt`/`oxlint` (JS/TS). You can also run them manually at any time:
-    ```bash
-    pre-commit run --all-files
-    ```
+  ```bash
+  pip install pre-commit
+  pre-commit install
+  ```
+  Hooks run automatically on `git commit` and enforce `ruff` formatting/linting (Python) and `oxfmt`/`oxlint` (JS/TS). You can also run them manually at any time:
+  ```bash
+  pre-commit run --all-files
+  ```
 - **Run formatters and linters** manually with `make`:
-    ```bash
-    make format   # format all Python + JS/TS files
-    make lint     # lint all Python + JS/TS files
-    ```
+  ```bash
+  make format   # format all Python + JS/TS files
+  make lint     # lint all Python + JS/TS files
+  ```
 - If you've fixed a bug or added code that should be tested, add tests!
 - Ensure test suite passes.
 - Make sure your code is formatted by a formatter.
