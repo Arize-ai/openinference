@@ -36,10 +36,14 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 
-8. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure.
+8. **Check for existing PRs**: Before creating a new PR, search for open PRs that already address the same failure (`gh pr list --repo Arize-ai/openinference --search "<package>" --state open`). If one exists, update it instead of creating a duplicate.
+
+9. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure.
 
 ## Gotchas
 
+- **Transient failures**: Some failures are caused by flaky network calls, temporary PyPI outages, or rate limits. If the error looks transient (timeout, connection reset, 503), check whether the same job passed in the previous cron run before investing time in a fix.
+- **Shared root causes**: Multiple instrumentors may fail for the same reason (e.g., a core library like `opentelemetry-sdk` or `opentelemetry-semantic-conventions-ai` changed). Group related failures and fix them in a single PR rather than opening one PR per instrumentor.
 - The tox token for a package strips `openinference-instrumentation-` and replaces hyphens with underscores (e.g., `openllmetry`, `llama_index`, `google_genai`).
 - The `-latest` tox env typically just does `uv pip install -U <upstream-package>` on top of the pinned deps. Check `python/tox.ini` for the exact commands.
 - Common failure patterns: removed/renamed span attributes, changed event formats, new required parameters, deprecated API removals.
