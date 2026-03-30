@@ -1,4 +1,6 @@
+import json
 from typing import Any, Dict, Mapping, Optional, cast
+from unittest.mock import MagicMock
 
 import openai
 import pytest
@@ -15,6 +17,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
     _extract_llm_provider_and_system,
+    _parse_genai_messages,
 )
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
@@ -206,3 +209,87 @@ def test_extract_llm_provider_and_system(
 
     assert provider == expected_provider
     assert system == expected_system
+
+
+class TestNewStyleGenAIMessages:
+    """Tests for the gen_ai.input.messages / gen_ai.output.messages format (v0.55.0+)."""
+
+    def test_parse_genai_messages_simple(self) -> None:
+        raw = json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}])
+        messages, finish_reasons = _parse_genai_messages(raw)
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Hello"
+        assert finish_reasons == [None]
+
+    def test_parse_genai_messages_with_tool_calls(self) -> None:
+        raw = json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [
+                        {"type": "text", "content": "Let me check."},
+                        {
+                            "type": "tool_call",
+                            "name": "get_weather",
+                            "id": "call_123",
+                            "arguments": {"city": "Paris"},
+                        },
+                    ],
+                    "finish_reason": "tool_calls",
+                }
+            ]
+        )
+        messages, finish_reasons = _parse_genai_messages(raw)
+        assert len(messages) == 1
+        assert messages[0]["content"] == "Let me check."
+        assert len(messages[0]["tool_calls"]) == 1
+        assert messages[0]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert messages[0]["tool_calls"][0]["id"] == "call_123"
+        assert finish_reasons == ["tool_calls"]
+
+    def test_span_processor_new_style_attributes(self) -> None:
+        """Verify on_end sets OI attributes when spans use the new gen_ai.input/output.messages."""
+        processor = OpenInferenceSpanProcessor()
+
+        input_msgs = json.dumps(
+            [{"role": "user", "parts": [{"type": "text", "content": "What is 2+2?"}]}]
+        )
+        output_msgs = json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [{"type": "text", "content": "4"}],
+                    "finish_reason": "stop",
+                }
+            ]
+        )
+
+        attrs = {
+            "gen_ai.input.messages": input_msgs,
+            "gen_ai.output.messages": output_msgs,
+            "gen_ai.request.model": "gpt-4.1",
+            "gen_ai.response.model": "gpt-4.1-2026-04-14",
+            "gen_ai.usage.input_tokens": 10,
+            "gen_ai.usage.output_tokens": 5,
+            "gen_ai.system": "openai",
+        }
+
+        mock_span = MagicMock()
+        mock_span._attributes = attrs
+
+        processor.on_end(mock_span)
+
+        assert (
+            attrs[SpanAttributes.OPENINFERENCE_SPAN_KIND] == OpenInferenceSpanKindValues.LLM.value
+        )
+        assert attrs[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert isinstance(attrs[SpanAttributes.INPUT_VALUE], str)
+        assert isinstance(attrs[SpanAttributes.OUTPUT_VALUE], str)
+        assert attrs["llm.input_messages.0.message.role"] == "user"
+        assert attrs["llm.input_messages.0.message.content"] == "What is 2+2?"
+        assert attrs["llm.output_messages.0.message.role"] == "assistant"
+        assert attrs["llm.output_messages.0.message.content"] == "4"
+        assert attrs[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attrs[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attrs[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
