@@ -77,13 +77,16 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         id: failures
       - name: Build message
+        env:
+          CANARY_RESULT: ${{ needs.canary.result }}
+          FAILURE_LIST: ${{ steps.failures.outputs.list }}
         run: |
-          if [ "${{ needs.canary.result }}" = "failure" ]; then
+          if [ "$CANARY_RESULT" = "failure" ]; then
             MSG="Python canary cron failed:
-          ${{ steps.failures.outputs.list }}
-          ${{ env.RUN_URL }}"
+          $FAILURE_LIST
+          $RUN_URL"
           else
-            MSG="Python canary cron passed: ${{ env.RUN_URL }}"
+            MSG="Python canary cron passed: $RUN_URL"
           fi
           {
             echo "text<<EOF"
