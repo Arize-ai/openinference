@@ -211,8 +211,8 @@ def test_extract_llm_provider_and_system(
     assert system == expected_system
 
 
-class TestNewStyleGenAIMessages:
-    """Tests for the gen_ai.input.messages / gen_ai.output.messages format (v0.55.0+)."""
+class TestUpdatedGenAIMessageFormat:
+    """Tests for the updated gen_ai.input/output.messages format (OTel GenAI semconv 0.5.1+)."""
 
     def test_parse_genai_messages_simple(self) -> None:
         raw = json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}])

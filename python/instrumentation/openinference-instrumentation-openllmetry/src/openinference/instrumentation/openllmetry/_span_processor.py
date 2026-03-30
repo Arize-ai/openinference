@@ -188,7 +188,7 @@ def _parse_genai_messages(
     raw_json: str,
 ) -> tuple[List[oi.Message], List[Optional[str]]]:
     """
-    Parse the new-style ``gen_ai.input.messages`` / ``gen_ai.output.messages``
+    Parse the updated ``gen_ai.input.messages`` / ``gen_ai.output.messages``
     JSON-string attribute (OTel GenAI semconv 0.5.1+).
 
     Each message is ``{"role": "...", "parts": [{"type": "text", "content": "..."},
