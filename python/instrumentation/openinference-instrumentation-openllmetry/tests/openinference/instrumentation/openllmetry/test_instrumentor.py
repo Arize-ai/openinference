@@ -298,3 +298,4 @@ class TestUpdatedGenAIMessageFormat:
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
         assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        assert attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
