@@ -31,7 +31,11 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
    - `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps)
    - `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
 
-6. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure.
+6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
+
+7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
+
+8. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure.
 
 ## Gotchas
 
