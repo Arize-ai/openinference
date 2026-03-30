@@ -40,7 +40,7 @@ public class LLMSpan extends TracedSpan {
     }
 
     public void setInputMessages(List<Map<String, Object>> messages) {
-        if (config.isHideInputMessages()) return;
+        if (config.isHideInputs() || config.isHideInputMessages()) return;
         SpanSerializer.SerializedValue sv = SpanSerializer.serialize(messages);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES), sv.value());
@@ -48,7 +48,7 @@ public class LLMSpan extends TracedSpan {
     }
 
     public void setOutputMessages(List<Map<String, Object>> messages) {
-        if (config.isHideOutputMessages()) return;
+        if (config.isHideOutputs() || config.isHideOutputMessages()) return;
         SpanSerializer.SerializedValue sv = SpanSerializer.serialize(messages);
         if (sv != null) {
             span.setAttribute(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES), sv.value());
