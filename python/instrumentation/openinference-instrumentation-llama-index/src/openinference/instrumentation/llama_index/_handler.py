@@ -97,6 +97,8 @@ from llama_index.core.instrumentation.events.chat_engine import (
 from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
     EmbeddingStartEvent,
+    SparseEmbeddingEndEvent,
+    SparseEmbeddingStartEvent,
 )
 from llama_index.core.instrumentation.events.llm import (
     LLMChatEndEvent,
@@ -152,6 +154,18 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+try:
+    from workflows.runtime.types.step_function import (  # type: ignore[import-not-found]
+        SpanCancelledEvent,
+        WorkflowRunOutputEvent,
+        WorkflowStepOutputEvent,
+    )
+    _HAS_WORKFLOW_EVENTS = True
+except ImportError:
+    SpanCancelledEvent = None  # type: ignore[misc,assignment]
+    WorkflowStepOutputEvent = None  # type: ignore[misc,assignment]
+    WorkflowRunOutputEvent = None  # type: ignore[misc,assignment]
+    _HAS_WORKFLOW_EVENTS = False
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -520,13 +534,36 @@ class _Span(BaseSpan):
     def _(self, event: EmbeddingStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
 
     @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
+        # Simple embeddings are flat float lists so we can directly store them as an OTEL attribute.
         i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
         for text, vector in zip(event.chunks, event.embeddings):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            i += 1
+        self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingStartEvent) -> None:
+        if not self._span_kind:
+            self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingEndEvent) -> None:
+        # Sparse embeddings are Dict[int, float] so we can serialise each one as a JSON string
+        # rather than trying to store a heterogeneous list as an OTEL attribute.
+        i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
+        for text, vector in zip(event.chunks, event.embeddings):
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = safe_json_dumps(vector)
             i += 1
         self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
 
@@ -657,6 +694,24 @@ class _Span(BaseSpan):
     def _(self, event: SpanDropEvent) -> None:
         # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
+
+    @_process_event.register
+    def _(self, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised step output produced by workflows.runtime
+        self[OUTPUT_VALUE] = event.output
+
+    @_process_event.register
+    def _(self, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised whole-workflow output
+        self[OUTPUT_VALUE] = event.output
+
+    @_process_event.register
+    def _(self, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
+        # Cancellation is intentional (user or asyncio) so we record the reason as a
+        # span event instead of marking the span as ERROR.
+        self._otel_span.add_event(
+            "span.cancelled", attributes={"reason": event.reason}
+        )
 
     @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:
@@ -823,6 +878,21 @@ class _Span(BaseSpan):
     ) -> Iterator[Tuple[str, AttributeValue]]:
         if url := image.get("url"):
             yield f"{ImageAttributes.IMAGE_URL}", url
+
+
+# Conditionally register workflow event handlers when the workflows package is present.
+if _HAS_WORKFLOW_EVENTS:
+    _Span._process_event.register(WorkflowStepOutputEvent)(
+        lambda self, event: self.__setitem__(OUTPUT_VALUE, event.output)
+    )
+    _Span._process_event.register(WorkflowRunOutputEvent)(
+        lambda self, event: self.__setitem__(OUTPUT_VALUE, event.output)
+    )
+    _Span._process_event.register(SpanCancelledEvent)(
+        lambda self, event: self._otel_span.add_event(
+            "span.cancelled", attributes={"reason": event.reason}
+        )
+    )
 
 
 def _get_attributes_from_content_block(
