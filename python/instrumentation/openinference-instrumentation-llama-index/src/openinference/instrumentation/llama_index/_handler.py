@@ -880,21 +880,6 @@ class _Span(BaseSpan):
             yield f"{ImageAttributes.IMAGE_URL}", url
 
 
-# Conditionally register workflow event handlers when the workflows package is present.
-if _HAS_WORKFLOW_EVENTS:
-    _Span._process_event.register(WorkflowStepOutputEvent)(
-        lambda self, event: self.__setitem__(OUTPUT_VALUE, event.output)
-    )
-    _Span._process_event.register(WorkflowRunOutputEvent)(
-        lambda self, event: self.__setitem__(OUTPUT_VALUE, event.output)
-    )
-    _Span._process_event.register(SpanCancelledEvent)(
-        lambda self, event: self._otel_span.add_event(
-            "span.cancelled", attributes={"reason": event.reason}
-        )
-    )
-
-
 def _get_attributes_from_content_block(
     obj: ContentBlock,
     prefix: str,
