@@ -17,7 +17,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
     _extract_llm_provider_and_system,
-    _parse_genai_messages,
+    _parse_messages_from_json,
 )
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
@@ -214,15 +214,15 @@ def test_extract_llm_provider_and_system(
 class TestUpdatedGenAIMessageFormat:
     """Tests for the updated gen_ai.input/output.messages format (OTel GenAI semconv 0.5.1+)."""
 
-    def test_parse_genai_messages_simple(self) -> None:
+    def test_parse_messages_from_json_simple(self) -> None:
         raw = json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}])
-        messages, finish_reasons = _parse_genai_messages(raw)
+        messages, finish_reasons = _parse_messages_from_json(raw)
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
         assert messages[0]["content"] == "Hello"
         assert finish_reasons == [None]
 
-    def test_parse_genai_messages_with_tool_calls(self) -> None:
+    def test_parse_messages_from_json_with_tool_calls(self) -> None:
         raw = json.dumps(
             [
                 {
@@ -240,7 +240,7 @@ class TestUpdatedGenAIMessageFormat:
                 }
             ]
         )
-        messages, finish_reasons = _parse_genai_messages(raw)
+        messages, finish_reasons = _parse_messages_from_json(raw)
         assert len(messages) == 1
         assert messages[0]["content"] == "Let me check."
         assert len(messages[0]["tool_calls"]) == 1

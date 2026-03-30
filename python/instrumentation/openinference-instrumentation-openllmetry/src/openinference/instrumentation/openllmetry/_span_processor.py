@@ -121,7 +121,7 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
     return mapped
 
 
-def _collect_oi_messages(
+def _parse_messages_from_attributes(
     attrs: Dict[str, Any], prefix: str
 ) -> tuple[List[oi.Message], List[Optional[str]]]:
     """
@@ -184,7 +184,7 @@ def _collect_oi_messages(
     return messages, finish_reasons
 
 
-def _parse_genai_messages(
+def _parse_messages_from_json(
     raw_json: str,
 ) -> tuple[List[oi.Message], List[Optional[str]]]:
     """
@@ -323,15 +323,17 @@ class OpenInferenceSpanProcessor(SpanProcessor):
 
         # Reconstruct messages from whichever format is available
         if has_new:
-            inputs, input_finish_reasons = _parse_genai_messages(
+            inputs, input_finish_reasons = _parse_messages_from_json(
                 attrs.get(_GEN_AI_INPUT_MESSAGES, "[]")
             )
-            outputs, output_finish_reasons = _parse_genai_messages(
+            outputs, output_finish_reasons = _parse_messages_from_json(
                 attrs.get(_GEN_AI_OUTPUT_MESSAGES, "[]")
             )
         else:
-            inputs, input_finish_reasons = _collect_oi_messages(attrs, "gen_ai.prompt.")
-            outputs, output_finish_reasons = _collect_oi_messages(attrs, "gen_ai.completion.")
+            inputs, input_finish_reasons = _parse_messages_from_attributes(attrs, "gen_ai.prompt.")
+            outputs, output_finish_reasons = _parse_messages_from_attributes(
+                attrs, "gen_ai.completion."
+            )
 
         # Token usage
         prompt_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS)) or 0
