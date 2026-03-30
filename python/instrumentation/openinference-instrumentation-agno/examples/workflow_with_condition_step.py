@@ -6,17 +6,18 @@ Install dependencies:
 pip install openai opentelemetry-sdk opentelemetry-exporter-otlp
 pip install openinference-instrumentation-agno
 """
+
 import asyncio
 
 from agno.agent.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.team import Team
 from agno.workflow.workflow import Workflow
-
-from openinference.instrumentation.agno import AgnoInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+from openinference.instrumentation.agno import AgnoInstrumentor
 
 endpoint = "http://127.0.0.1:6006/v1/traces"
 tracer_provider = trace_sdk.TracerProvider()

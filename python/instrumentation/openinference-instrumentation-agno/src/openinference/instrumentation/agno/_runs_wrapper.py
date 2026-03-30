@@ -156,9 +156,7 @@ def _agent_run_attributes(
             yield f"agno{key_suffix}.tools", tool_names
 
 
-def _setup_team_context(
-    agent_or_team: Optional[Union[Agent, Team]], node_id: str
-) -> Optional[Any]:
+def _setup_team_context(agent_or_team: Optional[Union[Agent, Team]], node_id: str) -> Optional[Any]:
     """Attach a context carrying the current team's node_id and return the token.
     Returns None for non-Team instances."""
     if isinstance(agent_or_team, Team):
@@ -269,7 +267,9 @@ class _RunWrapper:
         span = self._tracer.start_span(
             _resolve_span_name(agent_or_team, "run"),
             context=_get_team_span_context(agent_or_team),
-            attributes=_build_span_attributes(wrapped, agent_or_team, node_id, arguments, *args, **kwargs),
+            attributes=_build_span_attributes(
+                wrapped, agent_or_team, node_id, arguments, *args, **kwargs
+            ),
         )
 
         team_token = None
@@ -309,7 +309,9 @@ class _RunWrapper:
         span = self._tracer.start_span(
             _resolve_span_name(agent_or_team, "run"),
             context=_get_team_span_context(agent_or_team),
-            attributes=_build_span_attributes(wrapped, agent_or_team, node_id, arguments, *args, **kwargs),
+            attributes=_build_span_attributes(
+                wrapped, agent_or_team, node_id, arguments, *args, **kwargs
+            ),
         )
 
         team_token = None
@@ -384,7 +386,9 @@ class _RunWrapper:
         span = self._tracer.start_span(
             _resolve_span_name(agent_or_team, "arun"),
             context=_get_team_span_context(agent_or_team),
-            attributes=_build_span_attributes(wrapped, agent_or_team, node_id, arguments, *args, **kwargs),
+            attributes=_build_span_attributes(
+                wrapped, agent_or_team, node_id, arguments, *args, **kwargs
+            ),
         )
 
         team_token = None
@@ -426,7 +430,9 @@ class _RunWrapper:
         span = self._tracer.start_span(
             _resolve_span_name(agent_or_team, "arun"),
             context=_get_team_span_context(agent_or_team),
-            attributes=_build_span_attributes(wrapped, agent_or_team, node_id, arguments, *args, **kwargs),
+            attributes=_build_span_attributes(
+                wrapped, agent_or_team, node_id, arguments, *args, **kwargs
+            ),
         )
 
         team_token = None
