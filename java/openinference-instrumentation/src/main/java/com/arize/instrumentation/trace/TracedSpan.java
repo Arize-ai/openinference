@@ -106,17 +106,15 @@ public abstract class TracedSpan implements AutoCloseable {
                 && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)
                 && key.contains(SemanticConventions.SemanticAttributePrefixes.AUDIO)) return true;
         // hidePromptTemplate: llm.prompt_template.template
-        if (config.isHidePromptTemplate()
-                && SemanticConventions.PROMPT_TEMPLATE_TEMPLATE.equals(key)) return true;
+        if (config.isHidePromptTemplate() && SemanticConventions.PROMPT_TEMPLATE_TEMPLATE.equals(key)) return true;
         // hidePromptTemplateVariables: llm.prompt_template.variables
-        if (config.isHidePromptTemplateVariables()
-                && SemanticConventions.PROMPT_TEMPLATE_VARIABLES.equals(key)) return true;
+        if (config.isHidePromptTemplateVariables() && SemanticConventions.PROMPT_TEMPLATE_VARIABLES.equals(key))
+            return true;
         // hidePromptTemplateVersion: llm.prompt_template.version
-        if (config.isHidePromptTemplateVersion()
-                && SemanticConventions.PROMPT_TEMPLATE_VERSION.equals(key)) return true;
+        if (config.isHidePromptTemplateVersion() && SemanticConventions.PROMPT_TEMPLATE_VERSION.equals(key))
+            return true;
         // hideToolParameters: tool.parameters
-        if (config.isHideToolParameters()
-                && SemanticConventions.TOOL_PARAMETERS.equals(key)) return true;
+        if (config.isHideToolParameters() && SemanticConventions.TOOL_PARAMETERS.equals(key)) return true;
         // hideInputEmbeddings: embedding.vector within embedding.embeddings
         if (config.isHideInputEmbeddings()
                 && key.startsWith(SemanticConventions.EMBEDDING_EMBEDDINGS)

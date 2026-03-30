@@ -612,10 +612,8 @@ class LangChain4jModelListenerTest {
     @Test
     void hideInputsAndOutputs_suppressesEverything() {
         stubChatCompletion("Secret");
-        TraceConfig config = TraceConfig.builder()
-                .hideInputs(true)
-                .hideOutputs(true)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideOutputs(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden-all"), config);
         OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Secret");
@@ -649,10 +647,8 @@ class LangChain4jModelListenerTest {
     @Test
     void hideInputs_overridesHideInputMessagesFalse() {
         stubChatCompletion("Response");
-        TraceConfig config = TraceConfig.builder()
-                .hideInputs(true)
-                .hideInputMessages(false)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideInputMessages(false).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
         OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Secret input");
@@ -726,10 +722,8 @@ class LangChain4jModelListenerTest {
     @Test
     void hideInputs_and_hideInputMessages_bothTrue_suppressesAll() {
         stubChatCompletion("Response");
-        TraceConfig config = TraceConfig.builder()
-                .hideInputs(true)
-                .hideInputMessages(true)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideInputMessages(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
         OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Secret");
@@ -749,10 +743,8 @@ class LangChain4jModelListenerTest {
     @Test
     void hideOutputs_and_hideOutputMessages_bothTrue_suppressesAll() {
         stubChatCompletion("Secret response");
-        TraceConfig config = TraceConfig.builder()
-                .hideOutputs(true)
-                .hideOutputMessages(true)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideOutputs(true).hideOutputMessages(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
         OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Hi");

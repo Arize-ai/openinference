@@ -47,12 +47,18 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROMPTS))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROMPTS)))
+                .isNull();
     }
 
     // ---- Test 2: hideOutputs suppresses output.value, output.mime_type, llm.output_messages.* ----
@@ -70,18 +76,24 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isNull();
     }
 
     // ---- Test 3: hideInputMessages suppresses only llm.input_messages.* but NOT input.value ----
 
     @Test
     void hideInputMessagesSuppressesOnlyMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.INPUT_VALUE, "visible input");
@@ -92,15 +104,18 @@ class HideFlagHierarchyTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isEqualTo("visible input");
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
     }
 
     // ---- Test 4: hideOutputMessages suppresses only llm.output_messages.* but NOT output.value ----
 
     @Test
     void hideOutputMessagesSuppressesOnlyMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.OUTPUT_VALUE, "visible output");
@@ -111,8 +126,10 @@ class HideFlagHierarchyTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isEqualTo("visible output");
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
     }
 
     // ---- Test 5: hideInputs also suppresses LLMSpan.setInputMessages() ----
@@ -126,7 +143,8 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- Test 6: hideOutputs also suppresses LLMSpan.setOutputMessages() ----
@@ -140,7 +158,8 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- Test 7: hideInputText suppresses message.content but NOT message.contents ----
@@ -158,8 +177,8 @@ class HideFlagHierarchyTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
                 .isNull();
-        assertThat(data.getAttributes().get(
-                        AttributeKey.stringKey("llm.input_messages.0.message.contents.0.message_content.text")))
+        assertThat(data.getAttributes()
+                        .get(AttributeKey.stringKey("llm.input_messages.0.message.contents.0.message_content.text")))
                 .isEqualTo("visible text");
         assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
                 .isEqualTo("user");
@@ -169,7 +188,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hidePromptTemplateSuppressesTemplate() {
-        OITracer tracer = createTracer(TraceConfig.builder().hidePromptTemplate(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hidePromptTemplate(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_TEMPLATE, "Hello {name}");
@@ -189,7 +209,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hidePromptTemplateVariablesSuppressesVariables() {
-        OITracer tracer = createTracer(TraceConfig.builder().hidePromptTemplateVariables(true).build());
+        OITracer tracer = createTracer(
+                TraceConfig.builder().hidePromptTemplateVariables(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_TEMPLATE, "Hello {name}");
@@ -205,7 +226,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hidePromptTemplateVersionSuppressesVersion() {
-        OITracer tracer = createTracer(TraceConfig.builder().hidePromptTemplateVersion(true).build());
+        OITracer tracer = createTracer(
+                TraceConfig.builder().hidePromptTemplateVersion(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_VERSION, "v1");
@@ -223,7 +245,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideToolParametersSuppressesToolParameters() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideToolParameters(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideToolParameters(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.TOOL_PARAMETERS, "{\"param\":\"value\"}");
@@ -231,7 +254,8 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS)))
+                .isNull();
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_NAME)))
                 .isEqualTo("my_tool");
     }
@@ -291,7 +315,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideOutputTextSuppressesContentButNotContents() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputText(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputText(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("llm.output_messages.0.message.content", "secret text");
@@ -301,14 +326,15 @@ class HideFlagHierarchyTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
                 .isNull();
-        assertThat(data.getAttributes().get(
-                        AttributeKey.stringKey("llm.output_messages.0.message.contents.0.message_content.text")))
+        assertThat(data.getAttributes()
+                        .get(AttributeKey.stringKey("llm.output_messages.0.message.contents.0.message_content.text")))
                 .isEqualTo("visible text");
     }
 
     @Test
     void hideInputImagesSuppressesImageWithinInputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputImages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputImages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(
@@ -327,12 +353,12 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideOutputImagesSuppressesImageWithinOutputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputImages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputImages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(
-                    "llm.output_messages.0.message.contents.0.message_content.image.url",
-                    "http://example.com/img.png");
+                    "llm.output_messages.0.message.contents.0.message_content.image.url", "http://example.com/img.png");
             span.setAttribute("llm.output_messages.0.message.content", "visible text");
         }
 
@@ -347,7 +373,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideInputAudioSuppressesAudioWithinInputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputAudio(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputAudio(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("llm.input_messages.0.message.contents.0.audio.url", "http://example.com/audio.wav");
@@ -364,7 +391,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideOutputAudioSuppressesAudioWithinOutputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputAudio(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputAudio(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("llm.output_messages.0.message.contents.0.audio.url", "http://example.com/audio.wav");
@@ -381,7 +409,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideInputEmbeddingsSuppressesEmbeddingVectors() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputEmbeddings(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputEmbeddings(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("embedding.embeddings.0.embedding.vector", "[0.1, 0.2, 0.3]");
@@ -389,11 +418,9 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes()
-                        .get(AttributeKey.stringKey("embedding.embeddings.0.embedding.vector")))
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("embedding.embeddings.0.embedding.vector")))
                 .isNull();
-        assertThat(data.getAttributes()
-                        .get(AttributeKey.stringKey("embedding.embeddings.0.embedding.text")))
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("embedding.embeddings.0.embedding.text")))
                 .isEqualTo("visible text");
     }
 
@@ -461,10 +488,14 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
         // Non-input/output attributes should still be present
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
                 .isEqualTo("gpt-4o");
@@ -519,28 +550,32 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideInputMessagesSuppressesSetInputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setInputMessages(List.of(Map.of("role", "user", "content", "secret")));
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- hideOutputMessages also suppresses via LLMSpan.setOutputMessages() ----
 
     @Test
     void hideOutputMessagesSuppressesSetOutputMessages() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setOutputMessages(List.of(Map.of("role", "assistant", "content", "secret")));
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- hideInputs subsumes hideInputMessages (broad overrides narrow) ----
@@ -558,8 +593,10 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- hideOutputs subsumes hideOutputMessages ----
@@ -576,8 +613,10 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- Multiple granular flags: hideInputText + hideInputImages together ----
@@ -627,7 +666,8 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
                 .isEqualTo("gpt-4o");
         assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
@@ -640,7 +680,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideInputMessagesDoesNotSuppressPrompts() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute(SemanticConventions.LLM_PROMPTS, "visible prompt");
@@ -652,7 +693,8 @@ class HideFlagHierarchyTest {
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROMPTS)))
                 .isEqualTo("visible prompt");
         // input messages should be hidden
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- hideInputText does NOT affect output message content ----
@@ -677,7 +719,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideOutputTextDoesNotAffectInputMessageContent() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideOutputText(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideOutputText(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("llm.input_messages.0.message.content", "visible");
@@ -724,7 +767,8 @@ class HideFlagHierarchyTest {
 
     @Test
     void hideInputMessagesSuppressesAllIndices() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setAttribute("llm.input_messages.0.message.role", "user");
@@ -736,19 +780,26 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.role"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.content"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.role"))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.content"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.role")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.content")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.role")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.content")))
+                .isNull();
     }
 
     // ---- setInput still works with hideInputMessages (setInput bypasses setAttribute) ----
 
     @Test
     void setInputStillWorksWhenHideInputMessagesEnabled() {
-        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+        OITracer tracer =
+                createTracer(TraceConfig.builder().hideInputMessages(true).build());
 
         try (LLMSpan span = LLMSpan.start(tracer, "test")) {
             span.setInput("visible input value");
@@ -760,7 +811,8 @@ class HideFlagHierarchyTest {
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isNotNull();
         // Input messages via setAttribute should be hidden
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES)))
+                .isNull();
     }
 
     // ---- setInput is hidden when hideInputs is true ----
@@ -774,8 +826,10 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNull();
     }
 
     // ---- setOutput is hidden when hideOutputs is true ----
@@ -789,7 +843,9 @@ class HideFlagHierarchyTest {
         }
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
-        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNull();
     }
 }

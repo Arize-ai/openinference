@@ -12,7 +12,6 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -271,10 +270,8 @@ class SpringAIInstrumentorHideFlagTest {
 
     @Test
     void hideInputsAndHideInputMessages_bothSuppressEverything() {
-        TraceConfig config = TraceConfig.builder()
-                .hideInputs(true)
-                .hideInputMessages(true)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideInputMessages(true).build();
         SpringAIInstrumentor instrumentor = createInstrumentor(config);
         ChatModelObservationContext context = createMockContext("Secret", "Response");
 
@@ -294,10 +291,8 @@ class SpringAIInstrumentorHideFlagTest {
 
     @Test
     void hideOutputsAndHideOutputMessages_bothSuppressEverything() {
-        TraceConfig config = TraceConfig.builder()
-                .hideOutputs(true)
-                .hideOutputMessages(true)
-                .build();
+        TraceConfig config =
+                TraceConfig.builder().hideOutputs(true).hideOutputMessages(true).build();
         SpringAIInstrumentor instrumentor = createInstrumentor(config);
         ChatModelObservationContext context = createMockContext("Hello", "Secret");
 
