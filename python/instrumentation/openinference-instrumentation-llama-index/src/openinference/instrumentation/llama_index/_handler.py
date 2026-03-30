@@ -154,12 +154,14 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+
 try:
     from workflows.runtime.types.step_function import (  # type: ignore[import-not-found]
         SpanCancelledEvent,
         WorkflowRunOutputEvent,
         WorkflowStepOutputEvent,
     )
+
     _HAS_WORKFLOW_EVENTS = True
 except ImportError:
     SpanCancelledEvent = None  # type: ignore[misc,assignment]
@@ -709,9 +711,7 @@ class _Span(BaseSpan):
     def _(self, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
         # Cancellation is intentional (user or asyncio) so we record the reason as a
         # span event instead of marking the span as ERROR.
-        self._otel_span.add_event(
-            "span.cancelled", attributes={"reason": event.reason}
-        )
+        self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
 
     @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:

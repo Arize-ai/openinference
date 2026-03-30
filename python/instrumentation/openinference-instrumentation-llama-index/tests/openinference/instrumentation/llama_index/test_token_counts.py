@@ -90,9 +90,9 @@ class TestTokenCounts:
         )
 
     @pytest.mark.vcr(
-        before_record_request=lambda request: None
-        if "oauth2" in request.uri
-        else (request.headers.clear() or request),
+        before_record_request=lambda request: (
+            None if "oauth2" in request.uri else (request.headers.clear() or request)
+        ),
         match_on=["method", "body"],
     )
     def test_vertex(
