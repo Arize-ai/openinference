@@ -33,7 +33,6 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -61,29 +60,41 @@ jobs:
   slack:
     name: Slack notification
     needs: canary
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    env:
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/download-artifact@v4
-      - name: List failures as markdown
+        if: ${{ needs.canary.result == 'failure' }}
+      - name: List failures
+        if: ${{ needs.canary.result == 'failure' }}
         run: |
           {
             echo "list<<EOF"
-            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | rev | sort -u | rev | nl -w2 -s'. '
+            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | sort | nl -w2 -s'. '
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         id: failures
-      - name: Create message text
-        if: ${{ steps.failures.outputs.list != '' }}
+      - name: Build message
+        env:
+          CANARY_RESULT: ${{ needs.canary.result }}
+          FAILURE_LIST: ${{ steps.failures.outputs.list }}
         run: |
+          if [ "$CANARY_RESULT" = "failure" ]; then
+            MSG="Python canary cron failed:
+          $FAILURE_LIST
+          $RUN_URL"
+          else
+            MSG="Python canary cron passed: $RUN_URL"
+          fi
           {
             echo "text<<EOF"
-            echo "CI Failures for Python Packages:"
-            echo "${{ steps.failures.outputs.list }}"
+            echo "$MSG"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        if: ${{ steps.failures.outputs.list != '' }}
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
