@@ -28,8 +28,9 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 4. **Investigate the upstream change**: Search PyPI versions, GitHub releases, or changelogs for the upstream package to find what changed. Focus on attribute/API changes that would break our instrumentation.
 
 5. **Draft and test the fix**: Modify the instrumentor code and tests. Run both the pinned and `-latest` tox environments to verify backward compatibility:
-   - `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps)
+   - `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
    - `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x` (latest deps)
+   - If ruff reformats any files, commit the formatting changes before proceeding.
 
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 
