@@ -542,4 +542,254 @@ class HideFlagHierarchyTest {
         SpanData data = exporter.getFinishedSpanItems().get(0);
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
     }
+
+    // ---- hideInputs subsumes hideInputMessages (broad overrides narrow) ----
+
+    @Test
+    void hideInputsSubsumesHideInputMessages() {
+        // When both hideInputs and hideInputMessages are true, everything still works
+        OITracer tracer = createTracer(
+                TraceConfig.builder().hideInputs(true).hideInputMessages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute(SemanticConventions.INPUT_VALUE, "secret");
+            span.setAttribute(SemanticConventions.LLM_INPUT_MESSAGES, "[{\"role\":\"user\"}]");
+            span.setInputMessages(List.of(Map.of("role", "user", "content", "secret")));
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+    }
+
+    // ---- hideOutputs subsumes hideOutputMessages ----
+
+    @Test
+    void hideOutputsSubsumesHideOutputMessages() {
+        OITracer tracer = createTracer(
+                TraceConfig.builder().hideOutputs(true).hideOutputMessages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute(SemanticConventions.OUTPUT_VALUE, "secret");
+            span.setAttribute(SemanticConventions.LLM_OUTPUT_MESSAGES, "[{\"role\":\"assistant\"}]");
+            span.setOutputMessages(List.of(Map.of("role", "assistant", "content", "secret")));
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_OUTPUT_MESSAGES))).isNull();
+    }
+
+    // ---- Multiple granular flags: hideInputText + hideInputImages together ----
+
+    @Test
+    void multipleGranularFlagsCombined() {
+        OITracer tracer = createTracer(
+                TraceConfig.builder().hideInputText(true).hideInputImages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("llm.input_messages.0.message.content", "secret text");
+            span.setAttribute(
+                    "llm.input_messages.0.message.contents.0.message_content.image.url", "http://example.com/img.png");
+            span.setAttribute("llm.input_messages.0.message.role", "user");
+            span.setAttribute("llm.input_messages.0.message.contents.0.message_content.text", "visible text");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // text content hidden
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isNull();
+        // image hidden
+        assertThat(data.getAttributes()
+                        .get(AttributeKey.stringKey(
+                                "llm.input_messages.0.message.contents.0.message_content.image.url")))
+                .isNull();
+        // role still visible
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isEqualTo("user");
+        // message_content.text still visible (not hidden by hideInputText which only targets message.content)
+        assertThat(data.getAttributes()
+                        .get(AttributeKey.stringKey("llm.input_messages.0.message.contents.0.message_content.text")))
+                .isEqualTo("visible text");
+    }
+
+    // ---- hideInputs suppresses prompts but not other LLM attributes ----
+
+    @Test
+    void hideInputsDoesNotSuppressModelNameOrTokenCounts() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputs(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute(SemanticConventions.INPUT_VALUE, "secret");
+            span.setModelName("gpt-4o");
+            span.setTokenCountPrompt(100);
+            span.setTokenCountTotal(200);
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                .isEqualTo("gpt-4o");
+        assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
+                .isEqualTo(100L);
+        assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
+                .isEqualTo(200L);
+    }
+
+    // ---- hideInputMessages does NOT affect prompts (llm.prompts) ----
+
+    @Test
+    void hideInputMessagesDoesNotSuppressPrompts() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute(SemanticConventions.LLM_PROMPTS, "visible prompt");
+            span.setAttribute(SemanticConventions.LLM_INPUT_MESSAGES, "[{\"role\":\"user\"}]");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // prompts should still be visible (hideInputMessages is narrow)
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROMPTS)))
+                .isEqualTo("visible prompt");
+        // input messages should be hidden
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+    }
+
+    // ---- hideInputText does NOT affect output message content ----
+
+    @Test
+    void hideInputTextDoesNotAffectOutputMessageContent() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputText(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("llm.input_messages.0.message.content", "hidden");
+            span.setAttribute("llm.output_messages.0.message.content", "visible");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isEqualTo("visible");
+    }
+
+    // ---- hideOutputText does NOT affect input message content ----
+
+    @Test
+    void hideOutputTextDoesNotAffectInputMessageContent() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideOutputText(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("llm.input_messages.0.message.content", "visible");
+            span.setAttribute("llm.output_messages.0.message.content", "hidden");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isEqualTo("visible");
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isNull();
+    }
+
+    // ---- All prompt template flags combined ----
+
+    @Test
+    void allPromptTemplateFlagsCombinedSuppressAll() {
+        OITracer tracer = createTracer(TraceConfig.builder()
+                .hidePromptTemplate(true)
+                .hidePromptTemplateVariables(true)
+                .hidePromptTemplateVersion(true)
+                .build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_TEMPLATE, "template");
+            span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_VARIABLES, "vars");
+            span.setAttribute(SemanticConventions.PROMPT_TEMPLATE_VERSION, "v1");
+            span.setAttribute(SemanticConventions.LLM_MODEL_NAME, "gpt-4o");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.PROMPT_TEMPLATE_TEMPLATE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.PROMPT_TEMPLATE_VARIABLES)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.PROMPT_TEMPLATE_VERSION)))
+                .isNull();
+        // Non-template attributes still present
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                .isEqualTo("gpt-4o");
+    }
+
+    // ---- Multiple message indices are all hidden ----
+
+    @Test
+    void hideInputMessagesSuppressesAllIndices() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setAttribute("llm.input_messages.0.message.role", "user");
+            span.setAttribute("llm.input_messages.0.message.content", "msg0");
+            span.setAttribute("llm.input_messages.1.message.role", "assistant");
+            span.setAttribute("llm.input_messages.1.message.content", "msg1");
+            span.setAttribute("llm.input_messages.2.message.role", "user");
+            span.setAttribute("llm.input_messages.2.message.content", "msg2");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.role"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.1.message.content"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.role"))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey("llm.input_messages.2.message.content"))).isNull();
+    }
+
+    // ---- setInput still works with hideInputMessages (setInput bypasses setAttribute) ----
+
+    @Test
+    void setInputStillWorksWhenHideInputMessagesEnabled() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputMessages(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setInput("visible input value");
+            span.setAttribute(SemanticConventions.LLM_INPUT_MESSAGES, "[{\"role\":\"user\"}]");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // setInput bypasses setAttribute, writes directly to span - should still be present
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        // Input messages via setAttribute should be hidden
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_INPUT_MESSAGES))).isNull();
+    }
+
+    // ---- setInput is hidden when hideInputs is true ----
+
+    @Test
+    void setInputHiddenWhenHideInputsEnabled() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideInputs(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setInput("secret input");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))).isNull();
+    }
+
+    // ---- setOutput is hidden when hideOutputs is true ----
+
+    @Test
+    void setOutputHiddenWhenHideOutputsEnabled() {
+        OITracer tracer = createTracer(TraceConfig.builder().hideOutputs(true).build());
+
+        try (LLMSpan span = LLMSpan.start(tracer, "test")) {
+            span.setOutput("secret output");
+        }
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))).isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))).isNull();
+    }
 }
