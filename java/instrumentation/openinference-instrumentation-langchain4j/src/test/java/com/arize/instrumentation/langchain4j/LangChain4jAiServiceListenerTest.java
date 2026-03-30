@@ -356,70 +356,64 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
         instrumentor.uninstrument();
         assertThat(spans).hasSize(4);
 
+        // With hideInputMessages/hideOutputMessages (narrow flags), input.value/output.value
+        // should still be present — only llm.input_messages.*/llm.output_messages.* are suppressed.
+
         // Verify First LLM Span Attributes
         SpanData llmSpan = spans.get(0);
-        assertThat(Objects.isNull(llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
+        assertThat(llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
 
-        assertThat(Objects.isNull(
-                        llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
-                .isTrue();
+        // Output value is null on first LLM span because the model made a tool call (no text)
+        assertThat(llmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isEqualTo("text/plain");
 
-        // Verify Tool LLM Span Attributes
+        // llm.input_messages.* should be hidden
+        assertThat(llmSpan.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+
+        // Verify Tool Span Attributes — input.value and output.value should be present
         SpanData toolSpan = spans.get(1);
-        assertThat(Objects.isNull(
-                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS))))
-                .isTrue();
+        assertThat(toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNotNull();
+        assertThat(toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS)))
+                .isNotNull();
 
-        assertThat(Objects.isNull(
-                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
-                .isTrue();
+        assertThat(toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("124.0");
+        assertThat(toolSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isEqualTo("text/plain");
 
-        // Verify Final LLM Span Attributes
+        // Verify Final LLM Span Attributes — input.value and output.value should be present
         SpanData finalLlmSpan = spans.get(2);
-        assertThat(Objects.isNull(
-                        finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
+        assertThat(finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
 
-        assertThat(Objects.isNull(
-                        finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
-                .isTrue();
+        assertThat(finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNotNull();
+        assertThat(finalLlmSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isEqualTo("text/plain");
 
-        // Verify Agent Span Attributes
+        // llm.input_messages.* should be hidden on final LLM span too
+        assertThat(finalLlmSpan.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+
+        // Verify Agent Span Attributes — input.value and output.value should be present
         SpanData agentSpan = spans.get(3);
-        assertThat(Objects.isNull(
-                        agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(
-                        agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE))))
-                .isTrue();
+        assertThat(agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNotNull();
+        assertThat(agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNotNull();
+        assertThat(agentSpan.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNotNull();
     }
 
     @Test
@@ -445,14 +439,15 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo(SemanticConventions.OpenInferenceSpanKind.LLM.toString());
-        assertThat(Objects.isNull(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
+        // With hideInputMessages (narrow), input.value and input.mime_type should still be present
+        assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
         assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
-        assertThat(Objects.isNull(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE))))
-                .isTrue(); // LLM span should not contain the final answer since tool calls are involved
+        // Output value is null on first LLM span because the model made a tool call (no text output)
+        llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE));
         // Model attributes
         assertThat(llmAttrs.remove(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
                 .isEqualTo("unknown");
@@ -474,7 +469,11 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 (List<String>) llmAttrs.remove(AttributeKey.stringArrayKey("llm.response.finish_reasons"));
         assertThat(finishReasons).containsExactly("TOOL_EXECUTION");
 
-        // Output messages
+        // llm.input_messages.* should be hidden (narrow flag)
+        assertThat(llmAttrs.remove(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+
+        // Output messages should still be present (hideOutputMessages not set)
         assertThat(llmAttrs.remove(AttributeKey.stringKey("llm.output_messages.0.message.role")))
                 .isEqualTo("assistant");
         assertThat(llmAttrs.remove(AttributeKey.stringKey("llm.output_messages.0.message.tool_calls.0.tool_call.id")))
@@ -498,7 +497,7 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
                 .contains("{}");
         assertThat(llmAttrs).isEmpty();
 
-        // Verify TooL Call Span Attributes
+        // Verify Tool Call Span Attributes
         SpanData toolSpan = spans.get(1);
         assertThat(toolSpan.getName()).isEqualTo("AiService.tool");
         assertThat(toolSpan.getKind()).isEqualTo(SpanKind.CLIENT);
@@ -509,6 +508,13 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo(SemanticConventions.OpenInferenceSpanKind.TOOL.toString());
+        // With hideInputMessages (narrow), tool span input.value should still be present
+        assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNotNull();
+        assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.TOOL_PARAMETERS)))
+                .isNotNull();
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
         assertThat(toolAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
@@ -530,10 +536,11 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo(SemanticConventions.OpenInferenceSpanKind.LLM.toString());
-        assertThat(Objects.isNull(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
+        // With hideInputMessages (narrow), input.value should still be present
+        assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
         assertThat(finalLlmAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
@@ -587,10 +594,11 @@ class LangChain4jAiServiceListenerTest extends BaseInstrumentationSetup {
 
         assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo(SemanticConventions.OpenInferenceSpanKind.AGENT.toString());
-        assertThat(Objects.isNull(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE))))
-                .isTrue();
-        assertThat(Objects.isNull(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE))))
-                .isTrue();
+        // With hideInputMessages (narrow), agent span input.value should still be present
+        assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNotNull();
         assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
                 .isEqualTo("text/plain");
         assertThat(agentAttrs.remove(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))

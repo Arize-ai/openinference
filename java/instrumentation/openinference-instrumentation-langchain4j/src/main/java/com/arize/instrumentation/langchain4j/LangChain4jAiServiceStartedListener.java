@@ -42,7 +42,8 @@ public class LangChain4jAiServiceStartedListener implements AiServiceStartedList
         span.setAttribute(
                 SemanticConventions.OPENINFERENCE_SPAN_KIND,
                 SemanticConventions.OpenInferenceSpanKind.AGENT.getValue());
-        if (!tracer.getConfig().isHideInputMessages()) {
+        // Set input.value and input.mime_type (gated only by hideInputs)
+        if (!tracer.getConfig().isHideInputs()) {
             List<ChatMessage> messages = new ArrayList<>();
             if (event.systemMessage().isPresent()) {
                 messages.add(event.systemMessage().get());
