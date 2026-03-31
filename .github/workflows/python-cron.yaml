@@ -12,10 +12,10 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           version: 0.6.3
           enable-cache: false
@@ -38,10 +38,10 @@ jobs:
       matrix:
         testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           version: 0.6.3
           enable-cache: false
@@ -50,7 +50,7 @@ jobs:
         timeout-minutes: 15
       - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: ${{ matrix.testenv }}
@@ -65,7 +65,7 @@ jobs:
     env:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ needs.canary.result == 'failure' }}
       - name: List failures
         if: ${{ needs.canary.result == 'failure' }}
@@ -95,12 +95,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
