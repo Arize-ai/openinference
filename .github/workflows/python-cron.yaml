@@ -67,6 +67,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    outputs:
+      failure_list: ${{ steps.failures.outputs.list }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ needs.canary.result == 'failure' }}
@@ -107,3 +109,28 @@ jobs:
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+
+  auto-fix:
+    name: Propose fix for failures
+    needs: slack
+    if: ${{ needs.slack.outputs.failure_list != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            The following Python canary cron jobs failed:
+
+            ${{ needs.slack.outputs.failure_list }}
+
+            Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
+
+            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
+            Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
