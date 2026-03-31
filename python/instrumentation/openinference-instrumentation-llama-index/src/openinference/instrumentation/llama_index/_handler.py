@@ -697,21 +697,27 @@ class _Span(BaseSpan):
         # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
 
-    @_process_event.register
-    def _(self, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
-        # Pre-summarised step output produced by workflows.runtime
-        self[OUTPUT_VALUE] = event.output
+    if WorkflowStepOutputEvent is not None:
 
-    @_process_event.register
-    def _(self, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
-        # Pre-summarised whole-workflow output
-        self[OUTPUT_VALUE] = event.output
+        @_process_event.register
+        def _(self, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+            # Pre-summarised step output produced by workflows.runtime
+            self[OUTPUT_VALUE] = event.output
 
-    @_process_event.register
-    def _(self, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
-        # Cancellation is intentional (user or asyncio) so we record the reason as a
-        # span event instead of marking the span as ERROR.
-        self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
+    if WorkflowRunOutputEvent is not None:
+
+        @_process_event.register
+        def _(self, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+            # Pre-summarised whole-workflow output
+            self[OUTPUT_VALUE] = event.output
+
+    if SpanCancelledEvent is not None:
+
+        @_process_event.register
+        def _(self, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
+            # Cancellation is intentional (user or asyncio) so we record the reason as a
+            # span event instead of marking the span as ERROR.
+            self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
 
     @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:
