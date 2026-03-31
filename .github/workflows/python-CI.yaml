@@ -10,6 +10,9 @@ concurrency:
   group: test-python-${{ github.head_ref }}
   cancel-in-progress: true
 
+env:
+  UV_EXCLUDE_NEWER: "3 days"
+
 jobs:
   changes:
     name: Filter Changes
