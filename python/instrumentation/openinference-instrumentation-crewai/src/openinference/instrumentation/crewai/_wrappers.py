@@ -128,6 +128,42 @@ def _get_input_value(method: Callable[..., Any], *args: Any, **kwargs: Any) -> s
     )
 
 
+def _get_kickoff_inputs(
+    args: Tuple[Any, ...],
+    kwargs: Mapping[str, Any],
+) -> Any:
+    """
+    Returns the explicit kickoff inputs argument without treating empty mappings
+    as missing values.
+    """
+    if "inputs" in kwargs:
+        return kwargs["inputs"]
+    if args:
+        return args[0]
+    return None
+
+
+def _get_crew_input_attributes(crew: Any, inputs: Any) -> Dict[str, AttributeValue]:
+    """
+    Prefer the explicit kickoff inputs. When kickoff() is called without inputs,
+    fall back to the first non-empty task description as the effective root input.
+    """
+    if inputs is not None:
+        return dict(get_input_attributes(inputs))
+
+    tasks = getattr(crew, "tasks", None) or ()
+    for task in tasks:
+        description = getattr(task, "description", None)
+        if isinstance(description, str) and description.strip():
+            return dict(
+                get_input_attributes(
+                    description,
+                    mime_type=OpenInferenceMimeTypeValues.TEXT,
+                )
+            )
+    return {}
+
+
 def _get_crew_name(crew: Any) -> str:
     """Generate a meaningful crew name for span naming."""
     # First try to use crew.name attribute (user-friendly name)
@@ -340,17 +376,17 @@ class _CrewKickoffWrapper:
             ),
         ) as span:
             crew = instance
-            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
-
-            if inputs is not None:
-                span.set_attributes(dict(get_input_attributes(inputs)))
+            inputs = _get_kickoff_inputs(args, kwargs)
+            input_attributes = _get_crew_input_attributes(crew, inputs)
+            if input_attributes:
+                span.set_attributes(input_attributes)
                 # Extract Kickoff ID (Only available when using CrewAI AMP API)
                 if isinstance(inputs, dict) and "id" in inputs:
                     span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("crew_key", crew.key)
             span.set_attribute("crew_id", str(crew.id))
-            span.set_attribute("crew_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute("crew_inputs", json.dumps(inputs) if inputs is not None else "")
             span.set_attribute(
                 "crew_agents",
                 json.dumps(
@@ -445,7 +481,7 @@ class _FlowKickoffWrapper:
             ),
         ) as span:
             flow = instance
-            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+            inputs = _get_kickoff_inputs(args, kwargs)
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
@@ -453,7 +489,7 @@ class _FlowKickoffWrapper:
                     span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
-            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs is not None else "")
 
             # Signal to the async wrapper that the span already exists for this flow.
             # Store the flow_id (not a plain boolean) so that nested flows with different
@@ -512,7 +548,7 @@ class _FlowKickoffAsyncWrapper:
             ),
         ) as span:
             flow = instance
-            inputs = kwargs.get("inputs", None) or (args[0] if args else None)
+            inputs = _get_kickoff_inputs(args, kwargs)
 
             if inputs is not None:
                 span.set_attributes(dict(get_input_attributes(inputs)))
@@ -521,7 +557,7 @@ class _FlowKickoffAsyncWrapper:
                     span.set_attribute("kickoff_id", str(inputs["id"]))
 
             span.set_attribute("flow_id", str(flow.flow_id))
-            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs else "")
+            span.set_attribute("flow_inputs", json.dumps(inputs) if inputs is not None else "")
 
             try:
                 flow_output = await wrapped(*args, **kwargs)

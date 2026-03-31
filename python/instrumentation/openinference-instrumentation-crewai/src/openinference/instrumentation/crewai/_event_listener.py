@@ -66,7 +66,11 @@ from openinference.instrumentation.crewai._event_assembler import (
     _SpanEndSpec,
     _SpanStartSpec,
 )
-from openinference.instrumentation.crewai._wrappers import SafeJSONEncoder, _find_parent_agent
+from openinference.instrumentation.crewai._wrappers import (
+    SafeJSONEncoder,
+    _find_parent_agent,
+    _get_crew_input_attributes,
+)
 from openinference.semconv.trace import (
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
@@ -211,8 +215,9 @@ def _build_crew_start_spec(source: Any, event: CrewKickoffStartedEvent) -> _Span
     attributes: dict[str, Any] = {}
 
     inputs = getattr(event, "inputs", None)
-    if inputs is not None:
-        attributes.update(dict(get_input_attributes(inputs)))
+    input_attributes = _get_crew_input_attributes(crew, inputs)
+    if input_attributes:
+        attributes.update(input_attributes)
         if isinstance(inputs, Mapping) and "id" in inputs:
             attributes["kickoff_id"] = str(inputs["id"])
 

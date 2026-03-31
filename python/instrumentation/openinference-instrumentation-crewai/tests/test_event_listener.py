@@ -578,6 +578,71 @@ def test_event_listener_llm_failed_sets_error_status_and_clears_usage(
     assert not direct_event_listener._llm_usage_by_call_id
 
 
+def test_event_listener_crew_uses_first_task_description_when_inputs_missing(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    task_description = 'Respond to the user: "what is the weather in seattle?"'
+    crew = SimpleNamespace(
+        name="Conversation Crew",
+        key="crew-key",
+        id=uuid.uuid4(),
+        agents=[],
+        tasks=[
+            SimpleNamespace(
+                id=uuid.uuid4(),
+                description=task_description,
+                expected_output="A helpful response.",
+                agent=None,
+            )
+        ],
+    )
+
+    direct_event_listener._on_crew_started(
+        crew,
+        _event("crew-start", crew=crew, crew_name=crew.name, inputs=None),
+    )
+    direct_event_listener._on_crew_completed(
+        crew,
+        _end_event("crew-start", output="done"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert spans[0].name == "Conversation Crew.kickoff"
+    assert attributes.pop(INPUT_VALUE) == task_description
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+
+
+def test_event_listener_crew_preserves_empty_dict_inputs(
+    direct_event_listener: OpenInferenceEventListener,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    crew = SimpleNamespace(
+        name="Conversation Crew",
+        key="crew-key",
+        id=uuid.uuid4(),
+        agents=[],
+        tasks=[],
+    )
+
+    direct_event_listener._on_crew_started(
+        crew,
+        _event("crew-start", crew=crew, crew_name=crew.name, inputs={}),
+    )
+    direct_event_listener._on_crew_completed(
+        crew,
+        _end_event("crew-start", output="done"),
+    )
+
+    spans = _finished_spans(in_memory_span_exporter)
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert _pop_json(attributes, INPUT_VALUE) == {}
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+
+
 @pytest.mark.vcr
 @pytest.mark.default_cassette("test_crewai_instrumentation")
 def test_event_listener_crewai_instrumentation(
@@ -789,6 +854,11 @@ def test_event_listener_flow_crew_spans_in_same_trace(
     assert _assert_uuid(crew_attributes.pop("crew_id"))
     assert crew_attributes.pop("crew_key")
     assert crew_attributes.pop(LLM_TOKEN_COUNT_TOTAL) > 0
+    assert crew_attributes.pop(INPUT_MIME_TYPE) == TEXT
+    assert crew_attributes.pop(INPUT_VALUE) == (
+        "Call the scrape_website tool to fetch text from "
+        "http://quotes.toscrape.com/ and return the result."
+    )
     assert crew_attributes.pop(OUTPUT_MIME_TYPE) == JSON
     crew_output = _pop_json(crew_attributes, OUTPUT_VALUE)
     assert crew_output["agent"] == "Website Scraper"

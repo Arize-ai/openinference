@@ -1,5 +1,6 @@
 import json
 import uuid
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -10,7 +11,10 @@ from opentelemetry.util._importlib_metadata import entry_points
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
+from openinference.instrumentation.crewai._wrappers import (
+    _CrewKickoffWrapper,
+    _get_execute_core_span_name,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -31,6 +35,7 @@ from ._span_helpers import (
     OUTPUT_VALUE,
     SESSION_ID,
     TAG_TAGS,
+    TEXT,
     TOOL_DESCRIPTION,
     TOOL_NAME,
     TOOL_PARAMETERS,
@@ -533,3 +538,72 @@ def test_execute_core_span_name_with_none_attributes() -> None:
     instance.name = "research-task"
     result = _get_execute_core_span_name(instance, wrapped, agent)
     assert result == "Research Analyst.research-task._execute_core"
+
+
+def test_crew_kickoff_wrapper_uses_first_task_description_when_inputs_missing(
+    tracer_provider: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    task_description = 'Respond to the user: "what is the weather in seattle?"'
+    crew = SimpleNamespace(
+        name="Conversation Crew",
+        key="crew-key",
+        id=uuid.uuid4(),
+        agents=[],
+        tasks=[
+            SimpleNamespace(
+                id=uuid.uuid4(),
+                description=task_description,
+                expected_output="A helpful response.",
+                async_execution=False,
+                human_input=False,
+                agent=None,
+                context=None,
+                tools=[],
+            )
+        ],
+    )
+    wrapper = _CrewKickoffWrapper(tracer=tracer_provider.get_tracer(__name__))
+
+    wrapper(
+        lambda *args, **kwargs: {"status": "ok"},
+        crew,
+        (),
+        {},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert spans[0].name == "Conversation Crew.kickoff"
+    assert attributes.pop(INPUT_VALUE) == task_description
+    assert attributes.pop(INPUT_MIME_TYPE) == TEXT
+    assert attributes.pop("crew_inputs") == ""
+
+
+def test_crew_kickoff_wrapper_preserves_empty_dict_inputs(
+    tracer_provider: Any,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    crew = SimpleNamespace(
+        name="Conversation Crew",
+        key="crew-key",
+        id=uuid.uuid4(),
+        agents=[],
+        tasks=[],
+    )
+    wrapper = _CrewKickoffWrapper(tracer=tracer_provider.get_tracer(__name__))
+
+    wrapper(
+        lambda *args, **kwargs: {"status": "ok"},
+        crew,
+        (),
+        {"inputs": {}},
+    )
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    attributes = dict(spans[0].attributes or {})
+    assert json.loads(str(attributes.pop(INPUT_VALUE))) == {}
+    assert attributes.pop(INPUT_MIME_TYPE) == JSON
+    assert attributes.pop("crew_inputs") == "{}"
