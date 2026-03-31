@@ -10,6 +10,9 @@ concurrency:
   group: test-python-${{ github.head_ref }}
   cancel-in-progress: true
 
+env:
+  UV_EXCLUDE_NEWER: "3 days"
+
 jobs:
   changes:
     name: Filter Changes
@@ -18,8 +21,8 @@ jobs:
       diff: ${{ steps.filter.outputs.diff }}
       diff_files: ${{ steps.filter.outputs.diff_files }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           list-files: json
@@ -43,12 +46,12 @@ jobs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
       - name: Find tox environments to run
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
       - run: |
           DIFF_FILES='${{ needs.changes.outputs.diff_files }}'
@@ -71,12 +74,12 @@ jobs:
       matrix:
         testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
       - run: uvx --with tox-uv tox run -e ${{ matrix.testenv }}
         working-directory: python
