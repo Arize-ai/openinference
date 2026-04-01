@@ -54,7 +54,7 @@ _INVOCATION_PARAMETER_KEYS: List[str] = [
 
 _OPENINF_TOOL_LIST_KEY = "llm.tools"
 
-# New-style GenAI semconv attribute keys (v0.55.0+)
+# GenAI semconv attribute keys (v0.55.0+ default format)
 _GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 _GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 _GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
@@ -287,7 +287,7 @@ def _extract_llm_provider_and_system(
     if provider_val not in _VALID_LLM_PROVIDERS:
         provider_val = None
 
-    # Fall back to gen_ai.provider.name when gen_ai.system is absent (OpenLLMetry v0.55.0+).
+    # gen_ai.system (deprecated) or gen_ai.provider.name (v0.55.0+)
     system_raw = attrs.get(GenAIAttributes.GEN_AI_SYSTEM) or attrs.get(
         GenAIAttributes.GEN_AI_PROVIDER_NAME
     )
@@ -313,16 +313,18 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             attrs.update(generic)
             return
 
-        # Detect which message format is present
-        has_legacy = any(k.startswith("gen_ai.prompt.") for k in attrs)
-        has_new = _GEN_AI_INPUT_MESSAGES in attrs
+        # Detect which message format is present.
+        # The JSON-based format (v0.55.0+) is the default; the legacy
+        # attribute-per-field format is kept only as a fallback.
+        has_json_messages = _GEN_AI_INPUT_MESSAGES in attrs
+        has_legacy_attributes = any(k.startswith("gen_ai.prompt.") for k in attrs)
 
         # Skip if no LLM prompt data in either format
-        if not has_legacy and not has_new:
+        if not has_json_messages and not has_legacy_attributes:
             return
 
-        # Reconstruct messages from whichever format is available
-        if has_new:
+        # Reconstruct messages, preferring the current format
+        if has_json_messages:
             inputs, input_finish_reasons = _parse_messages_from_json(
                 attrs.get(_GEN_AI_INPUT_MESSAGES, "[]")
             )
@@ -330,6 +332,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
                 attrs.get(_GEN_AI_OUTPUT_MESSAGES, "[]")
             )
         else:
+            # Fallback for older OpenLLMetry versions (< 0.55.0)
             inputs, input_finish_reasons = _parse_messages_from_attributes(attrs, "gen_ai.prompt.")
             outputs, output_finish_reasons = _parse_messages_from_attributes(
                 attrs, "gen_ai.completion."
