@@ -1259,7 +1259,7 @@ def _get_token_counts_impl(
 
 if WorkflowStepOutputEvent is not None:
 
-    @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined]
+    @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined,misc]
     def _workflow_step_output_event(self: _Span, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
         # Pre-summarised step output produced by workflows.runtime
         self[OUTPUT_VALUE] = event.output
@@ -1267,7 +1267,7 @@ if WorkflowStepOutputEvent is not None:
 
 if WorkflowRunOutputEvent is not None:
 
-    @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined]
+    @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined,misc]
     def _workflow_run_output_event(self: _Span, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
         # Pre-summarised whole-workflow output
         self[OUTPUT_VALUE] = event.output
@@ -1275,7 +1275,7 @@ if WorkflowRunOutputEvent is not None:
 
 if SpanCancelledEvent is not None:
 
-    @_Span._process_event.register(SpanCancelledEvent)  # type: ignore[attr-defined]
+    @_Span._process_event.register(SpanCancelledEvent)  # type: ignore[attr-defined,misc]
     def _span_cancelled_event(self: _Span, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
         # Cancellation is intentional (user or asyncio) so we record the reason as a
         # span event instead of marking the span as ERROR.
