@@ -11,7 +11,6 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
-    Tuple,
 )
 
 from opentelemetry import trace as trace_api
@@ -30,7 +29,7 @@ logger.addHandler(logging.NullHandler())
 
 def _get_token_count_attributes_from_usage_metadata(
     usage_metadata: "types.GenerateContentResponseUsageMetadata",
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     """Extract token count attributes from usage metadata."""
     from google.genai import types
 
@@ -123,7 +122,7 @@ def _io_value_and_type(obj: Any) -> _ValueAndType:
 
 def _as_input_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.INPUT_VALUE, value_and_type.value
@@ -134,7 +133,7 @@ def _as_input_attributes(
 
 def _as_output_attributes(
     value_and_type: Optional[_ValueAndType],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     if not value_and_type:
         return
     yield SpanAttributes.OUTPUT_VALUE, value_and_type.value
@@ -145,8 +144,7 @@ def _as_output_attributes(
 
 def _finish_tracing(
     with_span: _WithSpan,
-    attributes: Iterable[Tuple[str, AttributeValue]],
-    extra_attributes: Iterable[Tuple[str, AttributeValue]],
+    attributes: Iterable[tuple[str, AttributeValue]],
     status: Optional[trace_api.Status] = None,
 ) -> None:
     try:
@@ -154,14 +152,9 @@ def _finish_tracing(
     except Exception:
         logger.exception("Failed to get attributes")
     try:
-        extra_attributes_dict = dict(extra_attributes)
-    except Exception:
-        logger.exception("Failed to get extra attributes")
-    try:
         with_span.finish_tracing(
             status=status,
             attributes=attributes_dict,
-            extra_attributes=extra_attributes_dict,
         )
     except Exception:
         logger.exception("Failed to finish tracing")

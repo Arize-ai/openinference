@@ -5,6 +5,9 @@ on:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
 
+env:
+  UV_EXCLUDE_NEWER: "3 days"
+
 jobs:
   find-tox-testenv:
     name: Find tox testenv
@@ -12,12 +15,12 @@ jobs:
     outputs:
       list: ${{ steps.testenv.outputs.list }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
       - name: Extract testenv into JSON list
         run: >-
@@ -33,25 +36,24 @@ jobs:
     needs: find-tox-testenv
     if: ${{ needs.find-tox-testenv.outputs.list != '[]' }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         testenv: ${{ fromJSON(needs.find-tox-testenv.outputs.list) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
-          version: 0.6.3
+          version: 0.11.2
           enable-cache: false
       - run: uvx --with tox-uv tox r -e ${{ matrix.testenv }} -- -ra -x
         working-directory: python
         timeout-minutes: 15
       - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: failure()
         with:
           name: ${{ matrix.testenv }}
@@ -61,35 +63,74 @@ jobs:
   slack:
     name: Slack notification
     needs: canary
+    if: ${{ always() }}
     runs-on: ubuntu-latest
+    env:
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    outputs:
+      failure_list: ${{ steps.failures.outputs.list }}
     steps:
-      - uses: actions/download-artifact@v4
-      - name: List failures as markdown
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ needs.canary.result == 'failure' }}
+      - name: List failures
+        if: ${{ needs.canary.result == 'failure' }}
         run: |
           {
             echo "list<<EOF"
-            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | rev | sort -u | rev | nl -w2 -s'. '
+            find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | sort | nl -w2 -s'. '
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         id: failures
-      - name: Create message text
-        if: ${{ steps.failures.outputs.list != '' }}
+      - name: Build message
+        env:
+          CANARY_RESULT: ${{ needs.canary.result }}
+          FAILURE_LIST: ${{ steps.failures.outputs.list }}
         run: |
+          if [ "$CANARY_RESULT" = "failure" ]; then
+            MSG="Python canary cron failed:
+          $FAILURE_LIST
+          $RUN_URL"
+          else
+            MSG="Python canary cron passed: $RUN_URL"
+          fi
           {
             echo "text<<EOF"
-            echo "CI Failures for Python Packages:"
-            echo "${{ steps.failures.outputs.list }}"
+            echo "$MSG"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        if: ${{ steps.failures.outputs.list != '' }}
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  auto-fix:
+    name: Propose fix for failures
+    needs: slack
+    if: ${{ needs.slack.outputs.failure_list != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            The following Python canary cron jobs failed:
+
+            ${{ needs.slack.outputs.failure_list }}
+
+            Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
+
+            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
+            Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
+          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"

@@ -9,8 +9,12 @@ import dspy
 import openai
 import weaviate
 from dotenv import load_dotenv
-from dspy.retrieve.weaviate_rm import WeaviateRM
 from dspy.teleprompt import BootstrapFewShot
+
+try:
+    from dspy.retrievers.weaviate_rm import WeaviateRM
+except ImportError:
+    from dspy.retrieve.weaviate_rm import WeaviateRM
 
 from app.utils.models import MessageData, QAList, RAGResponse
 from app.utils.rag_modules import RAG
