@@ -251,6 +251,38 @@ class TestUpdatedGenAIMessageFormat:
         assert messages[0]["tool_calls"][0]["id"] == "call_123"
         assert finish_reasons == ["tool_calls"]
 
+    def test_span_processor_with_invalid_json_messages(self) -> None:
+        """Verify on_end handles malformed JSON message attributes without crashing."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        with tracer.start_as_current_span("openai.chat") as span:
+            span.set_attribute("gen_ai.input.messages", "not valid json{{{")
+            span.set_attribute("gen_ai.output.messages", "also broken")
+            span.set_attribute("gen_ai.request.model", "gpt-4.1")
+            span.set_attribute("gen_ai.usage.input_tokens", 10)
+            span.set_attribute("gen_ai.usage.output_tokens", 5)
+            span.set_attribute("gen_ai.provider.name", "openai")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
+        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
+        assert (
+            attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
+        )
+
     def test_span_processor_with_json_message_format(self) -> None:
         """Verify on_end sets OI attributes when spans use the updated message format."""
         in_memory_span_exporter = InMemorySpanExporter()
@@ -261,7 +293,19 @@ class TestUpdatedGenAIMessageFormat:
         tracer = tracer_provider.get_tracer(__name__)
 
         input_msgs = json.dumps(
-            [{"role": "user", "parts": [{"type": "text", "content": "What is 2+2?"}]}]
+            [
+                {"role": "user", "parts": [{"type": "text", "content": "What is 2+2?"}]},
+                {
+                    "role": "tool",
+                    "parts": [
+                        {
+                            "type": "tool_call_response",
+                            "id": "call_123",
+                            "response": {"result": 4},
+                        }
+                    ],
+                },
+            ]
         )
         output_msgs = json.dumps(
             [
@@ -296,6 +340,8 @@ class TestUpdatedGenAIMessageFormat:
         assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
         assert attributes["llm.input_messages.0.message.role"] == "user"
         assert attributes["llm.input_messages.0.message.content"] == "What is 2+2?"
+        assert attributes["llm.input_messages.1.message.role"] == "tool"
+        assert attributes["llm.input_messages.1.message.content"] == "{'result': 4}"
         assert attributes["llm.output_messages.0.message.role"] == "assistant"
         assert attributes["llm.output_messages.0.message.content"] == "4"
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
