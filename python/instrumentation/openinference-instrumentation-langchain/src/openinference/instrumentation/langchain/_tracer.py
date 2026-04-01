@@ -517,25 +517,37 @@ def _serialize_langchain_message(message: BaseMessage) -> Any:
         try:
             return _message_to_dict(message)
         except Exception:
-            pass
+            logger.debug(
+                "Failed to serialize LangChain message with message_to_dict.",
+                exc_info=True,
+            )
 
     if hasattr(message, "model_dump") and callable(message.model_dump):
         try:
             return message.model_dump()
         except Exception:
-            pass
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump.",
+                exc_info=True,
+            )
 
     if hasattr(message, "model_dump_json") and callable(message.model_dump_json):
         try:
             return json.loads(message.model_dump_json())
         except Exception:
-            pass
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump_json.",
+                exc_info=True,
+            )
 
     if hasattr(message, "dict") and callable(message.dict):
         try:
             return message.dict()
         except Exception:
-            pass
+            logger.debug(
+                "Failed to serialize LangChain message with dict.",
+                exc_info=True,
+            )
 
     message_data = _serialize_langchain_message_data(message)
     if message_data:
@@ -550,7 +562,10 @@ def _serialize_langchain_message(message: BaseMessage) -> Any:
                 return dict(serialized)
             return serialized
         except Exception:
-            pass
+            logger.debug(
+                "Failed to serialize LangChain message with to_json.",
+                exc_info=True,
+            )
 
     return str(message)
 
