@@ -96,7 +96,9 @@ class TestOpenLLMetryInstrumentor:
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
         # gen_ai.system is deprecated; latest OpenLLMetry only emits gen_ai.provider.name
         if SpanAttributes.LLM_SYSTEM in attributes:
-            assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+            assert (
+                attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+            )
         assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
         total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
         assert isinstance(total_tokens, (int, float))
