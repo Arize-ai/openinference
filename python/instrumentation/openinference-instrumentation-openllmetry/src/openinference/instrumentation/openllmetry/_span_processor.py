@@ -287,11 +287,9 @@ def _extract_llm_provider_and_system(
     if provider_val not in _VALID_LLM_PROVIDERS:
         provider_val = None
 
-    # gen_ai.system (deprecated) or gen_ai.provider.name (v0.55.0+)
-    system_raw = attrs.get(GenAIAttributes.GEN_AI_SYSTEM) or attrs.get(
-        GenAIAttributes.GEN_AI_PROVIDER_NAME
-    )
-    system_val: Optional[str] = str(system_raw).lower() if system_raw else None
+    # gen_ai.system is deprecated (OTel semconv v1.37.0); v0.55.0+ only emits
+    # gen_ai.provider.name, so system_val will be None for newer spans.
+    system_val: Optional[str] = str(attrs.get(GenAIAttributes.GEN_AI_SYSTEM, "unknown")).lower()
     if system_val not in _VALID_LLM_SYSTEMS:
         system_val = None
 

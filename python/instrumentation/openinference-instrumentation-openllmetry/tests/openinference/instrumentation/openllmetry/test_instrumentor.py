@@ -94,7 +94,9 @@ class TestOpenLLMetryInstrumentor:
 
         # LLM identity
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
-        assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        # gen_ai.system is deprecated; latest OpenLLMetry only emits gen_ai.provider.name
+        if SpanAttributes.LLM_SYSTEM in attributes:
+            assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
         assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
         total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
         assert isinstance(total_tokens, (int, float))
@@ -297,7 +299,9 @@ class TestUpdatedGenAIMessageFormat:
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
         assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
-        assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        # gen_ai.system is deprecated; v0.55.0+ only emits gen_ai.provider.name,
+        # so LLM_SYSTEM is not set for new-format spans.
+        assert SpanAttributes.LLM_SYSTEM not in attributes
         assert (
             attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
         )
