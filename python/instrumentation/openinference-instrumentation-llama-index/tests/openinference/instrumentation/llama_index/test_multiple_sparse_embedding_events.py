@@ -36,6 +36,7 @@ async def test_multiple_sparse_embedding_events(
         import json
 
         stored = span.attributes[f"{EMBEDDING_EMBEDDINGS}.{k}.{EMBEDDING_VECTOR}"]
+        assert isinstance(stored, str)
         assert json.loads(stored) == {str(k): v for k, v in vector.items()}
 
 

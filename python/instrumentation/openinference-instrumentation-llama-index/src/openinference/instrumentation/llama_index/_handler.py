@@ -697,28 +697,6 @@ class _Span(BaseSpan):
         # Not needed because `prepare_to_drop_span()` provides the same information.
         ...
 
-    if WorkflowStepOutputEvent is not None:
-
-        @_process_event.register
-        def _(self, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
-            # Pre-summarised step output produced by workflows.runtime
-            self[OUTPUT_VALUE] = event.output
-
-    if WorkflowRunOutputEvent is not None:
-
-        @_process_event.register
-        def _(self, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
-            # Pre-summarised whole-workflow output
-            self[OUTPUT_VALUE] = event.output
-
-    if SpanCancelledEvent is not None:
-
-        @_process_event.register
-        def _(self, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
-            # Cancellation is intentional (user or asyncio) so we record the reason as a
-            # span event instead of marking the span as ERROR.
-            self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
-
     @_process_event.register
     def _(self, event: SynthesizeStartEvent) -> None:
         if not self._span_kind:
@@ -1277,6 +1255,31 @@ def _get_token_counts_impl(
             yield LLM_TOKEN_COUNT_TOTAL, int(total_token_count)
         except BaseException:
             pass
+
+
+if WorkflowStepOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined]
+    def _workflow_step_output_event(self: _Span, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised step output produced by workflows.runtime
+        self[OUTPUT_VALUE] = event.output
+
+
+if WorkflowRunOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined]
+    def _workflow_run_output_event(self: _Span, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised whole-workflow output
+        self[OUTPUT_VALUE] = event.output
+
+
+if SpanCancelledEvent is not None:
+
+    @_Span._process_event.register(SpanCancelledEvent)  # type: ignore[attr-defined]
+    def _span_cancelled_event(self: _Span, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
+        # Cancellation is intentional (user or asyncio) so we record the reason as a
+        # span event instead of marking the span as ERROR.
+        self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
 
 
 @singledispatch
