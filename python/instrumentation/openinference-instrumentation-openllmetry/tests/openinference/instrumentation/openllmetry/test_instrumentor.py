@@ -36,7 +36,7 @@ def is_openinference_span(span: ReadableSpan) -> bool:
 
 class TestOpenLLMetryInstrumentor:
     @pytest.mark.vcr
-    def test_openllmetry_instrumentor(
+    def test_span_processor_with_legacy_message_format(
         self,
         openai_api_key: str,
     ) -> None:
@@ -251,7 +251,7 @@ class TestUpdatedGenAIMessageFormat:
         assert messages[0]["tool_calls"][0]["id"] == "call_123"
         assert finish_reasons == ["tool_calls"]
 
-    def test_span_processor_updated_attributes(self) -> None:
+    def test_span_processor_with_json_message_format(self) -> None:
         """Verify on_end sets OI attributes when spans use the updated message format."""
         in_memory_span_exporter = InMemorySpanExporter()
         tracer_provider = TracerProvider()
