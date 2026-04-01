@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, Mapping, Optional, cast
 
 import openai
@@ -15,6 +16,7 @@ from opentelemetry.util.types import AttributeValue
 from openinference.instrumentation.openllmetry import OpenInferenceSpanProcessor
 from openinference.instrumentation.openllmetry._span_processor import (
     _extract_llm_provider_and_system,
+    _parse_messages_from_json,
 )
 from openinference.semconv.trace import (
     OpenInferenceLLMProviderValues,
@@ -34,7 +36,7 @@ def is_openinference_span(span: ReadableSpan) -> bool:
 
 class TestOpenLLMetryInstrumentor:
     @pytest.mark.vcr
-    def test_openllmetry_instrumentor(
+    def test_span_processor_with_legacy_message_format(
         self,
         openai_api_key: str,
     ) -> None:
@@ -92,7 +94,11 @@ class TestOpenLLMetryInstrumentor:
 
         # LLM identity
         assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
-        assert attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+        # gen_ai.system is deprecated; latest OpenLLMetry only emits gen_ai.provider.name
+        if SpanAttributes.LLM_SYSTEM in attributes:
+            assert (
+                attributes[SpanAttributes.LLM_SYSTEM] == OpenInferenceLLMSystemValues.OPENAI.value
+            )
         assert isinstance(attributes[SpanAttributes.LLM_INVOCATION_PARAMETERS], str)
         total_tokens = attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL)
         assert isinstance(total_tokens, (int, float))
@@ -206,3 +212,144 @@ def test_extract_llm_provider_and_system(
 
     assert provider == expected_provider
     assert system == expected_system
+
+
+class TestUpdatedGenAIMessageFormat:
+    """Tests for the updated gen_ai.input/output.messages format (OTel GenAI semconv 0.5.1+)."""
+
+    def test_parse_messages_from_json_simple(self) -> None:
+        raw = json.dumps([{"role": "user", "parts": [{"type": "text", "content": "Hello"}]}])
+        messages, finish_reasons = _parse_messages_from_json(raw)
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert messages[0]["content"] == "Hello"
+        assert finish_reasons == [None]
+
+    def test_parse_messages_from_json_with_tool_calls(self) -> None:
+        raw = json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [
+                        {"type": "text", "content": "Let me check."},
+                        {
+                            "type": "tool_call",
+                            "name": "get_weather",
+                            "id": "call_123",
+                            "arguments": {"city": "Paris"},
+                        },
+                    ],
+                    "finish_reason": "tool_calls",
+                }
+            ]
+        )
+        messages, finish_reasons = _parse_messages_from_json(raw)
+        assert len(messages) == 1
+        assert messages[0]["content"] == "Let me check."
+        assert len(messages[0]["tool_calls"]) == 1
+        assert messages[0]["tool_calls"][0]["function"]["name"] == "get_weather"
+        assert messages[0]["tool_calls"][0]["id"] == "call_123"
+        assert finish_reasons == ["tool_calls"]
+
+    def test_span_processor_with_invalid_json_messages(self) -> None:
+        """Verify on_end handles malformed JSON message attributes without crashing."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        with tracer.start_as_current_span("openai.chat") as span:
+            span.set_attribute("gen_ai.input.messages", "not valid json{{{")
+            span.set_attribute("gen_ai.output.messages", "also broken")
+            span.set_attribute("gen_ai.request.model", "gpt-4.1")
+            span.set_attribute("gen_ai.usage.input_tokens", 10)
+            span.set_attribute("gen_ai.usage.output_tokens", 5)
+            span.set_attribute("gen_ai.provider.name", "openai")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
+        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
+        assert (
+            attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
+        )
+
+    def test_span_processor_with_json_message_format(self) -> None:
+        """Verify on_end sets OI attributes when spans use the updated message format."""
+        in_memory_span_exporter = InMemorySpanExporter()
+        tracer_provider = TracerProvider()
+        tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+        tracer_provider.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+
+        tracer = tracer_provider.get_tracer(__name__)
+
+        input_msgs = json.dumps(
+            [
+                {"role": "user", "parts": [{"type": "text", "content": "What is 2+2?"}]},
+                {
+                    "role": "tool",
+                    "parts": [
+                        {
+                            "type": "tool_call_response",
+                            "id": "call_123",
+                            "response": {"result": 4},
+                        }
+                    ],
+                },
+            ]
+        )
+        output_msgs = json.dumps(
+            [
+                {
+                    "role": "assistant",
+                    "parts": [{"type": "text", "content": "4"}],
+                    "finish_reason": "stop",
+                }
+            ]
+        )
+
+        with tracer.start_as_current_span("openai.chat") as span:
+            span.set_attribute("gen_ai.input.messages", input_msgs)
+            span.set_attribute("gen_ai.output.messages", output_msgs)
+            span.set_attribute("gen_ai.request.model", "gpt-4.1")
+            span.set_attribute("gen_ai.response.model", "gpt-4.1-2026-04-14")
+            span.set_attribute("gen_ai.usage.input_tokens", 10)
+            span.set_attribute("gen_ai.usage.output_tokens", 5)
+            span.set_attribute("gen_ai.provider.name", "openai")
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+
+        attributes = dict(cast(Mapping[str, AttributeValue], spans[0].attributes))
+
+        assert (
+            attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND]
+            == OpenInferenceSpanKindValues.LLM.value
+        )
+        assert attributes[SpanAttributes.LLM_MODEL_NAME] == "gpt-4.1"
+        assert isinstance(attributes[SpanAttributes.INPUT_VALUE], str)
+        assert isinstance(attributes[SpanAttributes.OUTPUT_VALUE], str)
+        assert attributes["llm.input_messages.0.message.role"] == "user"
+        assert attributes["llm.input_messages.0.message.content"] == "What is 2+2?"
+        assert attributes["llm.input_messages.1.message.role"] == "tool"
+        assert attributes["llm.input_messages.1.message.content"] == "{'result': 4}"
+        assert attributes["llm.output_messages.0.message.role"] == "assistant"
+        assert attributes["llm.output_messages.0.message.content"] == "4"
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_PROMPT] == 10
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_COMPLETION] == 5
+        assert attributes[SpanAttributes.LLM_TOKEN_COUNT_TOTAL] == 15
+        # gen_ai.system is deprecated; v0.55.0+ only emits gen_ai.provider.name,
+        # so LLM_SYSTEM is not set for new-format spans.
+        assert SpanAttributes.LLM_SYSTEM not in attributes
+        assert (
+            attributes[SpanAttributes.LLM_PROVIDER] == OpenInferenceLLMProviderValues.OPENAI.value
+        )
