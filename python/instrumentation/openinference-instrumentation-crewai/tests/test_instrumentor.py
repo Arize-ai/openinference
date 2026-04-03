@@ -8,6 +8,7 @@ from crewai import Task
 from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+from pydantic import BaseModel, ConfigDict, Field
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
@@ -58,22 +59,12 @@ def _assert_serialized_agent_payload(
     allow_delegation: bool,
     verbose: bool,
     max_iter: int,
-    tools_names: list[str],
+    tool_names: list[str],
+    cache: bool,
 ) -> None:
-    assert set(payload) == {
-        "allow_delegation",
-        "backstory",
-        "goal",
-        "id",
-        "key",
-        "max_iter",
-        "max_rpm",
-        "role",
-        "tools_names",
-        "verbose",
-    }
     assert isinstance(payload["id"], str) and uuid.UUID(payload["id"])
     assert isinstance(payload["key"], str) and payload["key"]
+    assert payload["cache"] == cache
     assert payload["role"] == role
     assert payload["goal"] == goal
     assert payload["backstory"] == backstory
@@ -81,10 +72,22 @@ def _assert_serialized_agent_payload(
     assert payload["allow_delegation"] == allow_delegation
     assert payload["max_iter"] == max_iter
     assert payload["max_rpm"] is None
-    assert payload["tools_names"] == tools_names
+    tools_payload = payload["tools"]
+    assert isinstance(tools_payload, list)
+    assert [tool["name"] for tool in tools_payload] == tool_names
+    for tool in tools_payload:
+        assert isinstance(tool, dict)
+        assert "args_schema" not in tool
+        assert "cache_function" not in tool
     assert "crew" not in payload
     assert "llm" not in payload
     assert "agent_executor" not in payload
+    assert "executor_class" not in payload
+    assert "tools_handler" not in payload
+    assert "callbacks" not in payload
+    assert "step_callback" not in payload
+    assert "guardrail" not in payload
+    assert "function_calling_llm" not in payload
 
 
 def test_entrypoint_for_opentelemetry_instrument() -> None:
@@ -102,19 +105,21 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
 
 
 def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None:
-    class _AgentLike:
-        def __init__(self) -> None:
-            self.role = "Tech Content Strategist"
-            self.goal = "Craft compelling content on tech advancements"
-            self.backstory = "You are a great at creating insightful articles."
-            self.verbose = True
-            self.allow_delegation = True
-            self.max_iter = 25
-            self.max_rpm = None
-            self.tools: list[Any] = []
-            self.id = uuid.uuid4()
-            self.key = "agent-key"
-            self.crew: Any = None
+    class _AgentLike(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        role: str = "Tech Content Strategist"
+        goal: str = "Craft compelling content on tech advancements"
+        backstory: str = "You are a great at creating insightful articles."
+        verbose: bool = True
+        allow_delegation: bool = True
+        max_iter: int = 25
+        max_rpm: None = None
+        tools: list[dict[str, Any]] = Field(default_factory=list)
+        id: uuid.UUID = Field(default_factory=uuid.uuid4)
+        key: str = "agent-key"
+        cache: bool = True
+        crew: Any = None
 
     class _CrewLike:
         def __init__(self, agent: Any) -> None:
@@ -139,7 +144,8 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
         allow_delegation=True,
         verbose=True,
         max_iter=25,
-        tools_names=[],
+        tool_names=[],
+        cache=True,
     )
 
 
@@ -197,7 +203,8 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         allow_delegation=False,
         verbose=True,
         max_iter=2,
-        tools_names=["scrape_website"],
+        tool_names=["scrape_website"],
+        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
@@ -222,7 +229,8 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         allow_delegation=False,
         verbose=True,
         max_iter=2,
-        tools_names=[],
+        tool_names=[],
+        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)

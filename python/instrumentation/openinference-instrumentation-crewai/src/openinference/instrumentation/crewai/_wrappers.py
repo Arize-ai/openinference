@@ -72,14 +72,22 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
-def _get_tool_name(tool: Any) -> str:
-    tool_name = getattr(tool, "name", None)
-    if tool_name:
-        return str(tool_name)
-    return str(tool)
+_AGENT_MODEL_DUMP_EXCLUDE: Dict[str, Any] = {
+    "crew": True,
+    "llm": True,
+    "agent_executor": True,
+    "executor_class": True,
+    "tools_handler": True,
+    "callbacks": True,
+    "step_callback": True,
+    "guardrail": True,
+    "function_calling_llm": True,
+    # BaseTool embeds non-JSON-safe class/function objects by default.
+    "tools": {"__all__": {"args_schema": True, "cache_function": True}},
+}
 
 
-def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
+def _serialize_agent_input_fallback(agent: Any) -> Dict[str, Any]:
     serialized_agent: Dict[str, Any] = {
         "role": str(getattr(agent, "role", "") or ""),
         "goal": str(getattr(agent, "goal", "") or ""),
@@ -88,7 +96,6 @@ def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
         "allow_delegation": bool(getattr(agent, "allow_delegation", False)),
         "max_iter": getattr(agent, "max_iter", None),
         "max_rpm": getattr(agent, "max_rpm", None),
-        "tools_names": [_get_tool_name(tool) for tool in (getattr(agent, "tools", None) or [])],
     }
 
     agent_id = getattr(agent, "id", None)
@@ -100,6 +107,23 @@ def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
         serialized_agent["key"] = str(agent_key)
 
     return serialized_agent
+
+
+def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
+    model_dump = getattr(agent, "model_dump", None)
+    if callable(model_dump):
+        try:
+            serialized_agent = cast(
+                Dict[str, Any],
+                model_dump(mode="json", exclude=_AGENT_MODEL_DUMP_EXCLUDE),
+            )
+            agent_key = getattr(agent, "key", None)
+            if agent_key is not None:
+                serialized_agent["key"] = str(agent_key)
+            return serialized_agent
+        except Exception:
+            logger.debug("Failed to serialize CrewAI agent input via model_dump", exc_info=True)
+    return _serialize_agent_input_fallback(agent)
 
 
 def _serialize_input_argument(argument_name: str, argument_value: Any) -> Any:
