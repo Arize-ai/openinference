@@ -1,5 +1,13 @@
 # @arizeai/openinference-core
 
+## 2.0.6
+
+### Patch Changes
+
+- 3944459: Bundle hand-written docs in the npm package and export TraceConfig type and generateTraceConfig
+- Updated dependencies [7eb1c88]
+  - @arizeai/openinference-semantic-conventions@2.2.0
+
 ## 2.0.5
 
 ### Patch Changes
@@ -53,6 +61,7 @@
 ### Major Changes
 
 - d3d7017: # feat: Add tracing capabilities with decorators and function wrappers
+
   - **Function Wrapping**: `withSpan()`, `traceAgent()`, `traceTool()` ....
   - **Decorators**: `@observe()` for class methods
 
