@@ -113,10 +113,11 @@ class MappingTest {
         TraceAdvice.onExit(span, method, null, null);
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        // Input mapping attribute should be suppressed
+        // Non-sensitive mapped attribute (llm.model_name) should still be present —
+        // shouldHide() only blocks sensitive keys, not all mappings
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
-                .isNull();
-        // Input value should also be suppressed
+                .isEqualTo("gpt-4o");
+        // Input value should be suppressed by hideInputs
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isNull();
     }
@@ -141,10 +142,11 @@ class MappingTest {
         TraceAdvice.onExit(span, method, result, null);
 
         SpanData data = exporter.getFinishedSpanItems().get(0);
-        // Output mapping attribute should be suppressed
+        // Non-sensitive mapped attribute (llm.token_count.total) should still be present —
+        // shouldHide() only blocks sensitive keys, not all mappings
         assertThat(data.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
-                .isNull();
-        // Output value should also be suppressed
+                .isEqualTo(150L);
+        // Output value should be suppressed by hideOutputs
         assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isNull();
     }

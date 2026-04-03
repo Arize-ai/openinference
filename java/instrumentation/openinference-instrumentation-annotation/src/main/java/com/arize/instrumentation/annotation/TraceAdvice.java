@@ -4,7 +4,6 @@ import com.arize.instrumentation.ContextAttributes;
 import com.arize.instrumentation.OITracer;
 import com.arize.instrumentation.OpenInferenceAgent;
 import com.arize.instrumentation.SuppressTracing;
-import com.arize.instrumentation.TraceConfig;
 import com.arize.instrumentation.trace.*;
 import com.arize.semconv.trace.SemanticConventions;
 import java.lang.reflect.Method;
@@ -28,7 +27,6 @@ public class TraceAdvice {
         }
 
         TracedSpan span = null;
-        TraceConfig config = tracer.getConfig();
         try {
             String name = resolveSpanName(method);
             SemanticConventions.OpenInferenceSpanKind kind = resolveSpanKind(method);
@@ -37,16 +35,15 @@ public class TraceAdvice {
             // Propagate context attributes (session ID, user ID, metadata, tags)
             ContextAttributes.applyToSpan(span);
 
-            // Auto-capture input (check config at call site, matching LangChain4j pattern)
-            if (!config.isHideInputs()) {
-                Map<String, Object> input = SpanHelper.buildInputMap(method, args);
-                if (!input.isEmpty()) {
-                    span.setInput(input.size() == 1 ? input.values().iterator().next() : input);
-                }
-
-                // Apply input mappings
-                applyInputMappings(method, args, span);
+            // Auto-capture input — setInput() checks hideInputs internally,
+            // and applyInputMappings() goes through setAttribute() -> shouldHide()
+            Map<String, Object> input = SpanHelper.buildInputMap(method, args);
+            if (!input.isEmpty()) {
+                span.setInput(input.size() == 1 ? input.values().iterator().next() : input);
             }
+
+            // Apply input mappings (non-sensitive keys like llm.model_name pass through)
+            applyInputMappings(method, args, span);
 
             // Apply tool description if present
             if (span instanceof ToolSpan toolSpan) {
@@ -78,12 +75,10 @@ public class TraceAdvice {
             if (error != null) {
                 span.setError(error);
             } else if (result != null) {
-                // Check config at call site, matching LangChain4j pattern
-                OITracer tracer = OpenInferenceAgent.getTracer();
-                if (tracer == null || !tracer.getConfig().isHideOutputs()) {
-                    span.setOutput(result);
-                    applyOutputMappings(method, result, span);
-                }
+                // setOutput() checks hideOutputs internally,
+                // and applyOutputMappings() goes through setAttribute() -> shouldHide()
+                span.setOutput(result);
+                applyOutputMappings(method, result, span);
             }
         } catch (Exception e) {
             log.warn("Failed to record trace span attributes for method {}", method.getName(), e);
