@@ -16,7 +16,6 @@ sdist
 # Generated files
 .python-version
 .safety-project.ini
-.mastra
 uv.lock
 
 # Generated docs
