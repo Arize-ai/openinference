@@ -139,7 +139,9 @@ def _normalize_llm_messages(value: Any, default_role: str) -> list[Message]:
     if isinstance(value, Mapping):
         return [_normalize_llm_message(value)]
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [_normalize_llm_message(message) for message in value if isinstance(message, Mapping)]
+        return [
+            _normalize_llm_message(message) for message in value if isinstance(message, Mapping)
+        ]
     return []
 
 

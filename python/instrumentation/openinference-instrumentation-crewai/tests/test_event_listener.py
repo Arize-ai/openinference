@@ -470,10 +470,9 @@ def test_get_llm_input_attributes_serializes_dict_tool_call_arguments_to_json_st
         _llm_message_with_tool_call(tool_call_arguments)
     )
 
-    assert (
-        attributes["llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"]
-        == json.dumps(tool_call_arguments)
-    )
+    assert attributes[
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"
+    ] == json.dumps(tool_call_arguments)
 
 
 def test_event_listener_emits_sanitized_tool_call_arguments_for_input_and_output_messages(
