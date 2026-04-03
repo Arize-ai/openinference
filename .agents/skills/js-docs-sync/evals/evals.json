@@ -1,0 +1,26 @@
+{
+  "skill_name": "js-docs-sync",
+  "evals": [
+    {
+      "id": 0,
+      "name": "full-review",
+      "prompt": "Check if the openinference-core docs are up to date with the source code",
+      "expected_output": "A report of any discrepancies between docs/ and src/, or confirmation that docs are accurate",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "targeted-review",
+      "prompt": "I modified some types in openinference-core's trace-config module. Can you make sure the docs still match?",
+      "expected_output": "Focused review of trace-config-and-masking.md against the trace-config source files, reporting any drift",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "export-gaps",
+      "prompt": "What's documented vs what's actually exported from @arizeai/openinference-core? Are there any gaps?",
+      "expected_output": "A comparison of documented exports in docs/README.md against actual barrel file exports, flagging any missing or extra entries",
+      "files": []
+    }
+  ]
+}

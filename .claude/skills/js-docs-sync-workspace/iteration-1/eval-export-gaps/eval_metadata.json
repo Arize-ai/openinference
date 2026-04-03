@@ -1,0 +1,22 @@
+{
+  "eval_id": 2,
+  "eval_name": "export-gaps",
+  "prompt": "What's documented vs what's actually exported from @arizeai/openinference-core? Are there any gaps?",
+  "assertions": [
+    {
+      "id": "reads-barrel-files",
+      "text": "Agent reads index.ts barrel files in the export chain to determine actual exports",
+      "type": "manual"
+    },
+    {
+      "id": "lists-exports-explicitly",
+      "text": "Report lists specific export names rather than just saying 'exports match'",
+      "type": "manual"
+    },
+    {
+      "id": "identifies-gaps-or-confirms",
+      "text": "Report either flags specific gaps by name or explicitly confirms completeness with evidence",
+      "type": "manual"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "eval_id": 1,
+  "eval_name": "targeted-review",
+  "prompt": "I modified some types in openinference-core's trace-config module. Can you make sure the docs still match?",
+  "assertions": [
+    {
+      "id": "focuses-on-trace-config",
+      "text": "Agent scopes review to the trace-config module specifically, not the entire package",
+      "type": "manual"
+    },
+    {
+      "id": "reads-trace-config-source",
+      "text": "Agent reads actual trace-config source files (OITracer.ts, OISpan.ts, types.ts, or constants.ts)",
+      "type": "manual"
+    },
+    {
+      "id": "compares-against-docs",
+      "text": "Report references specific content from trace-config-and-masking.md and compares it against source",
+      "type": "manual"
+    }
+  ]
+}
