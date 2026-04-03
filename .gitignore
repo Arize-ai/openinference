@@ -19,8 +19,9 @@ sdist
 .mastra
 uv.lock
 
-# Generated API docs (typedoc output)
-js/docs
+# Generated docs
+js/**/docs
+!js/packages/openinference-core/docs
 
 # Data files
 *.csv
