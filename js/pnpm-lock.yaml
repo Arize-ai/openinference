@@ -650,14 +650,14 @@ importers:
   packages/openinference-mastra:
     dependencies:
       '@arizeai/openinference-core':
-        specifier: 2.0.5
-        version: 2.0.5
+        specifier: workspace:*
+        version: link:../openinference-core
       '@arizeai/openinference-semantic-conventions':
-        specifier: 2.1.7
-        version: 2.1.7
+        specifier: workspace:*
+        version: link:../openinference-semantic-conventions
       '@arizeai/openinference-vercel':
-        specifier: 2.5.5
-        version: 2.5.5(@opentelemetry/api@1.9.0)
+        specifier: workspace:*
+        version: link:../openinference-vercel
       '@opentelemetry/api':
         specifier: '>=1.9.0'
         version: 1.9.0
@@ -796,17 +796,6 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
-
-  '@arizeai/openinference-core@2.0.5':
-    resolution: {integrity: sha512-BnufYaFqmG9twkz/9DHX9WTcOs7YvVAYaufau5tdjOT1c0Y8niJwmNWzV36phNPg3c7SmdD5OYLuzeAUN0T3pQ==}
-
-  '@arizeai/openinference-semantic-conventions@2.1.7':
-    resolution: {integrity: sha512-KyBfwxkSusPvxHBaW/TJ0japEbXCNziW9o6/IRKiPu+gp5TMKIagV2NKvt47rWYa4Jc0Nl+SvAPm+yxkdJqVbg==}
-
-  '@arizeai/openinference-vercel@2.5.5':
-    resolution: {integrity: sha512-1Ot/biSA9RiRj1qy/oE4t4uxS0zmknlGj1yWpSefuREGTNUakWYTk8QwmPgql3D2nYaOSQaQO43tz0hNPNXInQ==}
-    peerDependencies:
-      '@opentelemetry/api': '>=1.7.0 <2.0.0'
 
   '@aws-crypto/crc32@5.2.0':
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
@@ -5054,21 +5043,6 @@ snapshots:
       json-schema-to-ts: 3.1.1
     optionalDependencies:
       zod: 4.3.6
-
-  '@arizeai/openinference-core@2.0.5':
-    dependencies:
-      '@arizeai/openinference-semantic-conventions': 2.1.7
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
-
-  '@arizeai/openinference-semantic-conventions@2.1.7': {}
-
-  '@arizeai/openinference-vercel@2.5.5(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@arizeai/openinference-core': 2.0.5
-      '@arizeai/openinference-semantic-conventions': 2.1.7
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
