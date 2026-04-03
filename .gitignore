@@ -19,8 +19,8 @@ sdist
 .mastra
 uv.lock
 
-# Generated docs
-js/**/docs
+# Generated API docs (typedoc output)
+js/api-docs
 
 # Data files
 *.csv

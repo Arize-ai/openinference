@@ -71,7 +71,7 @@ jobs:
         run: |
           sudo chown -R $USER:$USER _site
           mkdir -p _site/js
-          cp -r js/docs/* _site/js/
+          cp -r js/api-docs/* _site/js/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
