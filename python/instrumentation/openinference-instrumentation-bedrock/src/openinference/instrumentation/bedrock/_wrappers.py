@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple, cast
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
 import wrapt
 from opentelemetry import context as context_api
@@ -11,6 +12,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
 from typing_extensions import override
 
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
 from openinference.instrumentation.bedrock._converse_attributes import (
     get_attributes_from_request_data,
@@ -437,6 +439,79 @@ class _RetrieveAndGenerateStream(_WithTracer):
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise
+
+
+def _apply_guardrail_wrapper(tracer: Tracer) -> Callable[[Any], Callable[..., Any]]:
+    """
+    Wraps bedrock-runtime apply_guardrail: one span per call with GUARDRAIL span kind.
+
+    Captures:
+    - input.value: selected requested params in json format
+    - output.value: joined text from the outputs response field
+    - metadata: guardrailIdentifier, guardrailVersion, source (from request),
+                action and actionReason (from response, when present)
+    """
+
+    def _guardrail_wrapper(wrapped_client: Any) -> Callable[..., Any]:
+        @wraps(wrapped_client.apply_guardrail)
+        def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+
+            with tracer.start_as_current_span("bedrock.apply_guardrail") as span:
+                span.set_attribute(
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                    OpenInferenceSpanKindValues.GUARDRAIL.value,
+                )
+                metadata: Dict[str, Any] = {
+                    "guardrailIdentifier": kwargs.get("guardrailIdentifier"),
+                    "guardrailVersion": kwargs.get("guardrailVersion"),
+                }
+                input_values: Dict[str, Any] = {}
+                if source := kwargs.get("source"):
+                    input_values["source"] = source
+                if content := kwargs.get("content"):
+                    input_values["content"] = [
+                        {"text": record.get("text")}
+                        for record in content
+                        if record and "text" in record
+                    ]
+                if output_scope := kwargs.get("outputScope"):
+                    input_values["outputScope"] = output_scope
+                span.set_attribute(SpanAttributes.INPUT_VALUE, safe_json_dumps(input_values))
+                span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, JSON)
+                try:
+                    response = wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+                    output: Dict[str, Any] = {}
+                    if response is not None:
+                        if action := response.get("action"):
+                            output["action"] = action
+                        if action_reason := response.get("actionReason"):
+                            output["actionReason"] = action_reason
+                        if outputs := response.get("outputs"):
+                            output["outputs"] = outputs
+                        # if assessments := response.get("assessments"):
+                        #     output["assessments"] = assessments
+                        if guardrail_coverage := response.get("guardrailCoverage"):
+                            metadata["guardrailCoverage"] = guardrail_coverage
+                        if usage := response.get("usage"):
+                            metadata["usage"] = usage
+                    if metadata:
+                        span.set_attribute(SpanAttributes.METADATA, safe_json_dumps(metadata))
+                    if response is not None:
+                        span.set_attribute(SpanAttributes.OUTPUT_VALUE, safe_json_dumps(output))
+                        span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, JSON)
+                    span.set_attributes(dict(get_attributes_from_context()))
+                    span.set_status(Status(StatusCode.OK))
+                    return response
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                    raise
+
+        return sync_instrumented_response
+
+    return _guardrail_wrapper
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL

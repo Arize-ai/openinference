@@ -77,6 +77,7 @@ from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_wrapper,
 )
 from openinference.instrumentation.bedrock._wrappers import (
+    _apply_guardrail_wrapper,
     _ConverseStream,
     _InvokeAgentWithResponseStream,
     _InvokeModelWithResponseStream,
@@ -147,6 +148,9 @@ class InstrumentedClient(BaseClient):  # type: ignore
 
     retrieve_and_generate_stream: Callable[..., Any]
     _unwrapped_retrieve_and_generate_stream: Callable[..., Any]
+
+    apply_guardrail: Callable[..., Any]
+    _unwrapped_apply_guardrail: Callable[..., Any]
 
 
 class BufferedStreamingBody(StreamingBody):  # type: ignore
@@ -324,6 +328,8 @@ def _instrument_client(
             client.converse = _model_converse_wrapper(tracer)(client)
             client._unwrapped_converse_stream = client.converse_stream
             client.converse_stream = _ConverseStream(tracer)(client.converse_stream)
+        client._unwrapped_apply_guardrail = client.apply_guardrail
+        client.apply_guardrail = _apply_guardrail_wrapper(tracer)(client)
 
     return client
 
