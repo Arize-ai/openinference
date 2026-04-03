@@ -37,8 +37,6 @@ jobs:
         working-directory: ./js
         run: pnpm install --frozen-lockfile
       - name: Create and publish versions
-        # Using PAT instead of GITHUB_TOKEN so that PRs created by this action
-        # can trigger subsequent workflows (like publish) when merged
         # Pinned to v1.5.2 because released versions after that still break monorepo
         # cwd handling; the upstream fix merged after v1.7.0 but is not released yet.
         uses: changesets/action@d183df40791e90508058cd180e6435cdd9ba16a4 # v1.5.2
