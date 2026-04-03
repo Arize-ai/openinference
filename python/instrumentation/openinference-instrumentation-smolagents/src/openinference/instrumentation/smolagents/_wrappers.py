@@ -237,6 +237,9 @@ def _finalize_step_span(
     - Sets status to OK if no error is present.
     - Captures & logs any errors that occur.
     """
+    if not span.is_recording():
+        return
+
     observations = getattr(step_log, "observations", None)
     if observations is not None:
         span.set_attribute(OUTPUT_VALUE, str(observations))
