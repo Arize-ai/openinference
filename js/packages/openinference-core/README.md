@@ -289,6 +289,22 @@ You can also configure masking with environment variables:
 - `withSafety({ fn, onError? })`: wraps a function and returns `null` on error
 - `safelyJSONStringify(value)` / `safelyJSONParse(value)`: guarded JSON operations
 
+## Docs and Source Code in node_modules
+
+Once you've installed the openinference-core package, you already have the full
+openinference-core documentation and source code available locally inside
+node_modules. Your coding agent can read these directly -- no internet access
+required.
+
+```
+node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
+node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
+```
+
+This means your agent can look up accurate API signatures, implementations, and
+usage examples directly from the installed package -- ensuring it always uses the
+version of the SDK that's actually installed in your project.
+
 ## Documentation
 
 - API reference: [@arizeai/openinference-core](https://arize-ai.github.io/openinference/js/modules/_arizeai_openinference-core.html)
