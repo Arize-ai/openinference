@@ -43,9 +43,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@arizeai/openinference-core": "workspace:*",
-    "@arizeai/openinference-semantic-conventions": "workspace:*",
-    "@arizeai/openinference-vercel": "workspace:*"
+    "@arizeai/openinference-core": "2.0.6",
+    "@arizeai/openinference-semantic-conventions": "2.2.0",
+    "@arizeai/openinference-vercel": "2.7.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
