@@ -13,22 +13,6 @@ the tracing primitives, context propagation, attribute helpers, and data masking
 that all OpenInference JS instrumentations build on. You can also use it directly
 to trace your own application code.
 
-## Docs and Source Code in node_modules
-
-Once you've installed the openinference-core package, you already have the full
-openinference-core documentation and source code available locally inside
-node_modules. Your coding agent can read these directly -- no internet access
-required.
-
-```
-node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
-node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
-```
-
-This means your agent can look up accurate API signatures, implementations, and
-usage examples directly from the installed package -- ensuring it always uses the
-version of the SDK that's actually installed in your project.
-
 ## Minimal Setup
 
 ```typescript
@@ -57,10 +41,43 @@ const greet = withSpan(
   { name: "greet", kind: OpenInferenceSpanKind.CHAIN },
 );
 
-await greet("world");
+async function main() {
+  await greet("world");
+}
+
+main();
 ```
 
-## OpenTelemetry Basics
+## Documentation Guide
+
+| Document | When to Read It |
+|----------|----------------|
+| [tracing.md](./tracing.md) | Wrapping functions or class methods with tracing (`withSpan`, `traceChain`, `@observe`) |
+| [context-attributes.md](./context-attributes.md) | Propagating session, user, metadata, or tags across spans |
+| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, embedding, retriever, or tool attributes to spans |
+| [trace-config-and-masking.md](./trace-config-and-masking.md) | Hiding sensitive data from traces with `OITracer` |
+
+## Docs and Source Code in node_modules
+
+Once you've installed the openinference-core package, you already have the full
+openinference-core documentation and source code available locally inside
+node_modules. Your coding agent can read these directly -- no internet access
+required.
+
+```
+node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
+node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
+```
+
+This means your agent can look up accurate API signatures, implementations, and
+usage examples directly from the installed package -- ensuring it always uses the
+version of the SDK that's actually installed in your project.
+
+---
+
+## Core Concepts
+
+### OpenTelemetry Basics
 
 OpenInference extends OpenTelemetry, so a few OTel concepts are essential:
 
@@ -78,7 +95,7 @@ OpenInference extends OpenTelemetry, so a few OTel concepts are essential:
 - **Exporter** -- sends completed spans to a backend. Common choices:
   `ConsoleSpanExporter` (stdout), `OTLPTraceExporter` (to Phoenix, Jaeger, etc.).
 
-## OpenInference Span Kinds
+### OpenInference Span Kinds
 
 Every OpenInference span has a `kind` that describes its role in an LLM workflow.
 These are domain-level classifications (separate from OTel's `SpanKind`):
@@ -95,7 +112,7 @@ These are domain-level classifications (separate from OTel's `SpanKind`):
 | **GUARDRAIL** | An input/output safety check | Content filter, PII detector, toxicity check |
 | **EVALUATOR** | A quality or correctness evaluation | LLM-as-judge, relevance scorer |
 
-### How Span Kinds Compose
+#### How Span Kinds Compose
 
 Span kinds form parent-child relationships in a trace tree. A typical RAG agent
 might produce this trace structure:
@@ -112,7 +129,7 @@ AGENT: "qa-agent"
 - A **CHAIN** groups sequential steps without autonomous decision-making
 - **LLM**, **RETRIEVER**, **EMBEDDING**, **TOOL**, **RERANKER**, **GUARDRAIL**, and **EVALUATOR** are usually leaf spans
 
-## The Tracing Stack
+### The Tracing Stack
 
 OpenInference layers on top of OpenTelemetry:
 
@@ -152,7 +169,7 @@ OpenInference layers on top of OpenTelemetry:
 +----------------------------------------------------------+
 ```
 
-## Data Flow
+### Data Flow
 
 When you call a function wrapped with `withSpan`, here is what happens:
 
@@ -173,7 +190,7 @@ When you call a function wrapped with `withSpan`, here is what happens:
 If the function throws, step 5 is skipped. Instead, the exception is recorded on
 the span, the status is set to ERROR, and the error is re-thrown.
 
-## Semantic Conventions
+### Semantic Conventions
 
 The `@arizeai/openinference-semantic-conventions` package defines the attribute
 keys used by OpenInference (e.g., `input.value`, `output.value`,
@@ -201,14 +218,7 @@ span.setAttributes(
 );
 ```
 
-## Documentation Guide
-
-| Document | When to Read It |
-|----------|----------------|
-| [tracing.md](./tracing.md) | Wrapping functions or class methods with tracing (`withSpan`, `traceChain`, `@observe`) |
-| [context-attributes.md](./context-attributes.md) | Propagating session, user, metadata, or tags across spans |
-| [attribute-helpers.md](./attribute-helpers.md) | Adding LLM, embedding, retriever, or tool attributes to spans |
-| [trace-config-and-masking.md](./trace-config-and-masking.md) | Hiding sensitive data from traces with `OITracer` |
+---
 
 ## All Exports at a Glance
 

@@ -86,29 +86,19 @@ import {
   setUser,
 } from "@arizeai/openinference-core";
 
-const enrichedContext = setAttributes(
-  setPromptTemplate(
-    setTags(
-      setMetadata(
-        setUser(setSession(context.active(), { sessionId: "sess-42" }), {
-          userId: "user-7",
-        }),
-        { tenant: "acme", environment: "prod" },
-      ),
-      ["support", "priority-high"],
-    ),
-    {
-      template: "Answer using docs about {topic}",
-      variables: { topic: "billing" },
-      version: "v3",
-    },
-  ),
-  {
-    "app.request_id": "req-123",
-  },
-);
+let ctx = context.active();
+ctx = setSession(ctx, { sessionId: "sess-42" });
+ctx = setUser(ctx, { userId: "user-7" });
+ctx = setMetadata(ctx, { tenant: "acme", environment: "prod" });
+ctx = setTags(ctx, ["support", "priority-high"]);
+ctx = setPromptTemplate(ctx, {
+  template: "Answer using docs about {topic}",
+  variables: { topic: "billing" },
+  version: "v3",
+});
+ctx = setAttributes(ctx, { "app.request_id": "req-123" });
 
-context.with(enrichedContext, async () => {
+context.with(ctx, async () => {
   // spans started in this context by openinference-core wrappers
   // include these propagated attributes automatically
 });

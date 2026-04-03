@@ -12,13 +12,13 @@
 ### Constructor
 
 ```typescript
-import { OITracer } from "@arizeai/openinference-core";
-
-new OITracer({
-  tracer: Tracer,                     // An OpenTelemetry Tracer instance
-  traceConfig?: TraceConfigOptions,   // Optional masking configuration
-});
+new OITracer({ tracer, traceConfig? })
 ```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tracer` | `Tracer` | An OpenTelemetry Tracer instance |
+| `traceConfig` | `TraceConfigOptions` | Optional masking configuration (see below) |
 
 ### How withSpan Uses OITracer
 
@@ -147,38 +147,6 @@ const oiTracer = wrapTracer(existingTracer);
 
 // Create an OITracer from the global provider
 const oiTracer = getTracer("my-service");  // name defaults to "openinference-core"
-```
-
-## Utility Functions
-
-### withSafety
-
-Wraps a function with try-catch. Returns `null` on error instead of throwing.
-
-```typescript
-import { withSafety } from "@arizeai/openinference-core";
-
-const safeParse = withSafety({
-  fn: (input: string) => JSON.parse(input),
-  onError: (err) => console.warn("Parse failed:", err),
-});
-
-safeParse("invalid json"); // returns null, logs warning
-safeParse('{"ok": true}'); // returns { ok: true }
-```
-
-### safelyJSONStringify / safelyJSONParse
-
-Guarded JSON operations that return `undefined` on failure instead of throwing.
-
-```typescript
-import { safelyJSONParse, safelyJSONStringify } from "@arizeai/openinference-core";
-
-safelyJSONStringify({ key: "value" });   // '{"key":"value"}'
-safelyJSONStringify(undefined);           // undefined (no throw)
-
-safelyJSONParse('{"key": "value"}');     // { key: "value" }
-safelyJSONParse("not json");              // undefined (no throw)
 ```
 
 ## Complete Example: Production Setup with Masking

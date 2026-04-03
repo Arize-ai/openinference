@@ -339,6 +339,8 @@ Accepts either a `SpanInput`/`SpanOutput` object or a plain string (treated as
 `text/plain`):
 
 ```typescript
+import { MimeType } from "@arizeai/openinference-semantic-conventions";
+
 // String input
 getInputAttributes("What is OpenInference?");
 // -> { "input.value": "What is OpenInference?", "input.mime_type": "text/plain" }
@@ -370,7 +372,8 @@ const search = withSpan(
 ## defaultProcessInput / defaultProcessOutput
 
 Built-in processors used by `withSpan` when no custom processor is provided.
-They combine `toInputType`/`toOutputType` with `getInputAttributes`/`getOutputAttributes`.
+They convert arguments/results into `SpanInput`/`SpanOutput` objects and then call
+`getInputAttributes`/`getOutputAttributes`.
 
 ```typescript
 const defaultProcessInput: (...args: unknown[]) => Attributes;

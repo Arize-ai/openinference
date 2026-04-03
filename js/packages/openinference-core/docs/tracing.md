@@ -150,9 +150,9 @@ type is `Omit<SpanTraceOptions, "kind">`.
 ```typescript
 import { traceAgent, traceChain, traceTool } from "@arizeai/openinference-core";
 
-const chain = traceChain(fn, options?);   // kind = CHAIN
-const agent = traceAgent(fn, options?);   // kind = AGENT
-const tool  = traceTool(fn, options?);    // kind = TOOL
+const chain = traceChain(myPipeline, { name: "rag-chain" });     // kind = CHAIN
+const agent = traceAgent(myOrchestrator, { name: "qa-agent" });  // kind = AGENT
+const tool  = traceTool(myApiCall, { name: "weather-lookup" });   // kind = TOOL
 ```
 
 ### When to Use Which

@@ -122,7 +122,11 @@ setPromptTemplate(context: Context, promptTemplate: {
   variables?: Record<string, unknown>;
   version?: string;
 }): Context
-getPromptTemplate(context: Context): Partial<PromptTemplate> | undefined
+getPromptTemplate(context: Context): {
+  template?: string;
+  variables?: Record<string, unknown>;
+  version?: string;
+} | undefined
 clearPromptTemplate(context: Context): Context
 ```
 
@@ -165,30 +169,24 @@ context.with(
 
 ## Composing Multiple Context Attributes
 
-Each setter returns a new context, so you compose them by nesting:
+Each setter returns a new context. Build up the context step by step:
 
 ```typescript
 import { context } from "@opentelemetry/api";
 import {
   setMetadata,
-  setPromptTemplate,
   setSession,
   setTags,
   setUser,
 } from "@arizeai/openinference-core";
 
-const enriched = setTags(
-  setMetadata(
-    setUser(
-      setSession(context.active(), { sessionId: "sess-42" }),
-      { userId: "user-7" },
-    ),
-    { tenant: "acme", environment: "prod" },
-  ),
-  ["support", "priority-high"],
-);
+let ctx = context.active();
+ctx = setSession(ctx, { sessionId: "sess-42" });
+ctx = setUser(ctx, { userId: "user-7" });
+ctx = setMetadata(ctx, { tenant: "acme", environment: "prod" });
+ctx = setTags(ctx, ["support", "priority-high"]);
 
-context.with(enriched, async () => {
+context.with(ctx, async () => {
   // All spans created here include session, user, metadata, and tags
   await myAgent("How do I update my billing?");
 });
