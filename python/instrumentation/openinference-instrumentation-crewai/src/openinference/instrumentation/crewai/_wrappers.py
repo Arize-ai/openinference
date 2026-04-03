@@ -72,17 +72,24 @@ class SafeJSONEncoder(json.JSONEncoder):
             return repr(o)
 
 
+# Prefer CrewAI's own Pydantic serialization so span input tracks the agent schema
+# that callers see, but trim fields that are cyclic, runtime-only, or not JSON-safe.
 _AGENT_MODEL_DUMP_EXCLUDE: Dict[str, Any] = {
+    # Cyclic graph back to the crew/task graph.
     "crew": True,
+    # Runtime model/client objects rather than declarative agent input.
     "llm": True,
+    "function_calling_llm": True,
+    # Executor state includes live objects that are not useful in telemetry.
     "agent_executor": True,
     "executor_class": True,
     "tools_handler": True,
+    # Callback and guardrail hooks are runtime callables/configuration, not user input.
     "callbacks": True,
     "step_callback": True,
     "guardrail": True,
-    "function_calling_llm": True,
-    # BaseTool embeds non-JSON-safe class/function objects by default.
+    # BaseTool embeds class/function objects by default, which do not survive JSON
+    # serialization and add noise to the span payload.
     "tools": {"__all__": {"args_schema": True, "cache_function": True}},
 }
 
@@ -113,10 +120,13 @@ def _serialize_agent_input(agent: Any) -> Dict[str, Any]:
     model_dump = getattr(agent, "model_dump", None)
     if callable(model_dump):
         try:
+            # `mode="json"` normalizes values like UUIDs into JSON-safe primitives.
             serialized_agent = cast(
                 Dict[str, Any],
                 model_dump(mode="json", exclude=_AGENT_MODEL_DUMP_EXCLUDE),
             )
+            # `key` is useful for debugging span payloads, but is not guaranteed to be
+            # part of CrewAI's dumped schema across versions, so attach it explicitly.
             agent_key = getattr(agent, "key", None)
             if agent_key is not None:
                 serialized_agent["key"] = str(agent_key)
