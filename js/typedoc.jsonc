@@ -1,5 +1,4 @@
 {
-  "out": "api-docs",
   "entryPoints": [
     "packages/openinference-core",
     "packages/openinference-genai",

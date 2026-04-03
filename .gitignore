@@ -20,7 +20,7 @@ sdist
 uv.lock
 
 # Generated API docs (typedoc output)
-js/api-docs
+js/docs
 
 # Data files
 *.csv
