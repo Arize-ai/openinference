@@ -184,8 +184,8 @@ function getEmbeddingAttributes(options: {
 const attrs = getEmbeddingAttributes({
   modelName: "text-embedding-3-small",
   embeddings: [
-    { text: "hello world", vector: [0.1, 0.2, 0.3, ...] },
-    { text: "goodbye", vector: [0.4, 0.5, 0.6, ...] },
+    { text: "hello world", vector: [0.1, 0.2, 0.3 /* ... */] },
+    { text: "goodbye", vector: [0.4, 0.5, 0.6 /* ... */] },
   ],
 });
 ```
