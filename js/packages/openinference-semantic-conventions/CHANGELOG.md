@@ -1,5 +1,11 @@
 # @arizeai/openinference-semantic-conventions
 
+## 2.2.0
+
+### Minor Changes
+
+- 7eb1c88: Add groq, fireworks, moonshot, cerebras, perplexity, and together as new well-known values to the LLMProvider enum
+
 ## 2.1.7
 
 ### Patch Changes
