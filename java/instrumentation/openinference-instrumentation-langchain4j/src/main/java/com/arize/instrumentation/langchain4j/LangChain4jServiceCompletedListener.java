@@ -27,7 +27,7 @@ public class LangChain4jServiceCompletedListener implements AiServiceCompletedLi
         if (spanContext != null) {
             Span span = spanContext.span();
             try (Scope scope = spanContext.context().makeCurrent()) {
-                if (!tracer.getConfig().isHideOutputMessages() && event.result().isPresent()) {
+                if (!tracer.getConfig().isHideOutputs() && event.result().isPresent()) {
                     span.setAttribute(
                             SemanticConventions.OUTPUT_VALUE,
                             event.result().get().toString());

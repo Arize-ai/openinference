@@ -453,10 +453,12 @@ class LangChain4jModelListenerTest {
         assertThat(span.getEvents()).isNotEmpty();
     }
 
-    // ── Message hiding ──────────────────────────────────────────────────
+    // ── Hide flag hierarchy tests ─────────────────────────────────────
+
+    // ── hideInputMessages (narrow): suppresses only llm.input_messages.*, NOT input.value ──
 
     @Test
-    void hidesInputMessagesWhenConfigured() {
+    void hideInputMessages_suppressesLlmInputMessages_butNotInputValue() {
         stubChatCompletion("Response");
         TraceConfig config = TraceConfig.builder().hideInputMessages(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
@@ -464,11 +466,77 @@ class LangChain4jModelListenerTest {
         model.chat("Secret input");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // llm.input_messages.* SHOULD be suppressed
         assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
                 .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isNull();
+
+        // input.value and input.mime_type SHOULD still be present (not gated by hideInputMessages)
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
+
+        // Model attributes still present
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                .isEqualTo("gpt-4");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                .isEqualTo("LLM");
+    }
+
+    // ── hideOutputMessages (narrow): suppresses only llm.output_messages.*, NOT output.value ──
+
+    @Test
+    void hideOutputMessages_suppressesLlmOutputMessages_butNotOutputValue() {
+        stubChatCompletion("Secret response");
+        TraceConfig config = TraceConfig.builder().hideOutputMessages(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Hi");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // llm.output_messages.* SHOULD be suppressed
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isNull();
+
+        // output.value and output.mime_type SHOULD still be present (not gated by hideOutputMessages)
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("Secret response");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isEqualTo("text/plain");
+
+        // Token counts still present
+        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
+                .isEqualTo(10L);
+    }
+
+    // ── hideInputs (broad): suppresses BOTH input.value AND llm.input_messages.* ──
+
+    @Test
+    void hideInputs_suppressesBothInputValueAndLlmInputMessages() {
+        stubChatCompletion("Response");
+        TraceConfig config = TraceConfig.builder().hideInputs(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Secret input");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // input.value and input.mime_type SHOULD be suppressed
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
                 .isNull();
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNull();
+
+        // llm.input_messages.* SHOULD also be suppressed (hideInputs is the broad flag)
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
                 .isNull();
 
         // Model attributes still present
@@ -478,20 +546,28 @@ class LangChain4jModelListenerTest {
                 .isEqualTo("LLM");
     }
 
+    // ── hideOutputs (broad): suppresses BOTH output.value AND llm.output_messages.* ──
+
     @Test
-    void hidesOutputMessagesWhenConfigured() {
+    void hideOutputs_suppressesBothOutputValueAndLlmOutputMessages() {
         stubChatCompletion("Secret response");
-        TraceConfig config = TraceConfig.builder().hideOutputMessages(true).build();
+        TraceConfig config = TraceConfig.builder().hideOutputs(true).build();
         OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
         OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
         model.chat("Hi");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
-        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
-                .isNull();
+
+        // output.value and output.mime_type SHOULD be suppressed
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
                 .isNull();
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNull();
+
+        // llm.output_messages.* SHOULD also be suppressed (hideOutputs is the broad flag)
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
                 .isNull();
 
         // Token counts still present
@@ -499,8 +575,10 @@ class LangChain4jModelListenerTest {
                 .isEqualTo(10L);
     }
 
+    // ── hideInputMessages + hideOutputMessages: suppresses messages but NOT values ──
+
     @Test
-    void hidesBothInputAndOutputWhenConfigured() {
+    void hideInputMessagesAndOutputMessages_suppressesMessages_butNotValues() {
         stubChatCompletion("Secret");
         TraceConfig config = TraceConfig.builder()
                 .hideInputMessages(true)
@@ -511,12 +589,256 @@ class LangChain4jModelListenerTest {
         model.chat("Secret");
 
         SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // llm.input_messages.* and llm.output_messages.* SHOULD be suppressed
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+
+        // input.value and output.value SHOULD still be present
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
-                .isNull();
+                .isNotNull();
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
-                .isNull();
+                .isEqualTo("Secret");
+
         assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
         assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
                 .isEqualTo("LLM");
+    }
+
+    // ── hideInputs + hideOutputs: suppresses everything ──
+
+    @Test
+    void hideInputsAndOutputs_suppressesEverything() {
+        stubChatCompletion("Secret");
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideOutputs(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden-all"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Secret");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // ALL input attributes suppressed
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+
+        // ALL output attributes suppressed
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+
+        // Span still valid
+        assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                .isEqualTo("LLM");
+    }
+
+    // ── hideInputs(true) + hideInputMessages(false): hideInputs still suppresses messages ──
+
+    @Test
+    void hideInputs_overridesHideInputMessagesFalse() {
+        stubChatCompletion("Response");
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideInputMessages(false).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Secret input");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // hideInputs=true means BOTH are suppressed, even though hideInputMessages=false
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+    }
+
+    // ── hideOutputs(true) + hideOutputMessages(false): hideOutputs still suppresses messages ──
+
+    @Test
+    void hideOutputs_overridesHideOutputMessagesFalse() {
+        stubChatCompletion("Secret response");
+        TraceConfig config = TraceConfig.builder()
+                .hideOutputs(true)
+                .hideOutputMessages(false)
+                .build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Hi");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // hideOutputs=true means BOTH are suppressed, even though hideOutputMessages=false
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+    }
+
+    // ── Default config: nothing hidden ──
+
+    @Test
+    void defaultConfig_nothingHidden() {
+        stubChatCompletion("Hello!");
+        // Default config has all hide flags false
+        TraceConfig config = TraceConfig.getDefault();
+        OITracer defaultTracer = new OITracer(tracerProvider.get("test-default"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(defaultTracer));
+        model.chat("Hi");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // All attributes present
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isEqualTo("application/json");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isEqualTo("user");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isEqualTo("Hi");
+
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("Hello!");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isEqualTo("text/plain");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isEqualTo("assistant");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isEqualTo("Hello!");
+    }
+
+    // ── hideInputs + hideInputMessages both true: same as hideInputs alone ──
+
+    @Test
+    void hideInputs_and_hideInputMessages_bothTrue_suppressesAll() {
+        stubChatCompletion("Response");
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideInputMessages(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Secret");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isNull();
+    }
+
+    // ── hideOutputs + hideOutputMessages both true: same as hideOutputs alone ──
+
+    @Test
+    void hideOutputs_and_hideOutputMessages_bothTrue_suppressesAll() {
+        stubChatCompletion("Secret response");
+        TraceConfig config =
+                TraceConfig.builder().hideOutputs(true).hideOutputMessages(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Hi");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_MIME_TYPE)))
+                .isNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isNull();
+    }
+
+    // ── hideInputMessages does not affect output, hideOutputMessages does not affect input ──
+
+    @Test
+    void hideInputMessages_doesNotAffectOutput() {
+        stubChatCompletion("Visible response");
+        TraceConfig config = TraceConfig.builder().hideInputMessages(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Hidden input");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // Output SHOULD be fully visible
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("Visible response");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.role")))
+                .isEqualTo("assistant");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.output_messages.0.message.content")))
+                .isEqualTo("Visible response");
+    }
+
+    @Test
+    void hideOutputMessages_doesNotAffectInput() {
+        stubChatCompletion("Hidden response");
+        TraceConfig config = TraceConfig.builder().hideOutputMessages(true).build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Visible input");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // Input SHOULD be fully visible
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.role")))
+                .isEqualTo("user");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey("llm.input_messages.0.message.content")))
+                .isEqualTo("Visible input");
+    }
+
+    // ── Non-message attributes unaffected by hide flags ──
+
+    @Test
+    void hideFlags_doNotAffectModelOrTokenAttributes() {
+        stubChatCompletion("Response");
+        TraceConfig config = TraceConfig.builder()
+                .hideInputs(true)
+                .hideOutputs(true)
+                .hideInputMessages(true)
+                .hideOutputMessages(true)
+                .build();
+        OITracer hiddenTracer = new OITracer(tracerProvider.get("test-hidden-all"), config);
+        OpenAiChatModel model = buildModel(new LangChain4jModelListener(hiddenTracer));
+        model.chat("Test");
+
+        SpanData span = spanExporter.getFinishedSpanItems().get(0);
+
+        // Model and system attributes still present
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_MODEL_NAME)))
+                .isEqualTo("gpt-4");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_SYSTEM)))
+                .isEqualTo("langchain4j");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.LLM_PROVIDER)))
+                .isEqualTo("openai");
+        assertThat(span.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                .isEqualTo("LLM");
+
+        // Token counts still present
+        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_PROMPT)))
+                .isEqualTo(10L);
+        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_COMPLETION)))
+                .isEqualTo(20L);
+        assertThat(span.getAttributes().get(AttributeKey.longKey(SemanticConventions.LLM_TOKEN_COUNT_TOTAL)))
+                .isEqualTo(30L);
+
+        // Finish reason still present
+        assertThat(span.getAttributes().get(AttributeKey.stringArrayKey("llm.response.finish_reasons")))
+                .containsExactly("STOP");
+
+        // Span status still OK
+        assertThat(span.getStatus().getStatusCode()).isEqualTo(StatusCode.OK);
     }
 }
