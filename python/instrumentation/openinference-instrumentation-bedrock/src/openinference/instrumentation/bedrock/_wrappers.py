@@ -454,7 +454,7 @@ def _apply_guardrail_wrapper(tracer: Tracer) -> Callable[[Any], Callable[..., An
 
     def _guardrail_wrapper(wrapped_client: Any) -> Callable[..., Any]:
         @wraps(wrapped_client.apply_guardrail)
-        def sync_instrumented_response(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+        def sync_instrumented_response(*args: Any, **kwargs: Any) -> Any:
             if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
                 return wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
 

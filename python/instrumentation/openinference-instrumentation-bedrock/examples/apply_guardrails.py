@@ -31,7 +31,7 @@ def run():
             }
         }
     ]
-    guardrail_id = "274u1upxm897"
+    guardrail_id = "<GuardRailIdentifier>"
     guardrail_version = "1"
 
     response = client.apply_guardrail(
