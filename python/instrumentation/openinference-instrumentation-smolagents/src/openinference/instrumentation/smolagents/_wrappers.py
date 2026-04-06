@@ -10,11 +10,15 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.util.types import AttributeValue
 
 import openinference.instrumentation as oi
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_provider_from_host,
+    get_system_from_model,
+    safe_json_dumps,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -480,13 +484,13 @@ class _ModelWrapper:
             span.set_attribute(LLM_MODEL_NAME, model.model_id)
             if provider := (
                 infer_llm_provider_from_class_name(instance)
-                or infer_llm_provider_from_endpoint(
+                or get_provider_from_host(
                     extract_llm_endpoint_from_sdk_instance(instance)
                 )
             ):
-                span.set_attribute(LLM_PROVIDER, provider.value)
-            if system := infer_llm_system_from_model(model.model_id):
-                span.set_attribute(LLM_SYSTEM, system.value)
+                span.set_attribute(LLM_PROVIDER, provider)
+            if system := get_system_from_model(model.model_id):
+                span.set_attribute(LLM_SYSTEM, system)
             span.set_attributes(_llm_output_messages(output_message))
             span.set_attributes(dict(_llm_tools(arguments.get("tools_to_call_from", []))))
             span.set_attributes(dict(_output_value_and_mime_type(output_message)))
@@ -564,7 +568,7 @@ def _has_active_llm_parent_span() -> bool:
 
 def infer_llm_provider_from_class_name(
     instance: Any = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
+) -> Optional[str]:
     """Infer the LLM provider from an SDK instance using the model class name when possible."""
     if instance is None:
         return None
@@ -576,7 +580,7 @@ def infer_llm_provider_from_class_name(
         if isinstance(model_id, str):
             provider_prefix = model_id.split("/", 1)[0].lower()
             try:
-                return OpenInferenceLLMProviderValues(provider_prefix)
+                return OpenInferenceLLMProviderValues(provider_prefix).value
             except ValueError:
                 return None
 
@@ -586,13 +590,13 @@ def infer_llm_provider_from_class_name(
     # Added backward compatibility for OpenAIServerModel which were renamed to
     # OpenAIModel in newer versions
     if class_name == "OpenAIModel":
-        return OpenInferenceLLMProviderValues.OPENAI
+        return OpenInferenceLLMProviderValues.OPENAI.value
 
     if class_name == "AzureOpenAIModel":
-        return OpenInferenceLLMProviderValues.AZURE
+        return OpenInferenceLLMProviderValues.AZURE.value
 
     if class_name == "AmazonBedrockModel":
-        return OpenInferenceLLMProviderValues.AWS
+        return OpenInferenceLLMProviderValues.AWS.value
 
     return None
 
@@ -611,91 +615,8 @@ def extract_llm_endpoint_from_sdk_instance(
         or getattr(instance, "host", None)
     )
 
-    if not isinstance(endpoint, str) and endpoint is not None:
-        return str(endpoint)
-
-    return endpoint
-
-
-def infer_llm_provider_from_endpoint(
-    endpoint: Optional[str] = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
-    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
-    if not isinstance(endpoint, str):
-        return None
-
-    hostname = urlparse(endpoint).hostname
-    if hostname is None:
-        return None
-
-    host = hostname.lower()
-    if host.endswith("api.openai.com"):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if "openai.azure.com" in host:
-        return OpenInferenceLLMProviderValues.AZURE
-
-    if host.endswith("googleapis.com"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if host.endswith("anthropic.com"):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if "bedrock" in host or host.endswith("amazonaws.com"):
-        return OpenInferenceLLMProviderValues.AWS
-
-    if host.endswith("cohere.ai"):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if host.endswith("mistral.ai"):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if host.endswith("x.ai"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if host.endswith("deepseek.com"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
-
-    return None
-
-
-def infer_llm_system_from_model(
-    model_name: Optional[str] = None,
-) -> Optional[OpenInferenceLLMSystemValues]:
-    """Infer the LLM system from a model identifier when possible."""
-    if not isinstance(model_name, str):
-        return None
-
-    model = model_name.lower()
-
-    if model.startswith(
-        (
-            "gpt",
-            "o1",
-            "o3",
-            "o4",
-            "text-embedding",
-            "davinci",
-            "curie",
-            "babbage",
-            "ada",
-            "azure",
-            "openai",
-        )
-    ):
-        return OpenInferenceLLMSystemValues.OPENAI
-
-    if model.startswith(("anthropic", "claude", "google_anthropic_vertex")):
-        return OpenInferenceLLMSystemValues.ANTHROPIC
-
-    if model.startswith(("cohere", "command")):
-        return OpenInferenceLLMSystemValues.COHERE
-
-    if model.startswith(("mistral", "mixtral", "pixtral")):
-        return OpenInferenceLLMSystemValues.MISTRALAI
-
-    if model.startswith(("vertex", "gemini", "google")):
-        return OpenInferenceLLMSystemValues.VERTEXAI
+    if isinstance(endpoint, str):
+        return urlparse(endpoint).hostname
 
     return None
 
