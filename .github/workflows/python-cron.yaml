@@ -124,14 +124,15 @@ jobs:
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
+          show_full_output: "true"
+          prompt: |
             The Python canary cron has failures.
 
             Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
+
       - name: Notify Slack of auto-fix PR
         if: ${{ steps.auto-fix.outputs.branch_name != '' }}
         env:
