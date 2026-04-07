@@ -151,8 +151,13 @@ class _RequestAttributesExtractor:
                 if id_ := function_response.id:
                     yield (MessageAttributes.MESSAGE_TOOL_CALL_ID, id_)
             elif inline_data := part.inline_data:
-                yield from _get_attributes_from_inline_data(inline_data, content_index)
-                increment_content_index = True
+                inline_attributes = dict(
+                    _get_attributes_from_inline_data(inline_data, content_index)
+                )
+                if inline_attributes:
+                    for key, value in inline_attributes.items():
+                        yield key, value
+                    increment_content_index = True
             else:
                 logger.debug("Unsupported part type: %s", type(part))
             if increment_content_index:
