@@ -1624,7 +1624,14 @@ def test_streaming_tool_call_aggregation(
                     "index": 0,
                     "content": {
                         "role": "model",
-                        "parts": [{"function_call": {"name": "get_weather"}}],
+                        "parts": [
+                            {
+                                "function_call": {
+                                    "name": "get_weather",
+                                    "args": {"location": "San Francisco", "unit": "fahrenheit"},
+                                }
+                            }
+                        ],
                     },
                 }
             ],
@@ -1643,7 +1650,8 @@ def test_streaming_tool_call_aggregation(
                         "parts": [
                             {
                                 "function_call": {
-                                    "args": {"location": "San Francisco", "unit": "fahrenheit"}
+                                    "name": "get_weather",
+                                    "args": {"location": "New York", "unit": "fahrenheit"},
                                 }
                             }
                         ],
@@ -1666,25 +1674,26 @@ def test_streaming_tool_call_aggregation(
     attributes = dict(extractor.get_attributes())
 
     # Verify the aggregated tool call - this is the key test!
-    tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
-    tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    for i in range(0, 2):
+        tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
-    # This tests that both name (from chunk1) and args (from chunk2) are present
-    assert attributes.get(tool_call_name_key) == "get_weather", (
-        f"Function name not found. Available keys: {list(attributes.keys())}"
-    )
+        # This tests that both name (from chunk1) and args (from chunk2) are present
+        assert attributes.get(tool_call_name_key) == "get_weather", (
+            f"Function name not found. Available keys: {list(attributes.keys())}"
+        )
 
-    tool_call_args = attributes.get(tool_call_args_key)
-    assert tool_call_args is not None, (
-        f"Function arguments not found. Available keys: {list(attributes.keys())}"
-    )
+        tool_call_args = attributes.get(tool_call_args_key)
+        assert tool_call_args is not None, (
+            f"Function arguments not found. Available keys: {list(attributes.keys())}"
+        )
 
-    # Parse and verify the merged arguments
-    args = json.loads(tool_call_args)
-    assert args["location"] == "San Francisco", (
-        "Location argument missing from aggregated tool call"
-    )
-    assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
+        # Parse and verify the merged arguments
+        args = json.loads(tool_call_args)
+        assert args["location"] in ["San Francisco", "New York"], (
+            "Location argument missing from aggregated tool call"
+        )
+        assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
 
     # Verify token counts from final chunk
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 60
