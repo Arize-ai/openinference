@@ -191,7 +191,7 @@ def _get_attributes_from_content_text(
 
 
 def _get_attributes_from_inline_data(
-    inline_data: Any, tool_call_index: int
+    inline_data: Any, content_index: int
 ) -> Iterator[Tuple[str, AttributeValue]]:
     mime_type = get_attribute(inline_data, "mime_type")
     if (
@@ -199,7 +199,7 @@ def _get_attributes_from_inline_data(
         and "image" in mime_type
         and (data := get_attribute(inline_data, "data")) is not None
     ):
-        prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{tool_call_index}."
+        prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
         image_url = f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
         yield (
             f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
