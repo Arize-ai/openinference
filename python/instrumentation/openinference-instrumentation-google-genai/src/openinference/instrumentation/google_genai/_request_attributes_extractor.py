@@ -150,7 +150,7 @@ class _RequestAttributesExtractor:
                         increment_content_index = True
                 if id_ := function_response.id:
                     yield (MessageAttributes.MESSAGE_TOOL_CALL_ID, id_)
-            elif inline_data := part.inline_data:
+            if inline_data := part.inline_data:
                 inline_attributes = dict(
                     _get_attributes_from_inline_data(inline_data, content_index)
                 )
