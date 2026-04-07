@@ -43,6 +43,7 @@ public class SemanticConventions {
         public static final String FUNCTION_CALL = "function_call";
         public static final String TOOLS = "tools";
         public static final String COST = "cost";
+        public static final String CHOICES = "choices";
     }
 
     @UtilityClass
@@ -68,6 +69,7 @@ public class SemanticConventions {
     @UtilityClass
     public static class EmbeddingAttributePostfixes {
         public static final String EMBEDDINGS = "embeddings";
+        public static final String INVOCATION_PARAMETERS = "invocation_parameters";
         public static final String TEXT = "text";
         public static final String MODEL_NAME = "model_name";
         public static final String VECTOR = "vector";
@@ -75,6 +77,7 @@ public class SemanticConventions {
 
     @UtilityClass
     public static class ToolAttributePostfixes {
+        public static final String ID = "id";
         public static final String NAME = "name";
         public static final String DESCRIPTION = "description";
         public static final String PARAMETERS = "parameters";
@@ -456,6 +459,12 @@ public class SemanticConventions {
             SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.MODEL_NAME;
 
     /**
+     * Parameters used during the invocation of an embedding model or API (excluding input).
+     */
+    public static final String EMBEDDING_INVOCATION_PARAMETERS =
+            SemanticAttributePrefixes.EMBEDDING + "." + EmbeddingAttributePostfixes.INVOCATION_PARAMETERS;
+
+    /**
      * The embedding vector. Typically a high dimensional vector of floats or ints
      */
     public static final String EMBEDDING_VECTOR =
@@ -487,6 +496,11 @@ public class SemanticConventions {
     public static final String PROMPT_TEMPLATE_VERSION = PROMPT_TEMPLATE_PREFIX + ".version";
 
     /**
+     * Text choices returned from a completions API.
+     */
+    public static final String LLM_CHOICES = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.CHOICES;
+
+    /**
      * The JSON representation of a function call of an LLM
      */
     public static final String LLM_FUNCTION_CALL =
@@ -496,6 +510,11 @@ public class SemanticConventions {
      * List of tools that are advertised to the LLM to be able to call
      */
     public static final String LLM_TOOLS = SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOOLS;
+
+    /**
+     * The identifier for the result of the tool call.
+     */
+    public static final String TOOL_ID = SemanticAttributePrefixes.TOOL + "." + ToolAttributePostfixes.ID;
 
     /**
      * The name of a tool
@@ -638,7 +657,8 @@ public class SemanticConventions {
         EMBEDDING("EMBEDDING"),
         AGENT("AGENT"),
         GUARDRAIL("GUARDRAIL"),
-        EVALUATOR("EVALUATOR");
+        EVALUATOR("EVALUATOR"),
+        PROMPT("PROMPT");
 
         private final String value;
 
@@ -685,7 +705,11 @@ public class SemanticConventions {
         ANTHROPIC("anthropic"),
         MISTRALAI("mistralai"),
         COHERE("cohere"),
-        VERTEXAI("vertexai");
+        VERTEXAI("vertexai"),
+        DEEPSEEK("deepseek"),
+        AMAZON("amazon"),
+        META("meta"),
+        AI21("ai21");
 
         private final String value;
 

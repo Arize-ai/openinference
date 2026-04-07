@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.62](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.61...python-openinference-instrumentation-langchain-v0.1.62) (2026-04-03)
+
+
+### Bug Fixes
+
+* **langchain:** serialize BaseMessage in traced IO ([#2941](https://github.com/Arize-ai/openinference/issues/2941)) ([5fbd529](https://github.com/Arize-ai/openinference/commit/5fbd529df87ff3d201820c53cbd25343483432fa))
+
 ## [0.1.61](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-langchain-v0.1.60...python-openinference-instrumentation-langchain-v0.1.61) (2026-02-26)
 
 

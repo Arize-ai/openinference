@@ -4,7 +4,8 @@ from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
 from inspect import Signature, signature
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Mapping, Tuple
+from itertools import chain
+from typing import Any, Callable, Iterable, Iterator, List, Mapping
 
 import opentelemetry.context as context_api
 from opentelemetry import trace as trace_api
@@ -13,6 +14,13 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.google_genai import cache_attributes
+from openinference.instrumentation.google_genai._context import (
+    CapturedRequestScope,
+    get_embedding_invocation_parameters,
+    get_input_attributes,
+    get_llm_invocation_parameters,
+    get_tool_attributes,
+)
 from openinference.instrumentation.google_genai._interactions_stream import _InteractionsStream
 from openinference.instrumentation.google_genai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -38,7 +46,36 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def _flatten(mapping: Mapping[str, Any]) -> Iterator[Tuple[str, AttributeValue]]:
+def _set_captured_llm_attributes(span: _WithSpan) -> None:
+    """Set input_value, tools, and LLM invocation_parameters from captured SDK request."""
+    try:
+        span.set_attributes(dict(get_input_attributes()))
+        span.set_attributes(dict(get_tool_attributes()))
+        if invocation_params := get_llm_invocation_parameters():
+            span.set_attributes({SpanAttributes.LLM_INVOCATION_PARAMETERS: invocation_params})
+    except Exception:
+        logger.exception("Failed to set captured request attributes")
+
+
+def _set_captured_embedding_attributes(span: _WithSpan) -> None:
+    """Set input_value, embedding invocation_parameters, and embedding text
+    from captured SDK request."""
+    from openinference.instrumentation.google_genai._embedding_attributes_extractor import (
+        _EmbeddingRequestAttributesExtractor,
+    )
+
+    try:
+        span.set_attributes(dict(get_input_attributes()))
+        if invocation_params := get_embedding_invocation_parameters():
+            span.set_attributes({SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS: invocation_params})
+        span.set_attributes(
+            dict(_EmbeddingRequestAttributesExtractor.get_embedding_text_attributes())
+        )
+    except Exception:
+        logger.exception("Failed to set captured embedding attributes")
+
+
+def _flatten(mapping: Mapping[str, Any]) -> Iterator[tuple[str, AttributeValue]]:
     for key, value in mapping.items():
         if value is None:
             continue
@@ -68,16 +105,14 @@ class _WithTracer(ABC):
     def _start_as_current_span(
         self,
         span_name: str,
-        attributes: Iterable[Tuple[str, AttributeValue]],
-        context_attributes: Iterable[Tuple[str, AttributeValue]],
-        extra_attributes: Iterable[Tuple[str, AttributeValue]],
+        attributes: Iterable[tuple[str, AttributeValue]],
     ) -> Iterator[_WithSpan]:
         # Because OTEL has a default limit of 128 attributes, we split our
         # attributes into two tiers, where "extra_attributes" are added first to
         # ensure that the most important "attributes" are added last and are not
         # dropped.
         try:
-            span = self._tracer.start_span(name=span_name, attributes=dict(extra_attributes))
+            span = self._tracer.start_span(name=span_name, attributes=dict(attributes))
         except Exception:
             logger.exception("Failed to start span")
             span = INVALID_SPAN
@@ -87,22 +122,18 @@ class _WithTracer(ABC):
             record_exception=False,
             set_status_on_exception=False,
         ) as span:
-            yield _WithSpan(
-                span=span,
-                context_attributes=dict(context_attributes),
-                extra_attributes=dict(attributes),
-            )
+            yield _WithSpan(span=span)
 
 
 def _parse_args(
     signature: Signature,
-    *args: Tuple[Any],
+    *args: tuple[Any],
     **kwargs: Mapping[str, Any],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
     bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
-    request_data: Dict[str, Any] = {}
+    request_data: dict[str, Any] = {}
     for key, value in bound_arguments.items():
         try:
             if value is not None:
@@ -115,6 +146,122 @@ def _parse_args(
         except Exception:
             request_data[key] = str(value)
     return request_data
+
+
+class _SyncEmbedContentWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        from openinference.instrumentation.google_genai._embedding_attributes_extractor import (
+            _EmbeddingRequestAttributesExtractor,
+            _EmbeddingResponseAttributesExtractor,
+        )
+
+        self._request_extractor = _EmbeddingRequestAttributesExtractor()
+        self._response_extractor = _EmbeddingResponseAttributesExtractor()
+
+    def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "EmbedContent"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
+            ),
+        ) as span:
+            with CapturedRequestScope():
+                try:
+                    response = wrapped(*args, **kwargs)
+                except Exception as exception:
+                    _set_captured_embedding_attributes(span)
+                    span.record_exception(exception)
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.finish_tracing(status=status)
+                    raise
+                _set_captured_embedding_attributes(span)
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=self._response_extractor.get_attributes(
+                        response=response,
+                        request_parameters=request_parameters,
+                    ),
+                )
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+        return response
+
+
+class _AsyncEmbedContentWrapper(_WithTracer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        from openinference.instrumentation.google_genai._embedding_attributes_extractor import (
+            _EmbeddingRequestAttributesExtractor,
+            _EmbeddingResponseAttributesExtractor,
+        )
+
+        self._request_extractor = _EmbeddingRequestAttributesExtractor()
+        self._response_extractor = _EmbeddingResponseAttributesExtractor()
+
+    async def __call__(
+        self,
+        wrapped: Callable[..., Any],
+        instance: Any,
+        args: tuple[Any, ...],
+        kwargs: Mapping[str, Any],
+    ) -> Any:
+        if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
+            return await wrapped(*args, **kwargs)
+
+        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        span_name = "AsyncEmbedContent"
+        with self._start_as_current_span(
+            span_name=span_name,
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
+            ),
+        ) as span:
+            with CapturedRequestScope():
+                try:
+                    response = await wrapped(*args, **kwargs)
+                except Exception as exception:
+                    _set_captured_embedding_attributes(span)
+                    span.record_exception(exception)
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.finish_tracing(status=status)
+                    raise
+                _set_captured_embedding_attributes(span)
+            try:
+                _finish_tracing(
+                    status=trace_api.Status(status_code=trace_api.StatusCode.OK),
+                    with_span=span,
+                    attributes=self._response_extractor.get_attributes(
+                        response=response,
+                        request_parameters=request_parameters,
+                    ),
+                )
+            except Exception:
+                logger.exception(f"Failed to finalize response of type {type(response)}")
+                span.finish_tracing()
+        return response
 
 
 class _SyncGenerateContent(_WithTracer):
@@ -132,45 +279,41 @@ class _SyncGenerateContent(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "GenerateContent"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
             ),
         ) as span:
-            try:
-                response = wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                status = trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=f"{type(exception).__name__}: {exception}",
-                )
-                span.finish_tracing(status=status)
-                raise
+            with CapturedRequestScope():
+                try:
+                    response = wrapped(*args, **kwargs)
+                except Exception as exception:
+                    _set_captured_llm_attributes(span)
+                    span.record_exception(exception)
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.finish_tracing(status=status)
+                    raise
+                _set_captured_llm_attributes(span)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                     with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
+                    attributes=self._response_extractor.get_attributes(
+                        response=response,
+                        request_parameters=request_parameters,
                     ),
                 )
             except Exception:
@@ -187,7 +330,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
@@ -196,9 +339,10 @@ class _SyncCreateInteractionWrapper(_WithTracer):
         span_name = "InteractionsResource.create"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes={},
+            attributes=chain(
+                get_attributes_from_context(),
+                get_attributes_from_request(request_parameters),
+            ),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -236,31 +380,28 @@ class _SyncGenerateContentStream(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "GenerateContentStream"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
             ),
         ) as span:
+            request_scope = CapturedRequestScope()
+            request_scope.__enter__()
             try:
                 response = wrapped(*args, **kwargs)
             except Exception as exception:
+                _set_captured_llm_attributes(span)
+                request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -272,8 +413,10 @@ class _SyncGenerateContentStream(_WithTracer):
                 return _Stream(
                     stream=response,
                     with_span=span,
+                    request_scope=request_scope,
                 )
             except Exception:
+                request_scope.__exit__(None, None, None)
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
                 return response
@@ -294,46 +437,41 @@ class _AsyncGenerateContentWrapper(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
-
         span_name = "AsyncGenerateContent"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
             ),
         ) as span:
-            try:
-                response = await wrapped(*args, **kwargs)
-            except Exception as exception:
-                span.record_exception(exception)
-                status = trace_api.Status(
-                    status_code=trace_api.StatusCode.ERROR,
-                    description=f"{type(exception).__name__}: {exception}",
-                )
-                span.finish_tracing(status=status)
-                raise
+            with CapturedRequestScope():
+                try:
+                    response = await wrapped(*args, **kwargs)
+                except Exception as exception:
+                    _set_captured_llm_attributes(span)
+                    span.record_exception(exception)
+                    status = trace_api.Status(
+                        status_code=trace_api.StatusCode.ERROR,
+                        description=f"{type(exception).__name__}: {exception}",
+                    )
+                    span.finish_tracing(status=status)
+                    raise
+                _set_captured_llm_attributes(span)
             try:
                 _finish_tracing(
                     status=trace_api.Status(status_code=trace_api.StatusCode.OK),
                     with_span=span,
-                    attributes=self._response_extractor.get_attributes(response=response),
-                    extra_attributes=self._response_extractor.get_extra_attributes(
-                        response=response, request_parameters=request_parameters
+                    attributes=self._response_extractor.get_attributes(
+                        response=response,
+                        request_parameters=request_parameters,
                     ),
                 )
             except Exception:
@@ -356,31 +494,28 @@ class _AsyncGenerateContentStream(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        # Prepare invocation parameters by merging args and kwargs
-        invocation_parameters = {}
-        for arg in args:
-            if arg and isinstance(arg, dict):
-                invocation_parameters.update(arg)
-        invocation_parameters.update(kwargs)
         request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
         span_name = "AsyncGenerateContentStream"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=self._request_extractor.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes=self._request_extractor.get_extra_attributes_from_request(
-                request_parameters
+            attributes=chain(
+                get_attributes_from_context(),
+                self._request_extractor.get_attributes_from_request(request_parameters),
             ),
         ) as span:
+            request_scope = CapturedRequestScope()
+            request_scope.__enter__()
             try:
                 response = await wrapped(*args, **kwargs)
             except Exception as exception:
+                _set_captured_llm_attributes(span)
+                request_scope.__exit__(None, None, None)
                 span.record_exception(exception)
                 status = trace_api.Status(
                     status_code=trace_api.StatusCode.ERROR,
@@ -392,8 +527,10 @@ class _AsyncGenerateContentStream(_WithTracer):
                 return _Stream(
                     stream=response,
                     with_span=span,
+                    request_scope=request_scope,
                 )
             except Exception:
+                request_scope.__exit__(None, None, None)
                 logger.exception(f"Failed to finalize response of type {type(response)}")
                 span.finish_tracing()
                 return response
@@ -407,7 +544,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
@@ -416,9 +553,10 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
         span_name = "AsyncInteractionsResource.create"
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes={},
+            attributes=chain(
+                get_attributes_from_context(),
+                get_attributes_from_request(request_parameters),
+            ),
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -450,7 +588,7 @@ class _SyncCreateCachesWrapper(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
@@ -460,9 +598,10 @@ class _SyncCreateCachesWrapper(_WithTracer):
         status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=cache_attributes.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes={},
+            attributes=chain(
+                get_attributes_from_context(),
+                cache_attributes.get_attributes_from_request(request_parameters),
+            ),
         ) as span:
             try:
                 response = wrapped(*args, **kwargs)
@@ -488,7 +627,7 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         self,
         wrapped: Callable[..., Any],
         instance: Any,
-        args: Tuple[Any, ...],
+        args: tuple[Any, ...],
         kwargs: Mapping[str, Any],
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
@@ -498,9 +637,10 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(
             span_name=span_name,
-            attributes=cache_attributes.get_attributes_from_request(request_parameters),
-            context_attributes=get_attributes_from_context(),
-            extra_attributes={},
+            attributes=chain(
+                get_attributes_from_context(),
+                cache_attributes.get_attributes_from_request(request_parameters),
+            ),
         ) as span:
             try:
                 response = await wrapped(*args, **kwargs)
@@ -518,10 +658,10 @@ class _AsyncCreateCachesWrapper(_WithTracer):
         return response
 
 
-CHAIN = OpenInferenceSpanKindValues.CHAIN
-RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER
-EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING
-LLM = OpenInferenceSpanKindValues.LLM
+CHAIN = OpenInferenceSpanKindValues.CHAIN.value
+RETRIEVER = OpenInferenceSpanKindValues.RETRIEVER.value
+EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
+LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_OUTPUT_MESSAGES = SpanAttributes.LLM_OUTPUT_MESSAGES
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE

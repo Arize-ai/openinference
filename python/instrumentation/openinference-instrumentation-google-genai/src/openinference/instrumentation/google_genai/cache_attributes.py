@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Iterator, Mapping, Tuple
+from typing import TYPE_CHECKING, Any, Iterator, Mapping
 
 from opentelemetry.util.types import AttributeValue
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 @_stop_on_exception_for_iter
 def get_attributes_from_request(
     request_parameters: Mapping[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     yield from get_span_kind_attributes("chain").items()
     yield from get_input_attributes(request_parameters).items()
 
@@ -32,7 +32,7 @@ def get_attributes_from_request(
 @_stop_on_exception_for_iter
 def get_attributes_from_response(
     response: types.CachedContent,
-) -> Iterator[Tuple[str, AttributeValue]]:
+) -> Iterator[tuple[str, AttributeValue]]:
     yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
     yield SpanAttributes.OUTPUT_VALUE, response.model_dump_json(exclude_none=True)
     if response.model:

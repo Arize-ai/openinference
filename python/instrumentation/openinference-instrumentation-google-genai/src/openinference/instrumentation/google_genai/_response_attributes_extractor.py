@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Iterable, Iterator, Mapping, Tuple
+from typing import Any, Iterable, Iterator, Mapping
 
 from google.genai import types
 from opentelemetry.util.types import AttributeValue
@@ -21,16 +21,14 @@ logger.addHandler(logging.NullHandler())
 
 
 class _ResponseAttributesExtractor:
-    def get_attributes(self, response: Any) -> Iterator[Tuple[str, AttributeValue]]:
-        yield from _as_output_attributes(
-            _io_value_and_type(response),
-        )
-
-    def get_extra_attributes(
+    def get_attributes(
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
+        yield from _as_output_attributes(
+            _io_value_and_type(response),
+        )
         yield from self._get_attributes_from_generate_content(
             response=response,
             request_parameters=request_parameters,
@@ -40,7 +38,7 @@ class _ResponseAttributesExtractor:
         self,
         response: Any,
         request_parameters: Mapping[str, Any],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L2981  # noqa: E501
         if model_version := getattr(response, "model_version", None):
             yield SpanAttributes.LLM_MODEL_NAME, model_version
@@ -73,7 +71,7 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_generate_content_content(
         self,
         content: object,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         if content_parts := getattr(content, "parts", None):
             yield from self._get_attributes_from_content_parts(content_parts)
         if role := getattr(content, "role", None):
@@ -82,7 +80,7 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_content_parts(
         self,
         content_parts: Iterable[object],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         # https://github.com/googleapis/python-genai/blob/e9e84aa38726e7b65796812684d9609461416b11/google/genai/types.py#L565  # noqa: E501
         tool_call_index = 0
         content_index = 0
@@ -107,7 +105,7 @@ class _ResponseAttributesExtractor:
         self,
         function_call: object,
         tool_call_index: int,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         """Extract attributes from a function call in the response."""
         try:
             if function_name := getattr(function_call, "name", None):
@@ -136,13 +134,13 @@ class _ResponseAttributesExtractor:
     def _get_attributes_from_generate_content_usage(
         self,
         obj: types.GenerateContentResponseUsageMetadata,
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         yield from _get_token_count_attributes_from_usage_metadata(obj)
 
     def _get_attributes_from_automatic_function_calling_history(
         self,
         history: Iterable[object],
-    ) -> Iterator[Tuple[str, AttributeValue]]:
+    ) -> Iterator[tuple[str, AttributeValue]]:
         """Extract function call information from automatic_function_calling_history.
 
         This history contains the sequence of model->function call->function response

@@ -54,6 +54,20 @@ _INVOCATION_PARAMETER_KEYS: List[str] = [
 
 _OPENINF_TOOL_LIST_KEY = "llm.tools"
 
+# GenAI semconv attribute keys (v0.55.0+ default format)
+_GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
+_GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+_GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
+
+_VALID_LLM_PROVIDERS = frozenset(v.value for v in sc.OpenInferenceLLMProviderValues)
+_VALID_LLM_SYSTEMS = frozenset(v.value for v in sc.OpenInferenceLLMSystemValues)
+
+_TOOL_KEY_CANDIDATES = [
+    SpanAttributes.LLM_REQUEST_FUNCTIONS,
+    "llm.request.tools",
+    _GEN_AI_TOOL_DEFINITIONS,
+]
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -107,7 +121,7 @@ def _map_generic_span(attrs: Dict[str, Any]) -> Dict[str, Any]:
     return mapped
 
 
-def _collect_oi_messages(
+def _parse_messages_from_attributes(
     attrs: Dict[str, Any], prefix: str
 ) -> tuple[List[oi.Message], List[Optional[str]]]:
     """
@@ -170,6 +184,71 @@ def _collect_oi_messages(
     return messages, finish_reasons
 
 
+def _parse_messages_from_json(
+    raw_json: str,
+) -> tuple[List[oi.Message], List[Optional[str]]]:
+    """
+    Parse the updated ``gen_ai.input.messages`` / ``gen_ai.output.messages``
+    JSON-string attribute (OTel GenAI semconv 0.5.1+).
+
+    Each message is ``{"role": "...", "parts": [{"type": "text", "content": "..."},
+    {"type": "tool_call", ...}], "finish_reason": "..."}``
+    """
+    try:
+        items = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+    except Exception:
+        return [], []
+    if not isinstance(items, list):
+        items = [items]
+
+    messages: List[oi.Message] = []
+    finish_reasons: List[Optional[str]] = []
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role", "user")
+        msg = oi.Message(role=role)
+
+        parts = item.get("parts") or []
+        text_parts: List[str] = []
+        tool_calls: List[oi.ToolCall] = []
+
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            ptype = part.get("type", "")
+            if ptype == "text":
+                text_parts.append(part.get("content", ""))
+            elif ptype == "tool_call":
+                tc = oi.ToolCall(
+                    function=oi.ToolCallFunction(
+                        name=part.get("name", ""),
+                        arguments=part.get("arguments", ""),
+                    )
+                )
+                if part.get("id"):
+                    tc["id"] = part["id"]
+                tool_calls.append(tc)
+            elif ptype == "tool_call_response":
+                # tool role messages carry the response as content
+                text_parts.append(str(part.get("response", "")))
+
+        # If no parts array, fall back to top-level content
+        if not parts and "content" in item:
+            text_parts.append(str(item["content"]))
+
+        if text_parts:
+            msg["content"] = "\n".join(text_parts) if len(text_parts) > 1 else text_parts[0]
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+
+        messages.append(msg)
+        finish_reasons.append(item.get("finish_reason"))
+
+    return messages, finish_reasons
+
+
 def _handle_tool_list(raw: Any, dst: Dict[str, Any]) -> List[oi.Tool]:
     """
     Convert OpenLLMetry functions/tools list into OpenInference tools list
@@ -205,11 +284,13 @@ def _extract_llm_provider_and_system(
     provider_val: Optional[str] = str(
         attrs.get(GenAIAttributes.GEN_AI_PROVIDER_NAME, "unknown")
     ).lower()
-    if provider_val not in {v.value for v in sc.OpenInferenceLLMProviderValues}:
+    if provider_val not in _VALID_LLM_PROVIDERS:
         provider_val = None
 
+    # gen_ai.system is deprecated (OTel semconv v1.37.0); v0.55.0+ only emits
+    # gen_ai.provider.name, so system_val will be None for newer spans.
     system_val: Optional[str] = str(attrs.get(GenAIAttributes.GEN_AI_SYSTEM, "unknown")).lower()
-    if system_val not in {v.value for v in sc.OpenInferenceLLMSystemValues}:
+    if system_val not in _VALID_LLM_SYSTEMS:
         system_val = None
 
     return provider_val, system_val
@@ -230,13 +311,30 @@ class OpenInferenceSpanProcessor(SpanProcessor):
             attrs.update(generic)
             return
 
-        # Skip if no LLM prompt data
-        if not any(k.startswith("gen_ai.prompt.") for k in attrs):
+        # Detect which message format is present.
+        # The JSON-based format (v0.55.0+) is the default; the legacy
+        # attribute-per-field format is kept only as a fallback.
+        has_json_messages = _GEN_AI_INPUT_MESSAGES in attrs
+        has_legacy_attributes = any(k.startswith("gen_ai.prompt.") for k in attrs)
+
+        # Skip if no LLM prompt data in either format
+        if not has_json_messages and not has_legacy_attributes:
             return
 
-        # Reconstruct messages
-        inputs, input_finish_reasons = _collect_oi_messages(attrs, "gen_ai.prompt.")
-        outputs, output_finish_reasons = _collect_oi_messages(attrs, "gen_ai.completion.")
+        # Reconstruct messages, preferring the current format
+        if has_json_messages:
+            inputs, input_finish_reasons = _parse_messages_from_json(
+                attrs.get(_GEN_AI_INPUT_MESSAGES, "[]")
+            )
+            outputs, output_finish_reasons = _parse_messages_from_json(
+                attrs.get(_GEN_AI_OUTPUT_MESSAGES, "[]")
+            )
+        else:
+            # Fallback for older OpenLLMetry versions (< 0.55.0)
+            inputs, input_finish_reasons = _parse_messages_from_attributes(attrs, "gen_ai.prompt.")
+            outputs, output_finish_reasons = _parse_messages_from_attributes(
+                attrs, "gen_ai.completion."
+            )
 
         # Token usage
         prompt_toks = _safe_int(attrs.get(GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS)) or 0
@@ -260,11 +358,7 @@ class OpenInferenceSpanProcessor(SpanProcessor):
         if GenAIAttributes.GEN_AI_REQUEST_MODEL in attrs:
             invocation_params.setdefault("model", attrs[GenAIAttributes.GEN_AI_REQUEST_MODEL])
         # Tools
-        tool_key = (
-            SpanAttributes.LLM_REQUEST_FUNCTIONS
-            if SpanAttributes.LLM_REQUEST_FUNCTIONS in attrs
-            else ("llm.request.tools" if "llm.request.tools" in attrs else None)
-        )
+        tool_key = next((k for k in _TOOL_KEY_CANDIDATES if k in attrs), None)
         oi_tools: List[oi.Tool] = []
         if tool_key:
             oi_tools = _handle_tool_list(attrs[tool_key], attrs)

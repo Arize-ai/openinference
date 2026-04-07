@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-core",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "private": false,
   "description": "OpenInference Core provides utilities shared by all OpenInference SDK packages.",
   "keywords": [
@@ -20,7 +20,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "docs"
   ],
   "main": "dist/src/index.js",
   "module": "dist/esm/index.js",

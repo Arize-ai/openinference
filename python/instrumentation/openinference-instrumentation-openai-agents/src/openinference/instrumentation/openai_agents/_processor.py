@@ -678,6 +678,16 @@ def _get_attributes_from_response_output(
             ...  # TODO
         elif item.type == "tool_search_output":
             ...  # TODO
+        elif item.type == "function_call_output":
+            ...  # TODO
+        elif item.type == "computer_call_output":
+            ...  # TODO
+        elif item.type == "local_shell_call_output":
+            ...  # TODO
+        elif item.type == "mcp_approval_response":
+            ...  # TODO
+        elif item.type == "custom_tool_call_output":
+            ...  # TODO
         elif TYPE_CHECKING:
             assert_never(item)
 

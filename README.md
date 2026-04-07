@@ -91,7 +91,6 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [Groq](python/instrumentation/openinference-instrumentation-groq/examples/)                           | Groq and AsyncGroq chat completions                                                          | Beginner         |
 | [Anthropic](python/instrumentation/openinference-instrumentation-anthropic/examples/)                 | Anthropic Messages client                                                                    | Beginner         |
 | [BeeAI](python/instrumentation/openinference-instrumentation-beeai/examples/)                         | Agentic instrumentation in the BeeAI framework                                               | Beginner         |
-| [LlamaIndex + Next.js Chatbot](python/examples/llama-index/)                                          | A fully functional chatbot using Next.js and a LlamaIndex FastAPI backend                    | Intermediate     |
 | [LangServe](python/examples/langserve/)                                                               | A LangChain application deployed with LangServe using custom metadata on a per-request basis | Intermediate     |
 | [DSPy](python/examples/dspy-rag-fastapi/)                                                             | A DSPy RAG application using FastAPI, Weaviate, and Cohere                                   | Intermediate     |
 | [Haystack](python/instrumentation/openinference-instrumentation-haystack/examples/)                   | A Haystack QA RAG application                                                                | Intermediate     |
@@ -122,7 +121,6 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`@arizeai/openinference-instrumentation-claude-agent-sdk`](./js/packages/openinference-instrumentation-claude-agent-sdk)           | OpenInference Instrumentation for Claude Agent SDK.                 | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-instrumentation-claude-agent-sdk)](https://www.npmjs.com/package/@arizeai/openinference-instrumentation-claude-agent-sdk)           |
 | [`@arizeai/openinference-vercel`](./js/packages/openinference-vercel)                                                               | OpenInference Support for Vercel AI SDK.                            | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-vercel)](https://www.npmjs.com/package/@arizeai/openinference-vercel)                                                               |
 | [`@arizeai/openinference-genai`](./js/packages/openinference-genai)                                                                 | OpenInference Support for GenAI conventions                         | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-genai)](https://www.npmjs.com/package/@arizeai/openinference-genai)                                                                 |
-| [`@arizeai/openinference-mastra`](./js/packages/openinference-mastra)                                                               | OpenInference Support for Mastra.                                   | [![NPM Version](https://img.shields.io/npm/v/@arizeai/openinference-mastra.svg)](https://www.npmjs.com/package/@arizeai/openinference-mastra)                                                           |
 
 ### Examples
 
@@ -147,6 +145,7 @@ Normalize and convert data across other instrumentation libraries by adding span
 | [`openinference-instrumentation`](./java/openinference-instrumentation)                                         | Base instrumentation utilities.                | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation)                         |
 | [`openinference-instrumentation-langchain4j`](./java/instrumentation/openinference-instrumentation-langchain4j) | OpenInference Instrumentation for LangChain4j. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-langchain4j)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-langchain4j) |
 | [`openinference-instrumentation-springAI`](./java/instrumentation/openinference-instrumentation-springAI)       | OpenInference Instrumentation for Spring AI.   | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-springAI)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-springAI)       |
+| [`openinference-instrumentation-annotation`](./java/instrumentation/openinference-instrumentation-annotation) | Annotation-based manual tracing with ByteBuddy. | [![Maven Central Version](https://img.shields.io/maven-central/v/com.arize/openinference-instrumentation-annotation)](https://central.sonatype.com/artifact/com.arize/openinference-instrumentation-annotation) |
 
 ### Examples
 
@@ -154,6 +153,8 @@ Normalize and convert data across other instrumentation libraries by adding span
 | -------------------------------------------------------- | ---------------------------------------------- | ---------------- |
 | [LangChain4j Example](java/examples/langchain4j-example) | Simple example using LangChain4j with OpenAI   | Beginner         |
 | [Spring AI Example](java/examples/spring-ai-example)     | Spring AI example with OpenAI and tool calling | Beginner         |
+| [Annotation Example](java/examples/annotation-example) | Annotation-based tracing with `@Chain`, `@LLM`, `@Tool`, `@Agent` | Beginner         |
+| [Programmatic Example](java/examples/programmatic-example) | Manual tracing with typed span classes (`LLMSpan`, `AgentSpan`, etc.) | Beginner         |
 
 ## Supported Destinations
 

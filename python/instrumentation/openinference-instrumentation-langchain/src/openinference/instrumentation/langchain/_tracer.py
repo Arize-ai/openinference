@@ -65,6 +65,12 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
+_message_to_dict: Optional[Callable[[BaseMessage], Dict[Any, Any]]]
+try:
+    from langchain_core.messages.base import message_to_dict as _message_to_dict
+except ImportError:
+    _message_to_dict = None
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -459,6 +465,11 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for OpenInference with comprehensive type support."""
 
     def default(self, obj: Any) -> Any:
+        # Handle LangChain messages before generic Pydantic handling so
+        # older supported langchain_core versions still produce structured JSON.
+        if isinstance(obj, BaseMessage):
+            return _serialize_langchain_message(obj)
+
         # Handle Pydantic models
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
             return obj.model_dump()
@@ -499,6 +510,83 @@ class _OpenInferenceJSONEncoder(json.JSONEncoder):
 
         # Let the base class handle everything else (will raise TypeError for unsupported types)
         return super().default(obj)
+
+
+def _serialize_langchain_message(message: BaseMessage) -> Any:
+    if _message_to_dict is not None:
+        try:
+            return _message_to_dict(message)
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with message_to_dict.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "model_dump") and callable(message.model_dump):
+        try:
+            return message.model_dump()
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "model_dump_json") and callable(message.model_dump_json):
+        try:
+            return json.loads(message.model_dump_json())
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with model_dump_json.",
+                exc_info=True,
+            )
+
+    if hasattr(message, "dict") and callable(message.dict):
+        try:
+            return message.dict()
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with dict.",
+                exc_info=True,
+            )
+
+    message_data = _serialize_langchain_message_data(message)
+    if message_data:
+        return {"type": getattr(message, "type", message.__class__.__name__), "data": message_data}
+
+    if hasattr(message, "to_json") and callable(message.to_json):
+        try:
+            serialized = message.to_json()
+            if isinstance(serialized, str):
+                return json.loads(serialized)
+            if isinstance(serialized, Mapping):
+                return dict(serialized)
+            return serialized
+        except Exception:
+            logger.debug(
+                "Failed to serialize LangChain message with to_json.",
+                exc_info=True,
+            )
+
+    return str(message)
+
+
+def _serialize_langchain_message_data(message: BaseMessage) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    for attribute_name in (
+        "content",
+        "additional_kwargs",
+        "response_metadata",
+        "type",
+        "name",
+        "id",
+        "example",
+    ):
+        if not hasattr(message, attribute_name):
+            continue
+        value = getattr(message, attribute_name)
+        if value is not None:
+            data[attribute_name] = value
+    return data
 
 
 def _json_dumps(obj: Any) -> str:
