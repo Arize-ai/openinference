@@ -10,10 +10,9 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 
 from instructor.utils import is_async
-from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation import get_provider_from_host, safe_json_dumps
 from openinference.semconv.trace import (
     MessageAttributes,
-    OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -211,10 +210,10 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := infer_llm_provider_from_endpoint(
+                    if provider := get_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
-                        span.set_attribute(LLM_PROVIDER, provider.value)
+                        span.set_attribute(LLM_PROVIDER, provider)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)
@@ -254,10 +253,10 @@ class _PatchWrapper:
 
                     if model_name := kwargs.get("model"):
                         span.set_attribute(LLM_MODEL_NAME, model_name)
-                    if provider := infer_llm_provider_from_endpoint(
+                    if provider := get_provider_from_host(
                         extract_llm_endpoint_from_sdk_instance(create, client)
                     ):
-                        span.set_attribute(LLM_PROVIDER, provider.value)
+                        span.set_attribute(LLM_PROVIDER, provider)
                     span.set_attribute(LLM_SYSTEM, OpenInferenceLLMSystemValues.OPENAI.value)
 
                     span.set_status(trace_api.StatusCode.OK)
@@ -355,51 +354,8 @@ def extract_llm_endpoint_from_sdk_instance(
         or getattr(instance, "host", None)
     )
 
-    if not isinstance(endpoint, str) and endpoint is not None:
-        return str(endpoint)
-
-    return endpoint
-
-
-def infer_llm_provider_from_endpoint(
-    endpoint: Optional[str] = None,
-) -> Optional[OpenInferenceLLMProviderValues]:
-    """Infer the LLM provider from an SDK instance using the API endpoint when possible."""
-    if not isinstance(endpoint, str):
-        return None
-
-    hostname = urlparse(endpoint).hostname
-    if hostname is None:
-        return None
-
-    host = hostname.lower()
-
-    if host.endswith("api.openai.com"):
-        return OpenInferenceLLMProviderValues.OPENAI
-
-    if "openai.azure.com" in host:
-        return OpenInferenceLLMProviderValues.AZURE
-
-    if host.endswith("googleapis.com"):
-        return OpenInferenceLLMProviderValues.GOOGLE
-
-    if host.endswith("anthropic.com"):
-        return OpenInferenceLLMProviderValues.ANTHROPIC
-
-    if "bedrock" in host or host.endswith("amazonaws.com"):
-        return OpenInferenceLLMProviderValues.AWS
-
-    if host.endswith("cohere.ai"):
-        return OpenInferenceLLMProviderValues.COHERE
-
-    if host.endswith("mistral.ai"):
-        return OpenInferenceLLMProviderValues.MISTRALAI
-
-    if host.endswith("x.ai"):
-        return OpenInferenceLLMProviderValues.XAI
-
-    if host.endswith("deepseek.com"):
-        return OpenInferenceLLMProviderValues.DEEPSEEK
+    if isinstance(endpoint, str):
+        return urlparse(endpoint).hostname
 
     return None
 

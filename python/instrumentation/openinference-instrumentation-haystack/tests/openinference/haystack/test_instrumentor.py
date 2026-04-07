@@ -30,10 +30,7 @@ from typing_extensions import TypeGuard
 
 from openinference.instrumentation import OITracer, suppress_tracing, using_attributes
 from openinference.instrumentation.haystack import HaystackInstrumentor
-from openinference.instrumentation.haystack._wrappers import (
-    infer_llm_provider_from_class_name,
-    infer_llm_system_from_model,
-)
+from openinference.instrumentation.haystack._wrappers import infer_llm_provider_from_class_name
 from openinference.semconv.trace import (
     DocumentAttributes,
     EmbeddingAttributes,
@@ -1467,81 +1464,6 @@ class TestInferLLMProviderFromClassName:
 
         result = infer_llm_provider_from_class_name(mock_instance)
         assert result is None
-
-
-class TestInferLLMSystemFromModel:
-    @pytest.mark.parametrize(
-        "model_name",
-        [None, ""],
-    )
-    def test_returns_none_for_invalid_input(self, model_name: Optional[str]) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result is None
-
-    @pytest.mark.parametrize(
-        "model_name, expected",
-        [
-            # OpenAI
-            ("gpt-4", OpenInferenceLLMSystemValues.OPENAI),
-            ("gpt-4-turbo-preview", OpenInferenceLLMSystemValues.OPENAI),
-            ("gpt.3.5.turbo", OpenInferenceLLMSystemValues.OPENAI),
-            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI),
-            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI),
-            ("o4-turbo", OpenInferenceLLMSystemValues.OPENAI),
-            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI),
-            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI),
-            ("curie", OpenInferenceLLMSystemValues.OPENAI),
-            ("babbage", OpenInferenceLLMSystemValues.OPENAI),
-            ("ada", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure_openai/gpt-4", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure_ai/some-model", OpenInferenceLLMSystemValues.OPENAI),
-            ("azure/deployment-name", OpenInferenceLLMSystemValues.OPENAI),
-            # Anthropic
-            ("anthropic.claude-v2", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("anthropic/claude-3-opus", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("claude-3-opus-20240229", OpenInferenceLLMSystemValues.ANTHROPIC),
-            ("google_anthropic_vertex/claude-3", OpenInferenceLLMSystemValues.ANTHROPIC),
-            # Cohere
-            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE),
-            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE),
-            ("cohere/embed-english-v3", OpenInferenceLLMSystemValues.COHERE),
-            # Mistral
-            ("mistralai/mistral-large", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("mistral-small", OpenInferenceLLMSystemValues.MISTRALAI),
-            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI),
-            # VertexAI
-            ("google_vertexai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("google_genai/gemini-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertexai/gemini-ultra", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertex_ai/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("vertex/bison", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI),
-            ("google/palm-2", OpenInferenceLLMSystemValues.VERTEXAI),
-        ],
-    )
-    def test_known_model_names_return_expected_system(
-        self, model_name: str, expected: OpenInferenceLLMSystemValues
-    ) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "unknown-model-xyz",
-            "custom-llm-v1",
-            "my-gpt-4-custom",
-        ],
-    )
-    def test_unknown_model_names_return_none(self, model_name: str) -> None:
-        result = infer_llm_system_from_model(model_name)
-        assert result is None
-
-    def test_case_insensitive_matching(self) -> None:
-        result = infer_llm_system_from_model("GPT-4-Turbo")
-        assert result == OpenInferenceLLMSystemValues.OPENAI
 
 
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
