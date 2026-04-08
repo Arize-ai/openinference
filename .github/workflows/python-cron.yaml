@@ -124,6 +124,26 @@ jobs:
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Bash(gh *)",
+                  "Bash(git *)",
+                  "Bash(uvx *)",
+                  "Bash(tox *)",
+                  "Bash(cd *)",
+                  "Bash(ls *)",
+                  "Read",
+                  "Write",
+                  "Edit",
+                  "Glob",
+                  "Grep",
+                  "WebFetch",
+                  "WebSearch"
+                ]
+              }
+            }
           prompt: |
             The Python canary cron has failures.
 
