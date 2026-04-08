@@ -86,29 +86,19 @@ import {
   setUser,
 } from "@arizeai/openinference-core";
 
-const enrichedContext = setAttributes(
-  setPromptTemplate(
-    setTags(
-      setMetadata(
-        setUser(setSession(context.active(), { sessionId: "sess-42" }), {
-          userId: "user-7",
-        }),
-        { tenant: "acme", environment: "prod" },
-      ),
-      ["support", "priority-high"],
-    ),
-    {
-      template: "Answer using docs about {topic}",
-      variables: { topic: "billing" },
-      version: "v3",
-    },
-  ),
-  {
-    "app.request_id": "req-123",
-  },
-);
+let ctx = context.active();
+ctx = setSession(ctx, { sessionId: "sess-42" });
+ctx = setUser(ctx, { userId: "user-7" });
+ctx = setMetadata(ctx, { tenant: "acme", environment: "prod" });
+ctx = setTags(ctx, ["support", "priority-high"]);
+ctx = setPromptTemplate(ctx, {
+  template: "Answer using docs about {topic}",
+  variables: { topic: "billing" },
+  version: "v3",
+});
+ctx = setAttributes(ctx, { "app.request_id": "req-123" });
 
-context.with(enrichedContext, async () => {
+context.with(ctx, async () => {
   // spans started in this context by openinference-core wrappers
   // include these propagated attributes automatically
 });
@@ -288,6 +278,22 @@ You can also configure masking with environment variables:
 
 - `withSafety({ fn, onError? })`: wraps a function and returns `null` on error
 - `safelyJSONStringify(value)` / `safelyJSONParse(value)`: guarded JSON operations
+
+## Docs and Source Code in node_modules
+
+Once you've installed the openinference-core package, you already have the full
+openinference-core documentation and source code available locally inside
+node_modules. Your coding agent can read these directly -- no internet access
+required.
+
+```
+node_modules/@arizeai/openinference-core/src/              # Full source code organized by module
+node_modules/@arizeai/openinference-core/docs/             # Official documentation with examples
+```
+
+This means your agent can look up accurate API signatures, implementations, and
+usage examples directly from the installed package -- ensuring it always uses the
+version of the SDK that's actually installed in your project.
 
 ## Documentation
 

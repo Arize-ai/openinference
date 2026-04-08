@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.44](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.43...python-openinference-instrumentation-openai-v0.1.44) (2026-04-03)
+
+
+### Bug Fixes
+
+* **openai,openai-agents:** handle new output item types from latest OpenAI SDK ([#2923](https://github.com/Arize-ai/openinference/issues/2923)) ([75667be](https://github.com/Arize-ai/openinference/commit/75667be1128ee402ded7251755f148fb0ce14d5d))
+
 ## [0.1.43](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openai-v0.1.42...python-openinference-instrumentation-openai-v0.1.43) (2026-03-24)
 
 

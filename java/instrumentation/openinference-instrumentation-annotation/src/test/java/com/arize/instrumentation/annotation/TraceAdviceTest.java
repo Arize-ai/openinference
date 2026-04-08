@@ -348,6 +348,99 @@ class TraceAdviceTest {
                 .isNull();
     }
 
+    // --- hide inputs / outputs (matching LangChain4j pattern) ---
+
+    @Test
+    void hidesInputWhenConfigured() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config = TraceConfig.builder().hideInputs(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer hiddenTracer = new OITracer(provider.get("test-hidden"), config);
+        OpenInferenceAgent.register(hiddenTracer);
+
+        Method method = AnnotatedTarget.class.getMethod("withParams", String.class, int.class);
+        Object[] args = {"secret-input", 42};
+
+        TracedSpan span = TraceAdvice.onEnter(method, args);
+        assertThat(span).isNotNull();
+        TraceAdvice.onExit(span, method, "visible-output", null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // Input should be suppressed
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        // Output should still be present
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isEqualTo("visible-output");
+        // Span kind still present
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                .isEqualTo("CHAIN");
+    }
+
+    @Test
+    void hidesOutputWhenConfigured() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config = TraceConfig.builder().hideOutputs(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer hiddenTracer = new OITracer(provider.get("test-hidden"), config);
+        OpenInferenceAgent.register(hiddenTracer);
+
+        Method method = AnnotatedTarget.class.getMethod("withParams", String.class, int.class);
+        Object[] args = {"visible-input", 42};
+
+        TracedSpan span = TraceAdvice.onEnter(method, args);
+        assertThat(span).isNotNull();
+        TraceAdvice.onExit(span, method, "secret-output", null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        // Output should be suppressed
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        // Input should still be present
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNotNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .contains("visible-input");
+    }
+
+    @Test
+    void hidesBothInputAndOutputWhenConfigured() throws Exception {
+        OpenInferenceAgent.unregister();
+        exporter.reset();
+
+        TraceConfig config =
+                TraceConfig.builder().hideInputs(true).hideOutputs(true).build();
+        SdkTracerProvider provider = SdkTracerProvider.builder()
+                .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+                .build();
+        OITracer hiddenTracer = new OITracer(provider.get("test-hidden-both"), config);
+        OpenInferenceAgent.register(hiddenTracer);
+
+        Method method = AnnotatedTarget.class.getMethod("withParams", String.class, int.class);
+        Object[] args = {"secret", 42};
+
+        TracedSpan span = TraceAdvice.onEnter(method, args);
+        assertThat(span).isNotNull();
+        TraceAdvice.onExit(span, method, "secret", null);
+
+        SpanData data = exporter.getFinishedSpanItems().get(0);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.INPUT_VALUE)))
+                .isNull();
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OUTPUT_VALUE)))
+                .isNull();
+        assertThat(data.getStatus().getStatusCode()).isEqualTo(io.opentelemetry.api.trace.StatusCode.OK);
+        assertThat(data.getAttributes().get(AttributeKey.stringKey(SemanticConventions.OPENINFERENCE_SPAN_KIND)))
+                .isEqualTo("CHAIN");
+    }
+
     // --- Test target with annotations ---
 
     public static class AnnotatedTarget {

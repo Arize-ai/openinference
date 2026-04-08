@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.0...python-openinference-instrumentation-crewai-v1.1.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **crewAI:** sanitize event message ([#2946](https://github.com/Arize-ai/openinference/issues/2946)) ([b05ec92](https://github.com/Arize-ai/openinference/commit/b05ec926e037c026769d2a543e205b40033c9847))
+
 ## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.0.0...python-openinference-instrumentation-crewai-v1.1.0) (2026-03-23)
 
 

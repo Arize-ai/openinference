@@ -67,8 +67,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    outputs:
-      failure_list: ${{ steps.failures.outputs.list }}
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ needs.canary.result == 'failure' }}
@@ -112,25 +110,41 @@ jobs:
 
   auto-fix:
     name: Propose fix for failures
-    needs: slack
-    if: ${{ needs.slack.outputs.failure_list != '' }}
+    needs: canary
+    if: ${{ always() && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+        id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_prompt: |
-            The following Python canary cron jobs failed:
-
-            ${{ needs.slack.outputs.failure_list }}
+          prompt: |
+            The Python canary cron has failures.
 
             Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-          allowed_tools: "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch"
+
+      - name: Notify Slack of auto-fix PR
+        if: ${{ steps.auto-fix.outputs.branch_name != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ steps.auto-fix.outputs.branch_name }}
+        run: |
+          PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url 2>/dev/null || echo "")
+          if [ -n "$PR_URL" ]; then
+            MSG="Auto-fix PR opened for canary failures: $PR_URL"
+          else
+            MSG="Auto-fix branch created but no PR found: $BRANCH_NAME"
+          fi
+          echo "$MSG"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "$(jq -n --arg text "$MSG" '{type: "mrkdwn", text: $text}')" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"

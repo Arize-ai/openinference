@@ -61,14 +61,72 @@ public abstract class TracedSpan implements AutoCloseable {
         span.setAttribute(AttributeKey.stringKey(SemanticConventions.USER_ID), userId);
     }
 
+    protected boolean shouldHide(String key) {
+        // hideInputs (broad): input.value, input.mime_type, llm.input_messages.*, llm.prompts
+        if (config.isHideInputs()) {
+            if (SemanticConventions.INPUT_VALUE.equals(key)) return true;
+            if (SemanticConventions.INPUT_MIME_TYPE.equals(key)) return true;
+            if (key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) return true;
+            if (key.startsWith(SemanticConventions.LLM_PROMPTS)) return true;
+        }
+        // hideOutputs (broad): output.value, output.mime_type, llm.output_messages.*
+        if (config.isHideOutputs()) {
+            if (SemanticConventions.OUTPUT_VALUE.equals(key)) return true;
+            if (SemanticConventions.OUTPUT_MIME_TYPE.equals(key)) return true;
+            if (key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)) return true;
+        }
+        // hideInputMessages (narrow): llm.input_messages.*
+        if (config.isHideInputMessages() && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)) return true;
+        // hideOutputMessages (narrow): llm.output_messages.*
+        if (config.isHideOutputMessages() && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)) return true;
+        // hideInputText: message.content within llm.input_messages (but NOT message.contents)
+        if (config.isHideInputText()
+                && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)
+                && key.contains(SemanticConventions.MESSAGE_CONTENT)
+                && !key.contains(SemanticConventions.MESSAGE_CONTENTS)) return true;
+        // hideOutputText: message.content within llm.output_messages (but NOT message.contents)
+        if (config.isHideOutputText()
+                && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)
+                && key.contains(SemanticConventions.MESSAGE_CONTENT)
+                && !key.contains(SemanticConventions.MESSAGE_CONTENTS)) return true;
+        // hideInputImages: message_content.image within llm.input_messages
+        if (config.isHideInputImages()
+                && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)
+                && key.contains(SemanticConventions.MESSAGE_CONTENT_IMAGE)) return true;
+        // hideOutputImages: message_content.image within llm.output_messages
+        if (config.isHideOutputImages()
+                && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)
+                && key.contains(SemanticConventions.MESSAGE_CONTENT_IMAGE)) return true;
+        // hideInputAudio: audio within llm.input_messages
+        if (config.isHideInputAudio()
+                && key.startsWith(SemanticConventions.LLM_INPUT_MESSAGES)
+                && key.contains(SemanticConventions.SemanticAttributePrefixes.AUDIO)) return true;
+        // hideOutputAudio: audio within llm.output_messages
+        if (config.isHideOutputAudio()
+                && key.startsWith(SemanticConventions.LLM_OUTPUT_MESSAGES)
+                && key.contains(SemanticConventions.SemanticAttributePrefixes.AUDIO)) return true;
+        // hidePromptTemplate: llm.prompt_template.template
+        if (config.isHidePromptTemplate() && SemanticConventions.PROMPT_TEMPLATE_TEMPLATE.equals(key)) return true;
+        // hidePromptTemplateVariables: llm.prompt_template.variables
+        if (config.isHidePromptTemplateVariables() && SemanticConventions.PROMPT_TEMPLATE_VARIABLES.equals(key))
+            return true;
+        // hidePromptTemplateVersion: llm.prompt_template.version
+        if (config.isHidePromptTemplateVersion() && SemanticConventions.PROMPT_TEMPLATE_VERSION.equals(key))
+            return true;
+        // hideToolParameters: tool.parameters
+        if (config.isHideToolParameters() && SemanticConventions.TOOL_PARAMETERS.equals(key)) return true;
+        // hideInputEmbeddings: embedding.vector within embedding.embeddings
+        if (config.isHideInputEmbeddings()
+                && key.startsWith(SemanticConventions.EMBEDDING_EMBEDDINGS)
+                && key.contains(SemanticConventions.EMBEDDING_VECTOR)) return true;
+        return false;
+    }
+
     public void setAttribute(String key, Object value) {
         if (key == null || key.isEmpty() || value == null) {
             return;
         }
-        if (SemanticConventions.INPUT_VALUE.equals(key) && config.isHideInputs()) {
-            return;
-        }
-        if (SemanticConventions.OUTPUT_VALUE.equals(key) && config.isHideOutputs()) {
+        if (shouldHide(key)) {
             return;
         }
 
