@@ -839,10 +839,13 @@ describe("openInferenceMiddleware", () => {
 
     const spans = exporter.getFinishedSpans();
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
     expect(agentSpan?.attributes[SemanticConventions.SESSION_ID]).toBe("session-1");
@@ -865,7 +868,10 @@ describe("openInferenceMiddleware", () => {
     const ctx = createContext({ phase: "beforeModel" });
 
     await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onConfig?.(
+      ctx,
+      createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+    );
     await middleware.onChunk?.(ctx, {
       type: "TEXT_MESSAGE_CONTENT",
       timestamp: Date.now(),
@@ -892,10 +898,13 @@ describe("openInferenceMiddleware", () => {
 
     const spans = exporter.getFinishedSpans();
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
     expect(agentSpan?.attributes["input.value"]).toBe("__REDACTED__");
@@ -929,9 +938,13 @@ describe("openInferenceMiddleware", () => {
       duration: 5,
     });
 
-    const toolSpan = exporter.getFinishedSpans().find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
-    );
+    const toolSpan = exporter
+      .getFinishedSpans()
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.TOOL,
+      );
 
     expect(toolSpan?.status.code).toBe(SpanStatusCode.ERROR);
     expect(toolSpan?.status.message).toBe("user cancelled");
