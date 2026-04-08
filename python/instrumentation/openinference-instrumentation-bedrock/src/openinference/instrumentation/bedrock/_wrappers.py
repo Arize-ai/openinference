@@ -540,7 +540,9 @@ def _apply_guardrail_wrapper(tracer: Tracer) -> Callable[[Any], Callable[..., An
                 span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, JSON)
             span.set_attributes(dict(get_attributes_from_context()))
             if isinstance(response, Mapping) and _response_is_blocked(response):
-                span.set_status(Status(StatusCode.ERROR, cast(str, response.get("actionReason", ""))))
+                span.set_status(
+                    Status(StatusCode.ERROR, cast(str, response.get("actionReason", "")))
+                )
             else:
                 span.set_status(Status(StatusCode.OK))
 

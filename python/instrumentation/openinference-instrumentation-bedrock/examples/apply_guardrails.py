@@ -23,7 +23,7 @@ client = session.client(
 
 
 def run():
-    content = [
+    blocked_guardrail_content = [
         {
             "text": {
                 "text": "Give stock suggestions for the NASDAQ100. Expected returns are"
@@ -31,14 +31,24 @@ def run():
             }
         }
     ]
-    guardrail_id = "<GuardRailIdentifier>"
+    success_guardrail_content = [{"text": {"text": "Who is USA President?"}}]
+    guardrail_id = "<guardrail_id>"
     guardrail_version = "1"
 
     response = client.apply_guardrail(
         guardrailIdentifier=guardrail_id,
         guardrailVersion=guardrail_version,
         source="INPUT",
-        content=content,
+        content=blocked_guardrail_content,
+        outputScope="FULL",
+    )
+    print(response)
+
+    response = client.apply_guardrail(
+        guardrailIdentifier=guardrail_id,
+        guardrailVersion=guardrail_version,
+        source="INPUT",
+        content=success_guardrail_content,
         outputScope="FULL",
     )
     print(response)
