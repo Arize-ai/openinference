@@ -167,8 +167,7 @@ function toOpenInferenceToolCallFromTanStack(toolCall: TanStackToolCall): OpenIn
 }
 
 /**
- * Captures tool definitions on LLM spans so Phoenix can render the available
- * tool schema alongside the request.
+ * Captures tool definitions on LLM spans.
  */
 function toOpenInferenceTools(tools: TanStackTool[]): OpenInferenceTool[] {
   return tools.flatMap((tool) => {
