@@ -413,9 +413,7 @@ export function openInferenceMiddleware({
           "tanstack.ai.stream.id": ctx.streamId,
           "tanstack.ai.source": ctx.source,
           "tanstack.ai.streaming": ctx.streaming,
-          ...(input == null
-            ? {}
-            : getInputAttributes({ value: input, mimeType: MimeType.JSON })),
+          ...(input == null ? {} : getInputAttributes({ value: input, mimeType: MimeType.JSON })),
           ...(ctx.options == null ? {} : getMetadataAttributes(ctx.options)),
         },
       });

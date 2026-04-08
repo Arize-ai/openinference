@@ -2,13 +2,12 @@
   "name": "@arizeai/openinference-tanstack-ai",
   "version": "0.0.0",
   "private": false,
-  "type": "module",
   "description": "OpenInference middleware for TanStack AI",
   "keywords": [
+    "ai",
     "openinference",
     "opentelemetry",
-    "tanstack",
-    "ai"
+    "tanstack"
   ],
   "license": "Apache-2.0",
   "author": "oss-devs@arize.com",
@@ -20,6 +19,7 @@
     "dist",
     "src"
   ],
+  "type": "module",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
   "exports": {

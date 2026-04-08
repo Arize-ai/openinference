@@ -13,7 +13,10 @@ import {
 } from "@tanstack/ai";
 import { describe, expect, it } from "vitest";
 
-import { OpenInferenceSpanKind, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
 import { openInferenceMiddleware } from "../src";
 
@@ -119,7 +122,10 @@ describe("openInferenceMiddleware", () => {
 
     const firstCtx = createContext({ phase: "beforeModel", iteration: 0 });
     await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(firstCtx, createConfig(firstCtx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onConfig?.(
+      firstCtx,
+      createConfig(firstCtx.messages as ChatMiddlewareConfig["messages"]),
+    );
     await middleware.onChunk?.(firstCtx, {
       type: "TOOL_CALL_START",
       timestamp: Date.now(),
@@ -171,7 +177,11 @@ describe("openInferenceMiddleware", () => {
     const secondMessages: ChatMiddlewareConfig["messages"] = [
       { role: "user", content: "What is the weather?" },
       { role: "assistant", content: null, toolCalls: [toolCall] },
-      { role: "tool", content: JSON.stringify({ forecast: "sunny", temperatureF: 70 }), toolCallId: "tool-1" },
+      {
+        role: "tool",
+        content: JSON.stringify({ forecast: "sunny", temperatureF: 70 }),
+        toolCallId: "tool-1",
+      },
     ];
     const secondCtx = createContext({
       phase: "beforeModel",
@@ -212,13 +222,17 @@ describe("openInferenceMiddleware", () => {
     expect(spans).toHaveLength(4);
 
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpans = spans.filter(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
     const toolSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
 
     expect(agentSpan).toBeDefined();
@@ -227,15 +241,33 @@ describe("openInferenceMiddleware", () => {
 
     expect(agentSpan?.attributes["output.value"]).toBe("It is sunny in Boston.");
     expect(agentSpan?.attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBeUndefined();
-    expect(llmSpans[0]?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]).toBe("user");
+    expect(
+      llmSpans[0]?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("user");
     expect(llmSpans[0]?.attributes[SemanticConventions.LLM_SYSTEM]).toBe("openai");
     expect(llmSpans[0]?.attributes[SemanticConventions.LLM_MODEL_NAME]).toBe("gpt-4o-mini");
-    expect(llmSpans[0]?.attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`]).toBe("get_weather");
+    expect(
+      llmSpans[0]?.attributes[
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_FUNCTION_NAME}`
+      ],
+    ).toBe("get_weather");
     expect(llmSpans[0]?.attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBe(14);
-    expect(llmSpans[1]?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`]).toBe("tool-1");
-    expect(llmSpans[1]?.attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]).toBe("It is sunny in Boston.");
+    expect(
+      llmSpans[1]?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_TOOL_CALL_ID}`
+      ],
+    ).toBe("tool-1");
+    expect(
+      llmSpans[1]?.attributes[
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe("It is sunny in Boston.");
     expect(toolSpan?.attributes[SemanticConventions.TOOL_NAME]).toBe("get_weather");
-    expect(toolSpan?.attributes["output.value"]).toBe(JSON.stringify({ forecast: "sunny", temperatureF: 70 }));
+    expect(toolSpan?.attributes["output.value"]).toBe(
+      JSON.stringify({ forecast: "sunny", temperatureF: 70 }),
+    );
     expect(toolSpan?.parentSpanId).toBe(agentSpan?.spanContext().spanId);
   });
 
@@ -248,16 +280,13 @@ describe("openInferenceMiddleware", () => {
     });
 
     await middleware.onStart?.(ctx);
-    await middleware.onConfig?.(
-      ctx,
-      {
-        ...createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
-        systemPrompts: ["You are a weather assistant."],
-        metadata: { requestType: "forecast" },
-        topP: 0.9,
-        maxTokens: 128,
-      },
-    );
+    await middleware.onConfig?.(ctx, {
+      ...createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+      systemPrompts: ["You are a weather assistant."],
+      metadata: { requestType: "forecast" },
+      topP: 0.9,
+      maxTokens: 128,
+    });
     await middleware.onChunk?.(ctx, {
       type: "TEXT_MESSAGE_CONTENT",
       timestamp: Date.now(),
@@ -289,17 +318,33 @@ describe("openInferenceMiddleware", () => {
 
     const llmSpan = exporter
       .getFinishedSpans()
-      .find((span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM);
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.LLM,
+      );
 
     expect(llmSpan).toBeDefined();
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]).toBe("system");
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]).toBe(
-      "You are a weather assistant.",
-    );
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]).toBe("user");
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_TOOLS}.0.${SemanticConventions.TOOL_JSON_SCHEMA}`]).toContain(
-      '"name":"get_weather"',
-    );
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("system");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe("You are a weather assistant.");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("user");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_TOOLS}.0.${SemanticConventions.TOOL_JSON_SCHEMA}`
+      ],
+    ).toContain('"name":"get_weather"');
     expect(llmSpan?.attributes[SemanticConventions.LLM_INVOCATION_PARAMETERS]).toBe(
       JSON.stringify({
         model: "gpt-4o-mini",
@@ -327,13 +372,10 @@ describe("openInferenceMiddleware", () => {
     });
 
     await middleware.onStart?.(ctx);
-    await middleware.onConfig?.(
-      ctx,
-      {
-        ...createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
-        systemPrompts,
-      },
-    );
+    await middleware.onConfig?.(ctx, {
+      ...createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+      systemPrompts,
+    });
     await middleware.onChunk?.(ctx, {
       type: "TEXT_MESSAGE_CONTENT",
       timestamp: Date.now(),
@@ -365,18 +407,38 @@ describe("openInferenceMiddleware", () => {
 
     const llmSpan = exporter
       .getFinishedSpans()
-      .find((span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM);
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.LLM,
+      );
 
     expect(llmSpan).toBeDefined();
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`]).toBe("system");
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`]).toBe(
-      systemPrompts[0],
-    );
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`]).toBe("system");
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`]).toBe(
-      systemPrompts[1],
-    );
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_ROLE}`]).toBe("user");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("system");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(systemPrompts[0]);
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("system");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.1.${SemanticConventions.MESSAGE_CONTENT}`
+      ],
+    ).toBe(systemPrompts[1]);
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_INPUT_MESSAGES}.2.${SemanticConventions.MESSAGE_ROLE}`
+      ],
+    ).toBe("user");
   });
 
   it("keeps token counts on llm spans only", async () => {
@@ -385,7 +447,10 @@ describe("openInferenceMiddleware", () => {
     const ctx = createContext({ phase: "beforeModel" });
 
     await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onConfig?.(
+      ctx,
+      createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+    );
     await middleware.onChunk?.(ctx, {
       type: "TEXT_MESSAGE_CONTENT",
       timestamp: Date.now(),
@@ -417,10 +482,13 @@ describe("openInferenceMiddleware", () => {
 
     const spans = exporter.getFinishedSpans();
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
     expect(agentSpan?.attributes[SemanticConventions.LLM_TOKEN_COUNT_PROMPT]).toBeUndefined();
@@ -438,7 +506,10 @@ describe("openInferenceMiddleware", () => {
     const error = new Error("model stream failed");
 
     await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onConfig?.(
+      ctx,
+      createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+    );
     await middleware.onChunk?.(ctx, {
       type: "RUN_ERROR",
       timestamp: Date.now(),
@@ -457,10 +528,13 @@ describe("openInferenceMiddleware", () => {
     expect(spans).toHaveLength(2);
 
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
     expect(agentSpan?.status.code).toBe(SpanStatusCode.ERROR);
@@ -511,10 +585,13 @@ describe("openInferenceMiddleware", () => {
     expect(spans).toHaveLength(2);
 
     const agentSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+        OpenInferenceSpanKind.AGENT,
     );
     const llmSpan = spans.find(
-      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+      (span) =>
+        span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
     expect(agentSpan?.attributes["output.value"]).toBe("OpenInference traces AI applications.");
@@ -561,13 +638,15 @@ describe("openInferenceMiddleware", () => {
     expect(
       spans.some(
         (span) =>
-          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.AGENT,
       ),
     ).toBe(true);
     expect(
       spans.some(
         (span) =>
-          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.LLM,
       ),
     ).toBe(true);
   });
@@ -578,7 +657,10 @@ describe("openInferenceMiddleware", () => {
     const ctx = createContext({ phase: "beforeModel" });
 
     await middleware.onStart?.(createContext());
-    await middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onConfig?.(
+      ctx,
+      createConfig(ctx.messages as ChatMiddlewareConfig["messages"]),
+    );
     await middleware.onChunk?.(ctx, {
       type: "TOOL_CALL_START",
       timestamp: Date.now(),
@@ -643,10 +725,22 @@ describe("openInferenceMiddleware", () => {
 
     const llmSpan = exporter
       .getFinishedSpans()
-      .find((span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM);
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.LLM,
+      );
 
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`]).toBe("tool-1");
-    expect(llmSpan?.attributes[`${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`]).toBe("tool-2");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.0.${SemanticConventions.TOOL_CALL_ID}`
+      ],
+    ).toBe("tool-1");
+    expect(
+      llmSpan?.attributes[
+        `${SemanticConventions.LLM_OUTPUT_MESSAGES}.0.${SemanticConventions.MESSAGE_TOOL_CALLS}.1.${SemanticConventions.TOOL_CALL_ID}`
+      ],
+    ).toBe("tool-2");
   });
 
   it("marks tool spans as errors when tool execution fails", async () => {
@@ -686,7 +780,11 @@ describe("openInferenceMiddleware", () => {
 
     const toolSpan = exporter
       .getFinishedSpans()
-      .find((span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL);
+      .find(
+        (span) =>
+          span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] ===
+          OpenInferenceSpanKind.TOOL,
+      );
 
     expect(toolSpan?.status.code).toBe(SpanStatusCode.ERROR);
     expect(toolSpan?.status.message).toBe("tool boom");
