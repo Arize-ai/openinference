@@ -13,6 +13,7 @@ import {
 } from "@tanstack/ai";
 import { describe, expect, it } from "vitest";
 
+import { setMetadata, setSession, setTags, setUser } from "@arizeai/openinference-core";
 import {
   OpenInferenceSpanKind,
   SemanticConventions,
@@ -25,6 +26,7 @@ function createTracer() {
   const provider = new NodeTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(exporter)],
   });
+  provider.register();
 
   return {
     exporter,
@@ -789,6 +791,150 @@ describe("openInferenceMiddleware", () => {
     expect(toolSpan?.status.code).toBe(SpanStatusCode.ERROR);
     expect(toolSpan?.status.message).toBe("tool boom");
     expect(toolSpan?.events.some((event) => event.name === "exception")).toBe(true);
+  });
+
+  it("propagates OpenInference context attributes onto emitted spans", async () => {
+    const { exporter, tracer } = createTracer();
+    const middleware = openInferenceMiddleware({ tracer });
+    const ctx = createContext({ phase: "beforeModel" });
+
+    const activeContext = setTags(
+      setUser(
+        setMetadata(setSession(context.active(), { sessionId: "session-1" }), {
+          feature: "tanstack-ai",
+          numeric: 7,
+        }),
+        { userId: "user-1" },
+      ),
+      ["benchmark", "tanstack"],
+    );
+
+    context.with(activeContext, () => {
+      middleware.onStart?.(createContext());
+      middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+      middleware.onChunk?.(ctx, {
+        type: "TEXT_MESSAGE_CONTENT",
+        timestamp: Date.now(),
+        messageId: "msg-1",
+        delta: "A traced response.",
+        content: "A traced response.",
+      });
+      middleware.onChunk?.(ctx, {
+        type: "RUN_FINISHED",
+        timestamp: Date.now(),
+        runId: "run-1",
+        finishReason: "stop",
+        usage: {
+          promptTokens: 3,
+          completionTokens: 3,
+          totalTokens: 6,
+        },
+      });
+      middleware.onFinish?.(ctx, {
+        finishReason: "stop",
+        duration: 10,
+        content: "A traced response.",
+      });
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const agentSpan = spans.find(
+      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+    );
+    const llmSpan = spans.find(
+      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+
+    expect(agentSpan?.attributes[SemanticConventions.SESSION_ID]).toBe("session-1");
+    expect(agentSpan?.attributes[SemanticConventions.USER_ID]).toBe("user-1");
+    expect(llmSpan?.attributes[SemanticConventions.METADATA]).toBe(
+      JSON.stringify({ feature: "tanstack-ai", numeric: 7 }),
+    );
+    expect(agentSpan?.attributes[SemanticConventions.TAG_TAGS]).toBe(
+      JSON.stringify(["benchmark", "tanstack"]),
+    );
+    expect(llmSpan?.attributes[SemanticConventions.SESSION_ID]).toBe("session-1");
+  });
+
+  it("respects traceConfig masking on emitted spans", async () => {
+    const { exporter, tracer } = createTracer();
+    const middleware = openInferenceMiddleware({
+      tracer,
+      traceConfig: { hideInputs: true, hideOutputs: true },
+    });
+    const ctx = createContext({ phase: "beforeModel" });
+
+    await middleware.onStart?.(createContext());
+    await middleware.onConfig?.(ctx, createConfig(ctx.messages as ChatMiddlewareConfig["messages"]));
+    await middleware.onChunk?.(ctx, {
+      type: "TEXT_MESSAGE_CONTENT",
+      timestamp: Date.now(),
+      messageId: "msg-1",
+      delta: "A masked response.",
+      content: "A masked response.",
+    });
+    await middleware.onChunk?.(ctx, {
+      type: "RUN_FINISHED",
+      timestamp: Date.now(),
+      runId: "run-1",
+      finishReason: "stop",
+      usage: {
+        promptTokens: 4,
+        completionTokens: 4,
+        totalTokens: 8,
+      },
+    });
+    await middleware.onFinish?.(ctx, {
+      finishReason: "stop",
+      duration: 10,
+      content: "A masked response.",
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const agentSpan = spans.find(
+      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.AGENT,
+    );
+    const llmSpan = spans.find(
+      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
+    );
+
+    expect(agentSpan?.attributes["input.value"]).toBe("__REDACTED__");
+    expect(agentSpan?.attributes["output.value"]).toBe("__REDACTED__");
+    expect(llmSpan?.attributes["input.value"]).toBe("__REDACTED__");
+    expect(llmSpan?.attributes["output.value"]).toBe("__REDACTED__");
+  });
+
+  it("marks unfinished tool spans as errors when the request aborts", async () => {
+    const { exporter, tracer } = createTracer();
+    const middleware = openInferenceMiddleware({ tracer });
+    const toolCall: ToolCall = {
+      id: "tool-1",
+      type: "function",
+      function: {
+        name: "get_weather",
+        arguments: JSON.stringify({ city: "Boston" }),
+      },
+    };
+
+    await middleware.onStart?.(createContext());
+    await middleware.onBeforeToolCall?.(createContext({ phase: "beforeTools" }), {
+      toolCall,
+      tool: undefined,
+      args: { city: "Boston" },
+      toolName: "get_weather",
+      toolCallId: "tool-1",
+    });
+    await middleware.onAbort?.(createContext(), {
+      reason: "user cancelled",
+      duration: 5,
+    });
+
+    const toolSpan = exporter.getFinishedSpans().find(
+      (span) => span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
+    );
+
+    expect(toolSpan?.status.code).toBe(SpanStatusCode.ERROR);
+    expect(toolSpan?.status.message).toBe("user cancelled");
   });
 
   it("respects suppressed tracing", async () => {

@@ -29,6 +29,8 @@ export class MyInstrumentation extends InstrumentationBase {
 }
 ```
 
+Exception: packages built around an SDK's documented middleware or callback injection model, rather than Node.js module patching, may export a middleware factory instead of extending `InstrumentationBase`. Those packages must still use `OITracer`, respect tracing suppression, propagate context attributes, and support `TraceConfig`.
+
 Every instrumentor **must**:
 
 1. Respect `isTracingSuppressed()` from `@opentelemetry/core`

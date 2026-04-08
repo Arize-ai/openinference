@@ -38,22 +38,16 @@ const AGENT_SPAN_NAME = "TanStack AI chat";
 const TOOL_SPAN_PREFIX = "TanStack AI tool: ";
 const LLM_SPAN_PREFIX = "TanStack AI LLM ";
 
-type UsageInfo = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-};
-
-type LLMSpanState = {
-  span: OISpan;
-  outputText: string;
-  outputToolCalls: Map<string, OpenInferenceToolCall>;
-};
+type UsageInfo = NonNullable<Extract<StreamChunk, { type: "RUN_FINISHED" }>["usage"]>;
 
 type RequestState = {
   chatSpan: OISpan;
   toolSpans: Map<string, OISpan>;
-  currentLLMSpan?: LLMSpanState;
+  currentLLMSpan?: {
+    span: OISpan;
+    outputText: string;
+    outputToolCalls: Map<string, OpenInferenceToolCall>;
+  };
 };
 
 /**
@@ -104,10 +98,24 @@ function toRecord(value: unknown): Record<string, unknown> {
  * Applies prompt, completion, and total token counts to a span.
  */
 function setUsageAttributes(span: OISpan, usage: UsageInfo) {
-  span.setAttributes({
-    [SemanticConventions.LLM_TOKEN_COUNT_PROMPT]: usage.promptTokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_COMPLETION]: usage.completionTokens,
-    [SemanticConventions.LLM_TOKEN_COUNT_TOTAL]: usage.totalTokens,
+  span.setAttributes(
+    getLLMAttributes({
+      tokenCount: {
+        prompt: usage.promptTokens,
+        completion: usage.completionTokens,
+        total: usage.totalTokens,
+      },
+    }),
+  );
+}
+
+/**
+ * Marks unfinished tool spans as failed before ending them.
+ */
+function endToolSpansWithError(toolSpans: Map<string, OISpan>, message: string) {
+  toolSpans.forEach((span) => {
+    span.setStatus({ code: SpanStatusCode.ERROR, message });
+    span.end();
   });
 }
 
@@ -320,7 +328,7 @@ function endCurrentLLMSpan(options: {
  * the LLM span output.
  */
 function initializeToolCall(
-  state: LLMSpanState,
+  state: NonNullable<RequestState["currentLLMSpan"]>,
   chunk: Extract<StreamChunk, { type: "TOOL_CALL_START" }>,
 ) {
   state.outputToolCalls.set(chunk.toolCallId, {
@@ -336,7 +344,7 @@ function initializeToolCall(
  * Appends or replaces streamed tool-call arguments as they arrive.
  */
 function updateToolCallArguments(
-  state: LLMSpanState,
+  state: NonNullable<RequestState["currentLLMSpan"]>,
   chunk: Extract<StreamChunk, { type: "TOOL_CALL_ARGS" }>,
 ) {
   const existingToolCall = state.outputToolCalls.get(chunk.toolCallId);
@@ -353,7 +361,7 @@ function updateToolCallArguments(
  * Finalizes the captured tool-call payload for the current LLM span.
  */
 function completeToolCall(
-  state: LLMSpanState,
+  state: NonNullable<RequestState["currentLLMSpan"]>,
   chunk: Extract<StreamChunk, { type: "TOOL_CALL_END" }>,
 ) {
   const existingToolCall = state.outputToolCalls.get(chunk.toolCallId);
@@ -660,7 +668,7 @@ export function openInferenceMiddleware({
         code: SpanStatusCode.ERROR,
         message: info.reason ?? "TanStack AI run aborted",
       });
-      state.toolSpans.forEach(finalizeSpan);
+      endToolSpansWithError(state.toolSpans, info.reason ?? "TanStack AI run aborted");
       finalizeSpan(state.chatSpan);
       requestStates.delete(ctx.requestId);
     },
