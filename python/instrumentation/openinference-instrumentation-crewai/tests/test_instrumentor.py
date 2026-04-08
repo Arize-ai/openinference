@@ -1,16 +1,21 @@
 import json
 import uuid
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
+from crewai import Task
 from crewai.flow.flow import Flow, start  # type: ignore[import-untyped, unused-ignore]
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
+from pydantic import BaseModel, ConfigDict, Field
 
 from openinference.instrumentation import OITracer, using_attributes
 from openinference.instrumentation.crewai import CrewAIInstrumentor
-from openinference.instrumentation.crewai._wrappers import _get_execute_core_span_name
+from openinference.instrumentation.crewai._wrappers import (
+    _get_execute_core_span_name,
+    _get_input_value,
+)
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -39,6 +44,52 @@ from ._span_helpers import (
 )
 
 
+def _pop_input_payload(attributes: dict[str, Any]) -> dict[str, Any]:
+    payload = json.loads(str(attributes.pop(INPUT_VALUE)))
+    assert isinstance(payload, dict)
+    return cast(dict[str, Any], payload)
+
+
+def _assert_serialized_agent_payload(
+    payload: dict[str, Any],
+    *,
+    role: str,
+    goal: str,
+    backstory: str,
+    allow_delegation: bool,
+    verbose: bool,
+    max_iter: int,
+    tool_names: list[str],
+    cache: bool,
+) -> None:
+    assert isinstance(payload["id"], str) and uuid.UUID(payload["id"])
+    assert isinstance(payload["key"], str) and payload["key"]
+    assert payload["cache"] == cache
+    assert payload["role"] == role
+    assert payload["goal"] == goal
+    assert payload["backstory"] == backstory
+    assert payload["verbose"] == verbose
+    assert payload["allow_delegation"] == allow_delegation
+    assert payload["max_iter"] == max_iter
+    assert payload["max_rpm"] is None
+    tools_payload = payload["tools"]
+    assert isinstance(tools_payload, list)
+    assert [tool["name"] for tool in tools_payload] == tool_names
+    for tool in tools_payload:
+        assert isinstance(tool, dict)
+        assert "args_schema" not in tool
+        assert "cache_function" not in tool
+    assert "crew" not in payload
+    assert "llm" not in payload
+    assert "agent_executor" not in payload
+    assert "executor_class" not in payload
+    assert "tools_handler" not in payload
+    assert "callbacks" not in payload
+    assert "step_callback" not in payload
+    assert "guardrail" not in payload
+    assert "function_calling_llm" not in payload
+
+
 def test_entrypoint_for_opentelemetry_instrument() -> None:
     """Test that the instrumentor is properly registered and implements OITracer."""
     instrumentor_entrypoints = list(
@@ -51,6 +102,51 @@ def test_entrypoint_for_opentelemetry_instrument() -> None:
     instrumentor = instrumentor_entrypoints[0].load()()
     assert isinstance(instrumentor, CrewAIInstrumentor)
     assert isinstance(CrewAIInstrumentor()._tracer, OITracer)
+
+
+def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None:
+    class _AgentLike(BaseModel):
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+
+        role: str = "Tech Content Strategist"
+        goal: str = "Craft compelling content on tech advancements"
+        backstory: str = "You are a great at creating insightful articles."
+        verbose: bool = True
+        allow_delegation: bool = True
+        max_iter: int = 25
+        max_rpm: None = None
+        tools: list[dict[str, Any]] = Field(default_factory=list)
+        id: uuid.UUID = Field(default_factory=uuid.uuid4)
+        key: str = "agent-key"
+        cache: bool = True
+        crew: Any = None
+
+    class _CrewLike:
+        def __init__(self, agent: Any) -> None:
+            self.agent = agent
+
+    agent = _AgentLike()
+    crew = _CrewLike(agent)
+    agent.crew = crew
+
+    input_value = _get_input_value(Task._execute_core, agent, None, None)
+    payload = json.loads(input_value)
+    assert isinstance(payload, dict)
+
+    assert payload["context"] is None
+    assert payload["tools"] is None
+    assert isinstance(payload["agent"], dict)
+    _assert_serialized_agent_payload(
+        payload["agent"],
+        role="Tech Content Strategist",
+        goal="Craft compelling content on tech advancements",
+        backstory="You are a great at creating insightful articles.",
+        allow_delegation=True,
+        verbose=True,
+        max_iter=25,
+        tool_names=[],
+        cache=True,
+    )
 
 
 @pytest.mark.vcr
@@ -99,7 +195,17 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert scraper_span.name == "Website Scraper.scrape-task._execute_core"
     assert attributes.pop(GRAPH_NODE_ID) == "Website Scraper"
     assert attributes.pop("task_name") == "scrape-task"
-    assert attributes.pop(INPUT_VALUE)
+    _assert_serialized_agent_payload(
+        _pop_input_payload(attributes)["agent"],
+        role="Website Scraper",
+        goal="Scrape content from URL",
+        backstory="You extract text from websites",
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
+        tool_names=["scrape_website"],
+        cache=True,
+    )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
@@ -115,7 +221,17 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert attributes.pop(GRAPH_NODE_ID) == "Content Analyzer"
     assert attributes.pop(SpanAttributes.GRAPH_NODE_PARENT_ID) == "Website Scraper"
     assert attributes.pop("task_name") == "analyze-task"
-    assert attributes.pop(INPUT_VALUE)
+    _assert_serialized_agent_payload(
+        _pop_input_payload(attributes)["agent"],
+        role="Content Analyzer",
+        goal="Extract quotes from text",
+        backstory="You extract quotes from text",
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
+        tool_names=[],
+        cache=True,
+    )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON

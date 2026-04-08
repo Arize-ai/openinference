@@ -13,7 +13,7 @@ jobs:
     outputs:
       python_paths: ${{ steps.paths.outputs.python_paths }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
             .release-please-manifest.json
@@ -57,12 +57,12 @@ jobs:
       run:
         working-directory: ${{ matrix.path }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: refs/tags/${{ matrix.tag }}
           sparse-checkout: ${{ matrix.path }}
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
       - name: Install utilities
@@ -94,7 +94,7 @@ jobs:
     outputs:
       java_paths: ${{ steps.paths.outputs.java_paths }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: java
       - name: Get Java paths not yet on Maven Central
@@ -137,16 +137,16 @@ jobs:
       matrix:
         path: ${{ fromJSON(needs.list-java-packages.outputs.java_paths) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@a8f75513eafdebd8141bd1cd4e30fcd194af8dfa # v2.12.0
 
       - name: Set versions from release-please manifest
         working-directory: ./java
@@ -226,7 +226,7 @@ jobs:
           fi
       - name: Send message to Slack
         if: steps.notify.outputs.text != ''
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
