@@ -1265,7 +1265,7 @@ def test_streaming_content_with_tool(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
-@pytest.mark.parametrize("streaming", [False])
+@pytest.mark.parametrize("streaming", [False, True])
 def test_response_with_multiple_tool_calls(
     streaming: bool,
     in_memory_span_exporter: InMemorySpanExporter,

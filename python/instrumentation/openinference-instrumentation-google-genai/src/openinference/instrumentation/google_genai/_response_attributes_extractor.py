@@ -8,6 +8,7 @@ from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _get_attributes_from_content_text,
+    _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _io_value_and_type,
@@ -97,6 +98,9 @@ class _ResponseAttributesExtractor:
                 tool_call_index += 1
             if inline_data := getattr(part, "inline_data", None):
                 yield from _get_attributes_from_inline_data(inline_data, content_index)
+                increment_content_index = True
+            if file_data := getattr(part, "file_data", None):
+                yield from _get_attributes_from_file_data(file_data, content_index)
                 increment_content_index = True
             if increment_content_index:
                 content_index += 1

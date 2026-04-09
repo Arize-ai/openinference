@@ -190,6 +190,20 @@ def _get_attributes_from_content_text(
         )
 
 
+def _get_attributes_from_file_data(
+    file_data: Any, content_index: int
+) -> Iterator[Tuple[str, AttributeValue]]:
+    mime_type = get_attribute(file_data, "mime_type")
+    if mime_type and "image" in mime_type:
+        if file_uri := get_attribute(file_data, "file_uri"):
+            prefix = f"{MessageAttributes.MESSAGE_CONTENTS}.{content_index}."
+            yield (
+                f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}",
+                file_uri,
+            )
+            yield f"{prefix}{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
+
+
 def _get_attributes_from_inline_data(
     inline_data: Any, content_index: int
 ) -> Iterator[Tuple[str, AttributeValue]]:

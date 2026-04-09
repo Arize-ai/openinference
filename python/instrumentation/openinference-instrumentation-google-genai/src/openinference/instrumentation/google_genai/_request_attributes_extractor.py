@@ -16,6 +16,7 @@ from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.google_genai._utils import (
+    _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
 )
 from openinference.semconv.trace import (
@@ -57,7 +58,7 @@ class _RequestAttributesExtractor:
                 if isinstance(config, dict):
                     config = GenerateContentConfig.model_validate(config)
             except Exception:
-                logger.exception("Failed to normalize config")
+                logger.warning("Failed to normalize config")
                 config = None
 
             # System instruction as the first message
@@ -76,7 +77,7 @@ class _RequestAttributesExtractor:
                         )
                         input_messages_index += 1
                 except Exception:
-                    logger.exception("Failed to normalize system instruction")
+                    logger.warning("Failed to normalize system instruction")
 
         if input_contents := request_parameters.get("contents"):
             try:
@@ -88,9 +89,7 @@ class _RequestAttributesExtractor:
                         )
                     input_messages_index += 1
             except Exception:
-                logger.exception(
-                    f"Failed to normalize input contents of type {type(input_contents)}"
-                )
+                logger.warning(f"Failed to normalize input contents of type {type(input_contents)}")
 
     def _get_attributes_from_content(
         self, content: Content
@@ -158,7 +157,11 @@ class _RequestAttributesExtractor:
                     for key, value in inline_attributes.items():
                         yield key, value
                     increment_content_index = True
-            else:
-                logger.debug("Unsupported part type: %s", type(part))
+            if file_data := part.file_data:
+                file_attributes = dict(_get_attributes_from_file_data(file_data, content_index))
+                if file_attributes:
+                    for key, value in file_attributes.items():
+                        yield key, value
+                    increment_content_index = True
             if increment_content_index:
                 content_index += 1
