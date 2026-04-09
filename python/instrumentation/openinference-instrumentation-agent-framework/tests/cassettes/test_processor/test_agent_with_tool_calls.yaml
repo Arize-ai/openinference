@@ -1,9 +1,9 @@
 interactions:
 - request:
-    body: '{"messages":[{"role":"system","content":[{"type":"text","text":"You are
-      a weather assistant. Use the get_weather tool when asked about weather.","additional_properties":{}}]},{"role":"user","content":[{"type":"text","text":"What''s
-      the weather in San Francisco?","additional_properties":{}}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"get_weather","description":"Get
-      the weather for a location.","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_weather_input","type":"object"}}}]}'
+    body: '{"input":[{"type":"message","role":"system","content":[{"type":"input_text","text":"You
+      are a weather assistant. Use the get_weather tool when asked about weather."}]},{"type":"message","role":"user","content":[{"type":"input_text","text":"What''s
+      the weather in San Francisco?"}]}],"model":"gpt-4o-mini","stream":false,"tool_choice":"auto","tools":[{"name":"get_weather","parameters":{"properties":{"location":{"title":"Location","type":"string"}},"required":["location"],"title":"get_weather_input","type":"object","additionalProperties":false},"strict":false,"type":"function","description":"Get
+      the weather for a location."}]}'
     headers:
       Accept:
       - application/json
@@ -12,13 +12,13 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '609'
+      - '629'
       Content-Type:
       - application/json
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -28,45 +28,57 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8Ehxmi7dPtp2SBTYqJFErwp2TADk\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855533,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_k8MlTgN5UeulLnwRShRcbYj5\",\n            \"type\":
-        \"function\",\n            \"function\": {\n              \"name\": \"get_weather\",\n
-        \             \"arguments\": \"{\\\"location\\\":\\\"San Francisco\\\"}\"\n
-        \           }\n          }\n        ],\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"tool_calls\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 75,\n    \"completion_tokens\":
-        15,\n    \"total_tokens\": 90,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0b7fb495b8662b690069d6f97bb22c8193912f647d165d6ee2\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696251,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696252,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"fc_0b7fb495b8662b690069d6f97c5bbc8193b52ee02afbd9002e\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"location\\\":\\\"San Francisco\\\"}\",\n      \"call_id\": \"call_mhr5WBWG8kgyIy15JTItue8Q\",\n
+        \     \"name\": \"get_weather\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n
+        \ \"presence_penalty\": 0.0,\n  \"previous_response_id\": null,\n  \"prompt_cache_key\":
+        null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\": {\n    \"effort\":
+        null,\n    \"summary\": null\n  },\n  \"safety_identifier\": null,\n  \"service_tier\":
+        \"default\",\n  \"store\": true,\n  \"temperature\": 1.0,\n  \"text\": {\n
+        \   \"format\": {\n      \"type\": \"text\"\n    },\n    \"verbosity\": \"medium\"\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"function\",\n      \"description\": \"Get the weather for a location.\",\n
+        \     \"name\": \"get_weather\",\n      \"parameters\": {\n        \"properties\":
+        {\n          \"location\": {\n            \"title\": \"Location\",\n            \"type\":
+        \"string\"\n          }\n        },\n        \"required\": [\n          \"location\"\n
+        \       ],\n        \"title\": \"get_weather_input\",\n        \"type\": \"object\",\n
+        \       \"additionalProperties\": false\n      },\n      \"strict\": false\n
+        \   }\n  ],\n  \"top_logprobs\": 0,\n  \"top_p\": 1.0,\n  \"truncation\":
+        \"disabled\",\n  \"usage\": {\n    \"input_tokens\": 73,\n    \"input_tokens_details\":
+        {\n      \"cached_tokens\": 0\n    },\n    \"output_tokens\": 16,\n    \"output_tokens_details\":
+        {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 89\n  },\n
+        \ \"user\": null,\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e94b9aa5f9e0-SJC
+      - 9e958ee31851c044-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:54 GMT
+      - Thu, 09 Apr 2026 00:57:32 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -75,28 +87,24 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '1096'
+      - '1951'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '814'
+      - '885'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
       set-cookie:
-      - __cf_bm=Gi7cEBqgi.PXCH7Xxcf.YmtSz5.mopJVfxzkeaj7s_w-1770855533.3771381-1.0.1.1-J2uK25DYgaaQwrfU5hPzI3QZGy6PULj7q4JhJN6MygTlRSvSRZkVVKURF7AUY.gvnq2qFfwDCpBRseGsRse6bQpIWq4GwoIEsGumZI7FDzrkr50qpJZ_7cmXyn5Ea5LC;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:54 GMT
-      x-openai-proxy-wasm:
-      - v0.1
+      - __cf_bm=xVsibY9nfVC0yBPNURtMwGQe67gsXkN903DxWkTSAUo-1775696251.380186-1.0.1.1-_JigBsnjPClWM5baaelKyPqTwCKB3vz5AaOm6XVLQO4c8.h90XJEOLD7nXGDJYueMwrjqXyGm6_QXLpWblhB0JFr8Vhon51LVuiIVQXSK2ZRMxg48fI4DKjHNp.Q.TtA;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 09 Apr 2026
+        01:27:32 GMT
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -104,23 +112,20 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999967'
+      - '149999710'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_2d68e9cf8302443c84a173c8ec10a8f0
+      - req_b51ae605ee1a4acdb8501d733fcf1351
     status:
       code: 200
       message: OK
 - request:
-    body: "{\"messages\":[{\"role\":\"system\",\"content\":[{\"type\":\"text\",\"text\":\"You
-      are a weather assistant. Use the get_weather tool when asked about weather.\",\"additional_properties\":{}}]},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What's
-      the weather in San Francisco?\",\"additional_properties\":{}}]},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_k8MlTgN5UeulLnwRShRcbYj5\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"San
-      Francisco\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_k8MlTgN5UeulLnwRShRcbYj5\",\"content\":\"The
-      weather in San Francisco is sunny and 72\xB0F\"}],\"model\":\"gpt-4o-mini\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get
-      the weather for a location.\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_weather_input\",\"type\":\"object\"}}}]}"
+    body: "{\"input\":[{\"call_id\":\"call_mhr5WBWG8kgyIy15JTItue8Q\",\"type\":\"function_call_output\",\"output\":\"The
+      weather in San Francisco is sunny and 72\xB0F\"}],\"model\":\"gpt-4o-mini\",\"previous_response_id\":\"resp_0b7fb495b8662b690069d6f97bb22c8193912f647d165d6ee2\",\"stream\":false,\"tool_choice\":\"auto\",\"tools\":[{\"name\":\"get_weather\",\"parameters\":{\"properties\":{\"location\":{\"title\":\"Location\",\"type\":\"string\"}},\"required\":[\"location\"],\"title\":\"get_weather_input\",\"type\":\"object\",\"additionalProperties\":false},\"strict\":false,\"type\":\"function\",\"description\":\"Get
+      the weather for a location.\"}]}"
     headers:
       Accept:
       - application/json
@@ -129,15 +134,15 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '906'
+      - '572'
       Content-Type:
       - application/json
       Cookie:
-      - __cf_bm=Gi7cEBqgi.PXCH7Xxcf.YmtSz5.mopJVfxzkeaj7s_w-1770855533.3771381-1.0.1.1-J2uK25DYgaaQwrfU5hPzI3QZGy6PULj7q4JhJN6MygTlRSvSRZkVVKURF7AUY.gvnq2qFfwDCpBRseGsRse6bQpIWq4GwoIEsGumZI7FDzrkr50qpJZ_7cmXyn5Ea5LC
+      - __cf_bm=xVsibY9nfVC0yBPNURtMwGQe67gsXkN903DxWkTSAUo-1775696251.380186-1.0.1.1-_JigBsnjPClWM5baaelKyPqTwCKB3vz5AaOm6XVLQO4c8.h90XJEOLD7nXGDJYueMwrjqXyGm6_QXLpWblhB0JFr8Vhon51LVuiIVQXSK2ZRMxg48fI4DKjHNp.Q.TtA
       Host:
       - api.openai.com
       User-Agent:
-      - agent-framework-python/1.0.0b260210
+      - agent-framework-python/1.0.0
       X-Stainless-Arch:
       - arm64
       X-Stainless-Async:
@@ -147,42 +152,60 @@ interactions:
       X-Stainless-OS:
       - MacOS
       X-Stainless-Package-Version:
-      - 2.20.0
+      - 2.30.0
       X-Stainless-Runtime:
       - CPython
       X-Stainless-Runtime-Version:
       - 3.10.18
       agent-framework-version:
-      - python/1.0.0b260210
+      - python/1.0.0
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
       - '0'
     method: POST
-    uri: https://api.openai.com/v1/chat/completions
+    uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-D8EhzMoUjb5rkbq6LUfVLyy573eDA\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1770855535,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
-        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"The weather in San Francisco is sunny
-        with a temperature of 72\xB0F.\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 109,\n    \"completion_tokens\":
-        16,\n    \"total_tokens\": 125,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
-        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
-        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
-        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
-        \"default\",\n  \"system_fingerprint\": \"fp_f4ae844694\"\n}\n"
+      string: "{\n  \"id\": \"resp_0b7fb495b8662b690069d6f97cd1648193bfded925efce1a9d\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1775696252,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"billing\": {\n    \"payer\":
+        \"developer\"\n  },\n  \"completed_at\": 1775696253,\n  \"error\": null,\n
+        \ \"frequency_penalty\": 0.0,\n  \"incomplete_details\": null,\n  \"instructions\":
+        null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\": null,\n  \"model\":
+        \"gpt-4o-mini-2024-07-18\",\n  \"output\": [\n    {\n      \"id\": \"msg_0b7fb495b8662b690069d6f97d78d48193b9a3d67e3b5521f8\",\n
+        \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+        [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+        [],\n          \"logprobs\": [],\n          \"text\": \"The weather in San
+        Francisco is sunny with a temperature of 72\\u00b0F.\"\n        }\n      ],\n
+        \     \"role\": \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n
+        \ \"presence_penalty\": 0.0,\n  \"previous_response_id\": \"resp_0b7fb495b8662b690069d6f97bb22c8193912f647d165d6ee2\",\n
+        \ \"prompt_cache_key\": null,\n  \"prompt_cache_retention\": null,\n  \"reasoning\":
+        {\n    \"effort\": null,\n    \"summary\": null\n  },\n  \"safety_identifier\":
+        null,\n  \"service_tier\": \"default\",\n  \"store\": true,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    },\n
+        \   \"verbosity\": \"medium\"\n  },\n  \"tool_choice\": \"auto\",\n  \"tools\":
+        [\n    {\n      \"type\": \"function\",\n      \"description\": \"Get the
+        weather for a location.\",\n      \"name\": \"get_weather\",\n      \"parameters\":
+        {\n        \"properties\": {\n          \"location\": {\n            \"title\":
+        \"Location\",\n            \"type\": \"string\"\n          }\n        },\n
+        \       \"required\": [\n          \"location\"\n        ],\n        \"title\":
+        \"get_weather_input\",\n        \"type\": \"object\",\n        \"additionalProperties\":
+        false\n      },\n      \"strict\": false\n    }\n  ],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        108,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 17,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 125\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
     headers:
       CF-RAY:
-      - 9cc7e9533e48f94b-SJC
+      - 9e958eebaaef3dc4-LAX
       Connection:
       - keep-alive
       Content-Type:
       - application/json
       Date:
-      - Thu, 12 Feb 2026 00:18:55 GMT
+      - Thu, 09 Apr 2026 00:57:33 GMT
       Server:
       - cloudflare
       Strict-Transport-Security:
@@ -191,28 +214,20 @@ interactions:
       - chunked
       X-Content-Type-Options:
       - nosniff
-      access-control-expose-headers:
-      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
       content-length:
-      - '875'
+      - '2121'
       openai-organization:
       - arize-ai-ewa7w1
       openai-processing-ms:
-      - '504'
+      - '955'
       openai-project:
       - proj_AeL7VnPLDeZ3AFo71yqLaMRO
       openai-version:
       - '2020-10-01'
-      set-cookie:
-      - __cf_bm=udOkstLfet7KS6Fl8x75t90.8DuoB3Unmq_Dkfx6Slk-1770855534.5980277-1.0.1.1-FPyo9NzUO3KGeArm5.yzn56VE2Tdojmkra0C5I2bRJPV8T34F_FhL3ucf4ykzuIZirQTMLFYC7ouTKVkAkP2sQhFbIFRPed1_LBq44NExAIeBk4_fHkUCMTybaPBLf3O;
-        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Thu, 12 Feb 2026
-        00:48:55 GMT
-      x-openai-proxy-wasm:
-      - v0.1
       x-ratelimit-limit-requests:
       - '30000'
       x-ratelimit-limit-tokens:
@@ -220,13 +235,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '29999'
       x-ratelimit-remaining-tokens:
-      - '149999952'
+      - '149999675'
       x-ratelimit-reset-requests:
       - 2ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_87f6c013fd3e42489988e92e8ee2d81f
+      - req_88d56aaa82754a5f9d8680317cf3374c
     status:
       code: 200
       message: OK
