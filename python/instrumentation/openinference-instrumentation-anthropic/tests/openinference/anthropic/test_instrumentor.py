@@ -198,6 +198,7 @@ def test_anthropic_instrumentation_stream_message(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
@@ -286,6 +287,7 @@ async def test_anthropic_instrumentation_async_stream_message(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
@@ -473,6 +475,7 @@ def test_anthropic_instrumentation_messages(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -560,6 +563,7 @@ def test_anthropic_instrumentation_messages_streaming(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
