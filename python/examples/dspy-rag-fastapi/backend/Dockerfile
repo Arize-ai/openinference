@@ -1,5 +1,7 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.30 /uv /uvx /bin/
 
 # Install gcc
 RUN apt-get update -y \
@@ -10,16 +12,11 @@ RUN apt-get update -y \
 
 WORKDIR /rag
 
-# Install poetry
-RUN pip install poetry
-
-# Copy the pyproject.toml (and possibly poetry.lock) file to the container
+# Copy the project metadata to leverage Docker layer caching
 COPY pyproject.toml /rag/
-COPY poetry.lock /rag/
+COPY uv.lock /rag/
 
-# Install dependencies via poetry
-RUN poetry config virtualenvs.create false \
-    && poetry install
+RUN uv sync --locked
 
 # Copy the rest of your application's code
 COPY . /rag/
@@ -27,4 +24,4 @@ COPY . /rag/
 EXPOSE 8000
 
 # Run the main.py script when the container starts
-CMD ["python", "main.py"]
+CMD ["uv", "run", "python", "main.py"]

@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Tuple, cast
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, Tuple, cast
 
 import wrapt
 from opentelemetry import context as context_api
@@ -11,6 +12,7 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
 from typing_extensions import override
 
+from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
 from openinference.instrumentation.bedrock._converse_attributes import (
     get_attributes_from_request_data,
@@ -437,6 +439,152 @@ class _RetrieveAndGenerateStream(_WithTracer):
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.end()
                 raise
+
+
+def _apply_guardrail_wrapper(tracer: Tracer) -> Callable[[Any], Callable[..., Any]]:
+    """
+    Wraps bedrock-runtime apply_guardrail: one span per call with GUARDRAIL span kind.
+
+    Captures:
+    - input.value: selected requested params in json format
+    - output.value: joined text from the outputs response field
+    - metadata: guardrailIdentifier, guardrailVersion, source (from request),
+                action and actionReason (from response, when present)
+    """
+
+    def _guardrail_wrapper(wrapped_client: Any) -> Callable[..., Any]:
+        def _serialize_guardrail_content(record: Mapping[str, Any]) -> Dict[str, Any]:
+            content_block: Dict[str, Any] = {}
+            if "text" in record and record["text"] is not None:
+                content_block["text"] = record["text"]
+            if isinstance(image := record.get("image"), Mapping):
+                image_block: Dict[str, Any] = {}
+                if "format" in image and image["format"] is not None:
+                    image_block["format"] = image["format"]
+                if isinstance(source := image.get("source"), Mapping):
+                    source_block: Dict[str, Any] = {}
+                    for key, value in source.items():
+                        if value is None:
+                            continue
+                        if key == "bytes":
+                            try:
+                                source_block["bytes"] = f"<{len(value)} bytes>"
+                            except TypeError:
+                                source_block["bytes"] = "<bytes>"
+                        else:
+                            source_block[key] = value
+                    if source_block:
+                        image_block["source"] = source_block
+                if image_block:
+                    content_block["image"] = image_block
+            return content_block
+
+        def _set_input_attributes(span: Span, kwargs: Mapping[str, Any]) -> None:
+            span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.GUARDRAIL.value,
+            )
+            input_values: Dict[str, Any] = {}
+            if source := kwargs.get("source"):
+                input_values["source"] = source
+            if content := kwargs.get("content"):
+                serialized_content = [
+                    serialized_block
+                    for record in content
+                    if isinstance(record, Mapping)
+                    if (serialized_block := _serialize_guardrail_content(record))
+                ]
+                if serialized_content:
+                    input_values["content"] = serialized_content
+            if output_scope := kwargs.get("outputScope"):
+                input_values["outputScope"] = output_scope
+            span.set_attribute(SpanAttributes.INPUT_VALUE, safe_json_dumps(input_values))
+            span.set_attribute(SpanAttributes.INPUT_MIME_TYPE, JSON)
+
+        def _response_is_blocked(response: Mapping[str, Any]) -> bool:
+            assessments = response.get("assessments")
+            if not isinstance(assessments, list):
+                return False
+            return AttributeExtractor.is_blocked_guardrail(
+                cast(
+                    Any,
+                    [
+                        {"inputAssessments": [assessment]}
+                        for assessment in assessments
+                        if isinstance(assessment, Mapping)
+                    ],
+                )
+            )
+
+        def _set_response_attributes(span: Span, kwargs: Mapping[str, Any], response: Any) -> None:
+            metadata: Dict[str, Any] = {
+                "guardrailIdentifier": kwargs.get("guardrailIdentifier"),
+                "guardrailVersion": kwargs.get("guardrailVersion"),
+            }
+            output: Dict[str, Any] = {}
+            if isinstance(response, Mapping):
+                if action := response.get("action"):
+                    output["action"] = action
+                if action_reason := response.get("actionReason"):
+                    output["actionReason"] = action_reason
+                if outputs := response.get("outputs"):
+                    output["outputs"] = outputs
+                if guardrail_coverage := response.get("guardrailCoverage"):
+                    metadata["guardrailCoverage"] = guardrail_coverage
+                if usage := response.get("usage"):
+                    metadata["usage"] = usage
+            if metadata:
+                span.set_attribute(SpanAttributes.METADATA, safe_json_dumps(metadata))
+            if response is not None:
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, safe_json_dumps(output))
+                span.set_attribute(SpanAttributes.OUTPUT_MIME_TYPE, JSON)
+            span.set_attributes(dict(get_attributes_from_context()))
+            if isinstance(response, Mapping) and _response_is_blocked(response):
+                span.set_status(
+                    Status(StatusCode.ERROR, cast(str, response.get("actionReason", "")))
+                )
+            else:
+                span.set_status(Status(StatusCode.OK))
+
+        if _is_async_at_decoration(wrapped_client.apply_guardrail):
+
+            @wraps(wrapped_client.apply_guardrail)
+            async def async_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+                if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                    return await wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+
+                with tracer.start_as_current_span("bedrock.apply_guardrail") as span:
+                    _set_input_attributes(span, kwargs)
+                    try:
+                        response = await wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+                        _set_response_attributes(span, kwargs, response)
+                        return response
+                    except Exception as e:
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        raise
+
+            return async_instrumented_response
+
+        @wraps(wrapped_client.apply_guardrail)
+        def sync_instrumented_response(*args: Any, **kwargs: Any) -> Any:
+            if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+                return wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+
+            with tracer.start_as_current_span("bedrock.apply_guardrail") as span:
+                _set_input_attributes(span, kwargs)
+                try:
+                    response = wrapped_client._unwrapped_apply_guardrail(*args, **kwargs)
+                    _set_response_attributes(span, kwargs, response)
+                    return response
+                except Exception as e:
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, str(e)))
+                    raise
+
+        return sync_instrumented_response
+
+    return _guardrail_wrapper
 
 
 IMAGE_URL = ImageAttributes.IMAGE_URL
