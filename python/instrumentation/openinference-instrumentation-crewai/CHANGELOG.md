@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.1...python-openinference-instrumentation-crewai-v1.1.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **crewai:** serialize agent task input as structured JSON ([#2916](https://github.com/Arize-ai/openinference/issues/2916)) ([e6ed1f6](https://github.com/Arize-ai/openinference/commit/e6ed1f63b8062e590a1cd51f17ba26bab9e22a72))
+
 ## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.0...python-openinference-instrumentation-crewai-v1.1.1) (2026-04-03)
 
 
