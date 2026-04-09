@@ -251,10 +251,10 @@ def detach_context_tokens(
 ) -> None:
     """Helper function to detach context token with error handling."""
     if initial_thread is current_thread:
-        if ctx_token is not None:
-            context_api.detach(ctx_token)
         if team_token:
             context_api.detach(team_token)
+        if ctx_token is not None:
+            context_api.detach(ctx_token)
 
 
 class _RunWrapper:
