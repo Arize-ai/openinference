@@ -1,6 +1,8 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:0.9.30 /uv /uvx /bin/
+
 # Install gcc
 RUN apt-get update -y \
     && apt-get install -y python3-dev \
@@ -10,20 +12,15 @@ RUN apt-get update -y \
 
 WORKDIR /front
 
-# Install poetry
-RUN pip install poetry
-
-# Copy the pyproject.toml (and possibly poetry.lock) file to the container
+# Copy the project metadata to leverage Docker layer caching
 COPY pyproject.toml /front/
-COPY poetry.lock /front/
+COPY uv.lock /front/
 
-# Install dependencies via poetry
-RUN poetry config virtualenvs.create false \
-&& poetry install
+RUN uv sync --locked
 
 # Copy the rest of your application's code
 COPY . /front/
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "about.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "about.py", "--server.port=8501", "--server.address=0.0.0.0"]

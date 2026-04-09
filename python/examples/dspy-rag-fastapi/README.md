@@ -27,7 +27,8 @@ This full-stack application combines the DSPy Framework with OpenAI, Cohere, Ari
 
 ### Prerequisites
 
--   Docker and Docker-Compose
+-   Docker and Docker Compose
+-   uv
 
 ### Getting Started with Local Development
 
@@ -39,12 +40,11 @@ First, navigate to the backend directory:
 cd backend/
 ```
 
-Second, setup the environment:
+Second, install Python 3.12 and sync the project environment:
 
 ```bash
-poetry config virtualenvs.in-project true
-poetry install
-poetry shell
+uv python install 3.12
+uv sync --locked
 ```
 
 Specify your environment variables in an .env file in backend directory.
@@ -61,13 +61,13 @@ CO_API_KEY=<your_cohere_api_key>
 Third, run this command to create embeddings of data located in data/example folder:
 
 ```bash
-python app/utils/load.py
+uv run python app/utils/load.py
 ```
 
 Then run this command to start the FastAPI server:
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 #### Frontend setup
@@ -78,15 +78,14 @@ First, navigate to the frontend directory:
 cd frontend/
 ```
 
-Second, setup the environment:
+Second, install Python 3.12 and sync the project environment:
 
 ```bash
-poetry config virtualenvs.in-project true
-poetry install
-poetry shell
+uv python install 3.12
+uv sync --locked
 ```
 
-Specify your environment variables in an .env file in backend directory.
+Specify your environment variables in an .env file in frontend directory.
 Example .env file:
 
 ```yml
@@ -96,7 +95,7 @@ FASTAPI_BACKEND_URL = <your_fastapi_address>
 Then run this command to start the Streamlit application:
 
 ```bash
-streamlit run about.py
+uv run streamlit run about.py
 ```
 
 ### Getting Started with Docker-Compose
@@ -105,8 +104,8 @@ This project now supports Docker Compose for easier setup and deployment, includ
 
 1. Configure your environment variables in the .env file or modify the compose file directly.
 2. Ensure that Docker is installed and running.
-3. This project uses OpenAI to embed data, so you will need to create the embeddings first. Run the command `python -m app.utils.load` from the backend folder to create embeddings for the data located in the `data/example` folder.
-4. Run the command `docker-compose -f compose.yml up` to spin up services for the backend, and Phoenix.
+3. Run `docker compose -f compose.yml up -d --build` to start Phoenix, the backend, and the frontend.
+4. This project uses OpenAI embeddings, so load the example data into the running backend container with `docker compose -f compose.yml exec backend uv run python -m app.utils.load`.
 5. Backend docs can be viewed using the [OpenAPI Spec](http://0.0.0.0:8000/docs).
 6. Frontend can be viewed using [Streamlit](http://0.0.0.0:8501)
 7. Traces can be viewed using the [Phoenix UI](http://localhost:6006).
