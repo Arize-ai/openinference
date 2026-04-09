@@ -922,6 +922,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -1246,6 +1247,7 @@ def test_anthropic_instrumentation_image_input_messages(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
@@ -1570,6 +1572,7 @@ def test_anthropic_instrumentation_messages_parse(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -1670,6 +1673,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -1772,6 +1776,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
             "service_tier": "standard",
             "speed": None,
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -1875,6 +1880,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
             "service_tier": "standard",
             "speed": None,
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -2021,6 +2027,7 @@ def test_anthropic_instrumentation_beta_messages_create(
             "service_tier": "standard",
             "speed": None,
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -2100,6 +2107,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
             "service_tier": "standard",
             "speed": None,
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
