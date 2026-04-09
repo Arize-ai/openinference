@@ -185,7 +185,6 @@ def test_anthropic_instrumentation_stream_message(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {
                 "ephemeral_1h_input_tokens": 0,
@@ -274,7 +273,6 @@ async def test_anthropic_instrumentation_async_stream_message(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {
                 "ephemeral_1h_input_tokens": 0,
@@ -465,7 +463,6 @@ def test_anthropic_instrumentation_messages(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -550,7 +547,6 @@ def test_anthropic_instrumentation_messages_streaming(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {
                 "ephemeral_1h_input_tokens": 0,
@@ -639,7 +635,6 @@ async def test_anthropic_instrumentation_async_messages_streaming(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {
                 "ephemeral_1h_input_tokens": 0,
@@ -769,7 +764,6 @@ async def test_anthropic_instrumentation_async_messages(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -912,7 +906,6 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         "stop_reason": "tool_use",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1054,7 +1047,6 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         "stop_reason": "tool_use",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1146,7 +1138,6 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1237,7 +1228,6 @@ def test_anthropic_instrumentation_image_input_messages(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1562,7 +1552,6 @@ def test_anthropic_instrumentation_messages_parse(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1663,7 +1652,6 @@ async def test_anthropic_instrumentation_async_messages_parse(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1764,7 +1752,6 @@ def test_anthropic_instrumentation_beta_messages_parse(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -1868,7 +1855,6 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -2015,7 +2001,6 @@ def test_anthropic_instrumentation_beta_messages_create(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,
@@ -2095,7 +2080,6 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
         "stop_reason": "end_turn",
         "stop_sequence": None,
         "type": "message",
-        "stop_details": None,
         "usage": {
             "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
             "cache_creation_input_tokens": 0,

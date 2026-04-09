@@ -49,8 +49,8 @@ async def main():
     print("Creating agent...")
     from agent_framework.openai import OpenAIChatClient
 
-    client = OpenAIChatClient(model_id="gpt-4o-mini")
-    agent = client.create_agent(
+    client = OpenAIChatClient(model="gpt-4o-mini")
+    agent = client.as_agent(
         name="WeatherAssistant",
         instructions="You are a helpful assistant. Be concise in your responses.",
     )

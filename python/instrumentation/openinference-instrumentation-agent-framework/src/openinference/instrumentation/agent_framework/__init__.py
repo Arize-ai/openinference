@@ -27,8 +27,8 @@ Usage:
     # Use framework normally - spans will be transformed automatically
     from agent_framework.openai import OpenAIChatClient
 
-    client = OpenAIChatClient(model_id="gpt-4o-mini")
-    agent = client.create_agent(name="Assistant")
+    client = OpenAIChatClient(model="gpt-4o-mini")
+    agent = client.as_agent(name="Assistant")
     response = await agent.run("Hello!")
     ```
 """
