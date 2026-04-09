@@ -652,6 +652,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -778,6 +779,7 @@ async def test_anthropic_instrumentation_async_messages(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
@@ -1061,6 +1063,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
@@ -1152,6 +1155,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
             "server_tool_use": None,
             "service_tier": "standard",
         },
+        "stop_details": None,
     }
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
