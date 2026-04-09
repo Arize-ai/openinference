@@ -183,6 +183,7 @@ def test_anthropic_instrumentation_stream_message(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -271,6 +272,7 @@ async def test_anthropic_instrumentation_async_stream_message(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -461,6 +463,7 @@ def test_anthropic_instrumentation_messages(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -545,6 +548,7 @@ def test_anthropic_instrumentation_messages_streaming(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -633,6 +637,7 @@ async def test_anthropic_instrumentation_async_messages_streaming(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -762,6 +767,7 @@ async def test_anthropic_instrumentation_async_messages(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -904,6 +910,7 @@ def test_anthropic_instrumentation_multiple_tool_calling(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "tool_use",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1045,6 +1052,7 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "tool_use",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1136,6 +1144,7 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
         "model": "claude-3-5-sonnet-20240620",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1226,6 +1235,7 @@ def test_anthropic_instrumentation_image_input_messages(
         "model": "claude-3-5-sonnet-20240620",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1550,6 +1560,7 @@ def test_anthropic_instrumentation_messages_parse(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1650,6 +1661,7 @@ async def test_anthropic_instrumentation_async_messages_parse(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1750,6 +1762,7 @@ def test_anthropic_instrumentation_beta_messages_parse(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1853,6 +1866,7 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -1999,6 +2013,7 @@ def test_anthropic_instrumentation_beta_messages_create(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
@@ -2078,6 +2093,7 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
         "model": "claude-sonnet-4-6",
         "role": "assistant",
         "stop_reason": "end_turn",
+        "stop_details": None,
         "stop_sequence": None,
         "type": "message",
         "usage": {
