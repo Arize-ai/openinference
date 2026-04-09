@@ -701,7 +701,10 @@ export function openInferenceMiddleware({
         code: SpanStatusCode.ERROR,
         message: info.error instanceof Error ? info.error.message : "TanStack AI run failed",
       });
-      state.toolSpans.forEach(finalizeSpan);
+      endToolSpansWithError(
+        state.toolSpans,
+        info.error instanceof Error ? info.error.message : "TanStack AI run failed",
+      );
       finalizeSpan(state.chatSpan);
       requestStates.delete(ctx.requestId);
     },
