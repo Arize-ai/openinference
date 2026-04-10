@@ -161,7 +161,7 @@ export type OutputToAttributesFn<Fn extends AnyFn = AnyFn> = (
  * // Advanced configuration with custom processing and base attributes
  * const advancedOptions: SpanTraceOptions = {
  *   name: "llm-call",
- *   kind: OpenInferenceSpanKind.LLM,
+ *   kind: "LLM",
  *   openTelemetrySpanKind: SpanKind.CLIENT,
  *   attributes: {
  *     'service.name': 'ai-assistant',
@@ -174,7 +174,7 @@ export type OutputToAttributesFn<Fn extends AnyFn = AnyFn> = (
  *
  * // Agent-specific configuration with context attributes
  * const agentOptions: SpanTraceOptions = {
- *   kind: OpenInferenceSpanKind.AGENT,
+ *   kind: "AGENT",
  *   attributes: {
  *     'agent.type': 'decision-maker',
  *     'agent.version': '2.1.0'

@@ -58,7 +58,7 @@ const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
  * };
  * const tracedFetch = withSpan(fetchData, {
  *   name: "api-request",
- *   kind: OpenInferenceSpanKind.LLM
+ *   kind: "LLM"
  * });
  *
  * // Custom input/output processing with base attributes

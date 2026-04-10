@@ -160,7 +160,6 @@ const oiTracer = getTracer("my-service");  // name defaults to "openinference-co
 
 ```typescript
 import {
-  OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -204,7 +203,7 @@ const chat = withSpan(
   {
     tracer,
     name: "chat",
-    kind: OpenInferenceSpanKind.LLM,
+    kind: "LLM",
   },
 );
 

@@ -28,7 +28,6 @@ interface SpanTraceOptions<Fn> {
 
 ```typescript
 import { withSpan } from "@arizeai/openinference-core";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 // Async function
 const fetchAnswer = withSpan(
@@ -36,7 +35,7 @@ const fetchAnswer = withSpan(
     const response = await callLLM(question);
     return response.text;
   },
-  { name: "fetch-answer", kind: OpenInferenceSpanKind.LLM },
+  { name: "fetch-answer", kind: "LLM" },
 );
 
 // Sync function
@@ -53,8 +52,8 @@ implementation:
 
 - Pass `name` whenever span-name stability matters (for example, inline
   callbacks, minified builds, or generated code)
-- Use `OpenInferenceSpanKind.<KIND>` or uppercase string literals like
-  `"LLM"` / `"RETRIEVER"` for `kind`
+- Prefer uppercase string literals like `"LLM"` / `"RETRIEVER"` for `kind`;
+  enum members like `OpenInferenceSpanKind.LLM` are equivalent
 - Wrapped methods preserve the `this` they are called with; detached method
   references still need `.bind(instance)` before calling them standalone
 - Omitting `tracer` means the wrapper resolves the current global tracer
@@ -75,8 +74,9 @@ Synchronous throws and rejected promises are both recorded on the span, mark the
 span status as `ERROR`, end the span, and then re-throw the original error.
 
 The `kind` accepts either the enum value (e.g., `OpenInferenceSpanKind.LLM`) or
-its string equivalent (e.g., `"LLM"`). Only the uppercase enum value strings are
-valid -- `"llm"` or `"custom"` will be rejected by the type system.
+its uppercase string equivalent (e.g., `"LLM"`). Prefer the string literal form
+in examples. Lowercase `"llm"` or unrelated values like `"custom"` are rejected
+by the type system.
 
 ### Span Naming
 
@@ -280,22 +280,21 @@ function observe<Fn extends (...args: any[]) => any>(
 
 ```typescript
 import { observe } from "@arizeai/openinference-core";
-import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 class RAGService {
   private db: VectorDB;
 
-  @observe({ name: "retrieve", kind: OpenInferenceSpanKind.RETRIEVER })
+  @observe({ name: "retrieve", kind: "RETRIEVER" })
   async retrieve(query: string) {
     return await this.db.search(query);
   }
 
-  @observe({ kind: OpenInferenceSpanKind.LLM })
+  @observe({ kind: "LLM" })
   async generate(prompt: string, context: string[]) {
     return await this.llm.complete(prompt, { context });
   }
 
-  @observe({ kind: OpenInferenceSpanKind.CHAIN })
+  @observe({ kind: "CHAIN" })
   async answer(question: string) {
     const docs = await this.retrieve(question);
     const context = docs.map((d) => d.content);

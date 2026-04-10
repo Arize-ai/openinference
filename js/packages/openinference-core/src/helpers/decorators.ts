@@ -27,7 +27,7 @@ import { withSpan } from "./withSpan";
  * @example
  * ```typescript
  * class MyService {
- *   @observe({ name: "processData", kind: OpenInferenceSpanKind.LLM })
+ *   @observe({ name: "processData", kind: "LLM" })
  *   async processData(input: string) {
  *     // Method implementation
  *     return `processed: ${input}`;

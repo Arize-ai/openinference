@@ -17,7 +17,6 @@ to trace your own application code.
 
 ```typescript
 import {
-  OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
 import {
@@ -38,7 +37,7 @@ provider.register();
 
 const greet = withSpan(
   async (name: string) => `Hello, ${name}!`,
-  { name: "greet", kind: OpenInferenceSpanKind.CHAIN },
+  { name: "greet", kind: "CHAIN" },
 );
 
 async function main() {
