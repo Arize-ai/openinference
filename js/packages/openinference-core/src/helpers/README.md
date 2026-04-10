@@ -25,6 +25,17 @@ const tracedFetch = withSpan(fetchData, {
 });
 ```
 
+Agent notes for `withSpan`:
+
+- Use `OpenInferenceSpanKind.LLM` or uppercase string literals like `"LLM"`
+  for `kind`
+- Wrapped methods preserve the `this` they are called with; detached method
+  references still need `.bind(instance)` before calling them standalone
+- Synchronous throws and rejected promises are both recorded on the span, which
+  is marked `ERROR`, ended, and then re-thrown
+- If you omit `tracer`, the wrapper resolves the current global tracer provider
+  each time it is invoked
+
 **`traceChain`** - Convenience wrapper for tracing workflow sequences (CHAIN span kind):
 
 ```typescript
@@ -71,9 +82,10 @@ Class method decoration for automatic tracing. See [decorators](decorators.ts) f
 
 ```typescript
 import { observe } from "@arizeai/openinference-core";
+import { OpenInferenceSpanKind } from "@arizeai/openinference-semantic-conventions";
 
 class MyService {
-  @observe({ kind: "chain" })
+  @observe({ kind: OpenInferenceSpanKind.CHAIN })
   async processData(input: string) {
     // Method implementation
     return `processed: ${input}`;

@@ -161,11 +161,11 @@ export type OutputToAttributesFn<Fn extends AnyFn = AnyFn> = (
  * // Advanced configuration with custom processing and base attributes
  * const advancedOptions: SpanTraceOptions = {
  *   name: "llm-call",
- *   kind: "llm",
+ *   kind: OpenInferenceSpanKind.LLM,
  *   openTelemetrySpanKind: SpanKind.CLIENT,
  *   attributes: {
  *     'service.name': 'ai-assistant',
- *     'llm.model': 'gpt-4',
+ *     'llm.model_name': 'gpt-4',
  *     'environment': 'production'
  *   },
  *   processInput: (...args) => ({ "llm.prompt": args[0] }),
@@ -201,9 +201,10 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
   /**
    * Custom OpenTelemetry tracer instance to use for this span.
    *
-   * If not provided, the global tracer will be used. This allows for using
-   * different tracers for different parts of the application or for testing
-   * purposes with mock tracers.
+   * If not provided, the current global tracer provider is consulted when the
+   * wrapped function is invoked. This allows wrappers created before provider
+   * registration or replacement to pick up the latest global tracer unless you
+   * pin a specific tracer here.
    *
    * @example
    * ```typescript
@@ -258,7 +259,7 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
    * ```typescript
    * processInput: (...args) => ({
    *   'input.value': JSON.stringify(args),
-   *   'input.mimeType': MimeType.JSON
+   *   'input.mime_type': MimeType.JSON
    * })
    * ```
    */
@@ -278,7 +279,7 @@ export interface SpanTraceOptions<Fn extends AnyFn = AnyFn> {
    * ```typescript
    * processOutput: (result) => ({
    *   'output.value': JSON.stringify(result),
-   *   'output.mimeType': MimeType.JSON
+   *   'output.mime_type': MimeType.JSON
    * })
    * ```
    */

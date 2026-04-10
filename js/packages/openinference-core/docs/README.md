@@ -189,7 +189,9 @@ When you call a function wrapped with `withSpan`, here is what happens:
 
 If the function throws or returns a rejected promise, step 5 is skipped.
 Instead, the exception is recorded on the span, the status is set to ERROR, the
-span is ended, and the error is re-thrown.
+span is ended, and the error is re-thrown. If you omitted `options.tracer`, the
+default tracer used in step 1 is resolved when the wrapped function is invoked,
+so previously-created wrappers follow the latest global tracer provider.
 
 ### Semantic Conventions
 

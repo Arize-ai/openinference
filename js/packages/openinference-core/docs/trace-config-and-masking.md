@@ -32,6 +32,12 @@ When you call `withSpan(fn, options)`:
   current global tracer provider when the wrapped function is invoked (no
   masking).
 
+Agent decision rule:
+
+- Omit `tracer` when you want wrappers to follow later global provider changes
+- Pass an explicit `OITracer` when you need masking or want the wrapper pinned
+  to a specific tracer configuration
+
 To enable masking, you must explicitly create an `OITracer` with a `traceConfig`:
 
 ```typescript

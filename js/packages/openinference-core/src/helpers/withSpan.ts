@@ -20,12 +20,21 @@ const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
  * automatically handling span lifecycle, input/output processing, error tracking, and promise
  * resolution.
  *
+ * Agent-facing behavior to rely on:
+ * - Preserves the call-time `this` value, so wrapped methods still work when invoked as methods
+ *   or via `.call()` / `.apply()`
+ * - Records both synchronous throws and rejected promises on the span, marks the span as ERROR,
+ *   ends the span, and re-throws the original error
+ * - Resolves the default tracer when the wrapped function is invoked, so wrappers created before
+ *   a global tracer provider change pick up the latest provider unless `options.tracer` was set
+ *
  * @experimental This API is experimental and may change in future versions
  *
  * @template Fn - The function type being wrapped, preserving original signature
  * @param fn - The function to wrap with tracing capabilities
  * @param options - Configuration options for tracing behavior
- * @param options.tracer - Custom OpenTelemetry tracer instance (defaults to global tracer)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.kind - OpenInference span kind for semantic categorization (defaults to CHAIN)

@@ -46,6 +46,24 @@ const transform = withSpan(
 );
 ```
 
+### Agent Quick Rules
+
+If you are writing code against this package, these rules match the current
+implementation:
+
+- Pass `name` whenever span-name stability matters (for example, inline
+  callbacks, minified builds, or generated code)
+- Use `OpenInferenceSpanKind.<KIND>` or uppercase string literals like
+  `"LLM"` / `"RETRIEVER"` for `kind`
+- Wrapped methods preserve the `this` they are called with; detached method
+  references still need `.bind(instance)` before calling them standalone
+- Omitting `tracer` means the wrapper resolves the current global tracer
+  provider on each invocation
+- Passing `tracer` pins the wrapper to that tracer (or `OITracer`) even if the
+  global provider changes later
+- Synchronous throws and rejected promises are both recorded on the span, mark
+  it as `ERROR`, end it, and re-throw the original error
+
 The wrapped function preserves the calling context, so methods keep their
 receiver when the traced wrapper is invoked as a method or via `.call()` /
 `.apply()`.
@@ -64,7 +82,9 @@ valid -- `"llm"` or `"custom"` will be rejected by the type system.
 
 - If `name` is provided in options, it is used
 - Otherwise, `fn.name` is used (the function's declared name)
-- Arrow functions have empty names -- always provide `name` for arrow functions
+- Many arrow functions inherit a useful `name` from their binding, but inline
+  anonymous callbacks and transformed code may not -- pass `name` whenever the
+  span name must stay stable
 
 ### Custom Input/Output Processors
 
@@ -318,7 +338,12 @@ By default, `withSpan` and `@observe` use the global tracer provider. To use a
 specific tracer (e.g., with data masking), pass the `tracer` option. When you
 omit `tracer`, the default tracer is resolved each time the wrapped function is
 invoked, so wrappers created before a global provider change will pick up the
-latest provider:
+latest provider. Agent rule of thumb:
+
+- Omit `tracer` if you want the wrapper to follow later global provider changes
+- Pass `tracer` if you need a stable tracer instance or masking via `OITracer`
+
+Example:
 
 ```typescript
 import { trace } from "@opentelemetry/api";
