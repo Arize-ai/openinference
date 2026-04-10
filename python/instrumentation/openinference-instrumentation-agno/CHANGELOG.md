@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.29...python-openinference-instrumentation-agno-v0.1.30) (2026-04-10)
+
+
+### Bug Fixes
+
+* **agno:** Agno Team Span Tree fix, Context issues in streaming and async streaming ([#2935](https://github.com/Arize-ai/openinference/issues/2935)) ([007774a](https://github.com/Arize-ai/openinference/commit/007774a4ebbf7d6d1dd387f337d2b7788306e1fb))
+
 ## [0.1.29](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.28...python-openinference-instrumentation-agno-v0.1.29) (2026-03-11)
 
 
