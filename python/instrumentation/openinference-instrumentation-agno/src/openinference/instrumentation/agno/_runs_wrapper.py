@@ -581,9 +581,10 @@ class _RunWrapper:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
+            iterator = wrapped(*args, **kwargs)  # type: ignore
             ctx_token = context_api.attach(trace_api.set_span_in_context(span))
             team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-            async for response in wrapped(*args, **kwargs):  # type: ignore
+            async for response in iterator:
                 if hasattr(response, "run_id"):
                     current_run_id = response.run_id
                     if current_run_id:
@@ -594,7 +595,12 @@ class _RunWrapper:
                     if yield_run_output_set:
                         continue
 
-                yield response
+                try:
+                    yield response
+                except GeneratorExit:
+                    if hasattr(iterator, "aclose"):
+                        await iterator.aclose()
+                    break
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
