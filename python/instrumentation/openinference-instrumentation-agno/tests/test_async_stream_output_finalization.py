@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any, AsyncIterator, Awaitable, Callable, cast
 
 import pytest
 from agno.agent import Agent
@@ -17,7 +18,7 @@ class FinalAnswer(BaseModel):
     answer: str
 
 
-async def _fake_arun_stream(*_args, **_kwargs):
+async def _fake_arun_stream(*_args: Any, **_kwargs: Any) -> AsyncIterator[RunOutput]:
     yield RunOutput(
         run_id="run-123",
         content=FinalAnswer(answer="done"),
@@ -35,6 +36,9 @@ def _build_wrapper() -> tuple[_RunWrapper, InMemorySpanExporter]:
     return _RunWrapper(tracer=tracer), exporter
 
 
+FAKE_ARUN_STREAM = cast(Callable[..., Awaitable[Any]], _fake_arun_stream)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("close_mode", ["aclose", "break"])
 async def test_arun_stream_records_output_value_when_closed_after_final_run_output(
@@ -45,7 +49,7 @@ async def test_arun_stream_records_output_value_when_closed_after_final_run_outp
 
     if close_mode == "aclose":
         stream = wrapper.arun_stream(
-            _fake_arun_stream,
+            FAKE_ARUN_STREAM,
             None,
             (agent,),
             {"yield_run_output": True},
@@ -56,7 +60,7 @@ async def test_arun_stream_records_output_value_when_closed_after_final_run_outp
         await asyncio.sleep(0)
     else:
         async for event in wrapper.arun_stream(
-            _fake_arun_stream,
+            FAKE_ARUN_STREAM,
             None,
             (agent,),
             {"yield_run_output": True},
@@ -67,4 +71,5 @@ async def test_arun_stream_records_output_value_when_closed_after_final_run_outp
 
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
-    assert spans[0].attributes.get("output.value") == '{"answer":"done"}'
+    attributes = dict(spans[0].attributes or {})
+    assert attributes.get("output.value") == '{"answer":"done"}'

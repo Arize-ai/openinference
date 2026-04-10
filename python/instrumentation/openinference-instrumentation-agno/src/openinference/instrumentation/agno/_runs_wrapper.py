@@ -3,6 +3,7 @@ import json
 import threading
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterator,
@@ -581,7 +582,7 @@ class _RunWrapper:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
-            iterator = wrapped(*args, **kwargs)  # type: ignore
+            iterator = cast(AsyncIterator[Any], wrapped(*args, **kwargs))
             ctx_token = context_api.attach(trace_api.set_span_in_context(span))
             team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
             async for response in iterator:
