@@ -187,8 +187,9 @@ When you call a function wrapped with `withSpan`, here is what happens:
    handed to the span processor for export
 8. **Exported** -- the span processor sends the span to your configured exporter
 
-If the function throws, step 5 is skipped. Instead, the exception is recorded on
-the span, the status is set to ERROR, and the error is re-thrown.
+If the function throws or returns a rejected promise, step 5 is skipped.
+Instead, the exception is recorded on the span, the status is set to ERROR, the
+span is ended, and the error is re-thrown.
 
 ### Semantic Conventions
 

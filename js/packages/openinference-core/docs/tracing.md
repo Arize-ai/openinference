@@ -46,6 +46,16 @@ const transform = withSpan(
 );
 ```
 
+The wrapped function preserves the calling context, so methods keep their
+receiver when the traced wrapper is invoked as a method or via `.call()` /
+`.apply()`.
+Detached method references still need an explicit `.bind(instance)` if you want
+to call them without a receiver, because JavaScript does not retain the original
+object once a method is extracted.
+
+Synchronous throws and rejected promises are both recorded on the span, mark the
+span status as `ERROR`, end the span, and then re-throw the original error.
+
 The `kind` accepts either the enum value (e.g., `OpenInferenceSpanKind.LLM`) or
 its string equivalent (e.g., `"LLM"`). Only the uppercase enum value strings are
 valid -- `"llm"` or `"custom"` will be rejected by the type system.

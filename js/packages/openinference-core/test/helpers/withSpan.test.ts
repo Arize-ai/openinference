@@ -103,6 +103,30 @@ describe("withSpan", () => {
     expect(span.events[0].name).toBe("exception");
   });
 
+  it("should handle synchronous throws and record exceptions", () => {
+    const errorFn = () => {
+      throw new Error("Synchronous test error");
+    };
+
+    const tracer = tracerProvider.getTracer("test");
+    const wrappedFn = withSpan(errorFn, {
+      name: "sync-error-function",
+      tracer,
+    });
+
+    expect(() => wrappedFn()).toThrow("Synchronous test error");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+
+    const span = spans[0];
+    expect(span.name).toBe("sync-error-function");
+    expect(span.status.code).toBe(2); // ERROR
+    expect(span.status.message).toBe("Synchronous test error");
+    expect(span.events).toHaveLength(1);
+    expect(span.events[0].name).toBe("exception");
+  });
+
   it("should use base attributes when provided", () => {
     const testFn = () => "result";
     const baseAttributes = {
@@ -193,6 +217,31 @@ describe("withSpan", () => {
 
     const span = spans[0];
     expect(span.attributes["test-attribute"]).toBe("test-value");
+  });
+
+  it("should preserve this when the traced wrapper is invoked as a method", () => {
+    class Service {
+      prefix = "svc";
+
+      run() {
+        return `${this.prefix}:done`;
+      }
+    }
+
+    const service = new Service();
+    const tracer = tracerProvider.getTracer("test");
+    service.run = withSpan(service.run, {
+      name: "service-run",
+      tracer,
+    });
+
+    expect(service.run()).toBe("svc:done");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("service-run");
+    expect(spans[0].status.code).toBe(1); // OK
+    expect(spans[0].attributes["output.value"]).toBe("svc:done");
   });
   it.skip("should handle generator functions", async () => {
     // TODO(mikeldking): it might be the case that generators are common in genAI applications

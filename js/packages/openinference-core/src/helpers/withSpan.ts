@@ -78,8 +78,14 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
   const processInput: InputToAttributesFn = _processInput ?? defaultProcessInput;
   const processOutput: OutputToAttributesFn = _processOutput ?? defaultProcessOutput;
   const spanName = optionsName || fn.name;
+  const getErrorMessage = (error: unknown) => {
+    if (typeof error === "object" && error !== null && "message" in error) {
+      return String(error.message);
+    }
+    return String(error);
+  };
   // TODO: infer the name from the target
-  const wrappedFn: Fn = function (...args: Parameters<Fn>) {
+  const wrappedFn: Fn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
     return tracer.startActiveSpan(
       spanName,
       {
@@ -91,29 +97,35 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         },
       },
       (span) => {
-        const result = fn(...args);
-        if (isPromise(result)) {
-          // Execute the promise and return the promise chain
-          return result
-            .then((value) => {
-              span.setAttributes({
-                ...processOutput(value),
-              });
-              span.setStatus({
-                code: SpanStatusCode.OK,
-              });
-              return value;
-            })
-            .catch((e) => {
-              span.recordException(e);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: String(e?.message ?? e),
-              });
-              throw e;
-            })
-            .finally(() => span.end());
-        } else {
+        const recordError = (error: unknown) => {
+          span.recordException(error as Error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: getErrorMessage(error),
+          });
+        };
+
+        try {
+          const result = fn.apply(this, args) as ReturnType<Fn>;
+          if (isPromise(result)) {
+            // Execute the promise and return the promise chain
+            return result
+              .then((value: Awaited<ReturnType<Fn>>) => {
+                span.setAttributes({
+                  ...processOutput(value),
+                });
+                span.setStatus({
+                  code: SpanStatusCode.OK,
+                });
+                return value;
+              })
+              .catch((error: unknown) => {
+                recordError(error);
+                throw error;
+              })
+              .finally(() => span.end());
+          }
+
           // It is a normal function
           span.setAttributes({
             ...processOutput(result),
@@ -123,6 +135,10 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
           });
           span.end();
           return result;
+        } catch (error) {
+          recordError(error);
+          span.end();
+          throw error;
         }
       },
     );
