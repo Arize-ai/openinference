@@ -29,7 +29,14 @@ When you call `withSpan(fn, options)`:
 - If you pass `options.tracer` as an `OITracer`, it is used directly (with its
   masking config).
 - If you omit `options.tracer`, `getTracer()` creates an `OITracer` from the
-  global tracer provider (no masking).
+  current global tracer provider when the wrapped function is invoked (no
+  masking).
+
+Agent decision rule:
+
+- Omit `tracer` when you want wrappers to follow later global provider changes
+- Pass an explicit `OITracer` when you need masking or want the wrapper pinned
+  to a specific tracer configuration
 
 To enable masking, you must explicitly create an `OITracer` with a `traceConfig`:
 
@@ -153,7 +160,6 @@ const oiTracer = getTracer("my-service");  // name defaults to "openinference-co
 
 ```typescript
 import {
-  OpenInferenceSpanKind,
   SEMRESATTRS_PROJECT_NAME,
 } from "@arizeai/openinference-semantic-conventions";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -197,7 +203,7 @@ const chat = withSpan(
   {
     tracer,
     name: "chat",
-    kind: OpenInferenceSpanKind.LLM,
+    kind: "LLM",
   },
 );
 
