@@ -29,7 +29,6 @@ from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
     _get_attributes_from_content_text,
-    _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _ValueAndType,
@@ -266,12 +265,7 @@ class _ResponseExtractor:
                                     inline_data, content_index
                                 ):
                                     yield f"{prefix}.{key}", value
-                            if file_data := part.get("file_data"):
-                                for key, value in _get_attributes_from_file_data(
-                                    file_data, content_index
-                                ):
-                                    yield f"{prefix}.{key}", value
-                            if part.get("text") or part.get("inline_data") or part.get("file_data"):
+                            if part.get("text") or part.get("inline_data"):
                                 content_index += 1
 
 
@@ -378,10 +372,9 @@ class _IndexedAccumulator:
             return self
         if isinstance(values, Mapping):
             values = [values]
-        for index, v in enumerate(values):
+        for v in values:
             if v and hasattr(v, "get"):
-                slot = v.get("index")
-                self._indexed[slot if slot is not None else index] += v
+                self._indexed[v.get("index") or 0] += v
         return self
 
 

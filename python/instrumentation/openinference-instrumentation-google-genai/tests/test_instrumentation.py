@@ -1900,6 +1900,92 @@ def test_validate_token_counts(
     before_record_request=lambda _: _.headers.clear() or _,
     before_record_response=lambda _: {**_, "headers": {}},
 )
+@pytest.mark.parametrize("streaming", [False, True])
+def test_generate_content_with_file_uri_image(
+    streaming: bool,
+    in_memory_span_exporter: InMemorySpanExporter,
+    tracer_provider: TracerProvider,
+    setup_google_genai_instrumentation: None,
+) -> None:
+    """Test that file_data (URI-based images) are captured as span attributes.
+
+    Uses Part.from_uri which sends fileData in the request body instead of
+    inlineData bytes, allowing the model to fetch the image from the given URI.
+    Delete the cassette and set GEMINI_API_KEY to re-record.
+    """
+    api_key = "api-key-placeholder"
+    client = genai.Client(api_key=api_key)
+
+    file_uri = "https://fastly.picsum.photos/id/237/200/300.jpg?hmac=TmmQSbShHz9CdQm0NkEjx1Dyh_Y984R9LpNrpvH2D_U"
+    content = Content(
+        role="user",
+        parts=[
+            Part.from_text(text="Describe this image in one sentence."),
+            Part.from_uri(file_uri=file_uri, mime_type="image/jpeg"),
+        ],
+    )
+    config = GenerateContentConfig(
+        system_instruction="You are a helpful assistant that can describe images."
+    )
+
+    if streaming:
+        response = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        for _ in response:
+            ...
+    else:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=config,
+        )
+        assert response.text
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    attributes = dict(span.attributes or {})
+
+    # Verify core span attributes
+    expected_attributes: Dict[str, Any] = {
+        SpanAttributes.LLM_PROVIDER: "google",
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM",
+        SpanAttributes.LLM_MODEL_NAME: "gemini-2.5-flash",
+        SpanAttributes.INPUT_MIME_TYPE: "application/json",
+        SpanAttributes.OUTPUT_MIME_TYPE: "application/json",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "system",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}": "You are a helpful assistant that can describe images.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}": "user",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "text",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}": "Describe this image in one sentence.",
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENTS}.1.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}": "image",
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}": "model",
+    }
+
+    for key, expected_value in expected_attributes.items():
+        assert attributes.get(key) == expected_value, (
+            f"Attribute '{key}' does not match. Expected: {expected_value!r}, Got: {attributes.get(key)!r}"
+        )
+
+    # Verify the image URL is the file URI passed in
+    image_url_key = (
+        f"{SpanAttributes.LLM_INPUT_MESSAGES}.1."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    assert attributes.get(image_url_key) == file_uri, (
+        f"Expected image URL to be the file URI '{file_uri}', got: {attributes.get(image_url_key)!r}"
+    )
+
+
+@pytest.mark.vcr(
+    decode_compressed_response=True,
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: {**_, "headers": {}},
+)
 def test_validate_token_counts_stream(
     in_memory_span_exporter: InMemorySpanExporter,
     tracer_provider: TracerProvider,
