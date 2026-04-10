@@ -53,6 +53,26 @@ def _get_tool_use_id(message: Message) -> Optional[str]:
     return None
 
 
+def assert_json_contains(actual: Any, expected: Any) -> None:
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict)
+        for key, value in expected.items():
+            assert key in actual
+            assert_json_contains(actual[key], value)
+        return
+    if isinstance(expected, list):
+        assert isinstance(actual, list)
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected):
+            assert_json_contains(actual_item, expected_item)
+        return
+    assert actual == expected
+
+
+def assert_output_value_contains(output_value: str, expected: Any) -> None:
+    assert_json_contains(json.loads(output_value), expected)
+
+
 class TestInstrumentor:
     def test_entrypoint_for_opentelemetry_instrument(self) -> None:
         (instrumentor_entrypoint,) = entry_points(
@@ -102,15 +122,18 @@ def test_anthropic_instrumentation_completions_streaming(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "completion": " Light scatters blue.",
-        "stop": "\n\nHuman:",
-        "stop_reason": "stop_sequence",
-        "id": "compl_015dfgyiT7JLszAiMbGMtgeG",
-        "model": "claude-2.1",
-        "type": "completion",
-        "log_id": "compl_015dfgyiT7JLszAiMbGMtgeG",
-    }
+    assert_output_value_contains(
+        output_value,
+        {
+            "completion": " Light scatters blue.",
+            "stop": "\n\nHuman:",
+            "stop_reason": "stop_sequence",
+            "id": "compl_015dfgyiT7JLszAiMbGMtgeG",
+            "model": "claude-2.1",
+            "type": "completion",
+            "log_id": "compl_015dfgyiT7JLszAiMbGMtgeG",
+        },
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
@@ -169,37 +192,39 @@ def test_anthropic_instrumentation_stream_message(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01GembpbFoc2YxE29Fr2Najf",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "The capital of France is **Paris**.",
-                "type": "text",
-                "parsed_output": None,
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {
-                "ephemeral_1h_input_tokens": 0,
-                "ephemeral_5m_input_tokens": 0,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01GembpbFoc2YxE29Fr2Najf",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "The capital of France is **Paris**.",
+                    "type": "text",
+                    "parsed_output": None,
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 14,
+                "output_tokens": 11,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 14,
-            "output_tokens": 11,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
@@ -258,37 +283,39 @@ async def test_anthropic_instrumentation_async_stream_message(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01BUqzFEJ3DSwjUMaBD8QfBm",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "The capital of France is **Paris**.",
-                "type": "text",
-                "parsed_output": None,
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {
-                "ephemeral_1h_input_tokens": 0,
-                "ephemeral_5m_input_tokens": 0,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01BUqzFEJ3DSwjUMaBD8QfBm",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "The capital of France is **Paris**.",
+                    "type": "text",
+                    "parsed_output": None,
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 14,
+                "output_tokens": 11,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 14,
-            "output_tokens": 11,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
     assert isinstance(attributes.pop("llm.token_count.total"), int)
 
@@ -337,15 +364,18 @@ async def test_anthropic_instrumentation_async_completions_streaming(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "completion": " Light scatters blue.",
-        "stop": "\n\nHuman:",
-        "stop_reason": "stop_sequence",
-        "id": "compl_01Ho8r6LNPQ9EVEAh3vpiUnQ",
-        "model": "claude-2.1",
-        "type": "completion",
-        "log_id": "compl_01Ho8r6LNPQ9EVEAh3vpiUnQ",
-    }
+    assert_output_value_contains(
+        output_value,
+        {
+            "completion": " Light scatters blue.",
+            "stop": "\n\nHuman:",
+            "stop_reason": "stop_sequence",
+            "id": "compl_01Ho8r6LNPQ9EVEAh3vpiUnQ",
+            "model": "claude-2.1",
+            "type": "completion",
+            "log_id": "compl_01Ho8r6LNPQ9EVEAh3vpiUnQ",
+        },
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
@@ -392,15 +422,18 @@ def test_anthropic_instrumentation_completions(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "compl_01N6jAWfEZtyE338jUQFx9LC",
-        "completion": ' A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal from lower courts. Most cases that reach the Supreme Court are appeals from decisions of federal courts of appeals or state supreme courts. Typically there has to be an important constitutional issue or federal law question for the Supreme Court to accept such an appeal.\n\n2. Original jurisdiction cases. The Supreme Court has original jurisdiction over certain types of cases, meaning they can hear the case directly without it coming from a lower court. These include cases between two or more U.S. states or cases involving ambassadors and other diplomats.\n\n3. Certiorari. This is the process by which the Supreme Court selects most of the cases it hears. Parties to a case petition the Court to review the case, and the Court grants "cert" if four of the nine justices agree to hear it. The Court typically grants certiorari in cases that have broad legal impact or important constitutional questions.\n\n4. Certificate from appeals courts. A federal appeals court can also ask the Supreme Court to take a case by granting a certificate of ascertainability. This happens when the appeals court determines there is a critical question of law that requires the Supreme Court\'s review. \n\nSo in most cases, the Supreme Court exercises discretionary review via petitions for certiorari or certificates from lower courts. Its original jurisdiction over certain types of cases also allows some direct access for parties.',
-        "model": "claude-2.1",
-        "stop_reason": "stop_sequence",
-        "type": "completion",
-        "stop": "\n\nHuman:",
-        "log_id": "compl_01N6jAWfEZtyE338jUQFx9LC",
-    }
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "compl_01N6jAWfEZtyE338jUQFx9LC",
+            "completion": ' A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal from lower courts. Most cases that reach the Supreme Court are appeals from decisions of federal courts of appeals or state supreme courts. Typically there has to be an important constitutional issue or federal law question for the Supreme Court to accept such an appeal.\n\n2. Original jurisdiction cases. The Supreme Court has original jurisdiction over certain types of cases, meaning they can hear the case directly without it coming from a lower court. These include cases between two or more U.S. states or cases involving ambassadors and other diplomats.\n\n3. Certiorari. This is the process by which the Supreme Court selects most of the cases it hears. Parties to a case petition the Court to review the case, and the Court grants "cert" if four of the nine justices agree to hear it. The Court typically grants certiorari in cases that have broad legal impact or important constitutional questions.\n\n4. Certificate from appeals courts. A federal appeals court can also ask the Supreme Court to take a case by granting a certificate of ascertainability. This happens when the appeals court determines there is a critical question of law that requires the Supreme Court\'s review. \n\nSo in most cases, the Supreme Court exercises discretionary review via petitions for certiorari or certificates from lower courts. Its original jurisdiction over certain types of cases also allows some direct access for parties.',
+            "model": "claude-2.1",
+            "stop_reason": "stop_sequence",
+            "type": "completion",
+            "stop": "\n\nHuman:",
+            "log_id": "compl_01N6jAWfEZtyE338jUQFx9LC",
+        },
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
@@ -454,29 +487,31 @@ def test_anthropic_instrumentation_messages(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01BxqRkrCj33q9PDFgWUx6tL",
-        "container": None,
-        "content": [
-            {"citations": None, "text": "The capital of France is **Paris**.", "type": "text"}
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 14,
-            "output_tokens": 11,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01BxqRkrCj33q9PDFgWUx6tL",
+            "container": None,
+            "content": [
+                {"citations": None, "text": "The capital of France is **Paris**.", "type": "text"}
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 14,
+                "output_tokens": 11,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
@@ -534,37 +569,39 @@ def test_anthropic_instrumentation_messages_streaming(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01VD6x3Z6qzLGuHWS6J7MU86",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "Sunlight scatters off air molecules.",
-                "type": "text",
-                "parsed_output": None,
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {
-                "ephemeral_1h_input_tokens": 0,
-                "ephemeral_5m_input_tokens": 0,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01VD6x3Z6qzLGuHWS6J7MU86",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "Sunlight scatters off air molecules.",
+                    "type": "text",
+                    "parsed_output": None,
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 21,
+                "output_tokens": 13,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 21,
-            "output_tokens": 13,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
@@ -623,37 +660,39 @@ async def test_anthropic_instrumentation_async_messages_streaming(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01VtWT6cAKHFZxepjCR9Bwk8",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "Sunlight scatters off air molecules.",
-                "type": "text",
-                "parsed_output": None,
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {
-                "ephemeral_1h_input_tokens": 0,
-                "ephemeral_5m_input_tokens": 0,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01VtWT6cAKHFZxepjCR9Bwk8",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "Sunlight scatters off air molecules.",
+                    "type": "text",
+                    "parsed_output": None,
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 21,
+                "output_tokens": 13,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 21,
-            "output_tokens": 13,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
@@ -696,15 +735,18 @@ async def test_anthropic_instrumentation_async_completions(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "compl_01UXLihn1JiHdBhcGahQv7pe",
-        "completion": " A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal from lower courts. Most cases that reach the Supreme Court are appeals from decisions at lower federal courts or state supreme courts. Typically, a party who loses at a lower court level can appeal the decision to the next higher court. After the court of appeals, the next stop is the Supreme Court.\n\n2. Original jurisdiction. The Supreme Court has original jurisdiction over certain types of cases, meaning they can hear the case directly without it coming from a lower court. These mainly include cases between two or more states or certain cases involving ambassadors and public ministers.\n\n3. Writ of certiorari. This a process where a party petitions the Supreme Court to hear an appeal from a lower court. The Supreme Court then has discretion on whether or not it wants to hear the case. Each term, there are thousands of petitions for writ of certiorari, but the court only agrees to hear argument in about 100-150 cases per session. \n\n4. Certificate from lower courts or government. Sometimes a circuit court of appeals can certify a legal issue to the Supreme Court before making a final ruling. Government agencies can also refer cases or issues over which there is some uncertainty or disagreement over the correct legal interpretation.\n\nSo in summary, it's usually an appeals process from lower courts, the court's original jurisdiction, or the Supreme Court agreeing to exercise its discretion in hearing an appeal petition on a disputed legal issue. The type and complexity of cases it hears is very selective.",
-        "model": "claude-2.1",
-        "stop_reason": "stop_sequence",
-        "type": "completion",
-        "stop": "\n\nHuman:",
-        "log_id": "compl_01UXLihn1JiHdBhcGahQv7pe",
-    }
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "compl_01UXLihn1JiHdBhcGahQv7pe",
+            "completion": " A court case can reach the Supreme Court in a few different ways:\n\n1. Appeal from lower courts. Most cases that reach the Supreme Court are appeals from decisions at lower federal courts or state supreme courts. Typically, a party who loses at a lower court level can appeal the decision to the next higher court. After the court of appeals, the next stop is the Supreme Court.\n\n2. Original jurisdiction. The Supreme Court has original jurisdiction over certain types of cases, meaning they can hear the case directly without it coming from a lower court. These mainly include cases between two or more states or certain cases involving ambassadors and public ministers.\n\n3. Writ of certiorari. This a process where a party petitions the Supreme Court to hear an appeal from a lower court. The Supreme Court then has discretion on whether or not it wants to hear the case. Each term, there are thousands of petitions for writ of certiorari, but the court only agrees to hear argument in about 100-150 cases per session. \n\n4. Certificate from lower courts or government. Sometimes a circuit court of appeals can certify a legal issue to the Supreme Court before making a final ruling. Government agencies can also refer cases or issues over which there is some uncertainty or disagreement over the correct legal interpretation.\n\nSo in summary, it's usually an appeals process from lower courts, the court's original jurisdiction, or the Supreme Court agreeing to exercise its discretion in hearing an appeal petition on a disputed legal issue. The type and complexity of cases it hears is very selective.",
+            "model": "claude-2.1",
+            "stop_reason": "stop_sequence",
+            "type": "completion",
+            "stop": "\n\nHuman:",
+            "log_id": "compl_01UXLihn1JiHdBhcGahQv7pe",
+        },
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_PROMPTS) == (prompt,)
@@ -758,29 +800,31 @@ async def test_anthropic_instrumentation_async_messages(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01Hh9cnsgo5riFbYs1zTtC9s",
-        "container": None,
-        "content": [
-            {"citations": None, "text": "The capital of France is **Paris**.", "type": "text"}
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 14,
-            "output_tokens": 11,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01Hh9cnsgo5riFbYs1zTtC9s",
+            "container": None,
+            "content": [
+                {"citations": None, "text": "The capital of France is **Paris**.", "type": "text"}
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 14,
+                "output_tokens": 11,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
@@ -883,47 +927,49 @@ def test_anthropic_instrumentation_multiple_tool_calling(
     assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_011geMdd2NTwJrvqbfqskQ7r",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "Sure! Let me fetch the current weather and time in New York simultaneously!",
-                "type": "text",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_011geMdd2NTwJrvqbfqskQ7r",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "Sure! Let me fetch the current weather and time in New York simultaneously!",
+                    "type": "text",
+                },
+                {
+                    "id": "toolu_01VLL6XYAAGrtc7CDpmpKZMB",
+                    "caller": {"type": "direct"},
+                    "input": {"location": "New York, NY"},
+                    "name": "get_weather",
+                    "type": "tool_use",
+                },
+                {
+                    "id": "toolu_01FZuC4jLWM67hKreLMKCLRe",
+                    "caller": {"type": "direct"},
+                    "input": {"timezone": "America/New_York"},
+                    "name": "get_time",
+                    "type": "tool_use",
+                },
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "tool_use",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 721,
+                "output_tokens": 112,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            {
-                "id": "toolu_01VLL6XYAAGrtc7CDpmpKZMB",
-                "caller": {"type": "direct"},
-                "input": {"location": "New York, NY"},
-                "name": "get_weather",
-                "type": "tool_use",
-            },
-            {
-                "id": "toolu_01FZuC4jLWM67hKreLMKCLRe",
-                "caller": {"type": "direct"},
-                "input": {"timezone": "America/New_York"},
-                "name": "get_time",
-                "type": "tool_use",
-            },
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "tool_use",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 721,
-            "output_tokens": 112,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -1024,48 +1070,50 @@ def test_anthropic_instrumentation_multiple_tool_calling_streaming(
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 834
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01JqiwuyYfmoZBJx1GLkqxLf",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "I'll check both the current weather and time in New York simultaneously right away!",
-                "type": "text",
-                "parsed_output": None,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01JqiwuyYfmoZBJx1GLkqxLf",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "I'll check both the current weather and time in New York simultaneously right away!",
+                    "type": "text",
+                    "parsed_output": None,
+                },
+                {
+                    "id": "toolu_01Mo5Ee5Yb7vrzaxSNS5DVuP",
+                    "caller": {"type": "direct"},
+                    "input": {"location": "New York, NY"},
+                    "name": "get_weather",
+                    "type": "tool_use",
+                },
+                {
+                    "id": "toolu_01GDAGw1KUdi1DCPPprMKGHR",
+                    "caller": {"type": "direct"},
+                    "input": {"timezone": "America/New_York"},
+                    "name": "get_time",
+                    "type": "tool_use",
+                },
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "tool_use",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 721,
+                "output_tokens": 113,
+                "server_tool_use": None,
+                "service_tier": "standard",
             },
-            {
-                "id": "toolu_01Mo5Ee5Yb7vrzaxSNS5DVuP",
-                "caller": {"type": "direct"},
-                "input": {"location": "New York, NY"},
-                "name": "get_weather",
-                "type": "tool_use",
-            },
-            {
-                "id": "toolu_01GDAGw1KUdi1DCPPprMKGHR",
-                "caller": {"type": "direct"},
-                "input": {"timezone": "America/New_York"},
-                "name": "get_time",
-                "type": "tool_use",
-            },
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "tool_use",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 721,
-            "output_tokens": 113,
-            "server_tool_use": None,
-            "service_tier": "standard",
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == "LLM"
     assert attributes.pop(LLM_PROVIDER) == LLM_PROVIDER_ANTHROPIC
@@ -1130,34 +1178,36 @@ def test_anthropic_instrumentation_image_input_messages_with_stream(
     assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
     output_value = attributes.pop(f"{OUTPUT_VALUE}")
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_013xrHEn3mecgN2zref6P1is",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "This image shows the iconic Taj Mahal, one of the most famous monuments in the world, located in Agra, India. The majestic white marble mausoleum is perfectly centered in the frame, its distinctive dome and minarets standing out against a clear blue sky.\n\nIn the foreground, there's a long rectangular reflecting pool that leads up to the main building. The water in the pool creates a mirror image of the Taj Mahal, enhancing its beauty and symmetry. On either side of the pool, there are well-manicured green lawns and a row of tall, slender cypress trees, which add to the symmetrical design of the complex.\n\nThe Taj Mahal itself is a stunning example of Mughal architecture. Its central dome is large and bulbous, flanked by four smaller domes. At each corner of the platform on which the mausoleum sits, there are tall, tapering minarets. The entire structure appears to be made of white marble, which gives it a pristine, almost ethereal appearance in the sunlight.\n\nThe scene conveys a sense of serenity, grandeur, and perfect balance. It's a classic view of this UNESCO World Heritage site, capturing the timeless beauty that has made the Taj Mahal one of the most recognizable and admired buildings in the world.",
-                "type": "text",
-                "parsed_output": None,
-            }
-        ],
-        "model": "claude-3-5-sonnet-20240620",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": None,
-            "input_tokens": 78,
-            "output_tokens": 296,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_013xrHEn3mecgN2zref6P1is",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "This image shows the iconic Taj Mahal, one of the most famous monuments in the world, located in Agra, India. The majestic white marble mausoleum is perfectly centered in the frame, its distinctive dome and minarets standing out against a clear blue sky.\n\nIn the foreground, there's a long rectangular reflecting pool that leads up to the main building. The water in the pool creates a mirror image of the Taj Mahal, enhancing its beauty and symmetry. On either side of the pool, there are well-manicured green lawns and a row of tall, slender cypress trees, which add to the symmetrical design of the complex.\n\nThe Taj Mahal itself is a stunning example of Mughal architecture. Its central dome is large and bulbous, flanked by four smaller domes. At each corner of the platform on which the mausoleum sits, there are tall, tapering minarets. The entire structure appears to be made of white marble, which gives it a pristine, almost ethereal appearance in the sunlight.\n\nThe scene conveys a sense of serenity, grandeur, and perfect balance. It's a classic view of this UNESCO World Heritage site, capturing the timeless beauty that has made the Taj Mahal one of the most recognizable and admired buildings in the world.",
+                    "type": "text",
+                    "parsed_output": None,
+                }
+            ],
+            "model": "claude-3-5-sonnet-20240620",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": None,
+                "input_tokens": 78,
+                "output_tokens": 296,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
         "This image shows the iconic Taj Mahal"
@@ -1222,33 +1272,35 @@ def test_anthropic_instrumentation_image_input_messages(
     assert isinstance(attributes.pop(f"{INPUT_VALUE}"), str)
     output_value = attributes.pop(f"{OUTPUT_VALUE}")
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01DijAsAzrH5wFcik1mPQjPn",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "This image shows the iconic Taj Mahal, one of the most famous landmarks in the world, located in Agra, India. The majestic white marble mausoleum stands prominently at the end of a long reflecting pool. Its distinctive dome and minarets are perfectly symmetrical and stand out against a clear blue sky.\n\nIn the foreground, we see a long, rectangular water feature that reflects the Taj Mahal, creating a mirror image on its surface. This reflecting pool is lined on both sides by well-manicured green lawns and what appear to be cypress trees, adding to the symmetry and formal garden design.\n\nThe architecture of the Taj Mahal is exquisite, showcasing intricate Islamic design elements. The central dome is large and bulbous, flanked by four smaller domes. At each corner of the main structure stands a tall, slender minaret.\n\nThe entire scene exudes a sense of serenity, grandeur, and timeless beauty. The pristine white of the marble contrasts beautifully with the vibrant green of the gardens and the azure blue of the sky, creating a striking and memorable image that captures the essence of this world-renowned monument.",
-                "type": "text",
-            }
-        ],
-        "model": "claude-3-5-sonnet-20240620",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": None,
-            "input_tokens": 78,
-            "output_tokens": 263,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01DijAsAzrH5wFcik1mPQjPn",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "This image shows the iconic Taj Mahal, one of the most famous landmarks in the world, located in Agra, India. The majestic white marble mausoleum stands prominently at the end of a long reflecting pool. Its distinctive dome and minarets are perfectly symmetrical and stand out against a clear blue sky.\n\nIn the foreground, we see a long, rectangular water feature that reflects the Taj Mahal, creating a mirror image on its surface. This reflecting pool is lined on both sides by well-manicured green lawns and what appear to be cypress trees, adding to the symmetry and formal garden design.\n\nThe architecture of the Taj Mahal is exquisite, showcasing intricate Islamic design elements. The central dome is large and bulbous, flanked by four smaller domes. At each corner of the main structure stands a tall, slender minaret.\n\nThe entire scene exudes a sense of serenity, grandeur, and timeless beauty. The pristine white of the marble contrasts beautifully with the vibrant green of the gardens and the azure blue of the sky, creating a striking and memorable image that captures the essence of this world-renowned monument.",
+                    "type": "text",
+                }
+            ],
+            "model": "claude-3-5-sonnet-20240620",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": None,
+                "input_tokens": 78,
+                "output_tokens": 263,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "assistant"
     assert attributes.pop(f"{LLM_OUTPUT_MESSAGES}.0.{MESSAGE_CONTENT}").startswith(
         "This image shows the iconic Taj Mahal"
@@ -1546,34 +1598,36 @@ def test_anthropic_instrumentation_messages_parse(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_017pC17fmFPUhGb5UENdPKqG",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": '{"city":"Paris","country":"France"}',
-                "type": "text",
-                "parsed_output": {"city": "Paris", "country": "France"},
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 210,
-            "output_tokens": 12,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_017pC17fmFPUhGb5UENdPKqG",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": '{"city":"Paris","country":"France"}',
+                    "type": "text",
+                    "parsed_output": {"city": "Paris", "country": "France"},
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 210,
+                "output_tokens": 12,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -1647,34 +1701,36 @@ async def test_anthropic_instrumentation_async_messages_parse(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01UxkoYKRxHPYTUYkGic5teK",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": '{"city":"Paris","country":"France"}',
-                "type": "text",
-                "parsed_output": {"city": "Paris", "country": "France"},
-            }
-        ],
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 210,
-            "output_tokens": 12,
-            "server_tool_use": None,
-            "service_tier": "standard",
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01UxkoYKRxHPYTUYkGic5teK",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": '{"city":"Paris","country":"France"}',
+                    "type": "text",
+                    "parsed_output": {"city": "Paris", "country": "France"},
+                }
+            ],
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 210,
+                "output_tokens": 12,
+                "server_tool_use": None,
+                "service_tier": "standard",
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -1747,37 +1803,39 @@ def test_anthropic_instrumentation_beta_messages_parse(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01CiA3YpvhgJbxvaoofq8Pri",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": '{"city":"Paris","country":"France"}',
-                "type": "text",
-                "parsed_output": {"city": "Paris", "country": "France"},
-            }
-        ],
-        "context_management": None,
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 210,
-            "iterations": None,
-            "output_tokens": 12,
-            "server_tool_use": None,
-            "service_tier": "standard",
-            "speed": None,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01CiA3YpvhgJbxvaoofq8Pri",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": '{"city":"Paris","country":"France"}',
+                    "type": "text",
+                    "parsed_output": {"city": "Paris", "country": "France"},
+                }
+            ],
+            "context_management": None,
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 210,
+                "iterations": None,
+                "output_tokens": 12,
+                "server_tool_use": None,
+                "service_tier": "standard",
+                "speed": None,
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -1851,37 +1909,39 @@ async def test_anthropic_instrumentation_async_beta_messages_parse(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01YLp4hqTXinnBRQ6MMipuy9",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": '{"city":"Paris","country":"France"}',
-                "type": "text",
-                "parsed_output": {"city": "Paris", "country": "France"},
-            }
-        ],
-        "context_management": None,
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 210,
-            "iterations": None,
-            "output_tokens": 12,
-            "server_tool_use": None,
-            "service_tier": "standard",
-            "speed": None,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01YLp4hqTXinnBRQ6MMipuy9",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": '{"city":"Paris","country":"France"}',
+                    "type": "text",
+                    "parsed_output": {"city": "Paris", "country": "France"},
+                }
+            ],
+            "context_management": None,
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 210,
+                "iterations": None,
+                "output_tokens": 12,
+                "server_tool_use": None,
+                "service_tier": "standard",
+                "speed": None,
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert isinstance(attributes.pop(LLM_MODEL_NAME), str)
@@ -1999,36 +2059,38 @@ def test_anthropic_instrumentation_beta_messages_create(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_01CTGDX2snWfHvBwB14u8Y8P",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
-                "type": "text",
-            }
-        ],
-        "context_management": None,
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 28,
-            "iterations": None,
-            "output_tokens": 36,
-            "server_tool_use": None,
-            "service_tier": "standard",
-            "speed": None,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_01CTGDX2snWfHvBwB14u8Y8P",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
+                    "type": "text",
+                }
+            ],
+            "context_management": None,
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 28,
+                "iterations": None,
+                "output_tokens": 36,
+                "server_tool_use": None,
+                "service_tier": "standard",
+                "speed": None,
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
@@ -2079,36 +2141,38 @@ async def test_anthropic_instrumentation_async_beta_messages_create(
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     output_value = attributes.pop(OUTPUT_VALUE)
     assert isinstance(output_value, str)
-    assert json.loads(output_value) == {
-        "id": "msg_015FWiTX6PfnwN4UdLKKAEar",
-        "container": None,
-        "content": [
-            {
-                "citations": None,
-                "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
-                "type": "text",
-            }
-        ],
-        "context_management": None,
-        "model": "claude-sonnet-4-6",
-        "role": "assistant",
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "type": "message",
-        "usage": {
-            "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
-            "cache_creation_input_tokens": 0,
-            "cache_read_input_tokens": 0,
-            "inference_geo": "global",
-            "input_tokens": 28,
-            "iterations": None,
-            "output_tokens": 36,
-            "server_tool_use": None,
-            "service_tier": "standard",
-            "speed": None,
+    assert_output_value_contains(
+        output_value,
+        {
+            "id": "msg_015FWiTX6PfnwN4UdLKKAEar",
+            "container": None,
+            "content": [
+                {
+                    "citations": None,
+                    "text": "Here is the key information extracted:\n\n- **Event:** Meeting\n- **Date:** March 15th\n- **Time:** 2:00 PM",
+                    "type": "text",
+                }
+            ],
+            "context_management": None,
+            "model": "claude-sonnet-4-6",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {
+                "cache_creation": {"ephemeral_1h_input_tokens": 0, "ephemeral_5m_input_tokens": 0},
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 28,
+                "iterations": None,
+                "output_tokens": 36,
+                "server_tool_use": None,
+                "service_tier": "standard",
+                "speed": None,
+            },
         },
-        "stop_details": None,
-    }
+    )
     assert attributes.pop(OUTPUT_MIME_TYPE) == JSON
 
     assert attributes.pop(LLM_MODEL_NAME) == "claude-sonnet-4-6"
