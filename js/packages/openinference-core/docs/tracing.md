@@ -315,7 +315,10 @@ class EmbeddingService {
 ## Providing a Custom Tracer
 
 By default, `withSpan` and `@observe` use the global tracer provider. To use a
-specific tracer (e.g., with data masking), pass the `tracer` option:
+specific tracer (e.g., with data masking), pass the `tracer` option. When you
+omit `tracer`, the default tracer is resolved each time the wrapped function is
+invoked, so wrappers created before a global provider change will pick up the
+latest provider:
 
 ```typescript
 import { trace } from "@opentelemetry/api";

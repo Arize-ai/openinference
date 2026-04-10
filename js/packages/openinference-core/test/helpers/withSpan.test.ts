@@ -29,6 +29,7 @@ describe("withSpan", () => {
     // Clean up after each test
     spanExporter.reset();
     tracerProvider.shutdown();
+    trace.disable();
   });
 
   it("should wrap synchronous functions and create spans", () => {
@@ -77,6 +78,59 @@ describe("withSpan", () => {
     expect(span.name).toBe("async-process");
     expect(span.status.code).toBe(1); // OK
     expect(span.attributes["output.value"]).toBe("processed: test");
+  });
+
+  it("should resolve the default tracer when invoked", () => {
+    const wrappedFn = withSpan(() => "dynamic tracer", {
+      name: "dynamic-tracer",
+    });
+    const updatedSpanExporter = new InMemorySpanExporter();
+    const updatedTracerProvider = new NodeTracerProvider({
+      resource: resourceFromAttributes({
+        "service.name": "updated-test-service",
+      }),
+      spanProcessors: [new SimpleSpanProcessor(updatedSpanExporter)],
+    });
+
+    trace.disable();
+    updatedTracerProvider.register();
+
+    expect(wrappedFn()).toBe("dynamic tracer");
+
+    expect(spanExporter.getFinishedSpans()).toHaveLength(0);
+    const spans = updatedSpanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("dynamic-tracer");
+
+    updatedSpanExporter.reset();
+    updatedTracerProvider.shutdown();
+  });
+
+  it("should continue using an explicit tracer after the global provider changes", () => {
+    const wrappedFn = withSpan(() => "explicit tracer", {
+      name: "explicit-tracer",
+      tracer: tracerProvider.getTracer("test"),
+    });
+    const updatedSpanExporter = new InMemorySpanExporter();
+    const updatedTracerProvider = new NodeTracerProvider({
+      resource: resourceFromAttributes({
+        "service.name": "updated-test-service",
+      }),
+      spanProcessors: [new SimpleSpanProcessor(updatedSpanExporter)],
+    });
+
+    trace.disable();
+    updatedTracerProvider.register();
+
+    expect(wrappedFn()).toBe("explicit tracer");
+
+    const spans = spanExporter.getFinishedSpans();
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("explicit-tracer");
+    expect(updatedSpanExporter.getFinishedSpans()).toHaveLength(0);
+
+    updatedSpanExporter.reset();
+    updatedTracerProvider.shutdown();
   });
 
   it("should handle promise rejections and record exceptions", async () => {
@@ -274,6 +328,7 @@ describe("traceChain", () => {
   afterEach(() => {
     spanExporter.reset();
     tracerProvider.shutdown();
+    trace.disable();
   });
 
   it("should create spans with CHAIN kind", () => {
@@ -308,6 +363,7 @@ describe("withAgentSpan", () => {
   afterEach(() => {
     spanExporter.reset();
     tracerProvider.shutdown();
+    trace.disable();
   });
 
   it("should create spans with AGENT kind", () => {
@@ -342,6 +398,7 @@ describe("traceTool", () => {
   afterEach(() => {
     spanExporter.reset();
     tracerProvider.shutdown();
+    trace.disable();
   });
 
   it("should create spans with TOOL kind", () => {

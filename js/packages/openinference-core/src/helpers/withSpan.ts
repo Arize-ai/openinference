@@ -74,7 +74,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
     kind = OpenInferenceSpanKind.CHAIN,
     attributes: baseAttributes,
   } = options || {};
-  const tracer: OITracer = _tracer ? wrapTracer(_tracer) : getTracer();
+  const configuredTracer: OITracer | undefined = _tracer ? wrapTracer(_tracer) : undefined;
   const processInput: InputToAttributesFn = _processInput ?? defaultProcessInput;
   const processOutput: OutputToAttributesFn = _processOutput ?? defaultProcessOutput;
   const spanName = optionsName || fn.name;
@@ -86,6 +86,7 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
   };
   // TODO: infer the name from the target
   const wrappedFn: Fn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
+    const tracer = configuredTracer ?? getTracer();
     return tracer.startActiveSpan(
       spanName,
       {

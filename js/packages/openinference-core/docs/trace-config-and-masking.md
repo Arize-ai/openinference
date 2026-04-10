@@ -29,7 +29,8 @@ When you call `withSpan(fn, options)`:
 - If you pass `options.tracer` as an `OITracer`, it is used directly (with its
   masking config).
 - If you omit `options.tracer`, `getTracer()` creates an `OITracer` from the
-  global tracer provider (no masking).
+  current global tracer provider when the wrapped function is invoked (no
+  masking).
 
 To enable masking, you must explicitly create an `OITracer` with a `traceConfig`:
 
