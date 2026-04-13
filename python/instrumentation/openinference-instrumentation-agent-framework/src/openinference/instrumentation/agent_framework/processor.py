@@ -73,7 +73,8 @@ class AgentFrameworkToOpenInferenceProcessor(SpanProcessor):
 
         try:
             # Get span context information
-            span_id = span.get_span_context().span_id  # type: ignore[no-untyped-call]
+            span_context = span.get_span_context()
+            span_id = span_context.span_id if span_context is not None else 0
 
             # Get OpenInference attributes from the transformation function
             openinference_attributes_iter = get_attributes(
