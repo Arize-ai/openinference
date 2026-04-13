@@ -256,15 +256,15 @@ jobs:
 
             if [ -n "$AUTO_FIX_JOB_ID" ]; then
               LOG_FILE=$(mktemp)
-              for attempt in 1 2 3; do
+              for attempt in 1 2 3 4 5 6; do
                 if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null; then
                   if grep -F -A 5 '"type": "result"' "$LOG_FILE" | grep -F '"subtype": "success"' >/dev/null; then
                     EFFECTIVE_RESULT="success"
                     DETAIL="claude_reported_success_before_timeout"
+                    break
                   fi
-                  break
                 fi
-                sleep 5
+                sleep 10
               done
               rm -f "$LOG_FILE"
             fi
