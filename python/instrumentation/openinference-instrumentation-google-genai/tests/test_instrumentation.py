@@ -1681,7 +1681,9 @@ def test_streaming_tool_call_aggregation(
 
     # Parse and verify the merged arguments
     args = json.loads(tool_call_args)
-    assert args["location"] == "San Francisco", "Location argument missing from aggregated tool call"
+    assert args["location"] == "San Francisco", (
+        "Location argument missing from aggregated tool call"
+    )
     assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
     assert (
         f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"

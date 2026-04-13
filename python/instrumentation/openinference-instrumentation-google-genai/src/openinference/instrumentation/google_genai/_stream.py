@@ -255,9 +255,7 @@ class _ResponseExtractor:
                                     file_data, content_index
                                 ):
                                     yield f"{prefix}.{key}", value
-                            if part.get("text") or part.get("inline_data") or part.get(
-                                "file_data"
-                            ):
+                            if part.get("text") or part.get("inline_data") or part.get("file_data"):
                                 content_index += 1
 
 
