@@ -114,16 +114,22 @@ jobs:
     if: ${{ always() && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      branch_name: ${{ steps.auto-fix.outputs.branch_name }}
     permissions:
+      actions: read
       contents: write
       pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+      - uses: anthropics/claude-code-action@094bd24d575e7b30ac1576024817bf1a97c81262 # v1.0.80
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          additional_permissions: |
+            actions: read
           settings: |
             {
               "permissions": {
@@ -152,19 +158,71 @@ jobs:
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
 
-      - name: Notify Slack of auto-fix PR
-        if: ${{ steps.auto-fix.outputs.branch_name != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH_NAME: ${{ steps.auto-fix.outputs.branch_name }}
+
+  auto-fix-slack:
+    name: Slack auto-fix PR notification
+    needs:
+      - canary
+      - auto-fix
+    if: ${{ always() && needs.canary.result == 'failure' && needs.auto-fix.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    env:
+      AUTO_FIX_RESULT: ${{ needs.auto-fix.result }}
+      BRANCH_NAME: ${{ needs.auto-fix.outputs.branch_name }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Resolve PR URL
+        id: pr
         run: |
-          PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url 2>/dev/null || echo "")
-          if [ -n "$PR_URL" ]; then
-            MSG="Auto-fix PR opened for canary failures: $PR_URL"
-          else
-            MSG="Auto-fix branch created but no PR found: $BRANCH_NAME"
+          PR_URL=""
+
+          if [ -n "$BRANCH_NAME" ]; then
+            PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url 2>/dev/null || true)
           fi
-          echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{type: "mrkdwn", text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+          if [ -z "$PR_URL" ]; then
+            PR_URL=$(
+              gh pr list \
+                --state open \
+                --limit 100 \
+                --json url,author,body \
+                -q ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | .url" \
+                | head -n 1
+            )
+          fi
+
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Build message
+        id: message
+        env:
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          if [ -n "$PR_URL" ]; then
+            if [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
+              MSG="Auto-fix PR opened before the canary fix job timed out: $PR_URL"
+            else
+              MSG="Auto-fix PR opened for canary failures: $PR_URL"
+            fi
+          else
+            MSG="Python canary auto-fix finished with result '$AUTO_FIX_RESULT', but no PR was found for run $RUN_ID: $RUN_URL"
+          fi
+
+          {
+            echo "text<<EOF"
+            echo "$MSG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send message to Slack
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "type": "mrkdwn",
+              "text": ${{ toJSON(steps.message.outputs.text) }}
+            }
