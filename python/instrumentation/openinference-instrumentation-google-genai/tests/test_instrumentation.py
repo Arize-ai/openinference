@@ -1624,14 +1624,7 @@ def test_streaming_tool_call_aggregation(
                     "index": 0,
                     "content": {
                         "role": "model",
-                        "parts": [
-                            {
-                                "function_call": {
-                                    "name": "get_weather",
-                                    "args": {"location": "San Francisco", "unit": "fahrenheit"},
-                                }
-                            }
-                        ],
+                        "parts": [{"function_call": {"name": "get_weather"}}],
                     },
                 }
             ],
@@ -1650,8 +1643,7 @@ def test_streaming_tool_call_aggregation(
                         "parts": [
                             {
                                 "function_call": {
-                                    "name": "get_weather",
-                                    "args": {"location": "New York", "unit": "fahrenheit"},
+                                    "args": {"location": "San Francisco", "unit": "fahrenheit"}
                                 }
                             }
                         ],
@@ -1674,31 +1666,137 @@ def test_streaming_tool_call_aggregation(
     attributes = dict(extractor.get_attributes())
 
     # Verify the aggregated tool call - this is the key test!
-    for i in range(0, 2):
-        tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
-        tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+    tool_call_name_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+    tool_call_args_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.0.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
 
-        # This tests that both name (from chunk1) and args (from chunk2) are present
-        assert attributes.get(tool_call_name_key) == "get_weather", (
-            f"Function name not found. Available keys: {list(attributes.keys())}"
-        )
+    # This tests that both name (from chunk1) and args (from chunk2) are present
+    assert attributes.get(tool_call_name_key) == "get_weather", (
+        f"Function name not found. Available keys: {list(attributes.keys())}"
+    )
 
-        tool_call_args = attributes.get(tool_call_args_key)
-        assert tool_call_args is not None, (
-            f"Function arguments not found. Available keys: {list(attributes.keys())}"
-        )
+    tool_call_args = attributes.get(tool_call_args_key)
+    assert tool_call_args is not None, (
+        f"Function arguments not found. Available keys: {list(attributes.keys())}"
+    )
 
-        # Parse and verify the merged arguments
-        args = json.loads(tool_call_args)
-        assert args["location"] in ["San Francisco", "New York"], (
-            "Location argument missing from aggregated tool call"
-        )
-        assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
+    # Parse and verify the merged arguments
+    args = json.loads(tool_call_args)
+    assert args["location"] == "San Francisco", "Location argument missing from aggregated tool call"
+    assert args["unit"] == "fahrenheit", "Unit argument missing from aggregated tool call"
+    assert (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        not in attributes
+    )
+    assert (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.1.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}"
+        not in attributes
+    )
 
     # Verify token counts from final chunk
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_TOTAL) == 60
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_PROMPT) == 50
     assert attributes.get(SpanAttributes.LLM_TOKEN_COUNT_COMPLETION) == 10
+
+
+def test_streaming_multimodal_content_aggregation() -> None:
+    """Test that streamed text and image parts preserve their original positions."""
+    from openinference.instrumentation.google_genai._stream import (
+        _ResponseAccumulator,
+        _ResponseExtractor,
+    )
+
+    class MockChunk:
+        def __init__(self, data):
+            self.data = data
+
+        def model_dump(self, exclude_unset=True, warnings=False):
+            return self.data
+
+    accumulator = _ResponseAccumulator()
+    accumulator.process_chunk(
+        MockChunk(
+            {
+                "candidates": [
+                    {
+                        "index": 0,
+                        "content": {
+                            "role": "model",
+                            "parts": [
+                                {"text": "caption"},
+                                {"inline_data": {"mime_type": "image/png", "data": b"img1"}},
+                                {"inline_data": {"mime_type": "image/png", "data": b"img2"}},
+                            ],
+                        },
+                    }
+                ],
+                "model_version": "gemini-2.5-flash-image",
+            }
+        )
+    )
+
+    attributes = dict(_ResponseExtractor(accumulator).get_attributes())
+    prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
+
+    assert attributes.get(f"{prefix}.{MessageAttributes.MESSAGE_ROLE}") == "model"
+    assert f"{prefix}.{MessageAttributes.MESSAGE_CONTENT}" not in attributes
+    assert (
+        attributes.get(
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        == "caption"
+    )
+    assert (
+        attributes.get(
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.0.{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        == "text"
+    )
+    for index, encoded in ((1, "aW1nMQ=="), (2, "aW1nMg==")):
+        image_url_key = (
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{index}."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        type_key = (
+            f"{prefix}.{MessageAttributes.MESSAGE_CONTENTS}.{index}."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert attributes.get(image_url_key) == f"data:image/png;base64,{encoded}"
+        assert attributes.get(type_key) == "image"
+
+
+def test_response_attributes_extract_image_from_file_data() -> None:
+    from openinference.instrumentation.google_genai._response_attributes_extractor import (
+        _ResponseAttributesExtractor,
+    )
+
+    file_uri = "https://example.com/cat.jpg"
+    response = types.GenerateContentResponse.model_validate(
+        {
+            "candidates": [
+                {
+                    "content": {
+                        "role": "model",
+                        "parts": [{"file_data": {"mime_type": "image/jpeg", "file_uri": file_uri}}],
+                    }
+                }
+            ],
+            "model_version": "gemini-test",
+        }
+    )
+
+    attributes = dict(_ResponseAttributesExtractor().get_attributes(response, {}))
+    image_url_key = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+    )
+    type_key = (
+        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+        f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+        f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+    )
+    assert attributes.get(image_url_key) == file_uri
+    assert attributes.get(type_key) == "image"
 
 
 @pytest.mark.vcr(

@@ -29,6 +29,7 @@ from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
     _get_attributes_from_content_text,
+    _get_attributes_from_file_data,
     _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _ValueAndType,
@@ -154,9 +155,9 @@ class _ResponseAccumulator:
                         parts=_IndexedAccumulator(
                             lambda: _ValuesAccumulator(
                                 text=_StringAccumulator(),
+                                function_call=_DictReplace(),
                             ),
                         ),
-                        function_calls=[],
                         role=_SimpleStringReplace(),
                     ),
                     finish_reason=_SimpleStringReplace(),
@@ -169,23 +170,6 @@ class _ResponseAccumulator:
     def process_chunk(self, chunk: "GenerateContentResponse") -> None:
         self._is_null = False
         values = chunk.model_dump(exclude_unset=True, warnings=False)
-        # Lift function_call parts out of the indexed parts accumulator into a
-        # flat list on the content dict.  The indexed accumulator merges all
-        # no-index items into slot 0 (for streaming text continuation), so
-        # multiple function-call parts in one chunk would silently overwrite
-        # each other there.  Keeping them in a separate list preserves every call.
-        for candidate in values.get("candidates") or []:
-            content = candidate.get("content") or {}
-            parts = content.get("parts") or []
-            if isinstance(parts, list):
-                fc_calls = [
-                    p["function_call"]
-                    for p in parts
-                    if isinstance(p, dict) and "function_call" in p
-                ]
-                if fc_calls:
-                    content.setdefault("function_calls", []).extend(fc_calls)
-                    content["parts"] = [p for p in parts if "function_call" not in p]
         self._values += values
 
     def _result(self) -> Optional[dict[str, Any]]:
@@ -233,25 +217,10 @@ class _ResponseExtractor:
                             f"{prefix}.{MessageAttributes.MESSAGE_ROLE}",
                             role,
                         )
-                    # Emit function calls from the dedicated list (lifted out of
-                    # parts in process_chunk to avoid indexed-accumulator collisions)
-                    for tool_call_index, function_call in enumerate(
-                        content.get("function_calls") or []
-                    ):
-                        tc = f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
-                        if function_name := function_call.get("name"):
-                            yield (
-                                f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-                                function_name,
-                            )
-                        if function_args := function_call.get("args"):
-                            yield (
-                                f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                                safe_json_dumps(function_args),
-                            )
                     if parts := content.get("parts"):
                         content_index = 0
                         is_single_part = len(parts) == 1
+                        tool_call_index = 0
                         for part in parts:
                             if text := part.get("text"):
                                 for key, value in _get_attributes_from_content_text(
@@ -260,12 +229,35 @@ class _ResponseExtractor:
                                     is_single_part,
                                 ):
                                     yield f"{prefix}.{key}", value
+                            elif function_call := part.get("function_call"):
+                                tc = (
+                                    f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}."
+                                    f"{tool_call_index}"
+                                )
+                                if function_name := function_call.get("name"):
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                        function_name,
+                                    )
+                                if function_args := function_call.get("args"):
+                                    yield (
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                        safe_json_dumps(function_args),
+                                    )
+                                tool_call_index += 1
                             if inline_data := part.get("inline_data"):
                                 for key, value in _get_attributes_from_inline_data(
                                     inline_data, content_index
                                 ):
                                     yield f"{prefix}.{key}", value
-                            if part.get("text") or part.get("inline_data"):
+                            if file_data := part.get("file_data"):
+                                for key, value in _get_attributes_from_file_data(
+                                    file_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                            if part.get("text") or part.get("inline_data") or part.get(
+                                "file_data"
+                            ):
                                 content_index += 1
 
 
@@ -372,9 +364,10 @@ class _IndexedAccumulator:
             return self
         if isinstance(values, Mapping):
             values = [values]
-        for v in values:
+        for index, v in enumerate(values):
             if v and hasattr(v, "get"):
-                self._indexed[v.get("index") or 0] += v
+                item_index = v.get("index")
+                self._indexed[index if item_index is None else item_index] += v
         return self
 
 
