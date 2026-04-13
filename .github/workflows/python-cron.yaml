@@ -186,31 +186,33 @@ jobs:
         id: pr
         run: |
           PR_URL=""
+          PR_STATE=""
+          PR_JSON=""
 
           if [ -n "$BRANCH_NAME" ]; then
-            PR_URL=$(gh pr view "$BRANCH_NAME" --repo "$GH_REPO" --json url -q .url 2>/dev/null || true)
+            PR_JSON=$(gh pr view "$BRANCH_NAME" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
           fi
 
-          if [ -z "$PR_URL" ]; then
-            PR_URL=$(
+          if [ -z "$PR_JSON" ]; then
+            PR_JSON=$(
               gh pr list \
                 --repo "$GH_REPO" \
-                --state open \
+                --state all \
                 --limit 100 \
-                --json url,author,body \
-                --jq ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | .url" \
+                --json url,state,author,body \
+                --jq ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | {url, state}" \
                 | head -n 1
             )
           fi
 
-          if [ -z "$PR_URL" ]; then
+          if [ -z "$PR_JSON" ]; then
             RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
-            PR_URL=$(
+            PR_JSON=$(
               gh pr list \
                 --repo "$GH_REPO" \
-                --state open \
+                --state all \
                 --limit 100 \
-                --json url,author,title,headRefName,updatedAt \
+                --json url,state,author,title,headRefName,updatedAt \
                 --jq "
                   map(
                     select(.author.login == \"app/claude\")
@@ -223,21 +225,30 @@ jobs:
                   )
                   | sort_by(.updatedAt)
                   | reverse
-                  | .[0].url // \"\"
+                  | .[0] // {}
                 " \
                 | head -n 1
             )
           fi
 
+          if [ -n "$PR_JSON" ]; then
+            PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
+            PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
+          fi
+
           echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "state=$PR_STATE" >> "$GITHUB_OUTPUT"
 
       - name: Build message
         id: message
         env:
           PR_URL: ${{ steps.pr.outputs.url }}
+          PR_STATE: ${{ steps.pr.outputs.state }}
         run: |
           if [ -n "$PR_URL" ]; then
-            if [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
+            if [ "$PR_STATE" != "" ] && [ "$PR_STATE" != "OPEN" ]; then
+              MSG="Auto-fix PR was found for canary failures but is currently $PR_STATE: $PR_URL"
+            elif [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
               MSG="Auto-fix PR opened before the canary fix job timed out: $PR_URL"
             else
               MSG="Auto-fix PR opened for canary failures: $PR_URL"
