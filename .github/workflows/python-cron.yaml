@@ -153,7 +153,15 @@ jobs:
           prompt: |
             The Python canary cron has failures.
 
-            Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
+            Run /python-canary-fix to investigate these failures, draft a fix, verify it, and open or update a PR.
+
+            Acceptance criteria:
+            - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
+            - Inspect the failing `*-latest` jobs from this run and identify the concrete root cause for each package you change.
+            - Before opening or updating a PR, run the relevant latest-dependency tox env(s) locally for every package you change, using commands like `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x`.
+            - Also run the matching pinned env(s), using commands like `uvx --with tox-uv tox r -e ruff-mypy-test-<package>`, to verify backward compatibility.
+            - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
+            - Include the exact verification commands and outcomes in the PR body.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
@@ -169,6 +177,7 @@ jobs:
     env:
       AUTO_FIX_RESULT: ${{ needs.auto-fix.result }}
       BRANCH_NAME: ${{ needs.auto-fix.outputs.branch_name }}
+      GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.run_id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -179,16 +188,43 @@ jobs:
           PR_URL=""
 
           if [ -n "$BRANCH_NAME" ]; then
-            PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url 2>/dev/null || true)
+            PR_URL=$(gh pr view "$BRANCH_NAME" --repo "$GH_REPO" --json url -q .url 2>/dev/null || true)
           fi
 
           if [ -z "$PR_URL" ]; then
             PR_URL=$(
               gh pr list \
+                --repo "$GH_REPO" \
                 --state open \
                 --limit 100 \
                 --json url,author,body \
-                -q ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | .url" \
+                --jq ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | .url" \
+                | head -n 1
+            )
+          fi
+
+          if [ -z "$PR_URL" ]; then
+            RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
+            PR_URL=$(
+              gh pr list \
+                --repo "$GH_REPO" \
+                --state open \
+                --limit 100 \
+                --json url,author,title,headRefName,updatedAt \
+                --jq "
+                  map(
+                    select(.author.login == \"app/claude\")
+                    | select(
+                        ((.title // \"\") | ascii_downcase | contains(\"canary\")) or
+                        ((.headRefName // \"\") | contains(\"canary\")) or
+                        ((.headRefName // \"\") | contains(\"latest-deps\"))
+                      )
+                    | select(.updatedAt >= \"$RUN_STARTED_AT\")
+                  )
+                  | sort_by(.updatedAt)
+                  | reverse
+                  | .[0].url // \"\"
+                " \
                 | head -n 1
             )
           fi
