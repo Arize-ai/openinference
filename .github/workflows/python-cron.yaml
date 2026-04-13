@@ -239,22 +239,62 @@ jobs:
           echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
           echo "state=$PR_STATE" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve auto-fix status
+        id: auto_fix_status
+        run: |
+          EFFECTIVE_RESULT="$AUTO_FIX_RESULT"
+          DETAIL=""
+
+          if [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
+            AUTO_FIX_JOB_ID=$(
+              gh run view "$RUN_ID" \
+                --repo "$GH_REPO" \
+                --json jobs \
+                --jq '.jobs[] | select(.name == "Propose fix for failures") | .databaseId' \
+                | head -n 1
+            )
+
+            if [ -n "$AUTO_FIX_JOB_ID" ]; then
+              LOG_FILE=$(mktemp)
+              if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null; then
+                if grep -F -A 5 '"type": "result"' "$LOG_FILE" | grep -F '"subtype": "success"' >/dev/null; then
+                  EFFECTIVE_RESULT="success"
+                  DETAIL="claude_reported_success_before_timeout"
+                fi
+              fi
+              rm -f "$LOG_FILE"
+            fi
+          fi
+
+          echo "result=$EFFECTIVE_RESULT" >> "$GITHUB_OUTPUT"
+          echo "detail=$DETAIL" >> "$GITHUB_OUTPUT"
+
       - name: Build message
         id: message
         env:
           PR_URL: ${{ steps.pr.outputs.url }}
           PR_STATE: ${{ steps.pr.outputs.state }}
+          AUTO_FIX_EFFECTIVE_RESULT: ${{ steps.auto_fix_status.outputs.result }}
+          AUTO_FIX_DETAIL: ${{ steps.auto_fix_status.outputs.detail }}
         run: |
           if [ -n "$PR_URL" ]; then
             if [ "$PR_STATE" != "" ] && [ "$PR_STATE" != "OPEN" ]; then
-              MSG="Auto-fix PR was found for canary failures but is currently $PR_STATE: $PR_URL"
+              if [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
+                MSG="Auto-fix completed and updated a canary PR before the GitHub job timed out; PR is currently $PR_STATE: $PR_URL"
+              else
+                MSG="Auto-fix PR was found for canary failures but is currently $PR_STATE: $PR_URL"
+              fi
+            elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
+              MSG="Auto-fix completed and opened or updated a canary PR before the GitHub job timed out: $PR_URL"
             elif [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
               MSG="Auto-fix PR opened before the canary fix job timed out: $PR_URL"
             else
               MSG="Auto-fix PR opened for canary failures: $PR_URL"
             fi
+          elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
+            MSG="Claude reported success before the GitHub job timed out, but no PR was found for run $RUN_ID: $RUN_URL"
           else
-            MSG="Python canary auto-fix finished with result '$AUTO_FIX_RESULT', but no PR was found for run $RUN_ID: $RUN_URL"
+            MSG="Python canary auto-fix finished with result '$AUTO_FIX_EFFECTIVE_RESULT', but no PR was found for run $RUN_ID: $RUN_URL"
           fi
 
           {
