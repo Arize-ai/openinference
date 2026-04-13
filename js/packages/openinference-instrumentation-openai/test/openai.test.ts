@@ -1651,40 +1651,26 @@ describe("OpenAIInstrumentation with a custom tracer provider", () => {
 
 describe("getProviderFromHost", () => {
   it.each([
-    // OpenAI
     ["api.openai.com", LLMProvider.OPENAI],
-    // Azure OpenAI
     ["openai.azure.com", LLMProvider.AZURE],
-    ["my-resource.openai.azure.com", LLMProvider.AZURE],
-    // Anthropic
+    ["services.ai.azure.com", LLMProvider.AZURE],
+    ["cognitiveservices.azure.com", LLMProvider.AZURE],
     ["api.anthropic.com", LLMProvider.ANTHROPIC],
-    // Cohere (v1 and v2 planes share the root domain)
     ["api.cohere.com", LLMProvider.COHERE],
     ["api.cohere.ai", LLMProvider.COHERE],
-    // Mistral AI
     ["api.mistral.ai", LLMProvider.MISTRALAI],
-    // Google (Gemini via AI Studio and Vertex AI)
     ["generativelanguage.googleapis.com", LLMProvider.GOOGLE],
     ["aiplatform.googleapis.com", LLMProvider.GOOGLE],
-    // AWS Bedrock
     ["bedrock-runtime.amazonaws.com", LLMProvider.AWS],
     ["bedrock-runtime.us-east-1.amazonaws.com", LLMProvider.AWS],
     ["bedrock-runtime.eu-west-1.amazonaws.com", LLMProvider.AWS],
-    // xAI
     ["api.x.ai", LLMProvider.XAI],
-    // DeepSeek
     ["api.deepseek.com", LLMProvider.DEEPSEEK],
-    // Groq
     ["api.groq.com", LLMProvider.GROQ],
-    // Fireworks AI
     ["api.fireworks.ai", LLMProvider.FIREWORKS],
-    // Moonshot AI
     ["api.moonshot.cn", LLMProvider.MOONSHOT],
-    // Cerebras
     ["api.cerebras.ai", LLMProvider.CEREBRAS],
-    // Perplexity
     ["api.perplexity.ai", LLMProvider.PERPLEXITY],
-    // Together AI
     ["api.together.ai", LLMProvider.TOGETHER],
     ["api.together.xyz", LLMProvider.TOGETHER],
   ])("resolves %s to %s", (host, expected) => {

@@ -51,39 +51,28 @@ const MODULE_NAME = "openai";
 
 const INSTRUMENTATION_NAME = "@arizeai/openinference-instrumentation-openai";
 
-// Maps hostname suffixes to their corresponding LLM provider value.
+/**
+ * Maps hostname suffixes to their corresponding LLM provider value.
+ */
 export const HOST_SUFFIX_TO_PROVIDER: Record<string, LLMProvider> = {
-  // OpenAI
   "api.openai.com": LLMProvider.OPENAI,
-  // Azure OpenAI
   "openai.azure.com": LLMProvider.AZURE,
-  // Anthropic
+  "services.ai.azure.com": LLMProvider.AZURE,
+  "cognitiveservices.azure.com": LLMProvider.AZURE,
   "api.anthropic.com": LLMProvider.ANTHROPIC,
-  // Cohere (v1 and v2 planes share the root domain)
   "api.cohere.com": LLMProvider.COHERE,
   "api.cohere.ai": LLMProvider.COHERE,
-  // Mistral AI
   "api.mistral.ai": LLMProvider.MISTRALAI,
-  // Google (Gemini via AI Studio and Vertex AI)
   "generativelanguage.googleapis.com": LLMProvider.GOOGLE,
   "aiplatform.googleapis.com": LLMProvider.GOOGLE,
-  // AWS Bedrock
   "amazonaws.com": LLMProvider.AWS,
-  // xAI
   "api.x.ai": LLMProvider.XAI,
-  // DeepSeek
   "api.deepseek.com": LLMProvider.DEEPSEEK,
-  // Groq
   "api.groq.com": LLMProvider.GROQ,
-  // Fireworks AI
   "api.fireworks.ai": LLMProvider.FIREWORKS,
-  // Moonshot AI
   "api.moonshot.cn": LLMProvider.MOONSHOT,
-  // Cerebras
   "api.cerebras.ai": LLMProvider.CEREBRAS,
-  // Perplexity
   "api.perplexity.ai": LLMProvider.PERPLEXITY,
-  // Together AI
   "api.together.ai": LLMProvider.TOGETHER,
   "api.together.xyz": LLMProvider.TOGETHER,
 };
@@ -134,7 +123,7 @@ function getExecContext(span: Span) {
  * Gets the appropriate LLM provider based on the OpenAI client instance
  * Follows the same logic as the Python implementation by checking the baseURL host
  * @param clientInstance The OpenAI client instance
- * @returns LLMProvider.AZURE for Azure OpenAI, LLMProvider.OPENAI for regular OpenAI
+ * @returns LLM provider based on the API hostname
  */
 function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
   try {
@@ -149,7 +138,6 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
 
     let host: string | undefined;
     let baseURL: string | { host?: string } | undefined;
-    let provider: LLMProvider | undefined;
 
     // First try to get baseURL from the instance itself
     if (instance.baseURL) {
@@ -175,11 +163,9 @@ function getLLMProvider(clientInstance: unknown): LLMProvider | undefined {
     }
 
     if (host && typeof host === "string") {
-      provider = getProviderFromHost(host);
-      return provider;
+      return getProviderFromHost(host);
     }
   } catch (error) {
-    // If we can't determine, default to regular OpenAI
     diag.debug("Failed to determine LLM provider from instance", error);
   }
 }
