@@ -60,11 +60,9 @@ def _assert_serialized_agent_payload(
     verbose: bool,
     max_iter: int,
     tool_names: list[str],
-    cache: bool,
 ) -> None:
     assert isinstance(payload["id"], str) and uuid.UUID(payload["id"])
     assert isinstance(payload["key"], str) and payload["key"]
-    assert payload["cache"] == cache
     assert payload["role"] == role
     assert payload["goal"] == goal
     assert payload["backstory"] == backstory
@@ -145,7 +143,6 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
         verbose=True,
         max_iter=25,
         tool_names=[],
-        cache=True,
     )
 
 
@@ -204,7 +201,6 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         verbose=True,
         max_iter=2,
         tool_names=["scrape_website"],
-        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
@@ -230,7 +226,6 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         verbose=True,
         max_iter=2,
         tool_names=[],
-        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
