@@ -152,6 +152,7 @@ def test_synchronous_chat_completions_emits_expected_span(
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
@@ -312,6 +313,7 @@ def test_synchronous_chat_completions_with_tool_call_response_emits_expected_spa
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     assert choices[0].message.content == ""
 
     assert (tool_calls := choices[0].message.tool_calls)
@@ -468,6 +470,7 @@ def test_synchronous_chat_completions_with_tool_call_message_emits_expected_span
         response = mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     assert choices[0].message.content == "The weather in San Francisco is currently sunny."
 
     spans = in_memory_span_exporter.get_finished_spans()
@@ -713,6 +716,7 @@ async def test_asynchronous_chat_completions_emits_expected_span(
         response = await mistral_chat()
     choices: Optional[List[ChatCompletionChoice]] = response.choices
     assert choices is not None and len(choices) == 1
+    assert choices[0].message is not None
     response_content = choices[0].message.content
     assert isinstance(response_content, str)
     assert "France" in response_content
