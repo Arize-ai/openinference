@@ -23,6 +23,7 @@ dependencies {
     api "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api-incubator:${openTelemetryInstrumentationAlphaVersion}"
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation "io.opentelemetry:opentelemetry-sdk-testing"
 }
 
 test {

@@ -20,12 +20,21 @@ const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
  * automatically handling span lifecycle, input/output processing, error tracking, and promise
  * resolution.
  *
+ * Agent-facing behavior to rely on:
+ * - Preserves the call-time `this` value, so wrapped methods still work when invoked as methods
+ *   or via `.call()` / `.apply()`
+ * - Records both synchronous throws and rejected promises on the span, marks the span as ERROR,
+ *   ends the span, and re-throws the original error
+ * - Resolves the default tracer when the wrapped function is invoked, so wrappers created before
+ *   a global tracer provider change pick up the latest provider unless `options.tracer` was set
+ *
  * @experimental This API is experimental and may change in future versions
  *
  * @template Fn - The function type being wrapped, preserving original signature
  * @param fn - The function to wrap with tracing capabilities
  * @param options - Configuration options for tracing behavior
- * @param options.tracer - Custom OpenTelemetry tracer instance (defaults to global tracer)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.kind - OpenInference span kind for semantic categorization (defaults to CHAIN)
@@ -49,7 +58,7 @@ const { OPENINFERENCE_SPAN_KIND } = SemanticConventions;
  * };
  * const tracedFetch = withSpan(fetchData, {
  *   name: "api-request",
- *   kind: OpenInferenceSpanKind.LLM
+ *   kind: "LLM"
  * });
  *
  * // Custom input/output processing with base attributes
@@ -74,12 +83,19 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
     kind = OpenInferenceSpanKind.CHAIN,
     attributes: baseAttributes,
   } = options || {};
-  const tracer: OITracer = _tracer ? wrapTracer(_tracer) : getTracer();
+  const configuredTracer: OITracer | undefined = _tracer ? wrapTracer(_tracer) : undefined;
   const processInput: InputToAttributesFn = _processInput ?? defaultProcessInput;
   const processOutput: OutputToAttributesFn = _processOutput ?? defaultProcessOutput;
   const spanName = optionsName || fn.name;
+  const getErrorMessage = (error: unknown) => {
+    if (typeof error === "object" && error !== null && "message" in error) {
+      return String(error.message);
+    }
+    return String(error);
+  };
   // TODO: infer the name from the target
-  const wrappedFn: Fn = function (...args: Parameters<Fn>) {
+  const wrappedFn: Fn = function (this: ThisParameterType<Fn>, ...args: Parameters<Fn>) {
+    const tracer = configuredTracer ?? getTracer();
     return tracer.startActiveSpan(
       spanName,
       {
@@ -91,29 +107,35 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
         },
       },
       (span) => {
-        const result = fn(...args);
-        if (isPromise(result)) {
-          // Execute the promise and return the promise chain
-          return result
-            .then((value) => {
-              span.setAttributes({
-                ...processOutput(value),
-              });
-              span.setStatus({
-                code: SpanStatusCode.OK,
-              });
-              return value;
-            })
-            .catch((e) => {
-              span.recordException(e);
-              span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: String(e?.message ?? e),
-              });
-              throw e;
-            })
-            .finally(() => span.end());
-        } else {
+        const recordError = (error: unknown) => {
+          span.recordException(error as Error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: getErrorMessage(error),
+          });
+        };
+
+        try {
+          const result = fn.apply(this, args) as ReturnType<Fn>;
+          if (isPromise(result)) {
+            // Execute the promise and return the promise chain
+            return result
+              .then((value: Awaited<ReturnType<Fn>>) => {
+                span.setAttributes({
+                  ...processOutput(value),
+                });
+                span.setStatus({
+                  code: SpanStatusCode.OK,
+                });
+                return value;
+              })
+              .catch((error: unknown) => {
+                recordError(error);
+                throw error;
+              })
+              .finally(() => span.end());
+          }
+
           // It is a normal function
           span.setAttributes({
             ...processOutput(result),
@@ -123,6 +145,10 @@ export function withSpan<Fn extends AnyFn = AnyFn>(fn: Fn, options?: SpanTraceOp
           });
           span.end();
           return result;
+        } catch (error) {
+          recordError(error);
+          span.end();
+          throw error;
         }
       },
     );

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.13...python-openinference-instrumentation-google-genai-v0.1.14) (2026-03-24)
+
+
+### Features
+
+* **google_genai:** Enable Tracing Support For Embedding Operations ([#2871](https://github.com/Arize-ai/openinference/issues/2871)) ([02b39e5](https://github.com/Arize-ai/openinference/commit/02b39e5639680cf9348b6f5528863918d4b84d99))
+
+
+### Bug Fixes
+
+* **google_genai:** Normalize System Instruction ([#2852](https://github.com/Arize-ai/openinference/issues/2852)) ([92d120f](https://github.com/Arize-ai/openinference/commit/92d120fc52d3f48970a9c2c3be62033761573fa0))
+
 ## [0.1.13](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.12...python-openinference-instrumentation-google-genai-v0.1.13) (2026-03-11)
 
 

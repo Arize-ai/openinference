@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.1...python-openinference-instrumentation-crewai-v1.1.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **crewai:** serialize agent task input as structured JSON ([#2916](https://github.com/Arize-ai/openinference/issues/2916)) ([e6ed1f6](https://github.com/Arize-ai/openinference/commit/e6ed1f63b8062e590a1cd51f17ba26bab9e22a72))
+
+## [1.1.1](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.0...python-openinference-instrumentation-crewai-v1.1.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **crewAI:** sanitize event message ([#2946](https://github.com/Arize-ai/openinference/issues/2946)) ([b05ec92](https://github.com/Arize-ai/openinference/commit/b05ec926e037c026769d2a543e205b40033c9847))
+
+## [1.1.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.0.0...python-openinference-instrumentation-crewai-v1.1.0) (2026-03-23)
+
+
+### Features
+
+* **crewai:** instrument event-listener ([#2895](https://github.com/Arize-ai/openinference/issues/2895)) ([7e03708](https://github.com/Arize-ai/openinference/commit/7e037086a2688b2e453a27785835b0d5175de302))
+
 ## [1.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v0.1.22...python-openinference-instrumentation-crewai-v1.0.0) (2026-03-06)
 
 

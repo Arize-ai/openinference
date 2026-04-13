@@ -1,12 +1,12 @@
 import json
 import re
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from threading import Thread
 from time import sleep, time
-from typing import Iterator
+from typing import AsyncIterator, Iterator
 
 from langsmith.schemas import LangSmithInfo
 from starlette.applications import Starlette
@@ -55,7 +55,13 @@ class _Receiver(Server):
     def __init__(self, port: int) -> None:
         self._buf = StringIO()
         route = Route("/{path:path}", self._capture, methods=["POST", "PATCH", "GET"])
-        app = Starlette(routes=[route], on_shutdown=[self._shutdown])
+
+        @asynccontextmanager
+        async def lifespan(app: Starlette) -> AsyncIterator[None]:
+            yield
+            await self._shutdown()
+
+        app = Starlette(routes=[route], lifespan=lifespan)
         config = Config(app=app, port=port)
         super().__init__(config=config)
 

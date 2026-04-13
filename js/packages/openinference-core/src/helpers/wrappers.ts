@@ -15,7 +15,8 @@ import { withSpan } from "./withSpan";
  * @template Fn - The function type being wrapped, preserving original signature
  * @param fn - The function to wrap with CHAIN span tracing
  * @param options - Configuration options for tracing behavior (excluding kind)
- * @param options.tracer - Custom OpenTelemetry tracer instance (defaults to global tracer)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.processInput - Custom function to process input arguments into attributes
@@ -61,7 +62,8 @@ export function traceChain<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOpt
  * @template Fn - The function type being wrapped, preserving original signature
  * @param fn - The function to wrap with AGENT span tracing
  * @param options - Configuration options for tracing behavior (excluding kind)
- * @param options.tracer - Custom OpenTelemetry tracer instance (defaults to global tracer)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.processInput - Custom function to process input arguments into attributes
@@ -106,7 +108,8 @@ export function traceAgent<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOpt
  * @template Fn - The function type being wrapped, preserving original signature
  * @param fn - The function to wrap with TOOL span tracing
  * @param options - Configuration options for tracing behavior (excluding kind)
- * @param options.tracer - Custom OpenTelemetry tracer instance (defaults to global tracer)
+ * @param options.tracer - Custom OpenTelemetry tracer instance (otherwise the current global tracer
+ * provider is resolved when the wrapper is invoked)
  * @param options.name - Custom span name (defaults to function name)
  * @param options.openTelemetrySpanKind - OpenTelemetry span kind (defaults to INTERNAL)
  * @param options.processInput - Custom function to process input arguments into attributes
@@ -128,7 +131,7 @@ export function traceAgent<Fn extends AnyFn>(fn: Fn, options?: Omit<SpanTraceOpt
  * const calculate = (expression: string) => {
  *   return eval(expression); // Note: eval is dangerous, use proper parser
  * };
- * const tracedCalculator = withToolSpan(calculate, { name: "calculator" });
+ * const tracedCalculator = traceTool(calculate, { name: "calculator" });
  *
  * // Trace a database query tool
  * const queryDatabase = async (query: string, params: any[]) => {

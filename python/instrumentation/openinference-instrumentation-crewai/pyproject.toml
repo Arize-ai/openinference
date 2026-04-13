@@ -63,6 +63,9 @@ asyncio_mode = "auto"
 testpaths = [
   "tests",
 ]
+markers = [
+  "no_autoinstrument: disable the default wrapper instrumentor fixture for event-listener tests",
+]
 
 [tool.mypy]
 strict = true

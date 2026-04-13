@@ -23,3 +23,5 @@ export {
 } from "./constants";
 export { OITracer } from "./OITracer";
 export { type OISpan } from "./OISpan";
+export type { TraceConfig } from "./types";
+export { generateTraceConfig } from "./traceConfig";

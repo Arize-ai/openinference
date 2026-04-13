@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.33...python-openinference-instrumentation-bedrock-v0.1.34) (2026-04-10)
+
+
+### Features
+
+* **bedrock:** bedrock-runtime apply_guardrail instrumentation ([#2949](https://github.com/Arize-ai/openinference/issues/2949)) ([ae6f78e](https://github.com/Arize-ai/openinference/commit/ae6f78e1dac8619e4c4e1c0b40a7e6307cd9e516))
+
 ## [0.1.33](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-bedrock-v0.1.32...python-openinference-instrumentation-bedrock-v0.1.33) (2026-02-24)
 
 

@@ -77,10 +77,10 @@ def openai_api_key() -> str:
 @pytest.fixture
 def openai_client(openai_api_key: str) -> OpenAIChatClient:
     """Create OpenAI chat client with default model."""
-    return OpenAIChatClient(model_id="gpt-4o-mini", api_key=openai_api_key)
+    return OpenAIChatClient(model="gpt-4o-mini", api_key=openai_api_key)
 
 
 @pytest.fixture
 def gpt4_client(openai_api_key: str) -> OpenAIChatClient:
     """Create OpenAI chat client with GPT-4o model."""
-    return OpenAIChatClient(model_id="gpt-4o", api_key=openai_api_key)
+    return OpenAIChatClient(model="gpt-4o", api_key=openai_api_key)

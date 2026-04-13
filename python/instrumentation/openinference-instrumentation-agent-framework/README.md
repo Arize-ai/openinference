@@ -2,7 +2,7 @@
 
 OpenInference span processor for Microsoft Agent Framework that transforms native OpenTelemetry spans to OpenInference format for compatibility with OpenInference-compliant backends like [Arize Phoenix](https://github.com/Arize-ai/phoenix).
 
-**Tested with agent-framework `1.0.0b260130` (January 30, 2026)**
+**Tested with agent-framework `1.0.0`**
 
 ## Installation
 
@@ -19,7 +19,7 @@ pip install openinference-instrumentation-agent-framework[instruments]
 
 Microsoft Agent Framework emits telemetry using GenAI semantic conventions (`gen_ai.*` attributes). This package provides a `SpanProcessor` that transforms these spans to OpenInference format, enabling compatibility with observability tools that support the OpenInference standard.
 
-**Note:** Agent Framework is in beta and its API may change between versions. This instrumentation tracks the latest stable release.
+**Note:** This instrumentation targets Agent Framework's stable `1.0.0+` API surface and tracks later stable releases in CI.
 
 ## Usage
 
@@ -56,7 +56,7 @@ enable_instrumentation(enable_sensitive_data=True)
 # Use framework normally - spans will be transformed automatically
 from agent_framework.openai import OpenAIChatClient
 
-client = OpenAIChatClient(model_id="gpt-4o-mini", api_key="your-key")
+client = OpenAIChatClient(model="gpt-4o-mini", api_key="your-key")
 agent = client.as_agent(name="Assistant", instructions="You are helpful.")
 response = await agent.run("Hello!")
 ```
@@ -149,19 +149,21 @@ processor = AgentFrameworkToOpenInferenceProcessor(debug=True)
 - opentelemetry-api >= 1.39.0
 - opentelemetry-sdk >= 1.39.0
 - openinference-semantic-conventions >= 0.1.25
-- agent-framework >= 1.0.0b260130 (optional, install with `[instruments]` extra)
+- agent-framework >= 1.0.0 (optional, install with `[instruments]` extra)
 
 ## Important Notes
 
 ### Agent Framework API Stability
 
-Microsoft Agent Framework is in active beta development. API changes between versions are possible:
-- This instrumentation is tested against `agent-framework==1.0.0b260130`
+Microsoft Agent Framework's stable OpenAI client changed meaningfully at `1.0.0`:
+- This instrumentation is tested against `agent-framework==1.0.0`
 - The `-latest` test variant tracks breaking changes in new releases
-- If you encounter API compatibility issues, pin to the tested version:
+- If you encounter API compatibility issues, pin to the tested stable version:
   ```bash
-  pip install agent-framework==1.0.0b260130
+  pip install agent-framework==1.0.0
   ```
+
+If you have existing VCR cassettes from the `1.0.0rc1` line, re-record them after upgrading. The stable `OpenAIChatClient` uses the OpenAI Responses API rather than the older Chat Completions path.
 
 ### Sensitive Data
 

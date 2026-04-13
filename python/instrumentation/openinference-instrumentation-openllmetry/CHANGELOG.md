@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.5...python-openinference-instrumentation-openllmetry-v0.1.6) (2026-04-03)
+
+
+### Bug Fixes
+
+* **openllmetry:** support new gen_ai.input/output.messages format (v0.55.0+) ([#2931](https://github.com/Arize-ai/openinference/issues/2931)) ([8434f31](https://github.com/Arize-ai/openinference/commit/8434f319eaa3a64e2efd4b69b81d1d67a72513cb))
+
 ## [0.1.5](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-openllmetry-v0.1.4...python-openinference-instrumentation-openllmetry-v0.1.5) (2026-02-24)
 
 
