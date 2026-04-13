@@ -244,6 +244,7 @@ jobs:
         run: |
           EFFECTIVE_RESULT="$AUTO_FIX_RESULT"
           DETAIL=""
+          RESULT_SUBTYPE=""
 
           if [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
             AUTO_FIX_JOB_ID=$(
@@ -258,9 +259,18 @@ jobs:
               LOG_FILE=$(mktemp)
               for attempt in 1 2 3 4 5 6; do
                 if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null; then
-                  if grep -F -A 5 '"type": "result"' "$LOG_FILE" | grep -F '"subtype": "success"' >/dev/null; then
-                    EFFECTIVE_RESULT="success"
-                    DETAIL="claude_reported_success_before_timeout"
+                  RESULT_SUBTYPE=$(
+                    grep -F -A 5 '"type": "result"' "$LOG_FILE" \
+                      | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
+                      | head -n 1
+                  )
+                  if [ -n "$RESULT_SUBTYPE" ]; then
+                    EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                    if [ "$RESULT_SUBTYPE" = "success" ]; then
+                      DETAIL="claude_reported_success_before_timeout"
+                    else
+                      DETAIL="claude_reported_final_result_before_timeout"
+                    fi
                     break
                   fi
                 fi
@@ -268,10 +278,15 @@ jobs:
               done
               rm -f "$LOG_FILE"
             fi
+
+            if [ -z "$DETAIL" ]; then
+              DETAIL="claude_did_not_reach_final_result_before_timeout"
+            fi
           fi
 
           echo "result=$EFFECTIVE_RESULT" >> "$GITHUB_OUTPUT"
           echo "detail=$DETAIL" >> "$GITHUB_OUTPUT"
+          echo "result_subtype=$RESULT_SUBTYPE" >> "$GITHUB_OUTPUT"
 
       - name: Build message
         id: message
@@ -280,16 +295,25 @@ jobs:
           PR_STATE: ${{ steps.pr.outputs.state }}
           AUTO_FIX_EFFECTIVE_RESULT: ${{ steps.auto_fix_status.outputs.result }}
           AUTO_FIX_DETAIL: ${{ steps.auto_fix_status.outputs.detail }}
+          AUTO_FIX_RESULT_SUBTYPE: ${{ steps.auto_fix_status.outputs.result_subtype }}
         run: |
           if [ -n "$PR_URL" ]; then
             if [ "$PR_STATE" != "" ] && [ "$PR_STATE" != "OPEN" ]; then
               if [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
                 MSG="Auto-fix completed and updated a canary PR before the GitHub job timed out; PR is currently $PR_STATE: $PR_URL"
+              elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
+                MSG="Auto-fix reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out; PR is currently $PR_STATE: $PR_URL"
+              elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
+                MSG="Auto-fix timed out before Claude produced a final result; PR is currently $PR_STATE: $PR_URL"
               else
                 MSG="Auto-fix PR was found for canary failures but is currently $PR_STATE: $PR_URL"
               fi
             elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
               MSG="Auto-fix completed and opened or updated a canary PR before the GitHub job timed out: $PR_URL"
+            elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
+              MSG="Auto-fix reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out and opened or updated a canary PR: $PR_URL"
+            elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
+              MSG="Auto-fix timed out before Claude produced a final result, but a canary PR was found: $PR_URL"
             elif [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
               MSG="Auto-fix PR opened before the canary fix job timed out: $PR_URL"
             else
@@ -297,6 +321,10 @@ jobs:
             fi
           elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
             MSG="Claude reported success before the GitHub job timed out, but no PR was found for run $RUN_ID: $RUN_URL"
+          elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
+            MSG="Claude reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out, but no PR was found for run $RUN_ID: $RUN_URL"
+          elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
+            MSG="Auto-fix timed out before Claude produced a final result, and no PR was found for run $RUN_ID: $RUN_URL"
           else
             MSG="Python canary auto-fix finished with result '$AUTO_FIX_EFFECTIVE_RESULT', but no PR was found for run $RUN_ID: $RUN_URL"
           fi
