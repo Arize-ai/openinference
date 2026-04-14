@@ -160,6 +160,10 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          version: 0.11.2
+          enable-cache: false
       - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         id: auto-fix
         with:
@@ -196,6 +200,7 @@ jobs:
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
             - Inspect the failing `*-latest` jobs from this run and identify the concrete root cause for each package you change.
+            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The failing canary jobs are already complete by the time this job starts.
             - Before opening or updating a PR, run the relevant latest-dependency tox env(s) locally for every package you change, using commands like `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x`.
             - Also run the matching pinned env(s), using commands like `uvx --with tox-uv tox r -e ruff-mypy-test-<package>`, to verify backward compatibility.
             - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
@@ -261,19 +266,20 @@ jobs:
         package: ${{ fromJSON(needs.collect-failing-packages.outputs.packages) }}
     permissions:
       actions: read
-      contents: write
-      pull-requests: write
-      id-token: write
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          version: 0.11.2
+          enable-cache: false
       - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           show_full_output: ${{ inputs.show_full_output }}
-          branch_prefix: cc/${{ matrix.package.package }}/
-          branch_name_template: "{{prefix}}{{timestamp}}"
           additional_permissions: |
             actions: read
           settings: |
@@ -309,13 +315,12 @@ jobs:
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
             - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
+            - This is manual debug mode. Do not create commits, push branches, or open/update pull requests.
+            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
             - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a shell command before you finish. Do not open or update a PR in that case.
-            - If you create or update a PR, it must be for this package only.
-            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
             - Also run the matching pinned env, `uvx --with tox-uv tox r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
-            - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
-            - Include the exact verification commands and outcomes in the PR body.
-            - If you update an existing PR, only update one that clearly targets this package's canary fix.
+            - If local tox verification is blocked, say exactly which command was blocked and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
@@ -347,9 +352,7 @@ jobs:
       - name: Build package summary
         id: summary
         run: |
-          RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
           JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
-          PRS_JSON=$(gh pr list --repo "$GH_REPO" --state all --limit 200 --json url,state,author,headRefName,updatedAt)
           SUMMARY_FILE=$(mktemp)
 
           {
@@ -402,30 +405,12 @@ jobs:
               fi
             fi
 
-            PR_JSON=$(
-              printf '%s' "$PRS_JSON" \
-                | jq -c --arg prefix "cc/$PACKAGE/" --arg run_started_at "$RUN_STARTED_AT" '
-                    map(select(.author.login == "app/claude"))
-                    | map(select((.headRefName // "") | startswith($prefix)))
-                    | map(select(.updatedAt >= $run_started_at))
-                    | sort_by(.updatedAt)
-                    | reverse
-                    | .[0] // {}
-                  '
-            )
-            PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
-            PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
-
             STATUS_TEXT="$EFFECTIVE_RESULT"
             if [ -n "$DETAIL" ] && [ "$DETAIL" != "$EFFECTIVE_RESULT" ]; then
               STATUS_TEXT="$STATUS_TEXT ($DETAIL)"
             fi
 
-            if [ -n "$PR_URL" ]; then
-              PR_TEXT="PR $PR_STATE $PR_URL"
-            else
-              PR_TEXT="no PR"
-            fi
+            PR_TEXT="PR disabled in manual debug mode"
 
             printf '%s\n' "- $PACKAGE: $STATUS_TEXT; envs: $ENVS; $PR_TEXT" >> "$SUMMARY_FILE"
             rm -f "$LOG_FILE"
@@ -471,9 +456,54 @@ jobs:
           PR_URL=""
           PR_STATE=""
           PR_JSON=""
+          BRANCH_CANDIDATE="$BRANCH_NAME"
+          AUTO_FIX_JOB_ID=$(
+            gh run view "$RUN_ID" \
+              --repo "$GH_REPO" \
+              --json jobs \
+              --jq '.jobs[] | select(.name == "Propose fix for failures") | .databaseId' \
+              | head -n 1
+          )
+          LOG_FILE=""
 
-          if [ -n "$BRANCH_NAME" ]; then
-            PR_JSON=$(gh pr view "$BRANCH_NAME" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
+          if [ -n "$AUTO_FIX_JOB_ID" ]; then
+            LOG_FILE=$(mktemp)
+            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
+          fi
+
+          if [ -n "$BRANCH_CANDIDATE" ]; then
+            PR_JSON=$(gh pr view "$BRANCH_CANDIDATE" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
+          fi
+
+          if [ -z "$PR_JSON" ] && [ -n "$LOG_FILE" ] && [ -s "$LOG_FILE" ]; then
+            PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+            if [ -n "$PR_URL" ]; then
+              PR_JSON=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
+            fi
+          fi
+
+          if [ -z "$PR_JSON" ] && [ -z "$BRANCH_CANDIDATE" ] && [ -n "$LOG_FILE" ] && [ -s "$LOG_FILE" ]; then
+            BRANCH_CANDIDATE=$(
+              {
+                sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
+                sed -n "s/.*branch '\([^']*\)' set up to track.*/\1/p" "$LOG_FILE"
+                sed -n 's/.*-> \(fix\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                sed -n 's/.*-> \(cc\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                sed -n 's/.*-> \(claude\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+              } | tail -n 1
+            )
+
+            if [ -n "$BRANCH_CANDIDATE" ]; then
+              PR_JSON=$(
+                gh pr list \
+                  --repo "$GH_REPO" \
+                  --head "$BRANCH_CANDIDATE" \
+                  --state all \
+                  --json url,state \
+                  --jq '.[0] // empty' \
+                  | head -n 1
+              )
+            fi
           fi
 
           if [ -z "$PR_JSON" ]; then
@@ -483,7 +513,7 @@ jobs:
                 --state all \
                 --limit 100 \
                 --json url,state,author,body \
-                --jq ".[] | select(.author.login == \"app/claude\" and ((.body // \"\") | contains(\"$RUN_ID\"))) | {url, state}" \
+                --jq ".[] | select((.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\") and ((.body // \"\") | contains(\"$RUN_ID\"))) | {url, state}" \
                 | head -n 1
             )
           fi
@@ -498,11 +528,12 @@ jobs:
                 --json url,state,author,title,headRefName,updatedAt \
                 --jq "
                   map(
-                    select(.author.login == \"app/claude\")
+                    select(.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\")
                     | select(
                         ((.title // \"\") | ascii_downcase | contains(\"canary\")) or
                         ((.headRefName // \"\") | contains(\"canary\")) or
-                        ((.headRefName // \"\") | contains(\"latest-deps\"))
+                        ((.headRefName // \"\") | contains(\"latest-deps\")) or
+                        ((.headRefName // \"\") | startswith(\"fix/\"))
                       )
                     | select(.updatedAt >= \"$RUN_STARTED_AT\")
                   )
@@ -518,6 +549,8 @@ jobs:
             PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
             PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
           fi
+
+          rm -f "$LOG_FILE"
 
           echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
           echo "state=$PR_STATE" >> "$GITHUB_OUTPUT"
