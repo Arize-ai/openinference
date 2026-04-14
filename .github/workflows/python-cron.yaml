@@ -5,8 +5,16 @@ on:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
     inputs:
+      run_mode:
+        description: Manual run mode
+        required: false
+        default: debug
+        type: choice
+        options:
+          - debug
+          - production_dry_run
       testenv_filter:
-        description: Regex to limit *-latest tox envs for manual debug runs
+        description: Regex to limit *-latest tox envs for manual runs
         required: false
         default: ""
         type: string
@@ -38,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && github.event.repository.default_branch || github.ref }}
           sparse-checkout: python
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
@@ -73,6 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && github.event.repository.default_branch || github.ref }}
           sparse-checkout: python
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
@@ -197,7 +207,7 @@ jobs:
     needs:
       - canary
       - collect-failing-packages
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_mode != 'production_dry_run' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(inputs.auto_fix_timeout_minutes) }}
     strategy:
@@ -417,9 +427,11 @@ jobs:
     needs:
       - canary
       - collect-failing-packages
-    if: ${{ always() && github.event_name != 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.run_mode == 'production_dry_run') && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      PRODUCTION_CHECKOUT_ROOT: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && format('{0}/.production-checkout', github.workspace) || github.workspace }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -432,6 +444,14 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' }}
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .production-checkout
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
           version: 0.11.2
@@ -549,7 +569,8 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          show_full_output: false
+          show_full_output: ${{ github.event_name == 'workflow_dispatch' && inputs.show_full_output || false }}
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && inputs.claude_args || '' }}
           additional_permissions: |
             actions: read
           settings: |
@@ -580,30 +601,31 @@ jobs:
             Package scope:
             - Package token: `${{ matrix.package.package }}`
             - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
+            - Production checkout root: `${{ env.PRODUCTION_CHECKOUT_ROOT }}`
             - Marker directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers`
             - Shared-root-cause status file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/status.txt`
             - PR URL file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/pr-url.txt`
             - Branch file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/branch.txt`
             - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
             - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
-            - Python tox config path: `${{ github.workspace }}/python/tox.ini`
+            - Python tox config path: `${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini`
 
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
             - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
-            - This is scheduled production auto-fix mode. Continue until you reach one of these terminal outcomes for this package: a verified PR is opened or updated, `shared_root_cause` is written to the status file, or `blocked_command` is written to the status file.
+            - This is production auto-fix mode. Continue until you reach one of these terminal outcomes for this package: a verified PR is opened or updated, `shared_root_cause` is written to the status file, or `blocked_command` is written to the status file. If this run was started with `workflow_dispatch`, public Slack is disabled for this run, but you should otherwise behave like the scheduled production path.
             - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
             - Start with the staged failing logs under the staged failing logs directory above. If those logs are empty or a `*.lookup-error.txt` file is present, treat the staged data as incomplete and then query `gh run view` again.
-            - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
+            - Use `${{ env.PRODUCTION_CHECKOUT_ROOT }}` for all code edits, git commands, tox runs, commits, pushes, and PR creation. Only write outside that checkout when updating the marker files above. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
             - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
-            - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Run tox with the explicit config path rooted at the production checkout, for example `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
             - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly.
             - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
             - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with the `Write` tool or a single repo-local shell command. Do not open or update a PR in that case.
-            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
-            - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
             - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
-            - Open or update at most one PR for this package and include the current run ID ${{ github.run_id }}, plus the exact verification commands and outcomes, in the PR body.
+            - Open or update at most one PR for this package from `${{ env.PRODUCTION_CHECKOUT_ROOT }}` and include the current run ID ${{ github.run_id }}, plus the exact verification commands and outcomes, in the PR body.
             - When you open or update a PR, write the canonical PR URL to the PR URL file above and the head branch name to the branch file above with the `Write` tool or single repo-local shell commands before you finish.
             - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
             - If local tox verification is blocked, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
@@ -643,7 +665,7 @@ jobs:
       - canary
       - collect-failing-packages
       - auto-fix-package-debug
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_mode != 'production_dry_run' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
@@ -755,7 +777,7 @@ jobs:
       - canary
       - collect-failing-packages
       - auto-fix-package
-    if: ${{ github.event_name != 'workflow_dispatch' && always() && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.run_mode == 'production_dry_run') && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
