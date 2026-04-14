@@ -44,7 +44,7 @@ public class SemanticConventions {
         public static final String TOOLS = "tools";
         public static final String COST = "cost";
         public static final String CHOICES = "choices";
-        public static final String FINISH_REASONS = "finish_reasons";
+        public static final String FINISH_REASON = "finish_reason";
     }
 
     @UtilityClass
@@ -271,12 +271,10 @@ public class SemanticConventions {
             SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.TOKEN_COUNT + ".total";
 
     /**
-     * Array of reasons the model stopped generating tokens, corresponding to each
-     * generation received. Maps to the OpenTelemetry GenAI
-     * {@code gen_ai.response.finish_reasons} attribute, e.g. {@code ["stop"]} or {@code ["stop", "length"]}.
+     * The reason the model stopped generating tokens, e.g. {@code "stop"} or {@code "length"}.
      */
-    public static final String LLM_FINISH_REASONS =
-            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FINISH_REASONS;
+    public static final String LLM_FINISH_REASON =
+            SemanticAttributePrefixes.LLM + "." + LLMAttributePostfixes.FINISH_REASON;
 
     /**
      * Key prefix for additional prompt token count details. Each detail should be a separate attribute
