@@ -284,6 +284,7 @@ jobs:
             - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
             - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
             - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
+            - Python tox config path: `${{ github.workspace }}/python/tox.ini`
 
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
@@ -293,23 +294,37 @@ jobs:
             - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
             - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
             - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly.
             - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
             - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a shell command before you finish. Do not open or update a PR in that case.
-            - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
-            - Also run the matching pinned env, `uvx --with tox-uv tox r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
             - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
             - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-      - name: Record package status
+      - name: Record package markers
         if: ${{ always() }}
         run: |
           STATUS_FILE="${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}"
+          PR_URL_FILE="${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}"
+          BRANCH_FILE="${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}"
           if [ -f "$STATUS_FILE" ]; then
             printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
           else
             printf 'PACKAGE_STATUS none\n'
+          fi
+          if [ -f "$PR_URL_FILE" ]; then
+            printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          else
+            printf 'PACKAGE_PR_URL none\n'
+          fi
+          if [ -f "$BRANCH_FILE" ]; then
+            printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+          else
+            printf 'PACKAGE_BRANCH none\n'
           fi
 
   auto-fix-package:
@@ -408,8 +423,11 @@ jobs:
             - Package token: `${{ matrix.package.package }}`
             - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
             - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
+            - PR URL file: `${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}`
+            - Branch file: `${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}`
             - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
             - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
+            - Python tox config path: `${{ github.workspace }}/python/tox.ini`
 
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
@@ -419,25 +437,40 @@ jobs:
             - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
             - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
             - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly.
             - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
             - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a single shell command. Do not open or update a PR in that case.
-            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
-            - Also run the matching pinned env, `uvx --with tox-uv tox r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
             - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
-            - Open or update at most one PR for this package and include the exact verification commands and outcomes in the PR body.
+            - Open or update at most one PR for this package and include the current run ID ${{ github.run_id }}, plus the exact verification commands and outcomes, in the PR body.
+            - When you open or update a PR, write the canonical PR URL to the PR URL file above and the head branch name to the branch file above with single shell commands before you finish.
             - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
             - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-      - name: Record package status
+      - name: Record package markers
         if: ${{ always() }}
         run: |
           STATUS_FILE="${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}"
+          PR_URL_FILE="${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}"
+          BRANCH_FILE="${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}"
           if [ -f "$STATUS_FILE" ]; then
             printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
           else
             printf 'PACKAGE_STATUS none\n'
+          fi
+          if [ -f "$PR_URL_FILE" ]; then
+            printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          else
+            printf 'PACKAGE_PR_URL none\n'
+          fi
+          if [ -f "$BRANCH_FILE" ]; then
+            printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+          else
+            printf 'PACKAGE_BRANCH none\n'
           fi
 
   auto-fix-package-summary:
@@ -574,7 +607,6 @@ jobs:
 
           printf '%s' "$PACKAGES_JSON" | jq -c '.[]' | while IFS= read -r PACKAGE_JSON; do
             PACKAGE=$(printf '%s' "$PACKAGE_JSON" | jq -r '.package')
-            PACKAGE_DASHED=$(printf '%s' "$PACKAGE" | tr '_' '-')
             ENVS=$(printf '%s' "$PACKAGE_JSON" | jq -r '.envs | join(", ")')
             JOB_NAME="Auto-fix $PACKAGE"
             JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name and .conclusion != "skipped") | {databaseId, conclusion}] | .[0] // {}')
@@ -587,6 +619,8 @@ jobs:
             PR_STATE=""
             PR_JSON=""
             BRANCH_CANDIDATE=""
+            MARKER_PR_URL=""
+            MARKER_BRANCH=""
             LOG_FILE=""
 
             if [ -n "$JOB_ID" ]; then
@@ -596,6 +630,14 @@ jobs:
               if [ -s "$LOG_FILE" ]; then
                 STATUS_MARKER=$(
                   sed -n 's/.*PACKAGE_STATUS \(.*\)$/\1/p' "$LOG_FILE" \
+                    | tail -n 1
+                )
+                MARKER_PR_URL=$(
+                  sed -n 's/.*PACKAGE_PR_URL \(.*\)$/\1/p' "$LOG_FILE" \
+                    | tail -n 1
+                )
+                MARKER_BRANCH=$(
+                  sed -n 's/.*PACKAGE_BRANCH \(.*\)$/\1/p' "$LOG_FILE" \
                     | tail -n 1
                 )
 
@@ -625,9 +667,15 @@ jobs:
                   fi
                 fi
 
-                PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+                if [ -n "$MARKER_PR_URL" ] && [ "$MARKER_PR_URL" != "none" ]; then
+                  PR_URL="$MARKER_PR_URL"
+                else
+                  PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+                fi
 
-                if [ -z "$PR_URL" ]; then
+                if [ -n "$MARKER_BRANCH" ] && [ "$MARKER_BRANCH" != "none" ]; then
+                  BRANCH_CANDIDATE="$MARKER_BRANCH"
+                elif [ -z "$PR_URL" ]; then
                   BRANCH_CANDIDATE=$(
                     {
                       sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
@@ -652,7 +700,7 @@ jobs:
                   --head "$BRANCH_CANDIDATE" \
                   --state all \
                   --json url,state \
-                  --jq '.[0] // {}' \
+                  --jq '.[0] // empty' \
                   | head -n 1
               )
             fi
@@ -668,19 +716,11 @@ jobs:
                     map(
                       select(.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\")
                       | select(.updatedAt >= \"$RUN_STARTED_AT\")
-                      | select(
-                          ((.body // \"\") | contains(\"$RUN_ID\")) or
-                          ((.title // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
-                          ((.title // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\")) or
-                          ((.headRefName // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
-                          ((.headRefName // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\")) or
-                          ((.body // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
-                          ((.body // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\"))
-                        )
+                      | select((.body // \"\") | contains(\"$RUN_ID\"))
                     )
                     | sort_by(.updatedAt)
                     | reverse
-                    | .[0] // {}
+                    | .[0] // empty
                   " \
                   | head -n 1
               )

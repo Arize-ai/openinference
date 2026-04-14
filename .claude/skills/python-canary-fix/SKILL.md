@@ -31,8 +31,9 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 5. **Investigate the upstream change**: Search PyPI versions, GitHub releases, or changelogs for the upstream package to find what changed. Focus on attribute/API changes that would break our instrumentation.
 
 6. **Draft and test the fix**: Modify the instrumentor code and tests. Before considering the work complete, run both the pinned and `-latest` tox environments for every package/root cause you changed to verify backward compatibility:
-   - Run the exact relevant failing `-latest` env(s) from the canary run whenever practical, for example `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x`
-   - Run the matching pinned env(s), for example `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
+   - Run tox from the repo root with the explicit config path `python/tox.ini`
+   - Run the exact relevant failing `-latest` env(s) from the canary run whenever practical, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-<package>-latest -- -ra -x`
+   - Run the matching pinned env(s), for example `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
    - If multiple Python versions failed for the same package and your change could affect both, run each affected failing env
    - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external
    - If ruff reformats any files, commit the formatting changes before proceeding.
@@ -40,6 +41,7 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
    - In manual debug mode, do not create commits, push branches, or open/update PRs. Stop after the package-local patch and verification summary.
    - In CI/package-scoped mode, use only repo-local scratch paths under the workspace. Do not use `/tmp` for helper scripts, extracted wheels, or temporary outputs.
    - Prefer one shell command per Bash invocation. Avoid compound shell commands with `&&`, `;`, output redirection, or long shell pipelines when `Read`, `Grep`, `Edit`, or a repo-local file can do the job.
+   - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly so the workflow can observe the true exit and output.
    - If a command is blocked by the sandbox or workflow permissions, write the workflow-requested `blocked_command` marker to the status file named in the prompt and stop after documenting the blocked command and the package-local fix candidate.
 
 7. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found. In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
