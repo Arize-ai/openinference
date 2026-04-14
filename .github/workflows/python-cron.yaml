@@ -392,21 +392,25 @@ jobs:
           STATUS_FILE="$MARKER_DIR/status.txt"
           PR_URL_FILE="$MARKER_DIR/pr-url.txt"
           BRANCH_FILE="$MARKER_DIR/branch.txt"
-          if [ -f "$STATUS_FILE" ]; then
-            printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
-          else
-            printf 'PACKAGE_STATUS none\n'
+          mkdir -p "$MARKER_DIR"
+          if [ ! -f "$STATUS_FILE" ]; then
+            printf 'none\n' > "$STATUS_FILE"
           fi
-          if [ -f "$PR_URL_FILE" ]; then
-            printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
-          else
-            printf 'PACKAGE_PR_URL none\n'
+          if [ ! -f "$PR_URL_FILE" ]; then
+            printf 'none\n' > "$PR_URL_FILE"
           fi
-          if [ -f "$BRANCH_FILE" ]; then
-            printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
-          else
-            printf 'PACKAGE_BRANCH none\n'
+          if [ ! -f "$BRANCH_FILE" ]; then
+            printf 'none\n' > "$BRANCH_FILE"
           fi
+          printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
+          printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: auto-fix-markers-${{ matrix.package.package }}
+          path: .canary-debug/${{ matrix.package.package }}/markers
+          retention-days: 1
 
   auto-fix-package:
     name: Auto-fix ${{ matrix.package.package }}
@@ -613,21 +617,25 @@ jobs:
           STATUS_FILE="$MARKER_DIR/status.txt"
           PR_URL_FILE="$MARKER_DIR/pr-url.txt"
           BRANCH_FILE="$MARKER_DIR/branch.txt"
-          if [ -f "$STATUS_FILE" ]; then
-            printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
-          else
-            printf 'PACKAGE_STATUS none\n'
+          mkdir -p "$MARKER_DIR"
+          if [ ! -f "$STATUS_FILE" ]; then
+            printf 'none\n' > "$STATUS_FILE"
           fi
-          if [ -f "$PR_URL_FILE" ]; then
-            printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
-          else
-            printf 'PACKAGE_PR_URL none\n'
+          if [ ! -f "$PR_URL_FILE" ]; then
+            printf 'none\n' > "$PR_URL_FILE"
           fi
-          if [ -f "$BRANCH_FILE" ]; then
-            printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
-          else
-            printf 'PACKAGE_BRANCH none\n'
+          if [ ! -f "$BRANCH_FILE" ]; then
+            printf 'none\n' > "$BRANCH_FILE"
           fi
+          printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
+          printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: auto-fix-markers-${{ matrix.package.package }}
+          path: .canary-debug/${{ matrix.package.package }}/markers
+          retention-days: 1
 
   auto-fix-package-summary:
     name: Auto-fix debug package summary
@@ -644,6 +652,10 @@ jobs:
       RUN_ID: ${{ github.run_id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: auto-fix-markers-*
+          path: .package-marker-artifacts
       - name: Build package summary
         id: summary
         run: |
@@ -665,22 +677,25 @@ jobs:
             EFFECTIVE_RESULT="$JOB_RESULT"
             DETAIL=""
             RESULT_SUBTYPE=""
+            MARKER_DIR=".package-marker-artifacts/auto-fix-markers-$PACKAGE"
+            STATUS_MARKER=""
             LOG_FILE=""
+
+            if [ -f "$MARKER_DIR/status.txt" ]; then
+              STATUS_MARKER=$(head -n 1 "$MARKER_DIR/status.txt")
+            fi
+
+            if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+              EFFECTIVE_RESULT="$STATUS_MARKER"
+              DETAIL="$STATUS_MARKER"
+            fi
 
             if [ -n "$JOB_ID" ]; then
               LOG_FILE=$(mktemp)
               gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
 
               if [ -s "$LOG_FILE" ]; then
-                STATUS_MARKER=$(
-                  sed -n 's/.*PACKAGE_STATUS \(.*\)$/\1/p' "$LOG_FILE" \
-                    | tail -n 1
-                )
-
-                if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
-                  EFFECTIVE_RESULT="$STATUS_MARKER"
-                  DETAIL="$STATUS_MARKER"
-                else
+                if [ -z "$STATUS_MARKER" ] || [ "$STATUS_MARKER" = "none" ]; then
                   RESULT_SUBTYPE=$(
                     grep -F -A 5 '"type": "result"' "$LOG_FILE" \
                       | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
@@ -749,6 +764,10 @@ jobs:
       RUN_ID: ${{ github.run_id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: auto-fix-markers-*
+          path: .package-marker-artifacts
       - name: Build message
         id: message
         run: |
@@ -775,32 +794,39 @@ jobs:
             PR_STATE=""
             PR_JSON=""
             BRANCH_CANDIDATE=""
+            MARKER_DIR=".package-marker-artifacts/auto-fix-markers-$PACKAGE"
             MARKER_PR_URL=""
             MARKER_BRANCH=""
+            STATUS_MARKER=""
             LOG_FILE=""
+
+            if [ -f "$MARKER_DIR/status.txt" ]; then
+              STATUS_MARKER=$(head -n 1 "$MARKER_DIR/status.txt")
+            fi
+            if [ -f "$MARKER_DIR/pr-url.txt" ]; then
+              MARKER_PR_URL=$(head -n 1 "$MARKER_DIR/pr-url.txt")
+            fi
+            if [ -f "$MARKER_DIR/branch.txt" ]; then
+              MARKER_BRANCH=$(head -n 1 "$MARKER_DIR/branch.txt")
+            fi
+
+            if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+              EFFECTIVE_RESULT="$STATUS_MARKER"
+              DETAIL="$STATUS_MARKER"
+            fi
+            if [ -n "$MARKER_PR_URL" ] && [ "$MARKER_PR_URL" != "none" ]; then
+              PR_URL="$MARKER_PR_URL"
+            fi
+            if [ -n "$MARKER_BRANCH" ] && [ "$MARKER_BRANCH" != "none" ]; then
+              BRANCH_CANDIDATE="$MARKER_BRANCH"
+            fi
 
             if [ -n "$JOB_ID" ]; then
               LOG_FILE=$(mktemp)
               gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
 
               if [ -s "$LOG_FILE" ]; then
-                STATUS_MARKER=$(
-                  sed -n 's/.*PACKAGE_STATUS \(.*\)$/\1/p' "$LOG_FILE" \
-                    | tail -n 1
-                )
-                MARKER_PR_URL=$(
-                  sed -n 's/.*PACKAGE_PR_URL \(.*\)$/\1/p' "$LOG_FILE" \
-                    | tail -n 1
-                )
-                MARKER_BRANCH=$(
-                  sed -n 's/.*PACKAGE_BRANCH \(.*\)$/\1/p' "$LOG_FILE" \
-                    | tail -n 1
-                )
-
-                if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
-                  EFFECTIVE_RESULT="$STATUS_MARKER"
-                  DETAIL="$STATUS_MARKER"
-                else
+                if [ -z "$STATUS_MARKER" ] || [ "$STATUS_MARKER" = "none" ]; then
                   RESULT_SUBTYPE=$(
                     grep -F -A 5 '"type": "result"' "$LOG_FILE" \
                       | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
@@ -823,15 +849,11 @@ jobs:
                   fi
                 fi
 
-                if [ -n "$MARKER_PR_URL" ] && [ "$MARKER_PR_URL" != "none" ]; then
-                  PR_URL="$MARKER_PR_URL"
-                else
+                if [ -z "$PR_URL" ]; then
                   PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
                 fi
 
-                if [ -n "$MARKER_BRANCH" ] && [ "$MARKER_BRANCH" != "none" ]; then
-                  BRANCH_CANDIDATE="$MARKER_BRANCH"
-                elif [ -z "$PR_URL" ]; then
+                if [ -z "$BRANCH_CANDIDATE" ] && [ -z "$PR_URL" ]; then
                   BRANCH_CANDIDATE=$(
                     {
                       sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
