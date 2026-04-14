@@ -3,6 +3,7 @@ import json
 import threading
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Iterator,
@@ -20,8 +21,10 @@ from opentelemetry.util.types import AttributeValue
 
 from agno.agent import Agent
 from agno.models.message import Message
+from agno.run.agent import RunCompletedEvent as AgentRunCompletedEvent
 from agno.run.agent import RunOutput
 from agno.run.messages import RunMessages
+from agno.run.team import RunCompletedEvent as TeamRunCompletedEvent
 from agno.run.team import TeamRunOutput
 from agno.team import Team
 from agno.tools.function import Function
@@ -93,6 +96,18 @@ def _extract_run_response_output(run_response: Union[RunOutput, TeamRunOutput]) 
         else:
             return str(run_response.content.model_dump_json())
     return ""
+
+
+def _extract_completed_event_output(
+    completed_event: Union[AgentRunCompletedEvent, TeamRunCompletedEvent],
+) -> str:
+    if completed_event.content is None:
+        return ""
+    if isinstance(completed_event.content, str):
+        return completed_event.content
+    if hasattr(completed_event.content, "model_dump_json"):
+        return str(completed_event.content.model_dump_json())
+    return str(completed_event.content)
 
 
 def _strip_method_args(arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -581,9 +596,11 @@ class _RunWrapper:
                 yield_run_output_set = True
                 kwargs["yield_run_output"] = True  # type: ignore
             run_response = None
+            completed_event_output = ""
+            iterator = cast(AsyncIterator[Any], wrapped(*args, **kwargs))
             ctx_token = context_api.attach(trace_api.set_span_in_context(span))
             team_token, team_ctx = _setup_team_context(agent_or_team, node_id)
-            async for response in wrapped(*args, **kwargs):  # type: ignore
+            async for response in iterator:
                 if hasattr(response, "run_id"):
                     current_run_id = response.run_id
                     if current_run_id:
@@ -594,13 +611,24 @@ class _RunWrapper:
                     if yield_run_output_set:
                         continue
 
-                yield response
+                if isinstance(response, (AgentRunCompletedEvent, TeamRunCompletedEvent)):
+                    completed_event_output = _extract_completed_event_output(response)
+
+                try:
+                    yield response
+                except GeneratorExit:
+                    if hasattr(iterator, "aclose"):
+                        await iterator.aclose()
+                    break
 
             if run_response is not None:
                 output = _extract_run_response_output(run_response)
                 if output:
                     span.set_attribute(OUTPUT_VALUE, output)
                     span.set_attribute(OUTPUT_MIME_TYPE, JSON)
+            elif completed_event_output:
+                span.set_attribute(OUTPUT_VALUE, completed_event_output)
+                span.set_attribute(OUTPUT_MIME_TYPE, JSON)
             span.set_status(trace_api.StatusCode.OK)
 
         except Exception as e:
