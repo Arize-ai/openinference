@@ -124,6 +124,12 @@ class SpanAttributes:
     """
     Total number of tokens, including both prompt and completion (in tokens).
     """
+    LLM_FINISH_REASONS = "llm.finish_reasons"
+    """
+    Array of reasons the model stopped generating tokens, corresponding to each
+    generation received. Maps to the OpenTelemetry GenAI
+    `gen_ai.response.finish_reasons` attribute, e.g. `["stop"]` or `["stop", "length"]`.
+    """
 
     LLM_COST_COMPLETION = "llm.cost.completion"
     """

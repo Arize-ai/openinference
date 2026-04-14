@@ -117,6 +117,7 @@ class TestSpanAttributes:
                     },
                     "total": SpanAttributes.LLM_COST_TOTAL,
                 },
+                "finish_reasons": SpanAttributes.LLM_FINISH_REASONS,
                 "function_call": SpanAttributes.LLM_FUNCTION_CALL,
                 "input_messages": SpanAttributes.LLM_INPUT_MESSAGES,
                 "invocation_parameters": SpanAttributes.LLM_INVOCATION_PARAMETERS,

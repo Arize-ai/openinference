@@ -40,6 +40,7 @@ export const LLMAttributePostfixes = {
   function_call: "function_call",
   tools: "tools",
   cost: "cost",
+  finish_reasons: "finish_reasons",
 } as const;
 
 export const LLMPromptTemplateAttributePostfixes = {
@@ -234,6 +235,14 @@ export const LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO =
 /** Token count for the entire transaction with the llm (in tokens) */
 export const LLM_TOKEN_COUNT_TOTAL =
   `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.token_count}.total` as const;
+
+/**
+ * Array of reasons the model stopped generating tokens, corresponding to each
+ * generation received. Maps to the OpenTelemetry GenAI
+ * `gen_ai.response.finish_reasons` attribute, e.g. `["stop"]` or `["stop", "length"]`.
+ */
+export const LLM_FINISH_REASONS =
+  `${SemanticAttributePrefixes.llm}.${LLMAttributePostfixes.finish_reasons}` as const;
 
 /**
  * Key prefix for additional prompt token count details. Each detail should be a separate attribute
@@ -647,6 +656,7 @@ export const SemanticConventions = {
   LLM_SYSTEM,
   LLM_PROVIDER,
   LLM_TOOLS,
+  LLM_FINISH_REASONS,
   LLM_COST,
   LLM_COST_PROMPT,
   LLM_COST_COMPLETION,
