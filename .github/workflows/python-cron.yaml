@@ -4,6 +4,22 @@ on:
   schedule:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
+    inputs:
+      testenv_filter:
+        description: Regex to limit *-latest tox envs for manual debug runs
+        required: false
+        default: ""
+        type: string
+      auto_fix_timeout_minutes:
+        description: Timeout for the auto-fix job on manual debug runs
+        required: false
+        default: "10"
+        type: string
+      show_full_output:
+        description: Show full Claude JSON output in manual debug runs
+        required: false
+        default: true
+        type: boolean
 
 env:
   UV_EXCLUDE_NEWER: "3 days"
@@ -23,11 +39,20 @@ jobs:
           version: 0.11.2
           enable-cache: false
       - name: Extract testenv into JSON list
-        run: >-
-          echo "list=$(uvx --with tox-uv tox -l
-          | egrep -e '-latest$'
-          | jq -R -s -c 'split("\n")[:-1]')"
-          >> $GITHUB_OUTPUT
+        env:
+          TESTENV_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.testenv_filter || '' }}
+        run: |
+          TESTENVS=$(uvx --with tox-uv tox -l | egrep -e '-latest$' || true)
+
+          if [ -n "$TESTENV_FILTER" ]; then
+            TESTENVS=$(printf '%s\n' "$TESTENVS" | grep -E "$TESTENV_FILTER" || true)
+          fi
+
+          {
+            echo "list<<EOF"
+            printf '%s\n' "$TESTENVS" | sed '/^$/d' | jq -R -s -c 'split("\n")[:-1]'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         working-directory: python
         id: testenv
 
@@ -98,6 +123,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -107,13 +133,23 @@ jobs:
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+      - name: Write notification to job summary
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          MESSAGE_TEXT: ${{ steps.message.outputs.text }}
+        run: |
+          {
+            echo "### Python canary notification"
+            echo
+            echo "$MESSAGE_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   auto-fix:
     name: Propose fix for failures
     needs: canary
     if: ${{ always() && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.auto_fix_timeout_minutes || '30') }}
     outputs:
       branch_name: ${{ steps.auto-fix.outputs.branch_name }}
     permissions:
@@ -128,6 +164,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.show_full_output) || 'false') }}
           additional_permissions: |
             actions: read
           settings: |
@@ -336,6 +373,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Send message to Slack
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -345,3 +383,13 @@ jobs:
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+      - name: Write notification to job summary
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          MESSAGE_TEXT: ${{ steps.message.outputs.text }}
+        run: |
+          {
+            echo "### Python canary auto-fix notification"
+            echo
+            echo "$MESSAGE_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
