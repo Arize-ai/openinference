@@ -13,10 +13,11 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 - A scheduled trigger reports canary failures
 - User asks to investigate `*-latest` test environment failures
 - Invoked automatically by the `auto-fix` job in `python-cron.yaml`
+- Invoked automatically for one package-scoped auto-fix job in `python-cron.yaml`
 
 ## Workflow
 
-1. **Identify failures**: If the caller provides a run ID, use that exact run as the source of truth. Otherwise run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output.
+1. **Identify failures**: If the caller provides a run ID, use that exact run as the source of truth. Otherwise run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output. If the caller also provides a package token or explicit env list, stay within that scope only.
 
 2. **Get failure logs**: For each failed job, run `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed` to get the actual error output.
 
@@ -33,19 +34,20 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
    - If multiple Python versions failed for the same package and your change could affect both, run each affected failing env
    - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external
    - If ruff reformats any files, commit the formatting changes before proceeding.
+   - In package-scoped mode, if the required fix touches shared Python code used by multiple packages or package directories outside the target package, stop and emit the workflow-requested shared-root-cause marker (for example by writing `shared_root_cause` to the status file named in the prompt). Do not open or update a PR in that case.
 
 6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found.
 
 7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config).
 
-8. **Check for existing PRs**: Before creating a new PR, search for open PRs that already address the same failure (`gh pr list --repo Arize-ai/openinference --search "<package>" --state open`). If one exists, update it instead of creating a duplicate.
+8. **Check for existing PRs**: Before creating a new PR, search for open PRs that already address the same failure (`gh pr list --repo Arize-ai/openinference --search "<package>" --state open`). If one exists, update it instead of creating a duplicate. In package-scoped mode, only update a PR that clearly targets the same package canary fix.
 
 9. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure. Include the exact verification commands you ran and whether they passed.
 
 ## Gotchas
 
 - **Transient failures**: Some failures are caused by flaky network calls, temporary PyPI outages, or rate limits. If the error looks transient (timeout, connection reset, 503), check whether the same job passed in the previous cron run before investing time in a fix.
-- **Shared root causes**: Multiple instrumentors may fail for the same reason (e.g., a core library like `opentelemetry-sdk` or `opentelemetry-semantic-conventions-ai` changed). Group related failures and fix them in a single PR rather than opening one PR per instrumentor.
+- **Shared root causes**: Multiple instrumentors may fail for the same reason (e.g., a core library like `opentelemetry-sdk` or `opentelemetry-semantic-conventions-ai` changed). In the general workflow, group related failures and fix them in a single PR rather than opening one PR per instrumentor. In package-scoped auto-fix mode, do not take that cross-package fix path automatically; emit the workflow-requested `shared_root_cause` marker instead.
 - The tox token for a package strips `openinference-instrumentation-` and replaces hyphens with underscores (e.g., `openllmetry`, `llama_index`, `google_genai`).
 - The `-latest` tox env typically just does `uv pip install -U <upstream-package>` on top of the pinned deps. Check `python/tox.ini` for the exact commands.
 - Common failure patterns: removed/renamed span attributes, changed event formats, new required parameters, deprecated API removals.
