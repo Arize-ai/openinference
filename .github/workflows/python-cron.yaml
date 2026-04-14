@@ -138,6 +138,7 @@ jobs:
         env:
           MESSAGE_TEXT: ${{ steps.message.outputs.text }}
         run: |
+          printf '%s\n' "$MESSAGE_TEXT"
           {
             echo "### Python canary notification"
             echo
@@ -388,6 +389,7 @@ jobs:
         env:
           MESSAGE_TEXT: ${{ steps.message.outputs.text }}
         run: |
+          printf '%s\n' "$MESSAGE_TEXT"
           {
             echo "### Python canary auto-fix notification"
             echo
