@@ -34,8 +34,8 @@ from pydantic import BaseModel
 from typing_extensions import Annotated, TypeAlias
 
 from openinference.instrumentation import (
-    _HOST_SUFFIX_TO_PROVIDER,
-    _MODEL_PREFIX_TO_SYSTEM,
+    HOST_SUFFIX_TO_PROVIDER,
+    MODEL_PREFIX_TO_SYSTEM,
     Image,
     ImageMessageContent,
     Message,
@@ -66,8 +66,8 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-_ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
-_ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
+ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
+ALL_SYSTEM_VALUES: set[str] = {s.value for s in OpenInferenceLLMSystemValues}
 
 
 def remove_all_vcr_request_headers(request: Any) -> Any:
@@ -2924,40 +2924,26 @@ class TestGetProviderFromHost:
     @pytest.mark.parametrize(
         "host, expected",
         [
-            # OpenAI
             ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI.value),
-            # Azure OpenAI
             ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            ("my-resource.openai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            # Anthropic
+            ("services.ai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
+            ("cognitiveservices.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
             ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC.value),
-            # Cohere
             ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE.value),
             ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE.value),
-            # Mistral AI
             ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI.value),
-            # Google
             ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
             ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
-            # AWS Bedrock
             ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
             ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
             ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            # xAI
             ("api.x.ai", OpenInferenceLLMProviderValues.XAI.value),
-            # DeepSeek
             ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK.value),
-            # Groq
             ("api.groq.com", OpenInferenceLLMProviderValues.GROQ.value),
-            # Fireworks AI
             ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS.value),
-            # Moonshot AI
             ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT.value),
-            # Cerebras
             ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS.value),
-            # Perplexity
             ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY.value),
-            # Together AI
             ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER.value),
             ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER.value),
         ],
@@ -2989,11 +2975,11 @@ class TestGetProviderFromHost:
         assert get_provider_from_host(host) is None  # type: ignore[arg-type]
 
     def test_every_provider_has_at_least_one_host_entry(self) -> None:
-        missing = _ALL_PROVIDER_VALUES - set(_HOST_SUFFIX_TO_PROVIDER.values())
+        missing = ALL_PROVIDER_VALUES - set(HOST_SUFFIX_TO_PROVIDER.values())
         assert not missing, f"Providers without a hostname entry: {missing}"
 
     def test_all_suffix_values_are_valid_provider_values(self) -> None:
-        invalid = set(_HOST_SUFFIX_TO_PROVIDER.values()) - _ALL_PROVIDER_VALUES
+        invalid = set(HOST_SUFFIX_TO_PROVIDER.values()) - ALL_PROVIDER_VALUES
         assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
 
 
@@ -3001,7 +2987,6 @@ class TestGetSystemFromModel:
     @pytest.mark.parametrize(
         "model_name, expected",
         [
-            # OpenAI
             ("gpt-4o", OpenInferenceLLMSystemValues.OPENAI.value),
             ("gpt-3.5-turbo", OpenInferenceLLMSystemValues.OPENAI.value),
             ("o1-preview", OpenInferenceLLMSystemValues.OPENAI.value),
@@ -3015,21 +3000,17 @@ class TestGetSystemFromModel:
             ("ada", OpenInferenceLLMSystemValues.OPENAI.value),
             ("azure-gpt-4", OpenInferenceLLMSystemValues.OPENAI.value),
             ("openai-gpt-4", OpenInferenceLLMSystemValues.OPENAI.value),
-            # Anthropic
             ("claude-3-5-sonnet-20241022", OpenInferenceLLMSystemValues.ANTHROPIC.value),
             ("claude-3-haiku", OpenInferenceLLMSystemValues.ANTHROPIC.value),
             ("anthropic.claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC.value),
             ("google_anthropic_vertex.claude", OpenInferenceLLMSystemValues.ANTHROPIC.value),
-            # Cohere
             ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE.value),
             ("command-r-plus", OpenInferenceLLMSystemValues.COHERE.value),
             ("command-light", OpenInferenceLLMSystemValues.COHERE.value),
-            # Mistral AI
             ("mistral-large-latest", OpenInferenceLLMSystemValues.MISTRALAI.value),
             ("mistral-7b-instruct", OpenInferenceLLMSystemValues.MISTRALAI.value),
             ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI.value),
             ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI.value),
-            # VertexAI
             ("gemini-2.0-flash", OpenInferenceLLMSystemValues.VERTEXAI.value),
             ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI.value),
             ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI.value),
@@ -3063,11 +3044,11 @@ class TestGetSystemFromModel:
         assert get_system_from_model(model_name) is None  # type: ignore[arg-type]
 
     def test_every_system_has_at_least_one_prefix_entry(self) -> None:
-        missing = _ALL_SYSTEM_VALUES - set(_MODEL_PREFIX_TO_SYSTEM.values())
+        missing = ALL_SYSTEM_VALUES - set(MODEL_PREFIX_TO_SYSTEM.values())
         assert not missing, f"Systems without a prefix entry: {missing}"
 
     def test_all_prefix_values_are_valid_system_values(self) -> None:
-        invalid = set(_MODEL_PREFIX_TO_SYSTEM.values()) - _ALL_SYSTEM_VALUES
+        invalid = set(MODEL_PREFIX_TO_SYSTEM.values()) - ALL_SYSTEM_VALUES
         assert not invalid, f"Prefixes map to unknown system values: {invalid}"
 
     def test_google_anthropic_vertex_resolves_to_anthropic_not_vertexai(self) -> None:
