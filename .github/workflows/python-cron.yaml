@@ -274,6 +274,41 @@ jobs:
         with:
           version: 0.11.2
           enable-cache: false
+      - name: Stage failing logs for package
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package.package }}
+          ENVS_JSON: ${{ toJSON(matrix.package.envs) }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          BASE_DIR=".canary-debug/$PACKAGE"
+          LOG_DIR="$BASE_DIR/logs"
+          SCRATCH_DIR="$BASE_DIR/scratch"
+
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR"
+
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+
+          printf '%s' "$ENVS_JSON" | jq -r '.[]' | while IFS= read -r ENV; do
+            JOB_ID=$(printf '%s' "$JOBS_JSON" | jq -r --arg env "$ENV" '.jobs[] | select(.name == $env) | .databaseId // empty')
+
+            if [ -z "$JOB_ID" ]; then
+              printf 'env=%s\njob_id=\n' "$ENV" > "$LOG_DIR/$ENV.meta"
+              printf 'missing job id for %s\n' "$ENV" > "$LOG_DIR/$ENV.lookup-error.txt"
+              continue
+            fi
+
+            printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID" > "$LOG_DIR/$ENV.meta"
+            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log-failed > "$LOG_DIR/$ENV.failed.log" 2>/dev/null || true
+            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log > "$LOG_DIR/$ENV.full.log" 2>/dev/null || true
+          done
+
+          {
+            echo "### Staged canary logs for $PACKAGE"
+            echo
+            find "$BASE_DIR" -maxdepth 2 -type f | sort | sed 's|^|- |'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         id: auto-fix
         with:
@@ -311,16 +346,23 @@ jobs:
             - Package token: `${{ matrix.package.package }}`
             - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
             - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
+            - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
+            - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
 
             Acceptance criteria:
             - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
             - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
             - This is manual debug mode. Do not create commits, push branches, or open/update pull requests.
             - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
+            - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
+            - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
+            - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
             - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a shell command before you finish. Do not open or update a PR in that case.
             - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
             - Also run the matching pinned env, `uvx --with tox-uv tox r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
-            - If local tox verification is blocked, say exactly which command was blocked and stop after documenting the package-local fix candidate.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
@@ -377,9 +419,14 @@ jobs:
               gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
 
               if [ -s "$LOG_FILE" ]; then
-                if grep -Fq 'PACKAGE_STATUS shared_root_cause' "$LOG_FILE"; then
-                  EFFECTIVE_RESULT="shared_root_cause"
-                  DETAIL="shared_root_cause"
+                STATUS_MARKER=$(
+                  sed -n 's/.*PACKAGE_STATUS \(.*\)$/\1/p' "$LOG_FILE" \
+                    | tail -n 1
+                )
+
+                if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+                  EFFECTIVE_RESULT="$STATUS_MARKER"
+                  DETAIL="$STATUS_MARKER"
                 else
                   RESULT_SUBTYPE=$(
                     grep -F -A 5 '"type": "result"' "$LOG_FILE" \

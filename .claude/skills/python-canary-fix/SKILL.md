@@ -19,16 +19,18 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 
 1. **Identify failures**: If the caller provides a run ID, use that exact run as the source of truth. Otherwise run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output. If the caller also provides a package token or explicit env list, stay within that scope only. When the caller already gave explicit failing envs, assume those jobs are complete and do not use `gh run watch` or wait for the overall workflow run to finish.
 
-2. **Get failure logs**: For each failed job, run `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed` to get the actual error output.
+2. **Get failure logs**: If the caller already staged failing logs inside the repo workspace, use those first. Otherwise, for each failed job, run `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed` to get the actual error output.
 
-3. **Identify the root cause**: The canary cron tests against `*-latest` versions of upstream dependencies. Failures almost always mean an upstream package changed its API or behavior. Key signals:
+3. **Reproduce before deep forensics**: In package-scoped mode, rerun one failing `*-latest` env for that package before doing deeper upstream investigation. Only move on to PyPI metadata, wheel inspection, or changelog archaeology if the rerun and staged logs still leave the root cause ambiguous.
+
+4. **Identify the root cause**: The canary cron tests against `*-latest` versions of upstream dependencies. Failures almost always mean an upstream package changed its API or behavior. Key signals:
    - Which package's test failed (the testenv name encodes the package, e.g. `py310-ci-openllmetry-latest`)
    - The assertion or import error in the log
    - What upstream dependency was upgraded (check tox.ini for the `-latest` env's `uv pip install -U` commands)
 
-4. **Investigate the upstream change**: Search PyPI versions, GitHub releases, or changelogs for the upstream package to find what changed. Focus on attribute/API changes that would break our instrumentation.
+5. **Investigate the upstream change**: Search PyPI versions, GitHub releases, or changelogs for the upstream package to find what changed. Focus on attribute/API changes that would break our instrumentation.
 
-5. **Draft and test the fix**: Modify the instrumentor code and tests. Before considering the work complete, run both the pinned and `-latest` tox environments for every package/root cause you changed to verify backward compatibility:
+6. **Draft and test the fix**: Modify the instrumentor code and tests. Before considering the work complete, run both the pinned and `-latest` tox environments for every package/root cause you changed to verify backward compatibility:
    - Run the exact relevant failing `-latest` env(s) from the canary run whenever practical, for example `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x`
    - Run the matching pinned env(s), for example `uvx --with tox-uv tox r -e ruff-mypy-test-<package>` (pinned deps, includes ruff formatting/linting + mypy + tests)
    - If multiple Python versions failed for the same package and your change could affect both, run each affected failing env
@@ -36,14 +38,17 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
    - If ruff reformats any files, commit the formatting changes before proceeding.
    - In package-scoped mode, if the required fix touches shared Python code used by multiple packages or package directories outside the target package, stop and emit the workflow-requested shared-root-cause marker (for example by writing `shared_root_cause` to the status file named in the prompt). Do not open or update a PR in that case.
    - In manual debug mode, do not create commits, push branches, or open/update PRs. Stop after the package-local patch and verification summary.
+   - In CI/package-scoped mode, use only repo-local scratch paths under the workspace. Do not use `/tmp` for helper scripts, extracted wheels, or temporary outputs.
+   - Prefer one shell command per Bash invocation. Avoid compound shell commands with `&&`, `;`, output redirection, or long shell pipelines when `Read`, `Grep`, `Edit`, or a repo-local file can do the job.
+   - If a command is blocked by the sandbox or workflow permissions, write the workflow-requested `blocked_command` marker to the status file named in the prompt and stop after documenting the blocked command and the package-local fix candidate.
 
-6. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found. In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
+7. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found. In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
 
-7. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config). In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
+8. **Run the Python code reviewer**: Run `/python-code-reviewer` against the changed package to verify it follows project conventions (test patterns, semantic conventions, CI config). In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
 
-8. **Check for existing PRs**: Before creating a new PR, search for open PRs that already address the same failure (`gh pr list --repo Arize-ai/openinference --search "<package>" --state open`). If one exists, update it instead of creating a duplicate. In package-scoped mode, only update a PR that clearly targets the same package canary fix. Skip this step in manual debug mode.
+9. **Check for existing PRs**: Before creating a new PR, search for open PRs that already address the same failure (`gh pr list --repo Arize-ai/openinference --search "<package>" --state open`). If one exists, update it instead of creating a duplicate. In package-scoped mode, only update a PR that clearly targets the same package canary fix. Skip this step in manual debug mode.
 
-9. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure. Include the exact verification commands you ran and whether they passed. Skip this step in manual debug mode.
+10. **Create a PR**: Branch, commit, push, and open a PR citing the upstream change that triggered the failure. Include the exact verification commands you ran and whether they passed. Skip this step in manual debug mode.
 
 ## Gotchas
 
@@ -53,3 +58,4 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 - The `-latest` tox env typically just does `uv pip install -U <upstream-package>` on top of the pinned deps. Check `python/tox.ini` for the exact commands.
 - Common failure patterns: removed/renamed span attributes, changed event formats, new required parameters, deprecated API removals.
 - Always test against both pinned and latest deps to ensure backward compatibility, and treat passing local tox runs as a release gate for the auto-fix PR.
+- If the caller staged per-env logs or scratch directories inside the repo, use those exact paths instead of inventing new `/tmp` locations or re-downloading artifacts.
