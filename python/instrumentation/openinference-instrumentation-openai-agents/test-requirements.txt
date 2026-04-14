@@ -1,5 +1,6 @@
 openai==1.99.9
-openai_agents==0.2.6
+openai_agents==0.2.9
+websockets==16.0
 openinference-instrumentation-openai
 opentelemetry-sdk
 respx

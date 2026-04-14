@@ -48,6 +48,18 @@ class OpenAIAgentsInstrumentor(BaseInstrumentor):  # type: ignore
 
             add_trace_processor(OpenInferenceTracingProcessor(cast(Tracer, tracer)))
 
+        # Realtime patching (graceful degradation for older SDK versions without realtime)
+        try:
+            from openinference.instrumentation.openai_agents._realtime import _patch_realtime
+
+            _patch_realtime(cast(Tracer, tracer))
+        except ImportError:
+            logger.debug("Realtime module not available in installed openai-agents version")
+
     def _uninstrument(self, **kwargs: Any) -> None:
-        # TODO
-        pass
+        try:
+            from openinference.instrumentation.openai_agents._realtime import _unpatch_realtime
+
+            _unpatch_realtime()
+        except ImportError:
+            pass
