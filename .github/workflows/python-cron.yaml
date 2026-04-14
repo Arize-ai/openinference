@@ -145,74 +145,10 @@ jobs:
             echo "$MESSAGE_TEXT"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  auto-fix:
-    name: Propose fix for failures
-    needs: canary
-    if: ${{ github.event_name != 'workflow_dispatch' && always() && needs.canary.result == 'failure' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    outputs:
-      branch_name: ${{ steps.auto-fix.outputs.branch_name }}
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
-        with:
-          version: 0.11.2
-          enable-cache: false
-      - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
-        id: auto-fix
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          show_full_output: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.show_full_output) || 'false') }}
-          additional_permissions: |
-            actions: read
-          settings: |
-            {
-              "permissions": {
-                "allow": [
-                  "Bash(gh *)",
-                  "Bash(git *)",
-                  "Bash(uvx *)",
-                  "Bash(tox *)",
-                  "Bash(cd *)",
-                  "Bash(ls *)",
-                  "Read",
-                  "Write",
-                  "Edit",
-                  "Glob",
-                  "Grep",
-                  "WebFetch",
-                  "WebSearch"
-                ]
-              }
-            }
-          prompt: |
-            The Python canary cron has failures.
-
-            Run /python-canary-fix to investigate these failures, draft a fix, verify it, and open or update a PR.
-
-            Acceptance criteria:
-            - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
-            - Inspect the failing `*-latest` jobs from this run and identify the concrete root cause for each package you change.
-            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The failing canary jobs are already complete by the time this job starts.
-            - Before opening or updating a PR, run the relevant latest-dependency tox env(s) locally for every package you change, using commands like `uvx --with tox-uv tox r -e py310-ci-<package>-latest -- -ra -x`.
-            - Also run the matching pinned env(s), using commands like `uvx --with tox-uv tox r -e ruff-mypy-test-<package>`, to verify backward compatibility.
-            - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
-            - Include the exact verification commands and outcomes in the PR body.
-
-            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
-            Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-
   collect-failing-packages:
     name: Collect failing packages
     needs: canary
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' }}
+    if: ${{ always() && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.packages.outputs.json }}
@@ -251,8 +187,8 @@ jobs:
             printf '%s\n' "$SUMMARY"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  auto-fix-package:
-    name: Auto-fix ${{ matrix.package.package }}
+  auto-fix-package-debug:
+    name: Auto-fix debug ${{ matrix.package.package }}
     needs:
       - canary
       - collect-failing-packages
@@ -376,12 +312,140 @@ jobs:
             printf 'PACKAGE_STATUS none\n'
           fi
 
-  auto-fix-package-summary:
-    name: Auto-fix package summary
+  auto-fix-package:
+    name: Auto-fix ${{ matrix.package.package }}
     needs:
       - canary
       - collect-failing-packages
-      - auto-fix-package
+    if: ${{ always() && github.event_name != 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        package: ${{ fromJSON(needs.collect-failing-packages.outputs.packages) }}
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          version: 0.11.2
+          enable-cache: false
+      - name: Stage failing logs for package
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package.package }}
+          ENVS_JSON: ${{ toJSON(matrix.package.envs) }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          BASE_DIR=".canary-debug/$PACKAGE"
+          LOG_DIR="$BASE_DIR/logs"
+          SCRATCH_DIR="$BASE_DIR/scratch"
+
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR"
+
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+
+          printf '%s' "$ENVS_JSON" | jq -r '.[]' | while IFS= read -r ENV; do
+            JOB_ID=$(printf '%s' "$JOBS_JSON" | jq -r --arg env "$ENV" '.jobs[] | select(.name == $env) | .databaseId // empty')
+
+            if [ -z "$JOB_ID" ]; then
+              printf 'env=%s\njob_id=\n' "$ENV" > "$LOG_DIR/$ENV.meta"
+              printf 'missing job id for %s\n' "$ENV" > "$LOG_DIR/$ENV.lookup-error.txt"
+              continue
+            fi
+
+            printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID" > "$LOG_DIR/$ENV.meta"
+            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log-failed > "$LOG_DIR/$ENV.failed.log" 2>/dev/null || true
+            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log > "$LOG_DIR/$ENV.full.log" 2>/dev/null || true
+          done
+
+          {
+            echo "### Staged canary logs for $PACKAGE"
+            echo
+            find "$BASE_DIR" -maxdepth 2 -type f | sort | sed 's|^|- |'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
+        id: auto-fix
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: false
+          additional_permissions: |
+            actions: read
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Bash(gh *)",
+                  "Bash(git *)",
+                  "Bash(uvx *)",
+                  "Bash(tox *)",
+                  "Bash(cd *)",
+                  "Bash(ls *)",
+                  "Read",
+                  "Write",
+                  "Edit",
+                  "Glob",
+                  "Grep",
+                  "WebFetch",
+                  "WebSearch"
+                ]
+              }
+            }
+          prompt: |
+            The Python canary cron has failures for one package.
+
+            Run /python-canary-fix to investigate only the package `${{ matrix.package.package }}`.
+
+            Package scope:
+            - Package token: `${{ matrix.package.package }}`
+            - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
+            - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
+            - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
+            - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
+
+            Acceptance criteria:
+            - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
+            - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
+            - This is scheduled production auto-fix mode. Continue until you reach one of these terminal outcomes for this package: a verified PR is opened or updated, `shared_root_cause` is written to the status file, or `blocked_command` is written to the status file.
+            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
+            - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
+            - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
+            - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
+            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a single shell command. Do not open or update a PR in that case.
+            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
+            - Open or update at most one PR for this package and include the exact verification commands and outcomes in the PR body.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+
+            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
+            Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
+      - name: Record package status
+        if: ${{ always() }}
+        run: |
+          STATUS_FILE="${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}"
+          if [ -f "$STATUS_FILE" ]; then
+            printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
+          else
+            printf 'PACKAGE_STATUS none\n'
+          fi
+
+  auto-fix-package-summary:
+    name: Auto-fix debug package summary
+    needs:
+      - canary
+      - collect-failing-packages
+      - auto-fix-package-debug
     if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     env:
@@ -405,8 +469,8 @@ jobs:
           printf '%s' "$PACKAGES_JSON" | jq -c '.[]' | while IFS= read -r PACKAGE_JSON; do
             PACKAGE=$(printf '%s' "$PACKAGE_JSON" | jq -r '.package')
             ENVS=$(printf '%s' "$PACKAGE_JSON" | jq -r '.envs | join(", ")')
-            JOB_NAME="Auto-fix $PACKAGE"
-            JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '.jobs[] | select(.name == $name) | {databaseId, conclusion} | .')
+            JOB_NAME="Auto-fix debug $PACKAGE"
+            JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name and .conclusion != "skipped") | {databaseId, conclusion}] | .[0] // {}')
             JOB_ID=$(printf '%s' "$JOB_JSON" | jq -r '.databaseId // ""')
             JOB_RESULT=$(printf '%s' "$JOB_JSON" | jq -r '.conclusion // "missing"')
             EFFECTIVE_RESULT="$JOB_RESULT"
@@ -481,216 +545,177 @@ jobs:
             echo "$MESSAGE_TEXT"
           } >> "$GITHUB_STEP_SUMMARY"
 
-
-  auto-fix-slack:
-    name: Slack auto-fix PR notification
+  auto-fix-package-slack:
+    name: Slack auto-fix package notification
     needs:
       - canary
-      - auto-fix
-    if: ${{ github.event_name != 'workflow_dispatch' && always() && needs.canary.result == 'failure' && needs.auto-fix.result != 'skipped' }}
+      - collect-failing-packages
+      - auto-fix-package
+    if: ${{ github.event_name != 'workflow_dispatch' && always() && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     env:
-      AUTO_FIX_RESULT: ${{ needs.auto-fix.result }}
-      BRANCH_NAME: ${{ needs.auto-fix.outputs.branch_name }}
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
+      PACKAGES_JSON: ${{ needs.collect-failing-packages.outputs.packages }}
       RUN_ID: ${{ github.run_id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - name: Resolve PR URL
-        id: pr
+      - name: Build message
+        id: message
         run: |
-          PR_URL=""
-          PR_STATE=""
-          PR_JSON=""
-          BRANCH_CANDIDATE="$BRANCH_NAME"
-          AUTO_FIX_JOB_ID=$(
-            gh run view "$RUN_ID" \
-              --repo "$GH_REPO" \
-              --json jobs \
-              --jq '.jobs[] | select(.name == "Propose fix for failures") | .databaseId' \
-              | head -n 1
-          )
-          LOG_FILE=""
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+          RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
+          SUMMARY_FILE=$(mktemp)
 
-          if [ -n "$AUTO_FIX_JOB_ID" ]; then
-            LOG_FILE=$(mktemp)
-            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
-          fi
+          {
+            echo "Python canary package auto-fix summary:"
+            echo "$RUN_URL"
+          } > "$SUMMARY_FILE"
 
-          if [ -n "$BRANCH_CANDIDATE" ]; then
-            PR_JSON=$(gh pr view "$BRANCH_CANDIDATE" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
-          fi
+          printf '%s' "$PACKAGES_JSON" | jq -c '.[]' | while IFS= read -r PACKAGE_JSON; do
+            PACKAGE=$(printf '%s' "$PACKAGE_JSON" | jq -r '.package')
+            PACKAGE_DASHED=$(printf '%s' "$PACKAGE" | tr '_' '-')
+            ENVS=$(printf '%s' "$PACKAGE_JSON" | jq -r '.envs | join(", ")')
+            JOB_NAME="Auto-fix $PACKAGE"
+            JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name and .conclusion != "skipped") | {databaseId, conclusion}] | .[0] // {}')
+            JOB_ID=$(printf '%s' "$JOB_JSON" | jq -r '.databaseId // ""')
+            JOB_RESULT=$(printf '%s' "$JOB_JSON" | jq -r '.conclusion // "missing"')
+            EFFECTIVE_RESULT="$JOB_RESULT"
+            DETAIL=""
+            RESULT_SUBTYPE=""
+            PR_URL=""
+            PR_STATE=""
+            PR_JSON=""
+            BRANCH_CANDIDATE=""
+            LOG_FILE=""
 
-          if [ -z "$PR_JSON" ] && [ -n "$LOG_FILE" ] && [ -s "$LOG_FILE" ]; then
-            PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+            if [ -n "$JOB_ID" ]; then
+              LOG_FILE=$(mktemp)
+              gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
+
+              if [ -s "$LOG_FILE" ]; then
+                STATUS_MARKER=$(
+                  sed -n 's/.*PACKAGE_STATUS \(.*\)$/\1/p' "$LOG_FILE" \
+                    | tail -n 1
+                )
+
+                if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+                  EFFECTIVE_RESULT="$STATUS_MARKER"
+                  DETAIL="$STATUS_MARKER"
+                else
+                  RESULT_SUBTYPE=$(
+                    grep -F -A 5 '"type": "result"' "$LOG_FILE" \
+                      | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
+                      | head -n 1
+                  )
+
+                  if [ "$JOB_RESULT" = "cancelled" ]; then
+                    if [ -n "$RESULT_SUBTYPE" ]; then
+                      EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                      if [ "$RESULT_SUBTYPE" = "success" ]; then
+                        DETAIL="claude_reported_success_before_timeout"
+                      else
+                        DETAIL="claude_reported_final_result_before_timeout"
+                      fi
+                    else
+                      DETAIL="claude_did_not_reach_final_result_before_timeout"
+                    fi
+                  elif [ "$JOB_RESULT" = "success" ] && [ -n "$RESULT_SUBTYPE" ]; then
+                    EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                  fi
+                fi
+
+                PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+
+                if [ -z "$PR_URL" ]; then
+                  BRANCH_CANDIDATE=$(
+                    {
+                      sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
+                      sed -n "s/.*branch '\([^']*\)' set up to track.*/\1/p" "$LOG_FILE"
+                      sed -n 's/.*-> \(fix\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                      sed -n 's/.*-> \(cc\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                      sed -n 's/.*-> \(claude\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                    } | tail -n 1
+                  )
+                fi
+              fi
+            fi
+
             if [ -n "$PR_URL" ]; then
               PR_JSON=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
             fi
-          fi
 
-          if [ -z "$PR_JSON" ] && [ -z "$BRANCH_CANDIDATE" ] && [ -n "$LOG_FILE" ] && [ -s "$LOG_FILE" ]; then
-            BRANCH_CANDIDATE=$(
-              {
-                sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
-                sed -n "s/.*branch '\([^']*\)' set up to track.*/\1/p" "$LOG_FILE"
-                sed -n 's/.*-> \(fix\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
-                sed -n 's/.*-> \(cc\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
-                sed -n 's/.*-> \(claude\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
-              } | tail -n 1
-            )
-
-            if [ -n "$BRANCH_CANDIDATE" ]; then
+            if [ -z "$PR_JSON" ] && [ -n "$BRANCH_CANDIDATE" ]; then
               PR_JSON=$(
                 gh pr list \
                   --repo "$GH_REPO" \
                   --head "$BRANCH_CANDIDATE" \
                   --state all \
                   --json url,state \
-                  --jq '.[0] // empty' \
+                  --jq '.[0] // {}' \
                   | head -n 1
               )
             fi
-          fi
 
-          if [ -z "$PR_JSON" ]; then
-            PR_JSON=$(
-              gh pr list \
-                --repo "$GH_REPO" \
-                --state all \
-                --limit 100 \
-                --json url,state,author,body \
-                --jq ".[] | select((.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\") and ((.body // \"\") | contains(\"$RUN_ID\"))) | {url, state}" \
-                | head -n 1
-            )
-          fi
-
-          if [ -z "$PR_JSON" ]; then
-            RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
-            PR_JSON=$(
-              gh pr list \
-                --repo "$GH_REPO" \
-                --state all \
-                --limit 100 \
-                --json url,state,author,title,headRefName,updatedAt \
-                --jq "
-                  map(
-                    select(.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\")
-                    | select(
-                        ((.title // \"\") | ascii_downcase | contains(\"canary\")) or
-                        ((.headRefName // \"\") | contains(\"canary\")) or
-                        ((.headRefName // \"\") | contains(\"latest-deps\")) or
-                        ((.headRefName // \"\") | startswith(\"fix/\"))
-                      )
-                    | select(.updatedAt >= \"$RUN_STARTED_AT\")
-                  )
-                  | sort_by(.updatedAt)
-                  | reverse
-                  | .[0] // {}
-                " \
-                | head -n 1
-            )
-          fi
-
-          if [ -n "$PR_JSON" ]; then
-            PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
-            PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
-          fi
-
-          rm -f "$LOG_FILE"
-
-          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
-          echo "state=$PR_STATE" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve auto-fix status
-        id: auto_fix_status
-        run: |
-          EFFECTIVE_RESULT="$AUTO_FIX_RESULT"
-          DETAIL=""
-          RESULT_SUBTYPE=""
-
-          if [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
-            AUTO_FIX_JOB_ID=$(
-              gh run view "$RUN_ID" \
-                --repo "$GH_REPO" \
-                --json jobs \
-                --jq '.jobs[] | select(.name == "Propose fix for failures") | .databaseId' \
-                | head -n 1
-            )
-
-            if [ -n "$AUTO_FIX_JOB_ID" ]; then
-              LOG_FILE=$(mktemp)
-              for attempt in 1 2 3 4 5 6; do
-                if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$AUTO_FIX_JOB_ID" --log >"$LOG_FILE" 2>/dev/null; then
-                  RESULT_SUBTYPE=$(
-                    grep -F -A 5 '"type": "result"' "$LOG_FILE" \
-                      | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
-                      | head -n 1
-                  )
-                  if [ -n "$RESULT_SUBTYPE" ]; then
-                    EFFECTIVE_RESULT="$RESULT_SUBTYPE"
-                    if [ "$RESULT_SUBTYPE" = "success" ]; then
-                      DETAIL="claude_reported_success_before_timeout"
-                    else
-                      DETAIL="claude_reported_final_result_before_timeout"
-                    fi
-                    break
-                  fi
-                fi
-                sleep 10
-              done
-              rm -f "$LOG_FILE"
+            if [ -z "$PR_JSON" ] && [ "$EFFECTIVE_RESULT" != "shared_root_cause" ] && [ "$EFFECTIVE_RESULT" != "blocked_command" ]; then
+              PR_JSON=$(
+                gh pr list \
+                  --repo "$GH_REPO" \
+                  --state all \
+                  --limit 100 \
+                  --json url,state,author,title,headRefName,updatedAt,body \
+                  --jq "
+                    map(
+                      select(.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\")
+                      | select(.updatedAt >= \"$RUN_STARTED_AT\")
+                      | select(
+                          ((.body // \"\") | contains(\"$RUN_ID\")) or
+                          ((.title // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
+                          ((.title // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\")) or
+                          ((.headRefName // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
+                          ((.headRefName // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\")) or
+                          ((.body // \"\") | ascii_downcase | contains(\"$PACKAGE\")) or
+                          ((.body // \"\") | ascii_downcase | contains(\"$PACKAGE_DASHED\"))
+                        )
+                    )
+                    | sort_by(.updatedAt)
+                    | reverse
+                    | .[0] // {}
+                  " \
+                  | head -n 1
+              )
             fi
 
-            if [ -z "$DETAIL" ]; then
-              DETAIL="claude_did_not_reach_final_result_before_timeout"
+            if [ -n "$PR_JSON" ]; then
+              PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
+              PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
             fi
-          fi
 
-          echo "result=$EFFECTIVE_RESULT" >> "$GITHUB_OUTPUT"
-          echo "detail=$DETAIL" >> "$GITHUB_OUTPUT"
-          echo "result_subtype=$RESULT_SUBTYPE" >> "$GITHUB_OUTPUT"
+            STATUS_TEXT="$EFFECTIVE_RESULT"
+            if [ -n "$DETAIL" ] && [ "$DETAIL" != "$EFFECTIVE_RESULT" ]; then
+              STATUS_TEXT="$STATUS_TEXT ($DETAIL)"
+            fi
 
-      - name: Build message
-        id: message
-        env:
-          PR_URL: ${{ steps.pr.outputs.url }}
-          PR_STATE: ${{ steps.pr.outputs.state }}
-          AUTO_FIX_EFFECTIVE_RESULT: ${{ steps.auto_fix_status.outputs.result }}
-          AUTO_FIX_DETAIL: ${{ steps.auto_fix_status.outputs.detail }}
-          AUTO_FIX_RESULT_SUBTYPE: ${{ steps.auto_fix_status.outputs.result_subtype }}
-        run: |
-          if [ -n "$PR_URL" ]; then
-            if [ "$PR_STATE" != "" ] && [ "$PR_STATE" != "OPEN" ]; then
-              if [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
-                MSG="Auto-fix completed and updated a canary PR before the GitHub job timed out; PR is currently $PR_STATE: $PR_URL"
-              elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
-                MSG="Auto-fix reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out; PR is currently $PR_STATE: $PR_URL"
-              elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
-                MSG="Auto-fix timed out before Claude produced a final result; PR is currently $PR_STATE: $PR_URL"
+            if [ -n "$PR_URL" ]; then
+              if [ -n "$PR_STATE" ]; then
+                PR_TEXT="PR $PR_STATE: $PR_URL"
               else
-                MSG="Auto-fix PR was found for canary failures but is currently $PR_STATE: $PR_URL"
+                PR_TEXT="PR: $PR_URL"
               fi
-            elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
-              MSG="Auto-fix completed and opened or updated a canary PR before the GitHub job timed out: $PR_URL"
-            elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
-              MSG="Auto-fix reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out and opened or updated a canary PR: $PR_URL"
-            elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
-              MSG="Auto-fix timed out before Claude produced a final result, but a canary PR was found: $PR_URL"
-            elif [ "$AUTO_FIX_RESULT" = "cancelled" ]; then
-              MSG="Auto-fix PR opened before the canary fix job timed out: $PR_URL"
+            elif [ "$EFFECTIVE_RESULT" = "shared_root_cause" ]; then
+              PR_TEXT="no PR expected (shared_root_cause)"
+            elif [ "$EFFECTIVE_RESULT" = "blocked_command" ]; then
+              PR_TEXT="no PR expected (blocked_command)"
             else
-              MSG="Auto-fix PR opened for canary failures: $PR_URL"
+              PR_TEXT="no PR found"
             fi
-          elif [ "$AUTO_FIX_DETAIL" = "claude_reported_success_before_timeout" ]; then
-            MSG="Claude reported success before the GitHub job timed out, but no PR was found for run $RUN_ID: $RUN_URL"
-          elif [ "$AUTO_FIX_DETAIL" = "claude_reported_final_result_before_timeout" ]; then
-            MSG="Claude reported final result '$AUTO_FIX_RESULT_SUBTYPE' before the GitHub job timed out, but no PR was found for run $RUN_ID: $RUN_URL"
-          elif [ "$AUTO_FIX_DETAIL" = "claude_did_not_reach_final_result_before_timeout" ]; then
-            MSG="Auto-fix timed out before Claude produced a final result, and no PR was found for run $RUN_ID: $RUN_URL"
-          else
-            MSG="Python canary auto-fix finished with result '$AUTO_FIX_EFFECTIVE_RESULT', but no PR was found for run $RUN_ID: $RUN_URL"
-          fi
+
+            printf '%s\n' "- $PACKAGE: $STATUS_TEXT; envs: $ENVS; $PR_TEXT" >> "$SUMMARY_FILE"
+            rm -f "$LOG_FILE"
+          done
+
+          MSG=$(cat "$SUMMARY_FILE")
+          rm -f "$SUMMARY_FILE"
 
           {
             echo "text<<EOF"
@@ -710,13 +735,12 @@ jobs:
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
       - name: Write notification to job summary
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           MESSAGE_TEXT: ${{ steps.message.outputs.text }}
         run: |
           printf '%s\n' "$MESSAGE_TEXT"
           {
-            echo "### Python canary auto-fix notification"
+            echo "### Python canary auto-fix package notification"
             echo
             echo "$MESSAGE_TEXT"
           } >> "$GITHUB_STEP_SUMMARY"
