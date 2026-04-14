@@ -331,10 +331,17 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
         yield from process_message(0, "user", prompt)
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
-            if not isinstance(message, dict):
+            if isinstance(message, dict):
+                role, content = message.get("role"), message.get("content")
+            else:
+                _role = getattr(message, "role", None)
+                role = _role.value if isinstance(_role, Enum) else _role
+                content = getattr(message, "content", None)
+            if not role:
                 continue
-            role, content = message.get("role"), message.get("content")
-            if isinstance(content, list) and role:
+            if isinstance(content, str):
+                yield from process_message(i, role, content)
+            elif isinstance(content, list):
                 for subcontent in content:
                     if isinstance(subcontent, dict) and (text := subcontent.get("text")):
                         yield from process_message(i, role, text)
@@ -343,8 +350,8 @@ def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any
 def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
     oi_message: oi.Message = {}
     oi_message_contents: list[oi.MessageContent] = []
-    if (role := getattr(output_message, "role", None)) is not None:
-        oi_message["role"] = role
+    if (_role := getattr(output_message, "role", None)) is not None:
+        oi_message["role"] = _role.value if isinstance(_role, Enum) else _role
     if (content := getattr(output_message, "content", None)) is not None:
         oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
 

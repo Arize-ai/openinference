@@ -15,11 +15,14 @@ from smolagents.models import (  # type: ignore[import-untyped]
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
+    MessageRole,
 )
 
 from openinference.instrumentation import OITracer
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from openinference.instrumentation.smolagents._wrappers import (
+    _llm_input_messages,
+    _llm_output_messages,
     infer_llm_provider_from_class_name,
     infer_llm_provider_from_endpoint,
     infer_llm_system_from_model,
@@ -138,10 +141,9 @@ class TestModels:
 
         output_message = model(
             messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": input_message_content}],
-                }
+                ChatMessage(
+                    role=MessageRole.USER, content=[{"type": "text", "text": input_message_content}]
+                )
             ],
             tools_to_call_from=[GetWeatherTool()],
         )
@@ -981,6 +983,128 @@ class TestInferLLMSystemFromModel:
     def test_case_insensitive_matching(self) -> None:
         result = infer_llm_system_from_model("GPT-4-Turbo")
         assert result == OpenInferenceLLMSystemValues.OPENAI
+
+
+class TestLlmInputMessages:
+    def test_dict_messages_with_list_content(self) -> None:
+        arguments = {
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there"}]},
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_string_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(role=MessageRole.USER, content="Hello"),
+                ChatMessage(role=MessageRole.ASSISTANT, content="Hi there"),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hello"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_ROLE}"]
+            == "assistant"
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Hi there"
+        )
+
+    def test_chatmessage_objects_with_list_content(self) -> None:
+        """ChatMessage objects with list content (multimodal format) should be handled correctly."""
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "text", "text": "Describe this image"}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"]
+            == "user"
+        )
+        assert isinstance(
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
+        )
+        assert (
+            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            == "Describe this image"
+        )
+
+
+class TestLlmOutputMessages:
+    def test_chatmessage_role_is_plain_string(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Paris")
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+
+    def test_chatmessage_content_is_captured(self) -> None:
+        output = ChatMessage(role=MessageRole.ASSISTANT, content="Hello world")
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Hello world"
+
+    def test_chatmessage_with_tool_calls(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=None,
+            tool_calls=[
+                ChatMessageToolCall(
+                    id="call_123",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="get_weather", arguments='{"location": "Paris"}'
+                    ),
+                )
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        role_key = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"
+        assert result[role_key] == "assistant"
+        assert isinstance(result[role_key], str)
+        tool_name_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
+            f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}"
+        )
+        assert result[tool_name_key] == "get_weather"
 
 
 # message attributes
