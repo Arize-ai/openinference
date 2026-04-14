@@ -207,7 +207,7 @@ jobs:
   collect-failing-packages:
     name: Collect failing packages
     needs: canary
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.packages.outputs.json }}
@@ -251,7 +251,7 @@ jobs:
     needs:
       - canary
       - collect-failing-packages
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(inputs.auto_fix_timeout_minutes) }}
     strategy:
@@ -335,7 +335,7 @@ jobs:
       - canary
       - collect-failing-packages
       - auto-fix-package
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
