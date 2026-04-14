@@ -1,5 +1,11 @@
 # @arizeai/openinference-core
 
+## 2.0.7
+
+### Patch Changes
+
+- 4eebba3: Fix `withSpan` to properly handle synchronous errors, preserve `this` binding on the wrapped function, defer default tracer resolution until invocation time, and clarify the agent-facing docs/examples
+
 ## 2.0.6
 
 ### Patch Changes

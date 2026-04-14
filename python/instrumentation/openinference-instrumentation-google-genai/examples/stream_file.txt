@@ -1,0 +1,200 @@
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text="Here'"
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=2,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=26
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text='s your'
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=4,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=28
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text=' simple, flat illustration'
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=8,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=32
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text=' of a red apple'
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=12,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=36
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text=' on a white background'
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=16,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=40
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text=': '
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=18,
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=42
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        inline_data=Blob(
+          data=b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x04\x00\x00\x00\x04\x00\x08\x02\x00\x00\x00\xf0\x7f\xbc\xd4\x00\x00\x17\x7fcaBX\x00\x00\x17\x7fjumb\x00\x00\x00\x1ejumdc2pa\x00\x11\x00\x10\x80\x00\x00\xaa\x008\x9bq\x03c2pa\x00\x00\x00\x17Yjumb\x00\x00\x00Gjumdc2...',
+          mime_type='image/png'
+        )
+      ),
+    ],
+    role='model'
+  ),
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=1308,
+  candidates_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.IMAGE: 'IMAGE'>,
+      token_count=1290
+    ),
+  ],
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=1332
+) automatic_function_calling_history=None parsed=None
+sdk_http_response=HttpResponse(
+  headers=<dict len=11>
+) candidates=[Candidate(
+  content=Content(
+    parts=[
+      Part(
+        text=''
+      ),
+    ],
+    role='model'
+  ),
+  finish_reason=<FinishReason.STOP: 'STOP'>,
+  index=0
+)] create_time=None model_version='gemini-2.5-flash-image' prompt_feedback=None response_id='gSTVadCdNLev4-EPh4DlgQI' usage_metadata=GenerateContentResponseUsageMetadata(
+  candidates_token_count=1308,
+  candidates_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.IMAGE: 'IMAGE'>,
+      token_count=1290
+    ),
+  ],
+  prompt_token_count=24,
+  prompt_tokens_details=[
+    ModalityTokenCount(
+      modality=<MediaModality.TEXT: 'TEXT'>,
+      token_count=24
+    ),
+  ],
+  total_token_count=1332
+) automatic_function_calling_history=None parsed=None
