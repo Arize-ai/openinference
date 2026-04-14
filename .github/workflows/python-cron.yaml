@@ -20,6 +20,11 @@ on:
         required: false
         default: true
         type: boolean
+      claude_args:
+        description: Extra Claude CLI args for manual debug runs
+        required: false
+        default: ""
+        type: string
 
 env:
   UV_EXCLUDE_NEWER: "3 days"
@@ -221,8 +226,49 @@ jobs:
           BASE_DIR=".canary-debug/$PACKAGE"
           LOG_DIR="$BASE_DIR/logs"
           SCRATCH_DIR="$BASE_DIR/scratch"
+          MARKER_DIR="$BASE_DIR/markers"
 
-          mkdir -p "$LOG_DIR" "$SCRATCH_DIR"
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR" "$MARKER_DIR"
+
+          fetch_job_log() {
+            MODE="$1"
+            ENV_NAME="$2"
+            JOB_ID="$3"
+            OUTPUT_FILE="$4"
+            ERROR_FILE="$5"
+
+            : > "$ERROR_FILE"
+
+            for ATTEMPT in 1 2 3; do
+              TMP_OUT="$OUTPUT_FILE.attempt-$ATTEMPT"
+              TMP_ERR="$ERROR_FILE.attempt-$ATTEMPT"
+
+              if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" "$MODE" >"$TMP_OUT" 2>"$TMP_ERR" && [ -s "$TMP_OUT" ]; then
+                mv "$TMP_OUT" "$OUTPUT_FILE"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR" >> "$ERROR_FILE"
+                fi
+                rm -f "$TMP_ERR"
+                return 0
+              fi
+
+              {
+                printf 'attempt=%s mode=%s env=%s job_id=%s\n' "$ATTEMPT" "$MODE" "$ENV_NAME" "$JOB_ID"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR"
+                else
+                  echo "empty_output"
+                fi
+                echo
+              } >> "$ERROR_FILE"
+
+              rm -f "$TMP_OUT" "$TMP_ERR"
+              sleep 10
+            done
+
+            : > "$OUTPUT_FILE"
+            return 1
+          }
 
           JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
 
@@ -235,9 +281,41 @@ jobs:
               continue
             fi
 
-            printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID" > "$LOG_DIR/$ENV.meta"
-            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log-failed > "$LOG_DIR/$ENV.failed.log" 2>/dev/null || true
-            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log > "$LOG_DIR/$ENV.full.log" 2>/dev/null || true
+            FAILED_LOG="$LOG_DIR/$ENV.failed.log"
+            FAILED_ERR="$LOG_DIR/$ENV.failed.stderr.log"
+            FULL_LOG="$LOG_DIR/$ENV.full.log"
+            FULL_ERR="$LOG_DIR/$ENV.full.stderr.log"
+
+            fetch_job_log --log-failed "$ENV" "$JOB_ID" "$FAILED_LOG" "$FAILED_ERR" || {
+              printf 'failed to stage failed log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.failed.lookup-error.txt"
+            }
+            fetch_job_log --log "$ENV" "$JOB_ID" "$FULL_LOG" "$FULL_ERR" || {
+              printf 'failed to stage full log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.full.lookup-error.txt"
+            }
+
+            FAILED_BYTES=$(wc -c < "$FAILED_LOG" 2>/dev/null || echo 0)
+            FULL_BYTES=$(wc -c < "$FULL_LOG" 2>/dev/null || echo 0)
+
+            {
+              printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID"
+              printf 'failed_log=%s (%s bytes)\n' "$FAILED_LOG" "$FAILED_BYTES"
+              printf 'full_log=%s (%s bytes)\n' "$FULL_LOG" "$FULL_BYTES"
+              printf 'marker_dir=%s\n' "$MARKER_DIR"
+            } > "$LOG_DIR/$ENV.meta"
+
+            if [ "$FAILED_BYTES" -eq 0 ] && [ "$FULL_BYTES" -eq 0 ]; then
+              {
+                printf 'empty staged logs for %s after retries\n' "$ENV"
+                if [ -s "$FAILED_ERR" ]; then
+                  echo "--- failed log stderr ---"
+                  cat "$FAILED_ERR"
+                fi
+                if [ -s "$FULL_ERR" ]; then
+                  echo "--- full log stderr ---"
+                  cat "$FULL_ERR"
+                fi
+              } > "$LOG_DIR/$ENV.lookup-error.txt"
+            fi
           done
 
           {
@@ -251,6 +329,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           show_full_output: ${{ inputs.show_full_output }}
+          claude_args: ${{ inputs.claude_args }}
           additional_permissions: |
             actions: read
           settings: |
@@ -281,7 +360,8 @@ jobs:
             Package scope:
             - Package token: `${{ matrix.package.package }}`
             - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
-            - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
+            - Marker directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers`
+            - Shared-root-cause status file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/status.txt`
             - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
             - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
             - Python tox config path: `${{ github.workspace }}/python/tox.ini`
@@ -291,26 +371,27 @@ jobs:
             - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
             - This is manual debug mode. Do not create commits, push branches, or open/update pull requests.
             - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
-            - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
+            - Start with the staged failing logs under the staged failing logs directory above. If those logs are empty or a `*.lookup-error.txt` file is present, treat the staged data as incomplete and then query `gh run view` again.
             - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
             - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
             - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
-            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly.
             - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
-            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a shell command before you finish. Do not open or update a PR in that case.
+            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with the `Write` tool or a single repo-local shell command before you finish. Do not open or update a PR in that case.
             - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
             - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
-            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
-            - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
       - name: Record package markers
         if: ${{ always() }}
         run: |
-          STATUS_FILE="${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}"
-          PR_URL_FILE="${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}"
-          BRANCH_FILE="${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}"
+          MARKER_DIR=".canary-debug/${{ matrix.package.package }}/markers"
+          STATUS_FILE="$MARKER_DIR/status.txt"
+          PR_URL_FILE="$MARKER_DIR/pr-url.txt"
+          BRANCH_FILE="$MARKER_DIR/branch.txt"
           if [ -f "$STATUS_FILE" ]; then
             printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
           else
@@ -362,8 +443,49 @@ jobs:
           BASE_DIR=".canary-debug/$PACKAGE"
           LOG_DIR="$BASE_DIR/logs"
           SCRATCH_DIR="$BASE_DIR/scratch"
+          MARKER_DIR="$BASE_DIR/markers"
 
-          mkdir -p "$LOG_DIR" "$SCRATCH_DIR"
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR" "$MARKER_DIR"
+
+          fetch_job_log() {
+            MODE="$1"
+            ENV_NAME="$2"
+            JOB_ID="$3"
+            OUTPUT_FILE="$4"
+            ERROR_FILE="$5"
+
+            : > "$ERROR_FILE"
+
+            for ATTEMPT in 1 2 3; do
+              TMP_OUT="$OUTPUT_FILE.attempt-$ATTEMPT"
+              TMP_ERR="$ERROR_FILE.attempt-$ATTEMPT"
+
+              if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" "$MODE" >"$TMP_OUT" 2>"$TMP_ERR" && [ -s "$TMP_OUT" ]; then
+                mv "$TMP_OUT" "$OUTPUT_FILE"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR" >> "$ERROR_FILE"
+                fi
+                rm -f "$TMP_ERR"
+                return 0
+              fi
+
+              {
+                printf 'attempt=%s mode=%s env=%s job_id=%s\n' "$ATTEMPT" "$MODE" "$ENV_NAME" "$JOB_ID"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR"
+                else
+                  echo "empty_output"
+                fi
+                echo
+              } >> "$ERROR_FILE"
+
+              rm -f "$TMP_OUT" "$TMP_ERR"
+              sleep 10
+            done
+
+            : > "$OUTPUT_FILE"
+            return 1
+          }
 
           JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
 
@@ -376,9 +498,41 @@ jobs:
               continue
             fi
 
-            printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID" > "$LOG_DIR/$ENV.meta"
-            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log-failed > "$LOG_DIR/$ENV.failed.log" 2>/dev/null || true
-            gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log > "$LOG_DIR/$ENV.full.log" 2>/dev/null || true
+            FAILED_LOG="$LOG_DIR/$ENV.failed.log"
+            FAILED_ERR="$LOG_DIR/$ENV.failed.stderr.log"
+            FULL_LOG="$LOG_DIR/$ENV.full.log"
+            FULL_ERR="$LOG_DIR/$ENV.full.stderr.log"
+
+            fetch_job_log --log-failed "$ENV" "$JOB_ID" "$FAILED_LOG" "$FAILED_ERR" || {
+              printf 'failed to stage failed log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.failed.lookup-error.txt"
+            }
+            fetch_job_log --log "$ENV" "$JOB_ID" "$FULL_LOG" "$FULL_ERR" || {
+              printf 'failed to stage full log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.full.lookup-error.txt"
+            }
+
+            FAILED_BYTES=$(wc -c < "$FAILED_LOG" 2>/dev/null || echo 0)
+            FULL_BYTES=$(wc -c < "$FULL_LOG" 2>/dev/null || echo 0)
+
+            {
+              printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID"
+              printf 'failed_log=%s (%s bytes)\n' "$FAILED_LOG" "$FAILED_BYTES"
+              printf 'full_log=%s (%s bytes)\n' "$FULL_LOG" "$FULL_BYTES"
+              printf 'marker_dir=%s\n' "$MARKER_DIR"
+            } > "$LOG_DIR/$ENV.meta"
+
+            if [ "$FAILED_BYTES" -eq 0 ] && [ "$FULL_BYTES" -eq 0 ]; then
+              {
+                printf 'empty staged logs for %s after retries\n' "$ENV"
+                if [ -s "$FAILED_ERR" ]; then
+                  echo "--- failed log stderr ---"
+                  cat "$FAILED_ERR"
+                fi
+                if [ -s "$FULL_ERR" ]; then
+                  echo "--- full log stderr ---"
+                  cat "$FULL_ERR"
+                fi
+              } > "$LOG_DIR/$ENV.lookup-error.txt"
+            fi
           done
 
           {
@@ -422,9 +576,10 @@ jobs:
             Package scope:
             - Package token: `${{ matrix.package.package }}`
             - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
-            - Shared-root-cause status file: `${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}`
-            - PR URL file: `${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}`
-            - Branch file: `${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}`
+            - Marker directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers`
+            - Shared-root-cause status file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/status.txt`
+            - PR URL file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/pr-url.txt`
+            - Branch file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/branch.txt`
             - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
             - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
             - Python tox config path: `${{ github.workspace }}/python/tox.ini`
@@ -434,29 +589,30 @@ jobs:
             - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
             - This is scheduled production auto-fix mode. Continue until you reach one of these terminal outcomes for this package: a verified PR is opened or updated, `shared_root_cause` is written to the status file, or `blocked_command` is written to the status file.
             - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
-            - Start with the staged failing logs under the staged failing logs directory above. Only query `gh run view` again if that staged data is clearly insufficient.
+            - Start with the staged failing logs under the staged failing logs directory above. If those logs are empty or a `*.lookup-error.txt` file is present, treat the staged data as incomplete and then query `gh run view` again.
             - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
             - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
             - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
-            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly.
             - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
-            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with a single shell command. Do not open or update a PR in that case.
+            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with the `Write` tool or a single repo-local shell command. Do not open or update a PR in that case.
             - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
             - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
             - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
             - Open or update at most one PR for this package and include the current run ID ${{ github.run_id }}, plus the exact verification commands and outcomes, in the PR body.
-            - When you open or update a PR, write the canonical PR URL to the PR URL file above and the head branch name to the branch file above with single shell commands before you finish.
-            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
-            - If local tox verification is blocked, write `blocked_command` to the status file above with a single shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - When you open or update a PR, write the canonical PR URL to the PR URL file above and the head branch name to the branch file above with the `Write` tool or single repo-local shell commands before you finish.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
       - name: Record package markers
         if: ${{ always() }}
         run: |
-          STATUS_FILE="${{ runner.temp }}/auto-fix-package-status-${{ matrix.package.package }}"
-          PR_URL_FILE="${{ runner.temp }}/auto-fix-package-pr-url-${{ matrix.package.package }}"
-          BRANCH_FILE="${{ runner.temp }}/auto-fix-package-branch-${{ matrix.package.package }}"
+          MARKER_DIR=".canary-debug/${{ matrix.package.package }}/markers"
+          STATUS_FILE="$MARKER_DIR/status.txt"
+          PR_URL_FILE="$MARKER_DIR/pr-url.txt"
+          BRANCH_FILE="$MARKER_DIR/branch.txt"
           if [ -f "$STATUS_FILE" ]; then
             printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
           else

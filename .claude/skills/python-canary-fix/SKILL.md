@@ -20,6 +20,7 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
 1. **Identify failures**: If the caller provides a run ID, use that exact run as the source of truth. Otherwise run `gh run list --workflow=python-cron.yaml --limit=5 --repo Arize-ai/openinference` to find the latest run, then `gh run view <id> --repo Arize-ai/openinference` and filter for `X` (failure markers) in the output. If the caller also provides a package token or explicit env list, stay within that scope only. When the caller already gave explicit failing envs, assume those jobs are complete and do not use `gh run watch` or wait for the overall workflow run to finish.
 
 2. **Get failure logs**: If the caller already staged failing logs inside the repo workspace, use those first. Otherwise, for each failed job, run `gh run view <run_id> --repo Arize-ai/openinference --job <job_id> --log-failed` to get the actual error output.
+   - If the staged log directory contains `*.lookup-error.txt` files or zero-byte `*.failed.log` / `*.full.log` files, treat the staging as incomplete and then query `gh run view` again for that env.
 
 3. **Reproduce before deep forensics**: In package-scoped mode, rerun one failing `*-latest` env for that package before doing deeper upstream investigation. Only move on to PyPI metadata, wheel inspection, or changelog archaeology if the rerun and staged logs still leave the root cause ambiguous.
 
@@ -40,8 +41,9 @@ Investigate failures in the Python canary cron (`python-cron.yaml`) workflow and
    - In package-scoped mode, if the required fix touches shared Python code used by multiple packages or package directories outside the target package, stop and emit the workflow-requested shared-root-cause marker (for example by writing `shared_root_cause` to the status file named in the prompt). Do not open or update a PR in that case.
    - In manual debug mode, do not create commits, push branches, or open/update PRs. Stop after the package-local patch and verification summary.
    - In CI/package-scoped mode, use only repo-local scratch paths under the workspace. Do not use `/tmp` for helper scripts, extracted wheels, or temporary outputs.
+   - When the prompt provides marker files inside the repo workspace, prefer writing the exact marker value with the `Write` tool. Repo-local shell redirection is acceptable, but do not write marker files outside the workspace.
    - Prefer one shell command per Bash invocation. Avoid compound shell commands with `&&`, `;`, output redirection, or long shell pipelines when `Read`, `Grep`, `Edit`, or a repo-local file can do the job.
-   - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, or shell redirection. Run the tox command directly so the workflow can observe the true exit and output.
+   - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly so the workflow can observe the true exit and output.
    - If a command is blocked by the sandbox or workflow permissions, write the workflow-requested `blocked_command` marker to the status file named in the prompt and stop after documenting the blocked command and the package-local fix candidate.
 
 7. **Run /simplify**: Review the changed code for reuse, quality, and efficiency. Fix any issues found. In CI auto-fix mode, skip this unless the change is non-trivial and you still have time after verification.
