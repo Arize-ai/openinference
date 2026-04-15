@@ -259,7 +259,8 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         # Prefer transcript accumulated from transcript_delta events (available before agent_end)
         # Fall back to history-based output (for text responses)
         output = (
-            "".join(self._self_transcript_parts) if self._self_transcript_parts
+            "".join(self._self_transcript_parts)
+            if self._self_transcript_parts
             else self._self_agent_output
         )
         if output:
