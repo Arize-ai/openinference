@@ -301,6 +301,9 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
 
         if not spans_list:
             return
+        # LIFO pop: assumes the SDK emits tool_end events in reverse-start order for
+        # concurrent calls to the same tool. No call_id correlation field is available
+        # on RealtimeToolEnd in the current SDK, so LIFO is the best available heuristic.
         span = spans_list.pop()
         token = tokens_list.pop() if tokens_list else None
         if not spans_list:
@@ -430,9 +433,9 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
 
     def _end_all_open_spans(self, exc_val: Optional[BaseException] = None) -> None:
         """End all open spans when the session exits, in order."""
-        exc_error = str(exc_val) if exc_val else None
+        exc_error = str(exc_val) if exc_val is not None else None
         # _end_agent_span also ends tool spans
-        self._end_agent_span(error=exc_error or self._self_agent_error_msg)
+        self._end_agent_span(error=exc_error if exc_error is not None else self._self_agent_error_msg)
 
 
 class _RealtimeRunnerRunWrapper:

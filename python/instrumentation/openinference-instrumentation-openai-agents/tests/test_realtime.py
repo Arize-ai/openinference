@@ -81,7 +81,10 @@ def make_agent_end(name: str) -> RealtimeAgentEndEvent:
 
 def make_tool_start(agent_name: str, tool_name: str) -> RealtimeToolStart:
     return RealtimeToolStart(
-        agent=_make_agent(agent_name), tool=_make_tool(tool_name), info=_make_event_info()
+        agent=_make_agent(agent_name),
+        tool=_make_tool(tool_name),
+        arguments="{}",
+        info=_make_event_info(),
     )
 
 
@@ -89,6 +92,7 @@ def make_tool_end(agent_name: str, tool_name: str, output: Any) -> RealtimeToolE
     return RealtimeToolEnd(
         agent=_make_agent(agent_name),
         tool=_make_tool(tool_name),
+        arguments="{}",
         output=output,
         info=_make_event_info(),
     )
@@ -587,5 +591,39 @@ async def test_realtime_hide_outputs(in_memory_span_exporter: InMemorySpanExport
         assert tool_span is not None
         # OITracer replaces hidden output values with a redaction marker
         assert (tool_span.attributes or {}).get(OUTPUT_VALUE) == "__REDACTED__"
+    finally:
+        OpenAIAgentsInstrumentor().uninstrument()
+
+
+@pytest.mark.asyncio
+async def test_realtime_hide_inputs(in_memory_span_exporter: InMemorySpanExporter) -> None:
+    """hide_inputs=True in TraceConfig suppresses INPUT_VALUE on agent spans."""
+    tp = trace_sdk.TracerProvider()
+    tp.add_span_processor(SimpleSpanProcessor(in_memory_span_exporter))
+    OpenAIAgentsInstrumentor().instrument(tracer_provider=tp, config=TraceConfig(hide_inputs=True))
+    try:
+        # Build a history_added event carrying user text so _self_last_user_text is set
+        content = MagicMock()
+        content.type = "input_text"
+        content.text = "Hello, assistant"
+        item = MagicMock()
+        item.role = "user"
+        item.content = [content]
+        history_added = MagicMock()
+        history_added.type = "history_added"
+        history_added.item = item
+
+        events = [
+            make_agent_start("assistant"),
+            history_added,
+            make_agent_end("assistant"),
+        ]
+        await _run_session(events, agent_name="assistant")
+
+        spans = _get_spans(in_memory_span_exporter)
+        agent_span = next((s for s in spans if s.name == "Agent: assistant"), None)
+        assert agent_span is not None
+        # OITracer replaces hidden input values with a redaction marker
+        assert (agent_span.attributes or {}).get(INPUT_VALUE) == "__REDACTED__"
     finally:
         OpenAIAgentsInstrumentor().uninstrument()
