@@ -15,6 +15,10 @@ from google.genai.types import (
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation import safe_json_dumps
+from openinference.instrumentation.google_genai._utils import (
+    _get_attributes_from_file_data,
+    _get_attributes_from_inline_data,
+)
 from openinference.semconv.trace import (
     MessageAttributes,
     MessageContentAttributes,
@@ -54,7 +58,7 @@ class _RequestAttributesExtractor:
                 if isinstance(config, dict):
                     config = GenerateContentConfig.model_validate(config)
             except Exception:
-                logger.exception("Failed to normalize config")
+                logger.warning("Failed to normalize config")
                 config = None
 
             # System instruction as the first message
@@ -73,7 +77,7 @@ class _RequestAttributesExtractor:
                         )
                         input_messages_index += 1
                 except Exception:
-                    logger.exception("Failed to normalize system instruction")
+                    logger.warning("Failed to normalize system instruction")
 
         if input_contents := request_parameters.get("contents"):
             try:
@@ -85,9 +89,7 @@ class _RequestAttributesExtractor:
                         )
                     input_messages_index += 1
             except Exception:
-                logger.exception(
-                    f"Failed to normalize input contents of type {type(input_contents)}"
-                )
+                logger.warning(f"Failed to normalize input contents of type {type(input_contents)}")
 
     def _get_attributes_from_content(
         self, content: Content
@@ -106,6 +108,7 @@ class _RequestAttributesExtractor:
         content_index = 0
         tool_call_index = 0
         for part in parts:
+            increment_content_index = False
             if (text := part.text) is not None:
                 if len(parts) == 1:
                     yield (MessageAttributes.MESSAGE_CONTENT, text)
@@ -119,7 +122,7 @@ class _RequestAttributesExtractor:
                         f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
                         text,
                     )
-                    content_index += 1
+                    increment_content_index = True
             elif function_call := part.function_call:
                 tc = f"{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}"
                 if name := function_call.name:
@@ -143,8 +146,22 @@ class _RequestAttributesExtractor:
                             f"{prefix}.{MessageContentAttributes.MESSAGE_CONTENT_TEXT}",
                             safe_json_dumps(response),
                         )
-                        content_index += 1
+                        increment_content_index = True
                 if id_ := function_response.id:
                     yield (MessageAttributes.MESSAGE_TOOL_CALL_ID, id_)
-            else:
-                logger.debug("Unsupported part type: %s", type(part))
+            if inline_data := part.inline_data:
+                inline_attributes = dict(
+                    _get_attributes_from_inline_data(inline_data, content_index)
+                )
+                if inline_attributes:
+                    for key, value in inline_attributes.items():
+                        yield key, value
+                    increment_content_index = True
+            if file_data := part.file_data:
+                file_attributes = dict(_get_attributes_from_file_data(file_data, content_index))
+                if file_attributes:
+                    for key, value in file_attributes.items():
+                        yield key, value
+                    increment_content_index = True
+            if increment_content_index:
+                content_index += 1

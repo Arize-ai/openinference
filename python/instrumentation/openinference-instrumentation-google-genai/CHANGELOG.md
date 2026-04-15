@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.14...python-openinference-instrumentation-google-genai-v0.1.15) (2026-04-14)
+
+
+### Features
+
+* **google-genai:** Handled Image Data & Multiple tool calls in Response ([#2598](https://github.com/Arize-ai/openinference/issues/2598)) ([7f421cf](https://github.com/Arize-ai/openinference/commit/7f421cfca6d1a8a60ef97e3ea4378d7b5bc807e5))
+
 ## [0.1.14](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-google-genai-v0.1.13...python-openinference-instrumentation-google-genai-v0.1.14) (2026-03-24)
 
 

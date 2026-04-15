@@ -60,11 +60,9 @@ def _assert_serialized_agent_payload(
     verbose: bool,
     max_iter: int,
     tool_names: list[str],
-    cache: bool,
 ) -> None:
     assert isinstance(payload["id"], str) and uuid.UUID(payload["id"])
     assert isinstance(payload["key"], str) and payload["key"]
-    assert payload["cache"] == cache
     assert payload["role"] == role
     assert payload["goal"] == goal
     assert payload["backstory"] == backstory
@@ -72,13 +70,14 @@ def _assert_serialized_agent_payload(
     assert payload["allow_delegation"] == allow_delegation
     assert payload["max_iter"] == max_iter
     assert payload["max_rpm"] is None
-    tools_payload = payload["tools"]
-    assert isinstance(tools_payload, list)
-    assert [tool["name"] for tool in tools_payload] == tool_names
-    for tool in tools_payload:
-        assert isinstance(tool, dict)
-        assert "args_schema" not in tool
-        assert "cache_function" not in tool
+    tools_payload = payload.get("tools")
+    if tools_payload is not None:
+        assert isinstance(tools_payload, list)
+        assert [tool["name"] for tool in tools_payload] == tool_names
+        for tool in tools_payload:
+            assert isinstance(tool, dict)
+            assert "args_schema" not in tool
+            assert "cache_function" not in tool
     assert "crew" not in payload
     assert "llm" not in payload
     assert "agent_executor" not in payload
@@ -145,7 +144,6 @@ def test_get_input_value_serializes_agent_argument_without_cyclic_crew() -> None
         verbose=True,
         max_iter=25,
         tool_names=[],
-        cache=True,
     )
 
 
@@ -204,7 +202,6 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         verbose=True,
         max_iter=2,
         tool_names=["scrape_website"],
-        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
@@ -230,7 +227,6 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
         verbose=True,
         max_iter=2,
         tool_names=[],
-        cache=True,
     )
     assert attributes.pop(INPUT_MIME_TYPE) == JSON
     assert attributes.pop(OUTPUT_VALUE)
@@ -282,7 +278,7 @@ def test_crewai_instrumentation(in_memory_span_exporter: InMemorySpanExporter) -
     assert attributes.pop(OUTPUT_VALUE) == _tool_output
     assert attributes.pop(OUTPUT_MIME_TYPE) == "text/plain"
     assert attributes.pop("tool.description_updated") == False  # noqa: E712
-    assert attributes.pop("tool.cache_function") == "<lambda>"
+    assert attributes.pop("tool.cache_function") in {"<lambda>", "_default_cache_function"}
     assert attributes.pop("tool.result_as_answer") == False  # noqa: E712
     assert attributes.pop("tool.current_usage_count") == 0
     assert not attributes

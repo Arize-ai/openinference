@@ -28,6 +28,9 @@ from openinference.instrumentation.google_genai._context import (
 from openinference.instrumentation.google_genai._utils import (
     _as_output_attributes,
     _finish_tracing,
+    _get_attributes_from_content_text,
+    _get_attributes_from_file_data,
+    _get_attributes_from_inline_data,
     _get_token_count_attributes_from_usage_metadata,
     _ValueAndType,
 )
@@ -202,41 +205,58 @@ class _ResponseExtractor:
                     usage_metadata
                 )
             except Exception:
-                logger.exception(f"Failed to validate usage metadata: {usage_metadata}")
+                logger.warning(f"Failed to validate usage metadata: {usage_metadata}")
             else:
                 yield from _get_token_count_attributes_from_usage_metadata(usage_metadata_obj)
         if candidates := result.get("candidates"):
             for idx, candidate in enumerate(candidates):
+                prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}"
                 if content := candidate.get("content"):
                     if role := content.get("role"):
                         yield (
-                            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+                            f"{prefix}.{MessageAttributes.MESSAGE_ROLE}",
                             role,
                         )
                     if parts := content.get("parts"):
-                        text_parts = []
+                        content_index = 0
+                        is_single_part = len(parts) == 1
                         tool_call_index = 0
                         for part in parts:
                             if text := part.get("text"):
-                                text_parts.append(text)
+                                for key, value in _get_attributes_from_content_text(
+                                    text,
+                                    content_index,
+                                    is_single_part,
+                                ):
+                                    yield f"{prefix}.{key}", value
                             elif function_call := part.get("function_call"):
-                                # Handle function calls in streaming responses
+                                tc = (
+                                    f"{prefix}.{MessageAttributes.MESSAGE_TOOL_CALLS}."
+                                    f"{tool_call_index}"
+                                )
                                 if function_name := function_call.get("name"):
                                     yield (
-                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                                         function_name,
                                     )
                                 if function_args := function_call.get("args"):
                                     yield (
-                                        f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{tool_call_index}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                                        f"{tc}.{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                                         safe_json_dumps(function_args),
                                     )
                                 tool_call_index += 1
-                        if text_parts:
-                            yield (
-                                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
-                                "".join(text_parts),
-                            )
+                            if inline_data := part.get("inline_data"):
+                                for key, value in _get_attributes_from_inline_data(
+                                    inline_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                            if file_data := part.get("file_data"):
+                                for key, value in _get_attributes_from_file_data(
+                                    file_data, content_index
+                                ):
+                                    yield f"{prefix}.{key}", value
+                            if part.get("text") or part.get("inline_data") or part.get("file_data"):
+                                content_index += 1
 
 
 class _ValuesAccumulator:
@@ -342,9 +362,10 @@ class _IndexedAccumulator:
             return self
         if isinstance(values, Mapping):
             values = [values]
-        for v in values:
+        for index, v in enumerate(values):
             if v and hasattr(v, "get"):
-                self._indexed[v.get("index") or 0] += v
+                item_index = v.get("index")
+                self._indexed[index if item_index is None else item_index] += v
         return self
 
 

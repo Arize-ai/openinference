@@ -124,6 +124,10 @@ class SpanAttributes:
     """
     Total number of tokens, including both prompt and completion (in tokens).
     """
+    LLM_FINISH_REASON = "llm.finish_reason"
+    """
+    The reason the model stopped generating tokens, e.g. `"stop"` or `"length"`.
+    """
 
     LLM_COST_COMPLETION = "llm.cost.completion"
     """

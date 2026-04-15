@@ -84,7 +84,7 @@ async def test_google_adk_instrumentor(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -103,7 +103,7 @@ async def test_google_adk_instrumentor(
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -167,7 +167,7 @@ async def test_google_adk_instrumentor(
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.status.is_ok
     assert tool_span.parent
-    assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    assert tool_span.parent is call_llm_span0.get_span_context()
     tool_attributes = dict(tool_span.attributes or {})
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
@@ -203,7 +203,7 @@ async def test_google_adk_instrumentor(
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -352,7 +352,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -372,7 +372,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -438,7 +438,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_span = spans_by_name["execute_tool get_weather"][0]
     assert tool_span.status.is_ok
     assert tool_span.parent
-    assert tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    assert tool_span.parent is call_llm_span0.get_span_context()
     tool_attributes = dict(tool_span.attributes or {})
     assert tool_attributes.pop("user.id", None) == user_id
     assert tool_attributes.pop("session.id", None) == session_id
@@ -475,7 +475,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -558,7 +558,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     tool_span1 = spans_by_name["execute_tool get_weather"][1]
     assert tool_span1.status.is_ok
     assert tool_span1.parent
-    assert tool_span1.parent is call_llm_span1.get_span_context()  # type: ignore[no-untyped-call]
+    assert tool_span1.parent is call_llm_span1.get_span_context()
     tool_attributes1 = dict(tool_span1.attributes or {})
     assert tool_attributes1.pop("user.id", None) == user_id
     assert tool_attributes1.pop("session.id", None) == session_id
@@ -595,7 +595,7 @@ async def test_google_adk_instrumentor_multi_tool_call(
     call_llm_span2 = spans_by_name["call_llm"][2]
     assert call_llm_span2.status.is_ok
     assert call_llm_span2.parent
-    assert call_llm_span2.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span2.parent is agent_run_span.get_span_context()
     call_llm_attributes2 = dict(call_llm_span2.attributes or {})
     assert call_llm_attributes2.pop("user.id", None) == user_id
     assert call_llm_attributes2.pop("session.id", None) == session_id
@@ -795,7 +795,7 @@ async def test_google_adk_instrumentor_multi_agent(
     root_agent_run_span = spans_by_name[f"agent_run [{root_agent_name}]"][0]
     assert root_agent_run_span.status.is_ok
     assert root_agent_run_span.parent
-    assert root_agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert root_agent_run_span.parent is invocation_span.get_span_context()
     root_agent_run_attributes = dict(root_agent_run_span.attributes or {})
     assert root_agent_run_attributes.pop("user.id", None) == user_id
     assert root_agent_run_attributes.pop("session.id", None) == session_id
@@ -815,7 +815,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_span0 = spans_by_name["call_llm"][0]
     assert call_llm_span0.status.is_ok
     assert call_llm_span0.parent
-    assert call_llm_span0.parent is root_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span0.parent is root_agent_run_span.get_span_context()
     call_llm_attributes0 = dict(call_llm_span0.attributes or {})
     assert call_llm_attributes0.pop("user.id", None) == user_id
     assert call_llm_attributes0.pop("session.id", None) == session_id
@@ -880,7 +880,7 @@ async def test_google_adk_instrumentor_multi_agent(
     transfer_tool_span = spans_by_name["execute_tool transfer_to_agent"][0]
     assert transfer_tool_span.status.is_ok
     assert transfer_tool_span.parent
-    assert transfer_tool_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    assert transfer_tool_span.parent is call_llm_span0.get_span_context()
     transfer_tool_attributes = dict(transfer_tool_span.attributes or {})
     assert transfer_tool_attributes.pop("user.id", None) == user_id
     assert transfer_tool_attributes.pop("session.id", None) == session_id
@@ -917,7 +917,7 @@ async def test_google_adk_instrumentor_multi_agent(
     weather_agent_run_span = spans_by_name[f"agent_run [{weather_agent_name}]"][0]
     assert weather_agent_run_span.status.is_ok
     assert weather_agent_run_span.parent
-    assert weather_agent_run_span.parent is call_llm_span0.get_span_context()  # type: ignore[no-untyped-call]
+    assert weather_agent_run_span.parent is call_llm_span0.get_span_context()
     weather_agent_run_attributes = dict(weather_agent_run_span.attributes or {})
     assert weather_agent_run_attributes.pop("user.id", None) == user_id
     assert weather_agent_run_attributes.pop("session.id", None) == session_id
@@ -937,7 +937,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_span1 = spans_by_name["call_llm"][1]
     assert call_llm_span1.status.is_ok
     assert call_llm_span1.parent
-    assert call_llm_span1.parent is weather_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span1.parent is weather_agent_run_span.get_span_context()
     call_llm_attributes1 = dict(call_llm_span1.attributes or {})
     assert call_llm_attributes1.pop("user.id", None) == user_id
     assert call_llm_attributes1.pop("session.id", None) == session_id
@@ -1053,7 +1053,7 @@ async def test_google_adk_instrumentor_multi_agent(
     get_weather_tool_span = spans_by_name["execute_tool get_weather"][0]
     assert get_weather_tool_span.status.is_ok
     assert get_weather_tool_span.parent
-    assert get_weather_tool_span.parent is call_llm_span1.get_span_context()  # type: ignore[no-untyped-call]
+    assert get_weather_tool_span.parent is call_llm_span1.get_span_context()
     get_weather_tool_attributes = dict(get_weather_tool_span.attributes or {})
     assert get_weather_tool_attributes.pop("user.id", None) == user_id
     assert get_weather_tool_attributes.pop("session.id", None) == session_id
@@ -1092,7 +1092,7 @@ async def test_google_adk_instrumentor_multi_agent(
     call_llm_span2 = spans_by_name["call_llm"][2]
     assert call_llm_span2.status.is_ok
     assert call_llm_span2.parent
-    assert call_llm_span2.parent is weather_agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span2.parent is weather_agent_run_span.get_span_context()
     call_llm_attributes2 = dict(call_llm_span2.attributes or {})
     assert call_llm_attributes2.pop("user.id", None) == user_id
     assert call_llm_attributes2.pop("session.id", None) == session_id
@@ -1296,7 +1296,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     agent_run_span = spans_by_name[f"agent_run [{agent_name}]"][0]
     assert agent_run_span.status.is_ok
     assert agent_run_span.parent
-    assert agent_run_span.parent is invocation_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert agent_run_span.parent is invocation_span.get_span_context()
     agent_run_attributes = dict(agent_run_span.attributes or {})
     assert agent_run_attributes.pop("user.id", None) == user_id
     assert agent_run_attributes.pop("session.id", None) == session_id
@@ -1315,7 +1315,7 @@ async def test_google_adk_instrumentor_image_artifacts(
     call_llm_span = spans_by_name["call_llm"][-1]
     assert call_llm_span.status.is_ok
     assert call_llm_span.parent
-    assert call_llm_span.parent is agent_run_span.get_span_context()  # type: ignore[no-untyped-call]
+    assert call_llm_span.parent is agent_run_span.get_span_context()
     call_llm_attributes = dict(call_llm_span.attributes or {})
     assert call_llm_attributes.pop("user.id", None) == user_id
     assert call_llm_attributes.pop("session.id", None) == session_id
