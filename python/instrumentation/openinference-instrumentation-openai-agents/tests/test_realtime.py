@@ -33,6 +33,8 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 LLM_SYSTEM = SpanAttributes.LLM_SYSTEM
 TOOL_NAME = SpanAttributes.TOOL_NAME
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
 OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
 GRAPH_NODE_ID = SpanAttributes.GRAPH_NODE_ID
@@ -123,7 +125,8 @@ class _MockRealtimeSession:
     """Minimal stand-in for RealtimeSession that yields a fixed event list."""
 
     def __init__(self, agent_name: str, events: list[Any]) -> None:
-        self._agent = _make_agent(agent_name)
+        # New code reads _current_agent (matches the real RealtimeSession attribute name)
+        self._current_agent = _make_agent(agent_name)
         self._events = events
         self._idx = 0
 
@@ -178,12 +181,7 @@ def _get_spans(exporter: InMemorySpanExporter) -> list[ReadableSpan]:
 
 
 async def _run_session(events: list[Any], agent_name: str = "assistant") -> None:
-    """Drive a mock realtime session through the instrumented wrapper.
-
-    We patch RealtimeSession and OpenAIRealtimeWebSocketModel at the runner module
-    so that wrap_function_wrapper on RealtimeRunner.run() still fires, wrapping the
-    returned mock session in _RealtimeSessionWrapper and creating OTel spans.
-    """
+    """Drive a mock realtime session through the instrumented wrapper."""
     from agents.realtime.runner import RealtimeRunner
 
     mock_session = _MockRealtimeSession(agent_name, events)
@@ -203,16 +201,18 @@ async def _run_session(events: list[Any], agent_name: str = "assistant") -> None
 
 
 @pytest.mark.asyncio
-async def test_realtime_session_creates_root_span(
+async def test_realtime_creates_agent_span(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """Session enter/exit creates a root AGENT span."""
+    """Session enter/exit creates a single root AGENT span (no wrapper span)."""
     await _run_session(events=[], agent_name="my_agent")
 
     spans = _get_spans(in_memory_span_exporter)
-    root = next((s for s in spans if "RealtimeSession" in s.name), None)
-    assert root is not None, f"Expected root span, got {[s.name for s in spans]}"
-    assert root.name == "RealtimeSession: my_agent"
+    assert len(spans) == 1, f"Expected 1 span, got {[s.name for s in spans]}"
+
+    root = spans[0]
+    assert root.name == "Agent: my_agent"
+    assert root.parent is None, "Agent span should be a root span"
     assert root.status.status_code.name == "OK"
 
     attributes = dict(root.attributes or {})
@@ -223,23 +223,22 @@ async def test_realtime_session_creates_root_span(
 
 
 @pytest.mark.asyncio
-async def test_realtime_agent_events_create_span(
+async def test_realtime_agent_start_idempotent(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """AgentStart + AgentEnd events produce a child AGENT span."""
-    events = [make_agent_start("my_agent"), make_agent_end("my_agent")]
-    await _run_session(events, agent_name="my_agent")
+    """Multiple agent_start events for the same agent don't create duplicate spans."""
+    # The SDK fires agent_start on every response.created (including after tool output)
+    events = [
+        make_agent_start("assistant"),
+        make_agent_end("assistant"),
+        make_agent_start("assistant"),  # second turn (e.g., after tool call)
+        make_agent_end("assistant"),
+    ]
+    await _run_session(events, agent_name="assistant")
 
     spans = _get_spans(in_memory_span_exporter)
-    agent_span = next((s for s in spans if s.name == "Agent: my_agent"), None)
-    assert agent_span is not None, f"Expected agent span, got {[s.name for s in spans]}"
-    assert agent_span.status.status_code.name == "OK"
-
-    attributes = dict(agent_span.attributes or {})
-    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == AGENT_KIND
-    assert attributes.pop(LLM_SYSTEM) == "openai"
-    assert attributes.pop(GRAPH_NODE_ID) == "my_agent"
-    assert not attributes
+    agent_spans = [s for s in spans if s.name == "Agent: assistant"]
+    assert len(agent_spans) == 1, f"Expected 1 agent span, got {len(agent_spans)}"
 
 
 @pytest.mark.asyncio
@@ -344,7 +343,7 @@ async def test_realtime_guardrail_creates_span(
 async def test_realtime_span_hierarchy(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """Verify correct parent-child span relationships and shared trace ID."""
+    """Verify correct parent-child span relationships: agent is root, tool is child of agent."""
     events = [
         make_agent_start("assistant"),
         make_tool_start("assistant", "lookup"),
@@ -354,11 +353,9 @@ async def test_realtime_span_hierarchy(
     await _run_session(events, agent_name="assistant")
 
     spans = _get_spans(in_memory_span_exporter)
-    root_span = next((s for s in spans if "RealtimeSession" in s.name), None)
     agent_span = next((s for s in spans if s.name == "Agent: assistant"), None)
     tool_span = next((s for s in spans if s.name == "Tool: lookup"), None)
 
-    assert root_span is not None
     assert agent_span is not None
     assert tool_span is not None
 
@@ -366,11 +363,10 @@ async def test_realtime_span_hierarchy(
     trace_ids = {s.context.trace_id for s in spans}
     assert len(trace_ids) == 1
 
-    # Agent span's parent should be the root span
-    assert agent_span.parent is not None
-    assert agent_span.parent.span_id == root_span.context.span_id
+    # Agent span is the root
+    assert agent_span.parent is None
 
-    # Tool span's parent should be the agent span
+    # Tool span's parent is the agent span
     assert tool_span.parent is not None
     assert tool_span.parent.span_id == agent_span.context.span_id
 
@@ -402,7 +398,7 @@ async def test_realtime_suppress_tracing(in_memory_span_exporter: InMemorySpanEx
         realtime_spans = [
             s
             for s in _get_spans(in_memory_span_exporter)
-            if any(k in s.name for k in ["RealtimeSession", "Agent:", "Tool:", "Handoff:"])
+            if any(k in s.name for k in ["Agent:", "Tool:", "Handoff:"])
         ]
         assert len(realtime_spans) == 0, (
             f"Expected no spans, got {[s.name for s in realtime_spans]}"
@@ -415,7 +411,7 @@ async def test_realtime_suppress_tracing(in_memory_span_exporter: InMemorySpanEx
 async def test_realtime_multiple_agents_via_handoff(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """Full flow: agent_a with tool → handoff → agent_b with tool."""
+    """Full flow: agent_a with tool → handoff → agent_b with tool. All in same trace."""
     events = [
         make_agent_start("agent_a"),
         make_tool_start("agent_a", "tool_a"),
@@ -432,12 +428,15 @@ async def test_realtime_multiple_agents_via_handoff(
     spans = _get_spans(in_memory_span_exporter)
     names = {s.name for s in spans}
 
-    assert "RealtimeSession: agent_a" in names
     assert "Agent: agent_a" in names
     assert "Tool: tool_a" in names
     assert "Handoff: agent_a -> agent_b" in names
     assert "Agent: agent_b" in names
     assert "Tool: tool_b" in names
+
+    # All spans share the same trace
+    trace_ids = {s.context.trace_id for s in spans}
+    assert len(trace_ids) == 1
 
     tool_a = next(s for s in spans if s.name == "Tool: tool_a")
     tool_b = next(s for s in spans if s.name == "Tool: tool_b")
@@ -527,7 +526,7 @@ async def test_realtime_uninstrument(in_memory_span_exporter: InMemorySpanExport
     realtime_spans = [
         s
         for s in _get_spans(in_memory_span_exporter)
-        if any(k in s.name for k in ["RealtimeSession", "Agent:", "Tool:"])
+        if any(k in s.name for k in ["Agent:", "Tool:"])
     ]
     assert len(realtime_spans) == 0, (
         f"Expected no spans after uninstrument, got {[s.name for s in realtime_spans]}"
@@ -535,27 +534,22 @@ async def test_realtime_uninstrument(in_memory_span_exporter: InMemorySpanExport
 
 
 @pytest.mark.asyncio
-async def test_realtime_no_events_no_child_spans(
+async def test_realtime_no_events_single_agent_span(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """Session with no events creates only the root span."""
+    """Session with no events creates exactly one Agent span (the root)."""
     await _run_session(events=[], agent_name="assistant")
 
     spans = _get_spans(in_memory_span_exporter)
-    realtime_spans = [
-        s
-        for s in spans
-        if any(k in s.name for k in ["RealtimeSession", "Agent:", "Tool:", "Handoff:"])
-    ]
-    assert len(realtime_spans) == 1
-    assert realtime_spans[0].name == "RealtimeSession: assistant"
+    assert len(spans) == 1, f"Expected 1 span, got {[s.name for s in spans]}"
+    assert spans[0].name == "Agent: assistant"
 
 
 @pytest.mark.asyncio
 async def test_realtime_context_attribute_propagation(
     instrument: None, in_memory_span_exporter: InMemorySpanExporter
 ) -> None:
-    """Context attributes from using_attributes() propagate to realtime spans."""
+    """Context attributes from using_attributes() propagate to the agent span."""
     events = [
         make_agent_start("assistant"),
         make_tool_start("assistant", "search"),
@@ -566,14 +560,11 @@ async def test_realtime_context_attribute_propagation(
         await _run_session(events, agent_name="assistant")
 
     spans = _get_spans(in_memory_span_exporter)
-    root = next(s for s in spans if "RealtimeSession" in s.name)
     agent = next(s for s in spans if s.name == "Agent: assistant")
-    tool = next(s for s in spans if s.name == "Tool: search")
 
-    for span in (root, agent, tool):
-        attrs = dict(span.attributes or {})
-        assert attrs.get(SESSION_ID) == "sess-123", f"{span.name} missing session_id"
-        assert attrs.get(USER_ID) == "user-456", f"{span.name} missing user_id"
+    attrs = dict(agent.attributes or {})
+    assert attrs.get(SESSION_ID) == "sess-123", "Agent span missing session_id"
+    assert attrs.get(USER_ID) == "user-456", "Agent span missing user_id"
 
 
 @pytest.mark.asyncio

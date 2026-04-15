@@ -37,24 +37,50 @@ TEXT = OpenInferenceMimeTypeValues.TEXT.value
 _SUPPRESS_INSTRUMENTATION_KEY = context_api._SUPPRESS_INSTRUMENTATION_KEY
 
 
+def _extract_item_text(item: Any) -> str:
+    """Extract text/transcript from a RealtimeMessageItem's content list."""
+    content_list = getattr(item, "content", None) or []
+    parts = []
+    for content in content_list:
+        content_type = getattr(content, "type", None)
+        if content_type in ("input_text", "text"):
+            text = getattr(content, "text", None)
+            if text:
+                parts.append(text)
+        elif content_type in ("input_audio", "audio"):
+            transcript = getattr(content, "transcript", None)
+            if transcript:
+                parts.append(transcript)
+    return " ".join(parts)
+
+
 class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
     """Wraps RealtimeSession to intercept events and create OTel spans.
 
     This wrapper intercepts the async iterator protocol of RealtimeSession
     to observe events and create corresponding OpenInference spans.
+
+    Span structure:
+        Agent: <name>          [AGENT - one per session, reused across turns]
+          Tool: <tool_name>    [TOOL  - one per tool call]
+          Handoff: A -> B      [TOOL  - one per handoff]
+          Guardrail: <name>    [CHAIN - one per triggered guardrail]
     """
 
     __slots__ = (
         "_self_tracer",
         "_self_suppressed",
         "_self_iterator",
-        "_self_root_span",
-        "_self_root_token",
+        "_self_session_context",
+        "_self_agent_name",
         "_self_agent_span",
         "_self_agent_token",
         "_self_agent_error_msg",
         "_self_tool_spans",
         "_self_tool_tokens",
+        "_self_last_user_text",
+        "_self_agent_output",
+        "_self_transcript_parts",
     )
 
     def __init__(self, wrapped: Any, tracer: Tracer) -> None:
@@ -64,13 +90,16 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         # RealtimeSession.__aiter__ is an async generator function — calling it returns
         # an async generator object that has __anext__. We store it on first __aiter__ call.
         self._self_iterator: Optional[Any] = None
-        self._self_root_span: Optional[OtelSpan] = None
-        self._self_root_token: Optional[object] = None
+        self._self_session_context: Optional[object] = None  # trace context from first agent span
+        self._self_agent_name: Optional[str] = None
         self._self_agent_span: Optional[OtelSpan] = None
         self._self_agent_token: Optional[object] = None
         self._self_agent_error_msg: Optional[str] = None
         self._self_tool_spans: dict[str, list[OtelSpan]] = {}
         self._self_tool_tokens: dict[str, list[object]] = {}
+        self._self_last_user_text: Optional[str] = None
+        self._self_agent_output: Optional[str] = None
+        self._self_transcript_parts: list[str] = []
 
     async def __aenter__(self) -> _RealtimeSessionWrapper:
         await self.__wrapped__.__aenter__()
@@ -80,26 +109,28 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
             return self
 
         try:
-            agent_name = getattr(self.__wrapped__, "_agent", None)
-            name = getattr(agent_name, "name", None) if agent_name else None
-            span_name = f"RealtimeSession: {name}" if name else "RealtimeSession"
+            agent_obj = getattr(self.__wrapped__, "_current_agent", None)
+            name = getattr(agent_obj, "name", None) or "agent"
+            self._self_agent_name = name
 
             attributes: dict[str, Any] = {
                 OPENINFERENCE_SPAN_KIND: AGENT,
                 LLM_SYSTEM: "openai",
+                GRAPH_NODE_ID: name,
             }
-            if name:
-                attributes[GRAPH_NODE_ID] = name
             for k, v in get_attributes_from_context():
                 attributes[k] = v
 
-            self._self_root_span = self._self_tracer.start_span(
-                name=span_name,
+            self._self_agent_span = self._self_tracer.start_span(
+                name=f"Agent: {name}",
                 attributes=attributes,
             )
-            self._self_root_token = attach(set_span_in_context(self._self_root_span))
+            ctx = set_span_in_context(self._self_agent_span)
+            # Store the session-level context so handoff spans stay in the same trace
+            self._self_session_context = ctx
+            self._self_agent_token = attach(ctx)
         except Exception:
-            logger.exception("Error starting realtime session span")
+            logger.exception("Error starting realtime agent span")
 
         return self
 
@@ -134,19 +165,17 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
             if not self._self_suppressed:
                 try:
                     exc_description = f"{type(exc).__name__}: {exc}"
-                    target_span = self._self_agent_span or self._self_root_span
-                    if target_span is not None and target_span.is_recording():
-                        target_span.record_exception(exc)
-                        target_span.set_status(
+                    if self._self_agent_span is not None and self._self_agent_span.is_recording():
+                        self._self_agent_span.record_exception(exc)
+                        self._self_agent_span.set_status(
                             Status(StatusCode.ERROR, description=exc_description)
                         )
-                        if target_span is self._self_agent_span:
-                            self._self_agent_error_msg = exc_description
+                        self._self_agent_error_msg = exc_description
                 except Exception:
                     logger.exception("Error recording exception on realtime span")
             raise
 
-        if self._self_suppressed or self._self_root_span is None:
+        if self._self_suppressed:
             return event
 
         try:
@@ -173,20 +202,34 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
             self._on_error(event)
         elif event_type == "guardrail_tripped":
             self._on_guardrail_tripped(event)
-        # audio, history, raw_model_event, input_audio_timeout_triggered — no spans (too noisy)
+        elif event_type == "history_added":
+            self._on_history_added(event)
+        elif event_type == "history_updated":
+            self._on_history_updated(event)
+        elif event_type == "raw_model_event":
+            self._on_raw_model_event(event)
+        # audio, input_audio_timeout_triggered — no spans (too noisy)
 
     def _on_agent_start(self, event: Any) -> None:
         agent = getattr(event, "agent", None)
         name = getattr(agent, "name", None) or "agent"
 
-        # End any previous agent span first (consecutive agents without explicit end)
+        # If the same agent is already active, skip — the SDK fires agent_start on every
+        # response.created (including after tool output), which would create duplicate spans.
+        if self._self_agent_span is not None and name == self._self_agent_name:
+            return
+
+        # Different agent (handoff) — end the current span and start a new one.
         self._end_agent_span(error=self._self_agent_error_msg)
 
-        parent_span = self._self_root_span
-        context = set_span_in_context(parent_span) if parent_span else None
+        self._self_agent_name = name
+        self._self_agent_output = None
+        self._self_transcript_parts = []
+
+        # Parent to the session context so all agents share the same trace
         span = self._self_tracer.start_span(
             name=f"Agent: {name}",
-            context=context,
+            context=self._self_session_context,  # type: ignore[arg-type]
             attributes={
                 OPENINFERENCE_SPAN_KIND: AGENT,
                 LLM_SYSTEM: "openai",
@@ -197,7 +240,10 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         self._self_agent_token = attach(set_span_in_context(span))
 
     def _on_agent_end(self, event: Any) -> None:
-        self._end_agent_span(error=self._self_agent_error_msg)
+        # agent_end fires on every turn_ended — don't close the span here since
+        # the same agent may continue in the next turn. The span is closed in
+        # __aexit__ or when a handoff triggers a different agent.
+        pass
 
     def _end_agent_span(self, error: Optional[str] = None) -> None:
         if self._self_agent_span is None:
@@ -207,6 +253,18 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         if self._self_agent_token is not None:
             detach(self._self_agent_token)  # type: ignore[arg-type]
             self._self_agent_token = None
+        if self._self_last_user_text is not None:
+            self._self_agent_span.set_attribute(INPUT_VALUE, self._self_last_user_text)
+            self._self_agent_span.set_attribute(INPUT_MIME_TYPE, TEXT)
+        # Prefer transcript accumulated from transcript_delta events (available before agent_end)
+        # Fall back to history-based output (for text responses)
+        output = (
+            "".join(self._self_transcript_parts) if self._self_transcript_parts
+            else self._self_agent_output
+        )
+        if output:
+            self._self_agent_span.set_attribute(OUTPUT_VALUE, output)
+            self._self_agent_span.set_attribute(OUTPUT_MIME_TYPE, TEXT)
         if error is None:
             self._self_agent_span.set_status(Status(StatusCode.OK))
         else:
@@ -219,9 +277,7 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         tool = getattr(event, "tool", None)
         name = getattr(tool, "name", None) or "tool"
 
-        # Use agent span as parent if available, else root
-        parent_span = self._self_agent_span or self._self_root_span
-        context = set_span_in_context(parent_span) if parent_span else None
+        context = set_span_in_context(self._self_agent_span) if self._self_agent_span else None
         span = self._self_tracer.start_span(
             name=f"Tool: {name}",
             context=context,
@@ -280,8 +336,7 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         from_name = getattr(from_agent, "name", None) or "unknown"
         to_name = getattr(to_agent, "name", None) or "unknown"
 
-        parent_span = self._self_agent_span or self._self_root_span
-        context = set_span_in_context(parent_span) if parent_span else None
+        context = set_span_in_context(self._self_agent_span) if self._self_agent_span else None
         span = self._self_tracer.start_span(
             name=f"Handoff: {from_name} -> {to_name}",
             context=context,
@@ -299,12 +354,52 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         error = getattr(event, "error", None)
         error_msg = str(error) if error is not None else "Realtime error"
 
-        # Set error status on whichever span is currently active
         if self._self_agent_span is not None:
             self._self_agent_span.set_status(Status(StatusCode.ERROR, description=error_msg))
             self._self_agent_error_msg = error_msg
-        elif self._self_root_span is not None:
-            self._self_root_span.set_status(Status(StatusCode.ERROR, description=error_msg))
+
+    def _on_raw_model_event(self, event: Any) -> None:
+        data = getattr(event, "data", None)
+        if data is None:
+            return
+        # Accumulate assistant audio transcript deltas — these arrive before audio_end
+        # and are the only reliable source of spoken output when the user breaks early.
+        if getattr(data, "type", None) == "transcript_delta":
+            delta = getattr(data, "delta", None)
+            if delta:
+                self._self_transcript_parts.append(delta)
+
+    def _on_history_added(self, event: Any) -> None:
+        item = getattr(event, "item", None)
+        if item is None:
+            return
+        role = getattr(item, "role", None)
+        if role != "user":
+            return
+        text = _extract_item_text(item)
+        if text:
+            self._self_last_user_text = text
+
+    def _on_history_updated(self, event: Any) -> None:
+        history = getattr(event, "history", None)
+        if not history:
+            return
+        # Update last user text (audio transcript may arrive asynchronously after history_added)
+        for item in reversed(history):
+            if getattr(item, "role", None) == "user":
+                text = _extract_item_text(item)
+                if text:
+                    self._self_last_user_text = text
+                break
+        # Capture assistant text output (for text-modality responses — the SDK sets
+        # status="in_progress" even on done events, so we accept any assistant text)
+        if not self._self_transcript_parts:
+            for item in reversed(history):
+                if getattr(item, "role", None) == "assistant":
+                    text = _extract_item_text(item)
+                    if text:
+                        self._self_agent_output = text
+                    break
 
     def _on_guardrail_tripped(self, event: Any) -> None:
         results = getattr(event, "guardrail_results", None)
@@ -316,8 +411,7 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
             if guardrail_name:
                 name = guardrail_name
 
-        parent_span = self._self_agent_span or self._self_root_span
-        context = set_span_in_context(parent_span) if parent_span else None
+        context = set_span_in_context(self._self_agent_span) if self._self_agent_span else None
         span = self._self_tracer.start_span(
             name=f"Guardrail: {name}",
             context=context,
@@ -335,22 +429,9 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
 
     def _end_all_open_spans(self, exc_val: Optional[BaseException] = None) -> None:
         """End all open spans when the session exits, in order."""
-        # If session exited with exception, propagate it; otherwise use any stored error
         exc_error = str(exc_val) if exc_val else None
-        # _end_agent_span also ends tool spans; call directly in case there's no agent span
-        self._end_all_tool_spans(ok=exc_error is None)
+        # _end_agent_span also ends tool spans
         self._end_agent_span(error=exc_error or self._self_agent_error_msg)
-
-        if self._self_root_span is not None:
-            if self._self_root_token is not None:
-                detach(self._self_root_token)  # type: ignore[arg-type]
-                self._self_root_token = None
-            if exc_val is not None:
-                self._self_root_span.set_status(Status(StatusCode.ERROR, description=str(exc_val)))
-            else:
-                self._self_root_span.set_status(Status(StatusCode.OK))
-            self._self_root_span.end()
-            self._self_root_span = None
 
 
 class _RealtimeRunnerRunWrapper:
