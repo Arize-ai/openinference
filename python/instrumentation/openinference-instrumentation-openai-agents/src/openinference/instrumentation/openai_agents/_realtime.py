@@ -435,7 +435,9 @@ class _RealtimeSessionWrapper(ObjectProxy):  # type: ignore[misc]
         """End all open spans when the session exits, in order."""
         exc_error = str(exc_val) if exc_val is not None else None
         # _end_agent_span also ends tool spans
-        self._end_agent_span(error=exc_error if exc_error is not None else self._self_agent_error_msg)
+        self._end_agent_span(
+            error=exc_error if exc_error is not None else self._self_agent_error_msg
+        )
 
 
 class _RealtimeRunnerRunWrapper:
