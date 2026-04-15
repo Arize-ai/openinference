@@ -28,6 +28,7 @@ from openinference.instrumentation.smolagents._wrappers import (
     infer_llm_system_from_model,
 )
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
     MessageContentAttributes,
     OpenInferenceLLMProviderValues,
@@ -99,7 +100,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -177,7 +185,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == {}
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(
             tool_json_schema := attributes.pop(f"{LLM_TOOLS}.0.{TOOL_JSON_SCHEMA}"), str
         )
@@ -268,7 +283,14 @@ class TestModels:
         assert isinstance(inv_params := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
         assert json.loads(inv_params) == model_params
         assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}") == "user"
-        assert attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}") == input_message_content
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TEXT}")
+            == input_message_content
+        )
+        assert (
+            attributes.pop(f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENTS}.0.{MESSAGE_CONTENT_TYPE}")
+            == "text"
+        )
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -999,7 +1021,11 @@ class TestLlmInputMessages:
             == "user"
         )
         assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
             == "Hello"
         )
         assert (
@@ -1007,7 +1033,11 @@ class TestLlmInputMessages:
             == "assistant"
         )
         assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.1.{MessageAttributes.MESSAGE_CONTENT}"]
+            result[
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.1."
+                f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+                f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+            ]
             == "Hi there"
         )
 
@@ -1039,8 +1069,7 @@ class TestLlmInputMessages:
             == "Hi there"
         )
 
-    def test_chatmessage_objects_with_list_content(self) -> None:
-        """ChatMessage objects with list content (multimodal format) should be handled correctly."""
+    def test_chatmessage_objects_with_list_text_content(self) -> None:
         arguments = {
             "messages": [
                 ChatMessage(
@@ -1057,10 +1086,68 @@ class TestLlmInputMessages:
         assert isinstance(
             result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}"], str
         )
-        assert (
-            result[f"{SpanAttributes.LLM_INPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_CONTENT}"]
-            == "Describe this image"
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
         )
+        assert result[text_key] == "Describe this image"
+        type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[type_key] == "text"
+
+    def test_chatmessage_with_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[
+                        {"type": "text", "text": "What is in this image?"},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        text_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "What is in this image?"
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
+        image_type_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}"
+        )
+        assert result[image_type_key] == "image"
+
+    def test_chatmessage_with_base64_image_content(self) -> None:
+        arguments = {
+            "messages": [
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=[{"type": "image", "image": "iVBORw0KGgo="}],
+                ),
+            ]
+        }
+        result = dict(_llm_input_messages(arguments))
+        image_url_key = (
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == "data:image/png;base64,iVBORw0KGgo="
 
 
 class TestLlmOutputMessages:
@@ -1080,6 +1167,42 @@ class TestLlmOutputMessages:
             f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
         )
         assert result[text_key] == "Hello world"
+
+    def test_chatmessage_with_list_text_content(self) -> None:
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[{"type": "text", "text": "Here is the result"}],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the result"
+
+    def test_chatmessage_with_list_image_url_content(self) -> None:
+        image_url = "data:image/png;base64,abc123"
+        output = ChatMessage(
+            role=MessageRole.ASSISTANT,
+            content=[
+                {"type": "text", "text": "Here is the image"},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        )
+        result = dict(_llm_output_messages(output))
+        text_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.0."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}"
+        )
+        assert result[text_key] == "Here is the image"
+        image_url_key = (
+            f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0."
+            f"{MessageAttributes.MESSAGE_CONTENTS}.1."
+            f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{ImageAttributes.IMAGE_URL}"
+        )
+        assert result[image_url_key] == image_url
 
     def test_chatmessage_with_tool_calls(self) -> None:
         output = ChatMessage(
