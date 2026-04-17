@@ -54,9 +54,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         run_wrapper = _RunWrapper(tracer=self._tracer)
         self._original_run_method = getattr(MultiStepAgent, "run", None)
         wrap_function_wrapper(
-            module="smolagents",
-            name="MultiStepAgent.run",
-            wrapper=run_wrapper,
+            "smolagents",
+            "MultiStepAgent.run",
+            run_wrapper,
         )
 
         self._original_step_stream_methods: Optional[dict[type, Optional[Callable[..., Any]]]] = {}
@@ -64,9 +64,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         for step_cls in [CodeAgent, ToolCallingAgent]:
             self._original_step_stream_methods[step_cls] = getattr(step_cls, "_step_stream", None)
             wrap_function_wrapper(
-                module="smolagents",
-                name=f"{step_cls.__name__}._step_stream",
-                wrapper=step_wrapper,
+                "smolagents",
+                f"{step_cls.__name__}._step_stream",
+                step_wrapper,
             )
 
         self._original_model_generate_methods: Optional[dict[type, Callable[..., Any]]] = {}
@@ -84,9 +84,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
                 model_subclass, "generate"
             )
             wrap_function_wrapper(
-                module="smolagents",
-                name=model_subclass.__name__ + ".generate",
-                wrapper=model_subclass_wrapper,
+                "smolagents",
+                model_subclass.__name__ + ".generate",
+                model_subclass_wrapper,
             )
         self._original_executor: Optional[type] = None
 
@@ -113,9 +113,9 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
         wrap_function_wrapper(
-            module="smolagents",
-            name="Tool.__call__",
-            wrapper=tool_call_wrapper,
+            "smolagents",
+            "Tool.__call__",
+            tool_call_wrapper,
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

@@ -29,7 +29,7 @@ dependencies = [
     "opentelemetry-api>=1.36.0",
     "opentelemetry-instrumentation>=0.57b0",
     "opentelemetry-semantic-conventions>=0.57b0",
-    "wrapt>=1.17.2"
+    "wrapt",
 ]
 
 [project.optional-dependencies]

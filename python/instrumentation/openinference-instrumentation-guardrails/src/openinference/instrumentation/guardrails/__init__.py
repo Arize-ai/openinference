@@ -70,18 +70,18 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         gd.async_guard.contextvars = _Contextvars(gd.async_guard.contextvars)
         for name in ("pydantic", "string", "rail_string", "rail"):
             wrap_function_wrapper(
-                module="guardrails.guard",
-                name=f"Guard.from_{name}",
-                wrapper=lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": self._tracer}),
+                "guardrails.guard",
+                f"Guard.from_{name}",
+                lambda f, _, args, kwargs: f(*args, **{**kwargs, "tracer": self._tracer}),
             )
 
         runner_module = import_module(_RUNNER_MODULE)
         self._original_guardrails_runner_step = runner_module.Runner.step
         runner_wrapper = _ParseCallableWrapper(tracer=self._tracer)
         wrap_function_wrapper(
-            module=_RUNNER_MODULE,
-            name="Runner.step",
-            wrapper=runner_wrapper,
+            _RUNNER_MODULE,
+            "Runner.step",
+            runner_wrapper,
         )
 
         llm_providers_module = import_module(_LLM_PROVIDERS_MODULE)
@@ -90,9 +90,9 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         )
         prompt_callable_wrapper = _PromptCallableWrapper(tracer=self._tracer)
         wrap_function_wrapper(
-            module=_LLM_PROVIDERS_MODULE,
-            name="PromptCallableBase.__call__",
-            wrapper=prompt_callable_wrapper,
+            _LLM_PROVIDERS_MODULE,
+            "PromptCallableBase.__call__",
+            prompt_callable_wrapper,
         )
 
         validation_module = import_module(_VALIDATION_MODULE)
@@ -101,9 +101,9 @@ class GuardrailsInstrumentor(BaseInstrumentor):  # type: ignore
         )
         post_validator_wrapper = _PostValidationWrapper(tracer=self._tracer)
         wrap_function_wrapper(
-            module=_VALIDATION_MODULE,
-            name="ValidatorServiceBase.after_run_validator",
-            wrapper=post_validator_wrapper,
+            _VALIDATION_MODULE,
+            "ValidatorServiceBase.after_run_validator",
+            post_validator_wrapper,
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
