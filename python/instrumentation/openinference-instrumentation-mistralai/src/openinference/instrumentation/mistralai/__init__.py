@@ -93,9 +93,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             "mistralai.client.chat",
             "Chat.stream_async",
-            _AsyncStreamChatWrapper(
-                "MistralAsyncClient.chat", self._tracer, mistralai_client
-            ),
+            _AsyncStreamChatWrapper("MistralAsyncClient.chat", self._tracer, mistralai_client),
         )
 
         wrap_function_wrapper(
@@ -119,9 +117,7 @@ class MistralAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(
             "mistralai.client.agents",
             "Agents.stream_async",
-            _AsyncStreamChatWrapper(
-                "MistralAsyncClient.agents", self._tracer, mistralai_client
-            ),
+            _AsyncStreamChatWrapper("MistralAsyncClient.agents", self._tracer, mistralai_client),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
