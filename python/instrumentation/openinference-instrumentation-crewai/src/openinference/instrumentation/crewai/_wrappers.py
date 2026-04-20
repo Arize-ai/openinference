@@ -448,7 +448,7 @@ class _CrewKickoffWrapper:
                             "verbose?": agent.verbose,
                             "max_iter": agent.max_iter,
                             "max_rpm": agent.max_rpm,
-                            "i18n": agent.i18n.prompt_file,
+                            "i18n": getattr(getattr(agent, "i18n", None), "prompt_file", None),
                             "delegation_enabled": agent.allow_delegation,
                             "tools_names": [tool.name.casefold() for tool in agent.tools or []],
                         }

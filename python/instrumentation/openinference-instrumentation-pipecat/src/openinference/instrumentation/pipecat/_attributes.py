@@ -22,13 +22,18 @@ from pipecat.frames.frames import (
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
-    LLMMessagesFrame,
     LLMTextFrame,
     MetricsFrame,
     TextFrame,
     TranscriptionFrame,
     TTSTextFrame,
 )
+
+try:
+    from pipecat.frames.frames import LLMMessagesFrame
+except ImportError:
+    LLMMessagesFrame = None  # type: ignore[assignment,misc]
+
 from pipecat.metrics.metrics import (
     LLMTokenUsage,
     LLMUsageMetricsData,
@@ -71,8 +76,9 @@ FRAME_TYPE_MAP = {
     FunctionCallInProgressFrame.__name__: "function_call_in_progress",
     FunctionCallResultFrame.__name__: "function_call_result",
     LLMContextFrame.__name__: "llm_context",
-    LLMMessagesFrame.__name__: "llm_messages",
 }
+if LLMMessagesFrame is not None:
+    FRAME_TYPE_MAP[LLMMessagesFrame.__name__] = "llm_messages"
 
 SERVICE_TYPE_MAP = {
     STTService.__name__: "stt",
@@ -726,7 +732,6 @@ class GenericFrameExtractor(FrameAttributeExtractor):
     frame_extractor_map: Dict[Type[Frame], FrameAttributeExtractor] = {
         TextFrame: _text_frame_extractor,
         LLMContextFrame: _llm_context_frame_extractor,
-        LLMMessagesFrame: _llm_messages_frame_extractor,
         LLMMessagesAppendFrame: _llm_messages_append_frame_extractor,
         LLMFullResponseStartFrame: _llm_full_response_start_frame_extractor,
         LLMFullResponseEndFrame: _llm_full_response_end_frame_extractor,
@@ -744,6 +749,10 @@ class GenericFrameExtractor(FrameAttributeExtractor):
                 results.update(extractor.extract_from_frame(frame))
         return results
 
+
+# Register LLMMessagesFrame extractor if available (removed in pipecat 1.0.0)
+if LLMMessagesFrame is not None:
+    GenericFrameExtractor.frame_extractor_map[LLMMessagesFrame] = _llm_messages_frame_extractor
 
 # Singleton generic frame extractor
 _generic_frame_extractor = GenericFrameExtractor()
