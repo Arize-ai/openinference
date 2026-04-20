@@ -27,7 +27,7 @@ async def mcp_client(
     # instrumentation through fixtures instead.
     from mcp.client.sse import sse_client
     from mcp.client.stdio import StdioServerParameters, stdio_client
-    from mcp.client.streamable_http import streamablehttp_client
+    from mcp.client.streamable_http import streamable_http_client
 
     async def message_handler(
         message: RequestResponder[ServerRequest, ClientResult] | ServerNotification | Exception,
@@ -118,7 +118,7 @@ async def mcp_client(
             )
             try:
                 await _wait_for_port("127.0.0.1", port)
-                async with streamablehttp_client(f"http://localhost:{port}/mcp") as (
+                async with streamable_http_client(f"http://localhost:{port}/mcp") as (
                     reader,
                     writer,
                     _,
