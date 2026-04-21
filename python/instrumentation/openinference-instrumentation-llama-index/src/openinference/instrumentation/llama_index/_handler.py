@@ -1262,7 +1262,8 @@ if WorkflowStepOutputEvent is not None:
     @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined,misc]
     def _workflow_step_output_event(self: _Span, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
         # Pre-summarised step output produced by workflows.runtime
-        self[OUTPUT_VALUE] = event.output
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
 
 
 if WorkflowRunOutputEvent is not None:
@@ -1270,7 +1271,8 @@ if WorkflowRunOutputEvent is not None:
     @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined,misc]
     def _workflow_run_output_event(self: _Span, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
         # Pre-summarised whole-workflow output
-        self[OUTPUT_VALUE] = event.output
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
 
 
 if SpanCancelledEvent is not None:
@@ -1450,7 +1452,6 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
-
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
@@ -1480,11 +1481,9 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
-
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
-
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
