@@ -766,9 +766,9 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
             settings = service._settings
             if not isinstance(settings, dict):
                 # Convert Pydantic models, dataclasses, or other objects to dicts
-                if hasattr(settings, "model_dump"):
+                if hasattr(settings, "model_dump") and callable(settings.model_dump):
                     settings = settings.model_dump()
-                elif hasattr(settings, "dict"):
+                elif hasattr(settings, "dict") and callable(settings.dict):
                     settings = settings.dict()
                 elif hasattr(settings, "__dict__"):
                     settings = settings.__dict__
