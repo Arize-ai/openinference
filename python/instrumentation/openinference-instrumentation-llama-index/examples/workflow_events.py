@@ -29,7 +29,10 @@ class ResearchWorkflow(Workflow):
         text = ev.get("text", "")
         response = await llm.achat(
             [
-                ChatMessage(role="system", content="Extract 5 keywords from the text. Reply with a comma-separated list only."),
+                ChatMessage(
+                    role="system",
+                    content="Extract 5 keywords from the text. Reply with a comma-separated list only.",
+                ),
                 ChatMessage(role="user", content=text),
             ]
         )
@@ -39,7 +42,9 @@ class ResearchWorkflow(Workflow):
     async def summarize(self, ev: KeywordsExtracted) -> StopEvent:
         response = await llm.achat(
             [
-                ChatMessage(role="system", content="Write a one-sentence summary using these keywords."),
+                ChatMessage(
+                    role="system", content="Write a one-sentence summary using these keywords."
+                ),
                 ChatMessage(role="user", content=ev.keywords),
             ]
         )
