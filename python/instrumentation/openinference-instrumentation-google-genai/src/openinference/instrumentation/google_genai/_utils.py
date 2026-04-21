@@ -53,7 +53,7 @@ def _get_token_count_attributes_from_usage_metadata(
         if prompt_details_audio:
             yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, prompt_details_audio
 
-    # Calculate total prompt tokens (base + tool use + cached)
+    # Calculate total prompt tokens (base + tool use; cached is already in `prompt_token_count`)
     prompt_token_count = 0
     if usage_metadata.prompt_token_count:
         prompt_token_count += usage_metadata.prompt_token_count
@@ -64,7 +64,6 @@ def _get_token_count_attributes_from_usage_metadata(
             SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
             usage_metadata.cached_content_token_count,
         )
-        prompt_token_count += usage_metadata.cached_content_token_count
     if prompt_token_count:
         yield SpanAttributes.LLM_TOKEN_COUNT_PROMPT, prompt_token_count
 
