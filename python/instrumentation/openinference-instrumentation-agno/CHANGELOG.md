@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.31](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.30...python-openinference-instrumentation-agno-v0.1.31) (2026-04-21)
+
+
+### Bug Fixes
+
+* **agno:** finalize arun_stream output on early stream close ([#2977](https://github.com/Arize-ai/openinference/issues/2977)) ([99f74d7](https://github.com/Arize-ai/openinference/commit/99f74d76789039da0e6b1072d92a8e7f9eaccb51))
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.30](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-agno-v0.1.29...python-openinference-instrumentation-agno-v0.1.30) (2026-04-10)
 
 

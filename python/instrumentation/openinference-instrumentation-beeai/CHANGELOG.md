@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.15...python-openinference-instrumentation-beeai-v0.1.16) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.15](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-beeai-v0.1.14...python-openinference-instrumentation-beeai-v0.1.15) (2026-02-05)
 
 
