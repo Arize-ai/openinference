@@ -227,6 +227,22 @@ class TestGetTokenCountAttributesFromUsageMetadata:
         )
         assert result == {SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO: 10}
 
+    def test_cached_content_tokens_not_double_counted_in_prompt(self) -> None:
+        """Should not double-count cached tokens already included in prompt_token_count."""
+        result = dict(
+            _get_token_count_attributes_from_usage_metadata(
+                types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=100,
+                    cached_content_token_count=80,
+                )
+            )
+        )
+        assert result == {
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT: 100,
+            SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ: 80,
+            SpanAttributes.LLM_TOKEN_COUNT_TOTAL: 100,
+        }
+
     def test_from_dict_via_model_validate(self) -> None:
         """Should work when caller converts dict via model_validate."""
         usage_dict = {
