@@ -49,8 +49,14 @@ texts = [
     "Tokyo is the capital of Japan.",
 ]
 
-if __name__ == "__main__":
+
+def main() -> None:
     embeddings = embed_model.get_text_embedding_batch(texts)
     for text, emb in zip(texts, embeddings):
         nonzero = {k: v for k, v in emb.items() if v > 0}
         print(f"{text!r}: {len(nonzero)} non-zero dims")
+
+
+if __name__ == "__main__":
+    print("=== Sparse Embedding Example ===")
+    main()

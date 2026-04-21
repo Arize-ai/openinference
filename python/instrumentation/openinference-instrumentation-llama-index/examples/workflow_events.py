@@ -6,7 +6,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from workflows import Workflow, step
-from workflows.events import StartEvent, StopEvent
+from workflows.events import Event, StartEvent, StopEvent
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
@@ -19,28 +19,70 @@ LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 llm = OpenAI(model="gpt-4o-mini")
 
 
-class SummarizeWorkflow(Workflow):
+class KeywordsExtracted(Event):
+    keywords: str
+
+
+class ResearchWorkflow(Workflow):
     @step
-    async def summarize(self, ev: StartEvent) -> StopEvent:
+    async def extract_keywords(self, ev: StartEvent) -> KeywordsExtracted:
         text = ev.get("text", "")
         response = await llm.achat(
             [
-                ChatMessage(role="system", content="Summarize the following text in one sentence."),
+                ChatMessage(role="system", content="Extract 5 keywords from the text. Reply with a comma-separated list only."),
                 ChatMessage(role="user", content=text),
+            ]
+        )
+        return KeywordsExtracted(keywords=str(response.message.content))
+
+    @step
+    async def summarize(self, ev: KeywordsExtracted) -> StopEvent:
+        response = await llm.achat(
+            [
+                ChatMessage(role="system", content="Write a one-sentence summary using these keywords."),
+                ChatMessage(role="user", content=ev.keywords),
             ]
         )
         return StopEvent(result=str(response.message.content))
 
 
-workflow = SummarizeWorkflow()
+TEXT = (
+    "The James Webb Space Telescope is a space telescope designed to conduct "
+    "infrared astronomy. Its high-resolution and high-sensitivity instruments "
+    "allow it to view objects too old, distant, or faint for the Hubble Space "
+    "Telescope, enabling investigations across many fields of astronomy."
+)
+
+
+async def run_full() -> None:
+    handler = ResearchWorkflow().run(text=TEXT)
+    result = await handler
+    print("Summary:", result)
+
+
+async def run_cancelled() -> None:
+    step_started = asyncio.Event()
+
+    class SlowResearchWorkflow(ResearchWorkflow):
+        @step
+        async def extract_keywords(self, ev: StartEvent) -> KeywordsExtracted:
+            step_started.set()
+            await asyncio.sleep(30)
+            return KeywordsExtracted(keywords="")
+
+    handler = SlowResearchWorkflow(timeout=30).run(text=TEXT)
+    await step_started.wait()
+    await handler.cancel_run()
+    print("Run cancelled & SpanCancelledEvent recorded in trace.")
+
+
+async def main() -> None:
+    print("=== Workflow Events Example ===")
+    print("* Full Run (WorkflowStepOutputEvent + WorkflowRunOutputEvent)")
+    await run_full()
+    print("* Cancelled Run (SpanCancelledEvent)")
+    await run_cancelled()
+
 
 if __name__ == "__main__":
-    text = (
-        "The James Webb Space Telescope is a space telescope designed to conduct "
-        "infrared astronomy. Its high-resolution and high-sensitivity instruments "
-        "allow it to view objects too old, distant, or faint for the Hubble Space "
-        "Telescope, enabling investigations across many fields of astronomy."
-    )
-    handler = workflow.run(text=text)
-    result = asyncio.run(handler)
-    print(result)
+    asyncio.run(main())
