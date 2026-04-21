@@ -35,16 +35,18 @@ from pipecat.frames.frames import (
 from pipecat.observers.base_observer import FramePushed
 
 try:
-    from pipecat.observers.user_bot_latency_observer import (
-        UserBotLatencyObserver as _LatencyObserverCls,
+    from pipecat.observers.user_bot_latency_observer import (  # type: ignore[import-not-found, unused-ignore]
+        UserBotLatencyObserver,
     )
 
+    _LatencyObserverCls: Any = UserBotLatencyObserver
     _PIPECAT_NEW_LATENCY_OBSERVER = True
 except ImportError:
-    from pipecat.observers.loggers.user_bot_latency_log_observer import (  # type: ignore[no-redef]
-        UserBotLatencyLogObserver as _LatencyObserverCls,
+    from pipecat.observers.loggers.user_bot_latency_log_observer import (
+        UserBotLatencyLogObserver,
     )
 
+    _LatencyObserverCls: Any = UserBotLatencyLogObserver  # type: ignore[no-redef]
     _PIPECAT_NEW_LATENCY_OBSERVER = False
 
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
@@ -114,7 +116,7 @@ class OpenInferenceObserver(TurnTrackingObserver):
         if _PIPECAT_NEW_LATENCY_OBSERVER:
             _measurements = self._latency_measurements
 
-            @self._latency_observer.event_handler("on_latency_measured")
+            @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
             async def _record_latency(obs: Any, latency_secs: float) -> None:
                 _measurements.append(latency_secs)
 
