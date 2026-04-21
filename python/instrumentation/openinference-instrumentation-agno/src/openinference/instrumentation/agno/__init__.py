@@ -2,7 +2,7 @@ from typing import Any, Callable, Collection, List, Optional, Type
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import (
     OITracer,

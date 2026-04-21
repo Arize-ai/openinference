@@ -8,7 +8,7 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from opentelemetry.trace import Span, Tracer, get_current_span
 from opentelemetry.util._decorator import _agnosticcontextmanager
-from wrapt import resolve_path, wrap_function_wrapper
+from wrapt.patches import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_adk.version import __version__

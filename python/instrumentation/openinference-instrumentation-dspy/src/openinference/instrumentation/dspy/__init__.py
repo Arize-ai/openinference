@@ -23,7 +23,8 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import StatusCode
 from opentelemetry.util.types import AttributeValue
-from wrapt import BoundFunctionWrapper, FunctionWrapper, apply_patch, resolve_path, wrap_object
+from wrapt import BoundFunctionWrapper, FunctionWrapper
+from wrapt.patches import apply_patch, resolve_path, wrap_object
 
 from openinference.instrumentation import (
     OITracer,

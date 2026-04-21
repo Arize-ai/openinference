@@ -6,7 +6,8 @@ from typing import Any, Collection
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from packaging.version import Version
-from wrapt import ObjectProxy, wrap_function_wrapper
+from wrapt import ObjectProxy
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.guardrails._wrap_guard_call import (

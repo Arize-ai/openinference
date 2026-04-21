@@ -5,7 +5,7 @@ from uuid import UUID
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.trace import Span
-from wrapt import wrap_function_wrapper  # type: ignore
+from wrapt.patches import wrap_function_wrapper  # type: ignore
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.langchain.package import _instruments
