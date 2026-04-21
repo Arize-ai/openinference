@@ -31,7 +31,9 @@ class ResearchWorkflow(Workflow):
             [
                 ChatMessage(
                     role="system",
-                    content="Extract 5 keywords from the text. Reply with a comma-separated list only.",
+                    content=(
+                        "Extract 5 keywords from the text. Reply with a comma-separated list only."
+                    ),
                 ),
                 ChatMessage(role="user", content=text),
             ]
