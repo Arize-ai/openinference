@@ -42,7 +42,7 @@ try:
     _LatencyObserverCls: Any = UserBotLatencyObserver
     _PIPECAT_NEW_LATENCY_OBSERVER = True
 except ImportError:
-    from pipecat.observers.loggers.user_bot_latency_log_observer import (
+    from pipecat.observers.loggers.user_bot_latency_log_observer import (  # type: ignore[import-not-found, unused-ignore]
         UserBotLatencyLogObserver,
     )
 
