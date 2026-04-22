@@ -14,7 +14,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from anthropic.types import Completion, RawMessageStreamEvent
 
 
-class _RawStreamInterceptor(ObjectProxy):  # type: ignore
+class _RawStreamInterceptor(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """
     Wraps the raw HTTP stream inside a MessageStream. Forwards every event
     unchanged so MessageStream can run its own accumulation (accumulate_event),
@@ -100,7 +100,7 @@ class _RawStreamInterceptor(ObjectProxy):  # type: ignore
         )
 
 
-class _Stream(ObjectProxy):  # type: ignore
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
         "_with_span",
@@ -209,7 +209,7 @@ class _ResponseExtractor:
             yield SpanAttributes.LLM_OUTPUT_MESSAGES, completion
 
 
-class _MessagesStream(ObjectProxy):  # type: ignore
+class _MessagesStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
         "_with_span",

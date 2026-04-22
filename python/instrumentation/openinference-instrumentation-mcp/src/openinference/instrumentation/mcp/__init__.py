@@ -5,7 +5,9 @@ from typing import Any, AsyncGenerator, Callable, Collection, Tuple
 from opentelemetry import context, propagate
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
-from wrapt import ObjectProxy, register_post_import_hook, wrap_function_wrapper
+from wrapt.importer import register_post_import_hook
+from wrapt.patches import wrap_function_wrapper
+from wrapt.proxies import ObjectProxy
 
 from openinference.instrumentation.mcp.package import _instruments
 
@@ -111,7 +113,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
             setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))
 
 
-class InstrumentedStreamReader(ObjectProxy):  # type: ignore
+class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -149,7 +151,7 @@ class InstrumentedStreamReader(ObjectProxy):  # type: ignore
             yield item
 
 
-class InstrumentedStreamWriter(ObjectProxy):  # type: ignore
+class InstrumentedStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -183,7 +185,7 @@ class ItemWithContext:
     ctx: context.Context
 
 
-class ContextSavingStreamWriter(ObjectProxy):  # type: ignore
+class ContextSavingStreamWriter(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()
@@ -196,7 +198,7 @@ class ContextSavingStreamWriter(ObjectProxy):  # type: ignore
         return await self.__wrapped__.send(ItemWithContext(item, ctx))
 
 
-class ContextAttachingStreamReader(ObjectProxy):  # type: ignore
+class ContextAttachingStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     # ObjectProxy missing context manager - https://github.com/GrahamDumpleton/wrapt/issues/73
     async def __aenter__(self) -> Any:
         return await self.__wrapped__.__aenter__()

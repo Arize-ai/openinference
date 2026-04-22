@@ -23,7 +23,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (
@@ -513,7 +513,7 @@ class _AsyncMessagesStreamWrapper(_WithTracer):
 # so callers have full access to .text_stream, .get_final_message(), etc.
 
 
-class _MessageStreamManager(ObjectProxy):  # type: ignore
+class _MessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
@@ -548,7 +548,7 @@ class _MessageStreamManager(ObjectProxy):  # type: ignore
             self._self_message_stream.close()
 
 
-class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
+class _BetaMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
@@ -586,7 +586,7 @@ class _BetaMessageStreamManager(ObjectProxy):  # type: ignore
 # Async stream manager proxies.
 
 
-class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
+class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(
@@ -621,7 +621,7 @@ class _AsyncMessageStreamManager(ObjectProxy):  # type: ignore
             await self._self_message_stream.close()
 
 
-class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore
+class _BetaAsyncMessageStreamManager(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = ("_self_with_span", "_self_interceptor", "_self_message_stream")
 
     def __init__(

@@ -28,7 +28,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 
 from llama_index.core import Response
 from llama_index.core.base.response.schema import AsyncStreamingResponse, StreamingResponse
@@ -337,7 +337,7 @@ class OpenInferenceTraceCallbackHandler(BaseCallbackHandler):
                 _is_streaming_response(response := payload.get(EventPayload.RESPONSE))
                 and response.response_gen is not None
             ):
-                response.response_gen = _ResponseGen(response.response_gen, event_data)
+                response.response_gen = _ResponseGen(response.response_gen, event_data)  # type: ignore[assignment]
                 is_dispatched = True
 
         if not is_dispatched:
@@ -395,7 +395,7 @@ class _BoundedDict(OrderedDict[str, _Value]):
         super().__setitem__(key, value)
 
 
-class _ResponseGen(ObjectProxy):  # type: ignore
+class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_self_tokens",
         "_self_is_finished",

@@ -6,7 +6,7 @@ from typing import Any, Collection
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from packaging.version import Version
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
@@ -26,7 +26,7 @@ _LLM_PROVIDERS_MODULE = "guardrails.llm_providers"
 _RUNNER_MODULE = "guardrails.run"
 
 
-class _Contextvars(ObjectProxy):  # type: ignore
+class _Contextvars(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, cv: Any) -> None:
         super().__init__(cv)
 

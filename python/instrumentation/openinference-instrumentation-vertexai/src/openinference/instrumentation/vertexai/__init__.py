@@ -44,7 +44,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
             wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 method.__module__,
                 method.__name__,
-                lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),
+                lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),  # type: ignore[arg-type]
             )
 
     def _uninstrument(self, **kwargs: Any) -> None:

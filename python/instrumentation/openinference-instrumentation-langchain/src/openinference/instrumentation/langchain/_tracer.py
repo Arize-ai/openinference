@@ -46,7 +46,7 @@ from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
@@ -101,7 +101,7 @@ K = TypeVar("K", bound=Hashable)
 V = TypeVar("V")
 
 
-class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore
+class _DictWithLock(ObjectProxy, Generic[K, V]):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """
     A wrapped dictionary with lock
     """

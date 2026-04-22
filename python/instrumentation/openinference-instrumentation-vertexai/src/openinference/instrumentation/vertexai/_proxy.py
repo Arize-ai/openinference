@@ -45,19 +45,19 @@ def _proxy(
     if getattr(obj, _SELF_IS_PROXY, False):
         return obj
     if isinstance(obj, Awaitable):
-        return _Awaitable(obj, callback, context_manager_factory)
+        return _Awaitable(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, AsyncGenerator):
-        return _AsyncGenerator(obj, callback, context_manager_factory)
+        return _AsyncGenerator(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, Generator):
-        return _Generator(obj, callback, context_manager_factory)
+        return _Generator(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, AsyncIterator):
-        return _AsyncIterator(obj, callback, context_manager_factory)
+        return _AsyncIterator(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, Iterator):
-        return _Iterator(obj, callback, context_manager_factory)
+        return _Iterator(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, AsyncIterable):
-        return _AsyncIterable(obj, callback, context_manager_factory)
+        return _AsyncIterable(obj, callback, context_manager_factory)  # type: ignore[return-value]
     if isinstance(obj, Iterable):
-        return _Iterable(obj, callback, context_manager_factory)
+        return _Iterable(obj, callback, context_manager_factory)  # type: ignore[return-value]
     return obj
 
 

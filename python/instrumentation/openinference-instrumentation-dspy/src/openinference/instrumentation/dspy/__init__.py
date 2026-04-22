@@ -64,7 +64,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         args: Tuple[Any, ...] = (),
         kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        wrap_object(
+        wrap_object(  # type: ignore[no-untyped-call,call-arg]
             module=module,
             name=name,
             factory=factory,
@@ -95,14 +95,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module="dspy",
             name="LM.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_LMCallWrapper(self._tracer),),
+            args=(_LMCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module="dspy",
             name="LM.acall",
             factory=CopyableFunctionWrapper,
-            args=(_LMAcallWrapper(self._tracer),),
+            args=(_LMAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # The DummyLM class is the only typical subclass of DSPy's LM class.
@@ -113,14 +113,14 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module="dspy.utils",
             name="DummyLM.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_LMCallWrapper(self._tracer),),
+            args=(_LMCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module="dspy.utils",
             name="DummyLM.acall",
             factory=CopyableFunctionWrapper,
-            args=(_LMAcallWrapper(self._tracer),),
+            args=(_LMAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # Predict is a concrete (non-abstract) class that may be invoked
@@ -131,13 +131,13 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="Predict.forward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictForwardWrapper(self._tracer),),
+            args=(_PredictForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Predict.aforward",
             factory=CopyableFunctionWrapper,
-            args=(_PredictAforwardWrapper(self._tracer),),
+            args=(_PredictAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         predict_subclasses = Predict.__subclasses__()
@@ -146,20 +146,20 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".forward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictForwardWrapper(self._tracer),),
+                args=(_PredictForwardWrapper(self._tracer),),  # type: ignore[arg-type]
             )
             self._wrap_object(
                 module=_DSPY_MODULE,
                 name=predict_subclass.__name__ + ".aforward",
                 factory=CopyableFunctionWrapper,
-                args=(_PredictAforwardWrapper(self._tracer),),
+                args=(_PredictAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
             )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Retrieve.forward",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverForwardWrapper(self._tracer),),
+            args=(_RetrieverForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
@@ -169,7 +169,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleForwardWrapper(self._tracer),),
+            args=(_ModuleForwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
@@ -179,7 +179,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             # forward method and invokes that method using __call__.
             name="Module.acall",
             factory=CopyableFunctionWrapper,
-            args=(_ModuleAforwardWrapper(self._tracer),),
+            args=(_ModuleAforwardWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         # At this time, there is no common parent class for retriever models as
@@ -189,35 +189,35 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
             module=_DSPY_MODULE,
             name="ColBERTv2.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_RetrieverModelCallWrapper(self._tracer),),
+            args=(_RetrieverModelCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_AdapterCallWrapper(self._tracer),),
+            args=(_AdapterCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Adapter.acall",
             factory=CopyableFunctionWrapper,
-            args=(_AdapterAcallWrapper(self._tracer),),
+            args=(_AdapterAcallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.__call__",
             factory=CopyableFunctionWrapper,
-            args=(_ToolCallWrapper(self._tracer),),
+            args=(_ToolCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
         self._wrap_object(
             module=_DSPY_MODULE,
             name="Tool.acall",
             factory=CopyableFunctionWrapper,
-            args=(_AsyncToolCallWrapper(self._tracer),),
+            args=(_AsyncToolCallWrapper(self._tracer),),  # type: ignore[arg-type]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
@@ -242,12 +242,12 @@ class CopyableBoundFunctionWrapper(BoundFunctionWrapper):  # type: ignore
     """
 
     def __copy__(self) -> "CopyableBoundFunctionWrapper":
-        return CopyableBoundFunctionWrapper(
+        return CopyableBoundFunctionWrapper(  # type: ignore[call-arg]
             copy(self.__wrapped__), self._self_instance, self._self_wrapper
         )
 
     def __deepcopy__(self, memo: Dict[Any, Any]) -> "CopyableBoundFunctionWrapper":
-        return CopyableBoundFunctionWrapper(
+        return CopyableBoundFunctionWrapper(  # type: ignore[call-arg]
             deepcopy(self.__wrapped__, memo), self._self_instance, self._self_wrapper
         )
 
@@ -1132,7 +1132,7 @@ def unwrap_object(module: Any, name: str) -> Optional[Any]:
     Returns:
         The restored original attribute, or None if not wrapped.
     """
-    parent, attribute_name, wrapped = resolve_path(module, name)
+    parent, attribute_name, wrapped = resolve_path(module, name)  # type: ignore[no-untyped-call]
 
     if wrapped is None:
         logger.warning(f"{module}.{name} not found")
@@ -1145,7 +1145,7 @@ def unwrap_object(module: Any, name: str) -> Optional[Any]:
     while original is not None and hasattr(original, "__wrapped__"):
         original = getattr(original, "__wrapped__", None)
     if original is not None:
-        apply_patch(parent, attribute_name, original)
+        apply_patch(parent, attribute_name, original)  # type: ignore[no-untyped-call]
     else:
         logger.warning(f"module: {module}, method: {name} not wrapped")
     return original

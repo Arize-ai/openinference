@@ -12,7 +12,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
+from wrapt.proxies import ObjectProxy
 
 from openinference.instrumentation.openai._utils import _finish_tracing
 from openinference.instrumentation.openai._with_span import _WithSpan
@@ -37,7 +37,7 @@ class _ResponseAccumulator(Protocol):
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
 
-class _Stream(ObjectProxy):  # type: ignore
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_self_with_span",
         "_self_iteration_count",
