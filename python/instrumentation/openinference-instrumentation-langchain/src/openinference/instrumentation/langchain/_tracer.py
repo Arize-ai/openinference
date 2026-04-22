@@ -46,7 +46,7 @@ from opentelemetry.semconv.trace import SpanAttributes as OTELSpanAttributes
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import NotRequired, TypeGuard
-from wrapt.proxies import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (

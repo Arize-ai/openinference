@@ -7,7 +7,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.instrumentation.utils import unwrap
 from wrapt.importer import register_post_import_hook
 from wrapt.patches import wrap_function_wrapper
-from wrapt.proxies import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
 from openinference.instrumentation.mcp.package import _instruments
 

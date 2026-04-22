@@ -14,7 +14,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt.proxies import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan

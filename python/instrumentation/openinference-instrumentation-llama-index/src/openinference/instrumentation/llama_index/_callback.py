@@ -28,7 +28,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias, TypeGuard
-from wrapt.proxies import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined]
 
 from llama_index.core import Response
 from llama_index.core.base.response.schema import AsyncStreamingResponse, StreamingResponse
