@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-instrumentation-beeai",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "private": false,
   "description": "OpenInference Instrumentation for BeeAI framework",
   "keywords": [

@@ -1,6 +1,6 @@
 {
   "name": "@arizeai/openinference-genai",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": false,
   "description": "OpenInference utilities for converting OpenTelemetry GenAI span attributes to OpenInference span attributes",
   "keywords": [
