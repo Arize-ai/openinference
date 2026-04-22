@@ -33,10 +33,6 @@ from respx import MockRouter
 
 from openinference.instrumentation import REDACTED_VALUE, TraceConfig, using_attributes
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from openinference.instrumentation.openai._request import (
-    _HOST_SUFFIX_TO_PROVIDER,
-    get_provider_from_host,
-)
 from openinference.semconv.trace import (
     EmbeddingAttributes,
     ImageAttributes,
@@ -58,7 +54,6 @@ for name, logger in logging.root.manager.loggerDict.items():
 
 _OPENAI_BASE_URL = "https://api.openai.com/v1/"
 _AZURE_BASE_URL = "https://aoairesource.openai.azure.com"
-_ALL_PROVIDER_VALUES: set[str] = {p.value for p in OpenInferenceLLMProviderValues}
 
 
 class TestInstrumentor:
@@ -1579,79 +1574,6 @@ def _check_context_attributes(
     assert attributes.pop(SpanAttributes.LLM_PROMPT_TEMPLATE_VARIABLES, None) == json.dumps(
         prompt_template_variables
     )
-
-
-class TestGetProviderFromHost:
-    @pytest.mark.parametrize(
-        "host, expected",
-        [
-            # OpenAI
-            ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI.value),
-            # Azure OpenAI
-            ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            ("my-resource.openai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            # Anthropic
-            ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC.value),
-            # Cohere (v1 and v2 planes share the root domain)
-            ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE.value),
-            ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE.value),
-            # Mistral AI
-            ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI.value),
-            # Google (Gemini via AI Studio and Vertex AI)
-            ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
-            ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
-            # AWS Bedrock
-            ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            # xAI
-            ("api.x.ai", OpenInferenceLLMProviderValues.XAI.value),
-            # DeepSeek
-            ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK.value),
-            # Groq
-            ("api.groq.com", OpenInferenceLLMProviderValues.GROQ.value),
-            # Fireworks AI
-            ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS.value),
-            # Moonshot AI
-            ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT.value),
-            # Cerebras
-            ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS.value),
-            # Perplexity
-            ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY.value),
-            # Together AI
-            ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER.value),
-            ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER.value),
-        ],
-    )
-    def test_known_hosts(self, host: str, expected: str) -> None:
-        assert get_provider_from_host(host) == expected
-
-    @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
-    def test_case_insensitive(self, host: str) -> None:
-        assert get_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI.value
-
-    @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
-    def test_whitespace_stripped(self, host: str) -> None:
-        assert get_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI.value
-
-    @pytest.mark.parametrize(
-        "host",
-        [
-            "api.unknown-provider.com",
-            "storage.googleapis.com",
-            "",
-        ],
-    )
-    def test_unrecognised_host_returns_none(self, host: str) -> None:
-        assert get_provider_from_host(host) is None
-
-    def test_every_provider_has_at_least_one_host_entry(self) -> None:
-        missing = _ALL_PROVIDER_VALUES - set(_HOST_SUFFIX_TO_PROVIDER.values())
-        assert not missing, f"Providers without a hostname entry: {missing}"
-
-    def test_all_suffix_values_are_valid_provider_values(self) -> None:
-        invalid = set(_HOST_SUFFIX_TO_PROVIDER.values()) - _ALL_PROVIDER_VALUES
-        assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
 
 
 @pytest.fixture()

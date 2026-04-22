@@ -8,11 +8,9 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Dict,
     Iterable,
     Iterator,
     Mapping,
-    Optional,
     Tuple,
 )
 
@@ -23,7 +21,10 @@ from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import TypeAlias
 
-from openinference.instrumentation import get_attributes_from_context
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_provider_from_host,
+)
 from openinference.instrumentation.openai._image_utils import redact_images_from_request_parameters
 from openinference.instrumentation.openai._request_attributes_extractor import (
     _RequestAttributesExtractor,
@@ -59,53 +60,6 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
-
-
-# Maps hostname suffixes to their corresponding LLM provider value.
-_HOST_SUFFIX_TO_PROVIDER: Dict[str, str] = {
-    # OpenAI
-    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI.value,
-    # Azure OpenAI
-    "openai.azure.com": OpenInferenceLLMProviderValues.AZURE.value,
-    # Anthropic
-    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC.value,
-    # Cohere (v1 and v2 planes share the root domain)
-    "api.cohere.com": OpenInferenceLLMProviderValues.COHERE.value,
-    "api.cohere.ai": OpenInferenceLLMProviderValues.COHERE.value,
-    # Mistral AI
-    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI.value,
-    # Google (Gemini via AI Studio and Vertex AI)
-    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
-    "aiplatform.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
-    # AWS Bedrock
-    "amazonaws.com": OpenInferenceLLMProviderValues.AWS.value,
-    # xAI
-    "api.x.ai": OpenInferenceLLMProviderValues.XAI.value,
-    # DeepSeek
-    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK.value,
-    # Groq
-    "api.groq.com": OpenInferenceLLMProviderValues.GROQ.value,
-    # Fireworks AI
-    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS.value,
-    # Moonshot AI
-    "api.moonshot.cn": OpenInferenceLLMProviderValues.MOONSHOT.value,
-    # Cerebras
-    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS.value,
-    # Perplexity
-    "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY.value,
-    # Together AI
-    "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER.value,
-    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER.value,
-}
-
-
-def get_provider_from_host(host: str) -> Optional[str]:
-    """Return the LLM provider name for the given API hostname."""
-    normalised = host.lower().strip()
-    for suffix, provider in _HOST_SUFFIX_TO_PROVIDER.items():
-        if normalised.endswith(suffix):
-            return provider
-    return None
 
 
 class _WithTracer(ABC):
