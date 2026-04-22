@@ -47,12 +47,12 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
         self._original_async_request = openai.AsyncOpenAI.request
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "OpenAI.request",
             _Request(tracer=tracer, openai=openai),
         )
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "AsyncOpenAI.request",
             _AsyncRequest(tracer=tracer, openai=openai),

@@ -56,19 +56,19 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         import haystack
 
         self._original_pipeline_run = haystack.Pipeline.run
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "haystack.core.pipeline.pipeline",
             "Pipeline.run",
             _PipelineWrapper(tracer=self._tracer),
         )
         self._original_async_pipeline_run = haystack.AsyncPipeline.run
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "haystack.core.pipeline.async_pipeline",
             "AsyncPipeline.run",
             _PipelineWrapper(tracer=self._tracer),
         )
         self._original_async_pipeline_run_async = haystack.AsyncPipeline.run_async
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "haystack.core.pipeline.async_pipeline",
             "AsyncPipeline.run_async",
             _AsyncPipelineWrapper(tracer=self._tracer),
@@ -76,7 +76,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self._original_async_pipeline_run_async_generator = (
             haystack.AsyncPipeline.run_async_generator
         )
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "haystack.core.pipeline.async_pipeline",
             "AsyncPipeline.run_async_generator",
             _AsyncPipelineRunAsyncGeneratorWrapper(tracer=self._tracer),
@@ -102,7 +102,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             if method_name == "run" and component_cls not in self._original_component_run_methods:
                 class_method = getattr(component_cls, "run")
                 self._original_component_run_methods[component_cls] = class_method
-                wrap_function_wrapper(
+                wrap_function_wrapper(  # type: ignore[no-untyped-call]
                     component_cls.__module__,
                     f"{component_cls.__name__}.run",
                     _ComponentRunWrapper(tracer=self._tracer),
@@ -113,13 +113,13 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ):
                 class_method = getattr(component_cls, "run_async")
                 self._original_component_run_async_methods[component_cls] = class_method
-                wrap_function_wrapper(
+                wrap_function_wrapper(  # type: ignore[no-untyped-call]
                     component_cls.__module__,
                     f"{component_cls.__name__}.{method_name}",
                     _AsyncComponentRunWrapper(tracer=self._tracer),
                 )
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             Pipeline,
             "_run_component",
             _PipelineRunComponentWrapper(
@@ -130,7 +130,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         async_original = AsyncPipeline.__dict__["_run_component_async"]
         self._original_async_pipeline_run_component_async = async_original.__func__
 
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             AsyncPipeline,
             "_run_component_async",
             _AsyncPipelineRunComponentWrapper(

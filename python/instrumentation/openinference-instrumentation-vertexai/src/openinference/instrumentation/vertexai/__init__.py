@@ -41,7 +41,7 @@ class VertexAIInstrumentor(BaseInstrumentor):  # type: ignore
         from openinference.instrumentation.vertexai._wrapper import _Wrapper
 
         for method in (gapic.method.wrap_method, gapic.method_async.wrap_method):
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 method.__module__,
                 method.__name__,
                 lambda f, _, args, kwargs: _Wrapper(tracer)(f(*args, **kwargs)),

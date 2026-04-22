@@ -52,7 +52,7 @@ class dangerously_using_project:
 
     def __enter__(self) -> None:
         self.unwrapped_init: Optional[Callable[..., None]] = trace.ReadableSpan.__init__
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "opentelemetry.sdk.trace",
             "ReadableSpan.__init__",
             project_override_wrapper(self.project_name),

@@ -58,7 +58,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
             self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module, name, wrapper)
+            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
 
         self._patch_trace_call_llm()
         self._patch_trace_tool_call()

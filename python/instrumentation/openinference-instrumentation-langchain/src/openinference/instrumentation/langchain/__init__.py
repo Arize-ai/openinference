@@ -51,7 +51,7 @@ class LangChainInstrumentor(BaseInstrumentor):  # type: ignore
             bool(kwargs.get("separate_trace_from_runtime_context")),
         )
         self._original_callback_manager_init = langchain_core.callbacks.BaseCallbackManager.__init__
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "langchain_core.callbacks",
             "BaseCallbackManager.__init__",
             _BaseCallbackManagerInit(self._tracer),

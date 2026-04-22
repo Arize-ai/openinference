@@ -53,7 +53,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         run_wrapper = _RunWrapper(tracer=self._tracer)
         self._original_run_method = getattr(MultiStepAgent, "run", None)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "smolagents",
             "MultiStepAgent.run",
             run_wrapper,
@@ -63,7 +63,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
         step_wrapper = _StepWrapper(tracer=self._tracer)
         for step_cls in [CodeAgent, ToolCallingAgent]:
             self._original_step_stream_methods[step_cls] = getattr(step_cls, "_step_stream", None)
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "smolagents",
                 f"{step_cls.__name__}._step_stream",
                 step_wrapper,
@@ -83,7 +83,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_model_generate_methods[model_subclass] = getattr(
                 model_subclass, "generate"
             )
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "smolagents",
                 model_subclass.__name__ + ".generate",
                 model_subclass_wrapper,
@@ -112,7 +112,7 @@ class SmolagentsInstrumentor(BaseInstrumentor):  # type: ignore
 
         tool_call_wrapper = _ToolCallWrapper(tracer=self._tracer)
         self._original_tool_call_method = getattr(Tool, "__call__", None)
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "smolagents",
             "Tool.__call__",
             tool_call_wrapper,

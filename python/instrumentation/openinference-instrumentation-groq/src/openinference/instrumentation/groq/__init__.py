@@ -42,14 +42,14 @@ class GroqInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         self._original_completions_create = Completions.create
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "groq.resources.chat.completions",
             "Completions.create",
             _CompletionsWrapper(tracer=self._tracer),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             "groq.resources.chat.completions",
             "AsyncCompletions.create",
             _AsyncCompletionsWrapper(tracer=self._tracer),

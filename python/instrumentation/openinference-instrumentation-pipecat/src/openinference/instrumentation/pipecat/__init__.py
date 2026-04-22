@@ -85,7 +85,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
             self._original_task_init = PipelineTask.__init__
 
             # Wrap PipelineTask.__init__ to inject our observer
-            wrap_function_wrapper(
+            wrap_function_wrapper(  # type: ignore[no-untyped-call]
                 "pipecat.pipeline.task",
                 "PipelineTask.__init__",
                 _TaskInitWrapper(

@@ -64,7 +64,7 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
             self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module, name, wrapper)
+            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
 
     def _uninstrument(self, **kwargs: Any) -> None:
         for parent, attribute, original in getattr(self, "_originals", ()):
