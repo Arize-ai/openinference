@@ -87,7 +87,7 @@ class _Stream(ObjectProxy):  # type: ignore
             return chunk
 
     def __aiter__(self) -> AsyncIterator[Any]:
-        return self
+        return self  # type: ignore[return-value]
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:

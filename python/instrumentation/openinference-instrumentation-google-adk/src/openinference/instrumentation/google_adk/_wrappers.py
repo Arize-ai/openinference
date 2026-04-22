@@ -193,7 +193,7 @@ class _BaseAgentRunAsync(_WithTracer):
 
 
 class _TraceCallLlm(_WithTracer):
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., T],
@@ -288,7 +288,7 @@ class _TraceCallLlm(_WithTracer):
 
 
 class _TraceToolCall(_WithTracer):
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., T],

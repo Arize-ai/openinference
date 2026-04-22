@@ -111,7 +111,7 @@ class _Wrapper:
         super().__init__(*args, **kwargs)
         self._tracer = tracer
 
-    @wrapt.decorator  # type: ignore[misc]
+    @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
     def __call__(
         self,
         wrapped: Callable[..., Any],

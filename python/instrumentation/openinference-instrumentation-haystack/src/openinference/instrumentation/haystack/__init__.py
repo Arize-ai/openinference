@@ -123,7 +123,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             Pipeline,
             "_run_component",
             _PipelineRunComponentWrapper(
-                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
+                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method  # type: ignore[arg-type]
             ),
         )
 
@@ -134,7 +134,7 @@ class HaystackInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             AsyncPipeline,
             "_run_component_async",
             _AsyncPipelineRunComponentWrapper(
-                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method
+                tracer=self._tracer, wrap_component_run_method=wrap_component_run_method  # type: ignore[arg-type]
             ),
         )
         from haystack.core.component.component import component

@@ -50,12 +50,12 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "OpenAI.request",
-            _Request(tracer=tracer, openai=openai),
+            _Request(tracer=tracer, openai=openai),  # type: ignore[arg-type]
         )
         wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "AsyncOpenAI.request",
-            _AsyncRequest(tracer=tracer, openai=openai),
+            _AsyncRequest(tracer=tracer, openai=openai),  # type: ignore[arg-type]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

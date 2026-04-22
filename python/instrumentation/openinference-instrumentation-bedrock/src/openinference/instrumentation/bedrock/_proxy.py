@@ -281,7 +281,7 @@ class _NoErr(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
 def _no_err(obj: Optional[_T_co]) -> _T_co:
     if getattr(obj, _SELF_IS_NO_ERR, False):
         return cast(_T_co, obj)
-    return _NoErr(obj)
+    return _NoErr(obj)  # type: ignore[return-value]
 
 
 def _call(self: _Proxy, *args: Any, **kwargs: Any) -> Any:

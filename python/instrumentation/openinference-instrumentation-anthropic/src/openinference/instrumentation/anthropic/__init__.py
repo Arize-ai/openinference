@@ -78,7 +78,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.completions",
             "Completions.create",
             _CompletionsWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="completions.create",
             ),
         )
@@ -88,7 +88,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.completions",
             "AsyncCompletions.create",
             _AsyncCompletionsWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="completions.create",
             ),
         )
@@ -98,7 +98,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.create",
             _MessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
         )
@@ -108,7 +108,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.create",
             ),
         )
@@ -118,7 +118,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_MessageStreamManager,
             ),
@@ -129,7 +129,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.stream",
                 manager_class=_AsyncMessageStreamManager,
             ),
@@ -140,7 +140,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "Messages.parse",
             _MessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
         )
@@ -150,7 +150,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="messages.parse",
             ),
         )
@@ -160,7 +160,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.create",
             _MessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
         )
@@ -170,7 +170,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.create",
             _AsyncMessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.create",
             ),
         )
@@ -180,7 +180,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.stream",
             _MessagesStreamWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaMessageStreamManager,
             ),
@@ -191,7 +191,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.stream",
             _AsyncMessagesStreamWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
                 manager_class=_BetaAsyncMessageStreamManager,
             ),
@@ -202,7 +202,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "Messages.parse",
             _MessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
         )
@@ -212,7 +212,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             "anthropic.resources.beta.messages",
             "AsyncMessages.parse",
             _AsyncMessagesWrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.parse",
             ),
         )

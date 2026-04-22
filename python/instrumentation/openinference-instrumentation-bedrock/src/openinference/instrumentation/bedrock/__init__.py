@@ -688,7 +688,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             _MODULE,
             "ClientCreator.create_client",
             _sync_client_creation_wrapper(
-                tracer=self._tracer,
+                tracer=self._tracer,  # type: ignore[arg-type]
                 module_version=botocore.__version__,
             ),
         )
@@ -700,7 +700,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
                 _AIO_MODULE,
                 "AioClientCreator.create_client",
                 _async_client_creation_wrapper(
-                    tracer=self._tracer,
+                    tracer=self._tracer,  # type: ignore[arg-type]
                     # Converse check uses botocore version (same as sync);
                     # aiobotocore wraps botocore.
                     module_version=botocore.__version__,
