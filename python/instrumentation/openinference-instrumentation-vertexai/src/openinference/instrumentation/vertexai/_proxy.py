@@ -61,7 +61,7 @@ def _proxy(
     return obj
 
 
-class _Proxy(wrapt.ObjectProxy):  # type: ignore[misc]
+class _Proxy(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(
         self,
         wrapped: _WrappedT,
@@ -234,7 +234,7 @@ class _AsyncGenerator(
         )
 
 
-class _NoErr(wrapt.ObjectProxy):  # type: ignore[misc]
+class _NoErr(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Any) -> None:
         super().__init__(wrapped)
         setattr(self, _SELF_IS_NO_ERR, True)

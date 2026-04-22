@@ -109,7 +109,7 @@ class _RunnerRunAsync(_WithTracer):
         if (session_id := kwargs.get("session_id")) is not None:
             attributes[SpanAttributes.SESSION_ID] = session_id
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
 
             async def __aiter__(self) -> Any:
@@ -163,7 +163,7 @@ class _BaseAgentRunAsync(_WithTracer):
         attributes[SpanAttributes.OPENINFERENCE_SPAN_KIND] = OpenInferenceSpanKindValues.AGENT.value
         attributes[SpanAttributes.AGENT_NAME] = instance.name
 
-        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc]
+        class _AsyncGenerator(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
             __wrapped__: AsyncGenerator[Event, None]
 
             async def __aiter__(self) -> Any:

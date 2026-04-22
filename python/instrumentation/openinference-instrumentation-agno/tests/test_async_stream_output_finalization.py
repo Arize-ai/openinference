@@ -41,7 +41,7 @@ def _build_wrapper() -> tuple[_RunWrapper, InMemorySpanExporter]:
         trace_api.get_tracer("test-agno-arun-stream", tracer_provider=tracer_provider),
         config=TraceConfig(),
     )
-    return _RunWrapper(tracer=tracer), exporter
+    return _RunWrapper(tracer=tracer), exporter  # type: ignore[arg-type]
 
 
 FAKE_ARUN_STREAM = cast(Callable[..., Awaitable[Any]], _fake_arun_stream)

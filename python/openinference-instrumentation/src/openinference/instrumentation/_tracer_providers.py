@@ -24,7 +24,7 @@ class TracerProvider(OTelTracerProvider):
         super().__init__(*args, **kwargs)
         self._oi_trace_config = config or TraceConfig()
 
-    def get_tracer(  # type: ignore[override]
+    def get_tracer(  # type: ignore[override,unused-ignore]
         self,
         *args: Any,
         **kwargs: Any,

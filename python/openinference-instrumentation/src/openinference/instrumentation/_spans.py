@@ -24,7 +24,7 @@ _IMPORTANT_ATTRIBUTES = [
 ]
 
 
-class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
+class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config

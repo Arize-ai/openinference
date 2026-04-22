@@ -198,7 +198,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
 
-class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """A tracer proxy that passes through span operations without creating new spans.
 
     This is used to disable existing tracers during instrumentation to prevent

@@ -176,7 +176,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
         else:
             tracer = cast(Tracer, self.__wrapped__)
             otel_span = tracer.__class__.start_span(
-                self,  # type: ignore[arg-type]
+                self,  # type: ignore[arg-type,unused-ignore]
                 name=name,
                 context=context,
                 kind=kind,
@@ -338,7 +338,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
             if asyncio.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -420,9 +420,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,un
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value]
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value,unused-ignore]
 
     @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
