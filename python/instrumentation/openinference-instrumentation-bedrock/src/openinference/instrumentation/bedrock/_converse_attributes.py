@@ -186,11 +186,14 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
-    return TokenCount(
-        prompt=usage["inputTokens"],
-        completion=usage["outputTokens"],
-        total=usage["totalTokens"],
-    )
+    token_count: TokenCount = {}
+    if (prompt := usage.get("inputTokens")) is not None:
+        token_count["prompt"] = prompt
+    if (completion := usage.get("outputTokens")) is not None:
+        token_count["completion"] = completion
+    if (total := usage.get("totalTokens")) is not None:
+        token_count["total"] = total
+    return token_count or None
 
 
 def get_attributes_from_response_data(

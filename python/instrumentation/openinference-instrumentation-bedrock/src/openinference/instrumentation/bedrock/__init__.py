@@ -72,6 +72,9 @@ from openinference.instrumentation import (
     get_attributes_from_context,
     safe_json_dumps,
 )
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_response_data as _get_converse_response_attributes,
+)
 from openinference.instrumentation.bedrock._rag_wrappers import (
     _retrieve_and_generate_wrapper,
     _retrieve_wrapper,
@@ -532,39 +535,13 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
             kwargs: Dict[str, Any],
             response: Dict[str, Any],
         ) -> Dict[str, Any]:
-            """Set output message, role, content and token usage on span from response."""
-            if (
-                (response_message := response.get("output", {}).get("message"))
-                and (response_role := response_message.get("role"))
-                and (response_content := response_message.get("content", []))
-            ):
-                # Currently only supports text-based data
-                response_text = "\n".join(
-                    content_input.get("text", "") for content_input in response_content
-                )
-                _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, response_text)
-
-                span_prefix = f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0"
-                _set_span_attribute(span, f"{span_prefix}.message.role", response_role)
-                _set_span_attribute(span, f"{span_prefix}.message.content", response_text)
-
-            if usage := response.get("usage"):
-                if input_token_count := usage.get("inputTokens"):
-                    _set_span_attribute(
-                        span, SpanAttributes.LLM_TOKEN_COUNT_PROMPT, input_token_count
-                    )
-                if response_token_count := usage.get("outputTokens"):
-                    _set_span_attribute(
-                        span,
-                        SpanAttributes.LLM_TOKEN_COUNT_COMPLETION,
-                        response_token_count,
-                    )
-                if total_token_count := usage.get("totalTokens"):
-                    _set_span_attribute(
-                        span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count
-                    )
-
+            """Set output message and token usage on span from response."""
+            try:
+                span.set_attributes(_get_converse_response_attributes(kwargs, response))  # type: ignore[arg-type]
+            except Exception:
+                logger.warning("Failed to set response attributes on span", exc_info=True)
             span.set_attributes(dict(get_attributes_from_context()))
+            span.set_status(Status(StatusCode.OK))
             return response
 
         def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
@@ -624,7 +601,13 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
                     _set_input_attributes(span, kwargs)
-                    response = await wrapped_client._unwrapped_converse(*args, **kwargs)
+                    try:
+                        response = await wrapped_client._unwrapped_converse(*args, **kwargs)
+                    except Exception as e:
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        span.end()
+                        raise
                     return _process_converse(span, args, kwargs, response)
 
             return async_instrumented_response
@@ -637,7 +620,13 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
                     _set_input_attributes(span, kwargs)
-                    response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                    try:
+                        response = wrapped_client._unwrapped_converse(*args, **kwargs)
+                    except Exception as e:
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, str(e)))
+                        span.end()
+                        raise
                     return _process_converse(span, args, kwargs, response)
 
             return sync_instrumented_response

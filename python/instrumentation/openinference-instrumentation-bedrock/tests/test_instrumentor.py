@@ -950,10 +950,12 @@ def _run_converse_checks(
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == invocation_parameters
 
-    assert attributes.pop(OUTPUT_VALUE) == output["message"]["content"][0]["text"]
+    assert attributes.pop(OUTPUT_VALUE) == json.dumps(output["message"])
+    assert attributes.pop(OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.pop("llm.output_messages.0.message.role") == output["message"]["role"]
+    assert attributes.pop("llm.output_messages.0.message.contents.0.message_content.type") == "text"
     assert (
-        attributes.pop("llm.output_messages.0.message.content")
+        attributes.pop("llm.output_messages.0.message.contents.0.message_content.text")
         == output["message"]["content"][0]["text"]
     )
 
