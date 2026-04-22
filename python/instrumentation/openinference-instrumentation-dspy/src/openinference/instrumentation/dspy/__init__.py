@@ -65,11 +65,11 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
         wrap_object(  # type: ignore[no-untyped-call,call-arg]
-            module=module,
-            name=name,
-            factory=factory,
-            args=args,
-            kwargs=kwargs or {},
+            module,
+            name,
+            factory,
+            args,
+            kwargs or {},
         )
         self._originals.append((module, name))
 

@@ -48,7 +48,7 @@ class PipecatInstrumentor(BaseInstrumentor):  # type: ignore
                 "Call .instrument() first."
             )
 
-        return OpenInferenceObserver(tracer=self._tracer, config=self._config)  # type: ignore[arg-type]
+        return OpenInferenceObserver(tracer=self._tracer, config=self._config)  # type: ignore[arg-type,unused-ignore]
 
     def _instrument(self, **kwargs: Any) -> None:
         """
@@ -155,7 +155,7 @@ class _TaskInitWrapper:
         from openinference.instrumentation.pipecat._observer import OpenInferenceObserver
 
         observer = OpenInferenceObserver(
-            tracer=self._tracer,  # type: ignore[arg-type]
+            tracer=self._tracer,  # type: ignore[arg-type,unused-ignore]
             config=self._config,
             conversation_id=conversation_id,
             debug_log_filename=debug_log_filename,

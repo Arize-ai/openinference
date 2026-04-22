@@ -1,6 +1,6 @@
 from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
 
-import wrapt  # type: ignore[import-untyped]
+import wrapt
 from opentelemetry.trace import Span
 from opentelemetry.util.types import AttributeValue
 

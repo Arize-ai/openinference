@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-class _Stream(ObjectProxy): # type: ignore[misc,name-defined,type-arg,unused-ignore]
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_response_accumulator",
         "_with_span",

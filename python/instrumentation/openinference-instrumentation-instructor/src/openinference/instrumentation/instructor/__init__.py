@@ -43,7 +43,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
         )
 
         self._original_patch = getattr(import_module("instructor"), "patch", None)
-        patch_wrapper = _PatchWrapper(tracer=self._tracer)
+        patch_wrapper = _PatchWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper("instructor", "patch", patch_wrapper)  # type: ignore[no-untyped-call]
         self._patch_module = "instructor.core.patch"
         try:
@@ -64,7 +64,7 @@ class InstructorInstrumentor(BaseInstrumentor):  # type: ignore
                     " or instructor.core.patch"
                 )
                 self._original_handle_response_model = None
-        process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)
+        process_resp_wrapper = _HandleResponseWrapper(tracer=self._tracer)  # type: ignore[arg-type]
         wrap_function_wrapper(self._patch_module, "handle_response_model", process_resp_wrapper)  # type: ignore[no-untyped-call]
 
     def _uninstrument(self, **kwargs: Any) -> None:

@@ -403,7 +403,7 @@ class _ResponseGen(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unus
     )
 
     def __init__(self, token_gen: Any, event_data: _EventData) -> None:
-        super().__init__(token_gen)
+        super().__init__(token_gen)  # type: ignore[no-untyped-call]
         self._self_tokens: List[str] = []
         self._self_is_finished = False
         self._self_event_data = event_data

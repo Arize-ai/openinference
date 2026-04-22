@@ -88,8 +88,8 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter", Any], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream, get_session_id_callback):
             yield (
-                InstrumentedStreamReader(read_stream),
-                InstrumentedStreamWriter(write_stream),
+                InstrumentedStreamReader(read_stream),  # type: ignore[no-untyped-call]
+                InstrumentedStreamWriter(write_stream),  # type: ignore[no-untyped-call]
                 get_session_id_callback,
             )
 
@@ -98,7 +98,7 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         self, wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any
     ) -> AsyncGenerator[Tuple["InstrumentedStreamReader", "InstrumentedStreamWriter"], None]:
         async with wrapped(*args, **kwargs) as (read_stream, write_stream):
-            yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)
+            yield InstrumentedStreamReader(read_stream), InstrumentedStreamWriter(write_stream)  # type: ignore[no-untyped-call]
 
     def _base_session_init_wrapper(
         self, wrapped: Callable[..., None], instance: Any, args: Any, kwargs: Any
@@ -108,9 +108,9 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         writer = getattr(instance, "_incoming_message_stream_writer", None)
         if reader and writer:
             setattr(
-                instance, "_incoming_message_stream_reader", ContextAttachingStreamReader(reader)
+                instance, "_incoming_message_stream_reader", ContextAttachingStreamReader(reader)  # type: ignore[no-untyped-call]
             )
-            setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))
+            setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))  # type: ignore[no-untyped-call]
 
 
 class InstrumentedStreamReader(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
