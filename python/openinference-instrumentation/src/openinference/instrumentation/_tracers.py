@@ -93,7 +93,7 @@ class _IdGenerator(IdGenerator):
         return trace_id
 
 
-class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
+class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     def __init__(self, wrapped: Tracer, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
@@ -176,7 +176,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
         else:
             tracer = cast(Tracer, self.__wrapped__)
             otel_span = tracer.__class__.start_span(
-                self,
+                self,  # type: ignore[arg-type]
                 name=name,
                 context=context,
                 kind=kind,
@@ -292,7 +292,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -313,7 +313,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
                 chain_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -336,9 +336,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
 
         if wrapped_function is not None:
             if asyncio.iscoroutinefunction(wrapped_function):
-                return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
-            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+                return async_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+            return sync_wrapper(wrapped_function)  # type: ignore[no-any-return,unused-ignore]
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value]
 
     @overload  # for @tracer.tool usage (no parameters)
     def tool(
@@ -374,7 +374,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -396,7 +396,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
                 tool_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -422,7 +422,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
             if asyncio.iscoroutinefunction(wrapped_function):
                 return async_wrapper(wrapped_function)  # type: ignore[no-any-return]
             return sync_wrapper(wrapped_function)  # type: ignore[no-any-return]
-        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)
+        return lambda f: async_wrapper(f) if asyncio.iscoroutinefunction(f) else sync_wrapper(f)  # type: ignore[return-value]
 
     @overload  # @tracer.llm usage with no explicit application of the decorator
     def llm(
@@ -461,7 +461,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
         Callable[ParametersType, ReturnType],
         Callable[[Callable[ParametersType, ReturnType]], Callable[ParametersType, ReturnType]],
     ]:
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_function_wrapper(
             wrapped: Callable[ParametersType, ReturnType],
             instance: Any,
@@ -483,7 +483,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_function_wrapper(
             wrapped: Callable[ParametersType, Coroutine[None, None, ReturnType]],
             instance: Any,
@@ -505,7 +505,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
                 llm_context.process_output(output)
                 return output
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         def sync_generator_function_wrapper(
             wrapped: Callable[ParametersType, Generator[ReturnType, None, None]],
             instance: Any,
@@ -537,7 +537,7 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined]
                     yield output
                 llm_context.process_output(outputs)
 
-        @wrapt.decorator  # type: ignore[misc,attr-defined]
+        @wrapt.decorator  # type: ignore[misc,attr-defined,unused-ignore]
         async def async_generator_function_wrapper(
             wrapped: Callable[ParametersType, AsyncGenerator[ReturnType, None]],
             instance: Any,
