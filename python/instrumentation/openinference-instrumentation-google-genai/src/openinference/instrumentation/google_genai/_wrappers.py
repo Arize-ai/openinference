@@ -127,10 +127,25 @@ class _WithTracer(ABC):
 
 def _parse_args(
     signature: Signature,
+    instance: Any,
     *args: tuple[Any],
     **kwargs: Mapping[str, Any],
 ) -> dict[str, Any]:
-    bound_signature = signature.bind(*args, **kwargs)
+    # When another library wraps a method using `functools.wraps` along with `wrapt`,
+    # Python inspect.signature follows `__wrapped__` to the original unbound method
+    # and reports ``self`` as a required positional parameter — but wrapt has already
+    # consumed the instance and hands us only the user-supplied args. Detect this by trying
+    # to bind as-is and, on failure, retry with `instance` prepended.
+    # See issue #2995.
+    params = signature.parameters
+    needs_instance = params and next(iter(params.values())).name in ("self", "cls")
+    if needs_instance:
+        bound_signature = signature.bind(instance, *args, **kwargs)
+        first_param = next(iter(signature.parameters.values()), None)
+        if first_param and first_param.name in ("self", "cls"):
+            bound_signature.arguments.pop(first_param.name, None)
+    else:
+        bound_signature = signature.bind(*args, **kwargs)
     bound_signature.apply_defaults()
     bound_arguments = bound_signature.arguments  # Defaults empty to NOT_GIVEN
     request_data: dict[str, Any] = {}
@@ -169,7 +184,7 @@ class _SyncEmbedContentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "EmbedContent"
         with self._start_as_current_span(
             span_name=span_name,
@@ -227,7 +242,7 @@ class _AsyncEmbedContentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "AsyncEmbedContent"
         with self._start_as_current_span(
             span_name=span_name,
@@ -285,7 +300,7 @@ class _SyncGenerateContent(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "GenerateContent"
         with self._start_as_current_span(
             span_name=span_name,
@@ -335,7 +350,7 @@ class _SyncCreateInteractionWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "InteractionsResource.create"
         with self._start_as_current_span(
             span_name=span_name,
@@ -386,7 +401,7 @@ class _SyncGenerateContentStream(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "GenerateContentStream"
         with self._start_as_current_span(
             span_name=span_name,
@@ -443,7 +458,7 @@ class _AsyncGenerateContentWrapper(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "AsyncGenerateContent"
         with self._start_as_current_span(
             span_name=span_name,
@@ -500,7 +515,7 @@ class _AsyncGenerateContentStream(_WithTracer):
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
 
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "AsyncGenerateContentStream"
         with self._start_as_current_span(
             span_name=span_name,
@@ -549,7 +564,7 @@ class _AsyncCreateInteractionWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "AsyncInteractionsResource.create"
         with self._start_as_current_span(
             span_name=span_name,
@@ -593,7 +608,7 @@ class _SyncCreateCachesWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return wrapped(*args, **kwargs)
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "Caches.create"
         status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(
@@ -632,7 +647,7 @@ class _AsyncCreateCachesWrapper(_WithTracer):
     ) -> Any:
         if context_api.get_value(context_api._SUPPRESS_INSTRUMENTATION_KEY):
             return await wrapped(*args, **kwargs)
-        request_parameters = _parse_args(signature(wrapped), *args, **kwargs)
+        request_parameters = _parse_args(signature(wrapped), instance, *args, **kwargs)
         span_name = "AsyncCaches.create"
         status = trace_api.Status(status_code=trace_api.StatusCode.OK)
         with self._start_as_current_span(

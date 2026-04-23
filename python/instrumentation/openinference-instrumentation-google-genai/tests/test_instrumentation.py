@@ -2135,3 +2135,31 @@ def test_validate_token_counts_stream(
         assert attributes.get(key) == expected_value, (
             f"Attribute {key} does not match expected value: got {attributes.get(key)}"
         )
+
+
+def test_parse_args_handle_functools_wraps_outer_wrapper() -> None:
+    import functools
+    from inspect import signature
+
+    from openinference.instrumentation.google_genai._wrappers import _parse_args
+
+    class _Fake:
+        def generate_content(self, *, model: str, contents: str) -> None:
+            pass
+
+    original = _Fake.generate_content
+
+    @functools.wraps(original)
+    def outer(self: Any, *args: Any, **kwargs: Any) -> None:
+        return original(self, *args, **kwargs)
+
+    instance = _Fake()
+    request_parameters = _parse_args(
+        signature(outer),
+        instance,
+        model="gemini-2.0-flash",
+        contents="hello",
+    )
+    assert "self" not in request_parameters
+    assert request_parameters["model"] == "gemini-2.0-flash"
+    assert request_parameters["contents"] == "hello"
