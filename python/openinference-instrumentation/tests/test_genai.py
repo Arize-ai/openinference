@@ -2,6 +2,11 @@ import json
 from typing import Any, Dict, Mapping
 
 import pytest
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import TracerProvider
 
@@ -21,11 +26,6 @@ from openinference.instrumentation.genai import (
     GenAIToolTypeValues,
     get_genai_attributes,
     get_genai_base_attributes,
-)
-from openinference.semconv.trace import (
-    OpenInferenceMimeTypeValues,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
 )
 
 
