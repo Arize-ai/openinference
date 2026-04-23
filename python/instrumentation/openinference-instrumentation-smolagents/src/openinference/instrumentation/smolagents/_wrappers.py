@@ -12,7 +12,9 @@ from opentelemetry.util.types import AttributeValue
 import openinference.instrumentation as oi
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.semconv.trace import (
+    ImageAttributes,
     MessageAttributes,
+    MessageContentAttributes,
     OpenInferenceLLMProviderValues,
     OpenInferenceLLMSystemValues,
     OpenInferenceMimeTypeValues,
@@ -322,31 +324,92 @@ class _StepWrapper:
                     _finalize_step_span(span, step_log)
 
 
-def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
-    def process_message(idx: int, role: str, content: str) -> Iterator[Tuple[str, Any]]:
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
-        yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENT}", content
+def _image_content_to_url(element: dict[str, Any]) -> Optional[str]:
+    content_type = element.get("type")
+    if content_type == "image_url":
+        image_url = element.get("image_url", {})
+        return image_url.get("url") if isinstance(image_url, dict) else None
+    if content_type == "image":
+        image = element.get("image")
+        if isinstance(image, str):
+            return f"data:image/png;base64,{image}"
+        if image is not None:
+            try:
+                from smolagents.utils import encode_image_base64  # type: ignore[import-untyped]
 
+                return f"data:image/png;base64,{encode_image_base64(image)}"
+            except Exception:
+                pass
+    return None
+
+
+def _parse_content_list(idx: int, role: str, content: list[Any]) -> Iterator[Tuple[str, Any]]:
+    content_idx = 0
+    yield f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_ROLE}", role
+    for element in content:
+        if not isinstance(element, dict):
+            continue
+        if element.get("type") == "text" and (text := element.get("text")):
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TYPE}",
+                "text",
+            )
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TEXT}",
+                text,
+            )
+            content_idx += 1
+        elif url := _image_content_to_url(element):
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_TYPE}",
+                "image",
+            )
+            yield (
+                f"{LLM_INPUT_MESSAGES}.{idx}.{MESSAGE_CONTENTS}.{content_idx}.{MESSAGE_CONTENT_IMAGE}.{IMAGE_URL}",
+                url,
+            )
+            content_idx += 1
+
+
+def _llm_input_messages(arguments: Mapping[str, Any]) -> Iterator[Tuple[str, Any]]:
     if isinstance(prompt := arguments.get("prompt"), str):
-        yield from process_message(0, "user", prompt)
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_ROLE}", "user"
+        yield f"{LLM_INPUT_MESSAGES}.0.{MESSAGE_CONTENT}", prompt
     elif isinstance(messages := arguments.get("messages"), list):
         for i, message in enumerate(messages):
-            if not isinstance(message, dict):
+            if isinstance(message, dict):
+                role, content = message.get("role"), message.get("content")
+            else:
+                _role = getattr(message, "role", None)
+                role = _role.value if isinstance(_role, Enum) else _role
+                content = getattr(message, "content", None)
+            if not role:
                 continue
-            role, content = message.get("role"), message.get("content")
-            if isinstance(content, list) and role:
-                for subcontent in content:
-                    if isinstance(subcontent, dict) and (text := subcontent.get("text")):
-                        yield from process_message(i, role, text)
+            if isinstance(content, str):
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_ROLE}", role
+                yield f"{LLM_INPUT_MESSAGES}.{i}.{MESSAGE_CONTENT}", content
+            elif isinstance(content, list):
+                yield from _parse_content_list(i, role, content)
 
 
 def _llm_output_messages(output_message: Any) -> Mapping[str, AttributeValue]:
     oi_message: oi.Message = {}
     oi_message_contents: list[oi.MessageContent] = []
-    if (role := getattr(output_message, "role", None)) is not None:
-        oi_message["role"] = role
+    if (_role := getattr(output_message, "role", None)) is not None:
+        oi_message["role"] = _role.value if isinstance(_role, Enum) else _role
     if (content := getattr(output_message, "content", None)) is not None:
-        oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
+        if isinstance(content, str):
+            oi_message_contents.append(oi.TextMessageContent(type="text", text=content))
+        elif isinstance(content, list):
+            for element in content:
+                if not isinstance(element, dict):
+                    continue
+                if element.get("type") == "text" and (text := element.get("text")):
+                    oi_message_contents.append(oi.TextMessageContent(type="text", text=text))
+                elif url := _image_content_to_url(element):
+                    oi_message_contents.append(
+                        oi.ImageMessageContent(type="image", image=oi.Image(url=url))
+                    )
 
     # Add the reasoning_content if available in raw.choices[0].message structure
     if (raw := getattr(output_message, "raw", None)) is not None:
@@ -723,11 +786,20 @@ TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
 
 # message attributes
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
+MESSAGE_CONTENTS = MessageAttributes.MESSAGE_CONTENTS
 MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON = MessageAttributes.MESSAGE_FUNCTION_CALL_ARGUMENTS_JSON
 MESSAGE_FUNCTION_CALL_NAME = MessageAttributes.MESSAGE_FUNCTION_CALL_NAME
 MESSAGE_NAME = MessageAttributes.MESSAGE_NAME
 MESSAGE_ROLE = MessageAttributes.MESSAGE_ROLE
 MESSAGE_TOOL_CALLS = MessageAttributes.MESSAGE_TOOL_CALLS
+
+# message content attributes
+MESSAGE_CONTENT_IMAGE = MessageContentAttributes.MESSAGE_CONTENT_IMAGE
+MESSAGE_CONTENT_TEXT = MessageContentAttributes.MESSAGE_CONTENT_TEXT
+MESSAGE_CONTENT_TYPE = MessageContentAttributes.MESSAGE_CONTENT_TYPE
+
+# image attributes
+IMAGE_URL = ImageAttributes.IMAGE_URL
 
 # mime types
 JSON = OpenInferenceMimeTypeValues.JSON.value
