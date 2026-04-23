@@ -28,10 +28,6 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 import wrapt
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
@@ -48,6 +44,11 @@ from opentelemetry.trace import (
 )
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
+
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 from ._attributes import (
     get_input_attributes,

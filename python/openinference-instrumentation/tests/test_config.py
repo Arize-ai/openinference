@@ -4,7 +4,6 @@ from random import random
 from typing import Any, Dict, Optional
 
 import pytest
-from openinference.semconv.trace import SpanAttributes
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace import SpanLimits
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -46,6 +45,7 @@ from openinference.instrumentation.config import (
     OPENINFERENCE_HIDE_PROMPTS,
     REDACTED_VALUE,
 )
+from openinference.semconv.trace import SpanAttributes
 
 
 def test_default_settings() -> None:

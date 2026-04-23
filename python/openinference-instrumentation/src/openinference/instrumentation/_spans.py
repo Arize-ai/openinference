@@ -1,12 +1,13 @@
 from typing import Any, Callable, Dict, Mapping, Optional, Set, Union, cast
 
 import wrapt  # type: ignore[import-untyped]
+from opentelemetry.trace import Span
+from opentelemetry.util.types import AttributeValue
+
 from openinference.semconv.trace import (
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
-from opentelemetry.trace import Span
-from opentelemetry.util.types import AttributeValue
 
 from ._attributes import (
     get_input_attributes,
