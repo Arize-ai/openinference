@@ -252,10 +252,10 @@ def test_get_genai_attributes_maps_tool_span_attributes() -> None:
     assert genai_attributes[GenAIAttributes.GEN_AI_TOOL_DESCRIPTION] == "Look up the weather"
     assert genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_ID] == "call-123"
     assert genai_attributes[GenAIAttributes.GEN_AI_TOOL_TYPE] == GenAIToolTypeValues.FUNCTION.value
-    assert json.loads(genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_ARGUMENTS]) == {
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_TOOL_CALL_ARGUMENTS) == {
         "city": "Denver"
     }
-    assert json.loads(genai_attributes[GenAIAttributes.GEN_AI_TOOL_CALL_RESULT]) == {
+    assert _load_json_attribute(genai_attributes, GenAIAttributes.GEN_AI_TOOL_CALL_RESULT) == {
         "forecast": "sunny"
     }
 
