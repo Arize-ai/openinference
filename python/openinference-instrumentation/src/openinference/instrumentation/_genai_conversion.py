@@ -120,8 +120,8 @@ def get_genai_message_attributes(
     genai_attributes: Dict[str, AttributeValue] = {}
 
     input_messages = _get_input_messages(attributes)
-    output_messages = _output_messages if _output_messages is not None else _get_output_messages(
-        attributes
+    output_messages = (
+        _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
 
     if input_messages:
@@ -390,17 +390,15 @@ def _extract_oi_messages(
         if not key.startswith(f"{prefix}."):
             continue
         suffix = key[len(prefix) + 1 :]
-        index, _, remainder = suffix.partition(".")
-        if not index.isdigit() or not remainder:
+        index_str, _, remainder = suffix.partition(".")
+        if not index_str.isdigit() or not remainder:
             continue
-        buckets[int(index)][remainder] = value
+        buckets[int(index_str)][remainder] = value
 
     if not buckets:
         return root_messages
 
-    fallback_finish_reason = (
-        _get_default_output_finish_reason(attributes) if is_output else None
-    )
+    fallback_finish_reason = _get_default_output_finish_reason(attributes) if is_output else None
     messages: List[Dict[str, Any]] = []
     for index in sorted(buckets):
         if message := _build_genai_message_from_bucket(
@@ -613,10 +611,10 @@ def _get_message_contents(bucket: Mapping[str, Any]) -> List[Dict[str, Any]]:
         if not key.startswith(f"{MessageAttributes.MESSAGE_CONTENTS}."):
             continue
         suffix = key[len(MessageAttributes.MESSAGE_CONTENTS) + 1 :]
-        index, _, remainder = suffix.partition(".")
-        if not index.isdigit() or not remainder:
+        index_str, _, remainder = suffix.partition(".")
+        if not index_str.isdigit() or not remainder:
             continue
-        contents[int(index)][remainder] = value
+        contents[int(index_str)][remainder] = value
 
     parts: List[Dict[str, Any]] = []
     for index in sorted(contents):
@@ -649,10 +647,10 @@ def _get_message_tool_calls(bucket: Mapping[str, Any]) -> List[Dict[str, Any]]:
         if not key.startswith(f"{MessageAttributes.MESSAGE_TOOL_CALLS}."):
             continue
         suffix = key[len(MessageAttributes.MESSAGE_TOOL_CALLS) + 1 :]
-        index, _, remainder = suffix.partition(".")
-        if not index.isdigit() or not remainder:
+        index_str, _, remainder = suffix.partition(".")
+        if not index_str.isdigit() or not remainder:
             continue
-        tool_calls[int(index)][remainder] = value
+        tool_calls[int(index_str)][remainder] = value
 
     parts: List[Dict[str, Any]] = []
     for index in sorted(tool_calls):
@@ -812,8 +810,8 @@ def _get_response_finish_reasons(
     if explicit_finish_reasons:
         return explicit_finish_reasons
 
-    output_messages = _output_messages if _output_messages is not None else _get_output_messages(
-        attributes
+    output_messages = (
+        _output_messages if _output_messages is not None else _get_output_messages(attributes)
     )
     return [
         _normalize_finish_reason(_as_optional_str(message.get("finish_reason"))) or "stop"
@@ -873,10 +871,10 @@ def _get_tool_definitions(attributes: Mapping[str, AttributeValue]) -> List[Dict
         if not key.startswith(f"{SpanAttributes.LLM_TOOLS}."):
             continue
         suffix = key[len(SpanAttributes.LLM_TOOLS) + 1 :]
-        index, _, remainder = suffix.partition(".")
-        if not index.isdigit() or not remainder:
+        index_str, _, remainder = suffix.partition(".")
+        if not index_str.isdigit() or not remainder:
             continue
-        tool_buckets[int(index)][remainder] = value
+        tool_buckets[int(index_str)][remainder] = value
 
     tools: List[Dict[str, Any]] = []
     for index in sorted(tool_buckets):
@@ -965,10 +963,10 @@ def _get_documents(
         if not key.startswith(f"{prefix}."):
             continue
         suffix = key[len(prefix) + 1 :]
-        index, _, remainder = suffix.partition(".")
-        if not index.isdigit() or not remainder:
+        index_str, _, remainder = suffix.partition(".")
+        if not index_str.isdigit() or not remainder:
             continue
-        buckets[int(index)][remainder] = value
+        buckets[int(index_str)][remainder] = value
 
     documents: List[Dict[str, Any]] = []
     for index in sorted(buckets):
