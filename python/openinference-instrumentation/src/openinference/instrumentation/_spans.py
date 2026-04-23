@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Mapping, Optional, Union, cast
+from typing import Any, Callable, Dict, Mapping, Optional, Set, Union, cast
 
 import wrapt
 from opentelemetry.trace import Span
@@ -14,6 +14,7 @@ from ._attributes import (
     get_output_attributes,
     get_tool_attributes,
 )
+from ._genai_conversion import get_genai_attributes
 from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
@@ -28,7 +29,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
     def __init__(self, wrapped: Span, config: TraceConfig) -> None:
         super().__init__(wrapped)
         self._self_config = config
+        self._self_attributes: Dict[str, AttributeValue] = {}
         self._self_important_attributes: Dict[str, AttributeValue] = {}
+        self._self_user_defined_genai_keys: Set[str] = set()
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
         for k, v in attributes.items():
@@ -41,6 +44,9 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
     ) -> None:
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
+            self._self_attributes[key] = masked_value
+            if key.startswith("gen_ai."):
+                self._self_user_defined_genai_keys.add(key)
             if key in _IMPORTANT_ATTRIBUTES:
                 self._self_important_attributes[key] = masked_value
             else:
@@ -51,6 +57,10 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,ty
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
+        if self._self_config.enable_genai_semconv:
+            for key, value in get_genai_attributes(self._self_attributes).items():
+                if key not in self._self_user_defined_genai_keys:
+                    span.set_attribute(key, value)
         span.end(end_time)
 
     def set_input(
