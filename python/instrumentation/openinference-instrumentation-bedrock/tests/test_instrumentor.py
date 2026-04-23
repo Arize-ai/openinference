@@ -891,6 +891,99 @@ def test_converse_multimodal(
     )
 
 
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: _["headers"].clear() or _,
+)
+def test_converse_tool_use_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tool_config = {
+        "tools": [
+            {
+                "toolSpec": {
+                    "name": "top_song",
+                    "description": "Get the most popular song played on a radio station.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "sign": {
+                                    "type": "string",
+                                    "description": "The call sign for the radio station",
+                                }
+                            },
+                            "required": ["sign"],
+                        }
+                    },
+                }
+            }
+        ]
+    }
+    session = boto3.session.Session()
+    client = session.client(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="123",
+        aws_secret_access_key="321",
+    )
+    client.converse(
+        modelId="mistral.devstral-2-123b",
+        toolConfig=tool_config,
+        messages=[
+            {"role": "user", "content": [{"text": "What is the most popular song on Radio XYZ?"}]}
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.is_ok
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"
+    assert attributes.pop(INPUT_VALUE) == "What is the most popular song on Radio XYZ?"
+
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.type") == "text"
+    assert (
+        attributes.pop("llm.input_messages.0.message.contents.0.message_content.text")
+        == "What is the most popular song on Radio XYZ?"
+    )
+
+    assert isinstance(inv_params_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params_str).get("stop_reason") == "tool_use"
+
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 90
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 104
+
+    assert attributes.pop(OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(output_value_str := attributes.pop(OUTPUT_VALUE), str)
+    output_value = json.loads(output_value_str)
+    assert output_value["role"] == "assistant"
+    assert output_value["content"][0]["toolUse"]
+
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert isinstance(
+        tool_call_id := attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id"),
+        str,
+    )
+    assert tool_call_id.startswith("tooluse_")
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "top_song"
+    )
+    assert isinstance(
+        tool_args_str := attributes.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+        ),
+        str,
+    )
+    assert "sign" in json.loads(tool_args_str)
+
+    assert attributes == {}
+
+
 def _check_context_attributes(
     attributes: Dict[str, Any],
     session_id: str,
