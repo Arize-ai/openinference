@@ -4,8 +4,6 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, Dict, List, Optional, Tuple
 
-from opentelemetry.util.types import AttributeValue
-
 from openinference.semconv.trace import (
     ChoiceAttributes,
     DocumentAttributes,
@@ -22,6 +20,7 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from opentelemetry.util.types import AttributeValue
 
 from ._genai_attributes import (
     GenAIAttributes,
