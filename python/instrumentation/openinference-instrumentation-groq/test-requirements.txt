@@ -1,4 +1,4 @@
 groq==0.9.0
-httpx<0.28
+httpx<0.29
 opentelemetry-sdk
 responses
