@@ -41,7 +41,7 @@ test = [
   "opentelemetry-sdk",
   "opentelemetry-exporter-otlp",
   "pytest-recording",
-  "vcrpy>=5.0.0,<8.0.0",
+  "vcrpy>=8.0.0,<9.0.0",
   "brotli",
   "beeai-framework[duckduckgo]",
   "pytest-asyncio",
