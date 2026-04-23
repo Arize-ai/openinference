@@ -1,67 +1,21 @@
-# ruff: noqa: E501
 """
-Enumerated values defined by the OpenTelemetry GenAI semantic conventions.
+Enumerated values used by the OpenInference -> GenAI bridge that are defined
+by the OpenTelemetry GenAI semantic conventions spec but not yet available in
+``opentelemetry.semconv._incubating.attributes.gen_ai_attributes``.
+
+Values that are already exposed by the incubating module (e.g.
+``GenAiOperationNameValues``, ``GenAiProviderNameValues``,
+``GenAiOutputTypeValues``) are imported directly from there and are not
+re-defined in this module.
 """
 
 from enum import Enum
 
 
-class GenAIOperationNameValues(Enum):
-    """Values for gen_ai.operation.name."""
-
-    CHAT = "chat"
-    TEXT_COMPLETION = "text_completion"
-    GENERATE_CONTENT = "generate_content"
-    EMBEDDINGS = "embeddings"
-    RETRIEVAL = "retrieval"
-    EXECUTE_TOOL = "execute_tool"
-    CREATE_AGENT = "create_agent"
-    INVOKE_AGENT = "invoke_agent"
-    INVOKE_WORKFLOW = "invoke_workflow"
-
-
-class GenAIProviderNameValues(Enum):
+class GenAiMessagePartTypeValues(Enum):
+    """Values for the ``type`` field of message parts inside
+    ``gen_ai.input.messages`` / ``gen_ai.output.messages``.
     """
-    Values for gen_ai.provider.name. GenAI uses composite names for
-    cloud-hosted variants of providers (e.g. "azure.ai.openai").
-    """
-
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    COHERE = "cohere"
-    DEEPSEEK = "deepseek"
-    GROQ = "groq"
-    MISTRAL_AI = "mistral_ai"
-    PERPLEXITY = "perplexity"
-    X_AI = "x_ai"
-    AZURE_AI_OPENAI = "azure.ai.openai"
-    AZURE_AI_INFERENCE = "azure.ai.inference"
-    AWS_BEDROCK = "aws.bedrock"
-    GCP_VERTEX_AI = "gcp.vertex_ai"
-    GCP_GEMINI = "gcp.gemini"
-    GCP_GEN_AI = "gcp.gen_ai"
-    IBM_WATSONX_AI = "ibm.watsonx.ai"
-
-
-class GenAIOutputTypeValues(Enum):
-    """Values for gen_ai.output.type."""
-
-    TEXT = "text"
-    JSON = "json"
-    IMAGE = "image"
-    SPEECH = "speech"
-
-
-class GenAIToolTypeValues(Enum):
-    """Values for gen_ai.tool.type."""
-
-    FUNCTION = "function"
-    EXTENSION = "extension"
-    DATASTORE = "datastore"
-
-
-class GenAIMessagePartTypeValues(Enum):
-    """Values for message part `type` inside gen_ai.input.messages / gen_ai.output.messages."""
 
     TEXT = "text"
     TOOL_CALL = "tool_call"
@@ -72,3 +26,11 @@ class GenAIMessagePartTypeValues(Enum):
     BLOB = "blob"
     URI = "uri"
     FILE = "file"
+
+
+class GenAiToolTypeValues(Enum):
+    """Values for ``gen_ai.tool.type``."""
+
+    FUNCTION = "function"
+    EXTENSION = "extension"
+    DATASTORE = "datastore"

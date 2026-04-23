@@ -12,10 +12,10 @@ from typing import cast
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.semconv._incubating.attributes import gen_ai_attributes as GA
 
 from openinference.instrumentation import OITracer, TraceConfig, TracerProvider
 from openinference.instrumentation.config import OPENINFERENCE_ENABLE_GENAI_SEMCONV
-from openinference.instrumentation.genai.attributes import GenAIAttributes as GA
 from openinference.semconv.trace import (
     MessageAttributes,
     SpanAttributes,

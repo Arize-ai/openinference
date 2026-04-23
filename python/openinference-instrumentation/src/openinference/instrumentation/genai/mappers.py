@@ -21,6 +21,11 @@ import re
 from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from opentelemetry.semconv._incubating.attributes import gen_ai_attributes as GA
+from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
+    GenAiOperationNameValues,
+    GenAiProviderNameValues,
+)
 from opentelemetry.util.types import AttributeValue
 
 from openinference.semconv.trace import (
@@ -33,12 +38,7 @@ from openinference.semconv.trace import (
     ToolCallAttributes,
 )
 
-from .attributes import GenAIAttributes as GA
-from .values import (
-    GenAIMessagePartTypeValues,
-    GenAIOperationNameValues,
-    GenAIProviderNameValues,
-)
+from .values import GenAiMessagePartTypeValues
 
 OIMap = Mapping[str, AttributeValue]
 GAMap = Dict[str, AttributeValue]
@@ -47,11 +47,11 @@ GAMap = Dict[str, AttributeValue]
 # span kind / operation
 # ---------------------------------------------------------------------------
 
-_SPAN_KIND_TO_OPERATION: Dict[str, GenAIOperationNameValues] = {
-    "EMBEDDING": GenAIOperationNameValues.EMBEDDINGS,
-    "RETRIEVER": GenAIOperationNameValues.RETRIEVAL,
-    "TOOL": GenAIOperationNameValues.EXECUTE_TOOL,
-    "AGENT": GenAIOperationNameValues.INVOKE_AGENT,
+_SPAN_KIND_TO_OPERATION: Dict[str, GenAiOperationNameValues] = {
+    "EMBEDDING": GenAiOperationNameValues.EMBEDDINGS,
+    "RETRIEVER": GenAiOperationNameValues.RETRIEVAL,
+    "TOOL": GenAiOperationNameValues.EXECUTE_TOOL,
+    "AGENT": GenAiOperationNameValues.INVOKE_AGENT,
 }
 
 
@@ -66,9 +66,9 @@ def map_span_kind(attrs: OIMap) -> GAMap:
         # see the flattened prompts/choices attributes (the completions API).
         if _has_any_key_prefix(attrs, SpanAttributes.LLM_PROMPTS):
             return {
-                GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.TEXT_COMPLETION.value
+                GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.TEXT_COMPLETION.value
             }
-        return {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.CHAT.value}
+        return {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value}
     op = _SPAN_KIND_TO_OPERATION.get(kind)
     if op is None:
         return {}
@@ -95,41 +95,41 @@ def map_model_name(attrs: OIMap) -> GAMap:
 # ---------------------------------------------------------------------------
 
 # (system, provider) -> genai provider name
-_COMPOSITE_PROVIDER_MAP: Dict[Tuple[Optional[str], Optional[str]], GenAIProviderNameValues] = {
-    ("openai", "openai"): GenAIProviderNameValues.OPENAI,
-    ("openai", "azure"): GenAIProviderNameValues.AZURE_AI_OPENAI,
-    ("anthropic", "anthropic"): GenAIProviderNameValues.ANTHROPIC,
-    ("anthropic", "aws"): GenAIProviderNameValues.AWS_BEDROCK,
-    ("anthropic", "google"): GenAIProviderNameValues.GCP_VERTEX_AI,
-    ("vertexai", "google"): GenAIProviderNameValues.GCP_VERTEX_AI,
-    ("cohere", "cohere"): GenAIProviderNameValues.COHERE,
-    ("mistralai", "mistralai"): GenAIProviderNameValues.MISTRAL_AI,
-    ("deepseek", "deepseek"): GenAIProviderNameValues.DEEPSEEK,
-    ("openai", "groq"): GenAIProviderNameValues.GROQ,
+_COMPOSITE_PROVIDER_MAP: Dict[Tuple[Optional[str], Optional[str]], GenAiProviderNameValues] = {
+    ("openai", "openai"): GenAiProviderNameValues.OPENAI,
+    ("openai", "azure"): GenAiProviderNameValues.AZURE_AI_OPENAI,
+    ("anthropic", "anthropic"): GenAiProviderNameValues.ANTHROPIC,
+    ("anthropic", "aws"): GenAiProviderNameValues.AWS_BEDROCK,
+    ("anthropic", "google"): GenAiProviderNameValues.GCP_VERTEX_AI,
+    ("vertexai", "google"): GenAiProviderNameValues.GCP_VERTEX_AI,
+    ("cohere", "cohere"): GenAiProviderNameValues.COHERE,
+    ("mistralai", "mistralai"): GenAiProviderNameValues.MISTRAL_AI,
+    ("deepseek", "deepseek"): GenAiProviderNameValues.DEEPSEEK,
+    ("openai", "groq"): GenAiProviderNameValues.GROQ,
 }
 
-_SYSTEM_ONLY_PROVIDER_MAP: Dict[str, GenAIProviderNameValues] = {
-    "openai": GenAIProviderNameValues.OPENAI,
-    "anthropic": GenAIProviderNameValues.ANTHROPIC,
-    "cohere": GenAIProviderNameValues.COHERE,
-    "mistralai": GenAIProviderNameValues.MISTRAL_AI,
-    "vertexai": GenAIProviderNameValues.GCP_VERTEX_AI,
-    "deepseek": GenAIProviderNameValues.DEEPSEEK,
-    "xai": GenAIProviderNameValues.X_AI,
+_SYSTEM_ONLY_PROVIDER_MAP: Dict[str, GenAiProviderNameValues] = {
+    "openai": GenAiProviderNameValues.OPENAI,
+    "anthropic": GenAiProviderNameValues.ANTHROPIC,
+    "cohere": GenAiProviderNameValues.COHERE,
+    "mistralai": GenAiProviderNameValues.MISTRAL_AI,
+    "vertexai": GenAiProviderNameValues.GCP_VERTEX_AI,
+    "deepseek": GenAiProviderNameValues.DEEPSEEK,
+    "xai": GenAiProviderNameValues.X_AI,
 }
 
-_PROVIDER_ONLY_PROVIDER_MAP: Dict[str, GenAIProviderNameValues] = {
-    "openai": GenAIProviderNameValues.OPENAI,
-    "anthropic": GenAIProviderNameValues.ANTHROPIC,
-    "cohere": GenAIProviderNameValues.COHERE,
-    "mistralai": GenAIProviderNameValues.MISTRAL_AI,
-    "deepseek": GenAIProviderNameValues.DEEPSEEK,
-    "groq": GenAIProviderNameValues.GROQ,
-    "perplexity": GenAIProviderNameValues.PERPLEXITY,
-    "xai": GenAIProviderNameValues.X_AI,
-    "azure": GenAIProviderNameValues.AZURE_AI_OPENAI,
-    "aws": GenAIProviderNameValues.AWS_BEDROCK,
-    "google": GenAIProviderNameValues.GCP_VERTEX_AI,
+_PROVIDER_ONLY_PROVIDER_MAP: Dict[str, GenAiProviderNameValues] = {
+    "openai": GenAiProviderNameValues.OPENAI,
+    "anthropic": GenAiProviderNameValues.ANTHROPIC,
+    "cohere": GenAiProviderNameValues.COHERE,
+    "mistralai": GenAiProviderNameValues.MISTRAL_AI,
+    "deepseek": GenAiProviderNameValues.DEEPSEEK,
+    "groq": GenAiProviderNameValues.GROQ,
+    "perplexity": GenAiProviderNameValues.PERPLEXITY,
+    "xai": GenAiProviderNameValues.X_AI,
+    "azure": GenAiProviderNameValues.AZURE_AI_OPENAI,
+    "aws": GenAiProviderNameValues.AWS_BEDROCK,
+    "google": GenAiProviderNameValues.GCP_VERTEX_AI,
 }
 
 
@@ -140,7 +140,7 @@ def map_provider(attrs: OIMap) -> GAMap:
     system = raw_system.lower() if isinstance(raw_system, str) else None
     provider = raw_provider.lower() if isinstance(raw_provider, str) else None
 
-    resolved: Optional[GenAIProviderNameValues] = None
+    resolved: Optional[GenAiProviderNameValues] = None
     if system and provider:
         resolved = _COMPOSITE_PROVIDER_MAP.get((system, provider))
     if resolved is None and system:
@@ -285,7 +285,7 @@ def _build_message(fields: Mapping[str, AttributeValue]) -> Optional[Dict[str, A
         response = fields.get(MessageAttributes.MESSAGE_CONTENT)
         parts.append(
             {
-                "type": GenAIMessagePartTypeValues.TOOL_CALL_RESPONSE.value,
+                "type": GenAiMessagePartTypeValues.TOOL_CALL_RESPONSE.value,
                 "id": tool_call_id,
                 "response": response,
             }
@@ -297,7 +297,7 @@ def _build_message(fields: Mapping[str, AttributeValue]) -> Optional[Dict[str, A
     if isinstance(content, str):
         parts.append(
             {
-                "type": GenAIMessagePartTypeValues.TEXT.value,
+                "type": GenAiMessagePartTypeValues.TEXT.value,
                 "content": content,
             }
         )
@@ -348,7 +348,7 @@ def _build_content_part(block: Mapping[str, AttributeValue]) -> Optional[Dict[st
         text = block.get(MessageContentAttributes.MESSAGE_CONTENT_TEXT)
         if isinstance(text, str):
             return {
-                "type": GenAIMessagePartTypeValues.TEXT.value,
+                "type": GenAiMessagePartTypeValues.TEXT.value,
                 "content": text,
             }
         return None
@@ -361,7 +361,7 @@ def _build_content_part(block: Mapping[str, AttributeValue]) -> Optional[Dict[st
         url = block.get(url_key)
         if isinstance(url, str):
             return {
-                "type": GenAIMessagePartTypeValues.URI.value,
+                "type": GenAiMessagePartTypeValues.URI.value,
                 "modality": "image",
                 "uri": url,
             }
@@ -370,7 +370,7 @@ def _build_content_part(block: Mapping[str, AttributeValue]) -> Optional[Dict[st
         url = block.get("audio.url") or block.get("message_content.audio.url")
         if isinstance(url, str):
             return {
-                "type": GenAIMessagePartTypeValues.URI.value,
+                "type": GenAiMessagePartTypeValues.URI.value,
                 "modality": "audio",
                 "uri": url,
             }
@@ -384,7 +384,7 @@ def _build_tool_call_part(tc: Mapping[str, AttributeValue]) -> Optional[Dict[str
     args_raw = tc.get(ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON)
     if not isinstance(call_id, str) and not isinstance(name, str):
         return None
-    part: Dict[str, Any] = {"type": GenAIMessagePartTypeValues.TOOL_CALL.value}
+    part: Dict[str, Any] = {"type": GenAiMessagePartTypeValues.TOOL_CALL.value}
     if isinstance(call_id, str):
         part["id"] = call_id
     if isinstance(name, str):

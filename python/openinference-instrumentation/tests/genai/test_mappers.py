@@ -10,6 +10,11 @@ and tested in isolation, and composable so they can be combined in
 import json
 from typing import Any, Dict, cast
 
+from opentelemetry.semconv._incubating.attributes import gen_ai_attributes as GA
+from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
+    GenAiOperationNameValues,
+    GenAiProviderNameValues,
+)
 from opentelemetry.util.types import AttributeValue
 
 from openinference.instrumentation.genai import (
@@ -25,11 +30,6 @@ from openinference.instrumentation.genai import (
     map_token_counts,
     map_tool_call,
     map_tools,
-)
-from openinference.instrumentation.genai.attributes import GenAIAttributes as GA
-from openinference.instrumentation.genai.values import (
-    GenAIOperationNameValues,
-    GenAIProviderNameValues,
 )
 from openinference.semconv.trace import (
     MessageAttributes,
@@ -48,23 +48,23 @@ def _loads(value: AttributeValue) -> Any:
 class TestMapSpanKind:
     def test_llm_maps_to_chat(self) -> None:
         result = map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "LLM"})
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.CHAT.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.CHAT.value}
 
     def test_embedding_maps_to_embeddings(self) -> None:
         result = map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "EMBEDDING"})
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.EMBEDDINGS.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EMBEDDINGS.value}
 
     def test_retriever_maps_to_retrieval(self) -> None:
         result = map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "RETRIEVER"})
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.RETRIEVAL.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.RETRIEVAL.value}
 
     def test_tool_maps_to_execute_tool(self) -> None:
         result = map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "TOOL"})
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.EXECUTE_TOOL.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.EXECUTE_TOOL.value}
 
     def test_agent_maps_to_invoke_agent(self) -> None:
         result = map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "AGENT"})
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.INVOKE_AGENT.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.INVOKE_AGENT.value}
 
     def test_llm_with_prompts_maps_to_text_completion(self) -> None:
         result = map_span_kind(
@@ -73,7 +73,7 @@ class TestMapSpanKind:
                 "llm.prompts.0.prompt.text": "Say hi",
             }
         )
-        assert result == {GA.GEN_AI_OPERATION_NAME: GenAIOperationNameValues.TEXT_COMPLETION.value}
+        assert result == {GA.GEN_AI_OPERATION_NAME: GenAiOperationNameValues.TEXT_COMPLETION.value}
 
     def test_unknown_kind_is_empty(self) -> None:
         assert map_span_kind({SpanAttributes.OPENINFERENCE_SPAN_KIND: "CHAIN"}) == {}
@@ -107,7 +107,7 @@ class TestMapModelName:
 class TestMapProvider:
     def test_openai_system_only(self) -> None:
         assert map_provider({SpanAttributes.LLM_SYSTEM: "openai"}) == {
-            GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.OPENAI.value
+            GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.OPENAI.value
         }
 
     def test_azure_openai_composite(self) -> None:
@@ -116,7 +116,7 @@ class TestMapProvider:
                 SpanAttributes.LLM_SYSTEM: "openai",
                 SpanAttributes.LLM_PROVIDER: "azure",
             }
-        ) == {GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.AZURE_AI_OPENAI.value}
+        ) == {GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.AZURE_AI_OPENAI.value}
 
     def test_anthropic_on_bedrock(self) -> None:
         assert map_provider(
@@ -124,7 +124,7 @@ class TestMapProvider:
                 SpanAttributes.LLM_SYSTEM: "anthropic",
                 SpanAttributes.LLM_PROVIDER: "aws",
             }
-        ) == {GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.AWS_BEDROCK.value}
+        ) == {GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.AWS_BEDROCK.value}
 
     def test_vertex_ai(self) -> None:
         assert map_provider(
@@ -132,21 +132,21 @@ class TestMapProvider:
                 SpanAttributes.LLM_SYSTEM: "vertexai",
                 SpanAttributes.LLM_PROVIDER: "google",
             }
-        ) == {GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.GCP_VERTEX_AI.value}
+        ) == {GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.GCP_VERTEX_AI.value}
 
     def test_mistralai_spelling(self) -> None:
         assert map_provider({SpanAttributes.LLM_SYSTEM: "mistralai"}) == {
-            GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.MISTRAL_AI.value
+            GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.MISTRAL_AI.value
         }
 
     def test_xai_spelling(self) -> None:
         assert map_provider({SpanAttributes.LLM_PROVIDER: "xai"}) == {
-            GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.X_AI.value
+            GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.X_AI.value
         }
 
     def test_provider_only_groq(self) -> None:
         assert map_provider({SpanAttributes.LLM_PROVIDER: "groq"}) == {
-            GA.GEN_AI_PROVIDER_NAME: GenAIProviderNameValues.GROQ.value
+            GA.GEN_AI_PROVIDER_NAME: GenAiProviderNameValues.GROQ.value
         }
 
     def test_unknown_provider_returns_empty(self) -> None:
