@@ -517,11 +517,6 @@ def _async_model_invocation_wrapper(
     return _invocation_wrapper
 
 
-# -----------------------------------------------------------------------------
-# converse wrapper
-# -----------------------------------------------------------------------------
-
-
 def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Callable[..., Any]]:
     """
     Wraps bedrock-runtime converse: one span per call; sets input/output and
@@ -632,11 +627,6 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
             return sync_instrumented_response
 
     return _converse_wrapper
-
-
-# -----------------------------------------------------------------------------
-# Instrumentor
-# -----------------------------------------------------------------------------
 
 
 class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
