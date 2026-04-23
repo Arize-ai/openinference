@@ -18,6 +18,7 @@ from ._types import OpenInferenceMimeType
 from .config import (
     TraceConfig,
 )
+from .genai import convert_oi_to_genai
 
 _IMPORTANT_ATTRIBUTES = [
     SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -29,6 +30,12 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(wrapped)
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
+        # Buffer of OI attributes so we can run the GenAI mappers once at
+        # span.end(). Only populated when GenAI semconv emission is enabled,
+        # since some mappings (messages, tools, retrieval docs) need to see
+        # the full flattened attribute set to reconstruct structured JSON.
+        self._self_genai_enabled: bool = bool(config.enable_genai_semconv)
+        self._self_oi_attributes: Dict[str, AttributeValue] = {}
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
         for k, v in attributes.items():
@@ -46,11 +53,20 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
             else:
                 span = cast(Span, self.__wrapped__)
                 span.set_attribute(key, masked_value)
+            if self._self_genai_enabled:
+                self._self_oi_attributes[key] = masked_value
 
     def end(self, end_time: Optional[int] = None) -> None:
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
+        if self._self_genai_enabled:
+            combined: Dict[str, AttributeValue] = {
+                **self._self_oi_attributes,
+                **self._self_important_attributes,
+            }
+            for k, v in convert_oi_to_genai(combined).items():
+                span.set_attribute(k, v)
         span.end(end_time)
 
     def set_input(
