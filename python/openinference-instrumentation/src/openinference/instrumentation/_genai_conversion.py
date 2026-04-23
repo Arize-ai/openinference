@@ -39,12 +39,13 @@ _DATA_URL_PATTERN = re.compile(r"^data:(?P<mime>[^;]+);base64,(?P<content>.+)$")
 
 
 def get_genai_attributes(attributes: Mapping[str, AttributeValue]) -> Dict[str, AttributeValue]:
+    output_messages = _get_output_messages(attributes)
     return {
         **get_genai_base_attributes(attributes),
         **get_genai_request_attributes(attributes),
         **get_genai_usage_attributes(attributes),
-        **get_genai_message_attributes(attributes),
-        **get_genai_response_attributes(attributes),
+        **get_genai_message_attributes(attributes, _output_messages=output_messages),
+        **get_genai_response_attributes(attributes, _output_messages=output_messages),
         **get_genai_tool_attributes(attributes),
         **get_genai_retrieval_attributes(attributes),
         **get_genai_embedding_attributes(attributes),
@@ -69,14 +70,14 @@ def get_genai_request_attributes(
 ) -> Dict[str, AttributeValue]:
     genai_attributes: Dict[str, AttributeValue] = {}
 
-    if request_model := _get_request_model(attributes):
-        genai_attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] = request_model
-
     llm_parameters = _parse_json_mapping(attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS))
     embedding_parameters = _parse_json_mapping(
         attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
     )
     invocation_parameters = {**embedding_parameters, **llm_parameters}
+
+    if request_model := _get_request_model(attributes, llm_parameters, embedding_parameters):
+        genai_attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] = request_model
 
     for genai_key, raw_value in _iter_request_parameter_mappings(invocation_parameters):
         genai_attributes[genai_key] = raw_value
@@ -113,11 +114,15 @@ def get_genai_usage_attributes(
 
 def get_genai_message_attributes(
     attributes: Mapping[str, AttributeValue],
+    *,
+    _output_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, AttributeValue]:
     genai_attributes: Dict[str, AttributeValue] = {}
 
     input_messages = _get_input_messages(attributes)
-    output_messages = _get_output_messages(attributes)
+    output_messages = _output_messages if _output_messages is not None else _get_output_messages(
+        attributes
+    )
 
     if input_messages:
         genai_attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = safe_json_dumps(input_messages)
@@ -129,8 +134,10 @@ def get_genai_message_attributes(
 
 def get_genai_response_attributes(
     attributes: Mapping[str, AttributeValue],
+    *,
+    _output_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, AttributeValue]:
-    finish_reasons = _get_response_finish_reasons(attributes)
+    finish_reasons = _get_response_finish_reasons(attributes, _output_messages=_output_messages)
     if not finish_reasons:
         return {}
     return {
@@ -298,15 +305,15 @@ def _normalize_provider_or_system(value: Any) -> Optional[str]:
     return None
 
 
-def _get_request_model(attributes: Mapping[str, AttributeValue]) -> Optional[str]:
+def _get_request_model(
+    attributes: Mapping[str, AttributeValue],
+    llm_parameters: Mapping[str, Any],
+    embedding_parameters: Mapping[str, Any],
+) -> Optional[str]:
     if model_name := _as_optional_str(attributes.get(SpanAttributes.LLM_MODEL_NAME)):
         return model_name
     if model_name := _as_optional_str(attributes.get(SpanAttributes.EMBEDDING_MODEL_NAME)):
         return model_name
-    llm_parameters = _parse_json_mapping(attributes.get(SpanAttributes.LLM_INVOCATION_PARAMETERS))
-    embedding_parameters = _parse_json_mapping(
-        attributes.get(SpanAttributes.EMBEDDING_INVOCATION_PARAMETERS)
-    )
     return _as_optional_str(llm_parameters.get("model")) or _as_optional_str(
         embedding_parameters.get("model")
     )
@@ -316,66 +323,7 @@ def _iter_request_parameter_mappings(
     invocation_parameters: Mapping[str, Any],
 ) -> List[Tuple[str, AttributeValue]]:
     mapped: List[Tuple[str, AttributeValue]] = []
-
-    parameter_mappings = (
-        (
-            GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE,
-            ("temperature",),
-            _coerce_float,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_TOP_P,
-            ("top_p",),
-            _coerce_float,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_TOP_K,
-            ("top_k",),
-            _coerce_float,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
-            ("max_tokens", "max_completion_tokens", "max_output_tokens"),
-            _coerce_int,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_FREQUENCY_PENALTY,
-            ("frequency_penalty",),
-            _coerce_float,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_PRESENCE_PENALTY,
-            ("presence_penalty",),
-            _coerce_float,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_SEED,
-            ("seed",),
-            _coerce_int,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_STREAM,
-            ("stream",),
-            _coerce_bool,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES,
-            ("stop_sequences", "stop"),
-            _coerce_string_sequence,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_CHOICE_COUNT,
-            ("n", "choice_count", "candidate_count"),
-            _coerce_int,
-        ),
-        (
-            GenAIAttributes.GEN_AI_REQUEST_ENCODING_FORMATS,
-            ("encoding_formats", "encoding_format"),
-            _coerce_string_sequence,
-        ),
-    )
-
-    for genai_key, source_keys, coercer in parameter_mappings:
+    for genai_key, source_keys, coercer in _PARAMETER_MAPPINGS:
         for source_key in source_keys:
             if source_key not in invocation_parameters:
                 continue
@@ -386,7 +334,6 @@ def _iter_request_parameter_mappings(
                 continue
             mapped.append((genai_key, coerced_value))
             break
-
     return mapped
 
 
@@ -451,12 +398,15 @@ def _extract_oi_messages(
     if not buckets:
         return root_messages
 
+    fallback_finish_reason = (
+        _get_default_output_finish_reason(attributes) if is_output else None
+    )
     messages: List[Dict[str, Any]] = []
     for index in sorted(buckets):
         if message := _build_genai_message_from_bucket(
             buckets[index],
             is_output=is_output,
-            fallback_finish_reason=_get_default_output_finish_reason(attributes),
+            fallback_finish_reason=fallback_finish_reason,
         ):
             messages.append(message)
     return messages
@@ -792,13 +742,6 @@ def _normalize_message_role(role: Optional[str]) -> Optional[str]:
         return GenAIRoleValues.ASSISTANT.value
     if lowered_role == "function":
         return GenAIRoleValues.TOOL.value
-    if lowered_role in {
-        GenAIRoleValues.SYSTEM.value,
-        GenAIRoleValues.USER.value,
-        GenAIRoleValues.ASSISTANT.value,
-        GenAIRoleValues.TOOL.value,
-    }:
-        return lowered_role
     return lowered_role
 
 
@@ -860,12 +803,18 @@ def _get_default_output_finish_reason(attributes: Mapping[str, AttributeValue]) 
     return "stop"
 
 
-def _get_response_finish_reasons(attributes: Mapping[str, AttributeValue]) -> List[str]:
+def _get_response_finish_reasons(
+    attributes: Mapping[str, AttributeValue],
+    *,
+    _output_messages: Optional[List[Dict[str, Any]]] = None,
+) -> List[str]:
     explicit_finish_reasons = _get_explicit_finish_reasons(attributes)
     if explicit_finish_reasons:
         return explicit_finish_reasons
 
-    output_messages = _get_output_messages(attributes)
+    output_messages = _output_messages if _output_messages is not None else _get_output_messages(
+        attributes
+    )
     return [
         _normalize_finish_reason(_as_optional_str(message.get("finish_reason"))) or "stop"
         for message in output_messages
@@ -1203,7 +1152,36 @@ def _coerce_string_sequence(value: Any) -> Optional[Tuple[str, ...]]:
     if isinstance(value, str):
         return (value,)
     if isinstance(value, Sequence):
-        if isinstance(value, str):
-            return (value,)
         return tuple(str(item) for item in value)
     return None
+
+
+_PARAMETER_MAPPINGS: Tuple[Tuple[str, Tuple[str, ...], Any], ...] = (
+    (GenAIAttributes.GEN_AI_REQUEST_TEMPERATURE, ("temperature",), _coerce_float),
+    (GenAIAttributes.GEN_AI_REQUEST_TOP_P, ("top_p",), _coerce_float),
+    (GenAIAttributes.GEN_AI_REQUEST_TOP_K, ("top_k",), _coerce_float),
+    (
+        GenAIAttributes.GEN_AI_REQUEST_MAX_TOKENS,
+        ("max_tokens", "max_completion_tokens", "max_output_tokens"),
+        _coerce_int,
+    ),
+    (GenAIAttributes.GEN_AI_REQUEST_FREQUENCY_PENALTY, ("frequency_penalty",), _coerce_float),
+    (GenAIAttributes.GEN_AI_REQUEST_PRESENCE_PENALTY, ("presence_penalty",), _coerce_float),
+    (GenAIAttributes.GEN_AI_REQUEST_SEED, ("seed",), _coerce_int),
+    (GenAIAttributes.GEN_AI_REQUEST_STREAM, ("stream",), _coerce_bool),
+    (
+        GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES,
+        ("stop_sequences", "stop"),
+        _coerce_string_sequence,
+    ),
+    (
+        GenAIAttributes.GEN_AI_REQUEST_CHOICE_COUNT,
+        ("n", "choice_count", "candidate_count"),
+        _coerce_int,
+    ),
+    (
+        GenAIAttributes.GEN_AI_REQUEST_ENCODING_FORMATS,
+        ("encoding_formats", "encoding_format"),
+        _coerce_string_sequence,
+    ),
+)
