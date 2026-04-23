@@ -10,13 +10,6 @@ from typing import (
     get_args,
 )
 
-from openinference.semconv.trace import (
-    EmbeddingAttributes,
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    SpanAttributes,
-)
 from opentelemetry.context import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     attach,
@@ -24,6 +17,14 @@ from opentelemetry.context import (
     set_value,
 )
 from opentelemetry.util.types import AttributeValue
+
+from openinference.semconv.trace import (
+    EmbeddingAttributes,
+    ImageAttributes,
+    MessageAttributes,
+    MessageContentAttributes,
+    SpanAttributes,
+)
 
 from .logging import logger
 
