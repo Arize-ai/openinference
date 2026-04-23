@@ -28,6 +28,10 @@ from typing import (  # type: ignore[attr-defined]
 )
 
 import wrapt
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY, Context, get_value
 from opentelemetry.sdk.trace.id_generator import IdGenerator, RandomIdGenerator
 from opentelemetry.trace import (
@@ -45,11 +49,6 @@ from opentelemetry.trace import (
 from opentelemetry.util.types import Attributes, AttributeValue
 from typing_extensions import ParamSpec, TypeVar, _AnnotatedAlias, overload
 
-from openinference.semconv.trace import (
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
-
 from ._attributes import (
     get_input_attributes,
     get_llm_attributes,
@@ -57,6 +56,7 @@ from ._attributes import (
     get_tool_attributes,
 )
 from ._capture import _capture_span_context
+from ._genai_conversion import get_genai_attributes
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
@@ -170,6 +170,9 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 **span_kind_attributes,
             }
         )
+        if self._self_config.enable_genai_semconv:
+            for key, value in get_genai_attributes(combined_attributes).items():
+                combined_attributes.setdefault(key, value)
 
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
