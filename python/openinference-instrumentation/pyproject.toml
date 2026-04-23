@@ -29,7 +29,7 @@ dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
   "opentelemetry-semantic-conventions>=0.58b0",
-  "openinference-semantic-conventions>=0.1.26",
+  "openinference-semantic-conventions>=0.1.29",
   "wrapt>=1.14.0,<2",
 ]
 
