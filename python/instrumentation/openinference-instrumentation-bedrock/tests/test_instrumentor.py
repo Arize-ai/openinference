@@ -14,7 +14,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
     BedrockInstrumentor,
@@ -381,7 +381,7 @@ def test_converse(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -483,7 +483,7 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=first_msg["content"][0]["text"],  # type: ignore
+        input_messages=list(messages),
         output=first_output,
         model_name=model_name,
         token_counts=first_mock_response["usage"],  # type: ignore
@@ -562,7 +562,7 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[1],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=second_msg["content"][0]["text"],  # type: ignore
+        input_messages=list(messages),
         output=second_output,
         model_name=model_name,
         token_counts=second_mock_response["usage"],  # type: ignore
@@ -658,7 +658,7 @@ def test_converse_with_missing_tokens(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -762,7 +762,7 @@ def test_converse_multiple_models(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_id,
         token_counts=mock_response["usage"],  # type: ignore
@@ -883,7 +883,7 @@ def test_converse_multimodal(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,  # type:ignore
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -931,8 +931,8 @@ def _run_converse_checks(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
     span: trace_sdk.ReadableSpan,
-    llm_input_messages_truth: List[Dict[str, str]],
-    input: str,
+    llm_input_messages_truth: List[Dict[str, Any]],
+    input_messages: List[Dict[str, Any]],
     output: Dict[str, Any],
     model_name: str,
     token_counts: Dict[Any, Any],
@@ -958,26 +958,28 @@ def _run_converse_checks(
         attributes.pop("llm.output_messages.0.message.contents.0.message_content.text")
         == output["message"]["content"][0]["text"]
     )
+    assert isinstance(input_value_str := attributes.pop(INPUT_VALUE), str)
+    assert input_value_str == safe_json_dumps(input_messages)
+    assert attributes.pop(INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
 
-    assert attributes.pop(INPUT_VALUE) == input
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
         content_key = f"llm.input_messages.{msg_idx}.message.contents"
         assert attributes.pop(role_key) == msg["role"], f"Role mismatch for message {msg_idx}."
         content = msg["content"]
         if isinstance(content, str):
-            content = [{"text": content}]  # type:ignore
+            content = [{"text": content}]
         for content_idx, content_item in enumerate(content):
-            if content_item.get("image"):  # type:ignore
+            if content_item.get("image"):
                 expected_type = "image"
-                base64_img = base64.b64encode(content_item["image"]["source"]["bytes"]).decode(  # type:ignore
-                    "utf-8"
-                )
-                expected_value = f"data:image/jpeg;base64,{base64_img}"
+                img_block = content_item["image"]
+                base64_img = base64.b64encode(img_block["source"]["bytes"]).decode("utf-8")
+                img_format = img_block.get("format", "jpeg")
+                expected_value = f"data:{img_format};base64,{base64_img}"
                 value_key = f"{content_key}.{content_idx}.message_content.image.image.url"
             else:
                 expected_type = "text"
-                expected_value = content_item["text"]  # type:ignore
+                expected_value = content_item["text"]
                 value_key = f"{content_key}.{content_idx}.message_content.text"
             type_key = f"{content_key}.{content_idx}.message_content.type"
             assert attributes.pop(type_key) == expected_type

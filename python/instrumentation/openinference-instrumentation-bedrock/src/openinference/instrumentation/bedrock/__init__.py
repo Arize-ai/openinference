@@ -33,11 +33,9 @@ Edge cases and limitations:
   after setting span status to ERROR.
 """
 
-import base64
 import io
 import json
 import logging
-from enum import Enum
 from functools import wraps
 from importlib import import_module
 from inspect import signature
@@ -47,9 +45,6 @@ from typing import (
     Callable,
     Collection,
     Dict,
-    Iterable,
-    Iterator,
-    List,
     Optional,
     Tuple,
     TypeVar,
@@ -70,7 +65,9 @@ from openinference.instrumentation import (
     OITracer,
     TraceConfig,
     get_attributes_from_context,
-    safe_json_dumps,
+)
+from openinference.instrumentation.bedrock._converse_attributes import (
+    get_attributes_from_request_data as _get_converse_request_attributes,
 )
 from openinference.instrumentation.bedrock._converse_attributes import (
     get_attributes_from_response_data as _get_converse_response_attributes,
@@ -92,13 +89,6 @@ from openinference.instrumentation.bedrock.utils.anthropic import (
     _attributes as anthropic_attributes,
 )
 from openinference.instrumentation.bedrock.version import __version__
-from openinference.semconv.trace import (
-    ImageAttributes,
-    MessageAttributes,
-    MessageContentAttributes,
-    OpenInferenceSpanKindValues,
-    SpanAttributes,
-)
 
 # -----------------------------------------------------------------------------
 # Constants
@@ -539,53 +529,6 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
             span.set_status(Status(StatusCode.OK))
             return response
 
-        def _set_input_attributes(span: trace_api.Span, kwargs: Dict[str, Any]) -> None:
-            """Set input attributes on the span."""
-            span.set_attribute(
-                SpanAttributes.OPENINFERENCE_SPAN_KIND,
-                OpenInferenceSpanKindValues.LLM.value,
-            )
-
-            if model_id := kwargs.get("modelId"):
-                _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-
-            if inference_config := kwargs.get("inferenceConfig"):
-                invocation_parameters = safe_json_dumps(inference_config)
-                _set_span_attribute(
-                    span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters
-                )
-
-            aggregated_messages: List[Any] = []
-            if system_prompts := kwargs.get("system"):
-                aggregated_messages.append(
-                    {
-                        "role": "system",
-                        "content": [
-                            {"text": " ".join(prompt.get("text", "") for prompt in system_prompts)}
-                        ],
-                    }
-                )
-
-            aggregated_messages.extend(kwargs.get("messages", []))
-            for idx, msg in enumerate(aggregated_messages):
-                if not isinstance(msg, dict):
-                    # Only dictionaries supported for now
-                    continue
-                for key, value in _get_attributes_from_message_param(msg):
-                    _set_span_attribute(
-                        span,
-                        f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{key}",
-                        value,
-                    )
-            last_message = aggregated_messages[-1] if aggregated_messages else None
-            if isinstance(last_message, dict) and (
-                request_msg_content := last_message.get("content")
-            ):
-                request_msg_prompt = "\n".join(
-                    content_input.get("text", "") for content_input in request_msg_content
-                ).strip("\n")
-                _set_span_attribute(span, SpanAttributes.INPUT_VALUE, request_msg_prompt)
-
         # Use async wrapper when client is async (aiobotocore).
         if hasattr(wrapped_client, "__aenter__"):
 
@@ -595,7 +538,10 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     return await wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
-                    _set_input_attributes(span, kwargs)
+                    try:
+                        span.set_attributes(_get_converse_request_attributes(kwargs))  # type: ignore[arg-type]
+                    except Exception:
+                        logger.warning("Failed to set request attributes on span", exc_info=True)
                     try:
                         response = await wrapped_client._unwrapped_converse(*args, **kwargs)
                     except Exception as e:
@@ -614,7 +560,10 @@ def _model_converse_wrapper(tracer: Tracer) -> Callable[[InstrumentedClient], Ca
                     return wrapped_client._unwrapped_converse(*args, **kwargs)  # type: ignore
 
                 with tracer.start_as_current_span("bedrock.converse") as span:
-                    _set_input_attributes(span, kwargs)
+                    try:
+                        span.set_attributes(_get_converse_request_attributes(kwargs))  # type: ignore[arg-type]
+                    except Exception:
+                        logger.warning("Failed to set request attributes on span", exc_info=True)
                     try:
                         response = wrapped_client._unwrapped_converse(*args, **kwargs)
                     except Exception as e:
@@ -705,74 +654,7 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             pass
 
 
-# -----------------------------------------------------------------------------
-# Span and message attribute helpers (converse / message APIs)
-# -----------------------------------------------------------------------------
-
-
 def _set_span_attribute(span: trace_api.Span, name: str, value: AttributeValue) -> None:
     """Set a span attribute only if value is non-empty."""
     if value is not None and value != "":
         span.set_attribute(name, value)
-
-
-def _get_attributes_from_message_param(
-    message: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for role and content from a converse message dict."""
-    if not hasattr(message, "get"):
-        return
-    if role := message.get("role"):
-        yield (
-            MessageAttributes.MESSAGE_ROLE,
-            role.value if isinstance(role, Enum) else role,
-        )
-
-    if content := message.get("content"):
-        if isinstance(content, str):
-            yield MessageAttributes.MESSAGE_CONTENT, content
-        elif is_iterable_of(content, dict):
-            for index, c in list(enumerate(content)):
-                for key, value in _get_attributes_from_message_content(c):
-                    yield f"{MessageAttributes.MESSAGE_CONTENTS}.{index}.{key}", value
-        elif isinstance(content, List):
-            # See https://github.com/openai/openai-python/blob/f1c7d714914e3321ca2e72839fe2d132a8646e7f/src/openai/types/chat/chat_completion_user_message_param.py#L14  # noqa: E501
-            try:
-                value = safe_json_dumps(content)
-            except Exception:
-                logger.exception("Failed to serialize message content")
-            yield MessageAttributes.MESSAGE_CONTENT, value
-
-
-def _get_attributes_from_message_content(
-    content: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for a single content block (text or image)."""
-    content = dict(content)
-    if text := content.get("text"):
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "text"
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TEXT}", text
-    if image := content.get("image"):
-        yield f"{MessageContentAttributes.MESSAGE_CONTENT_TYPE}", "image"
-        for key, value in _get_attributes_from_image(image):
-            yield f"{MessageContentAttributes.MESSAGE_CONTENT_IMAGE}.{key}", value
-
-
-def _get_attributes_from_image(
-    image: Dict[str, Any],
-) -> Iterator[Tuple[str, AttributeValue]]:
-    """Yield (attr_name, value) for image content (e.g. base64-encoded bytes)."""
-    if (source := image.get("source")) and (img_bytes := source.get("bytes")):
-        base64_img = base64.b64encode(img_bytes).decode("utf-8")
-        yield (
-            f"{ImageAttributes.IMAGE_URL}",
-            f"data:image/jpeg;base64,{base64_img}",
-        )
-
-
-T = TypeVar("T", bound=type)
-
-
-def is_iterable_of(lst: Iterable[object], tp: T) -> bool:
-    """Return True if lst is an iterable whose elements are all of type tp."""
-    return isinstance(lst, Iterable) and all(isinstance(x, tp) for x in lst)

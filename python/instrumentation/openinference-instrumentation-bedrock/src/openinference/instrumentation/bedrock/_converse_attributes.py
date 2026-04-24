@@ -121,11 +121,14 @@ def get_input_messages(
     """
     messages: List[Message] = []
     if "system" in request_data:
+        contents: list[Any] = []
+        system_prompt_parts: list[Any] = []
         for system_prompt in request_data["system"]:
-            msg = Message(role="system")
             if "text" in system_prompt:
-                msg["content"] = system_prompt["text"]
-            messages.append(msg)
+                system_prompt_parts.append(system_prompt["text"])
+        if system_prompt_parts:
+            contents.append(TextMessageContent(text=" ".join(system_prompt_parts), type="text"))
+            messages.append(Message(role="system", contents=contents))
     if "messages" in request_data:
         messages.extend(get_message_objects(list(request_data["messages"])))
     return messages

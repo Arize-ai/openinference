@@ -393,7 +393,9 @@ def test_converse_tool_use_message(
 
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"
-    assert attributes.pop(INPUT_VALUE) == "What is the most popular song on Radio XYZ?"
+    assert isinstance(input_value_str := attributes.pop(INPUT_VALUE), str)
+    assert "What is the most popular song on Radio XYZ?" in input_value_str
+    assert attributes.pop(INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
 
     assert attributes.pop("llm.input_messages.0.message.role") == "user"
     assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.type") == "text"
@@ -432,6 +434,9 @@ def test_converse_tool_use_message(
         str,
     )
     assert "sign" in json.loads(tool_args_str)
+
+    assert isinstance(tools_schema := attributes.pop("llm.tools.0.tool.json_schema"), str)
+    assert "top_song" in tools_schema
 
     assert attributes == {}
 
