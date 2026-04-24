@@ -12,6 +12,7 @@ from openinference.instrumentation import (
     get_embedding_attributes,
     get_llm_attributes,
     get_retriever_attributes,
+    using_session,
 )
 from openinference.instrumentation.genai import (
     GenAIAttributes,
@@ -429,3 +430,51 @@ def test_oi_tracer_derives_genai_from_masked_attributes(
             "parts": [{"type": "text", "content": REDACTED_VALUE}],
         }
     ]
+
+
+def test_oi_tracer_preserves_initial_genai_attributes_after_set_attribute(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        TraceConfig(enable_genai_semconv=True),
+    )
+
+    span = tracer.start_span(
+        "llm-span",
+        openinference_span_kind="llm",
+        attributes={
+            SpanAttributes.LLM_MODEL_NAME: "gpt-4o",
+            GenAIAttributes.GEN_AI_REQUEST_MODEL: "custom-model",
+        },
+    )
+    span.set_attribute(SpanAttributes.LLM_TOKEN_COUNT_PROMPT, 10)
+    span.end()
+
+    exported_span = in_memory_span_exporter.get_finished_spans()[0]
+    attributes = dict(exported_span.attributes or {})
+    assert attributes[GenAIAttributes.GEN_AI_REQUEST_MODEL] == "custom-model"
+    assert attributes[GenAIAttributes.GEN_AI_USAGE_INPUT_TOKENS] == 10
+
+
+def test_oi_tracer_propagates_context_attributes_to_genai_semconv(
+    tracer_provider: TracerProvider,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tracer = OITracer(
+        tracer_provider.get_tracer(__name__),
+        TraceConfig(enable_genai_semconv=True),
+    )
+
+    with using_session("session-abc"):
+        with tracer.start_as_current_span(
+            "llm-span",
+            openinference_span_kind="llm",
+        ):
+            pass
+
+    exported_span = in_memory_span_exporter.get_finished_spans()[0]
+    attributes = dict(exported_span.attributes or {})
+    assert attributes[SpanAttributes.SESSION_ID] == "session-abc"
+    assert attributes[GenAIAttributes.GEN_AI_CONVERSATION_ID] == "session-abc"
