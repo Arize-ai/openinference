@@ -5,9 +5,9 @@ from typing import Any, AsyncGenerator, Callable, Collection, Tuple
 from opentelemetry import context, propagate
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.utils import unwrap
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 from wrapt.importer import register_post_import_hook
 from wrapt.patches import wrap_function_wrapper
-from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation.mcp.package import _instruments
 
