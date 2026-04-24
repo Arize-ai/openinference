@@ -154,20 +154,11 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
-
-try:
-    from workflows.runtime.types.step_function import (  # type: ignore[import-not-found]
-        SpanCancelledEvent,
-        WorkflowRunOutputEvent,
-        WorkflowStepOutputEvent,
-    )
-
-    _HAS_WORKFLOW_EVENTS = True
-except ImportError:
-    SpanCancelledEvent = None  # type: ignore[misc,assignment]
-    WorkflowStepOutputEvent = None  # type: ignore[misc,assignment]
-    WorkflowRunOutputEvent = None  # type: ignore[misc,assignment]
-    _HAS_WORKFLOW_EVENTS = False
+from workflows.runtime.types.step_function import (
+    SpanCancelledEvent,
+    WorkflowRunOutputEvent,
+    WorkflowStepOutputEvent,
+)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
