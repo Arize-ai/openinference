@@ -182,7 +182,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _MessagesStreamWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
-                manager_class=_BetaMessageStreamManager,
+                manager_class=_BetaMessageStreamManager,  # type: ignore[arg-type]
             ),
         )
 
@@ -193,7 +193,7 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             _AsyncMessagesStreamWrapper(
                 tracer=self._tracer,  # type: ignore[arg-type]
                 span_name="beta.messages.stream",
-                manager_class=_BetaAsyncMessageStreamManager,
+                manager_class=_BetaAsyncMessageStreamManager,  # type: ignore[arg-type]
             ),
         )
 

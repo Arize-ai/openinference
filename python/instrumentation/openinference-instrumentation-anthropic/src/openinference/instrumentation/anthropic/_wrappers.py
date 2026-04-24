@@ -23,7 +23,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.trace import INVALID_SPAN
 from opentelemetry.util.types import AttributeValue
 from typing_extensions import assert_never
-from wrapt import ObjectProxy  # type: ignore[attr-defined]
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
 from openinference.instrumentation.anthropic._stream import (

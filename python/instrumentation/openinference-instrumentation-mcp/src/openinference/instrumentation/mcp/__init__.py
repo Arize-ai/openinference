@@ -7,7 +7,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type:
 from opentelemetry.instrumentation.utils import unwrap
 from wrapt.importer import register_post_import_hook
 from wrapt.patches import wrap_function_wrapper
-from wrapt import ObjectProxy  # type: ignore[attr-defined]
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation.mcp.package import _instruments
 
@@ -108,7 +108,9 @@ class MCPInstrumentor(BaseInstrumentor):  # type: ignore
         writer = getattr(instance, "_incoming_message_stream_writer", None)
         if reader and writer:
             setattr(
-                instance, "_incoming_message_stream_reader", ContextAttachingStreamReader(reader)  # type: ignore[no-untyped-call]
+                instance,
+                "_incoming_message_stream_reader",
+                ContextAttachingStreamReader(reader),  # type: ignore[no-untyped-call]
             )
             setattr(instance, "_incoming_message_stream_writer", ContextSavingStreamWriter(writer))  # type: ignore[no-untyped-call]
 

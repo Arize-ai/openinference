@@ -14,7 +14,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy  # type: ignore[attr-defined]
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation import safe_json_dumps
 from openinference.instrumentation.anthropic._utils import (

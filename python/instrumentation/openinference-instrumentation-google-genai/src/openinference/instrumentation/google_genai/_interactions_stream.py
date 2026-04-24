@@ -10,7 +10,7 @@ from typing import (
 )
 
 from opentelemetry import trace as trace_api
-from wrapt import ObjectProxy  # type: ignore[attr-defined]
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation.google_genai._with_span import _WithSpan
 from openinference.instrumentation.google_genai.interactions_attributes import (

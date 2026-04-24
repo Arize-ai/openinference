@@ -64,7 +64,7 @@ class DSPyInstrumentor(BaseInstrumentor):  # type: ignore
         args: Tuple[Any, ...] = (),
         kwargs: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        wrap_object(  # type: ignore[no-untyped-call,call-arg]
+        wrap_object(  # type: ignore[no-untyped-call,call-arg,unused-ignore]
             module,
             name,
             factory,
