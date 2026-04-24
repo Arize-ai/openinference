@@ -255,10 +255,10 @@ def _get_genai_provider_name(attributes: Mapping[str, AttributeValue]) -> Option
     if provider == OpenInferenceLLMProviderValues.AWS.value:
         return GenAIProviderNameValues.AWS_BEDROCK.value
 
-    if system == OpenInferenceLLMSystemValues.VERTEXAI.value or (
+    if (
         provider == OpenInferenceLLMProviderValues.GOOGLE.value
         and system == OpenInferenceLLMSystemValues.VERTEXAI.value
-    ):
+    ) or (provider is None and system == OpenInferenceLLMSystemValues.VERTEXAI.value):
         return GenAIProviderNameValues.GCP_VERTEX_AI.value
 
     if provider == OpenInferenceLLMProviderValues.GOOGLE.value:
@@ -981,19 +981,27 @@ def _normalize_document(document: Any) -> Optional[Dict[str, Any]]:
 
     normalized_document: Dict[str, Any] = {}
 
-    document_id = document.get(DocumentAttributes.DOCUMENT_ID) or document.get("id")
+    document_id = document.get(DocumentAttributes.DOCUMENT_ID)
+    if document_id is None:
+        document_id = document.get("id")
     if document_id is not None:
         normalized_document["id"] = str(document_id)
 
-    document_score = document.get(DocumentAttributes.DOCUMENT_SCORE) or document.get("score")
+    document_score = document.get(DocumentAttributes.DOCUMENT_SCORE)
+    if document_score is None:
+        document_score = document.get("score")
     if document_score is not None:
         normalized_document["score"] = document_score
 
-    document_content = document.get(DocumentAttributes.DOCUMENT_CONTENT) or document.get("content")
+    document_content = document.get(DocumentAttributes.DOCUMENT_CONTENT)
+    if document_content is None:
+        document_content = document.get("content")
     if document_content is not None:
         normalized_document["content"] = document_content
 
-    metadata = document.get(DocumentAttributes.DOCUMENT_METADATA) or document.get("metadata")
+    metadata = document.get(DocumentAttributes.DOCUMENT_METADATA)
+    if metadata is None:
+        metadata = document.get("metadata")
     if metadata is not None:
         normalized_document["metadata"] = _jsonish_python_value(metadata)
 
