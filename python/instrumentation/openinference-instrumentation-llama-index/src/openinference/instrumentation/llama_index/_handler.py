@@ -40,6 +40,11 @@ from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
+from workflows.runtime.types.step_function import (
+    SpanCancelledEvent,
+    WorkflowRunOutputEvent,
+    WorkflowStepOutputEvent,
+)
 
 from llama_index.core import QueryBundle
 
@@ -153,11 +158,6 @@ from openinference.semconv.trace import (
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
-)
-from workflows.runtime.types.step_function import (
-    SpanCancelledEvent,
-    WorkflowRunOutputEvent,
-    WorkflowStepOutputEvent,
 )
 
 logger = logging.getLogger(__name__)
