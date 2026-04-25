@@ -4,6 +4,35 @@ on:
   schedule:
     - cron: "0 18 * * 1-5"
   workflow_dispatch:
+    inputs:
+      run_mode:
+        description: Manual run mode
+        required: false
+        default: debug
+        type: choice
+        options:
+          - debug
+          - production_dry_run
+      testenv_filter:
+        description: Regex to limit *-latest tox envs for manual runs
+        required: false
+        default: ""
+        type: string
+      auto_fix_timeout_minutes:
+        description: Timeout for the auto-fix job on manual debug runs
+        required: false
+        default: "15"
+        type: string
+      show_full_output:
+        description: Show full Claude JSON output in manual debug runs
+        required: false
+        default: true
+        type: boolean
+      claude_args:
+        description: Extra Claude CLI args for manual debug runs
+        required: false
+        default: ""
+        type: string
 
 env:
   UV_EXCLUDE_NEWER: "3 days"
@@ -17,17 +46,27 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && github.event.repository.default_branch || github.ref }}
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
           version: 0.11.2
           enable-cache: false
       - name: Extract testenv into JSON list
-        run: >-
-          echo "list=$(uvx --with tox-uv tox -l
-          | egrep -e '-latest$'
-          | jq -R -s -c 'split("\n")[:-1]')"
-          >> $GITHUB_OUTPUT
+        env:
+          TESTENV_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.testenv_filter || '' }}
+        run: |
+          TESTENVS=$(uvx --with tox-uv tox -l | egrep -e '-latest$' || true)
+
+          if [ -n "$TESTENV_FILTER" ]; then
+            TESTENVS=$(printf '%s\n' "$TESTENVS" | grep -E "$TESTENV_FILTER" || true)
+          fi
+
+          {
+            echo "list<<EOF"
+            printf '%s\n' "$TESTENVS" | sed '/^$/d' | jq -R -s -c 'split("\n")[:-1]'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         working-directory: python
         id: testenv
 
@@ -43,8 +82,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && github.event.repository.default_branch || github.ref }}
           sparse-checkout: python
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
           version: 0.11.2
           enable-cache: false
@@ -53,7 +93,7 @@ jobs:
         timeout-minutes: 15
       - run: touch ${{ runner.temp }}/${{ matrix.testenv }}
         if: failure()
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: ${{ matrix.testenv }}
@@ -68,7 +108,7 @@ jobs:
     env:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         if: ${{ needs.canary.result == 'failure' }}
       - name: List failures
         if: ${{ needs.canary.result == 'failure' }}
@@ -98,7 +138,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
         id: message
       - name: Send message to Slack
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -107,23 +148,200 @@ jobs:
               "type": "mrkdwn",
               "text": ${{ toJSON(steps.message.outputs.text) }}
             }
+      - name: Write notification to job summary
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          MESSAGE_TEXT: ${{ steps.message.outputs.text }}
+        run: |
+          printf '%s\n' "$MESSAGE_TEXT"
+          {
+            echo "### Python canary notification"
+            echo
+            echo "$MESSAGE_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  auto-fix:
-    name: Propose fix for failures
+  collect-failing-packages:
+    name: Collect failing packages
     needs: canary
     if: ${{ always() && needs.canary.result == 'failure' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    outputs:
+      packages: ${{ steps.packages.outputs.json }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Group failures by package
+        id: packages
+        run: |
+          FAILED_ENVS=$(find . -maxdepth 1 -type d ! -name '.' | sed 's|^\./||' | sort)
+          PACKAGES_JSON=$(
+            printf '%s\n' "$FAILED_ENVS" \
+              | sed '/^$/d' \
+              | jq -R -s -c '
+                  split("\n")[:-1]
+                  | map(select(length > 0))
+                  | group_by(sub("^py[0-9]+-ci-"; "") | sub("-latest$"; ""))
+                  | map({
+                      package: (.[0] | sub("^py[0-9]+-ci-"; "") | sub("-latest$"; "")),
+                      envs: .
+                    })
+                '
+          )
+
+          echo "json=$PACKAGES_JSON" >> "$GITHUB_OUTPUT"
+
+          if [ "$PACKAGES_JSON" = "[]" ]; then
+            echo "No failing packages found after artifact grouping."
+            exit 0
+          fi
+
+          SUMMARY=$(printf '%s' "$PACKAGES_JSON" | jq -r '.[] | "- \(.package): \(.envs | join(", "))"')
+          printf '%s\n' "$SUMMARY"
+          {
+            echo "### Package groups"
+            echo
+            printf '%s\n' "$SUMMARY"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  auto-fix-package-debug:
+    name: Auto-fix debug ${{ matrix.package.package }}
+    needs:
+      - canary
+      - collect-failing-packages
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_mode != 'production_dry_run' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(inputs.auto_fix_timeout_minutes) }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        package: ${{ fromJSON(needs.collect-failing-packages.outputs.packages) }}
     permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
+      actions: read
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: anthropics/claude-code-action@88c168b39e7e64da0286d812b6e9fbebb6708185 # v1
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          version: 0.11.2
+          enable-cache: false
+      - name: Stage failing logs for package
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package.package }}
+          ENVS_JSON: ${{ toJSON(matrix.package.envs) }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          BASE_DIR=".canary-debug/$PACKAGE"
+          LOG_DIR="$BASE_DIR/logs"
+          SCRATCH_DIR="$BASE_DIR/scratch"
+          MARKER_DIR="$BASE_DIR/markers"
+
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR" "$MARKER_DIR"
+
+          fetch_job_log() {
+            MODE="$1"
+            ENV_NAME="$2"
+            JOB_ID="$3"
+            OUTPUT_FILE="$4"
+            ERROR_FILE="$5"
+
+            : > "$ERROR_FILE"
+
+            for ATTEMPT in 1 2 3; do
+              TMP_OUT="$OUTPUT_FILE.attempt-$ATTEMPT"
+              TMP_ERR="$ERROR_FILE.attempt-$ATTEMPT"
+
+              if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" "$MODE" >"$TMP_OUT" 2>"$TMP_ERR" && [ -s "$TMP_OUT" ]; then
+                mv "$TMP_OUT" "$OUTPUT_FILE"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR" >> "$ERROR_FILE"
+                fi
+                rm -f "$TMP_ERR"
+                return 0
+              fi
+
+              {
+                printf 'attempt=%s mode=%s env=%s job_id=%s\n' "$ATTEMPT" "$MODE" "$ENV_NAME" "$JOB_ID"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR"
+                else
+                  echo "empty_output"
+                fi
+                echo
+              } >> "$ERROR_FILE"
+
+              rm -f "$TMP_OUT" "$TMP_ERR"
+              sleep 10
+            done
+
+            : > "$OUTPUT_FILE"
+            return 1
+          }
+
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+
+          printf '%s' "$ENVS_JSON" | jq -r '.[]' | while IFS= read -r ENV; do
+            JOB_ID=$(printf '%s' "$JOBS_JSON" | jq -r --arg env "$ENV" '.jobs[] | select(.name == $env) | .databaseId // empty')
+
+            if [ -z "$JOB_ID" ]; then
+              printf 'env=%s\njob_id=\n' "$ENV" > "$LOG_DIR/$ENV.meta"
+              printf 'missing job id for %s\n' "$ENV" > "$LOG_DIR/$ENV.lookup-error.txt"
+              continue
+            fi
+
+            FAILED_LOG="$LOG_DIR/$ENV.failed.log"
+            FAILED_ERR="$LOG_DIR/$ENV.failed.stderr.log"
+            FULL_LOG="$LOG_DIR/$ENV.full.log"
+            FULL_ERR="$LOG_DIR/$ENV.full.stderr.log"
+
+            fetch_job_log --log-failed "$ENV" "$JOB_ID" "$FAILED_LOG" "$FAILED_ERR" || {
+              printf 'failed to stage failed log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.failed.lookup-error.txt"
+            }
+            fetch_job_log --log "$ENV" "$JOB_ID" "$FULL_LOG" "$FULL_ERR" || {
+              printf 'failed to stage full log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.full.lookup-error.txt"
+            }
+
+            FAILED_BYTES=$(wc -c < "$FAILED_LOG" 2>/dev/null || echo 0)
+            FULL_BYTES=$(wc -c < "$FULL_LOG" 2>/dev/null || echo 0)
+
+            {
+              printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID"
+              printf 'failed_log=%s (%s bytes)\n' "$FAILED_LOG" "$FAILED_BYTES"
+              printf 'full_log=%s (%s bytes)\n' "$FULL_LOG" "$FULL_BYTES"
+              printf 'marker_dir=%s\n' "$MARKER_DIR"
+            } > "$LOG_DIR/$ENV.meta"
+
+            if [ "$FAILED_BYTES" -eq 0 ] && [ "$FULL_BYTES" -eq 0 ]; then
+              {
+                printf 'empty staged logs for %s after retries\n' "$ENV"
+                if [ -s "$FAILED_ERR" ]; then
+                  echo "--- failed log stderr ---"
+                  cat "$FAILED_ERR"
+                fi
+                if [ -s "$FULL_ERR" ]; then
+                  echo "--- full log stderr ---"
+                  cat "$FULL_ERR"
+                fi
+              } > "$LOG_DIR/$ENV.lookup-error.txt"
+            fi
+          done
+
+          {
+            echo "### Staged canary logs for $PACKAGE"
+            echo
+            find "$BASE_DIR" -maxdepth 2 -type f | sort | sed 's|^|- |'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
         id: auto-fix
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: ${{ inputs.show_full_output }}
+          claude_args: ${{ inputs.claude_args }}
+          additional_permissions: |
+            actions: read
           settings: |
             {
               "permissions": {
@@ -145,26 +363,624 @@ jobs:
               }
             }
           prompt: |
-            The Python canary cron has failures.
+            The Python canary cron has failures for one package.
 
-            Run /python-canary-fix to investigate these failures, draft a fix, and open a PR.
+            Run /python-canary-fix to investigate only the package `${{ matrix.package.package }}`.
+
+            Package scope:
+            - Package token: `${{ matrix.package.package }}`
+            - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
+            - Marker directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers`
+            - Shared-root-cause status file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/status.txt`
+            - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
+            - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
+            - Python tox config path: `${{ github.workspace }}/python/tox.ini`
+
+            Acceptance criteria:
+            - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
+            - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
+            - This is manual debug mode. Do not create commits, push branches, or open/update pull requests.
+            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
+            - Start with the staged failing logs under the staged failing logs directory above. If those logs are empty or a `*.lookup-error.txt` file is present, treat the staged data as incomplete and then query `gh run view` again.
+            - Use only repo-local paths under `${{ github.workspace }}`. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
+            - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Run tox from the repo root with the explicit config path, for example `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly.
+            - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
+            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with the `Write` tool or a single repo-local shell command before you finish. Do not open or update a PR in that case.
+            - Before considering a package-local fix candidate complete, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox -c python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
 
             The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
             Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
-
-      - name: Notify Slack of auto-fix PR
-        if: ${{ steps.auto-fix.outputs.branch_name != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH_NAME: ${{ steps.auto-fix.outputs.branch_name }}
+      - name: Record package markers
+        if: ${{ always() }}
         run: |
-          PR_URL=$(gh pr view "$BRANCH_NAME" --json url -q .url 2>/dev/null || echo "")
-          if [ -n "$PR_URL" ]; then
-            MSG="Auto-fix PR opened for canary failures: $PR_URL"
-          else
-            MSG="Auto-fix branch created but no PR found: $BRANCH_NAME"
+          MARKER_DIR=".canary-debug/${{ matrix.package.package }}/markers"
+          STATUS_FILE="$MARKER_DIR/status.txt"
+          PR_URL_FILE="$MARKER_DIR/pr-url.txt"
+          BRANCH_FILE="$MARKER_DIR/branch.txt"
+          mkdir -p "$MARKER_DIR"
+          if [ ! -f "$STATUS_FILE" ]; then
+            printf 'none\n' > "$STATUS_FILE"
           fi
-          echo "$MSG"
-          curl -sf -X POST -H 'Content-type: application/json' \
-            --data "$(jq -n --arg text "$MSG" '{type: "mrkdwn", text: $text}')" \
-            "${{ secrets.SLACK_WEBHOOK_URL }}"
+          if [ ! -f "$PR_URL_FILE" ]; then
+            printf 'none\n' > "$PR_URL_FILE"
+          fi
+          if [ ! -f "$BRANCH_FILE" ]; then
+            printf 'none\n' > "$BRANCH_FILE"
+          fi
+          printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
+          printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: auto-fix-markers-${{ matrix.package.package }}
+          path: .canary-debug/${{ matrix.package.package }}/markers
+          retention-days: 1
+
+  auto-fix-package:
+    name: Auto-fix ${{ matrix.package.package }}
+    needs:
+      - canary
+      - collect-failing-packages
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.run_mode == 'production_dry_run') && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PRODUCTION_CHECKOUT_ROOT: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' && format('{0}/.production-checkout', github.workspace) || github.workspace }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        package: ${{ fromJSON(needs.collect-failing-packages.outputs.packages) }}
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode == 'production_dry_run' }}
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .production-checkout
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          version: 0.11.2
+          enable-cache: false
+      - name: Stage failing logs for package
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE: ${{ matrix.package.package }}
+          ENVS_JSON: ${{ toJSON(matrix.package.envs) }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          BASE_DIR=".canary-debug/$PACKAGE"
+          LOG_DIR="$BASE_DIR/logs"
+          SCRATCH_DIR="$BASE_DIR/scratch"
+          MARKER_DIR="$BASE_DIR/markers"
+
+          mkdir -p "$LOG_DIR" "$SCRATCH_DIR" "$MARKER_DIR"
+
+          fetch_job_log() {
+            MODE="$1"
+            ENV_NAME="$2"
+            JOB_ID="$3"
+            OUTPUT_FILE="$4"
+            ERROR_FILE="$5"
+
+            : > "$ERROR_FILE"
+
+            for ATTEMPT in 1 2 3; do
+              TMP_OUT="$OUTPUT_FILE.attempt-$ATTEMPT"
+              TMP_ERR="$ERROR_FILE.attempt-$ATTEMPT"
+
+              if gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" "$MODE" >"$TMP_OUT" 2>"$TMP_ERR" && [ -s "$TMP_OUT" ]; then
+                mv "$TMP_OUT" "$OUTPUT_FILE"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR" >> "$ERROR_FILE"
+                fi
+                rm -f "$TMP_ERR"
+                return 0
+              fi
+
+              {
+                printf 'attempt=%s mode=%s env=%s job_id=%s\n' "$ATTEMPT" "$MODE" "$ENV_NAME" "$JOB_ID"
+                if [ -s "$TMP_ERR" ]; then
+                  cat "$TMP_ERR"
+                else
+                  echo "empty_output"
+                fi
+                echo
+              } >> "$ERROR_FILE"
+
+              rm -f "$TMP_OUT" "$TMP_ERR"
+              sleep 10
+            done
+
+            : > "$OUTPUT_FILE"
+            return 1
+          }
+
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+
+          printf '%s' "$ENVS_JSON" | jq -r '.[]' | while IFS= read -r ENV; do
+            JOB_ID=$(printf '%s' "$JOBS_JSON" | jq -r --arg env "$ENV" '.jobs[] | select(.name == $env) | .databaseId // empty')
+
+            if [ -z "$JOB_ID" ]; then
+              printf 'env=%s\njob_id=\n' "$ENV" > "$LOG_DIR/$ENV.meta"
+              printf 'missing job id for %s\n' "$ENV" > "$LOG_DIR/$ENV.lookup-error.txt"
+              continue
+            fi
+
+            FAILED_LOG="$LOG_DIR/$ENV.failed.log"
+            FAILED_ERR="$LOG_DIR/$ENV.failed.stderr.log"
+            FULL_LOG="$LOG_DIR/$ENV.full.log"
+            FULL_ERR="$LOG_DIR/$ENV.full.stderr.log"
+
+            fetch_job_log --log-failed "$ENV" "$JOB_ID" "$FAILED_LOG" "$FAILED_ERR" || {
+              printf 'failed to stage failed log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.failed.lookup-error.txt"
+            }
+            fetch_job_log --log "$ENV" "$JOB_ID" "$FULL_LOG" "$FULL_ERR" || {
+              printf 'failed to stage full log for %s after retries\n' "$ENV" > "$LOG_DIR/$ENV.full.lookup-error.txt"
+            }
+
+            FAILED_BYTES=$(wc -c < "$FAILED_LOG" 2>/dev/null || echo 0)
+            FULL_BYTES=$(wc -c < "$FULL_LOG" 2>/dev/null || echo 0)
+
+            {
+              printf 'env=%s\njob_id=%s\n' "$ENV" "$JOB_ID"
+              printf 'failed_log=%s (%s bytes)\n' "$FAILED_LOG" "$FAILED_BYTES"
+              printf 'full_log=%s (%s bytes)\n' "$FULL_LOG" "$FULL_BYTES"
+              printf 'marker_dir=%s\n' "$MARKER_DIR"
+            } > "$LOG_DIR/$ENV.meta"
+
+            if [ "$FAILED_BYTES" -eq 0 ] && [ "$FULL_BYTES" -eq 0 ]; then
+              {
+                printf 'empty staged logs for %s after retries\n' "$ENV"
+                if [ -s "$FAILED_ERR" ]; then
+                  echo "--- failed log stderr ---"
+                  cat "$FAILED_ERR"
+                fi
+                if [ -s "$FULL_ERR" ]; then
+                  echo "--- full log stderr ---"
+                  cat "$FULL_ERR"
+                fi
+              } > "$LOG_DIR/$ENV.lookup-error.txt"
+            fi
+          done
+
+          {
+            echo "### Staged canary logs for $PACKAGE"
+            echo
+            find "$BASE_DIR" -maxdepth 2 -type f | sort | sed 's|^|- |'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: anthropics/claude-code-action@b47fd721da662d48c5680e154ad16a73ed74d2e0 # v1.0.93
+        id: auto-fix
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: ${{ github.event_name == 'workflow_dispatch' && inputs.show_full_output || false }}
+          claude_args: ${{ github.event_name == 'workflow_dispatch' && inputs.claude_args || '' }}
+          additional_permissions: |
+            actions: read
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Bash(gh *)",
+                  "Bash(git *)",
+                  "Bash(uvx *)",
+                  "Bash(tox *)",
+                  "Bash(cd *)",
+                  "Bash(ls *)",
+                  "Read",
+                  "Write",
+                  "Edit",
+                  "Glob",
+                  "Grep",
+                  "WebFetch",
+                  "WebSearch"
+                ]
+              }
+            }
+          prompt: |
+            The Python canary cron has failures for one package.
+
+            Run /python-canary-fix to investigate only the package `${{ matrix.package.package }}`.
+
+            Package scope:
+            - Package token: `${{ matrix.package.package }}`
+            - Failing envs from run ${{ github.run_id }}: `${{ join(matrix.package.envs, ', ') }}`
+            - Production checkout root: `${{ env.PRODUCTION_CHECKOUT_ROOT }}`
+            - Marker directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers`
+            - Shared-root-cause status file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/status.txt`
+            - PR URL file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/pr-url.txt`
+            - Branch file: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/markers/branch.txt`
+            - Staged failing logs directory: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/logs`
+            - Repo-local scratch directory for helper files: `${{ github.workspace }}/.canary-debug/${{ matrix.package.package }}/scratch`
+            - Python tox config path: `${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini`
+
+            Acceptance criteria:
+            - Use run ID ${{ github.run_id }} in repo ${{ github.repository }} as the source of truth. Do not inspect a different run unless you explicitly note why.
+            - Stay within the package scope above. Treat the listed envs as one package-owned unit of work.
+            - This is production auto-fix mode. Continue until you reach one of these terminal outcomes for this package: a verified PR is opened or updated, `shared_root_cause` is written to the status file, or `blocked_command` is written to the status file. If this run was started with `workflow_dispatch`, public Slack is disabled for this run, but you should otherwise behave like the scheduled production path.
+            - Do not wait for this workflow run to finish and do not use `gh run watch` on this same run. The listed envs already finished failing.
+            - Start with the staged failing logs under the staged failing logs directory above. If those logs are empty or a `*.lookup-error.txt` file is present, treat the staged data as incomplete and then query `gh run view` again.
+            - Use `${{ env.PRODUCTION_CHECKOUT_ROOT }}` for all code edits, git commands, tox runs, commits, pushes, and PR creation. Only write outside that checkout when updating the marker files above. Do not use `/tmp` or other paths outside the repo workspace for helper scripts, downloaded files, or extracted metadata.
+            - Prefer `Read`, `Grep`, and single-command Bash calls. Avoid `&&`, `;`, shell pipelines for basic filtering, and output redirection when a simpler tool call or repo-local file read will do.
+            - Run tox with the explicit config path rooted at the production checkout, for example `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Do not wrap tox commands in `cd`, `2>&1`, `| tail`, `| head`, `| grep`, or shell redirection. Run the tox command directly.
+            - Reproduce one failing `*-latest` env from this package before doing deeper upstream/package forensics. Only inspect PyPI metadata or download wheels if the rerun and staged logs still leave the root cause ambiguous.
+            - If the required fix touches shared Python code used by multiple packages, or package directories outside this package, stop and write `shared_root_cause` to the status file above with the `Write` tool or a single repo-local shell command. Do not open or update a PR in that case.
+            - Before opening or updating a PR, run the listed failing env(s) from this package that are relevant to your change, using commands like `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e py310-ci-${{ matrix.package.package }}-latest -- -ra -x`.
+            - Also run the matching pinned env, `uvx --with tox-uv tox -c ${{ env.PRODUCTION_CHECKOUT_ROOT }}/python/tox.ini r -e ruff-mypy-test-${{ matrix.package.package }}`, to verify backward compatibility.
+            - Do not open or update a PR unless the relevant tox envs pass locally, unless the failure is clearly transient or external. If you make that exception, explain it explicitly in the PR body.
+            - Open or update at most one PR for this package from `${{ env.PRODUCTION_CHECKOUT_ROOT }}` and include the current run ID ${{ github.run_id }}, plus the exact verification commands and outcomes, in the PR body.
+            - When you open or update a PR, write the canonical PR URL to the PR URL file above and the head branch name to the branch file above with the `Write` tool or single repo-local shell commands before you finish.
+            - If a shell or filesystem command is blocked by the sandbox or workflow permissions, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+            - If local tox verification is blocked, write `blocked_command` to the status file above with the `Write` tool or a single repo-local shell command, say exactly which command was blocked, and stop after documenting the package-local fix candidate.
+
+            The run ID is ${{ github.run_id }} and the repo is ${{ github.repository }}.
+            Use `gh run view ${{ github.run_id }} --repo ${{ github.repository }}` to inspect job logs.
+      - name: Record package markers
+        if: ${{ always() }}
+        run: |
+          MARKER_DIR=".canary-debug/${{ matrix.package.package }}/markers"
+          STATUS_FILE="$MARKER_DIR/status.txt"
+          PR_URL_FILE="$MARKER_DIR/pr-url.txt"
+          BRANCH_FILE="$MARKER_DIR/branch.txt"
+          mkdir -p "$MARKER_DIR"
+          if [ ! -f "$STATUS_FILE" ]; then
+            printf 'none\n' > "$STATUS_FILE"
+          fi
+          if [ ! -f "$PR_URL_FILE" ]; then
+            printf 'none\n' > "$PR_URL_FILE"
+          fi
+          if [ ! -f "$BRANCH_FILE" ]; then
+            printf 'none\n' > "$BRANCH_FILE"
+          fi
+          printf 'PACKAGE_STATUS %s\n' "$(head -n 1 "$STATUS_FILE")"
+          printf 'PACKAGE_PR_URL %s\n' "$(head -n 1 "$PR_URL_FILE")"
+          printf 'PACKAGE_BRANCH %s\n' "$(head -n 1 "$BRANCH_FILE")"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: auto-fix-markers-${{ matrix.package.package }}
+          path: .canary-debug/${{ matrix.package.package }}/markers
+          retention-days: 1
+
+  auto-fix-package-summary:
+    name: Auto-fix debug package summary
+    needs:
+      - canary
+      - collect-failing-packages
+      - auto-fix-package-debug
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.run_mode != 'production_dry_run' && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      PACKAGES_JSON: ${{ needs.collect-failing-packages.outputs.packages }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: auto-fix-markers-*
+          path: .package-marker-artifacts
+      - name: Build package summary
+        id: summary
+        run: |
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+          SUMMARY_FILE=$(mktemp)
+
+          {
+            echo "Python canary package auto-fix summary:"
+            echo "$RUN_URL"
+          } > "$SUMMARY_FILE"
+
+          printf '%s' "$PACKAGES_JSON" | jq -c '.[]' | while IFS= read -r PACKAGE_JSON; do
+            PACKAGE=$(printf '%s' "$PACKAGE_JSON" | jq -r '.package')
+            ENVS=$(printf '%s' "$PACKAGE_JSON" | jq -r '.envs | join(", ")')
+            JOB_NAME="Auto-fix debug $PACKAGE"
+            JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name and .conclusion != "skipped") | {databaseId, conclusion}] | .[0] // {}')
+            JOB_ID=$(printf '%s' "$JOB_JSON" | jq -r '.databaseId // ""')
+            JOB_RESULT=$(printf '%s' "$JOB_JSON" | jq -r '.conclusion // "missing"')
+            EFFECTIVE_RESULT="$JOB_RESULT"
+            DETAIL=""
+            RESULT_SUBTYPE=""
+            MARKER_DIR=".package-marker-artifacts/auto-fix-markers-$PACKAGE"
+            STATUS_MARKER=""
+            LOG_FILE=""
+
+            if [ -f "$MARKER_DIR/status.txt" ]; then
+              STATUS_MARKER=$(head -n 1 "$MARKER_DIR/status.txt")
+            fi
+
+            if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+              EFFECTIVE_RESULT="$STATUS_MARKER"
+              DETAIL="$STATUS_MARKER"
+            fi
+
+            if [ -n "$JOB_ID" ]; then
+              LOG_FILE=$(mktemp)
+              gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
+
+              if [ -s "$LOG_FILE" ]; then
+                if [ -z "$STATUS_MARKER" ] || [ "$STATUS_MARKER" = "none" ]; then
+                  RESULT_SUBTYPE=$(
+                    grep -F -A 5 '"type": "result"' "$LOG_FILE" \
+                      | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
+                      | head -n 1
+                  )
+
+                  if [ "$JOB_RESULT" = "cancelled" ]; then
+                    if [ -n "$RESULT_SUBTYPE" ]; then
+                      EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                      if [ "$RESULT_SUBTYPE" = "success" ]; then
+                        DETAIL="claude_reported_success_before_timeout"
+                      else
+                        DETAIL="claude_reported_final_result_before_timeout"
+                      fi
+                    else
+                      DETAIL="claude_did_not_reach_final_result_before_timeout"
+                    fi
+                  elif [ "$JOB_RESULT" = "success" ] && [ -n "$RESULT_SUBTYPE" ]; then
+                    EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                  fi
+                fi
+              fi
+            fi
+
+            STATUS_TEXT="$EFFECTIVE_RESULT"
+            if [ -n "$DETAIL" ] && [ "$DETAIL" != "$EFFECTIVE_RESULT" ]; then
+              STATUS_TEXT="$STATUS_TEXT ($DETAIL)"
+            fi
+
+            PR_TEXT="PR disabled in manual debug mode"
+
+            printf '%s\n' "- $PACKAGE: $STATUS_TEXT; envs: $ENVS; $PR_TEXT" >> "$SUMMARY_FILE"
+            rm -f "$LOG_FILE"
+          done
+
+          {
+            echo "text<<EOF"
+            cat "$SUMMARY_FILE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          rm -f "$SUMMARY_FILE"
+
+      - name: Write notification to job summary
+        env:
+          MESSAGE_TEXT: ${{ steps.summary.outputs.text }}
+        run: |
+          printf '%s\n' "$MESSAGE_TEXT"
+          {
+            echo "### Python canary auto-fix package summary"
+            echo
+            echo "$MESSAGE_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  auto-fix-package-slack:
+    name: Slack auto-fix package notification
+    needs:
+      - canary
+      - collect-failing-packages
+      - auto-fix-package
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.run_mode == 'production_dry_run') && needs.canary.result == 'failure' && needs.collect-failing-packages.result == 'success' && needs.collect-failing-packages.outputs.packages != '[]' }}
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      PACKAGES_JSON: ${{ needs.collect-failing-packages.outputs.packages }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: auto-fix-markers-*
+          path: .package-marker-artifacts
+      - name: Build message
+        id: message
+        run: |
+          JOBS_JSON=$(gh run view "$RUN_ID" --repo "$GH_REPO" --json jobs)
+          RUN_STARTED_AT=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '.run_started_at // .created_at')
+          SUMMARY_FILE=$(mktemp)
+
+          {
+            echo "Python canary package auto-fix summary:"
+            echo "$RUN_URL"
+          } > "$SUMMARY_FILE"
+
+          printf '%s' "$PACKAGES_JSON" | jq -c '.[]' | while IFS= read -r PACKAGE_JSON; do
+            PACKAGE=$(printf '%s' "$PACKAGE_JSON" | jq -r '.package')
+            ENVS=$(printf '%s' "$PACKAGE_JSON" | jq -r '.envs | join(", ")')
+            JOB_NAME="Auto-fix $PACKAGE"
+            JOB_JSON=$(printf '%s' "$JOBS_JSON" | jq -c --arg name "$JOB_NAME" '[.jobs[] | select(.name == $name and .conclusion != "skipped") | {databaseId, conclusion}] | .[0] // {}')
+            JOB_ID=$(printf '%s' "$JOB_JSON" | jq -r '.databaseId // ""')
+            JOB_RESULT=$(printf '%s' "$JOB_JSON" | jq -r '.conclusion // "missing"')
+            EFFECTIVE_RESULT="$JOB_RESULT"
+            DETAIL=""
+            RESULT_SUBTYPE=""
+            PR_URL=""
+            PR_STATE=""
+            PR_JSON=""
+            BRANCH_CANDIDATE=""
+            MARKER_DIR=".package-marker-artifacts/auto-fix-markers-$PACKAGE"
+            MARKER_PR_URL=""
+            MARKER_BRANCH=""
+            STATUS_MARKER=""
+            LOG_FILE=""
+
+            if [ -f "$MARKER_DIR/status.txt" ]; then
+              STATUS_MARKER=$(head -n 1 "$MARKER_DIR/status.txt")
+            fi
+            if [ -f "$MARKER_DIR/pr-url.txt" ]; then
+              MARKER_PR_URL=$(head -n 1 "$MARKER_DIR/pr-url.txt")
+            fi
+            if [ -f "$MARKER_DIR/branch.txt" ]; then
+              MARKER_BRANCH=$(head -n 1 "$MARKER_DIR/branch.txt")
+            fi
+
+            if [ -n "$STATUS_MARKER" ] && [ "$STATUS_MARKER" != "none" ]; then
+              EFFECTIVE_RESULT="$STATUS_MARKER"
+              DETAIL="$STATUS_MARKER"
+            fi
+            if [ -n "$MARKER_PR_URL" ] && [ "$MARKER_PR_URL" != "none" ]; then
+              PR_URL="$MARKER_PR_URL"
+            fi
+            if [ -n "$MARKER_BRANCH" ] && [ "$MARKER_BRANCH" != "none" ]; then
+              BRANCH_CANDIDATE="$MARKER_BRANCH"
+            fi
+
+            if [ -n "$JOB_ID" ]; then
+              LOG_FILE=$(mktemp)
+              gh run view "$RUN_ID" --repo "$GH_REPO" --job "$JOB_ID" --log >"$LOG_FILE" 2>/dev/null || true
+
+              if [ -s "$LOG_FILE" ]; then
+                if [ -z "$STATUS_MARKER" ] || [ "$STATUS_MARKER" = "none" ]; then
+                  RESULT_SUBTYPE=$(
+                    grep -F -A 5 '"type": "result"' "$LOG_FILE" \
+                      | sed -n 's/.*"subtype": "\([^"]*\)".*/\1/p' \
+                      | head -n 1
+                  )
+
+                  if [ "$JOB_RESULT" = "cancelled" ]; then
+                    if [ -n "$RESULT_SUBTYPE" ]; then
+                      EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                      if [ "$RESULT_SUBTYPE" = "success" ]; then
+                        DETAIL="claude_reported_success_before_timeout"
+                      else
+                        DETAIL="claude_reported_final_result_before_timeout"
+                      fi
+                    else
+                      DETAIL="claude_did_not_reach_final_result_before_timeout"
+                    fi
+                  elif [ "$JOB_RESULT" = "success" ] && [ -n "$RESULT_SUBTYPE" ]; then
+                    EFFECTIVE_RESULT="$RESULT_SUBTYPE"
+                  fi
+                fi
+
+                if [ -z "$PR_URL" ]; then
+                  PR_URL=$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$LOG_FILE" | tail -n 1 || true)
+                fi
+
+                if [ -z "$BRANCH_CANDIDATE" ] && [ -z "$PR_URL" ]; then
+                  BRANCH_CANDIDATE=$(
+                    {
+                      sed -n "s/.*Create a pull request for '\([^']*\)'.*/\1/p" "$LOG_FILE"
+                      sed -n "s/.*branch '\([^']*\)' set up to track.*/\1/p" "$LOG_FILE"
+                      sed -n 's/.*-> \(fix\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                      sed -n 's/.*-> \(cc\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                      sed -n 's/.*-> \(claude\/[^[:space:]]*\).*/\1/p' "$LOG_FILE"
+                    } | tail -n 1
+                  )
+                fi
+              fi
+            fi
+
+            if [ -n "$PR_URL" ]; then
+              PR_JSON=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json url,state 2>/dev/null || true)
+            fi
+
+            if [ -z "$PR_JSON" ] && [ -n "$BRANCH_CANDIDATE" ]; then
+              PR_JSON=$(
+                gh pr list \
+                  --repo "$GH_REPO" \
+                  --head "$BRANCH_CANDIDATE" \
+                  --state all \
+                  --json url,state \
+                  --jq '.[0] // empty' \
+                  | head -n 1
+              )
+            fi
+
+            if [ -z "$PR_JSON" ] && [ "$EFFECTIVE_RESULT" != "shared_root_cause" ] && [ "$EFFECTIVE_RESULT" != "blocked_command" ]; then
+              PR_JSON=$(
+                gh pr list \
+                  --repo "$GH_REPO" \
+                  --state all \
+                  --limit 100 \
+                  --json url,state,author,title,headRefName,updatedAt,body \
+                  --jq "
+                    map(
+                      select(.author.login == \"app/claude\" or .author.login == \"github-actions[bot]\")
+                      | select(.updatedAt >= \"$RUN_STARTED_AT\")
+                      | select((.body // \"\") | contains(\"$RUN_ID\"))
+                    )
+                    | sort_by(.updatedAt)
+                    | reverse
+                    | .[0] // empty
+                  " \
+                  | head -n 1
+              )
+            fi
+
+            if [ -n "$PR_JSON" ]; then
+              PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.url // ""')
+              PR_STATE=$(printf '%s' "$PR_JSON" | jq -r '.state // ""')
+            fi
+
+            STATUS_TEXT="$EFFECTIVE_RESULT"
+            if [ -n "$DETAIL" ] && [ "$DETAIL" != "$EFFECTIVE_RESULT" ]; then
+              STATUS_TEXT="$STATUS_TEXT ($DETAIL)"
+            fi
+
+            if [ -n "$PR_URL" ]; then
+              if [ -n "$PR_STATE" ]; then
+                PR_TEXT="PR $PR_STATE: $PR_URL"
+              else
+                PR_TEXT="PR: $PR_URL"
+              fi
+            elif [ "$EFFECTIVE_RESULT" = "shared_root_cause" ]; then
+              PR_TEXT="no PR expected (shared_root_cause)"
+            elif [ "$EFFECTIVE_RESULT" = "blocked_command" ]; then
+              PR_TEXT="no PR expected (blocked_command)"
+            else
+              PR_TEXT="no PR found"
+            fi
+
+            printf '%s\n' "- $PACKAGE: $STATUS_TEXT; envs: $ENVS; $PR_TEXT" >> "$SUMMARY_FILE"
+            rm -f "$LOG_FILE"
+          done
+
+          MSG=$(cat "$SUMMARY_FILE")
+          rm -f "$SUMMARY_FILE"
+
+          {
+            echo "text<<EOF"
+            echo "$MSG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send message to Slack
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "type": "mrkdwn",
+              "text": ${{ toJSON(steps.message.outputs.text) }}
+            }
+      - name: Write notification to job summary
+        env:
+          MESSAGE_TEXT: ${{ steps.message.outputs.text }}
+        run: |
+          printf '%s\n' "$MESSAGE_TEXT"
+          {
+            echo "### Python canary auto-fix package notification"
+            echo
+            echo "$MESSAGE_TEXT"
+          } >> "$GITHUB_STEP_SUMMARY"
