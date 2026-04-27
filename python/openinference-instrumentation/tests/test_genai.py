@@ -14,12 +14,14 @@ from openinference.instrumentation import (
     get_retriever_attributes,
     using_session,
 )
-from openinference.instrumentation.genai import (
+from openinference.instrumentation._genai_attributes import (
     GenAIAttributes,
     GenAIModalityValues,
     GenAIOperationNameValues,
     GenAIProviderNameValues,
     GenAIToolTypeValues,
+)
+from openinference.instrumentation._genai_conversion import (
     get_genai_attributes,
     get_genai_base_attributes,
 )
