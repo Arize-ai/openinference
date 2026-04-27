@@ -27,7 +27,7 @@ dependencies = [
     "openinference-instrumentation>=0.1.37",
     "openinference-semantic-conventions>=0.1.25",
     "opentelemetry-api>=1.36.0",
-    "opentelemetry-instrumentation>=0.57b0",
+    "opentelemetry-instrumentation>=0.62b1",
     "opentelemetry-semantic-conventions>=0.57b0",
     "wrapt",
 ]
