@@ -309,12 +309,12 @@ def _log_span_event(event_name: str, attributes: Dict[str, Any]) -> None:
 def _get_agent_i18n_prompt_file(agent: Any) -> str:
     """Return the agent's i18n prompt file path, falling back to I18N_DEFAULT."""
     try:
-        return agent.i18n.prompt_file or ""  # type: ignore[no-any-return]
+        return agent.i18n.prompt_file or ""
     except AttributeError:
         try:
-            from crewai.utilities.i18n import I18N_DEFAULT  # type: ignore[import-untyped]
+            from crewai.utilities.i18n import I18N_DEFAULT  # type: ignore[attr-defined,unused-ignore]
 
-            return I18N_DEFAULT.prompt_file or ""  # type: ignore[return-value]
+            return I18N_DEFAULT.prompt_file or ""
         except ImportError:
             return ""
 
