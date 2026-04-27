@@ -3,4 +3,4 @@ opentelemetry-sdk
 pytest-recording
 litellm<1.82.7  # versions >=1.82.7 are compromised, see https://github.com/BerriAI/litellm/issues/24518
 urllib3<3.0
-vcrpy>=5.0.0,<9.0.0
+vcrpy>=8.1.1,<9.0.0
