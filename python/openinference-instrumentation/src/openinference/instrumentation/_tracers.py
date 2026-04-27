@@ -57,7 +57,6 @@ from ._attributes import (
     get_tool_attributes,
 )
 from ._capture import _capture_span_context
-from ._genai_conversion import get_genai_base_attributes, get_genai_request_attributes
 from ._spans import OpenInferenceSpan
 from .config import (
     TraceConfig,
@@ -171,11 +170,6 @@ class OITracer(wrapt.ObjectProxy):  # type: ignore[misc]
                 **span_kind_attributes,
             }
         )
-        if self._self_config.enable_genai_semconv:
-            for key, value in get_genai_base_attributes(combined_attributes).items():
-                combined_attributes.setdefault(key, value)
-            for key, value in get_genai_request_attributes(combined_attributes).items():
-                combined_attributes.setdefault(key, value)
 
         if get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             otel_span = INVALID_SPAN
