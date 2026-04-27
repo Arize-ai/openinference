@@ -30,9 +30,9 @@ from pipecat.frames.frames import (
 )
 
 try:
-    from pipecat.frames.frames import LLMMessagesFrame  # type: ignore[attr-defined, unused-ignore]
+    from pipecat.frames.frames import LLMMessagesFrame  # type: ignore[attr-defined,unused-ignore]
 except ImportError:
-    LLMMessagesFrame = None  # type: ignore[assignment, misc, unused-ignore]
+    LLMMessagesFrame = None  # type: ignore[assignment,misc,unused-ignore]
 
 from pipecat.metrics.metrics import (
     LLMTokenUsage,
