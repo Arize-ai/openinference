@@ -469,6 +469,16 @@ updates:
   package-ecosystem: npm
   schedule:
     interval: weekly
+- directory: js/packages/openinference-tanstack-ai
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+    - version-update:semver-minor
+    - version-update:semver-patch
+  package-ecosystem: npm
+  schedule:
+    interval: weekly
 - directory: js/packages/openinference-vercel
   ignore:
   - dependency-name: '*'
