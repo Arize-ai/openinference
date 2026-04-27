@@ -75,9 +75,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_completions_create = Completions.create
         wrap_function_wrapper(
-            module="anthropic.resources.completions",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(
+            "anthropic.resources.completions",
+            "Completions.create",
+            _CompletionsWrapper(
                 tracer=self._tracer,
                 span_name="completions.create",
             ),
@@ -85,9 +85,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
-            module="anthropic.resources.completions",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(
+            "anthropic.resources.completions",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(
                 tracer=self._tracer,
                 span_name="completions.create",
             ),
@@ -95,9 +95,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_messages_create = Messages.create
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="Messages.create",
-            wrapper=_MessagesWrapper(
+            "anthropic.resources.messages",
+            "Messages.create",
+            _MessagesWrapper(
                 tracer=self._tracer,
                 span_name="messages.create",
             ),
@@ -105,9 +105,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_messages_create = AsyncMessages.create
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="AsyncMessages.create",
-            wrapper=_AsyncMessagesWrapper(
+            "anthropic.resources.messages",
+            "AsyncMessages.create",
+            _AsyncMessagesWrapper(
                 tracer=self._tracer,
                 span_name="messages.create",
             ),
@@ -115,9 +115,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_messages_stream = Messages.stream
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="Messages.stream",
-            wrapper=_MessagesStreamWrapper(
+            "anthropic.resources.messages",
+            "Messages.stream",
+            _MessagesStreamWrapper(
                 tracer=self._tracer,
                 span_name="messages.stream",
                 manager_class=_MessageStreamManager,
@@ -126,9 +126,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_messages_stream = AsyncMessages.stream
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="AsyncMessages.stream",
-            wrapper=_AsyncMessagesStreamWrapper(
+            "anthropic.resources.messages",
+            "AsyncMessages.stream",
+            _AsyncMessagesStreamWrapper(
                 tracer=self._tracer,
                 span_name="messages.stream",
                 manager_class=_AsyncMessageStreamManager,
@@ -137,9 +137,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_messages_parse = Messages.parse
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="Messages.parse",
-            wrapper=_MessagesWrapper(
+            "anthropic.resources.messages",
+            "Messages.parse",
+            _MessagesWrapper(
                 tracer=self._tracer,
                 span_name="messages.parse",
             ),
@@ -147,9 +147,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_messages_parse = AsyncMessages.parse
         wrap_function_wrapper(
-            module="anthropic.resources.messages",
-            name="AsyncMessages.parse",
-            wrapper=_AsyncMessagesWrapper(
+            "anthropic.resources.messages",
+            "AsyncMessages.parse",
+            _AsyncMessagesWrapper(
                 tracer=self._tracer,
                 span_name="messages.parse",
             ),
@@ -157,9 +157,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_beta_messages_create = BetaMessages.create
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="Messages.create",
-            wrapper=_MessagesWrapper(
+            "anthropic.resources.beta.messages",
+            "Messages.create",
+            _MessagesWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.create",
             ),
@@ -167,9 +167,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_beta_messages_create = AsyncBetaMessages.create
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="AsyncMessages.create",
-            wrapper=_AsyncMessagesWrapper(
+            "anthropic.resources.beta.messages",
+            "AsyncMessages.create",
+            _AsyncMessagesWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.create",
             ),
@@ -177,9 +177,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_beta_messages_stream = BetaMessages.stream
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="Messages.stream",
-            wrapper=_MessagesStreamWrapper(
+            "anthropic.resources.beta.messages",
+            "Messages.stream",
+            _MessagesStreamWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.stream",
                 manager_class=_BetaMessageStreamManager,
@@ -188,9 +188,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_beta_messages_stream = AsyncBetaMessages.stream
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="AsyncMessages.stream",
-            wrapper=_AsyncMessagesStreamWrapper(
+            "anthropic.resources.beta.messages",
+            "AsyncMessages.stream",
+            _AsyncMessagesStreamWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.stream",
                 manager_class=_BetaAsyncMessageStreamManager,
@@ -199,9 +199,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_beta_messages_parse = BetaMessages.parse
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="Messages.parse",
-            wrapper=_MessagesWrapper(
+            "anthropic.resources.beta.messages",
+            "Messages.parse",
+            _MessagesWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.parse",
             ),
@@ -209,9 +209,9 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_async_beta_messages_parse = AsyncBetaMessages.parse
         wrap_function_wrapper(
-            module="anthropic.resources.beta.messages",
-            name="AsyncMessages.parse",
-            wrapper=_AsyncMessagesWrapper(
+            "anthropic.resources.beta.messages",
+            "AsyncMessages.parse",
+            _AsyncMessagesWrapper(
                 tracer=self._tracer,
                 span_name="beta.messages.parse",
             ),
@@ -221,16 +221,16 @@ class AnthropicInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_transform = _transform_module.transform
         wrap_function_wrapper(
-            module="anthropic._utils._transform",
-            name="transform",
-            wrapper=_TransformWrapper(),
+            "anthropic._utils._transform",
+            "transform",
+            _TransformWrapper(),
         )
 
         self._original_async_transform = _transform_module.async_transform
         wrap_function_wrapper(
-            module="anthropic._utils._transform",
-            name="async_transform",
-            wrapper=_AsyncTransformWrapper(),
+            "anthropic._utils._transform",
+            "async_transform",
+            _AsyncTransformWrapper(),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

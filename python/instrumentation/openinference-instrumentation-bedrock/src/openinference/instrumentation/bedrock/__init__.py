@@ -685,9 +685,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
         botocore = import_module(_BASE_MODULE)
         self._original_client_creator = boto.ClientCreator.create_client
         wrap_function_wrapper(
-            module=_MODULE,
-            name="ClientCreator.create_client",
-            wrapper=_sync_client_creation_wrapper(
+            _MODULE,
+            "ClientCreator.create_client",
+            _sync_client_creation_wrapper(
                 tracer=self._tracer,
                 module_version=botocore.__version__,
             ),
@@ -697,9 +697,9 @@ class BedrockInstrumentor(BaseInstrumentor):  # type: ignore
             aioboto = import_module(_AIO_MODULE)
             self._original_aio_client_creator = aioboto.AioClientCreator.create_client
             wrap_function_wrapper(
-                module=_AIO_MODULE,
-                name="AioClientCreator.create_client",
-                wrapper=_async_client_creation_wrapper(
+                _AIO_MODULE,
+                "AioClientCreator.create_client",
+                _async_client_creation_wrapper(
                     tracer=self._tracer,
                     # Converse check uses botocore version (same as sync);
                     # aiobotocore wraps botocore.

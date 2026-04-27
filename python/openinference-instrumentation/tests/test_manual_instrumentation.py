@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import (
     Any,
     AsyncGenerator,
@@ -16,6 +17,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from uuid import UUID
 
 import jsonschema
 import pydantic
@@ -47,8 +49,7 @@ from openinference.instrumentation import (
     ToolCall,
     ToolCallFunction,
     get_llm_attributes,
-    get_provider_from_host,
-    get_system_from_model,
+    get_output_attributes,
     suppress_tracing,
     using_session,
 )
@@ -2920,139 +2921,47 @@ class TestSamplerAttributeAccess:
         assert len(spans) == 1
 
 
-class TestGetProviderFromHost:
-    @pytest.mark.parametrize(
-        "host, expected",
-        [
-            ("api.openai.com", OpenInferenceLLMProviderValues.OPENAI.value),
-            ("openai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            ("services.ai.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            ("cognitiveservices.azure.com", OpenInferenceLLMProviderValues.AZURE.value),
-            ("api.anthropic.com", OpenInferenceLLMProviderValues.ANTHROPIC.value),
-            ("api.cohere.com", OpenInferenceLLMProviderValues.COHERE.value),
-            ("api.cohere.ai", OpenInferenceLLMProviderValues.COHERE.value),
-            ("api.mistral.ai", OpenInferenceLLMProviderValues.MISTRALAI.value),
-            ("generativelanguage.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
-            ("aiplatform.googleapis.com", OpenInferenceLLMProviderValues.GOOGLE.value),
-            ("bedrock-runtime.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            ("bedrock-runtime.us-east-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            ("bedrock-runtime.eu-west-1.amazonaws.com", OpenInferenceLLMProviderValues.AWS.value),
-            ("api.x.ai", OpenInferenceLLMProviderValues.XAI.value),
-            ("api.deepseek.com", OpenInferenceLLMProviderValues.DEEPSEEK.value),
-            ("api.groq.com", OpenInferenceLLMProviderValues.GROQ.value),
-            ("api.fireworks.ai", OpenInferenceLLMProviderValues.FIREWORKS.value),
-            ("api.moonshot.cn", OpenInferenceLLMProviderValues.MOONSHOT.value),
-            ("api.cerebras.ai", OpenInferenceLLMProviderValues.CEREBRAS.value),
-            ("api.perplexity.ai", OpenInferenceLLMProviderValues.PERPLEXITY.value),
-            ("api.together.ai", OpenInferenceLLMProviderValues.TOGETHER.value),
-            ("api.together.xyz", OpenInferenceLLMProviderValues.TOGETHER.value),
-        ],
-    )
-    def test_known_hosts(self, host: str, expected: str) -> None:
-        assert get_provider_from_host(host) == expected
-
-    @pytest.mark.parametrize("host", ["API.OPENAI.COM", "Api.Openai.Com"])
-    def test_case_insensitive(self, host: str) -> None:
-        assert get_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI.value
-
-    @pytest.mark.parametrize("host", ["  api.openai.com  ", "\tapi.openai.com\t"])
-    def test_whitespace_stripped(self, host: str) -> None:
-        assert get_provider_from_host(host) == OpenInferenceLLMProviderValues.OPENAI.value
-
-    @pytest.mark.parametrize(
-        "host",
-        [
-            "api.unknown-provider.com",
-            "storage.googleapis.com",
-            "",
-        ],
-    )
-    def test_unrecognised_host_returns_none(self, host: str) -> None:
-        assert get_provider_from_host(host) is None
-
-    @pytest.mark.parametrize("host", [None, 42, [], {}])
-    def test_non_string_input_returns_none(self, host: object) -> None:
-        assert get_provider_from_host(host) is None  # type: ignore[arg-type]
-
-    def test_every_provider_has_at_least_one_host_entry(self) -> None:
-        missing = ALL_PROVIDER_VALUES - set(HOST_SUFFIX_TO_PROVIDER.values())
-        assert not missing, f"Providers without a hostname entry: {missing}"
-
-    def test_all_suffix_values_are_valid_provider_values(self) -> None:
-        invalid = set(HOST_SUFFIX_TO_PROVIDER.values()) - ALL_PROVIDER_VALUES
-        assert not invalid, f"Suffixes map to unknown provider values: {invalid}"
+class _DictKeyEnum(Enum):
+    INTEGER_ENUM = 2
+    STRING_ENUM = "str_enum"
 
 
-class TestGetSystemFromModel:
-    @pytest.mark.parametrize(
-        "model_name, expected",
-        [
-            ("gpt-4o", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("gpt-3.5-turbo", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("o1-preview", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("o3-mini", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("o4-mini", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("text-embedding-ada-002", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("text-embedding-3-large", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("davinci-002", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("curie", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("babbage-002", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("ada", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("azure-gpt-4", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("openai-gpt-4", OpenInferenceLLMSystemValues.OPENAI.value),
-            ("claude-3-5-sonnet-20241022", OpenInferenceLLMSystemValues.ANTHROPIC.value),
-            ("claude-3-haiku", OpenInferenceLLMSystemValues.ANTHROPIC.value),
-            ("anthropic.claude-3-sonnet", OpenInferenceLLMSystemValues.ANTHROPIC.value),
-            ("google_anthropic_vertex.claude", OpenInferenceLLMSystemValues.ANTHROPIC.value),
-            ("cohere.command-r", OpenInferenceLLMSystemValues.COHERE.value),
-            ("command-r-plus", OpenInferenceLLMSystemValues.COHERE.value),
-            ("command-light", OpenInferenceLLMSystemValues.COHERE.value),
-            ("mistral-large-latest", OpenInferenceLLMSystemValues.MISTRALAI.value),
-            ("mistral-7b-instruct", OpenInferenceLLMSystemValues.MISTRALAI.value),
-            ("mixtral-8x7b", OpenInferenceLLMSystemValues.MISTRALAI.value),
-            ("pixtral-12b", OpenInferenceLLMSystemValues.MISTRALAI.value),
-            ("gemini-2.0-flash", OpenInferenceLLMSystemValues.VERTEXAI.value),
-            ("gemini-1.5-pro", OpenInferenceLLMSystemValues.VERTEXAI.value),
-            ("vertex-ai-model", OpenInferenceLLMSystemValues.VERTEXAI.value),
-            ("google-palm-2", OpenInferenceLLMSystemValues.VERTEXAI.value),
-        ],
-    )
-    def test_known_models(self, model_name: str, expected: str) -> None:
-        assert get_system_from_model(model_name) == expected
+class _ModelWithDictAttributes(BaseModel):
+    attributes: dict[Any, Any]
 
-    @pytest.mark.parametrize("model_name", ["GPT-4O", "Claude-3-Haiku", "GEMINI-1.5-PRO"])
-    def test_case_insensitive(self, model_name: str) -> None:
-        assert get_system_from_model(model_name) is not None
 
-    @pytest.mark.parametrize("model_name", ["  gpt-4o  ", "\tclaude-3\t"])
-    def test_whitespace_stripped(self, model_name: str) -> None:
-        assert get_system_from_model(model_name) is not None
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "unknown-model-xyz",
-            "llama-3-70b",
-            "",
-        ],
-    )
-    def test_unrecognised_model_returns_none(self, model_name: str) -> None:
-        assert get_system_from_model(model_name) is None
-
-    @pytest.mark.parametrize("model_name", [None, 42, [], {}])
-    def test_non_string_input_returns_none(self, model_name: object) -> None:
-        assert get_system_from_model(model_name) is None  # type: ignore[arg-type]
-
-    def test_every_system_has_at_least_one_prefix_entry(self) -> None:
-        missing = ALL_SYSTEM_VALUES - set(MODEL_PREFIX_TO_SYSTEM.values())
-        assert not missing, f"Systems without a prefix entry: {missing}"
-
-    def test_all_prefix_values_are_valid_system_values(self) -> None:
-        invalid = set(MODEL_PREFIX_TO_SYSTEM.values()) - ALL_SYSTEM_VALUES
-        assert not invalid, f"Prefixes map to unknown system values: {invalid}"
-
-    def test_google_anthropic_vertex_resolves_to_anthropic_not_vertexai(self) -> None:
-        assert (
-            get_system_from_model("google_anthropic_vertex.claude-3")
-            == OpenInferenceLLMSystemValues.ANTHROPIC.value
+class TestGetOutputAttributes:
+    def test_pydantic_model_with_non_json_dict_keys(self) -> None:
+        model = _ModelWithDictAttributes(
+            attributes={
+                _DictKeyEnum.INTEGER_ENUM: "an integer enum key",
+                _DictKeyEnum.STRING_ENUM: "a string enum key",
+                UUID("00000000-0000-0000-0000-000000000011"): "a uuid key",
+                "str": "a string key",
+                9: "an integer key",
+                0.1: "a float key",
+                True: "a boolean key",
+                None: "a null key",
+            },
         )
+
+        result = get_output_attributes(model)
+        output_value = result["output.value"]
+        assert isinstance(output_value, str)
+        parsed = json.loads(output_value)
+
+        expected = {
+            "attributes": {
+                "2": "an integer enum key",
+                "str_enum": "a string enum key",
+                "00000000-0000-0000-0000-000000000011": "a uuid key",
+                "str": "a string key",
+                "9": "an integer key",
+                "0.1": "a float key",
+                "true": "a boolean key",
+                "None": "a null key",
+            },
+        }
+
+        assert parsed == expected
+        assert result["output.mime_type"] == "application/json"

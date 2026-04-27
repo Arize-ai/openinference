@@ -77,71 +77,71 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._original_create_interactions_resource = InteractionsResource.create
         wrap_function_wrapper(
-            module="google.genai._interactions.resources",
-            name="InteractionsResource.create",
-            wrapper=_SyncCreateInteractionWrapper(tracer=self._tracer),
+            "google.genai._interactions.resources",
+            "InteractionsResource.create",
+            _SyncCreateInteractionWrapper(tracer=self._tracer),
         )
 
         self._original_create_caches = Caches.create
         wrap_function_wrapper(
-            module="google.genai.caches",
-            name="Caches.create",
-            wrapper=_SyncCreateCachesWrapper(tracer=self._tracer),
+            "google.genai.caches",
+            "Caches.create",
+            _SyncCreateCachesWrapper(tracer=self._tracer),
         )
 
         self._original_async_create_caches = AsyncCaches.create
         wrap_function_wrapper(
-            module="google.genai.caches",
-            name="AsyncCaches.create",
-            wrapper=_AsyncCreateCachesWrapper(tracer=self._tracer),
+            "google.genai.caches",
+            "AsyncCaches.create",
+            _AsyncCreateCachesWrapper(tracer=self._tracer),
         )
 
         self._original_embed_content = Models.embed_content
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="Models.embed_content",
-            wrapper=_SyncEmbedContentWrapper(tracer=self._tracer),
+            "google.genai.models",
+            "Models.embed_content",
+            _SyncEmbedContentWrapper(tracer=self._tracer),
         )
 
         self._original_async_embed_content = AsyncModels.embed_content
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="AsyncModels.embed_content",
-            wrapper=_AsyncEmbedContentWrapper(tracer=self._tracer),
+            "google.genai.models",
+            "AsyncModels.embed_content",
+            _AsyncEmbedContentWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content = Models.generate_content
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="Models.generate_content",
-            wrapper=_SyncGenerateContent(tracer=self._tracer),
+            "google.genai.models",
+            "Models.generate_content",
+            _SyncGenerateContent(tracer=self._tracer),
         )
 
         self._original_async_generate_content = AsyncModels.generate_content
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="AsyncModels.generate_content",
-            wrapper=_AsyncGenerateContentWrapper(tracer=self._tracer),
+            "google.genai.models",
+            "AsyncModels.generate_content",
+            _AsyncGenerateContentWrapper(tracer=self._tracer),
         )
 
         self._original_generate_content_stream = Models.generate_content_stream
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="Models.generate_content_stream",
-            wrapper=_SyncGenerateContentStream(tracer=self._tracer),
+            "google.genai.models",
+            "Models.generate_content_stream",
+            _SyncGenerateContentStream(tracer=self._tracer),
         )
 
         self._original_async_generate_content_stream = AsyncModels.generate_content_stream
         wrap_function_wrapper(
-            module="google.genai.models",
-            name="AsyncModels.generate_content_stream",
-            wrapper=_AsyncGenerateContentStream(tracer=self._tracer),
+            "google.genai.models",
+            "AsyncModels.generate_content_stream",
+            _AsyncGenerateContentStream(tracer=self._tracer),
         )
         self._original_async_create_interactions_resource = AsyncInteractionsResource.create
         wrap_function_wrapper(
-            module="google.genai._interactions.resources",
-            name="AsyncInteractionsResource.create",
-            wrapper=_AsyncCreateInteractionWrapper(tracer=self._tracer),
+            "google.genai._interactions.resources",
+            "AsyncInteractionsResource.create",
+            _AsyncCreateInteractionWrapper(tracer=self._tracer),
         )
 
         from google.genai._api_client import BaseApiClient
@@ -152,30 +152,30 @@ class GoogleGenAIInstrumentor(BaseInstrumentor):  # type: ignore
 
         self._original_api_request = BaseApiClient.request
         wrap_function_wrapper(
-            module="google.genai._api_client",
-            name="BaseApiClient.request",
-            wrapper=_CapturedRequestWrapper(),
+            "google.genai._api_client",
+            "BaseApiClient.request",
+            _CapturedRequestWrapper(),
         )
 
         self._original_api_request_streamed = BaseApiClient.request_streamed
         wrap_function_wrapper(
-            module="google.genai._api_client",
-            name="BaseApiClient.request_streamed",
-            wrapper=_CapturedRequestWrapper(),
+            "google.genai._api_client",
+            "BaseApiClient.request_streamed",
+            _CapturedRequestWrapper(),
         )
 
         self._original_api_async_request = BaseApiClient.async_request
         wrap_function_wrapper(
-            module="google.genai._api_client",
-            name="BaseApiClient.async_request",
-            wrapper=_CapturedRequestWrapper(),
+            "google.genai._api_client",
+            "BaseApiClient.async_request",
+            _CapturedRequestWrapper(),
         )
 
         self._original_api_async_request_streamed = BaseApiClient.async_request_streamed
         wrap_function_wrapper(
-            module="google.genai._api_client",
-            name="BaseApiClient.async_request_streamed",
-            wrapper=_CapturedRequestWrapper(),
+            "google.genai._api_client",
+            "BaseApiClient.async_request_streamed",
+            _CapturedRequestWrapper(),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

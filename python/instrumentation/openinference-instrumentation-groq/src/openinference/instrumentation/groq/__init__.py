@@ -43,16 +43,16 @@ class GroqInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         self._original_completions_create = Completions.create
         wrap_function_wrapper(
-            module="groq.resources.chat.completions",
-            name="Completions.create",
-            wrapper=_CompletionsWrapper(tracer=self._tracer),
+            "groq.resources.chat.completions",
+            "Completions.create",
+            _CompletionsWrapper(tracer=self._tracer),
         )
 
         self._original_async_completions_create = AsyncCompletions.create
         wrap_function_wrapper(
-            module="groq.resources.chat.completions",
-            name="AsyncCompletions.create",
-            wrapper=_AsyncCompletionsWrapper(tracer=self._tracer),
+            "groq.resources.chat.completions",
+            "AsyncCompletions.create",
+            _AsyncCompletionsWrapper(tracer=self._tracer),
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:

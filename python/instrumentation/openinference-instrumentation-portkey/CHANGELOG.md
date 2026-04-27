@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.7...python-openinference-instrumentation-portkey-v0.1.8) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.7](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-portkey-v0.1.6...python-openinference-instrumentation-portkey-v0.1.7) (2025-11-13)
 
 

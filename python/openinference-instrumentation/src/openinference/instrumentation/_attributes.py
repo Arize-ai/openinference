@@ -339,7 +339,7 @@ class IOValueJSONEncoder(JSONEncoder):
             if _is_dataclass_instance(obj):
                 return asdict(obj)
             if pydantic is not None and isinstance(obj, pydantic.BaseModel):
-                return obj.model_dump()
+                return obj.model_dump(mode="json")
             if isinstance(obj, datetime):
                 return obj.isoformat()
             return super().default(obj)

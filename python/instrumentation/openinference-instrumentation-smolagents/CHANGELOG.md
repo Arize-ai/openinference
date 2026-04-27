@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.25...python-openinference-instrumentation-smolagents-v0.1.26) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [0.1.25](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-smolagents-v0.1.24...python-openinference-instrumentation-smolagents-v0.1.25) (2026-03-24)
 
 

@@ -322,6 +322,7 @@ export class OpenAIInstrumentation extends InstrumentationBase<typeof openai> {
                 // Override the model from the value sent by the server
                 [SemanticConventions.LLM_MODEL_NAME]: result.model,
                 ...getChatCompletionLLMOutputMessagesAttributes(result),
+                ...getChatCompletionFinishReasonAttributes(result),
                 ...getUsageAttributes(result),
               });
               span.setStatus({ code: SpanStatusCode.OK });
@@ -791,6 +792,19 @@ function getChatCompletionLLMOutputMessagesAttributes(chatCompletion: ChatComple
   }, {} as Attributes);
 }
 
+/**
+ * Extracts the llm.finish_reason attribute from a chat completion response.
+ */
+function getChatCompletionFinishReasonAttributes(chatCompletion: ChatCompletion): Attributes {
+  const choice = chatCompletion.choices[0];
+  if (!choice?.finish_reason) {
+    return {};
+  }
+  return {
+    [SemanticConventions.LLM_FINISH_REASON]: choice.finish_reason,
+  };
+}
+
 function getChatCompletionOutputMessageAttributes(message: ChatCompletionMessage): Attributes {
   const role = message.role;
   const attributes: Attributes = {
@@ -885,6 +899,7 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
   // So the final tool and function calls need to be aggregated
   // across chunks
   const toolAndFunctionCallAttributes: Attributes = {};
+  let finishReason: string | undefined;
   // The first message is for the assistant response so we start at 1
   for await (const chunk of stream) {
     if (chunk.choices.length <= 0) {
@@ -893,6 +908,9 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
     const choice = chunk.choices[0];
     if (choice.delta.content) {
       streamResponse += choice.delta.content;
+    }
+    if (choice.finish_reason) {
+      finishReason = choice.finish_reason;
     }
     // Accumulate the tool and function call attributes
     const toolAndFunctionCallAttributesDiff =
@@ -914,6 +932,9 @@ async function consumeChatCompletionStreamChunks(stream: Stream<ChatCompletionCh
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_CONTENT}`]: streamResponse,
     [`${messageIndexPrefix}${SemanticConventions.MESSAGE_ROLE}`]: "assistant",
   };
+  if (finishReason) {
+    attributes[SemanticConventions.LLM_FINISH_REASON] = finishReason;
+  }
   // Add the tool and function call attributes
   for (const [key, value] of Object.entries(toolAndFunctionCallAttributes)) {
     attributes[`${messageIndexPrefix}${key}`] = value;
