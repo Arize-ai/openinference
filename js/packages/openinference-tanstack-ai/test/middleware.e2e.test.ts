@@ -100,6 +100,8 @@ describe("openInferenceMiddleware e2e", () => {
         span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
+    expect(agentSpan?.name).toBe("ai.chat");
+    expect(llmSpan?.name).toBe("ai.llm 1");
     expect(agentSpan?.attributes["output.value"]).toBe(
       "OpenInference makes LLM traces easier to inspect.",
     );
@@ -238,6 +240,8 @@ describe("openInferenceMiddleware e2e", () => {
         span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.TOOL,
     );
     expect(toolSpans).toHaveLength(1);
+    expect(agentSpan?.name).toBe("ai.chat");
+    expect(toolSpans[0]?.name).toBe("ai.tool get_weather");
     expect(toolSpans[0]?.attributes[SemanticConventions.TOOL_NAME]).toBe("get_weather");
     expect(
       llmSpan?.attributes[

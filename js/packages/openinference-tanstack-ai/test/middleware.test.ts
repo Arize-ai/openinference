@@ -241,6 +241,9 @@ describe("openInferenceMiddleware", () => {
     expect(llmSpans).toHaveLength(2);
     expect(toolSpan).toBeDefined();
 
+    expect(agentSpan?.name).toBe("ai.chat");
+    expect(llmSpans[0]?.name).toBe("ai.llm 1");
+    expect(toolSpan?.name).toBe("ai.tool get_weather");
     expect(agentSpan?.attributes["output.value"]).toBe("It is sunny in Boston.");
     expect(agentSpan?.attributes[SemanticConventions.LLM_TOKEN_COUNT_TOTAL]).toBeUndefined();
     expect(
@@ -848,6 +851,8 @@ describe("openInferenceMiddleware", () => {
         span.attributes[SemanticConventions.OPENINFERENCE_SPAN_KIND] === OpenInferenceSpanKind.LLM,
     );
 
+    expect(agentSpan?.name).toBe("ai.chat");
+    expect(llmSpan?.name).toBe("ai.llm 1");
     expect(agentSpan?.attributes[SemanticConventions.SESSION_ID]).toBe("session-1");
     expect(agentSpan?.attributes[SemanticConventions.USER_ID]).toBe("user-1");
     expect(llmSpan?.attributes[SemanticConventions.METADATA]).toBe(
