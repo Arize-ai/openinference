@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import (
     Any,
     AsyncGenerator,
@@ -16,6 +17,7 @@ from typing import (
     TypedDict,
     Union,
 )
+from uuid import UUID
 
 import jsonschema
 import pydantic
@@ -45,6 +47,7 @@ from openinference.instrumentation import (
     ToolCall,
     ToolCallFunction,
     get_llm_attributes,
+    get_output_attributes,
     suppress_tracing,
     using_session,
 )
@@ -2909,3 +2912,49 @@ class TestSamplerAttributeAccess:
 
         spans = in_memory_span_exporter.get_finished_spans()
         assert len(spans) == 1
+
+
+class _DictKeyEnum(Enum):
+    INTEGER_ENUM = 2
+    STRING_ENUM = "str_enum"
+
+
+class _ModelWithDictAttributes(BaseModel):
+    attributes: dict[Any, Any]
+
+
+class TestGetOutputAttributes:
+    def test_pydantic_model_with_non_json_dict_keys(self) -> None:
+        model = _ModelWithDictAttributes(
+            attributes={
+                _DictKeyEnum.INTEGER_ENUM: "an integer enum key",
+                _DictKeyEnum.STRING_ENUM: "a string enum key",
+                UUID("00000000-0000-0000-0000-000000000011"): "a uuid key",
+                "str": "a string key",
+                9: "an integer key",
+                0.1: "a float key",
+                True: "a boolean key",
+                None: "a null key",
+            },
+        )
+
+        result = get_output_attributes(model)
+        output_value = result["output.value"]
+        assert isinstance(output_value, str)
+        parsed = json.loads(output_value)
+
+        expected = {
+            "attributes": {
+                "2": "an integer enum key",
+                "str_enum": "a string enum key",
+                "00000000-0000-0000-0000-000000000011": "a uuid key",
+                "str": "a string key",
+                "9": "an integer key",
+                "0.1": "a float key",
+                "true": "a boolean key",
+                "None": "a null key",
+            },
+        }
+
+        assert parsed == expected
+        assert result["output.mime_type"] == "application/json"

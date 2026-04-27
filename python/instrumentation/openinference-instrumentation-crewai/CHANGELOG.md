@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.2...python-openinference-instrumentation-crewai-v1.1.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* Support Wrapt 2.x Across All Instrumentations ([#3007](https://github.com/Arize-ai/openinference/issues/3007)) ([a151b38](https://github.com/Arize-ai/openinference/commit/a151b38d36fddb559ac883e2585d6c12e58724fb))
+
 ## [1.1.2](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-crewai-v1.1.1...python-openinference-instrumentation-crewai-v1.1.2) (2026-04-09)
 
 
