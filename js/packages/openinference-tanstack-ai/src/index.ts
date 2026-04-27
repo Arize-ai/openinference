@@ -25,6 +25,7 @@ import {
   getOutputAttributes,
   getToolAttributes,
   OITracer,
+  safelyJSONStringify,
 } from "@arizeai/openinference-core";
 import {
   MimeType,
@@ -32,8 +33,9 @@ import {
   SemanticConventions,
 } from "@arizeai/openinference-semantic-conventions";
 
+import { VERSION } from "./version";
+
 const INSTRUMENTATION_NAME = "@arizeai/openinference-tanstack-ai";
-const VERSION = "0.0.0";
 const AGENT_SPAN_NAME = "TanStack AI chat";
 const TOOL_SPAN_PREFIX = "TanStack AI tool: ";
 const LLM_SPAN_PREFIX = "TanStack AI LLM ";
@@ -60,18 +62,6 @@ export type OpenInferenceTanStackAIMiddlewareOptions = {
   tracer?: Tracer;
   traceConfig?: TraceConfigOptions;
 };
-
-/**
- * Safely JSON-stringifies values that are destined for OpenInference payload
- * attributes.
- */
-function safelyJSONStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Extracts a human-readable tool description when TanStack provides one.
@@ -227,11 +217,13 @@ function getLLMInputValue(options: {
   tools: OpenInferenceTool[];
   invocationParameters: Record<string, unknown>;
 }): string | undefined {
-  return safelyJSONStringify({
-    messages: options.inputMessages,
-    tools: options.tools.map((tool) => tool.jsonSchema),
-    invocationParameters: options.invocationParameters,
-  });
+  return (
+    safelyJSONStringify({
+      messages: options.inputMessages,
+      tools: options.tools.map((tool) => tool.jsonSchema),
+      invocationParameters: options.invocationParameters,
+    }) ?? undefined
+  );
 }
 
 /**
