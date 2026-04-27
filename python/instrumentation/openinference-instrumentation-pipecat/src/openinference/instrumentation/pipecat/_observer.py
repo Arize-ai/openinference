@@ -35,14 +35,14 @@ from pipecat.frames.frames import (
 from pipecat.observers.base_observer import FramePushed
 
 try:
-    from pipecat.observers.user_bot_latency_observer import (  # type: ignore[import-not-found, unused-ignore]
+    from pipecat.observers.user_bot_latency_observer import (  # type: ignore[import-not-found,unused-ignore]
         UserBotLatencyObserver,
     )
 
     _LatencyObserverCls: Any = UserBotLatencyObserver
     _PIPECAT_NEW_LATENCY_OBSERVER = True
 except ImportError:
-    from pipecat.observers.loggers.user_bot_latency_log_observer import (  # type: ignore[import-not-found, unused-ignore]
+    from pipecat.observers.loggers.user_bot_latency_log_observer import (  # type: ignore[import-not-found,unused-ignore]
         UserBotLatencyLogObserver,
     )
 
