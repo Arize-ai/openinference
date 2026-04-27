@@ -312,7 +312,9 @@ def _get_agent_i18n_prompt_file(agent: Any) -> str:
         return agent.i18n.prompt_file or ""
     except AttributeError:
         try:
-            from crewai.utilities.i18n import I18N_DEFAULT  # type: ignore[attr-defined,unused-ignore]
+            from crewai.utilities.i18n import (
+                I18N_DEFAULT,  # type: ignore[attr-defined,unused-ignore]
+            )
 
             return I18N_DEFAULT.prompt_file or ""
         except ImportError:
