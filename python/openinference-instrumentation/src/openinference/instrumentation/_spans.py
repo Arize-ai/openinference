@@ -30,9 +30,6 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         super().__init__(wrapped)
         self._self_config = config
         self._self_important_attributes: Dict[str, AttributeValue] = {}
-        self._self_genai_source_attributes: Optional[Dict[str, AttributeValue]] = (
-            {} if config.enable_genai_semconv else None
-        )
 
     def set_attributes(self, attributes: "Mapping[str, AttributeValue]") -> None:
         for k, v in attributes.items():
@@ -45,8 +42,6 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
     ) -> None:
         masked_value = self._self_config.mask(key, value)
         if masked_value is not None:
-            if self._self_genai_source_attributes is not None:
-                self._self_genai_source_attributes[key] = masked_value
             if key in _IMPORTANT_ATTRIBUTES:
                 self._self_important_attributes[key] = masked_value
             else:
@@ -57,8 +52,8 @@ class OpenInferenceSpan(wrapt.ObjectProxy):  # type: ignore[misc]
         span = cast(Span, self.__wrapped__)
         for k, v in reversed(self._self_important_attributes.items()):
             span.set_attribute(k, v)
-        if self._self_genai_source_attributes is not None:
-            source_attributes = self._self_genai_source_attributes
+        if self._self_config.enable_genai_semconv:
+            source_attributes = span._attributes
             for key, value in get_genai_attributes(source_attributes).items():
                 if key not in source_attributes:
                     span.set_attribute(key, value)
