@@ -1,12 +1,39 @@
 import { context, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { isTracingSuppressed } from "@opentelemetry/core";
-import { type ChatMiddleware } from "@tanstack/ai";
+import type { ChatMiddleware } from "@tanstack/ai";
 
-import { getInputAttributes, getLLMAttributes, getMetadataAttributes, getOutputAttributes, getToolAttributes, OITracer, safelyJSONStringify } from "@arizeai/openinference-core";
-import { MimeType, OpenInferenceSpanKind, SemanticConventions } from "@arizeai/openinference-semantic-conventions";
+import {
+  getInputAttributes,
+  getLLMAttributes,
+  getMetadataAttributes,
+  getOutputAttributes,
+  getToolAttributes,
+  OITracer,
+  safelyJSONStringify,
+} from "@arizeai/openinference-core";
+import {
+  MimeType,
+  OpenInferenceSpanKind,
+  SemanticConventions,
+} from "@arizeai/openinference-semantic-conventions";
 
-import { AGENT_SPAN_NAME, INSTRUMENTATION_NAME, LLM_SPAN_PREFIX, TOOL_SPAN_PREFIX } from "./constants";
-import { completeToolCall, getInputMessages, getInvocationParameters, getLLMInputValue, getLLMOutput, initializeToolCall, setUsageAttributes, toOpenInferenceTools, updateToolCallArguments } from "./converters";
+import {
+  AGENT_SPAN_NAME,
+  INSTRUMENTATION_NAME,
+  LLM_SPAN_PREFIX,
+  TOOL_SPAN_PREFIX,
+} from "./constants";
+import {
+  completeToolCall,
+  getInputMessages,
+  getInvocationParameters,
+  getLLMInputValue,
+  getLLMOutput,
+  initializeToolCall,
+  setUsageAttributes,
+  toOpenInferenceTools,
+  updateToolCallArguments,
+} from "./converters";
 import type { OpenInferenceTanStackAIMiddlewareOptions, RequestState, UsageInfo } from "./types";
 import { finalizeSpan, getToolDescription, toRecord } from "./utils";
 import { VERSION } from "./version";
@@ -14,7 +41,10 @@ import { VERSION } from "./version";
 /**
  * Marks unfinished tool spans as failed before ending them.
  */
-function endToolSpansWithError(toolSpans: Map<string, ReturnType<OITracer["startSpan"]>>, message: string) {
+function endToolSpansWithError(
+  toolSpans: Map<string, ReturnType<OITracer["startSpan"]>>,
+  message: string,
+) {
   toolSpans.forEach((span) => {
     span.setStatus({ code: SpanStatusCode.ERROR, message });
     span.end();
@@ -73,7 +103,10 @@ function endCurrentLLMSpan(options: {
  * single agent run into a readable span tree while preserving LLM inputs and
  * outputs in the form Phoenix expects.
  */
-export function openInferenceMiddleware({ tracer, traceConfig }: OpenInferenceTanStackAIMiddlewareOptions = {}): ChatMiddleware {
+export function openInferenceMiddleware({
+  tracer,
+  traceConfig,
+}: OpenInferenceTanStackAIMiddlewareOptions = {}): ChatMiddleware {
   const oiTracer = new OITracer({
     tracer: tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION),
     traceConfig,
@@ -148,7 +181,9 @@ export function openInferenceMiddleware({ tracer, traceConfig }: OpenInferenceTa
           kind: SpanKind.INTERNAL,
           attributes: {
             [SemanticConventions.OPENINFERENCE_SPAN_KIND]: OpenInferenceSpanKind.LLM,
-            ...(inputValue == null ? {} : getInputAttributes({ value: inputValue, mimeType: MimeType.JSON })),
+            ...(inputValue == null
+              ? {}
+              : getInputAttributes({ value: inputValue, mimeType: MimeType.JSON })),
             ...getLLMAttributes({
               provider: ctx.provider,
               system: ctx.provider,
@@ -255,7 +290,9 @@ export function openInferenceMiddleware({ tracer, traceConfig }: OpenInferenceTa
               description: getToolDescription(hookCtx.tool),
               parameters: toRecord(hookCtx.args),
             }),
-            ...(serializedInput == null ? {} : getInputAttributes({ value: serializedInput, mimeType: MimeType.JSON })),
+            ...(serializedInput == null
+              ? {}
+              : getInputAttributes({ value: serializedInput, mimeType: MimeType.JSON })),
           },
         },
         trace.setSpan(context.active(), state.chatSpan),
@@ -276,7 +313,9 @@ export function openInferenceMiddleware({ tracer, traceConfig }: OpenInferenceTa
       if (info.ok) {
         const serializedOutput = safelyJSONStringify(info.result);
         toolSpan.setAttributes(
-          serializedOutput == null ? {} : getOutputAttributes({ value: serializedOutput, mimeType: MimeType.JSON }),
+          serializedOutput == null
+            ? {}
+            : getOutputAttributes({ value: serializedOutput, mimeType: MimeType.JSON }),
         );
         toolSpan.setStatus({ code: SpanStatusCode.OK });
       } else {

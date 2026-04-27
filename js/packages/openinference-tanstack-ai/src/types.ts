@@ -1,7 +1,11 @@
 import type { Tracer } from "@opentelemetry/api";
 import type { StreamChunk } from "@tanstack/ai";
 
-import type { OISpan, ToolCall as OpenInferenceToolCall, TraceConfigOptions } from "@arizeai/openinference-core";
+import type {
+  OISpan,
+  ToolCall as OpenInferenceToolCall,
+  TraceConfigOptions,
+} from "@arizeai/openinference-core";
 
 /**
  * Configuration for the TanStack AI middleware.

@@ -1,5 +1,6 @@
-import type { OISpan } from "@arizeai/openinference-core";
 import type { Tool as TanStackTool } from "@tanstack/ai";
+
+import type { OISpan } from "@arizeai/openinference-core";
 
 /**
  * Extracts a human-readable tool description when TanStack provides one.
