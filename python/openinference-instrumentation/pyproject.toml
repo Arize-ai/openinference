@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
   "opentelemetry-api",
   "opentelemetry-sdk",
+  "opentelemetry-semantic-conventions>=0.62b0",
   "openinference-semantic-conventions>=0.1.26",
   "wrapt>=1.14.0,<2",
 ]
@@ -53,6 +54,9 @@ exclude = [
   "src/openinference/instrumentation/*/*",
 ]
 
+[tool.hatch.build.targets.sdist.force-include]
+"src/openinference/instrumentation/genai" = "src/openinference/instrumentation/genai"
+
 [tool.hatch.build]
 only-packages = true
 
@@ -61,6 +65,9 @@ packages = ["src/openinference"]
 exclude = [
   "src/openinference/instrumentation/*/*",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/openinference/instrumentation/genai" = "openinference/instrumentation/genai"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

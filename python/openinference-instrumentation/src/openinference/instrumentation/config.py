@@ -91,6 +91,9 @@ OPENINFERENCE_HIDE_PROMPTS = "OPENINFERENCE_HIDE_PROMPTS"
 # Hides LLM prompts (completions API)
 OPENINFERENCE_HIDE_CHOICES = "OPENINFERENCE_HIDE_CHOICES"
 # Hides LLM choices (completions API outputs)
+OPENINFERENCE_ENABLE_GENAI_SEMCONV = "OPENINFERENCE_ENABLE_GENAI_SEMCONV"
+# When set, OITracer additionally emits OpenTelemetry GenAI semantic convention
+# attributes (gen_ai.*) alongside OpenInference attributes.
 REDACTED_VALUE = "__REDACTED__"
 # When a value is hidden, it will be replaced by this redacted value
 
@@ -111,6 +114,7 @@ DEFAULT_HIDE_EMBEDDING_VECTORS = False  # Deprecated
 DEFAULT_HIDE_EMBEDDINGS_VECTORS = False
 DEFAULT_HIDE_EMBEDDINGS_TEXT = False
 DEFAULT_BASE64_IMAGE_MAX_LENGTH = 32_000
+DEFAULT_ENABLE_GENAI_SEMCONV = False
 
 
 @dataclass(frozen=True)
@@ -237,6 +241,14 @@ class TraceConfig:
         },
     )
     """Limits characters of a base64 encoding of an image"""
+    enable_genai_semconv: Optional[bool] = field(
+        default=None,
+        metadata={
+            "env_var": OPENINFERENCE_ENABLE_GENAI_SEMCONV,
+            "default_value": DEFAULT_ENABLE_GENAI_SEMCONV,
+        },
+    )
+    """Emit OpenTelemetry GenAI semantic convention attributes alongside OpenInference."""
 
     def __post_init__(self) -> None:
         for f in fields(self):
