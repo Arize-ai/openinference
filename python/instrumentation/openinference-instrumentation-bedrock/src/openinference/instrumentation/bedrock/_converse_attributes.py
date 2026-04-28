@@ -121,11 +121,14 @@ def get_input_messages(
     """
     messages: List[Message] = []
     if "system" in request_data:
+        contents: list[Any] = []
+        system_prompt_parts: list[Any] = []
         for system_prompt in request_data["system"]:
-            msg = Message(role="system")
             if "text" in system_prompt:
-                msg["content"] = system_prompt["text"]
-            messages.append(msg)
+                system_prompt_parts.append(system_prompt["text"])
+        if system_prompt_parts:
+            contents.append(TextMessageContent(text=" ".join(system_prompt_parts), type="text"))
+            messages.append(Message(role="system", contents=contents))
     if "messages" in request_data:
         messages.extend(get_message_objects(list(request_data["messages"])))
     return messages
@@ -186,11 +189,14 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
     if "usage" not in output_params:
         return None
     usage = output_params["usage"]
-    return TokenCount(
-        prompt=usage["inputTokens"],
-        completion=usage["outputTokens"],
-        total=usage["totalTokens"],
-    )
+    token_count: TokenCount = {}
+    if (prompt := usage.get("inputTokens")) is not None:
+        token_count["prompt"] = prompt
+    if (completion := usage.get("outputTokens")) is not None:
+        token_count["completion"] = completion
+    if (total := usage.get("totalTokens")) is not None:
+        token_count["total"] = total
+    return token_count or None
 
 
 def get_attributes_from_response_data(

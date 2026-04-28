@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any, Callable, Dict
 
@@ -6,6 +7,12 @@ import boto3
 import pytest
 from aioresponses import aioresponses
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 _CASSETTES_DIR = Path(__file__).parent / "cassettes"
 _MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
@@ -335,3 +342,118 @@ def _assert_converse_stream_tool_response_message_attrs(
     assert "Get the most popular song" in attributes.pop("llm.tools.0.tool.json_schema")
     assert "radio station WZPZ" in attributes.pop("output.value")
     assert attributes == {}
+
+
+@pytest.mark.vcr(
+    before_record_request=lambda _: _.headers.clear() or _,
+    before_record_response=lambda _: _["headers"].clear() or _,
+)
+def test_converse_tool_use_message(
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    tool_config = {
+        "tools": [
+            {
+                "toolSpec": {
+                    "name": "top_song",
+                    "description": "Get the most popular song played on a radio station.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "sign": {
+                                    "type": "string",
+                                    "description": "The call sign for the radio station",
+                                }
+                            },
+                            "required": ["sign"],
+                        }
+                    },
+                }
+            }
+        ]
+    }
+    _CLIENT_KWARGS = {
+        "aws_access_key_id": "123",
+        "aws_secret_access_key": "321",
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1", **_CLIENT_KWARGS)
+    client.converse(
+        modelId="mistral.devstral-2-123b",
+        toolConfig=tool_config,
+        messages=[
+            {"role": "user", "content": [{"text": "What is the most popular song on Radio XYZ?"}]}
+        ],
+    )
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    assert spans[0].status.is_ok
+    attributes = dict(spans[0].attributes or {})
+
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME) == "mistral.devstral-2-123b"
+    assert isinstance(input_value_str := attributes.pop(INPUT_VALUE), str)
+    assert "What is the most popular song on Radio XYZ?" in input_value_str
+    assert attributes.pop(INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+
+    assert attributes.pop("llm.input_messages.0.message.role") == "user"
+    assert attributes.pop("llm.input_messages.0.message.contents.0.message_content.type") == "text"
+    assert (
+        attributes.pop("llm.input_messages.0.message.contents.0.message_content.text")
+        == "What is the most popular song on Radio XYZ?"
+    )
+
+    assert isinstance(inv_params_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(inv_params_str).get("stop_reason") == "tool_use"
+
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 90
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 14
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 104
+
+    assert attributes.pop(OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    assert isinstance(output_value_str := attributes.pop(OUTPUT_VALUE), str)
+    output_value = json.loads(output_value_str)
+    assert output_value["role"] == "assistant"
+    assert output_value["content"][0]["toolUse"]
+
+    assert attributes.pop("llm.output_messages.0.message.role") == "assistant"
+    assert isinstance(
+        tool_call_id := attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.id"),
+        str,
+    )
+    assert tool_call_id.startswith("tooluse_")
+    assert (
+        attributes.pop("llm.output_messages.0.message.tool_calls.0.tool_call.function.name")
+        == "top_song"
+    )
+    assert isinstance(
+        tool_args_str := attributes.pop(
+            "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"
+        ),
+        str,
+    )
+    assert "sign" in json.loads(tool_args_str)
+
+    assert isinstance(tools_schema := attributes.pop("llm.tools.0.tool.json_schema"), str)
+    assert "top_song" in tools_schema
+
+    assert attributes == {}
+
+
+OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+INPUT_VALUE = SpanAttributes.INPUT_VALUE
+LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
+LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
+LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
+LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
+METADATA = SpanAttributes.METADATA
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
+OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE
+JSON = OpenInferenceMimeTypeValues.JSON
+SESSION_ID = SpanAttributes.SESSION_ID
+USER_ID = SpanAttributes.USER_ID
+TAG_TAGS = SpanAttributes.TAG_TAGS
