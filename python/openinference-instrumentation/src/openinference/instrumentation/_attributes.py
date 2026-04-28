@@ -57,6 +57,80 @@ except ImportError:
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
+# Maps hostname suffixes to their corresponding LLM provider value.
+HOST_SUFFIX_TO_PROVIDER: Dict[str, str] = {
+    "api.openai.com": OpenInferenceLLMProviderValues.OPENAI.value,
+    "openai.azure.com": OpenInferenceLLMProviderValues.AZURE.value,
+    "services.ai.azure.com": OpenInferenceLLMProviderValues.AZURE.value,
+    "cognitiveservices.azure.com": OpenInferenceLLMProviderValues.AZURE.value,
+    "api.anthropic.com": OpenInferenceLLMProviderValues.ANTHROPIC.value,
+    "api.cohere.com": OpenInferenceLLMProviderValues.COHERE.value,
+    "api.cohere.ai": OpenInferenceLLMProviderValues.COHERE.value,
+    "api.mistral.ai": OpenInferenceLLMProviderValues.MISTRALAI.value,
+    "generativelanguage.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "aiplatform.googleapis.com": OpenInferenceLLMProviderValues.GOOGLE.value,
+    "amazonaws.com": OpenInferenceLLMProviderValues.AWS.value,
+    "api.x.ai": OpenInferenceLLMProviderValues.XAI.value,
+    "api.deepseek.com": OpenInferenceLLMProviderValues.DEEPSEEK.value,
+    "api.groq.com": OpenInferenceLLMProviderValues.GROQ.value,
+    "api.fireworks.ai": OpenInferenceLLMProviderValues.FIREWORKS.value,
+    "api.moonshot.cn": OpenInferenceLLMProviderValues.MOONSHOT.value,
+    "api.cerebras.ai": OpenInferenceLLMProviderValues.CEREBRAS.value,
+    "api.perplexity.ai": OpenInferenceLLMProviderValues.PERPLEXITY.value,
+    "api.together.ai": OpenInferenceLLMProviderValues.TOGETHER.value,
+    "api.together.xyz": OpenInferenceLLMProviderValues.TOGETHER.value,
+}
+
+# Maps model name prefixes to their corresponding LLM system value.
+MODEL_PREFIX_TO_SYSTEM: Dict[str, str] = {
+    "google_anthropic_vertex": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "anthropic": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "claude": OpenInferenceLLMSystemValues.ANTHROPIC.value,
+    "gpt": OpenInferenceLLMSystemValues.OPENAI.value,
+    "o1": OpenInferenceLLMSystemValues.OPENAI.value,
+    "o3": OpenInferenceLLMSystemValues.OPENAI.value,
+    "o4": OpenInferenceLLMSystemValues.OPENAI.value,
+    "text-embedding": OpenInferenceLLMSystemValues.OPENAI.value,
+    "davinci": OpenInferenceLLMSystemValues.OPENAI.value,
+    "curie": OpenInferenceLLMSystemValues.OPENAI.value,
+    "babbage": OpenInferenceLLMSystemValues.OPENAI.value,
+    "ada": OpenInferenceLLMSystemValues.OPENAI.value,
+    "azure": OpenInferenceLLMSystemValues.OPENAI.value,
+    "openai": OpenInferenceLLMSystemValues.OPENAI.value,
+    "cohere": OpenInferenceLLMSystemValues.COHERE.value,
+    "command": OpenInferenceLLMSystemValues.COHERE.value,
+    "mistral": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "mixtral": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "pixtral": OpenInferenceLLMSystemValues.MISTRALAI.value,
+    "gemini": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "vertex": OpenInferenceLLMSystemValues.VERTEXAI.value,
+    "google": OpenInferenceLLMSystemValues.VERTEXAI.value,
+}
+
+
+def get_provider_from_host(host: str) -> Optional[str]:
+    """Return the LLM provider name for the given API hostname."""
+    if not isinstance(host, str):
+        return None
+
+    normalised = host.lower().strip()
+    for suffix, provider in HOST_SUFFIX_TO_PROVIDER.items():
+        if normalised.endswith(suffix):
+            return provider
+    return None
+
+
+def get_system_from_model(model_name: str) -> Optional[str]:
+    """Return the LLM system name for the given model identifier."""
+    if not isinstance(model_name, str):
+        return None
+
+    normalised = model_name.lower().strip()
+    for prefix, system in MODEL_PREFIX_TO_SYSTEM.items():
+        if normalised.startswith(prefix):
+            return system
+    return None
+
 
 def get_reranker_attributes(
     *,
