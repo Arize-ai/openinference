@@ -1,0 +1,2 @@
+exclude-newer = "3 days"
+exclude-newer-package = { "openinference-semantic-conventions" = "0 days", "openinference-instrumentation" = "0 days" }
