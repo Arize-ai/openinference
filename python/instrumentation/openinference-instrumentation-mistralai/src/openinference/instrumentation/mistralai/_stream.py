@@ -14,7 +14,7 @@ from typing import (
 
 from opentelemetry import trace as trace_api
 from opentelemetry.util.types import AttributeValue
-from wrapt import ObjectProxy
+from wrapt import ObjectProxy  # type: ignore[attr-defined,unused-ignore]
 
 from openinference.instrumentation.mistralai._utils import _finish_tracing
 from openinference.instrumentation.mistralai._with_span import _WithSpan
@@ -39,7 +39,7 @@ class _ResponseAccumulator(Protocol):
     def get_extra_attributes(self) -> Iterator[Tuple[str, AttributeValue]]: ...
 
 
-class _Stream(ObjectProxy):  # type: ignore
+class _Stream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "_self_with_span",
         "_self_iteration_count",
@@ -87,7 +87,7 @@ class _Stream(ObjectProxy):  # type: ignore
             return chunk
 
     def __aiter__(self) -> AsyncIterator[Any]:
-        return self
+        return self  # type: ignore[return-value]
 
     def _process_chunk(self, chunk: Any) -> None:
         if not self._self_iteration_count:
@@ -122,7 +122,7 @@ class _Stream(ObjectProxy):  # type: ignore
             yield from self._self_response_accumulator.get_extra_attributes()
 
 
-class _AsyncStream(ObjectProxy):  # type: ignore
+class _AsyncStream(ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     __slots__ = (
         "stream",
         "_self_with_span",

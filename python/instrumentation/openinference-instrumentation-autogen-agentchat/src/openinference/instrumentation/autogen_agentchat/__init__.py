@@ -5,7 +5,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
     BaseInstrumentor,
 )
-from wrapt import resolve_path, wrap_function_wrapper
+from wrapt.patches import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.autogen_agentchat.version import __version__
@@ -49,22 +49,22 @@ class AutogenAgentChatInstrumentor(BaseInstrumentor):  # type: ignore
         self._originals: List[Tuple[Any, Any, Any]] = []
 
         method_wrappers: dict[Any, Any] = {
-            AssistantAgent.on_messages_stream: _AssistantAgentOnMessagesStreamWrapper(self._tracer),
-            BaseChatAgent.on_messages_stream: _BaseChatAgentOnMessagesStreamWrapper(self._tracer),
-            BaseGroupChat.run_stream: _BaseGroupChatRunStreamWrapper(self._tracer),
+            AssistantAgent.on_messages_stream: _AssistantAgentOnMessagesStreamWrapper(self._tracer),  # type: ignore[arg-type]
+            BaseChatAgent.on_messages_stream: _BaseChatAgentOnMessagesStreamWrapper(self._tracer),  # type: ignore[arg-type]
+            BaseGroupChat.run_stream: _BaseGroupChatRunStreamWrapper(self._tracer),  # type: ignore[arg-type]
             BaseOpenAIChatCompletionClient.create: _BaseOpenAIChatCompletionClientCreateWrapper(
-                self._tracer
+                self._tracer  # type: ignore[arg-type]
             ),
             BaseOpenAIChatCompletionClient.create_stream: (
-                _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)
+                _BaseOpenAIChatCompletionClientCreateStreamWrapper(self._tracer)  # type: ignore[arg-type]
             ),
-            AssistantAgent._execute_tool_call: _AssistantAgentExecuteToolCallWrapper(self._tracer),
+            AssistantAgent._execute_tool_call: _AssistantAgentExecuteToolCallWrapper(self._tracer),  # type: ignore[arg-type]
         }
 
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
-            self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module, name, wrapper)
+            self._originals.append(resolve_path(module, name))  # type: ignore[no-untyped-call]
+            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
 
     def _uninstrument(self, **kwargs: Any) -> None:
         for parent, attribute, original in getattr(self, "_originals", ()):

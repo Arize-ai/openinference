@@ -8,7 +8,7 @@ from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-de
 )
 from opentelemetry.trace import Span, Tracer, get_current_span
 from opentelemetry.util._decorator import _agnosticcontextmanager
-from wrapt import resolve_path, wrap_function_wrapper
+from wrapt.patches import resolve_path, wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.google_adk.version import __version__
@@ -57,8 +57,8 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
         # Wrap each method with its corresponding tracer
         for method, wrapper in method_wrappers.items():
             module, name = method.__module__, method.__qualname__
-            self._originals.append(resolve_path(module, name))
-            wrap_function_wrapper(module, name, wrapper)
+            self._originals.append(resolve_path(module, name))  # type: ignore[no-untyped-call]
+            wrap_function_wrapper(module, name, wrapper)  # type: ignore[no-untyped-call]
 
         self._patch_trace_call_llm()
         self._patch_trace_tool_call()
@@ -198,7 +198,7 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
                 setattr(adk_tracing, "tracer", original)
 
 
-class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
+class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc,name-defined,type-arg,unused-ignore]
     """A tracer proxy that passes through span operations without creating new spans.
 
     This is used to disable existing tracers during instrumentation to prevent

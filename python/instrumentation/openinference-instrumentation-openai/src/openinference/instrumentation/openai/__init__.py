@@ -4,7 +4,7 @@ from typing import Any, Collection
 
 from opentelemetry import trace as trace_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
-from wrapt import wrap_function_wrapper
+from wrapt.patches import wrap_function_wrapper
 
 from openinference.instrumentation import OITracer, TraceConfig
 from openinference.instrumentation.openai._request import (
@@ -47,15 +47,15 @@ class OpenAIInstrumentor(BaseInstrumentor):  # type: ignore
         openai = import_module(_MODULE)
         self._original_request = openai.OpenAI.request
         self._original_async_request = openai.AsyncOpenAI.request
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "OpenAI.request",
-            _Request(tracer=tracer, openai=openai),
+            _Request(tracer=tracer, openai=openai),  # type: ignore[arg-type]
         )
-        wrap_function_wrapper(
+        wrap_function_wrapper(  # type: ignore[no-untyped-call]
             _MODULE,
             "AsyncOpenAI.request",
-            _AsyncRequest(tracer=tracer, openai=openai),
+            _AsyncRequest(tracer=tracer, openai=openai),  # type: ignore[arg-type]
         )
 
     def _uninstrument(self, **kwargs: Any) -> None:
