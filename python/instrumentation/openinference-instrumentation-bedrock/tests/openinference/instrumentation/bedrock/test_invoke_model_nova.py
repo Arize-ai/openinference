@@ -144,6 +144,53 @@ class TestNovaInvokeModel:
         assert attributes == {}
 
 
+class TestNovaInvokeModelWithResponseStream:
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_micro_streaming(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        user_text = "What are the three primary colors? Reply in one sentence."
+        inference_config = {"maxTokens": 64, "temperature": 0.1}
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "inferenceConfig": inference_config,
+        }
+
+        response = client.invoke_model_with_response_stream(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+
+        for _ in response["body"]:
+            pass
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(INPUT_VALUE) == user_text
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and len(output_value) > 0
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        # Nova streaming metadata does not include totalTokens (only inputTokens/outputTokens)
+        attributes.pop(LLM_TOKEN_COUNT_TOTAL, None)
+        invocation_parameters_str = attributes.pop(LLM_INVOCATION_PARAMETERS)
+        assert isinstance(invocation_parameters_str, str)
+        assert json.loads(invocation_parameters_str) == inference_config
+        assert attributes == {}
+
+
 OPENINFERENCE_SPAN_KIND = SpanAttributes.OPENINFERENCE_SPAN_KIND
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
 OUTPUT_VALUE = SpanAttributes.OUTPUT_VALUE

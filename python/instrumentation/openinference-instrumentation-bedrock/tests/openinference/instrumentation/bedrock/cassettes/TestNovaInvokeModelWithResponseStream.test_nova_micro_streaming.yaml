@@ -1,0 +1,76 @@
+interactions:
+- request:
+    body: '{"schemaVersion": "messages-v1", "messages": [{"role": "user", "content":
+      [{"text": "What are the three primary colors? Reply in one sentence."}]}], "inferenceConfig":
+      {"maxTokens": 64, "temperature": 0.1}}'
+    headers: {}
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.nova-micro-v1%3A0/invoke-with-response-stream
+  response:
+    body:
+      string: !!binary |
+        AAAA2AAAAEs9qXPpCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SnRaWE56WVdkbFUzUmhj
+        blFpT25zaWNtOXNaU0k2SW1GemMybHpkR0Z1ZENKOWZRPT0iLCJwIjoiYWJjZGVmZ2hpamtsbW5v
+        cHFyc3R1dnd4eXpBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWjAxIn12UoQUAAAA/wAAAEtOSID9
+        CzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1l
+        c3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SmpiMjUwWlc1MFFteHZZMnRFWld4MFlTSTZl
+        eUprWld4MFlTSTZleUowWlhoMElqb2lWR2hsSW4wc0ltTnZiblJsYm5SQ2JHOWphMGx1WkdWNElq
+        b3dmWDA9IiwicCI6ImFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6QUJDREVGR0hJSktMTU5PUFFS
+        U1RVVldYWVowIn3H8VQ/AAAAxQAAAEul2SDaCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQt
+        dHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5
+        SmpiMjUwWlc1MFFteHZZMnRUZEc5d0lqcDdJbU52Ym5SbGJuUkNiRzlqYTBsdVpHVjRJam93Zlgw
+        PSIsInAiOiJhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ekEifUKY6bMAAADkAAAAS1l4Jm4LOmV2
+        ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2Fn
+        ZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKamIyNTBaVzUwUW14dlkydEVaV3gwWVNJNmV5Smta
+        V3gwWVNJNmV5SjBaWGgwSWpvaUlIUm9jbVZsSW4wc0ltTnZiblJsYm5SQ2JHOWphMGx1WkdWNElq
+        b3hmWDA9IiwicCI6ImFiY2RlZmdoaWprbG1ub3BxcnN0dXYifZNYy2kAAADYAAAASz2pc+kLOmV2
+        ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2Fn
+        ZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlKamIyNTBaVzUwUW14dlkydFRkRzl3SWpwN0ltTnZi
+        blJsYm5SQ2JHOWphMGx1WkdWNElqb3hmWDA9IiwicCI6ImFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3
+        eHl6QUJDREVGR0hJSktMTU5PUFFSU1Qifd1gMGIAAAEJAAAAS0Jg9qULOmV2ZW50LXR5cGUHAAVj
+        aHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZl
+        bnR7ImJ5dGVzIjoiZXlKamIyNTBaVzUwUW14dlkydEVaV3gwWVNJNmV5SmtaV3gwWVNJNmV5SjBa
+        WGgwSWpvaUlIQnlhVzFoY25rZ1kyOXNiM0p6SUdGeVpTQnlaV1FzSUdKc2RXVWlmU3dpWTI5dWRH
+        VnVkRUpzYjJOclNXNWtaWGdpT2pKOWZRPT0iLCJwIjoiYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4
+        eXpBIn3apuwHAAAAsAAAAEuU609lCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcA
+        EGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6ImV5SmpiMjUw
+        Wlc1MFFteHZZMnRUZEc5d0lqcDdJbU52Ym5SbGJuUkNiRzlqYTBsdVpHVjRJam95ZlgwPSIsInAi
+        OiJhYmNkZWYifYZzTJQAAADzAAAAS4u4bfwLOmV2ZW50LXR5cGUHAAVjaHVuaw06Y29udGVudC10
+        eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZlbnR7ImJ5dGVzIjoiZXlK
+        amIyNTBaVzUwUW14dlkydEVaV3gwWVNJNmV5SmtaV3gwWVNJNmV5SjBaWGgwSWpvaUxDQmhibVFn
+        ZVdWc2JHOTNMaUo5TENKamIyNTBaVzUwUW14dlkydEpibVJsZUNJNk0zMTkiLCJwIjoiYWJjZGVm
+        Z2hpamtsbW5vcHFyc3R1dnd4eXpBQkMifVfEDWwAAACwAAAAS5TrT2ULOmV2ZW50LXR5cGUHAAVj
+        aHVuaw06Y29udGVudC10eXBlBwAQYXBwbGljYXRpb24vanNvbg06bWVzc2FnZS10eXBlBwAFZXZl
+        bnR7ImJ5dGVzIjoiZXlKamIyNTBaVzUwUW14dlkydFRkRzl3SWpwN0ltTnZiblJsYm5SQ2JHOWph
+        MGx1WkdWNElqb3pmWDA9IiwicCI6ImFiY2RlZiJ9KdoBXgAAAK0AAABLDJscVgs6ZXZlbnQtdHlw
+        ZQcABWNodW5rDTpjb250ZW50LXR5cGUHABBhcHBsaWNhdGlvbi9qc29uDTptZXNzYWdlLXR5cGUH
+        AAVldmVudHsiYnl0ZXMiOiJleUp0WlhOellXZGxVM1J2Y0NJNmV5SnpkRzl3VW1WaGMyOXVJam9p
+        Wlc1a1gzUjFjbTRpZlgwPSIsInAiOiJhYmNkZWZnIn0LUL3UAAACMgAAAEsSBQ2cCzpldmVudC10
+        eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0aW9uL2pzb24NOm1lc3NhZ2UtdHlw
+        ZQcABWV2ZW50eyJieXRlcyI6ImV5SnRaWFJoWkdGMFlTSTZleUoxYzJGblpTSTZleUpwYm5CMWRG
+        UnZhMlZ1Y3lJNk1USXNJbTkxZEhCMWRGUnZhMlZ1Y3lJNk1UTXNJbU5oWTJobFVtVmhaRWx1Y0hW
+        MFZHOXJaVzVEYjNWdWRDSTZNQ3dpWTJGamFHVlhjbWwwWlVsdWNIVjBWRzlyWlc1RGIzVnVkQ0k2
+        TUgwc0ltMWxkSEpwWTNNaU9udDlMQ0owY21GalpTSTZlMzE5TENKaGJXRjZiMjR0WW1Wa2NtOWph
+        eTFwYm5adlkyRjBhVzl1VFdWMGNtbGpjeUk2ZXlKcGJuQjFkRlJ2YTJWdVEyOTFiblFpT2pFeUxD
+        SnZkWFJ3ZFhSVWIydGxia052ZFc1MElqb3hNeXdpYVc1MmIyTmhkR2x2Ymt4aGRHVnVZM2tpT2pJ
+        ME5Dd2labWx5YzNSQ2VYUmxUR0YwWlc1amVTSTZNVEkzTENKallXTm9aVkpsWVdSSmJuQjFkRlJ2
+        YTJWdVEyOTFiblFpT2pBc0ltTmhZMmhsVjNKcGRHVkpibkIxZEZSdmEyVnVRMjkxYm5RaU9qQjlm
+        UT09IiwicCI6ImFiY2RlZmdoaWprbCJ9AQ9OmQ==
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Wed, 29 Apr 2026 19:03:13 GMT
+      Transfer-Encoding:
+      - chunked
+      X-Amzn-Bedrock-Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - 0c62afd7-cb58-45a7-9d78-49cddc10fca3
+    status:
+      code: 200
+      message: OK
+version: 1
