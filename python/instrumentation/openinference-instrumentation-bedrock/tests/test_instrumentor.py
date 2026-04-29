@@ -879,7 +879,7 @@ def _run_converse_checks(
                 img_block = content_item["image"]
                 base64_img = base64.b64encode(img_block["source"]["bytes"]).decode("utf-8")
                 img_format = img_block.get("format", "jpeg")
-                expected_value = f"data:{img_format};base64,{base64_img}"
+                expected_value = f"data:image/{img_format};base64,{base64_img}"
                 value_key = f"{content_key}.{content_idx}.message_content.image.image.url"
             else:
                 expected_type = "text"

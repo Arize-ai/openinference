@@ -73,7 +73,7 @@ def get_message_objects(message_list: Sequence[MessageUnionTypeDef]) -> List[Mes
                 image_source = _image["source"]
                 if "bytes" in image_source:
                     base64_img = base64.b64encode(image_source["bytes"]).decode("utf-8")
-                    image_url = f"data:{_image['format']};base64,{base64_img}"
+                    image_url = f"data:image/{_image['format']};base64,{base64_img}"
                     contents.append(ImageMessageContent(type="image", image=Image(url=image_url)))
             if "toolUse" in _content:
                 _tool_use: ToolUseBlockOutputTypeDef = _content["toolUse"]
