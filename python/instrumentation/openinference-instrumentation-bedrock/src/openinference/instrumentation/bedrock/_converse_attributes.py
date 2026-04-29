@@ -10,6 +10,7 @@ from openinference.instrumentation import (
     Image,
     ImageMessageContent,
     Message,
+    MessageContent,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -121,13 +122,11 @@ def get_input_messages(
     """
     messages: List[Message] = []
     if "system" in request_data:
-        contents: list[Any] = []
-        system_prompt_parts: list[Any] = []
+        contents: list[MessageContent] = []
         for system_prompt in request_data["system"]:
             if "text" in system_prompt:
-                system_prompt_parts.append(system_prompt["text"])
-        if system_prompt_parts:
-            contents.append(TextMessageContent(text=" ".join(system_prompt_parts), type="text"))
+                contents.append(TextMessageContent(text=system_prompt["text"], type="text"))
+        if contents:
             messages.append(Message(role="system", contents=contents))
     if "messages" in request_data:
         messages.extend(get_message_objects(list(request_data["messages"])))
