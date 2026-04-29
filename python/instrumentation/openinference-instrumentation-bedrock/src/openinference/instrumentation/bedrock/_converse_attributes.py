@@ -11,6 +11,7 @@ from openinference.instrumentation import (
     ImageMessageContent,
     Message,
     MessageContent,
+    PromptDetails,
     TextMessageContent,
     TokenCount,
     Tool,
@@ -193,6 +194,13 @@ def get_token_counts(output_params: ConverseResponseTypeDef) -> TokenCount | Non
         completion=usage["outputTokens"],
         total=usage["totalTokens"],
     )
+    prompt_details: PromptDetails = {}
+    if (cache_read := usage.get("cacheReadInputTokens")) is not None:
+        prompt_details["cache_read"] = cache_read
+    if (cache_write := usage.get("cacheWriteInputTokens")) is not None:
+        prompt_details["cache_write"] = cache_write
+    if prompt_details:
+        token_count["prompt_details"] = prompt_details
     return token_count
 
 
