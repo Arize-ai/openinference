@@ -33,9 +33,6 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
 )
 from pipecat.observers.base_observer import FramePushed
-from pipecat.observers.loggers.user_bot_latency_log_observer import (
-    UserBotLatencyLogObserver,
-)
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_service import AIService
@@ -98,7 +95,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: UserBotLatencyLogObserver = UserBotLatencyLogObserver()  # type: ignore
         self._tracer: OITracer = tracer
         self._config: TraceConfig = config
         self._additional_span_attributes: Dict[str, str] = {}
@@ -179,8 +175,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             data: FramePushed event data with source, destination, frame, direction
         """
         await super().on_push_frame(data)
-        # ensure UserBotLatencyLogObserver is using self._user_bot_latency_processed_frames !
-        await self._latency_observer.on_push_frame(data)
 
         try:
             src = data.source
@@ -842,17 +836,6 @@ class OpenInferenceObserver(TurnTrackingObserver):
             bot_output = join_space.join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
 
-        if len(self._latency_observer._latencies):  # from UserBotLatencyLogObserver
-            self._turn_span.set_attribute(
-                "conversation.user_to_bot_latency",
-                self._latency_observer._latencies[-1],
-            )
-            self._log_debug(
-                f"  Set user_to_bot_latency attribute: {self._latency_observer._latencies[-1]}"
-            )
-            self._log_debug(
-                f"  UserBotLatencyLogObserver latencies: {self._latency_observer._latencies}"
-            )
         # Finish all active service spans BEFORE ending the turn span
         # This ensures child spans are ended before the parent
         service_ids_to_finish = list(self._active_spans.keys())
