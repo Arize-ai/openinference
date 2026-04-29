@@ -818,10 +818,16 @@ class LLMServiceAttributeExtractor(ServiceAttributeExtractor):
 
         # Extract LLM settings/configuration as metadata
         if hasattr(service, "_settings"):
-            if isinstance(service._settings, dict):
-                results[SpanAttributes.METADATA] = safe_json_dumps(service._settings)
-            else:
-                results[SpanAttributes.METADATA] = str(service._settings)
+            settings = service._settings
+            if not isinstance(settings, dict):
+                # Convert Pydantic models, dataclasses, or other objects to dicts
+                if hasattr(settings, "model_dump") and callable(settings.model_dump):
+                    settings = settings.model_dump()
+                elif hasattr(settings, "dict") and callable(settings.dict):
+                    settings = settings.dict()
+                elif hasattr(settings, "__dict__"):
+                    settings = settings.__dict__
+            results[SpanAttributes.METADATA] = safe_json_dumps(settings)
 
         return results
 

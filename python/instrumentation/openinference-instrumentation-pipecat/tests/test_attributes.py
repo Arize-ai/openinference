@@ -1,5 +1,7 @@
 """Tests for attribute extraction from Pipecat frames and services."""
 
+import json
+from dataclasses import dataclass
 from unittest.mock import Mock
 
 from pipecat.frames.frames import (
@@ -379,3 +381,77 @@ class TestSafeExtraction:
 
         result = safe_extract(failing_extractor)
         assert result is None
+
+
+class TestLLMSettingsMetadataSerialization:
+    """Test that non-dict LLM settings are serialized as valid JSON metadata."""
+
+    def _make_llm_service_with_settings(self, settings: object) -> Mock:
+        """Create a mock LLM service with the given settings object."""
+        from pipecat.services.llm_service import LLMService
+
+        class TestLLMService(LLMService):
+            pass
+
+        service = Mock(spec=TestLLMService)
+        service.__class__ = TestLLMService
+        service.__class__.__module__ = "pipecat.services.google"
+        service.model_name = "gemini-3-flash-preview"
+        service._settings = settings
+        return service
+
+    def test_pydantic_v2_model_dump(self) -> None:
+        """Test that a Pydantic v2 model is serialized via model_dump()."""
+        from pydantic import BaseModel
+
+        class GoogleLLMSettings(BaseModel):
+            model: str = "gemini-3-flash-preview"
+            temperature: float = 0.7
+            max_tokens: int = 4096
+
+        settings = GoogleLLMSettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "gemini-3-flash-preview"
+        assert parsed["temperature"] == 0.7
+        assert parsed["max_tokens"] == 4096
+
+    def test_object_with_dict_method(self) -> None:
+        """Test that an object with a .dict() method is serialized via .dict()."""
+
+        class LegacySettings:
+            def __init__(self) -> None:
+                self.model = "legacy-model"
+                self.temperature = 0.5
+
+            def dict(self) -> dict:
+                return {"model": self.model, "temperature": self.temperature}
+
+        settings = LegacySettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "legacy-model"
+        assert parsed["temperature"] == 0.5
+
+    def test_dataclass_settings(self) -> None:
+        """Test that a dataclass is serialized via __dict__."""
+
+        @dataclass
+        class DataclassSettings:
+            model: str = "dataclass-model"
+            max_tokens: int = 1024
+
+        settings = DataclassSettings()
+        service = self._make_llm_service_with_settings(settings)
+        attributes = extract_service_attributes(service)
+
+        metadata = attributes[SpanAttributes.METADATA]
+        parsed = json.loads(metadata)
+        assert parsed["model"] == "dataclass-model"
+        assert parsed["max_tokens"] == 1024
