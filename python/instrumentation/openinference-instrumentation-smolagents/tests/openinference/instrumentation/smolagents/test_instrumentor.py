@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from opentelemetry.util._importlib_metadata import entry_points
 from smolagents import LiteLLMModel, OpenAIServerModel, Tool, tool
 from smolagents.agents import (  # type: ignore[import-untyped]
@@ -51,6 +52,23 @@ class TestInstrumentor:
     # Ensure we're using the common OITracer from common openinference-instrumentation pkg
     def test_oitracer(self) -> None:
         assert isinstance(SmolagentsInstrumentor()._tracer, OITracer)
+
+    def test_finalize_step_span_non_recording_span_does_not_crash(self) -> None:
+        from openinference.instrumentation.smolagents._wrappers import _finalize_step_span
+
+        non_recording = NonRecordingSpan(
+            SpanContext(
+                trace_id=0,
+                span_id=0,
+                is_remote=False,
+                trace_flags=TraceFlags(0),
+            )
+        )
+        step_log = MagicMock()
+        step_log.observations = "some output"
+        step_log.error = None
+        # Should not raise AttributeError
+        _finalize_step_span(non_recording, step_log)
 
 
 class TestModels:
