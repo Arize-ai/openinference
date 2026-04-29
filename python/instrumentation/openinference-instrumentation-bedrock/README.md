@@ -21,6 +21,9 @@ Find the list of Bedrock-supported models and their IDs [here](https://docs.aws.
 | `Anthropic Claude 3.5 Sonnet`       | converse             |
 | `Anthropic Claude 3 Haiku`          | converse             |
 | `Meta Llama 3 8b Instruct`          | converse             |
+| `Amazon Nova Micro`                 | converse, invoke     |
+| `Amazon Nova Lite`                  | converse, invoke     |
+| `Amazon Nova Pro`                   | converse, invoke     |
 | `Meta Llama 3 70b Instruct`         | converse             |
 | `Mistral AI Mistral 7B Instruct`    | converse             |
 | `Mistral AI Mixtral 8X7B Instruct`  | converse             |
@@ -140,6 +143,27 @@ response = client.converse(
 out = response['output']['message']
 print(out.get("content")[-1].get("text"))
 ```
+Amazon Nova models are supported via both `invoke_model` and `converse`.
+
+```python
+session = boto3.session.Session()
+client = session.client("bedrock-runtime")
+
+# invoke_model with Nova
+import json
+request_body = {
+    "schemaVersion": "messages-v1",
+    "messages": [{"role": "user", "content": [{"text": "Hello! What is 2+2?"}]}],
+    "inferenceConfig": {"maxTokens": 512, "temperature": 0.7},
+}
+response = client.invoke_model(
+    modelId="amazon.nova-micro-v1:0",
+    body=json.dumps(request_body),
+)
+response_body = json.loads(response["body"].read())
+print(response_body["output"]["message"]["content"][0]["text"])
+```
+
 All calls to `invoke_agent` are instrumented and can be viewed in the `phoenix` UI. You can enable the agent traces by passing `enableTrace=True` argument.
 
 ```python

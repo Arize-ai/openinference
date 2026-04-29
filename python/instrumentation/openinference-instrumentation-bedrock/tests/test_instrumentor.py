@@ -114,6 +114,74 @@ class TestInstrumentor:
         assert isinstance(BedrockInstrumentor()._tracer, OITracer)
 
 
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "amazon.nova-micro-v1:0",
+        "amazon.nova-lite-v1:0",
+        "amazon.nova-pro-v1:0",
+    ],
+)
+def test_invoke_model_nova(
+    model_id: str,
+    in_memory_span_exporter: InMemorySpanExporter,
+) -> None:
+    user_text = "Hello, how are you?"
+    assistant_text = "I'm doing great, thank you!"
+    response_body_bytes = json.dumps(
+        {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": assistant_text}],
+                }
+            },
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 8, "totalTokens": 18},
+        }
+    ).encode()
+    streaming_body = StreamingBody(io.BytesIO(response_body_bytes), len(response_body_bytes))
+    mock_response = {
+        "ResponseMetadata": {
+            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "x-amzn-bedrock-input-token-count": "10",
+                "x-amzn-bedrock-output-token-count": "8",
+            },
+            "RetryAttempts": 0,
+        },
+        "contentType": "application/json",
+        "body": streaming_body,
+    }
+    session = boto3.session.Session()
+    client = session.client("bedrock-runtime", region_name="us-east-1")
+    client._unwrapped_invoke_model = MagicMock(return_value=mock_response)
+
+    request_body = {
+        "schemaVersion": "messages-v1",
+        "messages": [{"role": "user", "content": [{"text": user_text}]}],
+        "inferenceConfig": {"maxTokens": 512, "temperature": 0.7},
+    }
+    client.invoke_model(modelId=model_id, body=json.dumps(request_body))
+
+    spans = in_memory_span_exporter.get_finished_spans()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.status.is_ok
+    attributes = dict(span.attributes or dict())
+    assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_MODEL_NAME) == model_id
+    assert attributes.pop(INPUT_VALUE) == user_text
+    assert attributes.pop(OUTPUT_VALUE) == assistant_text
+    assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
+    assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 8
+    assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 18
+    assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+    assert json.loads(invocation_parameters_str) == {"maxTokens": 512, "temperature": 0.7}
+    assert attributes == {}
+
+
 @pytest.mark.parametrize("use_context_attributes", [False, True])
 def test_invoke_client(
     use_context_attributes: bool,
@@ -676,6 +744,9 @@ def test_converse_with_missing_tokens(
         "mistral.mistral-small-2402-v1:0",
         "meta.llama3-8b-instruct-v1:0",
         "meta.llama3-70b-instruct-v1:0",
+        "amazon.nova-micro-v1:0",
+        "amazon.nova-lite-v1:0",
+        "amazon.nova-pro-v1:0",
     ],
 )
 def test_converse_multiple_models(

@@ -60,25 +60,29 @@ def _set_model_name_attributes(
         - Cohere: Uses "generations" field
         - Meta: Uses "generation" field
     """
+    vendor = ""
+    content = ""
     if model_id := kwargs.get("modelId"):
         _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
-        vendor = None
         if isinstance(model_id, str):
             (vendor, *_) = model_id.split(".")
-
-        if vendor == "ai21":
-            content = str(response_body.get("completions"))
-        elif vendor == "anthropic":
-            content = str(response_body.get("completion"))
-        elif vendor == "cohere":
-            content = str(response_body.get("generations"))
-        elif vendor == "meta":
-            content = str(response_body.get("generation"))
+    if vendor == "amazon":
+        if _is_nova_response(response_body):
+            content = _extract_nova_output(response_body)
         else:
-            content = ""
-
-        if content:
-            _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
+            # Titan format: {results: [{outputText: "..."}]}
+            results = response_body.get("results", [])
+            content = results[0].get("outputText", "") if results else ""
+    if vendor == "ai21":
+        content = str(response_body.get("completions"))
+    elif vendor == "anthropic":
+        content = str(response_body.get("completion"))
+    elif vendor == "cohere":
+        content = str(response_body.get("generations"))
+    elif vendor == "meta":
+        content = str(response_body.get("generation"))
+    if content:
+        _set_span_attribute(span, SpanAttributes.OUTPUT_VALUE, content)
 
 
 def _set_token_count_attributes(span: Span, metadata: Dict[str, Any]) -> None:
@@ -116,7 +120,7 @@ def _set_token_count_attributes(span: Span, metadata: Dict[str, Any]) -> None:
             _set_span_attribute(span, SpanAttributes.LLM_TOKEN_COUNT_TOTAL, total_token_count)
 
 
-def set_input_attributes(span: Span, request_body: Dict[str, Any]) -> None:
+def set_input_attributes(span: Span, request_body: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
     """
     Set input-related attributes on the span from the request body.
 
@@ -127,10 +131,25 @@ def set_input_attributes(span: Span, request_body: Dict[str, Any]) -> None:
     Args:
         span: The OpenTelemetry span to set attributes on
         request_body: The request body containing prompt and other parameters
+        kwargs:  request input params
     """
-    prompt = request_body.pop("prompt", None)
-    invocation_parameters = safe_json_dumps(request_body)
-    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, prompt)
+    vendor = ""
+    if model_id := kwargs.get("modelId"):
+        _set_span_attribute(span, SpanAttributes.LLM_MODEL_NAME, model_id)
+        if isinstance(model_id, str):
+            (vendor, *_) = model_id.split(".")
+
+    if vendor == "amazon" and _is_nova_request(request_body):
+        # Nova: input is from the messages array, invocation params from inferenceConfig
+        input_value = _extract_nova_input(request_body)
+        invocation_parameters = safe_json_dumps(request_body.get("inferenceConfig", {}))
+    else:
+        # All other models (anthropic completion style, cohere, meta, ai21):
+        # input is the prompt field, remaining body fields are invocation params
+        input_value = request_body.pop("prompt", None)
+        invocation_parameters = safe_json_dumps(request_body)
+
+    _set_span_attribute(span, SpanAttributes.INPUT_VALUE, input_value)
     _set_span_attribute(span, SpanAttributes.LLM_INVOCATION_PARAMETERS, invocation_parameters)
     span.set_attribute(
         SpanAttributes.OPENINFERENCE_SPAN_KIND,
@@ -188,4 +207,44 @@ def is_claude_message_api(model_id: str) -> bool:
         and "anthropic" in model_id
         and "claude-v2" not in str(model_id)
         and "claude-instant-v1" not in str(model_id)
+    )
+
+
+def _is_nova_request(request_body: Dict[str, Any]) -> bool:
+    """Detect Amazon Nova request format: {messages: [{role, content: [...]}], ...}."""
+    messages = request_body.get("messages")
+    return (
+        isinstance(messages, list)
+        and len(messages) > 0
+        and isinstance(messages[0], dict)
+        and "role" in messages[0]
+        and "content" in messages[0]
+        and isinstance(messages[0]["content"], list)
+    )
+
+
+def _is_nova_response(response_body: Dict[str, Any]) -> bool:
+    """Detect Amazon Nova response format: {output: {message: {...}}, usage: {...}}."""
+    output = response_body.get("output")
+    return bool(output and isinstance(output, dict) and output.get("message"))
+
+
+def _extract_nova_input(request_body: Dict[str, Any]) -> str:
+    """Extract the last user message text from a Nova request body."""
+    messages = request_body.get("messages", [])
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            for block in msg.get("content", []):
+                if isinstance(block, dict) and (text := block.get("text")):
+                    return str(text)
+    return ""
+
+
+def _extract_nova_output(response_body: Dict[str, Any]) -> str:
+    """Extract assistant message text from a Nova response body."""
+    content_blocks = response_body.get("output", {}).get("message", {}).get("content", [])
+    return "\n".join(
+        block.get("text", "")
+        for block in content_blocks
+        if isinstance(block, dict) and block.get("text")
     )
