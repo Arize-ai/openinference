@@ -40,6 +40,11 @@ from pydantic import BaseModel as PydanticBaseModel
 from pydantic import PrivateAttr
 from pydantic.v1.json import pydantic_encoder
 from typing_extensions import assert_never
+from workflows.runtime.types.step_function import (
+    SpanCancelledEvent,
+    WorkflowRunOutputEvent,
+    WorkflowStepOutputEvent,
+)
 
 from llama_index.core import QueryBundle
 
@@ -97,6 +102,8 @@ from llama_index.core.instrumentation.events.chat_engine import (
 from llama_index.core.instrumentation.events.embedding import (
     EmbeddingEndEvent,
     EmbeddingStartEvent,
+    SparseEmbeddingEndEvent,
+    SparseEmbeddingStartEvent,
 )
 from llama_index.core.instrumentation.events.llm import (
     LLMChatEndEvent,
@@ -520,13 +527,36 @@ class _Span(BaseSpan):
     def _(self, event: EmbeddingStartEvent) -> None:
         if not self._span_kind:
             self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
 
     @_process_event.register
     def _(self, event: EmbeddingEndEvent) -> None:
+        # Simple embeddings are flat float lists so we can directly store them as an OTEL attribute.
         i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
         for text, vector in zip(event.chunks, event.embeddings):
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
             self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = vector
+            i += 1
+        self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingStartEvent) -> None:
+        if not self._span_kind:
+            self._span_kind = EMBEDDING
+        # model_dict mirrors what BaseEmbedding.metadata gives for dense embeddings
+        if model_name := event.model_dict.get("model_name"):
+            self[EMBEDDING_MODEL_NAME] = model_name
+
+    @_process_event.register
+    def _(self, event: SparseEmbeddingEndEvent) -> None:
+        # Sparse embeddings are Dict[int, float] so we can serialise each one as a JSON string
+        # rather than trying to store a heterogeneous list as an OTEL attribute.
+        i = self._list_attr_len[EMBEDDING_EMBEDDINGS]
+        for text, vector in zip(event.chunks, event.embeddings):
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_TEXT}"] = text
+            self[f"{EMBEDDING_EMBEDDINGS}.{i}.{EMBEDDING_VECTOR}"] = safe_json_dumps(vector)
             i += 1
         self._list_attr_len[EMBEDDING_EMBEDDINGS] = i
 
@@ -1218,6 +1248,33 @@ def _get_token_counts_impl(
             pass
 
 
+if WorkflowStepOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowStepOutputEvent)  # type: ignore[attr-defined,misc]
+    def _workflow_step_output_event(self: _Span, event: WorkflowStepOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised step output produced by workflows.runtime
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
+
+
+if WorkflowRunOutputEvent is not None:
+
+    @_Span._process_event.register(WorkflowRunOutputEvent)  # type: ignore[attr-defined,misc]
+    def _workflow_run_output_event(self: _Span, event: WorkflowRunOutputEvent) -> None:  # type: ignore[misc]
+        # Pre-summarised whole-workflow output
+        self[OUTPUT_VALUE] = str(event.output)
+        self[OUTPUT_MIME_TYPE] = TEXT
+
+
+if SpanCancelledEvent is not None:
+
+    @_Span._process_event.register(SpanCancelledEvent)  # type: ignore[attr-defined,misc]
+    def _span_cancelled_event(self: _Span, event: SpanCancelledEvent) -> None:  # type: ignore[misc]
+        # Cancellation is intentional (user or asyncio) so we record the reason as a
+        # span event instead of marking the span as ERROR.
+        self._otel_span.add_event("span.cancelled", attributes={"reason": event.reason})
+
+
 @singledispatch
 def _init_span_kind(_: Any) -> Optional[str]:
     return None
@@ -1386,7 +1443,6 @@ LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = SpanAttributes.LLM_TOKEN_COUNT_PROMP
 LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = (
     SpanAttributes.LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE
 )
-
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_TOOLS = SpanAttributes.LLM_TOOLS
 MESSAGE_CONTENT = MessageAttributes.MESSAGE_CONTENT
@@ -1416,11 +1472,9 @@ TOOL_CALL_FUNCTION_NAME = ToolCallAttributes.TOOL_CALL_FUNCTION_NAME
 TOOL_DESCRIPTION = SpanAttributes.TOOL_DESCRIPTION
 TOOL_NAME = SpanAttributes.TOOL_NAME
 TOOL_PARAMETERS = SpanAttributes.TOOL_PARAMETERS
-
 TOOL_JSON_SCHEMA = ToolAttributes.TOOL_JSON_SCHEMA
-
+TEXT = OpenInferenceMimeTypeValues.TEXT.value
 JSON = OpenInferenceMimeTypeValues.JSON.value
-
 AGENT = OpenInferenceSpanKindValues.AGENT.value
 CHAIN = OpenInferenceSpanKindValues.CHAIN.value
 EMBEDDING = OpenInferenceSpanKindValues.EMBEDDING.value
