@@ -25,6 +25,7 @@ from openinference.instrumentation import (
     safe_json_dumps,
 )
 from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
     OpenInferenceSpanKindValues,
 )
 
@@ -166,7 +167,7 @@ def get_attributes_from_request_data(
     llm_attributes["input_messages"] = get_input_messages(request_data)
 
     return {
-        **get_llm_attributes(**llm_attributes),
+        **get_llm_attributes(**llm_attributes, provider=OpenInferenceLLMProviderValues.AWS),
         **get_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
         **get_input_attributes(
             list(request_data["messages"]) if "messages" in request_data else []

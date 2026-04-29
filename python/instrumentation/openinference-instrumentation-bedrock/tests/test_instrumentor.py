@@ -20,6 +20,7 @@ from openinference.instrumentation.bedrock import (
     BedrockInstrumentor,
 )
 from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -846,6 +847,7 @@ def _run_converse_checks(
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
 
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == token_counts.get("inputTokens")
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == token_counts.get("outputTokens")
@@ -909,6 +911,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
