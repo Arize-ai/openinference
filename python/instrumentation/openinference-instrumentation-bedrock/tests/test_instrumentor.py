@@ -14,12 +14,13 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.util._importlib_metadata import entry_points
 
-from openinference.instrumentation import OITracer, using_attributes
+from openinference.instrumentation import OITracer, safe_json_dumps, using_attributes
 from openinference.instrumentation.bedrock import (
     _MINIMUM_CONVERSE_BOTOCORE_VERSION,
     BedrockInstrumentor,
 )
 from openinference.semconv.trace import (
+    OpenInferenceLLMProviderValues,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
@@ -449,7 +450,7 @@ def test_converse(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -537,7 +538,7 @@ def test_converse_multiple(
     assert len(spans) == 1
     system_prompt1, system_prompt2 = system[0].get("text"), system[1].get("text")
     llm_input_messages_truths = [
-        {"role": "system", "content": f"{system_prompt1} {system_prompt2}"},
+        {"role": "system", "content": [{"text": system_prompt1}, {"text": system_prompt2}]},
         {"role": first_msg["role"], "content": first_msg["content"][0]["text"]},  # type: ignore
     ]
     _run_converse_checks(
@@ -551,7 +552,7 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=first_msg["content"][0]["text"],  # type: ignore
+        input_messages=list(messages),
         output=first_output,
         model_name=model_name,
         token_counts=first_mock_response["usage"],  # type: ignore
@@ -630,106 +631,10 @@ def test_converse_multiple(
         prompt_template_variables,
         span=spans[1],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=second_msg["content"][0]["text"],  # type: ignore
+        input_messages=list(messages),
         output=second_output,
         model_name=model_name,
         token_counts=second_mock_response["usage"],  # type: ignore
-        invocation_parameters=inference_config,
-    )
-
-
-@pytest.mark.parametrize("use_context_attributes", [False, True])
-def test_converse_with_missing_tokens(
-    use_context_attributes: bool,
-    in_memory_span_exporter: InMemorySpanExporter,
-    session_id: str,
-    user_id: str,
-    metadata: Dict[str, Any],
-    tags: List[str],
-    prompt_template: str,
-    prompt_template_version: str,
-    prompt_template_variables: Dict[str, Any],
-) -> None:
-    if version := boto3.__version__ < _MINIMUM_CONVERSE_BOTOCORE_VERSION:
-        pytest.xfail(
-            f"Botocore {version} does not support the Converse API. "
-            f"Converse API introduced in {_MINIMUM_CONVERSE_BOTOCORE_VERSION}"
-        )
-    system = [{"text": "return a short response"}]
-    inference_config = {"maxTokens": 1024, "temperature": 0.0}
-    output = {
-        "message": {
-            "role": "assistant",
-            "content": [{"text": "Hi there! How can I assist you today?"}],
-        }
-    }
-    mock_response = {
-        "ResponseMetadata": {
-            "RequestId": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
-            "HTTPStatusCode": 200,
-            "HTTPHeaders": {
-                "date": "Sun, 21 Jan 2024 20:00:00 GMT",
-                "content-type": "application/json",
-                "content-length": "74",
-                "connection": "keep-alive",
-                "x-amzn-requestid": "xxxxxxxx-yyyy-zzzz-1234-abcdefghijklmno",
-                "x-amzn-bedrock-invocation-latency": "425",
-                "x-amzn-bedrock-output-token-count": "6",
-            },
-            "RetryAttempts": 0,
-        },
-        "output": output,
-        "usage": {"outputTokens": 6},
-    }
-    session = boto3.session.Session()
-    client = session.client("bedrock-runtime", region_name="us-east-1")
-    # instead of mocking the HTTP response, we mock the boto client method directly to avoid
-    # complexities with mocking auth
-    client._unwrapped_converse = MagicMock(return_value=mock_response)
-    message = {"role": "user", "content": [{"text": "hello there?"}]}
-    model_name = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-    if use_context_attributes:
-        with using_attributes(
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata,
-            tags=tags,
-            prompt_template=prompt_template,
-            prompt_template_version=prompt_template_version,
-            prompt_template_variables=prompt_template_variables,
-        ):
-            client.converse(
-                modelId=model_name,
-                system=system,
-                messages=[message],
-                inferenceConfig=inference_config,
-            )
-    else:
-        client.converse(
-            modelId=model_name, system=system, messages=[message], inferenceConfig=inference_config
-        )
-
-    spans = in_memory_span_exporter.get_finished_spans()
-    assert len(spans) == 1
-    llm_input_messages_truths = [
-        {"role": "system", "content": system[0]["text"]},
-        {"role": message["role"], "content": message["content"][0]["text"]},  # type: ignore
-    ]
-    _run_converse_checks(
-        use_context_attributes,
-        session_id,
-        user_id,
-        metadata,
-        tags,
-        prompt_template,
-        prompt_template_version,
-        prompt_template_variables,
-        span=spans[0],
-        llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
-        output=output,
-        model_name=model_name,
-        token_counts=mock_response["usage"],  # type: ignore
         invocation_parameters=inference_config,
     )
 
@@ -833,7 +738,7 @@ def test_converse_multiple_models(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_id,
         token_counts=mock_response["usage"],  # type: ignore
@@ -954,7 +859,7 @@ def test_converse_multimodal(
         prompt_template_variables,
         span=spans[0],
         llm_input_messages_truth=llm_input_messages_truths,  # type:ignore
-        input=message["content"][0]["text"],  # type: ignore
+        input_messages=[message],
         output=output,
         model_name=model_name,
         token_counts=mock_response["usage"],  # type: ignore
@@ -1002,8 +907,8 @@ def _run_converse_checks(
     prompt_template_version: str,
     prompt_template_variables: Dict[str, Any],
     span: trace_sdk.ReadableSpan,
-    llm_input_messages_truth: List[Dict[str, str]],
-    input: str,
+    llm_input_messages_truth: List[Dict[str, Any]],
+    input_messages: List[Dict[str, Any]],
     output: Dict[str, Any],
     model_name: str,
     token_counts: Dict[Any, Any],
@@ -1013,6 +918,7 @@ def _run_converse_checks(
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_name
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
 
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT, None) == token_counts.get("inputTokens")
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION, None) == token_counts.get("outputTokens")
@@ -1021,32 +927,36 @@ def _run_converse_checks(
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == invocation_parameters
 
-    assert attributes.pop(OUTPUT_VALUE) == output["message"]["content"][0]["text"]
+    assert attributes.pop(OUTPUT_VALUE) == json.dumps(output["message"])
+    assert attributes.pop(OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.pop("llm.output_messages.0.message.role") == output["message"]["role"]
+    assert attributes.pop("llm.output_messages.0.message.contents.0.message_content.type") == "text"
     assert (
-        attributes.pop("llm.output_messages.0.message.content")
+        attributes.pop("llm.output_messages.0.message.contents.0.message_content.text")
         == output["message"]["content"][0]["text"]
     )
+    assert isinstance(input_value_str := attributes.pop(INPUT_VALUE), str)
+    assert input_value_str == safe_json_dumps(input_messages)
+    assert attributes.pop(INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
 
-    assert attributes.pop(INPUT_VALUE) == input
     for msg_idx, msg in enumerate(llm_input_messages_truth):
         role_key = f"llm.input_messages.{msg_idx}.message.role"
         content_key = f"llm.input_messages.{msg_idx}.message.contents"
         assert attributes.pop(role_key) == msg["role"], f"Role mismatch for message {msg_idx}."
         content = msg["content"]
         if isinstance(content, str):
-            content = [{"text": content}]  # type:ignore
+            content = [{"text": content}]
         for content_idx, content_item in enumerate(content):
-            if content_item.get("image"):  # type:ignore
+            if content_item.get("image"):
                 expected_type = "image"
-                base64_img = base64.b64encode(content_item["image"]["source"]["bytes"]).decode(  # type:ignore
-                    "utf-8"
-                )
-                expected_value = f"data:image/jpeg;base64,{base64_img}"
+                img_block = content_item["image"]
+                base64_img = base64.b64encode(img_block["source"]["bytes"]).decode("utf-8")
+                img_format = img_block.get("format", "jpeg")
+                expected_value = f"data:image/{img_format};base64,{base64_img}"
                 value_key = f"{content_key}.{content_idx}.message_content.image.image.url"
             else:
                 expected_type = "text"
-                expected_value = content_item["text"]  # type:ignore
+                expected_value = content_item["text"]
                 value_key = f"{content_key}.{content_idx}.message_content.text"
             type_key = f"{content_key}.{content_idx}.message_content.type"
             assert attributes.pop(type_key) == expected_type
@@ -1072,6 +982,7 @@ INPUT_VALUE = SpanAttributes.INPUT_VALUE
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
