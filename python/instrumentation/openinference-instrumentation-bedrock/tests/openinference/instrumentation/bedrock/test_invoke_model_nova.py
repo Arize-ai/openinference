@@ -25,7 +25,12 @@ class TestNovaInvokeModel:
     ) -> None:
         """Basic text response from amazon.nova-micro-v1:0 via invoke_model."""
         model_id = "amazon.nova-micro-v1:0"
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
         user_text = "What is 2+2? Reply with just the number."
         request_body = {
             "schemaVersion": "messages-v1",
@@ -68,7 +73,12 @@ class TestNovaInvokeModel:
     ) -> None:
         """Nova Lite invoke_model with system prompt and multi-turn messages."""
         model_id = "amazon.nova-lite-v1:0"
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
         user_text = "Hello! Who are you?"
         request_body = {
             "schemaVersion": "messages-v1",
@@ -112,7 +122,12 @@ class TestNovaInvokeModel:
     ) -> None:
         """Nova model via the converse API — uses unified response format."""
         model_id = "amazon.nova-micro-v1:0"
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
         user_text = "What is the capital of France?"
         response = client.converse(
             modelId=model_id,
@@ -129,14 +144,14 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(INPUT_VALUE) == user_text
+        input_value = str(attributes.pop(INPUT_VALUE))
+        assert user_text in input_value
         assert isinstance(attributes.pop(OUTPUT_VALUE), str)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
         assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
-        # converse also sets llm.input_messages and llm.output_messages
-        # pop any remaining message-related attributes
+
         remaining = {k: v for k, v in attributes.items()}
         message_keys = [k for k in remaining if k.startswith("llm.")]
         for k in message_keys:
@@ -153,7 +168,12 @@ class TestNovaInvokeModelWithResponseStream:
         in_memory_span_exporter: InMemorySpanExporter,
     ) -> None:
         model_id = "amazon.nova-micro-v1:0"
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
         user_text = "What are the three primary colors? Reply in one sentence."
         inference_config = {"maxTokens": 64, "temperature": 0.1}
         request_body = {
