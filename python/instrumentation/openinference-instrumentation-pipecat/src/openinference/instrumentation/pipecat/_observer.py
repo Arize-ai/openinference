@@ -33,10 +33,8 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
 )
 from pipecat.observers.base_observer import FramePushed
-from pipecat.observers.loggers.user_bot_latency_log_observer import (
-    UserBotLatencyLogObserver,
-)
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
+from pipecat.observers.user_bot_latency_observer import UserBotLatencyObserver
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_service import AIService
 from pipecat.services.llm_service import LLMService
@@ -98,7 +96,13 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: UserBotLatencyLogObserver = UserBotLatencyLogObserver()  # type: ignore
+        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
+        self._last_user_to_bot_latency: Optional[float] = None
+
+        @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
+        async def _on_latency_measured(_observer: Any, latency_seconds: float) -> None:
+            self._last_user_to_bot_latency = latency_seconds
+
         self._tracer: OITracer = tracer
         self._config: TraceConfig = config
         self._additional_span_attributes: Dict[str, str] = {}
@@ -842,16 +846,13 @@ class OpenInferenceObserver(TurnTrackingObserver):
             bot_output = join_space.join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
 
-        if len(self._latency_observer._latencies):  # from UserBotLatencyLogObserver
+        if self._last_user_to_bot_latency is not None:
             self._turn_span.set_attribute(
                 "conversation.user_to_bot_latency",
-                self._latency_observer._latencies[-1],
+                self._last_user_to_bot_latency,
             )
             self._log_debug(
-                f"  Set user_to_bot_latency attribute: {self._latency_observer._latencies[-1]}"
-            )
-            self._log_debug(
-                f"  UserBotLatencyLogObserver latencies: {self._latency_observer._latencies}"
+                f"  Set user_to_bot_latency attribute: {self._last_user_to_bot_latency}"
             )
         # Finish all active service spans BEFORE ending the turn span
         # This ensures child spans are ended before the parent

@@ -22,7 +22,6 @@ from pipecat.frames.frames import (
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
-    LLMMessagesFrame,
     LLMTextFrame,
     MetricsFrame,
     TextFrame,
@@ -37,10 +36,7 @@ from pipecat.metrics.metrics import (
     TTFBMetricsData,
     TTSUsageMetricsData,
 )
-from pipecat.processors.aggregators.llm_context import (
-    LLMContext,
-    LLMSpecificMessage,
-)
+from pipecat.processors.aggregators.llm_context import LLMSpecificMessage
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_service import AIService
 from pipecat.services.image_service import ImageGenService
@@ -71,7 +67,6 @@ FRAME_TYPE_MAP = {
     FunctionCallInProgressFrame.__name__: "function_call_in_progress",
     FunctionCallResultFrame.__name__: "function_call_result",
     LLMContextFrame.__name__: "llm_context",
-    LLMMessagesFrame.__name__: "llm_messages",
 }
 
 SERVICE_TYPE_MAP = {
@@ -270,7 +265,23 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
                 serializable_messages = []
                 for msg in messages_list:
                     if isinstance(msg, dict):
+                        # Normalize dict-valued content to JSON so downstream
+                        # span attribute consumers receive a string, not a dict.
+                        raw_content = msg.get("content")
+                        if isinstance(raw_content, dict):
+                            msg = {**msg, "content": safe_json_dumps(raw_content)}
                         serializable_messages.append(msg)
+                    elif isinstance(msg, LLMSpecificMessage):
+                        # Provider-specific message: unwrap to the underlying
+                        # message payload (typically a dict).
+                        inner = msg.message
+                        if isinstance(inner, dict):
+                            raw_content = inner.get("content")
+                            if isinstance(raw_content, dict):
+                                inner = {**inner, "content": safe_json_dumps(raw_content)}
+                            serializable_messages.append(inner)
+                        else:
+                            serializable_messages.append({"role": "unknown", "content": str(inner)})
                     elif hasattr(msg, "role") and hasattr(msg, "content"):
                         # LLMMessage object - convert to dict
                         msg_dict = {
@@ -370,104 +381,6 @@ class LLMContextFrameExtractor(FrameAttributeExtractor):
 
 # Singleton LLM context frame extractor
 _llm_context_frame_extractor = LLMContextFrameExtractor()
-
-
-class LLMMessagesFrameExtractor(FrameAttributeExtractor):
-    """Extract attributes from an LLM messages frame."""
-
-    def extract_from_frame(self, frame: Frame) -> Dict[str, Any]:
-        results: Dict[str, Any] = {}
-        if hasattr(frame, "context") and frame.context and isinstance(frame.context, LLMContext):
-            context = frame.context
-            # Extract messages from context (context._messages is a list)
-            if hasattr(context, "_messages") and context._messages:
-                results["llm.messages_count"] = len(context._messages)
-
-                # Convert messages to serializable format
-                try:
-                    # Messages can be LLMStandardMessage or LLMSpecificMessage
-                    # They should be dict-like for serialization
-                    messages_list: List[Any] = []
-                    for msg in context._messages:
-                        if isinstance(msg, dict):
-                            raw_content = msg.get("content")
-                            if isinstance(raw_content, str):
-                                content = msg.get("content")
-                            elif isinstance(raw_content, dict):
-                                content = safe_json_dumps(raw_content)
-                            else:
-                                content = str(raw_content)
-                            messages = {
-                                "role": msg.get("role"),
-                                "content": content,
-                                "name": msg.get("name", ""),
-                            }
-                            messages_list.append(messages)
-                        elif isinstance(msg, LLMSpecificMessage):
-                            # Fallback: try to serialize the object
-                            messages_list.append(msg.message)
-
-                    # Store full message history for reference
-                    for index, message in enumerate(messages_list):
-                        if isinstance(message, dict):
-                            results[f"llm.input_messages.{index}.message.role"] = message.get(
-                                "role"
-                            )
-                            results[f"llm.input_messages.{index}.message.content"] = message.get(
-                                "content"
-                            )
-                            results[f"llm.input_messages.{index}.message.name"] = message.get(
-                                "name"
-                            )
-                        else:
-                            results[f"llm.input_messages.{index}.message.role"] = "unknown"
-                            results[f"llm.input_messages.{index}.message.content"] = str(message)
-                            results[f"llm.input_messages.{index}.message.name"] = "unknown"
-                except (TypeError, ValueError, AttributeError) as e:
-                    logger.debug(f"Could not serialize LLMContext messages: {e}")
-
-            # Extract tools if present
-            if hasattr(context, "_tools") and context._tools:
-                try:
-                    tools = context._tools
-
-                    # Get tool count
-                    if isinstance(tools, list):
-                        results["llm.tools_count"] = len(tools)
-
-                        # Extract tool names as comma-separated list
-                        tool_names = []
-                        for tool in tools:
-                            if isinstance(tool, dict) and "name" in tool:
-                                tool_names.append(tool["name"])
-                            elif hasattr(tool, "name"):
-                                tool_names.append(tool.name)
-                            elif (
-                                isinstance(tool, dict)
-                                and "function" in tool
-                                and "name" in tool["function"]
-                            ):
-                                tool_names.append(tool["function"]["name"])
-
-                        if tool_names:
-                            results["tools.names"] = ",".join(tool_names)
-
-                        # Serialize full tool definitions (with size limit)
-                        try:
-                            tools_json = safe_json_dumps(tools)
-                            if tools_json and len(tools_json) < 10000:  # 10KB limit
-                                results["tools.definitions"] = tools_json
-                        except (TypeError, ValueError) as e:
-                            logger.debug(f"Could not serialize tool definitions: {e}")
-
-                except (TypeError, AttributeError) as e:
-                    logger.debug(f"Could not extract tool information: {e}")
-
-        return results
-
-
-# Singleton LLM messages frame extractor
-_llm_messages_frame_extractor = LLMMessagesFrameExtractor()
 
 
 class LLMMessagesSequenceFrameExtractor(FrameAttributeExtractor):
@@ -726,7 +639,6 @@ class GenericFrameExtractor(FrameAttributeExtractor):
     frame_extractor_map: Dict[Type[Frame], FrameAttributeExtractor] = {
         TextFrame: _text_frame_extractor,
         LLMContextFrame: _llm_context_frame_extractor,
-        LLMMessagesFrame: _llm_messages_frame_extractor,
         LLMMessagesAppendFrame: _llm_messages_append_frame_extractor,
         LLMFullResponseStartFrame: _llm_full_response_start_frame_extractor,
         LLMFullResponseEndFrame: _llm_full_response_end_frame_extractor,
