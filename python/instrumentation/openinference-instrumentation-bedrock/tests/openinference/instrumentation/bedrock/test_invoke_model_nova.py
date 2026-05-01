@@ -151,6 +151,8 @@ class TestNovaInvokeModel:
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
         assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+        assert isinstance(attributes.pop(INPUT_MIME_TYPE), str)
+        assert isinstance(attributes.pop(OUTPUT_MIME_TYPE), str)
 
         remaining = {k: v for k, v in attributes.items()}
         message_keys = [k for k in remaining if k.startswith("llm.")]
@@ -219,3 +221,5 @@ LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
+INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
+OUTPUT_MIME_TYPE = SpanAttributes.OUTPUT_MIME_TYPE
