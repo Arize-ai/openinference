@@ -105,33 +105,35 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
     def _patch_trace_tool_call(self) -> None:
         """Patch the tool call tracing functionality to use our tracer."""
-        from google.adk.flows.llm_flows import functions
-
         from openinference.instrumentation.google_adk._wrappers import _TraceToolCall
 
-        setattr(functions, "tracer", self._tracer)
+        target = _resolve_trace_tool_call_module()
+        # On ADK < 1.32 the target was google.adk.flows.llm_flows.functions, whose
+        # local `tracer` attr is used for ad-hoc spans we want to convert to OI spans.
+        # On ADK >= 1.32 the target is google.adk.telemetry.tracing — its `tracer`
+        # attr is the global ADK tracer that `_disable_existing_tracers` swaps with a
+        # _PassthroughTracer to suppress duplicate native spans, so we leave it alone.
+        if _adk_version() < (1, 32, 0):
+            setattr(target, "tracer", self._tracer)
         setattr(
-            functions,
+            target,
             "trace_tool_call",
-            _TraceToolCall(self._tracer)(functions.trace_tool_call),  # type: ignore[attr-defined]
+            _TraceToolCall(self._tracer)(target.trace_tool_call),  # type: ignore[attr-defined]
         )
 
     def _unpatch_trace_tool_call(self) -> None:
         """Restore the original tool call tracing functionality."""
-        from google.adk.flows.llm_flows.base_llm_flow import functions  # type: ignore[attr-defined]
+        target = _resolve_trace_tool_call_module()
 
         if callable(
-            original := getattr(functions.trace_tool_call, "__wrapped__"),  # type: ignore[attr-defined]
+            original := getattr(target.trace_tool_call, "__wrapped__", None),  # type: ignore[attr-defined]
         ):
-            from google.adk.flows.llm_flows.base_llm_flow import (  # type: ignore[attr-defined]
-                functions,
-            )
+            setattr(target, "trace_tool_call", original)
 
-            setattr(functions, "trace_tool_call", original)
+        if _adk_version() < (1, 32, 0):
+            from google.adk.telemetry import tracer
 
-        from google.adk.telemetry import tracer
-
-        setattr(functions, "tracer", tracer)
+            setattr(target, "tracer", tracer)
 
     def _disable_existing_tracers(self) -> None:
         """Disable existing tracers to prevent double-instrumentation."""
@@ -144,20 +146,19 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(runners, "tracer", _PassthroughTracer(tracer))
 
-        from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        # ADK 1.32 removed `tracer` from google.adk.agents.base_agent.
+        # Skip patching it on newer ADK; telemetry.tracing.tracer below covers the path.
+        if _adk_version() < (1, 32, 0):
+            from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
+                tracer,  # pyright: ignore[reportPrivateImportUsage]
+            )
 
-        if isinstance(tracer, Tracer):
-            from google.adk.agents import base_agent
+            if isinstance(tracer, Tracer):
+                from google.adk.agents import base_agent
 
-            setattr(base_agent, "tracer", _PassthroughTracer(tracer))
+                setattr(base_agent, "tracer", _PassthroughTracer(tracer))
 
-        from google.adk import __version__
-
-        version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
-
-        if version >= (1, 15, 0):
+        if _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
             )
@@ -176,20 +177,17 @@ class GoogleADKInstrumentor(BaseInstrumentor):  # type: ignore
 
             setattr(runners, "tracer", original)
 
-        from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
-            tracer,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        if _adk_version() < (1, 32, 0):
+            from google.adk.agents.base_agent import (  # type: ignore[attr-defined, unused-ignore]
+                tracer,  # pyright: ignore[reportPrivateImportUsage]
+            )
 
-        if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
-            from google.adk.agents import base_agent
+            if isinstance(original := getattr(tracer, "__wrapped__"), Tracer):
+                from google.adk.agents import base_agent
 
-            setattr(base_agent, "tracer", original)
+                setattr(base_agent, "tracer", original)
 
-        from google.adk import __version__
-
-        version = cast(tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
-
-        if version >= (1, 15, 0):
+        if _adk_version() >= (1, 15, 0):
             from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
                 tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
             )
@@ -209,3 +207,29 @@ class _PassthroughTracer(wrapt.ObjectProxy):  # type: ignore[misc]
     def start_as_current_span(self, *args: Any, **kwargs: Any) -> Iterator[Span]:
         """Return the current span without creating a new one."""
         yield get_current_span()
+
+
+def _adk_version() -> Tuple[int, int, int]:
+    """Return the installed google-adk version as a (major, minor, patch) tuple."""
+    from google.adk import __version__
+
+    return cast(Tuple[int, int, int], tuple(int(x) for x in __version__.split(".")[:3]))
+
+
+def _resolve_trace_tool_call_module() -> Any:
+    """Return the module that exposes ``trace_tool_call`` for the installed ADK.
+
+    ADK 1.32 moved ``trace_tool_call`` from ``google.adk.flows.llm_flows.functions``
+    to ``google.adk.telemetry.tracing``. Both modules also carry a ``tracer``
+    attribute that the instrumentor swaps in.
+    """
+    if _adk_version() >= (1, 32, 0):
+        from google.adk.telemetry import (  # type: ignore[attr-defined,import-not-found,unused-ignore]
+            tracing as adk_tracing,  # type: ignore[attr-defined,unused-ignore]
+        )
+
+        return adk_tracing
+
+    from google.adk.flows.llm_flows import functions
+
+    return functions
