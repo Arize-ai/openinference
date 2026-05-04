@@ -12,10 +12,17 @@ from opentelemetry.context import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
 from typing_extensions import override
 
-from openinference.instrumentation import get_attributes_from_context, safe_json_dumps
+from openinference.instrumentation import (
+    get_attributes_from_context,
+    get_llm_attributes,
+    safe_json_dumps,
+)
 from openinference.instrumentation.bedrock._attribute_extractor import AttributeExtractor
 from openinference.instrumentation.bedrock._converse_attributes import (
     get_attributes_from_request_data,
+)
+from openinference.instrumentation.bedrock.utils._extract_invoke_model_attributes import (
+    _build_nova_input_messages,
 )
 
 if TYPE_CHECKING:
@@ -55,18 +62,17 @@ class _NovaStreamCallback:
         self._text_chunks: list[str] = []
         body = request.get("body", {})
         span.set_attribute(OPENINFERENCE_SPAN_KIND, LLM)
+        span.set_attribute(LLM_PROVIDER, AWS)
         if model_id := request.get("modelId"):
             span.set_attribute(LLM_MODEL_NAME, str(model_id))
-        messages = body.get("messages", [])
-        for msg in reversed(messages):
-            if isinstance(msg, dict) and msg.get("role") == "user":
-                for block in msg.get("content", []):
-                    if isinstance(block, dict) and (text := block.get("text")):
-                        span.set_attribute(INPUT_VALUE, str(text))
-                        break
-                break
+        if messages := body.get("messages"):
+            span.set_attribute(INPUT_VALUE, safe_json_dumps(messages))
+            span.set_attribute(INPUT_MIME_TYPE, JSON)
         if inference_config := body.get("inferenceConfig"):
             span.set_attribute(LLM_INVOCATION_PARAMETERS, safe_json_dumps(inference_config))
+        input_messages = _build_nova_input_messages(body)
+        if input_messages:
+            span.set_attributes(get_llm_attributes(input_messages=input_messages))
 
     def __call__(self, obj: Any) -> Any:
         span = self._span
@@ -653,6 +659,7 @@ def _apply_guardrail_wrapper(tracer: Tracer) -> Callable[[Any], Callable[..., An
     return _guardrail_wrapper
 
 
+AWS = OpenInferenceLLMProviderValues.AWS.value
 IMAGE_URL = ImageAttributes.IMAGE_URL
 INPUT_MIME_TYPE = SpanAttributes.INPUT_MIME_TYPE
 INPUT_VALUE = SpanAttributes.INPUT_VALUE
@@ -661,6 +668,7 @@ LLM = OpenInferenceSpanKindValues.LLM.value
 LLM_INPUT_MESSAGES = SpanAttributes.LLM_INPUT_MESSAGES
 LLM_INVOCATION_PARAMETERS = SpanAttributes.LLM_INVOCATION_PARAMETERS
 LLM_MODEL_NAME = SpanAttributes.LLM_MODEL_NAME
+LLM_PROVIDER = SpanAttributes.LLM_PROVIDER
 LLM_TOKEN_COUNT_COMPLETION = SpanAttributes.LLM_TOKEN_COUNT_COMPLETION
 LLM_TOKEN_COUNT_PROMPT = SpanAttributes.LLM_TOKEN_COUNT_PROMPT
 LLM_TOKEN_COUNT_TOTAL = SpanAttributes.LLM_TOKEN_COUNT_TOTAL

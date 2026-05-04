@@ -52,9 +52,13 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(INPUT_VALUE) == user_text
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
         output_value = attributes.pop(OUTPUT_VALUE)
         assert isinstance(output_value, str) and len(output_value) > 0
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -62,6 +66,9 @@ class TestNovaInvokeModel:
             invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
         )
         assert json.loads(invocation_parameters_str) == {"maxTokens": 64, "temperature": 0.1}
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
         assert attributes == {}
 
     @pytest.mark.vcr(
@@ -101,9 +108,13 @@ class TestNovaInvokeModel:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        # INPUT_VALUE comes from the last user message text
-        assert attributes.pop(INPUT_VALUE) == user_text
-        assert isinstance(attributes.pop(OUTPUT_VALUE), str)
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and len(output_value) > 0
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
@@ -111,6 +122,96 @@ class TestNovaInvokeModel:
             invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str
         )
         assert json.loads(invocation_parameters_str) == {"maxTokens": 128, "temperature": 0.5}
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
+        assert attributes == {}
+
+    @pytest.mark.vcr(
+        before_record_request=lambda r: r.headers.clear() or r,
+    )
+    def test_nova_with_tool_use(
+        self,
+        in_memory_span_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Nova invoke_model where the model responds with a tool call."""
+        model_id = "amazon.nova-micro-v1:0"
+        client = boto3.client(
+            "bedrock-runtime",
+            region_name="us-east-1",
+            aws_access_key_id="123",
+            aws_secret_access_key="321",
+        )
+        user_text = "What is the weather in Seattle?"
+        tool_name = "get_weather"
+        request_body = {
+            "schemaVersion": "messages-v1",
+            "messages": [{"role": "user", "content": [{"text": user_text}]}],
+            "toolConfig": {
+                "tools": [
+                    {
+                        "toolSpec": {
+                            "name": tool_name,
+                            "description": "Get the current weather for a location.",
+                            "inputSchema": {
+                                "json": {
+                                    "type": "object",
+                                    "properties": {
+                                        "location": {
+                                            "type": "string",
+                                            "description": "The city and state",
+                                        }
+                                    },
+                                    "required": ["location"],
+                                }
+                            },
+                        }
+                    }
+                ]
+            },
+            "inferenceConfig": {"maxTokens": 256, "temperature": 0.1},
+        }
+        response = client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body),
+        )
+        response_body = json.loads(response["body"].read())
+        assert response_body["stopReason"] == "tool_use"
+        tool_use_block = response_body["output"]["message"]["content"][1]["toolUse"]
+        tool_use_id = tool_use_block["toolUseId"]
+
+        spans = in_memory_span_exporter.get_finished_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.status.is_ok
+        attributes = dict(span.attributes or {})
+
+        assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+        assert attributes.pop(LLM_MODEL_NAME) == model_id
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
+
+        output_value = attributes.pop(OUTPUT_VALUE)
+        assert isinstance(output_value, str) and tool_name in output_value
+        assert attributes.pop(OUTPUT_MIME_TYPE) == "application/json"
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_COMPLETION), int)
+        assert isinstance(attributes.pop(LLM_TOKEN_COUNT_TOTAL), int)
+        assert isinstance(attributes.pop(LLM_INVOCATION_PARAMETERS), str)
+
+        tool_call_prefix = "llm.output_messages.0.message.tool_calls.0.tool_call"
+        assert attributes.pop(f"{tool_call_prefix}.id") == tool_use_id
+        assert attributes.pop(f"{tool_call_prefix}.function.name") == tool_name
+        tool_args = json.loads(
+            str(attributes.pop(f"{tool_call_prefix}.function.arguments") or "{}")
+        )
+        assert "location" in tool_args
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
         assert attributes == {}
 
     @pytest.mark.vcr(
@@ -200,7 +301,9 @@ class TestNovaInvokeModelWithResponseStream:
 
         assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
         assert attributes.pop(LLM_MODEL_NAME) == model_id
-        assert attributes.pop(INPUT_VALUE) == user_text
+        input_value = attributes.pop(INPUT_VALUE)
+        assert isinstance(input_value, str) and user_text in input_value
+        assert attributes.pop(INPUT_MIME_TYPE) == "application/json"
         output_value = attributes.pop(OUTPUT_VALUE)
         assert isinstance(output_value, str) and len(output_value) > 0
         assert isinstance(attributes.pop(LLM_TOKEN_COUNT_PROMPT), int)
@@ -210,6 +313,10 @@ class TestNovaInvokeModelWithResponseStream:
         invocation_parameters_str = attributes.pop(LLM_INVOCATION_PARAMETERS)
         assert isinstance(invocation_parameters_str, str)
         assert json.loads(invocation_parameters_str) == inference_config
+        assert attributes.pop(SpanAttributes.LLM_PROVIDER) == "aws"
+        for k in list(attributes.keys()):
+            if k.startswith("llm."):
+                attributes.pop(k)
         assert attributes == {}
 
 

@@ -89,5 +89,5 @@ def nova_converse_with_multi_turn() -> None:
 
 if __name__ == "__main__":
     nova_invoke_model_stream()
-    # nova_invoke_model()
-    # nova_converse_with_multi_turn()
+    nova_invoke_model()
+    nova_converse_with_multi_turn()

@@ -173,13 +173,22 @@ def test_invoke_model_nova(
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
     assert attributes.pop(LLM_MODEL_NAME) == model_id
-    assert attributes.pop(INPUT_VALUE) == user_text
-    assert attributes.pop(OUTPUT_VALUE) == assistant_text
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
+    input_value = attributes.pop(INPUT_VALUE)
+    assert isinstance(input_value, str) and user_text in input_value
+    assert attributes.pop(INPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
+    output_value = attributes.pop(OUTPUT_VALUE)
+    assert isinstance(output_value, str) and assistant_text in output_value
+    assert attributes.pop(OUTPUT_MIME_TYPE) == OpenInferenceMimeTypeValues.JSON.value
     assert attributes.pop(LLM_TOKEN_COUNT_PROMPT) == 10
     assert attributes.pop(LLM_TOKEN_COUNT_COMPLETION) == 8
     assert attributes.pop(LLM_TOKEN_COUNT_TOTAL) == 18
     assert isinstance(invocation_parameters_str := attributes.pop(LLM_INVOCATION_PARAMETERS), str)
     assert json.loads(invocation_parameters_str) == {"maxTokens": 512, "temperature": 0.7}
+    # Pop structured message attributes (llm.input_messages.*, llm.output_messages.*)
+    for k in list(attributes.keys()):
+        if k.startswith("llm."):
+            attributes.pop(k)
     assert attributes == {}
 
 
@@ -249,6 +258,7 @@ def test_invoke_client(
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
     assert attributes.pop(OUTPUT_VALUE) == " Hello!"
     assert attributes.pop(LLM_MODEL_NAME) == model_name
@@ -338,6 +348,7 @@ def test_invoke_client_with_missing_tokens(
     assert span.status.is_ok
     attributes = dict(span.attributes or dict())
     assert attributes.pop(OPENINFERENCE_SPAN_KIND) == OpenInferenceSpanKindValues.LLM.value
+    assert attributes.pop(LLM_PROVIDER) == OpenInferenceLLMProviderValues.AWS.value
     assert attributes.pop(INPUT_VALUE) == body["prompt"]
     assert attributes.pop(OUTPUT_VALUE) == " Hello!"
     assert attributes.pop(LLM_MODEL_NAME) == model_name
