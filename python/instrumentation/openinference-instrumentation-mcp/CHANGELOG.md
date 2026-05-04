@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.3...python-openinference-instrumentation-mcp-v2.0.0) (2026-04-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** support streamable_http_client introduced in mcp ([#3012](https://github.com/Arize-ai/openinference/issues/3012))
+
+### Features
+
+* **mcp:** support streamable_http_client introduced in mcp ([#3012](https://github.com/Arize-ai/openinference/issues/3012)) ([0d0fa3d](https://github.com/Arize-ai/openinference/commit/0d0fa3da31e3ea1335786b88e975033be967183b))
+
 ## [1.3.3](https://github.com/Arize-ai/openinference/compare/python-openinference-instrumentation-mcp-v1.3.2...python-openinference-instrumentation-mcp-v1.3.3) (2025-10-23)
 
 
