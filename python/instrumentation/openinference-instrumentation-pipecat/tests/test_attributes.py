@@ -1,5 +1,6 @@
 """Tests for attribute extraction from Pipecat frames and services."""
 
+import json
 from unittest.mock import Mock
 
 from pipecat.frames.frames import (
@@ -7,6 +8,7 @@ from pipecat.frames.frames import (
     LLMContextFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
+    LLMMessagesAppendFrame,
     LLMTextFrame,
     MetricsFrame,
     TextFrame,
@@ -31,7 +33,11 @@ from openinference.instrumentation.pipecat._attributes import (
     get_model_name,
     safe_extract,
 )
-from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from openinference.semconv.trace import (
+    MessageAttributes,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
 
 
 class TestServiceDetection:
@@ -261,6 +267,77 @@ class TestFrameAttributeExtraction:
         assert attributes["llm.tools_count"] == 1
         assert attributes["tools.names"] == "get_weather"
         assert "tools.definitions" in attributes
+
+    def test_extract_llm_context_frame_with_multimodal_content(self) -> None:
+        """Test structured message content is JSON-serialized for OTel attributes."""
+        message = LLMContext.create_image_url_message(
+            url="https://example.test/image.png",
+            text="describe this",
+        )
+        context = LLMContext(messages=[message])
+
+        frame = LLMContextFrame(context=context)
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.messages_count"] == 1
+        assert attributes["llm.input_messages.0.message.role"] == "user"
+        assert attributes["llm.input_messages.0.message.content"] == json.dumps(message["content"])
+        assert attributes[SpanAttributes.INPUT_VALUE] == json.dumps(message["content"])
+
+    def test_extract_llm_context_frame_with_tool_calls(self) -> None:
+        """Test assistant tool calls are preserved when context extraction is shared."""
+        context = LLMContext(
+            messages=[
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"location": "SF"}',
+                            },
+                        }
+                    ],
+                }
+            ]
+        )
+
+        frame = LLMContextFrame(context=context)
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.input_messages.0.message.role"] == "assistant"
+        assert attributes["llm.input_messages.0.message.tool_calls.0.tool_call.id"] == "call_123"
+        assert (
+            attributes["llm.input_messages.0.message.tool_calls.0.tool_call.function.name"]
+            == "get_weather"
+        )
+        assert (
+            attributes["llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments"]
+            == '{"location": "SF"}'
+        )
+
+    def test_extract_llm_messages_append_frame_payload(self) -> None:
+        """LLMMessagesAppendFrame.messages payload should land on the span attrs.
+
+        Pipecat 1.x exposes the messages list as `messages`, not `_messages`.
+        Regression guard: extractor must read the public field so the payload
+        isn't silently dropped.
+        """
+        frame = LLMMessagesAppendFrame(messages=[{"role": "user", "content": "appended turn"}])
+        attributes = extract_attributes_from_frame(frame)
+
+        assert attributes["llm.response_phase"] == "append"
+        assert SpanAttributes.LLM_INPUT_MESSAGES in attributes
+        appended = attributes[SpanAttributes.LLM_INPUT_MESSAGES]
+        assert appended == [
+            {
+                MessageAttributes.MESSAGE_ROLE: "user",
+                MessageAttributes.MESSAGE_CONTENT: "appended turn",
+                MessageAttributes.MESSAGE_NAME: None,
+            }
+        ]
 
     def test_extract_llm_full_response_start_frame(self) -> None:
         """Test LLM full response start frame extraction."""
