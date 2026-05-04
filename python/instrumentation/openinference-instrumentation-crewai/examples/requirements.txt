@@ -3,5 +3,5 @@ crewai>=1.10.1
 crewai-tools>=1.10.1
 openinference-instrumentation-crewai>=0.1.0
 opentelemetry-api>=1.20.0
-opentelemetry-sdk>=1.20.0
+opentelemetry-sdk>=1.41.1
 opentelemetry-exporter-otlp>=1.20.0
