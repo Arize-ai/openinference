@@ -10,5 +10,5 @@ openinference-instrumentation-langchain >=0.1.24
 opentelemetry-api >=1.25.0
 opentelemetry-exporter-otlp >=1.25.0
 opentelemetry-proto >=1.25.0
-opentelemetry-sdk >=1.25.0
+opentelemetry-sdk >=1.41.1
 opentelemetry-semantic-conventions >=0.46b0
