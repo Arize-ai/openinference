@@ -33,23 +33,8 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
 )
 from pipecat.observers.base_observer import FramePushed
-
-try:
-    from pipecat.observers.user_bot_latency_observer import (  # type: ignore[import-not-found,unused-ignore]
-        UserBotLatencyObserver,
-    )
-
-    _LatencyObserverCls: Any = UserBotLatencyObserver
-    _PIPECAT_NEW_LATENCY_OBSERVER = True
-except ImportError:
-    from pipecat.observers.loggers.user_bot_latency_log_observer import (  # type: ignore[import-not-found,unused-ignore]
-        UserBotLatencyLogObserver,
-    )
-
-    _LatencyObserverCls: Any = UserBotLatencyLogObserver  # type: ignore[no-redef]
-    _PIPECAT_NEW_LATENCY_OBSERVER = False
-
 from pipecat.observers.turn_tracking_observer import TurnTrackingObserver
+from pipecat.observers.user_bot_latency_observer import UserBotLatencyObserver
 from pipecat.processors.frame_processor import FrameProcessor
 from pipecat.services.ai_service import AIService
 from pipecat.services.llm_service import LLMService
@@ -111,14 +96,12 @@ class OpenInferenceObserver(TurnTrackingObserver):
             turn_end_timeout_secs=turn_end_timeout_secs,
             **kwargs,
         )
-        self._latency_observer: Any = _LatencyObserverCls()
-        self._latency_measurements: List[float] = []
-        if _PIPECAT_NEW_LATENCY_OBSERVER:
-            _measurements = self._latency_measurements
+        self._latency_observer: UserBotLatencyObserver = UserBotLatencyObserver()  # type: ignore[no-untyped-call]
+        self._last_user_to_bot_latency: Optional[float] = None
 
-            @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
-            async def _record_latency(obs: Any, latency_secs: float) -> None:
-                _measurements.append(latency_secs)
+        @self._latency_observer.event_handler("on_latency_measured")  # type: ignore[misc]
+        async def _on_latency_measured(_observer: Any, latency_seconds: float) -> None:
+            self._last_user_to_bot_latency = latency_seconds
 
         self._tracer: OITracer = tracer
         self._config: TraceConfig = config
@@ -367,42 +350,8 @@ class OpenInferenceObserver(TurnTrackingObserver):
                     elif service_type == "stt":
                         self._active_stt_service_id = service_id
 
-                    # Set input context for LLM Span
                     if isinstance(frame, LLMContextFrame):
-
-                        def set_tool_call_attributes(
-                            span: Span, prefix: str, tool_call: Dict[str, Any]
-                        ) -> None:
-                            """Set attributes for a tool call with tool_call. prefix."""
-                            # tool_call typically has: id, type, function.name, function.arguments
-                            if "id" in tool_call:
-                                span.set_attribute(f"{prefix}.tool_call.id", tool_call["id"])
-                            if "function" in tool_call and isinstance(tool_call["function"], dict):
-                                func = tool_call["function"]
-                                if "name" in func:
-                                    span.set_attribute(
-                                        f"{prefix}.tool_call.function.name",
-                                        func["name"],
-                                    )
-                                if "arguments" in func:
-                                    span.set_attribute(
-                                        f"{prefix}.tool_call.function.arguments",
-                                        func["arguments"],
-                                    )
-
-                        index = 0
-                        for ctx in frame.context.messages:
-                            for key, value in ctx.items():  # type: ignore[union-attr]
-                                prefix = f"llm.input_messages.{index}.message.{key}"
-                                if key == "tool_calls" and isinstance(value, list):
-                                    # Handle tool_calls specially with tool_call. prefix
-                                    for tc_idx, tool_call in enumerate(value):
-                                        tc_prefix = f"llm.input_messages.{index}.message.tool_calls.{tc_idx}"  # noqa
-                                        if isinstance(tool_call, dict):
-                                            set_tool_call_attributes(span, tc_prefix, tool_call)
-                                else:
-                                    span.set_attribute(prefix, value)  # type: ignore[arg-type]
-                            index += 1
+                        span.set_attributes(extract_attributes_from_frame(frame))
 
                 # BaseOutputTransport's service_id isn't in self._active_spans but that's ok;
                 # just collect text for the turn, not the span
@@ -863,18 +812,14 @@ class OpenInferenceObserver(TurnTrackingObserver):
             bot_output = join_space.join(self._turn_bot_text)
             self._turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, bot_output)
 
-        _latencies = (
-            self._latency_measurements
-            if _PIPECAT_NEW_LATENCY_OBSERVER
-            else getattr(self._latency_observer, "_latencies", [])
-        )
-        if len(_latencies):
+        if self._last_user_to_bot_latency is not None:
             self._turn_span.set_attribute(
                 "conversation.user_to_bot_latency",
-                _latencies[-1],
+                self._last_user_to_bot_latency,
             )
-            self._log_debug(f"  Set user_to_bot_latency attribute: {_latencies[-1]}")
-            self._log_debug(f"  Latency observer latencies: {_latencies}")
+            self._log_debug(
+                f"  Set user_to_bot_latency attribute: {self._last_user_to_bot_latency}"
+            )
         # Finish all active service spans BEFORE ending the turn span
         # This ensures child spans are ended before the parent
         service_ids_to_finish = list(self._active_spans.keys())
