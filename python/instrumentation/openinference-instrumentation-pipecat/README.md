@@ -6,7 +6,7 @@ Python auto-instrumentation library for Pipecat. This library allows you to conv
 
 | `openinference-instrumentation-pipecat` | `pipecat-ai`     | Python   |
 | --------------------------------------- | ---------------- | -------- |
-| `>=0.2`                                 | `>=1.0`          | `>=3.11` |
+| `>=1.0`                                 | `>=1.0`          | `>=3.11` |
 | `<=0.1.4`                               | `<1.0` (e.g. `0.0.99`) | `>=3.10` |
 
 Pipecat 1.0 introduced breaking changes (renamed observers, removed
